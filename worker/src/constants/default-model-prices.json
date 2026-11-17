@@ -448,9 +448,9 @@
   {
     "id": "clrntjt89000908jwhvkz5crg",
     "modelName": "text-embedding-ada-002-v2",
-    "matchPattern": "(?i)^(text-embedding-ada-002-v2)$",
+    "matchPattern": "(?i)^(openai\/)?(text-embedding-ada-002-v2)$",
     "createdAt": "2024-01-24T18:18:50.861Z",
-    "updatedAt": "2024-01-24T18:18:50.861Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
     "tokenizerConfig": {
       "tokenizerModel": "text-embedding-ada-002"
     },
@@ -463,7 +463,7 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "total": 1e-7
+          "total": 0.1e-6
         }
       }
     ]
@@ -471,9 +471,9 @@
   {
     "id": "clrntjt89000908jwhvkz5crm",
     "modelName": "text-embedding-ada-002",
-    "matchPattern": "(?i)^(text-embedding-ada-002)$",
+    "matchPattern": "(?i)^(openai\/)?(text-embedding-ada-002)$",
     "createdAt": "2024-01-24T18:18:50.861Z",
-    "updatedAt": "2024-01-24T18:18:50.861Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
     "tokenizerConfig": {
       "tokenizerModel": "text-embedding-ada-002"
     },
@@ -486,7 +486,7 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "total": 1e-7
+          "total": 0.1e-6
         }
       }
     ]
@@ -819,9 +819,9 @@
   {
     "id": "clruwn3pc00010al7bl611c8o",
     "modelName": "text-embedding-3-small",
-    "matchPattern": "(?i)^(text-embedding-3-small)$",
+    "matchPattern": "(?i)^(openai\/)?(text-embedding-3-small)$",
     "createdAt": "2024-01-26T17:35:21.129Z",
-    "updatedAt": "2024-01-26T17:35:21.129Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
     "tokenizerConfig": {
       "tokenizerModel": "text-embedding-ada-002"
     },
@@ -834,7 +834,7 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "total": 2e-8
+          "total": 0.02e-6
         }
       }
     ]
@@ -842,9 +842,9 @@
   {
     "id": "clruwn76700020al7gp8e4g4l",
     "modelName": "text-embedding-3-large",
-    "matchPattern": "(?i)^(text-embedding-3-large)$",
+    "matchPattern": "(?i)^(openai\/)?(text-embedding-3-large)$",
     "createdAt": "2024-01-26T17:35:21.129Z",
-    "updatedAt": "2024-01-26T17:35:21.129Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
     "tokenizerConfig": {
       "tokenizerModel": "text-embedding-ada-002"
     },
@@ -857,7 +857,7 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "total": 1.3e-7
+          "total": 0.13e-6
         }
       }
     ]
@@ -2145,6 +2145,102 @@
     ]
   },
   {
+    "id": "9c8f3874-7f8b-4271-853a-3ee9d270f919",
+    "modelName": "gpt-audio-1.5",
+    "matchPattern": "(?i)^(openai/)?(gpt-audio-1\\.5)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "9c8f3874-7f8b-4271-853a-3ee9d270f919_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.5e-6,
+          "input_text_tokens": 2.5e-6,
+          "input_audio_tokens": 32e-6,
+          "input_audio": 32e-6,
+          "output": 10e-6,
+          "output_text_tokens": 10e-6,
+          "output_audio_tokens": 64e-6,
+          "output_audio": 64e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "8ae893f6-1228-482a-833f-d7be5d480db7",
+    "modelName": "gpt-audio",
+    "matchPattern": "(?i)^(openai/)?(gpt-audio|gpt-audio-2025-08-28)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "8ae893f6-1228-482a-833f-d7be5d480db7_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.5e-6,
+          "input_text_tokens": 2.5e-6,
+          "input_audio_tokens": 32e-6,
+          "input_audio": 32e-6,
+          "output": 10e-6,
+          "output_text_tokens": 10e-6,
+          "output_audio_tokens": 64e-6,
+          "output_audio": 64e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "281b1c53-3332-4804-9bb5-54e0d92eaa56",
+    "modelName": "gpt-audio-mini",
+    "matchPattern": "(?i)^(openai/)?(gpt-audio-mini|gpt-audio-mini-2025-10-06|gpt-audio-mini-2025-12-15)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "281b1c53-3332-4804-9bb5-54e0d92eaa56_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.6e-6,
+          "input_text_tokens": 0.6e-6,
+          "input_audio_tokens": 10e-6,
+          "input_audio": 10e-6,
+          "output": 2.4e-6,
+          "output_text_tokens": 2.4e-6,
+          "output_audio_tokens": 20e-6,
+          "output_audio": 20e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "cm48c2qh4000008mhgy4mg2qc",
     "modelName": "gpt-4o-realtime-preview",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o-realtime-preview)$",
@@ -3399,7 +3495,7 @@
     "modelName": "gemini-2.5-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-flash)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkfwn000107l43bf5e8ax_tier_default",
@@ -3438,7 +3534,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -3469,7 +3565,7 @@
     "modelName": "gemini-2.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -3508,7 +3604,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -3738,6 +3834,41 @@
           "cache_write_tokens": 0.625e-6,
           "input_cache_write_tokens": 0.625e-6,
           "reasoning_tokens": 5e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "7930eed0-9472-4869-bec9-f98817cca249",
+    "modelName": "gpt-5-search-api",
+    "matchPattern": "(?i)^(openai/)?(gpt-5-search-api)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "7930eed0-9472-4869-bec9-f98817cca249_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.25e-6,
+          "input_cached_tokens": 0.125e-6,
+          "input_cache_read": 0.125e-6,
+          "cache_read_input_tokens": 0.125e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
+          "output": 10e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "reasoning_tokens": 10e-6
         }
       }
     ]
@@ -4559,9 +4690,9 @@
   {
     "id": "33f4e272-750f-49d9-90ed-313b3c920da1",
     "modelName": "claude-mythos-5",
-    "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5$",
+    "matchPattern": "(?i)^((anthropic\/)?claude-mythos-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-mythos-5(-v1(:0)?)?)$",
     "createdAt": "2026-06-09T00:00:00.000Z",
-    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-11-12T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4621,9 +4752,9 @@
   {
     "id": "0e053111-eda4-4015-8d36-88f553adabc3",
     "modelName": "claude-mythos-5-1",
-    "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5-1$",
+    "matchPattern": "(?i)^((anthropic\/)?claude-mythos-5-1|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-mythos-5-1(-v1(:0)?)?)$",
     "createdAt": "2026-09-02T00:00:00.000Z",
-    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-11-12T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -4645,6 +4776,122 @@
           "cache_read_input_tokens": 0.25e-6,
           "input_cached_tokens": 0.25e-6,
           "input_cache_read": 0.25e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "145ab108-c339-46b1-b4dc-48efa45b5a86",
+    "modelName": "claude-fable-5-2",
+    "matchPattern": "(?i)^((anthropic\/)?claude-fable-5-2|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-fable-5-2(-v1(:0)?)?)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "145ab108-c339-46b1-b4dc-48efa45b5a86_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 8e-6,
+          "input_tokens": 8e-6,
+          "output": 40e-6,
+          "output_tokens": 40e-6,
+          "cache_creation_input_tokens": 10e-6,
+          "input_cache_creation": 10e-6,
+          "input_cache_creation_5m": 10e-6,
+          "input_cache_creation_1h": 16e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6
+        }
+      },
+      {
+        "id": "b34e3250-d713-4ce2-b72d-1ea39d6a3db0",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "speed",
+            "operator": "in",
+            "values": ["fast"]
+          }
+        ],
+        "prices": {
+          "input": 16e-6,
+          "input_tokens": 16e-6,
+          "output": 80e-6,
+          "output_tokens": 80e-6,
+          "cache_creation_input_tokens": 20e-6,
+          "input_cache_creation": 20e-6,
+          "input_cache_creation_5m": 20e-6,
+          "input_cache_creation_1h": 32e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "f7c379ce-e9ef-4c4c-9e4a-9ffc81fa4a2c",
+    "modelName": "claude-mythos-5-2",
+    "matchPattern": "(?i)^((anthropic\/)?claude-mythos-5-2|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-mythos-5-2(-v1(:0)?)?)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "f7c379ce-e9ef-4c4c-9e4a-9ffc81fa4a2c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 8e-6,
+          "input_tokens": 8e-6,
+          "output": 40e-6,
+          "output_tokens": 40e-6,
+          "cache_creation_input_tokens": 10e-6,
+          "input_cache_creation": 10e-6,
+          "input_cache_creation_5m": 10e-6,
+          "input_cache_creation_1h": 16e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6
+        }
+      },
+      {
+        "id": "23029cc8-4548-451a-97c6-acf627eeb8ce",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "speed",
+            "operator": "in",
+            "values": ["fast"]
+          }
+        ],
+        "prices": {
+          "input": 16e-6,
+          "input_tokens": 16e-6,
+          "output": 80e-6,
+          "output_tokens": 80e-6,
+          "cache_creation_input_tokens": 20e-6,
+          "input_cache_creation": 20e-6,
+          "input_cache_creation_5m": 20e-6,
+          "input_cache_creation_1h": 32e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6
         }
       }
     ]
@@ -4890,7 +5137,7 @@
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-pro)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmig1hb7i000104l72qrzgc6h_tier_default",
@@ -4961,7 +5208,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           },
           {
             "usageDetailPattern": "(input|prompt|cached)",
@@ -5000,7 +5247,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -5106,7 +5353,7 @@
     "modelName": "gemini-3.1-pro-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-pro-preview(-customtools)?)$",
     "createdAt": "2026-02-19T00:00:00.000Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "55106bba-a5dd-441b-bc0d-5652582b349d_tier_default",
@@ -5142,7 +5389,7 @@
         "id": "ada11e9f-fe0d-465a-92af-ce334d0eedeb",
         "name": "Large Context",
         "isDefault": false,
-        "priority": 3,
+        "priority": 5,
         "conditions": [
           {
             "usageDetailPattern": "(input|prompt|cached)",
@@ -5185,7 +5432,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           },
           {
             "usageDetailPattern": "(input|prompt|cached)",
@@ -5228,7 +5475,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -5249,6 +5496,86 @@
           "thoughts_token_count": 21.6e-6,
           "output_reasoning_tokens": 21.6e-6,
           "output_reasoning": 21.6e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
+      },
+      {
+        "id": "c03b729c-55db-4a98-9516-e7f5866f79da",
+        "name": "Flex Large Context",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex", "ON_DEMAND_FLEX"]
+          },
+          {
+            "usageDetailPattern": "(input|prompt|cached)",
+            "operator": "gt",
+            "value": 200000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 2e-6,
+          "input_modality_1": 2e-6,
+          "input_text": 2e-6,
+          "prompt_token_count": 2e-6,
+          "promptTokenCount": 2e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
+          "cached_content_token_count": 0.4e-6,
+          "output": 9e-6,
+          "output_text": 9e-6,
+          "output_modality_1": 9e-6,
+          "candidates_token_count": 9e-6,
+          "candidatesTokenCount": 9e-6,
+          "thoughtsTokenCount": 9e-6,
+          "thoughts_token_count": 9e-6,
+          "output_reasoning_tokens": 9e-6,
+          "output_reasoning": 9e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
+      },
+      {
+        "id": "cba1ecf8-8bd2-4a07-8820-9ff063febe3f",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 4,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex", "ON_DEMAND_FLEX"]
+          }
+        ],
+        "prices": {
+          "input": 1e-6,
+          "input_modality_1": 1e-6,
+          "input_text": 1e-6,
+          "prompt_token_count": 1e-6,
+          "promptTokenCount": 1e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "cached_content_token_count": 0.2e-6,
+          "output": 6e-6,
+          "output_text": 6e-6,
+          "output_modality_1": 6e-6,
+          "candidates_token_count": 6e-6,
+          "candidatesTokenCount": 6e-6,
+          "thoughtsTokenCount": 6e-6,
+          "thoughts_token_count": 6e-6,
+          "output_reasoning_tokens": 6e-6,
+          "output_reasoning": 6e-6,
           "grounding_queries": 0.014,
           "groundingQueries": 0.014,
           "web_search_queries": 0.014,
@@ -7119,6 +7446,68 @@
     ]
   },
   {
+    "id": "689a00aa-f069-4886-a2d8-4822c825cba4",
+    "modelName": "gpt-5.6-cyber",
+    "matchPattern": "(?i)^(openai/)?(gpt-5.6-cyber)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "689a00aa-f069-4886-a2d8-4822c825cba4_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 12.5e-6,
+          "input_cached_tokens": 1.25e-6,
+          "input_cache_read": 1.25e-6,
+          "cache_read_input_tokens": 1.25e-6,
+          "input_cache_creation": 15.625e-6,
+          "cache_write_tokens": 15.625e-6,
+          "input_cache_write_tokens": 15.625e-6,
+          "output": 75e-6,
+          "output_reasoning_tokens": 75e-6,
+          "output_reasoning": 75e-6,
+          "reasoning_tokens": 75e-6
+        }
+      },
+      {
+        "id": "6221d694-8e40-47c9-86b9-582b1643b4d2",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 25e-6,
+          "input_cached_tokens": 2.5e-6,
+          "input_cache_read": 2.5e-6,
+          "cache_read_input_tokens": 2.5e-6,
+          "input_cache_creation": 31.25e-6,
+          "cache_write_tokens": 31.25e-6,
+          "input_cache_write_tokens": 31.25e-6,
+          "output": 112.5e-6,
+          "output_reasoning_tokens": 112.5e-6,
+          "output_reasoning": 112.5e-6,
+          "reasoning_tokens": 112.5e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "92f817ff-d8a1-479b-87eb-405f9c7b4a18",
     "modelName": "gpt-6-astra",
     "matchPattern": "(?i)^(openai/)?(gpt-6-astra)$",
@@ -7356,6 +7745,68 @@
           "output_reasoning_tokens": 75e-6,
           "output_reasoning": 75e-6,
           "reasoning_tokens": 75e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "83251617-0143-4931-811a-5479242ca960",
+    "modelName": "gpt-6-cyber",
+    "matchPattern": "(?i)^(openai/)?(gpt-6-cyber)$",
+    "createdAt": "2026-11-10T00:00:00.000Z",
+    "updatedAt": "2026-11-10T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "83251617-0143-4931-811a-5479242ca960_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 20e-6,
+          "input_cached_tokens": 2e-6,
+          "input_cache_read": 2e-6,
+          "cache_read_input_tokens": 2e-6,
+          "input_cache_creation": 25e-6,
+          "cache_write_tokens": 25e-6,
+          "input_cache_write_tokens": 25e-6,
+          "output": 100e-6,
+          "output_reasoning_tokens": 100e-6,
+          "output_reasoning": 100e-6,
+          "reasoning_tokens": 100e-6
+        }
+      },
+      {
+        "id": "bb2c85d7-60a0-44c9-a454-46717007a199",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 40e-6,
+          "input_cached_tokens": 4e-6,
+          "input_cache_read": 4e-6,
+          "cache_read_input_tokens": 4e-6,
+          "input_cache_creation": 40e-6,
+          "cache_write_tokens": 40e-6,
+          "input_cache_write_tokens": 40e-6,
+          "output": 150e-6,
+          "output_reasoning_tokens": 150e-6,
+          "output_reasoning": 150e-6,
+          "reasoning_tokens": 150e-6
         }
       }
     ]
@@ -8177,7 +8628,7 @@
     "modelName": "gemini-3.5-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash)$",
     "createdAt": "2026-05-20T00:00:00.000Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "6ed696e7-5f3a-4113-a233-019155fb3ff0_tier_default",
@@ -8219,7 +8670,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8245,6 +8696,43 @@
           "web_search_queries": 0.014,
           "webSearchQueries": 0.014
         }
+      },
+      {
+        "id": "fff9b2d9-d5f6-435c-a2dc-533d9b102d46",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex", "ON_DEMAND_FLEX"]
+          }
+        ],
+        "prices": {
+          "input": 0.75e-6,
+          "input_modality_1": 0.75e-6,
+          "input_text": 0.75e-6,
+          "prompt_token_count": 0.75e-6,
+          "promptTokenCount": 0.75e-6,
+          "input_cached_tokens": 0.075e-6,
+          "input_cache_read": 0.075e-6,
+          "cached_content_token_count": 0.075e-6,
+          "output": 4.5e-6,
+          "output_text": 4.5e-6,
+          "output_modality_1": 4.5e-6,
+          "candidates_token_count": 4.5e-6,
+          "candidatesTokenCount": 4.5e-6,
+          "thoughtsTokenCount": 4.5e-6,
+          "thoughts_token_count": 4.5e-6,
+          "output_reasoning_tokens": 4.5e-6,
+          "output_reasoning": 4.5e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -8253,7 +8741,7 @@
     "modelName": "gemini-3-flash-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3-flash-preview)$",
     "createdAt": "2025-12-21T12:01:42.282Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmjfoeykl000004l8ffzra8c7_tier_default",
@@ -8295,7 +8783,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8321,6 +8809,43 @@
           "web_search_queries": 0.014,
           "webSearchQueries": 0.014
         }
+      },
+      {
+        "id": "579487a4-3085-4cfd-a07a-af1dae548e71",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex", "ON_DEMAND_FLEX"]
+          }
+        ],
+        "prices": {
+          "input": 0.25e-6,
+          "input_text": 0.25e-6,
+          "input_modality_1": 0.25e-6,
+          "prompt_token_count": 0.25e-6,
+          "promptTokenCount": 0.25e-6,
+          "input_cached_tokens": 0.05e-6,
+          "input_cache_read": 0.05e-6,
+          "cached_content_token_count": 0.05e-6,
+          "output": 1.5e-6,
+          "output_text": 1.5e-6,
+          "output_modality_1": 1.5e-6,
+          "candidates_token_count": 1.5e-6,
+          "candidatesTokenCount": 1.5e-6,
+          "thoughtsTokenCount": 1.5e-6,
+          "thoughts_token_count": 1.5e-6,
+          "output_reasoning_tokens": 1.5e-6,
+          "output_reasoning": 1.5e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -8329,7 +8854,7 @@
     "modelName": "gemini-3.1-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-flash-lite)$",
     "createdAt": "2026-05-20T00:00:00.000Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "79f4d62c-22fb-4ec3-82e1-6e56cdd5e23c_tier_default",
@@ -8372,7 +8897,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8394,6 +8919,44 @@
           "output_reasoning_tokens": 2.7e-6,
           "output_reasoning": 2.7e-6,
           "input_audio_tokens": 0.9e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
+      },
+      {
+        "id": "b272c55a-26c8-49d6-9340-dcd208ef9329",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex", "ON_DEMAND_FLEX"]
+          }
+        ],
+        "prices": {
+          "input": 0.125e-6,
+          "input_modality_1": 0.125e-6,
+          "input_text": 0.125e-6,
+          "prompt_token_count": 0.125e-6,
+          "promptTokenCount": 0.125e-6,
+          "input_cached_tokens": 0.0125e-6,
+          "input_cache_read": 0.0125e-6,
+          "cached_content_token_count": 0.0125e-6,
+          "output": 0.75e-6,
+          "output_text": 0.75e-6,
+          "output_modality_1": 0.75e-6,
+          "candidates_token_count": 0.75e-6,
+          "candidatesTokenCount": 0.75e-6,
+          "thoughtsTokenCount": 0.75e-6,
+          "thoughts_token_count": 0.75e-6,
+          "output_reasoning_tokens": 0.75e-6,
+          "output_reasoning": 0.75e-6,
+          "input_audio_tokens": 0.25e-6,
           "grounding_queries": 0.014,
           "groundingQueries": 0.014,
           "web_search_queries": 0.014,
@@ -8472,7 +9035,7 @@
     "modelName": "gemini-3.6-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.6-flash)$",
     "createdAt": "2026-07-22T00:00:00.000Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d_tier_default",
@@ -8514,7 +9077,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8540,6 +9103,43 @@
           "web_search_queries": 0.014,
           "webSearchQueries": 0.014
         }
+      },
+      {
+        "id": "e32a30f9-14be-4c3c-bafe-1df30b807fc4",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex", "ON_DEMAND_FLEX"]
+          }
+        ],
+        "prices": {
+          "input": 0.375e-6,
+          "input_text": 0.375e-6,
+          "input_modality_1": 0.375e-6,
+          "prompt_token_count": 0.375e-6,
+          "promptTokenCount": 0.375e-6,
+          "input_cached_tokens": 0.0375e-6,
+          "input_cache_read": 0.0375e-6,
+          "cached_content_token_count": 0.0375e-6,
+          "output": 1.875e-6,
+          "output_text": 1.875e-6,
+          "output_modality_1": 1.875e-6,
+          "candidates_token_count": 1.875e-6,
+          "candidatesTokenCount": 1.875e-6,
+          "thoughtsTokenCount": 1.875e-6,
+          "thoughts_token_count": 1.875e-6,
+          "output_reasoning_tokens": 1.875e-6,
+          "output_reasoning": 1.875e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -8548,7 +9148,7 @@
     "modelName": "gemini-3.7-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.7-flash)$",
     "createdAt": "2026-08-14T00:00:00.000Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "b91d332c-a2fd-b85c-f6e6-971796f3f111_tier_default",
@@ -8590,7 +9190,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8616,6 +9216,43 @@
           "web_search_queries": 0.014,
           "webSearchQueries": 0.014
         }
+      },
+      {
+        "id": "42d36e75-d9c0-404d-89f3-3d3d23fa3d1e",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex", "ON_DEMAND_FLEX"]
+          }
+        ],
+        "prices": {
+          "input": 0.375e-6,
+          "input_text": 0.375e-6,
+          "input_modality_1": 0.375e-6,
+          "prompt_token_count": 0.375e-6,
+          "promptTokenCount": 0.375e-6,
+          "input_cached_tokens": 0.0375e-6,
+          "input_cache_read": 0.0375e-6,
+          "cached_content_token_count": 0.0375e-6,
+          "output": 1.875e-6,
+          "output_text": 1.875e-6,
+          "output_modality_1": 1.875e-6,
+          "candidates_token_count": 1.875e-6,
+          "candidatesTokenCount": 1.875e-6,
+          "thoughtsTokenCount": 1.875e-6,
+          "thoughts_token_count": 1.875e-6,
+          "output_reasoning_tokens": 1.875e-6,
+          "output_reasoning": 1.875e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -8624,7 +9261,7 @@
     "modelName": "gemini-3.8-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.8-flash)$",
     "createdAt": "2026-09-02T00:00:00.000Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "c3a9f9a6-b79a-4e42-8835-9f0f8204a709_tier_default",
@@ -8666,7 +9303,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8692,6 +9329,43 @@
           "web_search_queries": 0.014,
           "webSearchQueries": 0.014
         }
+      },
+      {
+        "id": "15dfa518-2c1a-4151-84c3-18fe6e76b263",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex", "ON_DEMAND_FLEX"]
+          }
+        ],
+        "prices": {
+          "input": 0.375e-6,
+          "input_text": 0.375e-6,
+          "input_modality_1": 0.375e-6,
+          "prompt_token_count": 0.375e-6,
+          "promptTokenCount": 0.375e-6,
+          "input_cached_tokens": 0.0375e-6,
+          "input_cache_read": 0.0375e-6,
+          "cached_content_token_count": 0.0375e-6,
+          "output": 1.875e-6,
+          "output_text": 1.875e-6,
+          "output_modality_1": 1.875e-6,
+          "candidates_token_count": 1.875e-6,
+          "candidatesTokenCount": 1.875e-6,
+          "thoughtsTokenCount": 1.875e-6,
+          "thoughts_token_count": 1.875e-6,
+          "output_reasoning_tokens": 1.875e-6,
+          "output_reasoning": 1.875e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -8700,7 +9374,7 @@
     "modelName": "gemini-4-argon",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-4-argon)$",
     "createdAt": "2026-10-14T00:00:00.000Z",
-    "updatedAt": "2026-10-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "f076cdab-4e50-4edb-9135-b5065c3cd0d6_tier_default",
@@ -8742,7 +9416,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8776,7 +9450,7 @@
     "modelName": "gemini-3.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash-lite)$",
     "createdAt": "2026-07-22T00:00:00.000Z",
-    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "updatedAt": "2026-11-11T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e_tier_default",
@@ -8818,7 +9492,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": ["priority"]
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
           }
         ],
         "prices": {
@@ -8839,6 +9513,80 @@
           "thoughts_token_count": 4.5e-6,
           "output_reasoning_tokens": 4.5e-6,
           "output_reasoning": 4.5e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
+      },
+      {
+        "id": "5d2c2ff1-7556-4eb3-9ff4-b3685b239e7d",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.15e-6,
+          "input_text": 0.15e-6,
+          "input_modality_1": 0.15e-6,
+          "prompt_token_count": 0.15e-6,
+          "promptTokenCount": 0.15e-6,
+          "input_cached_tokens": 0.02e-6,
+          "input_cache_read": 0.02e-6,
+          "cached_content_token_count": 0.02e-6,
+          "output": 1.25e-6,
+          "output_text": 1.25e-6,
+          "output_modality_1": 1.25e-6,
+          "candidates_token_count": 1.25e-6,
+          "candidatesTokenCount": 1.25e-6,
+          "thoughtsTokenCount": 1.25e-6,
+          "thoughts_token_count": 1.25e-6,
+          "output_reasoning_tokens": 1.25e-6,
+          "output_reasoning": 1.25e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
+      },
+      {
+        "id": "b096070f-c17a-4e68-9812-f02f609268a4",
+        "name": "Flex (Vertex AI)",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["ON_DEMAND_FLEX"]
+          }
+        ],
+        "prices": {
+          "input": 0.15e-6,
+          "input_text": 0.15e-6,
+          "input_modality_1": 0.15e-6,
+          "prompt_token_count": 0.15e-6,
+          "promptTokenCount": 0.15e-6,
+          "input_cached_tokens": 0.015e-6,
+          "input_cache_read": 0.015e-6,
+          "cached_content_token_count": 0.015e-6,
+          "output": 1.25e-6,
+          "output_text": 1.25e-6,
+          "output_modality_1": 1.25e-6,
+          "candidates_token_count": 1.25e-6,
+          "candidatesTokenCount": 1.25e-6,
+          "thoughtsTokenCount": 1.25e-6,
+          "thoughts_token_count": 1.25e-6,
+          "output_reasoning_tokens": 1.25e-6,
+          "output_reasoning": 1.25e-6,
           "grounding_queries": 0.014,
           "groundingQueries": 0.014,
           "web_search_queries": 0.014,
@@ -9132,6 +9880,28 @@
         "conditions": [],
         "prices": {
           "input": 0.12e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "cfa7cc19-24eb-42a5-9d45-5b4ed7081a96",
+    "modelName": "gemini-decision-1",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-decision-1)$",
+    "createdAt": "2026-11-13T00:00:00.000Z",
+    "updatedAt": "2026-11-13T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "cfa7cc19-24eb-42a5-9d45-5b4ed7081a96_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.1e-6,
+          "output": 0e-6
         }
       }
     ]

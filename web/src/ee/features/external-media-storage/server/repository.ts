@@ -4,6 +4,10 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 
+const projectOrgId = {
+  project: { select: { orgId: true } },
+} satisfies Prisma.ExternalMediaStorageIntegrationInclude;
+
 export function createExternalMediaStorageRepository(prisma: PrismaClient) {
   return {
     async findOrganizationByProjectId(projectId: string) {
@@ -17,6 +21,7 @@ export function createExternalMediaStorageRepository(prisma: PrismaClient) {
     findByProjectId(projectId: string) {
       return prisma.externalMediaStorageIntegration.findUnique({
         where: { projectId },
+        include: projectOrgId,
       });
     },
 
@@ -32,6 +37,7 @@ export function createExternalMediaStorageRepository(prisma: PrismaClient) {
           projectId,
           bucketName,
         },
+        include: projectOrgId,
       });
     },
 
@@ -60,4 +66,6 @@ export function createExternalMediaStorageRepository(prisma: PrismaClient) {
   };
 }
 
-export type ExternalMediaStorageRecord = ExternalMediaStorageIntegration;
+export type ExternalMediaStorageRecord = ExternalMediaStorageIntegration & {
+  project: { orgId: string };
+};

@@ -76,7 +76,6 @@ JS
   S=../../web/src/components
   while read -r mod names; do echo "export { $names } from \"$S/$mod\";"; done <<'EOF'
 CrashModal/CrashModal CrashModal
-EnvLabelBadge EnvLabelBadge
 GroupedScoreBadges GroupedScoreBadges
 ItemBadge ItemBadge, ItemTypeIcon
 MediaFileCard/MediaFileCard MediaFileCard

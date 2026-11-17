@@ -7,10 +7,13 @@ import { isTraceBatchSampled } from "../../traceBatching/traceBatchSampling";
 import { env } from "../../../env";
 
 // Load-test marker only; no evaluator is associated with this ID.
-const EXPERIMENT_RULE_ID = "__trace_batch_experiment__";
+export const EXPERIMENT_RULE_ID = "__trace_batch_experiment__";
 
 export function getTraceBatchExperimentRuleIds(traceId: string): string[] {
-  return isTraceBatchSampled(traceId, env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE)
+  return isTraceBatchSampled(
+    traceId,
+    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL,
+  )
     ? [EXPERIMENT_RULE_ID]
     : [];
 }

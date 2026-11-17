@@ -8,16 +8,25 @@ import { ExternalMediaStorageForm } from "./ExternalMediaStorageForm";
 
 const defaultValues: ExternalMediaStorageFormValues = {
   type: "S3",
+  authType: "ACCESS_KEYS",
   bucketName: "",
   endpoint: null,
   region: "us-east-1",
   accessKeyId: "",
   secretAccessKey: "",
+  roleArn: "",
   prefix: "",
   forcePathStyle: false,
 };
 
 const onSubmit = fn();
+
+const noExternalId = {
+  isSet: false,
+  value: undefined,
+  isLoading: false,
+  reveal: fn(),
+};
 
 const meta = preview.meta({
   component: ExternalMediaStorageForm,
@@ -26,6 +35,8 @@ const meta = preview.meta({
     initialValues: defaultValues,
     onSubmit,
     secretAccessKeyDisplay: null,
+    crossAccountRoleArn: null,
+    externalId: noExternalId,
   },
   render: (args) => (
     <div className="max-w-xl p-6">
@@ -67,6 +78,73 @@ export const SavedCredentials = meta.story({
       prefix: "langfuse-media/",
     },
     secretAccessKeyDisplay: "••••••••••••••••",
+  },
+});
+
+export const IamRoleAvailable = meta.story({
+  args: {
+    crossAccountRoleArn:
+      "arn:aws:iam::210987654321:role/LangfuseCustomerStorageAccess",
+  },
+});
+
+export const IamRoleRequiresUpgrade = meta.story({
+  args: {
+    roleAuthRequiresUpgrade: true,
+  },
+});
+
+export const IamRole = meta.story({
+  args: {
+    initialValues: {
+      ...defaultValues,
+      authType: "ROLE_ARN",
+      bucketName: "production-media",
+      roleArn: "arn:aws:iam::123456789012:role/langfuse-media",
+      prefix: "langfuse-media/",
+    },
+    crossAccountRoleArn:
+      "arn:aws:iam::210987654321:role/LangfuseCustomerStorageAccess",
+    externalId: { ...noExternalId, isSet: true },
+  },
+});
+
+export const IamRoleUnsaved = meta.story({
+  args: {
+    ...IamRole.input.args,
+    externalId: noExternalId,
+  },
+});
+
+export const IamRoleRevealedExternalId = meta.story({
+  args: {
+    ...IamRole.input.args,
+    externalId: {
+      ...noExternalId,
+      isSet: true,
+      value: "lf-0123456789abcdef0123456789abcdef",
+    },
+  },
+});
+
+export const DisablesIamRoleWithoutEntitlement = meta.story({
+  name: "(Test) Disables IAM role without entitlement",
+  args: IamRoleRequiresUpgrade.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await expect(
+      canvas.getByText(
+        "IAM role auth is not part of your plan. Upgrade to Enterprise to use it.",
+      ),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("combobox", { name: "Authentication" }),
+    );
+    await expect(
+      await body.findByRole("option", { name: /IAM role/ }),
+    ).toHaveAttribute("aria-disabled", "true");
   },
 });
 

@@ -16,6 +16,7 @@ import { TestMediaObjectDialog } from "@/src/ee/features/external-media-storage/
 import { testSignedMediaUrlCors } from "@/src/ee/features/external-media-storage/fns/testSignedMediaUrlCors";
 import { type ExternalMediaStorageFormValues } from "@/src/ee/features/external-media-storage/types";
 import { useExternalMediaStorage } from "@/src/ee/features/external-media-storage/useExternalMediaStorage";
+import { useExternalMediaStorageExternalId } from "@/src/ee/features/external-media-storage/useExternalMediaStorageExternalId";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
@@ -25,11 +26,13 @@ const EXTERNAL_MEDIA_STORAGE_FORM_ID = "external-media-storage-form";
 
 const defaultValues: ExternalMediaStorageFormValues = {
   type: "S3",
+  authType: "ACCESS_KEYS",
   bucketName: "",
   endpoint: null,
   region: "us-east-1",
   accessKeyId: "",
   secretAccessKey: "",
+  roleArn: "",
   prefix: "",
   forcePathStyle: false,
 };
@@ -47,7 +50,9 @@ export default function ExternalMediaStoragePage() {
   const utils = api.useUtils();
   const updateMutation = api.externalMediaStorage.update.useMutation({
     onSuccess: async () => {
-      await utils.externalMediaStorage.get.invalidate({ projectId });
+      // Saving or deleting can replace or remove the external ID.
+      await utils.externalMediaStorage.getExternalId.reset({ projectId });
+      await utils.externalMediaStorage.invalidate();
       showSuccessToast({
         operation: "external_media_storage.save",
         title: "External media storage saved",
@@ -64,7 +69,9 @@ export default function ExternalMediaStoragePage() {
   });
   const deleteMutation = api.externalMediaStorage.delete.useMutation({
     onSuccess: async () => {
-      await utils.externalMediaStorage.get.invalidate({ projectId });
+      // Saving or deleting can replace or remove the external ID.
+      await utils.externalMediaStorage.getExternalId.reset({ projectId });
+      await utils.externalMediaStorage.invalidate();
       showSuccessToast({
         operation: "external_media_storage.delete",
         title: "External media storage deleted",
@@ -81,14 +88,20 @@ export default function ExternalMediaStoragePage() {
   });
   const testMutation = api.externalMediaStorage.testObject.useMutation();
   const config = configuration.data?.config;
+  const externalId = useExternalMediaStorageExternalId(
+    projectId,
+    Boolean(config?.hasExternalId),
+  );
   const initialValues: ExternalMediaStorageFormValues = config
     ? {
         type: config.type,
+        authType: config.authType,
         bucketName: config.bucketName,
         endpoint: config.endpoint,
         region: config.region,
         accessKeyId: config.accessKeyId ?? "",
         secretAccessKey: "",
+        roleArn: config.roleArn ?? "",
         prefix: config.prefix ?? "",
         forcePathStyle: config.forcePathStyle,
       }
@@ -220,6 +233,11 @@ export default function ExternalMediaStoragePage() {
                 formId={EXTERNAL_MEDIA_STORAGE_FORM_ID}
                 initialValues={initialValues}
                 secretAccessKeyDisplay={config?.secretAccessKeyDisplay}
+                crossAccountRoleArn={configuration.data.crossAccountRoleArn}
+                roleAuthRequiresUpgrade={
+                  configuration.data.roleAuthRequiresUpgrade
+                }
+                externalId={externalId}
                 onSubmit={(values) =>
                   updateMutation.mutate({ projectId, ...values })
                 }

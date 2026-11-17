@@ -76,6 +76,7 @@ export const [
           actor,
           projectId: context.projectId,
           values: input,
+          plan: context.plan,
         });
         return { success: true };
       },

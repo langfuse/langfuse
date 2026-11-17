@@ -1,11 +1,8 @@
 /* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
-import { TriangleAlert } from "@langfuse/icons";
-
 import { Metric } from "@/src/components/design-system/Metric/Metric";
-import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { UsageCostWarningBadge } from "@/src/features/traces/components/UsageCostWarningBadge";
 import {
   BreakdownTooltip,
   type CostSource,
@@ -28,12 +25,22 @@ type CostBadgeProps =
       priceSource?: PriceSource;
       costSource?: CostSource;
     }
-  /** A generation with tokens but no cost. */
-  | { variant: "missing"; projectId: string };
+  /** A generation nothing priced; the tooltip differs when no usage was sent either. */
+  | { variant: "missing"; projectId: string; hasUsage: boolean };
 
 export function CostBadge(props: CostBadgeProps) {
   if (props.variant === "missing") {
-    return <MissingCostBadge projectId={props.projectId} />;
+    return (
+      <UsageCostWarningBadge
+        projectId={props.projectId}
+        label="no cost"
+        description={
+          props.hasUsage
+            ? "No model price matched this generation. Add a model definition, or submit costs directly."
+            : "No token usage or cost was submitted for this generation. Send token usage and a model name, or submit costs directly."
+        }
+      />
+    );
   }
   const { totalCost, costDetails, priceSource, costSource } = props;
   if (!hasBreakdown(costDetails)) {
@@ -53,44 +60,6 @@ export function CostBadge(props: CostBadgeProps) {
     >
       <Metric interactive value={formatMetricCost(totalCost)} />
     </BreakdownTooltip>
-  );
-}
-
-function MissingCostBadge({ projectId }: { projectId: string }) {
-  return (
-    <CustomTooltip
-      content={
-        <div className="flex flex-col gap-1">
-          <p className="text-xs">
-            No model price matched this generation. Add a model price, or send
-            the cost from your SDK.
-          </p>
-          <div className="flex items-center gap-1.5">
-            <TextLink
-              path={`/project/${encodeURIComponent(projectId)}/settings/models`}
-              value="Model settings"
-            />
-            <span className="text-muted-foreground text-xs">·</span>
-            <TextLink
-              path="https://langfuse.com/docs/model-usage-and-cost"
-              value="Docs"
-              external
-            />
-          </div>
-        </div>
-      }
-    >
-      {({ getTriggerProps }) => (
-        <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
-          <Metric
-            interactive
-            icon={TriangleAlert}
-            iconTone="warning"
-            value="no cost"
-          />
-        </span>
-      )}
-    </CustomTooltip>
   );
 }
 

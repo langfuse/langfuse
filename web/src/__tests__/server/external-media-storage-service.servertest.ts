@@ -2,13 +2,14 @@ import dns from "node:dns/promises";
 import { randomUUID } from "crypto";
 import type { Mock } from "vitest";
 
-import { InvalidRequestError } from "@langfuse/shared";
+import { InvalidRequestError, type Plan } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 
 import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 
@@ -21,6 +22,19 @@ vi.mock("@langfuse/shared/src/server", async () => {
     },
   };
 });
+
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async () => {
+    const actual = await vi.importActual(
+      "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+    );
+    return {
+      ...actual,
+      getCrossAccountRoleArn: vi.fn().mockReturnValue(null),
+    };
+  },
+);
 
 const orgIds: string[] = [];
 
@@ -60,6 +74,7 @@ async function prepareIntegration({
 describe("external media storage service", () => {
   afterEach(() => {
     vi.clearAllMocks();
+    (getCrossAccountRoleArn as Mock).mockReturnValue(null);
   });
 
   afterAll(async () => {
@@ -109,6 +124,7 @@ describe("external media storage service", () => {
     await createExternalMediaStorageService(prisma).saveConfiguration({
       actor: { apiKeyId: "test-api-key", orgId: project.orgId },
       projectId: project.id,
+      plan: "cloud:hobby",
       values: {
         type: "S3",
         bucketName: "media-bucket",
@@ -185,6 +201,7 @@ describe("external media storage service", () => {
       await createExternalMediaStorageService(prisma).saveConfiguration({
         actor: { apiKeyId: "test-api-key", orgId: project.orgId },
         projectId: project.id,
+        plan: "cloud:hobby",
         values: { ...savedValues, prefix: "customer/" },
       });
 
@@ -208,6 +225,7 @@ describe("external media storage service", () => {
         ).saveConfiguration({
           actor: { apiKeyId: "test-api-key", orgId: project.orgId },
           projectId: project.id,
+          plan: "cloud:hobby",
           values: { ...savedValues, ...change },
         });
         await expect(rejection).rejects.toBeInstanceOf(InvalidRequestError);
@@ -304,5 +322,70 @@ describe("external media storage service", () => {
     ).rejects.toThrow("External media is not available");
     expect(configuredProject.id).not.toBe(otherProject.id);
     expect(StorageServiceFactory.getInstance).not.toHaveBeenCalled();
+  });
+
+  it("switches to IAM role auth with a stable, encrypted external ID", async () => {
+    const project = await prepareIntegration({ prefix: "media/" });
+    const service = createExternalMediaStorageService(prisma);
+    const values = {
+      type: "S3" as const,
+      authType: "ROLE_ARN" as const,
+      bucketName: "media-bucket",
+      region: "eu-west-1",
+      roleArn: "arn:aws:iam::123456789012:role/langfuse-media",
+      prefix: "media/",
+      forcePathStyle: false,
+    };
+    const save = (plan: Plan = "cloud:enterprise") =>
+      service.saveConfiguration({
+        actor: { apiKeyId: "test-api-key", orgId: project.orgId },
+        projectId: project.id,
+        values,
+        plan,
+      });
+
+    await expect(save()).rejects.toThrow(
+      "IAM role auth is not available on this Langfuse deployment",
+    );
+
+    (getCrossAccountRoleArn as Mock).mockReturnValue(
+      "arn:aws:iam::210987654321:role/langfuse-cross-account",
+    );
+    await expect(save("cloud:team")).rejects.toThrow(
+      "IAM role auth requires an Enterprise plan",
+    );
+    await save();
+    const stored =
+      await prisma.externalMediaStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+    expect(stored).toMatchObject({
+      authType: "ROLE_ARN",
+      roleArn: values.roleArn,
+      accessKeyId: null,
+      secretAccessKey: null,
+    });
+    const externalId = decrypt(stored.externalId!);
+    expect(externalId).toMatch(/^lf-[0-9a-f]{32}$/);
+
+    await save();
+    const configuration = await service.getConfiguration(project.id);
+    expect(configuration).not.toHaveProperty("externalId");
+    expect(configuration?.hasExternalId).toBe(true);
+    await expect(service.getExternalId(project.id)).resolves.toBe(externalId);
+
+    (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+      getSignedUrl: vi.fn().mockResolvedValue("https://signed.example"),
+      getObjectContentLength: vi.fn().mockResolvedValue(42),
+    });
+    await service.resolveUrl({
+      projectId: project.id,
+      uri: "s3://media-bucket/media/image.png",
+    });
+    expect(StorageServiceFactory.getInstance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentials: { type: "role", provider: expect.any(Function) },
+      }),
+    );
   });
 });

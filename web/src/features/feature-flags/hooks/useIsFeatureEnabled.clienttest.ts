@@ -13,7 +13,6 @@ vi.mock("next-auth/react", () => ({
 const mockSession = ({
   aiGateway,
   langfuseTopics = false,
-  admin = false,
   email,
   enableExperimentalFeatures = false,
   internalFeatures,
@@ -21,7 +20,6 @@ const mockSession = ({
 }: {
   aiGateway: boolean;
   langfuseTopics?: boolean;
-  admin?: boolean;
   email?: string;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
@@ -31,7 +29,6 @@ const mockSession = ({
     data: {
       environment: { enableExperimentalFeatures },
       user: {
-        admin,
         email,
         featureFlags: testFeatureFlags({
           aiGateway: false,
@@ -57,7 +54,7 @@ describe("useIsFeatureEnabled", () => {
     (unifiedTraceSessionView) => {
       mockSession({
         aiGateway: false,
-        admin: true,
+        email: "staff@clickhouse.com",
         enableExperimentalFeatures: true,
         internalFeatures: true,
         unifiedTraceSessionView,
@@ -74,8 +71,8 @@ describe("useIsFeatureEnabled", () => {
       expect(result.current).toBe(unifiedTraceSessionView);
     },
   );
-  it("honors preview preferences for admins while preserving the deployment override", () => {
-    mockSession({ aiGateway: false, admin: true });
+  it("honors preview preferences for internal users while preserving the deployment override", () => {
+    mockSession({ aiGateway: false, email: "staff@clickhouse.com" });
     const { result, rerender } = renderHook(() =>
       useIsFeatureEnabled("sessionViewV2"),
     );
@@ -83,7 +80,7 @@ describe("useIsFeatureEnabled", () => {
 
     mockSession({
       aiGateway: false,
-      admin: true,
+      email: "staff@clickhouse.com",
       enableExperimentalFeatures: true,
     });
     rerender();
@@ -92,25 +89,25 @@ describe("useIsFeatureEnabled", () => {
 
   it.each([
     {
-      admin: true,
+      email: "staff@clickhouse.com",
       internalFeatures: false,
       enableExperimentalFeatures: true,
       expected: false,
     },
     {
-      admin: true,
+      email: "staff@clickhouse.com",
       internalFeatures: true,
       enableExperimentalFeatures: false,
       expected: true,
     },
     {
-      admin: false,
+      email: "user@example.com",
       internalFeatures: true,
       enableExperimentalFeatures: false,
       expected: false,
     },
   ])(
-    "resolves internal view as $expected for $admin admin / $internalFeatures preference",
+    "resolves internal view as $expected for $email / $internalFeatures preference",
     ({ expected, ...options }) => {
       mockSession({ aiGateway: false, ...options });
       const { result } = renderHook(() => useInternalFeaturesEnabled());
@@ -131,22 +128,20 @@ describe("useIsFeatureEnabled", () => {
     });
     const { result } = renderHook(() => ({
       internal: useInternalFeaturesEnabled(),
-      searchBar: useIsFeatureEnabled("searchBar"),
       aiGateway: useIsFeatureEnabled("aiGateway"),
       langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
     }));
     expect(result.current).toEqual({
       internal: expected,
-      searchBar: false,
       aiGateway: false,
       langfuseTopics: false,
     });
   });
 
-  it("requires explicit opt-in for restricted and internal preview flags even for admins on experimental deployments", () => {
+  it("requires explicit opt-in for restricted and internal preview flags even for internal users on experimental deployments", () => {
     mockSession({
       aiGateway: false,
-      admin: true,
+      email: "staff@clickhouse.com",
       enableExperimentalFeatures: true,
     });
     const { result, rerender } = renderHook(() => ({

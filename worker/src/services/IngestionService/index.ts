@@ -4,9 +4,7 @@ import { v4 } from "uuid";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
-  Model,
   MAX_SKILLS_PER_OBSERVATION,
-  ObservationLevel,
   PrismaClient,
   Prompt,
   type JsonNested,
@@ -52,7 +50,6 @@ import {
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
   InternalTraceEventInput,
-  traceException,
   flattenJsonToPathArrays,
   getDatasetItemById,
   normalizeToolsForObservation,
@@ -60,18 +57,14 @@ import {
   buildClickHouseLogComment,
   sanitizeSdkMetricTagValue,
   type IngestionAttribution,
-  AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
 } from "@langfuse/shared/src/server";
 
-import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import { clickhouseComputesEventBytes } from "../ClickhouseWriter/eventByteAccounting";
 import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
-  hasAiGatewayScope,
-  isAiGatewayGenerationEvent,
   overwriteObject,
 } from "./utils";
 import { resolveAiGatewayAttribution } from "./aiGatewayAttribution";
@@ -249,7 +242,7 @@ export class IngestionService {
    * Creates an EventRecordInsertType from EventInput.
    * Performs all necessary enrichments:
    * - Prompt lookup (by name + version)
-   * - Model/usage enrichment (tokenization, cost calculation)
+   * - Model/usage enrichment (provided usage, cost calculation)
    * - Metadata flattening
    * - Timestamp normalization
    *
@@ -320,11 +313,6 @@ export class IngestionService {
               modelParameters,
               metadata,
             },
-            isAiGatewayGeneration: isAiGatewayGenerationEvent({
-              ingestionApiKey: eventData.ingestionApiKey,
-              hasGatewayScope: () =>
-                eventData.scopeName === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
-            }),
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -332,9 +320,6 @@ export class IngestionService {
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
-              level: eventData.level,
-              input,
-              output,
             },
           })
         : null,
@@ -1074,13 +1059,6 @@ export class IngestionService {
     const generationUsage = await this.getGenerationUsage({
       projectId,
       pricingMatchAttributeValues,
-      isAiGatewayGeneration: isAiGatewayGenerationEvent({
-        ingestionApiKey: attribution.ingestionApiKey,
-        hasGatewayScope: () =>
-          timeSortedEvents.some((event) =>
-            hasAiGatewayScope(event.body?.metadata),
-          ),
-      }),
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -1394,7 +1372,6 @@ export class IngestionService {
   private async getGenerationUsage(params: {
     projectId: string;
     pricingMatchAttributeValues?: PricingTierMatchAttributeValues;
-    isAiGatewayGeneration?: boolean;
     observationRecord: Pick<
       ObservationRecordInsertType,
       | "project_id"
@@ -1403,9 +1380,6 @@ export class IngestionService {
       | "provided_model_name"
       | "provided_usage_details"
       | "provided_cost_details"
-      | "level"
-      | "input"
-      | "output"
     >;
   }): Promise<
     Pick<
@@ -1418,12 +1392,8 @@ export class IngestionService {
       | "usage_pricing_tier_name"
     >
   > {
-    const {
-      projectId,
-      observationRecord,
-      pricingMatchAttributeValues,
-      isAiGatewayGeneration = false,
-    } = params;
+    const { projectId, observationRecord, pricingMatchAttributeValues } =
+      params;
     const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
@@ -1432,11 +1402,7 @@ export class IngestionService {
           })
         : { model: null, pricingTiers: [] };
 
-    const final_usage_details = await this.getUsageUnits(
-      observationRecord,
-      internalModel,
-      isAiGatewayGeneration,
-    );
+    const final_usage_details = this.getUsageUnits(observationRecord);
 
     const final_cost_details = calculateModelUsageCosts({
       model: { model: internalModel, pricingTiers },
@@ -1464,152 +1430,18 @@ export class IngestionService {
     };
   }
 
-  private async getUsageUnits(
+  private getUsageUnits(
     observationRecord: Pick<
       ObservationRecordInsertType,
-      | "project_id"
-      | "provided_usage_details"
-      | "provided_cost_details"
-      | "level"
-      | "input"
-      | "output"
-      | "id"
+      "provided_usage_details"
     >,
-    model: Model | null | undefined,
-    isAiGatewayGeneration: boolean,
-  ): Promise<
-    Pick<
-      ObservationRecordInsertType,
-      "usage_details" | "provided_usage_details"
-    >
+  ): Pick<
+    ObservationRecordInsertType,
+    "usage_details" | "provided_usage_details"
   > {
     const providedUsageDetails = IngestionService.normalizeProvidedUsageDetails(
       observationRecord.provided_usage_details,
     );
-
-    // Provided costs are authoritative: calculateModelUsageCosts ignores computed
-    // usage once any cost point is provided, so tokenised counts could never
-    // affect costs — leave usage_details blank instead of paying for
-    // tokenisation.
-    const hasProvidedCostDetails = Object.values(
-      observationRecord.provided_cost_details ?? {},
-    ).some((value) => value != null);
-
-    // The AI gateway forwards provider-reported usage whenever the provider
-    // returns it. Without it (failed or cancelled upstream calls), the true
-    // usage is unknown: the request body holds tool schemas and encrypted
-    // reasoning, so tokenizing it fabricates usage and cost.
-    if (
-      // Manual tokenisation when no user provided usage or cost and generation has not status ERROR
-      model &&
-      Object.keys(providedUsageDetails).length === 0 &&
-      !hasProvidedCostDetails &&
-      observationRecord.level !== ObservationLevel.ERROR &&
-      !isAiGatewayGeneration
-    ) {
-      try {
-        let newInputCount: number | undefined;
-        let newOutputCount: number | undefined;
-        await instrumentAsync(
-          {
-            name: "token-count",
-          },
-          async (span) => {
-            try {
-              [newInputCount, newOutputCount] = await Promise.all([
-                tokenCountAsync({
-                  text: observationRecord.input,
-                  model,
-                }),
-                tokenCountAsync({
-                  text: observationRecord.output,
-                  model,
-                }),
-              ]);
-            } catch (error) {
-              // No synchronous fallback: payloads that make the worker thread
-              // exceed its timeout would block the event loop for minutes if
-              // re-tokenized on the main thread. Absent counts are
-              // detectable by users, unlike a 0 or a bytes-based estimate.
-              logger.warn(
-                `Async tokenization failed for observation ${observationRecord.id} in project ${observationRecord.project_id}. Skipping token counts.`,
-                {
-                  projectId: observationRecord.project_id,
-                  observationId: observationRecord.id,
-                  modelId: model.id,
-                  tokenizerId: model.tokenizerId,
-                  inputBytes:
-                    typeof observationRecord.input === "string"
-                      ? observationRecord.input.length
-                      : undefined,
-                  outputBytes:
-                    typeof observationRecord.output === "string"
-                      ? observationRecord.output.length
-                      : undefined,
-                  error,
-                },
-              );
-              span.setAttribute("langfuse.tokenization.skipped", true);
-              recordIncrement("langfuse.tokenisation.skipped", 1);
-            }
-
-            // Tracing
-            newInputCount
-              ? span.setAttribute(
-                  "langfuse.tokenization.input-count",
-                  newInputCount,
-                )
-              : undefined;
-            newOutputCount
-              ? span.setAttribute(
-                  "langfuse.tokenization.output-count",
-                  newOutputCount,
-                )
-              : undefined;
-            newInputCount || newOutputCount
-              ? span.setAttribute(
-                  "langfuse.tokenization.tokenizer",
-                  model.tokenizerId || "unknown",
-                )
-              : undefined;
-            newInputCount
-              ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
-              : undefined;
-            newOutputCount
-              ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
-              : undefined;
-          },
-        );
-
-        logger.debug(
-          `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
-        );
-
-        const newTotalCount =
-          newInputCount || newOutputCount
-            ? (newInputCount ?? 0) + (newOutputCount ?? 0)
-            : undefined;
-
-        const usage_details: Record<string, number> = {};
-
-        if (newInputCount != null) usage_details.input = newInputCount;
-        if (newOutputCount != null) usage_details.output = newOutputCount;
-        if (newTotalCount != null) usage_details.total = newTotalCount;
-
-        return { usage_details, provided_usage_details: providedUsageDetails };
-      } catch (error) {
-        traceException(error);
-        logger.error(
-          `Tokenization failed for observation ${observationRecord.id} with model ${model.id}. Continuing without token counts.`,
-          error,
-        );
-        // Continue without token counts - return empty usage_details
-        return {
-          usage_details: {},
-          provided_usage_details: providedUsageDetails,
-        };
-      }
-    }
 
     const usageDetails = { ...providedUsageDetails };
     if (Object.keys(usageDetails).length > 0 && !("total" in usageDetails)) {

@@ -37,8 +37,8 @@ import {
   serializeTarget,
   targetReference,
 } from "./targeting";
-import type { ASTNode, FilterNode } from "./ast";
-import { validateQuery } from "./validate";
+import type { ASTNode, FilterNode, Span } from "./ast";
+import { semanticDiagnostics, validateQuery } from "./validate";
 import { rankFilter } from "./rank";
 import type { ObservedOptions } from "./observed-options";
 
@@ -61,6 +61,8 @@ export type CompletionOption =
       label: string;
       detail?: string;
       value: string;
+      /** Query syntax, when it differs from the displayed logical value. */
+      insert?: string;
       active?: boolean;
     }
   | {
@@ -248,6 +250,15 @@ function fieldOptions(
     });
   }
   if (includeVirtual) {
+    for (const namespace of Object.keys(registry.keyedOptionNamespaces ?? {})) {
+      opts.push({
+        id: `field:${namespace}.`,
+        kind: "field",
+        label: `${namespace}.`,
+        detail: `${namespace} by key, e.g. ${namespace}.<key>:<value>`,
+        fieldId: `${namespace}.`,
+      });
+    }
     for (const namespace of Object.keys(registry.metadataNamespaces ?? {})) {
       opts.push({
         id: `field:${namespace}.`,
@@ -274,7 +285,7 @@ function fieldOptions(
       },
     );
   }
-  if (includeVirtual) {
+  if (includeVirtual && registry.allowPresence !== false) {
     // Written per view where it matters (see FieldRegistry.hasExample); the
     // first nullable field is only the fallback. `has:endTime` on a view
     // without endTime advertises a filter that cannot resolve.
@@ -332,7 +343,9 @@ function querySuggestionOptions(
     if (registry.resolveField(fieldId) === null) continue;
     const top = observed[fieldId]?.[0];
     if (top === undefined) continue;
-    const insert = `${fieldId}:${serializeValue(top.value)}`;
+    const ref = registry.resolveField(fieldId);
+    const exact = ref?.type === "field" && ref.field.exactSuggestions;
+    const insert = `${fieldId}:${exact ? "=" : ""}${serializeValue(top.value)}`;
     out.push({
       id: `suggest:${insert}`,
       kind: "pattern",
@@ -396,20 +409,9 @@ function matchingFilterOptions(
   for (const f of valueMatchFields) {
     for (const o of observedValues(observed, f.id)) {
       const v = o.value.toLowerCase();
-      const rank = (() => {
-        if (v === q) {
-          return 0;
-        }
-        if (v.startsWith(q)) {
-          return 1;
-        }
-        if (v.includes(q)) {
-          return 2;
-        }
-        return null;
-      })();
+      const rank = matchRank(v, q);
       if (rank === null) continue;
-      const insert = `${f.id}:${serializeValue(o.value)}`;
+      const insert = `${f.id}:${f.exactSuggestions ? "=" : ""}${serializeValue(o.value)}`;
       ranked.push({
         rank,
         count: o.count ?? 0,
@@ -424,8 +426,40 @@ function matchingFilterOptions(
       });
     }
   }
+  for (const [namespace, column] of Object.entries(
+    registry.keyedOptionNamespaces ?? {},
+  )) {
+    for (const key of observedValues(observed, column)) {
+      for (const o of observedValues(observed, `${column}.${key.value}`)) {
+        const v = o.value.toLowerCase();
+        const rank = matchRank(v, q);
+        if (rank === null) continue;
+        const insert = `${namespace}.${quoteIfNeeded(key.value)}:${serializeValue(o.value)}`;
+        ranked.push({
+          rank,
+          count: o.count ?? 0,
+          option: {
+            id: `match:${insert}`,
+            kind: "pattern",
+            label: insert,
+            detail: `${namespace}: ${key.value}`,
+            insert,
+            replaceSpan: span,
+          },
+        });
+      }
+    }
+  }
   ranked.sort((a, b) => a.rank - b.rank || b.count - a.count);
   return ranked.slice(0, MAX_VALUE_MATCHES).map((m) => m.option);
+}
+
+/** Exact match first, then prefix, then substring; null when the value does not match. */
+function matchRank(value: string, query: string) {
+  if (value === query) return 0;
+  if (value.startsWith(query)) return 1;
+  if (value.includes(query)) return 2;
+  return null;
 }
 
 /**
@@ -484,6 +518,7 @@ function presenceOptions(
   negated: boolean,
   rankedFields: CompletionOption[],
 ): CompletionOption[] {
+  if (registry.allowPresence === false) return [];
   if (keyPart.length < 2) return [];
   const exact = registry.resolveField(keyPart);
   const candidate =
@@ -701,9 +736,10 @@ function pathKindOf(
   registry: FieldRegistry,
 ): { kind: PathKind; typedKey: string } | null {
   const lower = keyPart.toLowerCase();
-  for (const [namespace, column] of Object.entries(
-    registry.metadataNamespaces ?? {},
-  )) {
+  for (const [namespace, column] of Object.entries({
+    ...registry.metadataNamespaces,
+    ...registry.keyedOptionNamespaces,
+  })) {
     const prefix = `${namespace}.`;
     if (lower.startsWith(prefix.toLowerCase())) {
       return {
@@ -970,6 +1006,23 @@ function valueStageSections(input: ValueStageInput): {
       };
     }
 
+    case "keyedOptions": {
+      const all = observedValues(observed, `${ref.column}.${ref.key}`).map(
+        (o) => ({
+          id: `value:${o.value}`,
+          kind: "value" as const,
+          label: o.value,
+          value: o.value,
+        }),
+      );
+      return all.length > 0
+        ? {
+            sections: section(SECTION_VALUES, valueOptions(all, typed)),
+            loading: false,
+          }
+        : null;
+    }
+
     case "scores": {
       const numericColumn =
         ref.level === "trace"
@@ -1145,6 +1198,7 @@ function valueStageSections(input: ValueStageInput): {
         label: o.value,
         detail: o.count !== undefined ? String(o.count) : undefined,
         value: o.value,
+        insert: f.exactSuggestions ? `=${serializeValue(o.value)}` : undefined,
       }));
       const values = valueOptions(all, typed);
       // Array fields reject match operators — operatorIssue routes them to
@@ -1393,14 +1447,115 @@ function filterAt(node: ASTNode | null, caret: number): FilterNode | null {
     : null;
 }
 
+// AND siblings are independent; NOT and OR must be validated as a whole.
+function completionContext(node: ASTNode, edited: Span): ASTNode | null {
+  if (node.kind === "and" || node.kind === "or") {
+    const children = node.children.flatMap((child) => {
+      const context = completionContext(child, edited);
+      return context ? [context] : [];
+    });
+    if (children.length === 0) return null;
+    if (node.kind === "or") return node;
+    return { ...node, children };
+  }
+  if (node.kind === "not") {
+    return completionContext(node.child, edited) ? node : null;
+  }
+  const span = node.parenSpan ?? node.span;
+  if (!span || span.from >= edited.to || edited.from >= span.to) return null;
+  return node;
+}
+
+function completionHasErrors(
+  input: string,
+  edited: Span,
+  registry: FieldRegistry,
+) {
+  const parsed = parse(input, registry);
+  const context = parsed.ast ? completionContext(parsed.ast, edited) : null;
+  // Host schema errors can span the whole query, so scope semantic validation
+  // before collecting diagnostics rather than filtering whole-query errors.
+  const diagnostics = [
+    ...parsed.diagnostics,
+    ...semanticDiagnostics(context, input.length, undefined, registry),
+  ];
+  return diagnostics.some(
+    (diagnostic) =>
+      diagnostic.severity === "error" &&
+      diagnostic.from < edited.to &&
+      edited.from < diagnostic.to,
+  );
+}
+
+function restrictCompletions(
+  plan: CompletionPlan,
+  ctx: InputCompletionContext,
+  registry: FieldRegistry,
+): CompletionPlan {
+  // Validate the splice so NOT and grouped values retain their context, but
+  // unrelated invalid terms must not suppress suggestions for the edited term.
+  const restricted =
+    registry.allowPresence === false ||
+    registry.fields.some(
+      (field) =>
+        field.operators || field.negatedOperators || field.exactSuggestions,
+    );
+  if (!restricted) return plan;
+  return {
+    ...plan,
+    sections: plan.sections.flatMap((section) => {
+      const options = section.options.filter((option) => {
+        if (option.kind === "recent" || option.kind === "preset")
+          return validateQuery(option.query, undefined, registry).valid;
+        if (option.kind === "operator") return true;
+        const edit = applyPick(option, ctx.input, plan);
+        if (option.kind === "field") {
+          const ref = registry.resolveField(option.fieldId);
+          if (ref?.type !== "field") return true;
+          const term = termAt(edit.next, edit.caret);
+          if (!term) return false;
+          const colon = indexOfOutsideQuotes(term.raw, ":");
+          if (colon === -1) return false;
+          const value = ref.field.kind === "boolean" ? "true" : "=example";
+          const probe =
+            edit.next.slice(0, term.from + colon + 1) +
+            value +
+            edit.next.slice(term.to);
+          return !completionHasErrors(
+            probe,
+            { from: term.from, to: term.from + colon + 1 + value.length },
+            registry,
+          );
+        }
+        if (option.kind === "pattern" && option.requiresInput) return true;
+        const replaced =
+          option.kind === "pattern" && option.replaceSpan
+            ? option.replaceSpan
+            : plan;
+        return !completionHasErrors(
+          edit.next,
+          {
+            from: replaced.from,
+            to: replaced.to + edit.next.length - ctx.input.length,
+          },
+          registry,
+        );
+      });
+      return options.length > 0 ? [{ ...section, options }] : [];
+    }),
+  };
+}
+
 /** Field picks show the default scope immediately, including unfinished filters. */
 export function planInputCompletions(
   ctx: InputCompletionContext,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): CompletionPlan | null {
-  const plan = planTargetedInputCompletions(ctx, registry);
+  const targetedPlan = planTargetedInputCompletions(ctx, registry);
+  if (!targetedPlan) return null;
+  const plan = restrictCompletions(targetedPlan, ctx, registry);
   const capability = registry.targeting;
-  if (!plan || !capability) return plan;
+  if (!capability) return plan;
   const term = termAt(ctx.input, ctx.caret);
   const raw = term?.raw.replace(/^-/, "") ?? "";
   if (
@@ -1900,12 +2055,13 @@ function planUnscopedInputCompletions(
     from: segFrom,
     to: segTo,
     loading: false,
-    // Partial typed values arm Enter-to-complete; an exact-complete value is
-    // a switcher (Enter commits, the list is for browsing alternatives).
+    // Exact suggestions still need completion to insert the exact-match operator.
+    // Otherwise a complete value leaves Enter to commit the typed query.
     autoHighlight:
       typed.length > 0 &&
       flatValues.length > 0 &&
-      !flatValues.some((o) => o.kind === "value" && o.value === typed),
+      ((ref.type === "field" && ref.field.exactSuggestions === true) ||
+        !flatValues.some((o) => o.kind === "value" && o.value === typed)),
     sections: staged.sections,
     ...groupedPlanAttrs,
   };
@@ -1951,7 +2107,7 @@ export function applyPick(
       replaceTo = termAt(current, plan.from)?.to ?? plan.to;
     }
   } else if (option.kind === "value") {
-    insert = serializeValue(option.value);
+    insert = option.insert ?? serializeValue(option.value);
     keepOpen = plan.keepOpenOnPick ?? false;
   } else {
     insert = option.insert;

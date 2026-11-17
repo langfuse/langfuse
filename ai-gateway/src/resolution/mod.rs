@@ -2,6 +2,7 @@
 mod bedrock;
 mod contracts;
 pub(crate) mod signing;
+mod vertex;
 
 pub use contracts::{
     ApiFormat, IngestionGrant, IngestionMode, MetadataValue, OrganizationId, ProjectId, Provider,
@@ -20,6 +21,8 @@ use std::{
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
 const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
+/// Unauthenticated, and without query params it skips the database checks.
+pub(crate) const HEALTH_PATH: &str = "/api/public/health";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
 const ERROR_CODE_HEADER: &str = "langfuse-gateway-error-code";
 const RATE_LIMIT_ERROR_CODE: &str = "rate_limit_exceeded";
@@ -160,6 +163,12 @@ impl ControlPlaneClient {
             client: crate::observability::instrument_client(client, "resolver"),
             config,
         })
+    }
+
+    /// Open a pooled connection to Web so the first resolution skips connection setup.
+    /// Returns whether Web answered.
+    pub(crate) async fn open_connection(&self) -> bool {
+        open_connection(&self.client, self.config.endpoint(HEALTH_PATH)).await
     }
 
     /// Resolve a gateway credential and API format into a validated execution contract.
@@ -329,6 +338,14 @@ impl ControlPlaneClient {
         })
         .await
         .map_err(|_| ResolutionError::Timeout)?
+    }
+}
+
+/// Send one GET and read its body, so the connection returns to `client`'s pool.
+pub(crate) async fn open_connection(client: &ClientWithMiddleware, endpoint: Url) -> bool {
+    match client.get(endpoint).send().await {
+        Ok(response) => response.bytes().await.is_ok(),
+        Err(_) => false,
     }
 }
 

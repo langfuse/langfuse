@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";
@@ -12,7 +12,7 @@ import React, {
   type CSSProperties,
   type UIEventHandler,
 } from "react";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/DataTablePagination";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
@@ -669,7 +669,13 @@ export function DataTable<TData extends object, TValue>({
                                   columnDef.headerTooltip.description
                                 }
                                 href={columnDef.headerTooltip.href}
-                              />
+                              >
+                                {({ getTriggerProps }) => (
+                                  <DocPopupTrigger
+                                    triggerProps={getTriggerProps()}
+                                  />
+                                )}
+                              </DocPopup>
                             )}
                             {sortingEnabled && orderBy?.column === columnDef.id
                               ? renderOrderingIndicator(orderBy)
@@ -1509,7 +1515,7 @@ function TableBodyComponent<TData>({
 
   return (
     <TableBody ref={tableBodyRef}>
-      {data.isLoading || !data.data ? (
+      {(data.isLoading || !data.data) && (
         <RowHeightRenderingProvider
           compact={committedRendering.compact}
           expandedRead={committedRendering.expandedRead}
@@ -1572,7 +1578,10 @@ function TableBodyComponent<TData>({
             </TableRow>
           ))}
         </RowHeightRenderingProvider>
-      ) : rowModelRows.length ? (
+      )}
+      {!data.isLoading &&
+        data.data &&
+        rowModelRows.length > 0 &&
         rowModelRows.map((row) => (
           <TableDataRow
             key={row.id}
@@ -1600,8 +1609,8 @@ function TableBodyComponent<TData>({
             highlightAllRows={highlightAllRows}
             selectionStore={selectionStore}
           />
-        ))
-      ) : (
+        ))}
+      {!data.isLoading && data.data && rowModelRows.length === 0 && (
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">
             <div className="text-muted-foreground pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center text-sm">
@@ -1609,7 +1618,11 @@ function TableBodyComponent<TData>({
                 <>
                   No results.{" "}
                   {help && (
-                    <DocPopup description={help.description} href={help.href} />
+                    <DocPopup description={help.description} href={help.href}>
+                      {({ getTriggerProps }) => (
+                        <DocPopupTrigger triggerProps={getTriggerProps()} />
+                      )}
+                    </DocPopup>
                   )}
                 </>
               )}
@@ -1665,11 +1678,10 @@ function TableDataRow<TData>({
     if (rowResizeEnabled && row.index > 0) resizeEdges.push("below");
     if (rowResizeEnabled && isLastRow) resizeEdges.push("last");
     else if (rowResizeEnabled) resizeEdges.push("above");
-    const primaryEdge: RowResizeEdge | null = isPrimaryHandle
-      ? isLastRow
-        ? "last"
-        : "above"
-      : null;
+    const primaryEdge: RowResizeEdge | null = (() => {
+      if (!isPrimaryHandle) return null;
+      return isLastRow ? "last" : "above";
+    })();
 
     return (
       <TableCell
@@ -1706,17 +1718,21 @@ function TableDataRow<TData>({
             clipContent: rowResizeEnabled,
           })}
         >
-          {isStringCell && isSmallRowHeight ? (
+          {isStringCell ? (
             <div
-              className="min-w-0 truncate leading-normal"
-              title={getPlainTextFromReactNode(
-                flexRender(cell.column.columnDef.cell, cell.getContext()),
-              )}
+              className={
+                isSmallRowHeight
+                  ? "min-w-0 truncate leading-normal"
+                  : "flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis"
+              }
+              title={
+                isSmallRowHeight
+                  ? getPlainTextFromReactNode(
+                      flexRender(cell.column.columnDef.cell, cell.getContext()),
+                    )
+                  : undefined
+              }
             >
-              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-            </div>
-          ) : isStringCell && !isSmallRowHeight ? (
-            <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
               {flexRender(cell.column.columnDef.cell, cell.getContext())}
             </div>
           ) : (

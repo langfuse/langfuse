@@ -11,6 +11,7 @@ import { randomUUID } from "crypto";
 import {
   StorageService,
   StorageServiceFactory,
+  storageKeys,
 } from "@langfuse/shared/src/server";
 
 const { Readable } = require("stream");
@@ -30,8 +31,10 @@ describe("StorageService", () => {
 
   beforeAll(() => {
     storageService = StorageServiceFactory.getInstance({
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
@@ -39,8 +42,10 @@ describe("StorageService", () => {
     });
 
     storageServiceWithExternalEndpoint = StorageServiceFactory.getInstance({
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
       externalEndpoint,
@@ -316,8 +321,10 @@ describe("StorageService", () => {
         .hostname;
       const storageServiceWithConnectionValidation =
         StorageServiceFactory.getInstance({
-          accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-          secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+          credentials: storageKeys(
+            env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+            env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+          ),
           bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
           endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
           region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
@@ -338,8 +345,10 @@ describe("StorageService", () => {
 
     test("uploadJson fails when connection-time validation blocks the endpoint IP", async () => {
       const blockedStorageService = StorageServiceFactory.getInstance({
-        accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-        secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+        credentials: storageKeys(
+          env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+          env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+        ),
         bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
         endpoint: "http://localhost:1",
         region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,

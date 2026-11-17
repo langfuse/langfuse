@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { LANGFUSE_SKILLS } from "@repo/langfuse-skills";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
@@ -100,4 +102,59 @@ describe("MCP tool results", () => {
       }
     },
   );
+});
+
+describe("MCP skill resources", () => {
+  it("exposes manifests separately from resource contents without leaking bundle fields", async () => {
+    const server = createMcpServer(context);
+    const client = new Client({ name: "skill-test", version: "1.0.0" });
+    const [serverTransport, clientTransport] =
+      InMemoryTransport.createLinkedPair();
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      const expected = LANGFUSE_SKILLS.map(
+        ({ uri, frontmatter, resources }) => ({
+          uri,
+          frontmatter,
+          resources: resources.map((resource) => {
+            const bytes = Buffer.from(resource.text);
+            return {
+              uri: resource.uri,
+              digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+              size: bytes.length,
+            };
+          }),
+        }),
+      );
+      const listed = await client.request(
+        { method: "skills/list" },
+        z.object({ skills: z.array(z.unknown()) }),
+      );
+      expect(listed.skills).toEqual(expected);
+      const selected = await client.request(
+        { method: "skills/get", params: { uri: expected[0]!.uri } },
+        z.object({ skill: z.unknown() }),
+      );
+      expect(selected.skill).toEqual(expected[0]);
+      for (const resource of LANGFUSE_SKILLS.flatMap(
+        ({ resources }) => resources,
+      )) {
+        const result = await client.request(
+          { method: "resources/read", params: { uri: resource.uri } },
+          z.object({ contents: z.array(z.unknown()) }),
+        );
+        expect(result.contents).toEqual([
+          {
+            uri: resource.uri,
+            mimeType: resource.mimeType,
+            text: resource.text,
+          },
+        ]);
+      }
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
 });

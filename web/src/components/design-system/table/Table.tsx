@@ -15,7 +15,7 @@ import { type ComponentProps, useMemo } from "react";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
@@ -37,6 +37,8 @@ export interface TableProps<TData> {
   columns: ColumnDef<TData>[];
   actions?: (row: TData) => ComponentProps<typeof DropdownMenu>["items"];
   actionsDisabledReason?: string;
+  /** `belowMd` for a menu that replaces inline action columns hidden below md. */
+  actionsVisibility?: "always" | "belowMd";
   data: AsyncTableData<TData[]>;
   orderBy?: OrderByState;
   setOrderBy?: (state: OrderByState) => void;
@@ -59,6 +61,7 @@ export function Table<TData extends object>({
   columns,
   actions,
   actionsDisabledReason,
+  actionsVisibility = "always",
   data,
   orderBy,
   setOrderBy,
@@ -84,8 +87,14 @@ export function Table<TData extends object>({
         header: "",
         size: 48,
         enableResizing: false,
-        headerClassName: "text-right",
-        cellClassName: "text-right",
+        headerClassName: cn(
+          "text-right",
+          actionsVisibility === "belowMd" && "md:hidden",
+        ),
+        cellClassName: cn(
+          "text-right",
+          actionsVisibility === "belowMd" && "md:hidden",
+        ),
         cell: ({ row }) => {
           const items = actions(row.original);
 
@@ -139,7 +148,7 @@ export function Table<TData extends object>({
         ),
       },
     ];
-  }, [actions, actionsDisabledReason, columns]);
+  }, [actions, actionsDisabledReason, actionsVisibility, columns]);
   const table = useReactTable({
     data: data.status === "success" ? data.data : [],
     columns: tableColumns,
@@ -264,7 +273,13 @@ export function Table<TData extends object>({
                           <DocPopup
                             description={column.headerTooltip.description}
                             href={column.headerTooltip.href}
-                          />
+                          >
+                            {({ getTriggerProps }) => (
+                              <DocPopupTrigger
+                                triggerProps={getTriggerProps()}
+                              />
+                            )}
+                          </DocPopup>
                         )}
                       </div>
                       {header.column.getCanResize() && (
@@ -323,7 +338,7 @@ export function Table<TData extends object>({
                             "hidden md:table-cell",
                         )}
                       >
-                        <div className="flex min-w-0 items-center overflow-hidden">
+                        <div className="flex min-w-0 items-center">
                           {typeof loadingCell === "function" && loadingCell()}
                           {typeof loadingCell !== "function" && loadingCell}
                           {loadingCell === undefined && (
@@ -403,7 +418,7 @@ export function Table<TData extends object>({
                       >
                         <div
                           className={cn(
-                            "flex min-w-0 items-center overflow-hidden",
+                            "flex min-w-0 items-center",
                             rowHeight === "s" && "h-8",
                             rowHeight === "m" && "h-20",
                             rowHeight === "l" && "h-60",

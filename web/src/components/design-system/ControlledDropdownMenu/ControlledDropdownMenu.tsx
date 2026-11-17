@@ -25,19 +25,31 @@ import {
   type Placement,
 } from "@floating-ui/react";
 import { cva } from "class-variance-authority";
-import { X, type IconComponent } from "@langfuse/icons";
+import { Check, type IconComponent } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import * as React from "react";
+import { cn } from "@/src/utils/tailwind";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 
 const menuVariants = cva(
   "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
+  {
+    variants: {
+      width: {
+        auto: "",
+        wide: "w-72",
+      },
+    },
+    defaultVariants: { width: "auto" },
+  },
 );
 
 const menuBodyVariants = cva(
@@ -53,47 +65,126 @@ const menuBodyVariants = cva(
         false: "after:opacity-0",
       },
       hasTitle: {
-        true: "before:top-[calc(2.5rem-1px)]",
+        true: "before:top-7.5",
         false: "before:top-0",
       },
     },
   },
 );
 
-const menuItemVariants = cva(
-  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
+// Bottom scroll gradient lives on the footer; the body's would sit behind it.
+const menuFooterVariants = cva(
+  "bg-popover before:from-popover sticky bottom-0 z-2 border-t p-1 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:mb-px before:h-6 before:bg-linear-to-t before:to-transparent before:content-['']",
   {
     variants: {
+      showGradient: {
+        true: "before:opacity-100",
+        false: "before:opacity-0",
+      },
+    },
+  },
+);
+
+const menuItemVariants = cva(
+  "group/item focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex w-full min-w-0 cursor-pointer items-center text-sm outline-hidden",
+  {
+    variants: {
+      noCapture: { true: "ph-no-capture" },
+      height: { default: "h-8", auto: "h-auto" },
+      radius: { default: "rounded-sm", tile: "rounded-md" },
       variant: {
         default: "",
+        entity: "",
         destructive:
           "text-destructive focus:bg-destructive/10 data-[active]:bg-destructive/10",
       },
     },
     defaultVariants: {
       variant: "default",
+      height: "default",
+      radius: "default",
     },
   },
 );
 
+const itemIconTileVariants = cva(
+  "bg-muted group-focus/item:bg-border group-data-[active]/item:bg-border mr-3 flex size-9 shrink-0 items-center justify-center rounded-md",
+);
+
 const primaryActionVariants = cva(
-  "flex min-w-0 flex-1 cursor-pointer items-center px-2 py-1.5",
+  "flex min-w-0 flex-1 cursor-pointer items-center pr-2",
+  {
+    variants: {
+      inset: { default: "py-1.5 pl-2", tile: "py-2 pl-2" },
+    },
+    defaultVariants: { inset: "default" },
+  },
 );
 
 const secondaryActionVariants = cva(
   "hover:bg-border dark:hover:bg-white/10 mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded",
 );
 
-function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
-  return (value: T | null) => {
-    refs.forEach((ref) => {
-      if (typeof ref === "function") {
-        ref(value);
-      } else if (ref) {
-        ref.current = value;
-      }
-    });
-  };
+// The negative vertical margin keeps the header at the height the sticky
+// scroll gradient below it is offset by.
+const headerActionVariants = cva(
+  "text-foreground hover:bg-accent hover:text-accent-foreground data-[active]:bg-accent focus-visible:ring-ring -my-0.5 -mr-1.5 flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 text-sm font-normal outline-hidden focus-visible:ring-1",
+);
+
+/** Keeps a separator only between visible rows, never at an edge or doubled. */
+function withoutStraySeparators<T extends { type: string }>(items: T[]): T[] {
+  return items.filter((item, index) => {
+    if (item.type !== "separator") return true;
+    const previous = items[index - 1];
+    const next = items[index + 1];
+    return (
+      previous !== undefined &&
+      previous.type !== "separator" &&
+      next !== undefined &&
+      next.type !== "separator"
+    );
+  });
+}
+
+function useStableTriggerRef(
+  setReference: ReturnType<typeof useFloating>["refs"]["setReference"],
+) {
+  return React.useMemo(() => {
+    // Stable composed refs avoid detaching the trigger on every prop-getter call.
+    const mergedRefs = new WeakMap<
+      NonNullable<React.Ref<HTMLElement>>,
+      React.RefCallback<HTMLElement>
+    >();
+
+    return (callerRef: React.Ref<HTMLElement> | undefined) => {
+      if (!callerRef) return setReference;
+      const cachedRef = mergedRefs.get(callerRef);
+      if (cachedRef) return cachedRef;
+
+      const mergedRef: React.RefCallback<HTMLElement> = (node) => {
+        setReference(node);
+        if (typeof callerRef === "function") {
+          const cleanup = callerRef(node);
+          return () => {
+            setReference(null);
+            if (cleanup) {
+              cleanup();
+            } else {
+              callerRef(null);
+            }
+          };
+        }
+
+        callerRef.current = node;
+        return () => {
+          setReference(null);
+          callerRef.current = null;
+        };
+      };
+      mergedRefs.set(callerRef, mergedRef);
+      return mergedRef;
+    };
+  }, [setReference]);
 }
 
 type MenuAction =
@@ -121,15 +212,23 @@ type SearchBehavior =
   | "show-when-no-results";
 
 type DropdownMenuItem = {
+  noCapture?: boolean;
   disabled?: { reason: string };
   id: string;
   title: string;
   tooltip?: string;
   badge?: React.ReactNode;
   icon?: IconComponent;
+  /** Shows the icon in a 36px shaded square. */
+  iconTile?: boolean;
+  /** Muted second line under the title. */
+  description?: string;
+  /** Shows a trailing tick. */
+  selected?: boolean;
   searchBehavior?: SearchBehavior;
   type: "item";
-  variant?: "default" | "destructive";
+  /** `entity` rows name an org or project; their title is medium weight. */
+  variant?: "default" | "entity" | "destructive";
   secondaryAction?: MenuAction & {
     ariaLabel: string;
     icon: IconComponent;
@@ -170,6 +269,8 @@ export type DropdownMenuItemDefinition =
 
 type DropdownMenuProps = {
   ariaLabel?: string;
+  /** Blocks the portaled menu's text and attributes from session replay. */
+  noCapture?: boolean;
   children: (controls: {
     getTriggerProps: (
       props?: React.HTMLProps<HTMLElement>,
@@ -179,12 +280,23 @@ type DropdownMenuProps = {
   disabled?: boolean;
   /** Shown when no results remain, excluding always-visible actions. */
   emptyText?: string;
+  /** Pinned below the scrolling items and never filtered by search, e.g. settings and create actions. */
+  footerItems?: DropdownMenuItemDefinition[];
   maxHeight?: React.CSSProperties["maxHeight"];
   /** Sizes the menu to the trigger's width, e.g. for a full-width button. */
   matchTriggerWidth?: boolean;
+  /** `wide` fixes the menu at 18rem; `auto` sizes it to its content. */
+  width?: "auto" | "wide";
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
+  /** Compact link at the right of the header; `tooltip` is also its accessible name. */
+  headerAction?: {
+    text: string;
+    tooltip: string;
+    href: string;
+    icon?: IconComponent;
+  };
   /** Marks an internal-only menu with the Internal badge in the header. */
   internal?: boolean;
   description?: string;
@@ -226,21 +338,26 @@ function ControlledDropdownMenu(
 
 function DropdownMenuNode({
   ariaLabel,
+  noCapture,
   children,
   description,
   disabled = false,
   emptyText,
+  footerItems,
+  headerAction,
   internal = false,
   items,
   maxHeight = "15rem",
   matchTriggerWidth = false,
+  width = "auto",
   placement = "bottom-start",
   search,
   title,
   onOpenChange,
   open: isOpen,
 }: React.ComponentProps<typeof ControlledDropdownMenu>) {
-  const hasHeader = Boolean(title) || internal;
+  const hasHeader = Boolean(title) || internal || Boolean(headerAction);
+  const HeaderActionIcon = headerAction?.icon;
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
   const parentId = useFloatingParentNodeId();
@@ -257,6 +374,21 @@ function DropdownMenuNode({
   }, [onOpenChange]);
   const { register, recompute, top, bottom } =
     useScrollGradients<HTMLDivElement>(true);
+  // Keyboard navigation scrolls focused rows clear of the pinned footer.
+  const footerRef = React.useCallback((footer: HTMLDivElement | null) => {
+    const container = footer?.parentElement;
+    if (!footer || !container) return;
+    const sync = () => {
+      container.style.scrollPaddingBottom = `${footer.offsetHeight}px`;
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(footer);
+    return () => {
+      observer.disconnect();
+      container.style.scrollPaddingBottom = "";
+    };
+  }, []);
   const { context, floatingStyles, refs } = useFloating({
     nodeId,
     open: isOpen,
@@ -311,9 +443,10 @@ function DropdownMenuNode({
   const { getFloatingProps, getItemProps, getReferenceProps } = useInteractions(
     [click, hover, dismiss, role, listNavigation, typeahead],
   );
-  const visibleItems = React.useMemo(() => {
+  const getTriggerRef = useStableTriggerRef(refs.setReference);
+  const bodyItems = React.useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
-    if (!search || !normalizedQuery) return items;
+    if (!search || !normalizedQuery) return withoutStraySeparators(items);
     const hasDefaultMatch = items.some((item) => {
       if (item.type === "separator" || item.type === "loading") return false;
       if (item.searchBehavior && item.searchBehavior !== "default")
@@ -321,8 +454,8 @@ function DropdownMenuNode({
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
 
-    return items.filter((item) => {
-      if (item.type === "separator") return false;
+    const filtered = items.filter((item) => {
+      if (item.type === "separator") return true;
       if (item.type === "loading") return true;
       if (item.searchBehavior === "hide") return false;
       if (item.searchBehavior === "always-show") return true;
@@ -331,8 +464,26 @@ function DropdownMenuNode({
       }
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
+    return withoutStraySeparators(filtered);
   }, [items, search, searchQuery]);
-  const hasVisibleResults = visibleItems.some(
+  const footerStart = bodyItems.length;
+  const visibleItems = React.useMemo(
+    () => [...bodyItems, ...(footerItems ?? [])],
+    [bodyItems, footerItems],
+  );
+  // Registered after the items so ArrowUp from the first item wraps to the
+  // header action, which sits above them.
+  const headerActionIndex = visibleItems.length;
+  const setHeaderActionRef = React.useCallback(
+    (element: HTMLElement | null) => {
+      listRef.current[headerActionIndex] = element;
+      labelsRef.current[headerActionIndex] = element
+        ? (headerAction?.tooltip ?? null)
+        : null;
+    },
+    [headerAction?.tooltip, headerActionIndex],
+  );
+  const hasVisibleResults = bodyItems.some(
     (item) =>
       item.type !== "separator" &&
       (item.type === "loading" || item.searchBehavior !== "always-show"),
@@ -357,6 +508,354 @@ function DropdownMenuNode({
     };
   }, [closeMenu, nodeId, parentId, tree]);
 
+  const renderItem = (item: DropdownMenuItemDefinition, index: number) => {
+    if (item.type === "separator") {
+      labelsRef.current[index] = null;
+      listRef.current[index] = null;
+      return (
+        <div
+          key={item.id}
+          role="separator"
+          className="bg-border -mx-1 my-1 h-px"
+        />
+      );
+    }
+
+    if (item.type === "loading") {
+      labelsRef.current[index] = null;
+      listRef.current[index] = null;
+      return (
+        <div
+          key={item.id}
+          role="menuitem"
+          aria-label="Loading"
+          aria-disabled="true"
+          className="flex h-8 items-center px-2 py-1.5"
+        >
+          <div className="bg-muted-foreground/20 h-4 w-24 animate-pulse rounded-md" />
+        </div>
+      );
+    }
+
+    if (item.type === "submenu") {
+      const ItemIcon = item.icon;
+      labelsRef.current[index] = item.title;
+
+      return (
+        <DropdownSubmenu
+          key={item.id}
+          items={item.items}
+          disabled={Boolean(item.disabled)}
+          maxHeight={maxHeight}
+          placement="right-start"
+          ariaLabel={item.title}
+          search={item.search}
+        >
+          {({ getTriggerProps }) => (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={Boolean(item.disabled)}
+              aria-disabled={item.disabled ? "true" : undefined}
+              title={item.disabled?.reason}
+              tabIndex={activeIndex === index ? 0 : -1}
+              data-active={activeIndex === index ? "" : undefined}
+              data-disabled={item.disabled ? "" : undefined}
+              className={menuItemVariants()}
+              {...getItemProps(
+                getTriggerProps({
+                  ref: (element) => {
+                    listRef.current[index] = element;
+                  },
+                }),
+              )}
+            >
+              <span className={primaryActionVariants()}>
+                {ItemIcon ? (
+                  <ItemIcon
+                    color="default"
+                    __rawClassName="mr-2"
+                    aria-hidden="true"
+                  />
+                ) : null}
+                <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
+                  {item.title}
+                </span>
+                {item.internal ? (
+                  <FeatureReleaseStatus status="internal" />
+                ) : null}
+                {item.count ? (
+                  <span className="ml-2 flex shrink-0 items-center">
+                    <Badge text={String(item.count)} />
+                  </span>
+                ) : null}
+                <span className="ml-2 flex">
+                  <DropdownIndicator direction="right" />
+                </span>
+              </span>
+            </button>
+          )}
+        </DropdownSubmenu>
+      );
+    }
+
+    if (item.type === "checkbox") {
+      const ItemIcon = item.icon;
+      labelsRef.current[index] = item.title;
+      const handleCheckedChange = (checked: boolean) => {
+        if (item.disabled) return;
+        if (item.closeOnCheckedChange) {
+          tree?.events.emit("click");
+        }
+        item.onCheckedChange(checked);
+      };
+
+      return (
+        <div
+          key={item.id}
+          role="menuitemcheckbox"
+          aria-checked={item.checked}
+          aria-disabled={item.disabled ? "true" : undefined}
+          title={item.disabled?.reason}
+          tabIndex={activeIndex === index ? 0 : -1}
+          ref={(element) => {
+            listRef.current[index] = element;
+          }}
+          data-active={activeIndex === index ? "" : undefined}
+          data-disabled={item.disabled ? "" : undefined}
+          className={menuItemVariants()}
+          {...getItemProps({
+            onClick: () => {
+              handleCheckedChange(!item.checked);
+            },
+            onKeyDown: (event) => {
+              if (item.disabled) return;
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              handleCheckedChange(!item.checked);
+            },
+          })}
+        >
+          <span className={primaryActionVariants()}>
+            {ItemIcon ? (
+              <ItemIcon
+                color="default"
+                __rawClassName="mr-2"
+                aria-hidden="true"
+              />
+            ) : null}
+            <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
+              {item.title}
+            </span>
+            <span className="ml-2 flex shrink-0 items-center">
+              <Checkbox
+                aria-hidden="true"
+                checked={item.checked}
+                disabled={Boolean(item.disabled)}
+                size="sm"
+                tabIndex={-1}
+                onClick={(event) => event.stopPropagation()}
+                onCheckedChange={handleCheckedChange}
+              />
+            </span>
+          </span>
+        </div>
+      );
+    }
+
+    const ItemIcon = item.icon;
+    const SecondaryIcon = item.secondaryAction?.icon;
+    labelsRef.current[index] = item.title;
+    const itemIconNode = ItemIcon ? (
+      <ItemIcon
+        color={item.variant === "destructive" ? "inherit" : "default"}
+        size={item.iconTile ? "base" : undefined}
+        __rawClassName={item.iconTile ? undefined : "mr-2"}
+        aria-hidden="true"
+      />
+    ) : null;
+    const itemContent = (
+      <>
+        {item.iconTile ? (
+          <span className={itemIconTileVariants()}>{itemIconNode}</span>
+        ) : (
+          itemIconNode
+        )}
+        <span className="flex min-w-0 flex-1 flex-col text-left">
+          <span
+            className={cn(
+              "overflow-hidden text-ellipsis whitespace-nowrap",
+              item.variant === "entity" && "font-medium",
+            )}
+            title={item.disabled?.reason ?? item.title}
+          >
+            {item.title}
+          </span>
+          {item.description ? (
+            <span className="text-muted-foreground overflow-hidden text-xs leading-4 text-ellipsis whitespace-nowrap">
+              {item.description}
+            </span>
+          ) : null}
+        </span>
+        {item.badge ? (
+          <span className="ml-2 shrink-0">{item.badge}</span>
+        ) : null}
+        {item.selected ? (
+          <Check
+            color="default"
+            aria-label="Selected"
+            __rawClassName="ml-2 shrink-0"
+          />
+        ) : null}
+      </>
+    );
+    let renderedSecondaryAction: React.ReactNode = null;
+
+    if (item.secondaryAction && SecondaryIcon) {
+      const secondaryAction = item.secondaryAction;
+      const interactionProps = {
+        onMouseEnter: () => {
+          if (!item.disabled) setActiveIndex(index);
+        },
+        onMouseLeave: () => setActiveIndex(null),
+      };
+
+      if (secondaryAction.href) {
+        renderedSecondaryAction = (
+          <Link
+            data-secondary-action=""
+            href={secondaryAction.href}
+            aria-label={secondaryAction.ariaLabel}
+            aria-disabled={item.disabled ? "true" : undefined}
+            tabIndex={-1}
+            className={secondaryActionVariants()}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (item.disabled) {
+                event.preventDefault();
+                return;
+              }
+              tree?.events.emit("click");
+            }}
+            {...interactionProps}
+          >
+            <SecondaryIcon
+              size="sm"
+              color={item.variant === "destructive" ? "inherit" : "default"}
+              aria-hidden="true"
+            />
+          </Link>
+        );
+      } else {
+        renderedSecondaryAction = (
+          <button
+            type="button"
+            disabled={Boolean(item.disabled)}
+            data-secondary-action=""
+            aria-label={secondaryAction.ariaLabel}
+            tabIndex={-1}
+            className={secondaryActionVariants()}
+            onClick={(event) => {
+              event.stopPropagation();
+              tree?.events.emit("click");
+              secondaryAction.onClick?.();
+            }}
+            {...interactionProps}
+          >
+            <SecondaryIcon
+              size="sm"
+              color={item.variant === "destructive" ? "inherit" : "default"}
+              aria-hidden="true"
+            />
+          </button>
+        );
+      }
+    }
+
+    return (
+      <div
+        key={item.id}
+        role="menuitem"
+        tabIndex={activeIndex === index ? 0 : -1}
+        aria-disabled={item.disabled ? "true" : undefined}
+        title={item.disabled?.reason ?? item.tooltip}
+        ref={(element) => {
+          listRef.current[index] = element;
+        }}
+        data-active={activeIndex === index ? "" : undefined}
+        data-disabled={item.disabled ? "" : undefined}
+        className={menuItemVariants({
+          variant: item.variant,
+          noCapture: item.noCapture,
+          height: item.iconTile || item.description ? "auto" : "default",
+          radius: item.iconTile ? "tile" : "default",
+        })}
+        {...getItemProps({
+          onClick: (event) => {
+            if (item.disabled) return;
+            if (event.target !== event.currentTarget) return;
+            event.preventDefault();
+            event.currentTarget
+              .querySelector<HTMLElement>("[data-primary-action]")
+              ?.click();
+          },
+          onKeyDown: (event) => {
+            if (item.disabled) return;
+            if (event.target !== event.currentTarget) return;
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            event.currentTarget
+              .querySelector<HTMLElement>("[data-primary-action]")
+              ?.click();
+          },
+        })}
+      >
+        {item.href ? (
+          <Link
+            data-primary-action=""
+            href={item.href}
+            target={item.linkTarget}
+            rel={item.linkTarget === "_blank" ? "noopener" : undefined}
+            aria-disabled={item.disabled ? "true" : undefined}
+            tabIndex={item.disabled ? -1 : undefined}
+            className={primaryActionVariants({
+              inset: item.iconTile ? "tile" : "default",
+            })}
+            onClick={(event) => {
+              if (item.disabled) {
+                event.preventDefault();
+                return;
+              }
+              tree?.events.emit("click");
+              item.onAfterNavigate?.();
+            }}
+            onAuxClick={(event) => {
+              if (event.button === 1) item.onAfterNavigate?.();
+            }}
+          >
+            {itemContent}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled={Boolean(item.disabled)}
+            data-primary-action=""
+            className={primaryActionVariants({
+              inset: item.iconTile ? "tile" : "default",
+            })}
+            onClick={() => {
+              tree?.events.emit("click");
+              item.onClick?.();
+            }}
+          >
+            {itemContent}
+          </button>
+        )}
+        {renderedSecondaryAction}
+      </div>
+    );
+  };
+
   return (
     <FloatingNode id={nodeId}>
       {children({
@@ -365,19 +864,31 @@ function DropdownMenuNode({
           return getReferenceProps({
             ...triggerProps,
             "aria-expanded": isOpen,
-            ref: mergeRefs(ref, refs.setReference),
+            ref: getTriggerRef(ref),
           });
         },
       })}
       {isOpen ? (
         <FloatingPortal root={layerContainer}>
-          <FloatingFocusManager context={context} modal={false}>
+          <FloatingFocusManager
+            context={context}
+            modal={false}
+            // Searchable menus focus the field so typing filters at once;
+            // others keep focus on the trigger and arrow keys move into the list.
+            initialFocus={search ? searchInputRef : -1}
+          >
             <div
               ref={(element) => {
                 refs.setFloating(element);
                 register(element);
               }}
-              className={menuVariants({ className: description && "w-80" })}
+              className={menuVariants({
+                width,
+                className: cn(
+                  description && "w-80",
+                  noCapture && "ph-no-capture",
+                ),
+              })}
               style={{ ...floatingStyles, maxHeight }}
               {...getFloatingProps({ onScroll: recompute })}
               {...(ariaLabel || title
@@ -388,15 +899,62 @@ function DropdownMenuNode({
                 : {})}
             >
               {hasHeader ? (
-                <div className="border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5 text-sm font-bold">
-                  {internal ? (
+                <div
+                  className={cn(
+                    "bg-popover text-muted-foreground sticky top-0 z-1 px-3 pt-2.5 text-xs font-bold",
+                    search && "pb-1",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       {title}
-                      <FeatureReleaseStatus status="internal" />
+                      {internal ? (
+                        <FeatureReleaseStatus status="internal" />
+                      ) : null}
                     </div>
-                  ) : (
-                    title
-                  )}
+                    {headerAction ? (
+                      <Tooltip
+                        label={headerAction.tooltip}
+                        placement="top"
+                        hoverableContent={false}
+                      >
+                        {({ getTriggerProps }) => (
+                          <Link
+                            {...getTriggerProps(
+                              getItemProps({
+                                ref: setHeaderActionRef,
+                                onClick: () => tree?.events.emit("click"),
+                                onKeyDown: (event) => {
+                                  if (event.key !== " ") return;
+                                  event.preventDefault();
+                                  event.currentTarget.click();
+                                },
+                              }),
+                            )}
+                            role="menuitem"
+                            tabIndex={
+                              activeIndex === headerActionIndex ? 0 : -1
+                            }
+                            data-active={
+                              activeIndex === headerActionIndex ? "" : undefined
+                            }
+                            href={headerAction.href}
+                            aria-label={headerAction.tooltip}
+                            className={headerActionVariants()}
+                          >
+                            {HeaderActionIcon ? (
+                              <HeaderActionIcon
+                                size="base"
+                                color="inherit"
+                                aria-hidden
+                              />
+                            ) : null}
+                            {headerAction.text}
+                          </Link>
+                        )}
+                      </Tooltip>
+                    ) : null}
+                  </div>
                   {description && (
                     <p className="text-muted-foreground mt-1 text-xs font-normal">
                       {description}
@@ -405,70 +963,53 @@ function DropdownMenuNode({
                 </div>
               ) : null}
               {search ? (
-                <div className="border-border bg-popover sticky top-0 z-1 border-b p-1.5">
-                  <div className="relative">
-                    <input
-                      ref={searchInputRef}
-                      type="search"
-                      value={searchQuery}
-                      placeholder={search.placeholder}
-                      aria-label={search.placeholder}
-                      className="border-input bg-background focus:ring-ring h-8 w-full rounded-md border pr-8 pl-2 text-sm outline-hidden focus:ring-1 [&::-webkit-search-cancel-button]:hidden"
-                      onChange={(event) => {
-                        setSearchQuery(event.target.value);
-                        setActiveIndex(null);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          closeMenu();
-                          event.preventDefault();
-                        } else if (event.key === "ArrowDown") {
-                          const firstIndex = listRef.current
-                            .slice(0, visibleItems.length)
-                            .findIndex((element) => element !== null);
-                          setActiveIndex(firstIndex === -1 ? null : firstIndex);
-                          listRef.current[firstIndex]?.focus();
-                          event.preventDefault();
-                        } else if (event.key === "ArrowUp") {
-                          const lastIndex = listRef.current
-                            .slice(0, visibleItems.length)
-                            .findLastIndex((element) => element !== null);
-                          setActiveIndex(lastIndex === -1 ? null : lastIndex);
-                          listRef.current[lastIndex]?.focus();
-                          event.preventDefault();
-                        }
+                <div
+                  className={cn(
+                    "border-border bg-popover sticky top-0 z-1 border-b",
+                    hasHeader && "border-t",
+                  )}
+                >
+                  <SearchInput
+                    ref={searchInputRef}
+                    mode="filter"
+                    variant="borderless"
+                    size="large"
+                    value={searchQuery}
+                    placeholder={search.placeholder}
+                    ariaLabel={search.placeholder}
+                    onChange={(value) => {
+                      setSearchQuery(value);
+                      setActiveIndex(null);
+                    }}
+                    onBeforeKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        closeMenu();
+                        event.preventDefault();
+                      } else if (event.key === "ArrowDown") {
+                        const firstIndex = listRef.current
+                          .slice(0, visibleItems.length)
+                          .findIndex((element) => element !== null);
+                        setActiveIndex(firstIndex === -1 ? null : firstIndex);
+                        listRef.current[firstIndex]?.focus();
+                        event.preventDefault();
+                      } else if (event.key === "ArrowUp") {
+                        const lastIndex = listRef.current
+                          .slice(0, visibleItems.length)
+                          .findLastIndex((element) => element !== null);
+                        setActiveIndex(lastIndex === -1 ? null : lastIndex);
+                        listRef.current[lastIndex]?.focus();
+                        event.preventDefault();
+                      }
 
-                        event.stopPropagation();
-                      }}
-                    />
-                    {searchQuery !== "" && (
-                      <button
-                        type="button"
-                        aria-label="Clear search"
-                        // Not a tab stop, matching the native control it
-                        // replaces.
-                        tabIndex={-1}
-                        // The button unmounts as soon as the query clears, so
-                        // hand focus back to the field. That also keeps DOM
-                        // focus and the cleared activeIndex in agreement when
-                        // the list had been arrowed into.
-                        onClick={() => {
-                          setSearchQuery("");
-                          setActiveIndex(null);
-                          searchInputRef.current?.focus();
-                        }}
-                        className="text-muted-foreground hover:bg-accent hover:text-accent-foreground absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm"
-                      >
-                        <X size="base" aria-hidden />
-                      </button>
-                    )}
-                  </div>
+                      event.stopPropagation();
+                    }}
+                  />
                 </div>
               ) : null}
               <div
                 className={menuBodyVariants({
                   hasTitle: hasHeader || Boolean(search),
-                  showBottomGradient: bottom,
+                  showBottomGradient: bottom && !footerItems?.length,
                   showTopGradient: top,
                 })}
               >
@@ -480,354 +1021,20 @@ function DropdownMenuNode({
                     {emptyText}
                   </div>
                 ) : null}
-                {visibleItems.map((item, index) => {
-                  if (item.type === "separator") {
-                    labelsRef.current[index] = null;
-                    listRef.current[index] = null;
-                    return (
-                      <div
-                        key={item.id}
-                        role="separator"
-                        className="bg-border -mx-1 my-1 h-px"
-                      />
-                    );
-                  }
-
-                  if (item.type === "loading") {
-                    labelsRef.current[index] = null;
-                    listRef.current[index] = null;
-                    return (
-                      <div
-                        key={item.id}
-                        role="menuitem"
-                        aria-label="Loading"
-                        aria-disabled="true"
-                        className="flex h-8 items-center px-2 py-1.5"
-                      >
-                        <div className="bg-muted-foreground/20 h-4 w-24 animate-pulse rounded-md" />
-                      </div>
-                    );
-                  }
-
-                  if (item.type === "submenu") {
-                    const ItemIcon = item.icon;
-                    labelsRef.current[index] = item.title;
-
-                    return (
-                      <DropdownSubmenu
-                        key={item.id}
-                        items={item.items}
-                        disabled={Boolean(item.disabled)}
-                        maxHeight={maxHeight}
-                        placement="right-start"
-                        ariaLabel={item.title}
-                        search={item.search}
-                      >
-                        {({ getTriggerProps }) => (
-                          <button
-                            type="button"
-                            role="menuitem"
-                            disabled={Boolean(item.disabled)}
-                            aria-disabled={item.disabled ? "true" : undefined}
-                            title={item.disabled?.reason}
-                            tabIndex={activeIndex === index ? 0 : -1}
-                            data-active={activeIndex === index ? "" : undefined}
-                            data-disabled={item.disabled ? "" : undefined}
-                            className={menuItemVariants()}
-                            {...getItemProps(
-                              getTriggerProps({
-                                ref: (element) => {
-                                  listRef.current[index] = element;
-                                },
-                              }),
-                            )}
-                          >
-                            <span className={primaryActionVariants()}>
-                              {ItemIcon ? (
-                                <ItemIcon
-                                  color="default"
-                                  __rawClassName="mr-1.5"
-                                  aria-hidden="true"
-                                />
-                              ) : null}
-                              <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
-                                {item.title}
-                              </span>
-                              {item.internal ? (
-                                <FeatureReleaseStatus status="internal" />
-                              ) : null}
-                              {item.count ? (
-                                <span className="ml-2 flex shrink-0 items-center">
-                                  <Badge text={String(item.count)} />
-                                </span>
-                              ) : null}
-                              <span className="ml-2 flex">
-                                <DropdownIndicator direction="right" />
-                              </span>
-                            </span>
-                          </button>
-                        )}
-                      </DropdownSubmenu>
-                    );
-                  }
-
-                  if (item.type === "checkbox") {
-                    const ItemIcon = item.icon;
-                    labelsRef.current[index] = item.title;
-                    const handleCheckedChange = (checked: boolean) => {
-                      if (item.disabled) return;
-                      if (item.closeOnCheckedChange) {
-                        tree?.events.emit("click");
-                      }
-                      item.onCheckedChange(checked);
-                    };
-
-                    return (
-                      <div
-                        key={item.id}
-                        role="menuitemcheckbox"
-                        aria-checked={item.checked}
-                        aria-disabled={item.disabled ? "true" : undefined}
-                        title={item.disabled?.reason}
-                        tabIndex={activeIndex === index ? 0 : -1}
-                        ref={(element) => {
-                          listRef.current[index] = element;
-                        }}
-                        data-active={activeIndex === index ? "" : undefined}
-                        data-disabled={item.disabled ? "" : undefined}
-                        className={menuItemVariants()}
-                        {...getItemProps({
-                          onClick: () => {
-                            handleCheckedChange(!item.checked);
-                          },
-                          onKeyDown: (event) => {
-                            if (item.disabled) return;
-                            if (event.key !== "Enter" && event.key !== " ")
-                              return;
-                            event.preventDefault();
-                            handleCheckedChange(!item.checked);
-                          },
-                        })}
-                      >
-                        <span className={primaryActionVariants()}>
-                          {ItemIcon ? (
-                            <ItemIcon
-                              color="default"
-                              __rawClassName="mr-1.5"
-                              aria-hidden="true"
-                            />
-                          ) : null}
-                          <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
-                            {item.title}
-                          </span>
-                          <span className="ml-2 flex shrink-0 items-center">
-                            <Checkbox
-                              aria-hidden="true"
-                              checked={item.checked}
-                              disabled={Boolean(item.disabled)}
-                              size="sm"
-                              tabIndex={-1}
-                              onClick={(event) => event.stopPropagation()}
-                              onCheckedChange={handleCheckedChange}
-                            />
-                          </span>
-                        </span>
-                      </div>
-                    );
-                  }
-
-                  const ItemIcon = item.icon;
-                  const SecondaryIcon = item.secondaryAction?.icon;
-                  labelsRef.current[index] = item.title;
-                  let renderedSecondaryAction: React.ReactNode = null;
-
-                  if (item.secondaryAction && SecondaryIcon) {
-                    const secondaryAction = item.secondaryAction;
-                    const interactionProps = {
-                      onMouseEnter: () => {
-                        if (!item.disabled) setActiveIndex(index);
-                      },
-                      onMouseLeave: () => setActiveIndex(null),
-                    };
-
-                    if (secondaryAction.href) {
-                      renderedSecondaryAction = (
-                        <Link
-                          data-secondary-action=""
-                          href={secondaryAction.href}
-                          aria-label={secondaryAction.ariaLabel}
-                          aria-disabled={item.disabled ? "true" : undefined}
-                          tabIndex={-1}
-                          className={secondaryActionVariants()}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (item.disabled) {
-                              event.preventDefault();
-                              return;
-                            }
-                            tree?.events.emit("click");
-                          }}
-                          {...interactionProps}
-                        >
-                          <SecondaryIcon
-                            size="sm"
-                            color={
-                              item.variant === "destructive"
-                                ? "inherit"
-                                : "default"
-                            }
-                            aria-hidden="true"
-                          />
-                        </Link>
-                      );
-                    } else {
-                      renderedSecondaryAction = (
-                        <button
-                          type="button"
-                          disabled={Boolean(item.disabled)}
-                          data-secondary-action=""
-                          aria-label={secondaryAction.ariaLabel}
-                          tabIndex={-1}
-                          className={secondaryActionVariants()}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            tree?.events.emit("click");
-                            secondaryAction.onClick?.();
-                          }}
-                          {...interactionProps}
-                        >
-                          <SecondaryIcon
-                            size="sm"
-                            color={
-                              item.variant === "destructive"
-                                ? "inherit"
-                                : "default"
-                            }
-                            aria-hidden="true"
-                          />
-                        </button>
-                      );
-                    }
-                  }
-
-                  return (
-                    <div
-                      key={item.id}
-                      role="menuitem"
-                      tabIndex={activeIndex === index ? 0 : -1}
-                      aria-disabled={item.disabled ? "true" : undefined}
-                      title={item.disabled?.reason ?? item.tooltip}
-                      ref={(element) => {
-                        listRef.current[index] = element;
-                      }}
-                      data-active={activeIndex === index ? "" : undefined}
-                      data-disabled={item.disabled ? "" : undefined}
-                      className={menuItemVariants({ variant: item.variant })}
-                      {...getItemProps({
-                        onClick: (event) => {
-                          if (item.disabled) return;
-                          if (event.target !== event.currentTarget) return;
-                          event.preventDefault();
-                          event.currentTarget
-                            .querySelector<HTMLElement>("[data-primary-action]")
-                            ?.click();
-                        },
-                        onKeyDown: (event) => {
-                          if (item.disabled) return;
-                          if (event.target !== event.currentTarget) return;
-                          if (event.key !== "Enter" && event.key !== " ")
-                            return;
-                          event.preventDefault();
-                          event.currentTarget
-                            .querySelector<HTMLElement>("[data-primary-action]")
-                            ?.click();
-                        },
-                      })}
-                    >
-                      {item.href ? (
-                        <Link
-                          data-primary-action=""
-                          href={item.href}
-                          target={item.linkTarget}
-                          rel={
-                            item.linkTarget === "_blank"
-                              ? "noopener"
-                              : undefined
-                          }
-                          aria-disabled={item.disabled ? "true" : undefined}
-                          tabIndex={item.disabled ? -1 : undefined}
-                          className={primaryActionVariants()}
-                          onClick={(event) => {
-                            if (item.disabled) {
-                              event.preventDefault();
-                              return;
-                            }
-                            tree?.events.emit("click");
-                            item.onAfterNavigate?.();
-                          }}
-                          onAuxClick={(event) => {
-                            if (event.button === 1) item.onAfterNavigate?.();
-                          }}
-                        >
-                          {ItemIcon ? (
-                            <ItemIcon
-                              color={
-                                item.variant === "destructive"
-                                  ? "inherit"
-                                  : "default"
-                              }
-                              __rawClassName="mr-1.5"
-                              aria-hidden="true"
-                            />
-                          ) : null}
-                          <span
-                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
-                            title={item.title}
-                          >
-                            {item.title}
-                          </span>
-                          {item.badge ? (
-                            <span className="ml-2 shrink-0">{item.badge}</span>
-                          ) : null}
-                        </Link>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={Boolean(item.disabled)}
-                          data-primary-action=""
-                          className={primaryActionVariants()}
-                          onClick={() => {
-                            tree?.events.emit("click");
-                            item.onClick?.();
-                          }}
-                        >
-                          {ItemIcon ? (
-                            <ItemIcon
-                              color={
-                                item.variant === "destructive"
-                                  ? "inherit"
-                                  : "default"
-                              }
-                              __rawClassName="mr-1.5"
-                              aria-hidden="true"
-                            />
-                          ) : null}
-                          <span
-                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
-                            title={item.title}
-                          >
-                            {item.title}
-                          </span>
-                          {item.badge ? (
-                            <span className="ml-2 shrink-0">{item.badge}</span>
-                          ) : null}
-                        </button>
-                      )}
-                      {renderedSecondaryAction}
-                    </div>
-                  );
-                })}
+                {visibleItems.slice(0, footerStart).map(renderItem)}
               </div>
+              {footerStart < visibleItems.length ? (
+                <div
+                  ref={footerRef}
+                  className={menuFooterVariants({ showGradient: bottom })}
+                >
+                  {visibleItems
+                    .slice(footerStart)
+                    .map((item, offset) =>
+                      renderItem(item, footerStart + offset),
+                    )}
+                </div>
+              ) : null}
             </div>
           </FloatingFocusManager>
         </FloatingPortal>

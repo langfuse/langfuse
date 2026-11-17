@@ -6,6 +6,7 @@ import {
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import { clickhouseCompliantRandomCharacters } from "../../repositories/clickhouse";
+import { clickhouseAsciiLower } from "../../utils/searchText";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import {
   assertValidFtsMatchFilter,
@@ -39,13 +40,6 @@ export type ClickhouseFilter = {
 const NGRAM_ACCELERATED_METADATA_OPERATORS = new Set<
   (typeof filterOperators)["stringObject"][number]
 >(["contains", "starts with", "ends with"]);
-
-// ClickHouse `lower()` (used by the events_full ngram indexes) lowercases ASCII
-// A-Z only, byte-wise, leaving multi-byte UTF-8 untouched. Mirror that exactly
-// so a JS-lowered IN set matches the index and never prunes a real match. Full
-// String.toLowerCase() would diverge on non-ASCII and is unsafe here.
-const clickhouseAsciiLower = (value: string): string =>
-  value.replace(/[A-Z]/g, (c) => c.toLowerCase());
 
 // Substring operators with an empty value skip the ngram prefilter and degrade
 // to a full-scan "does this key exist" over the whole time window — a confirmed

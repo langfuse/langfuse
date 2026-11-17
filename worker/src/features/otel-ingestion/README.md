@@ -17,7 +17,7 @@ unavailable ClickHouse server fails the run.
 
 The corpus, integration, and property suites replay identical stored JSON bytes
 through the production OTEL queue with early Rust media extraction off and on.
-Both runs retain TypeScript normalization, enrichment, tokenization, remaining
+Both runs retain TypeScript normalization, enrichment, remaining
 media detection, overflow handling, and the production JSON writer. Model and
 prompt lookups, media uploads, and evaluation scheduling use test doubles.
 

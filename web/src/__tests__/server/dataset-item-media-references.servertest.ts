@@ -56,7 +56,6 @@ const session: Session = {
       },
     ],
     featureFlags: testFeatureFlags(),
-    admin: true,
   },
   environment: {} as never,
 };

@@ -30,7 +30,11 @@ import {
   createTraceDeleteBatchActionConfig,
   TraceDeleteBatchActionConfigSchema,
 } from "@langfuse/shared";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  convertAuditLogStagingRowToClickhouse,
+  createOrgProjectAndApiKey,
+  deriveAuditLogEventId,
+} from "@langfuse/shared/src/server";
 
 const traceDeleteQuery = (userId: string) => ({
   filter: [
@@ -52,7 +56,6 @@ const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
       id: `user-${randomUUID()}`,
       name: "Batch Delete Test User",
       canCreateOrganizations: true,
-      admin: true,
       v4BetaEnabled: opts.v4BetaEnabled ?? false,
       organizations: [
         {
@@ -96,6 +99,36 @@ describe("traces.deleteMany batch action", () => {
     mockAddBatchAction.mockClear();
     mockGetBatchActionJobState.mockReset();
     mockGetBatchActionJobState.mockResolvedValue("unknown");
+  });
+
+  it("audits selected trace deletion once with queryable trace refs", async () => {
+    const { projectId, session, caller } = await createCaller();
+    const userId = session.user!.id;
+    const traceIds = [randomUUID(), randomUUID(), randomUUID()];
+
+    await caller.traces.deleteMany({ projectId, traceIds });
+
+    const records = await prisma.auditLog.findMany({ where: { projectId } });
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      type: "USER",
+      userId,
+      resourceType: "project",
+      resourceId: projectId,
+      action: "deleteTraces",
+      before: JSON.stringify({ traceIds }),
+    });
+    const record = records[0];
+    const id = deriveAuditLogEventId(record.id, record.createdAt);
+    const staged = await prisma.auditLogStaging.findUniqueOrThrow({
+      where: { id },
+    });
+    expect(convertAuditLogStagingRowToClickhouse(staged)).toMatchObject({
+      actor_type: "USER",
+      user_id: userId,
+      resource_refs: traceIds.map((traceId) => `trace:${traceId}`),
+    });
+    await prisma.auditLogStaging.delete({ where: { id } });
   });
 
   it("creates the trace-delete BatchAction row without a queue payload", async () => {

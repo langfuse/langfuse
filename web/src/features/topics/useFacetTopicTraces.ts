@@ -2,10 +2,12 @@ import { createContext, useContext } from "react";
 import { api } from "@/src/utils/api";
 import { type TopicTraceQuery, type TopicTracesResult } from "./facet-topics";
 
-export const FacetTraceSource = createContext<{
-  projectId: string;
-  facetId: string;
-} | null>(null);
+/** Which map the Topics page shows: a rule's live map, an analysis snapshot, or every rule. */
+export type TopicMapScope = { ruleId?: string; analysisId?: string };
+
+export const FacetTraceSource = createContext<
+  ({ projectId: string; facetId: string } & TopicMapScope) | null
+>(null);
 
 /** Pages a facet's traces from the server; `null` matches nothing without a request. */
 export function useFacetTopicTraces(
@@ -16,6 +18,8 @@ export function useFacetTopicTraces(
     {
       projectId: source?.projectId ?? "",
       facetId: source?.facetId ?? "",
+      ruleId: source?.ruleId,
+      analysisId: source?.analysisId,
       ...query,
     },
     {

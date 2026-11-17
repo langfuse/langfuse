@@ -38,6 +38,7 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import {
   isGenerationMissingCost,
+  isGenerationMissingUsage,
   resolveObservationCostSource,
 } from "./costSource";
 import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
@@ -162,15 +163,18 @@ export const ObservationDetailViewHeader = memo(
         subtreeMetrics?.costDetails ?? observation.costDetails;
       const showsNoCost = isGenerationMissingCost({
         type: observation.type,
-        totalUsage: observation.totalUsage,
+        level: observation.level,
         totalCost: displayedTotalCost,
         costDetails: displayedCostDetails,
+        providedUsageDetails: observation.providedUsageDetails,
+        providedCostDetails: observation.providedCostDetails,
       });
       if (showsNoCost) {
         metrics.push({
           id: "cost",
           type: "missing-cost",
           projectId,
+          hasUsage: Object.keys(observation.providedUsageDetails).length > 0,
           searchText: "no cost missing model price",
         });
       } else if (displayedTotalCost != null && displayedCostDetails) {
@@ -225,6 +229,21 @@ export const ObservationDetailViewHeader = memo(
       const hasGeneration = subtreeMetrics
         ? subtreeMetrics.hasGenerationLike
         : isGenerationLike(observation.type);
+      const showsMissingUsage =
+        !showsNoCost &&
+        isGenerationMissingUsage({
+          type: observation.type,
+          level: observation.level,
+          providedUsageDetails: observation.providedUsageDetails,
+          providedCostDetails: observation.providedCostDetails,
+        });
+      if (showsMissingUsage)
+        metrics.push({
+          id: "usage-warning",
+          type: "missing-usage",
+          projectId,
+          searchText: "usage not submitted",
+        });
       if (
         hasGeneration &&
         totalUsage > 0 &&

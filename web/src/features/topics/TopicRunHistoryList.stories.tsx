@@ -77,8 +77,6 @@ function processRun(
       requestId: `request-${id}`,
       facets: facetRefs,
       embeddingConfig: { embeddingDimensions: 1024 },
-      reuseExistingSummaries: false,
-      processingConfig: { maxInputTokens: 120_000, maxOutputTokens: 512 },
     },
   };
 }
@@ -118,11 +116,22 @@ function updateRun(
   };
 }
 
+// A snapshot that summarizes before it groups shows a progress bar while running.
+function summarizingSnapshot(id: string, createdAt: string): Run {
+  const run = updateRun(id, "running", createdAt);
+  return {
+    ...run,
+    phase: "summarizing",
+    facets: run.facets.map((facet) => ({
+      ...facet,
+      outcome: "pending",
+      counts: { ...facet.counts, requested: 1_280, complete: 640 },
+    })),
+  };
+}
+
 const runs: Run[] = [
-  processRun("run-9", "running", hoursAgo(0.4), 1.84, {
-    requested: 1_280,
-    complete: 640,
-  }),
+  summarizingSnapshot("run-9", hoursAgo(0.4)),
   updateRun("run-8", "queued", hoursAgo(0.3)),
   processRun("run-7", "completed", hoursAgo(17), 4.2, { requested: 1_412 }),
   processRun("run-6", "completed_with_errors", hoursAgo(46), 3.95, {
@@ -131,7 +140,7 @@ const runs: Run[] = [
     failed: 12,
   }),
   updateRun("run-5", "failed", hoursAgo(67), "Embedding model returned 429."),
-  processRun("run-4", "completed", hoursAgo(97), 0.97, { requested: 326 }),
+  processRun("run-4", "completed", hoursAgo(97), 0, { requested: 326 }),
   updateRun("run-3", "completed", hoursAgo(98)),
   processRun("run-2", "completed", hoursAgo(118), 3.3, {
     requested: 1_105,
@@ -168,10 +177,7 @@ export const PinsRunningAndGroupsByDay = meta.story({
   args: {
     executions: [
       updateRun("regenerate-done", "completed", atDaysAgo(4, 10)),
-      processRun("analyze-running", "running", atDaysAgo(0, 9), 1.84, {
-        requested: 1_280,
-        complete: 640,
-      }),
+      summarizingSnapshot("snapshot-running", atDaysAgo(0, 9)),
       processRun("analyze-done", "completed", atDaysAgo(1, 10), 4.2, {
         requested: 1_412,
       }),
@@ -193,8 +199,10 @@ export const PinsRunningAndGroupsByDay = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const active = canvas.getByRole("status");
-    await expect(active).toHaveTextContent("Analyze traces");
+    await expect(active).toHaveTextContent("Regenerate topics");
     await expect(active).toHaveTextContent("640 / 1,280");
+    await expect(active).toHaveTextContent("Estimated cost");
+    await expect(active).toHaveTextContent("Not tracked");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
     ).toBeVisible();
@@ -204,19 +212,19 @@ export const PinsRunningAndGroupsByDay = meta.story({
     ).toEqual(["Yesterday", dayLabel(2), dayLabel(3), dayLabel(4)]);
 
     await userEvent.click(
-      within(active).getByRole("button", { name: /Analyze traces/ }),
+      within(active).getByRole("button", { name: /Regenerate topics/ }),
     );
-    await expect(args.onOpen).toHaveBeenCalledWith("analyze-running");
+    await expect(args.onOpen).toHaveBeenCalledWith("snapshot-running");
 
     const rows = canvas
       .getAllByRole("button")
       .filter((row) => !active.contains(row));
-    await expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringContaining("Analyze traces1,412 traces · $4.20"),
-      expect.stringContaining("Analyze traces12 traces failed"),
-      expect.stringContaining("Regenerate topicsEmbedding model returned 429."),
-      expect.stringMatching(/Regenerate topicsComplete$/),
-    ]);
+    await expect(rows[0]).toHaveTextContent("1,412 traces · Cost: ~$4.20");
+    await expect(rows[1]).toHaveTextContent("1,330 traces · Cost: ~$3.95");
+    await expect(rows[1]).toHaveTextContent("12 traces failed");
+    await expect(rows[2]).toHaveTextContent("Cost: Not tracked");
+    await expect(rows[2]).toHaveTextContent("Embedding model returned 429.");
+    await expect(rows[3]).toHaveTextContent("Cost: Not tracked");
     await expect(within(rows[1]).getByText("Done with issues")).toBeVisible();
     await expect(within(rows[2]).getByText("Failed")).toBeVisible();
 

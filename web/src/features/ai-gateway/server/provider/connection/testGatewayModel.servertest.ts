@@ -40,6 +40,84 @@ describe("testGatewayModel", () => {
     expect(init?.headers).toMatchObject({ "x-api-key": "bedrock-key" });
   });
 
+  it("surfaces xAI's string error message", async () => {
+    vi.mocked(getGatewayFetch).mockReturnValue(async () =>
+      Response.json(
+        { code: "invalid-argument", error: "Model grok-x does not exist." },
+        { status: 400 },
+      ),
+    );
+    const result = await testGatewayModel({
+      provider: "XAI",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      credential: "xai-key",
+      model: "grok-x",
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: "Model grok-x does not exist.",
+    });
+  });
+
+  it("surfaces Google AI Studio's error message from its array body", async () => {
+    vi.mocked(getGatewayFetch).mockReturnValue(async () =>
+      Response.json(
+        [
+          {
+            error: {
+              code: 400,
+              message: "Please pass a valid API key",
+              status: "INVALID_ARGUMENT",
+            },
+          },
+        ],
+        { status: 400 },
+      ),
+    );
+    const result = await testGatewayModel({
+      provider: "GOOGLE_AI_STUDIO",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      credential: "gemini-key",
+      model: "gemini-3.5-flash",
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: "Please pass a valid API key",
+    });
+  });
+
+  it("prefers a top-level message over a status name in `error`", async () => {
+    vi.mocked(getGatewayFetch).mockReturnValue(async () =>
+      Response.json(
+        {
+          statusCode: 400,
+          error: "Bad Request",
+          message: "Model not deployed",
+        },
+        { status: 400 },
+      ),
+    );
+    const result = await testGatewayModel({
+      provider: "OPENAI",
+      config: null,
+      baseURL: "https://proxy.example/v1",
+      extraHeaders: {},
+      credential: "sk-test",
+      model: "gpt-x",
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: "Model not deployed",
+    });
+  });
+
   it("tries each route for an application inference profile ARN until one answers", async () => {
     const fetcher = vi.fn<typeof fetch>(async (input) =>
       String(input).endsWith("/anthropic/v1/messages")
@@ -91,6 +169,53 @@ describe("testGatewayModel", () => {
       "https://api.openai.com/v1/responses",
       "https://api.openai.com/v1/chat/completions",
     ]);
+  });
+
+  it("tests a Vercel decision model on the Decisions route", async () => {
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response("{}", { status: 200 }),
+    );
+
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const result = await testGatewayModel({
+      provider: "VERCEL",
+      config: {},
+      baseURL: null,
+      extraHeaders: {},
+      credential: "vck-key",
+      model: "openai/gpt-6-luna-decisions",
+      reportedFormats: ["openai.decisions"],
+    });
+
+    expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://ai-gateway.vercel.sh/v1/decisions",
+    ]);
+  });
+
+  it("tests an OpenAI embedding model on the Embeddings route", async () => {
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response("{}", { status: 200 }),
+    );
+
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const result = await testGatewayModel({
+      provider: "OPENAI",
+      config: {},
+      baseURL: null,
+      extraHeaders: {},
+      credential: "openai-key",
+      model: "text-embedding-3-small",
+    });
+
+    expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
+    const [url, init] = fetcher.mock.calls[0] ?? [];
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(url).toBe("https://api.openai.com/v1/embeddings");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      model: "text-embedding-3-small",
+      input: "Hi",
+    });
   });
 
   it("sends OpenAI tests to a custom base URL without letting extra headers replace the credential", async () => {
