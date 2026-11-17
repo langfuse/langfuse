@@ -120,9 +120,12 @@ export function TopicTraceList({
             size: 200,
             minSize: 120,
             cell: ({ row }) => {
+              // Outliers read Unassigned, as in the topic rows and on the map.
               const name =
                 row.original.topicName ??
-                row.original.outcome.replaceAll("_", " ");
+                (row.original.outcome === "outlier"
+                  ? "Unassigned"
+                  : row.original.outcome.replaceAll("_", " "));
               return (
                 <span className={cn(CELL, "flex min-w-0 items-center gap-2")}>
                   <span
