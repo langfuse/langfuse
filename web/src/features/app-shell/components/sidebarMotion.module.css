@@ -140,7 +140,7 @@
   white-space: nowrap;
 }
 
-.surface[data-sidebar-mode="mobile"] .identity {
+.identity[data-surface="mobile"] {
   inline-size: auto;
   flex: 1;
 }

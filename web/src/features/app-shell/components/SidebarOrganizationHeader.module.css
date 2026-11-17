@@ -23,10 +23,10 @@
   flex: 0 0 calc(var(--sidebar-expanded-width, 14rem) - 3.5rem);
 }
 
-:global([data-sidebar-mode="mobile"]) .mobileClose {
+.mobileClose[data-surface="mobile"] {
   display: flex;
 }
 
-:global([data-sidebar-mode="mobile"]) .selector {
+.selector[data-surface="mobile"] {
   flex: 1 1 auto;
 }

@@ -39,6 +39,7 @@ export const DialogHandoff = meta.story({
       <AppNavigationProvider
         value={{
           shell: "next",
+          isSidebarExpanded: true,
           SidebarControl: null,
           openMobileNavigation: () => setNavigationOpen(true),
           closeTransientNavigation: () => setNavigationOpen(false),

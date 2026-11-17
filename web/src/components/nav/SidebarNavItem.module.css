@@ -1,10 +1,12 @@
+/* Consumers can set row height and leading width; defaults match the next shell. */
 .row {
+  height: var(--sidebar-nav-row-height, 44px);
   overflow: hidden;
 }
 
 .leading {
   display: flex;
-  flex: 0 0 40px;
+  flex: 0 0 var(--sidebar-nav-leading-width, 40px);
   align-self: stretch;
   align-items: center;
   justify-content: center;
@@ -53,6 +55,12 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
+}
+
+@media (min-width: 768px) {
+  .row {
+    height: var(--sidebar-nav-row-height, 36px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

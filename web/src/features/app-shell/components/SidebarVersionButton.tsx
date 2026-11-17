@@ -7,6 +7,7 @@ import {
 } from "@/src/components/nav/versionState";
 import { cn } from "@/src/utils/tailwind";
 import motion from "./sidebarMotion.module.css";
+import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 
 /** One version-menu trigger keeps its position and identity across every sidebar mode. */
 export function SidebarVersionButton({
@@ -16,6 +17,7 @@ export function SidebarVersionButton({
   ComponentProps<"button">,
   "children" | "className" | "style" | "type"
 >) {
+  const surface = useSidebarSurface();
   const { versionText, update, backgroundMigrationStatus } =
     describeVersionState(state);
   return (
@@ -47,7 +49,12 @@ export function SidebarVersionButton({
           </span>
         )}
       </span>
-      <span className={cn(motion.identity, motion.label)}>{versionText}</span>
+      <span
+        className={cn(motion.identity, motion.label)}
+        data-surface={surface}
+      >
+        {versionText}
+      </span>
     </button>
   );
 }

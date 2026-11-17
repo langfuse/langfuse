@@ -4,6 +4,7 @@ import { type ComponentProps } from "react";
 import { ChevronsUpDown } from "@langfuse/icons";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { type SidebarUser } from "@/src/features/app-shell/components/SidebarUserMenu";
+import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 
 /** The signed-in user's row; rendered under the account menu's `Trigger asChild`. */
 export function SidebarAccountButton({
@@ -13,6 +14,7 @@ export function SidebarAccountButton({
   ComponentProps<"button">,
   "children" | "className" | "style" | "type"
 >) {
+  const surface = useSidebarSurface();
   return (
     <button
       type="button"
@@ -33,7 +35,10 @@ export function SidebarAccountButton({
           aria-hidden
         />
       </span>
-      <span className={cn(motion.identity, motion.label)}>
+      <span
+        className={cn(motion.identity, motion.label)}
+        data-surface={surface}
+      >
         <span className="text-foreground truncate font-bold" title={user.name}>
           {user.name}
         </span>

@@ -1,8 +1,10 @@
 import { ExternalLink, LayoutGrid } from "@langfuse/icons";
 import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
+import { useAppShellSidebarActions } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
 
 /** Shown in the shared, view-only demo project. */
 export function SidebarDemoNotice() {
+  const { close } = useAppShellSidebarActions();
   return (
     <div className="bg-background border-sidebar-border flex flex-col gap-1 rounded-md border p-2">
       <p className="text-muted-foreground px-2 text-xs font-bold">
@@ -17,6 +19,7 @@ export function SidebarDemoNotice() {
       />
       <SidebarNavItem
         href="/organizations"
+        onNavigate={close}
         isActive={false}
         opensInNewTab={false}
         leading={<LayoutGrid size="base" />}

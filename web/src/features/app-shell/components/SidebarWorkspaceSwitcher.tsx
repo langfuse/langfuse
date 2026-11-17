@@ -63,7 +63,10 @@ export function SidebarWorkspaceSwitcher() {
                 <Building2 size="base" />
               )}
             </span>
-            <span className={cn(motion.identity, motion.label)}>
+            <span
+              className={cn(motion.identity, motion.label)}
+              data-surface={surface}
+            >
               <span
                 className="text-muted-foreground truncate text-xs leading-4"
                 title={subtitle}

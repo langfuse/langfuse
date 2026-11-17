@@ -43,6 +43,7 @@ export function V4SidebarToggle({ isCollapsed }: { isCollapsed: boolean }) {
         isCollapsed={isCollapsed}
         leading={<ZapIcon size="base" />}
         label={label}
+        description={description}
         trailing={<span className="text-xs">{isChecked ? "On" : "Off"}</span>}
         aria-label={`${label}: ${isChecked ? "On" : "Off"}`}
         aria-describedby={descriptionId}
