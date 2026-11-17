@@ -3,6 +3,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 
 import {
   systemRoleAccessRights,
+  type Action,
   type SystemRolePolicy,
 } from "@langfuse/shared/rbac";
 import { type SystemRole } from "@langfuse/shared/src/db";
@@ -26,10 +27,13 @@ const actionOrder = [
   "CRUD",
 ];
 
-const entityLabels: Record<string, string> = {
+const entityLabels = {
   projects: "Project management",
   organization: "Organization",
   organizationMembers: "Organization members",
+  organizationSettings: "Organization settings",
+  organizationUsage: "Organization usage",
+  organizationLlmApiKeys: "Organization LLM API keys",
   langfuseCloudBilling: "Billing",
   orgAuditLogs: "Organization audit logs",
   projectAuditLogs: "Project audit logs",
@@ -46,6 +50,7 @@ const entityLabels: Record<string, string> = {
   integrations: "Integrations",
   datasets: "Datasets",
   prompts: "Prompts",
+  skills: "Skills",
   promptProtectedLabels: "Prompt protected labels",
   dashboards: "Dashboards",
   models: "Models",
@@ -68,7 +73,8 @@ const entityLabels: Record<string, string> = {
   sessions: "Sessions",
   metrics: "Metrics",
   feedback: "Feedback",
-};
+  topics: "Topics",
+} satisfies Record<PermissionEntity, string>;
 
 /** RolePermissionList groups permissions by resource kind and entity. */
 export const RolePermissionList = ({ role }: { role: SystemRole }) => {
@@ -162,9 +168,15 @@ const groupByEntity = (scopes: string[]): EntityGroup[] => {
   }
   return Array.from(byEntity.entries()).map(([entity, actions]) => ({
     entity,
-    title: entityLabels[entity] ?? entity,
+    title: entityLabel(entity),
     actions: [...actions].sort(compareActions),
   }));
+};
+
+/** entityLabel is an entity's display name, falling back to its id. */
+const entityLabel = (entity: string): string => {
+  if (!Object.hasOwn(entityLabels, entity)) return entity;
+  return entityLabels[entity as PermissionEntity];
 };
 
 /** compareActions puts unranked actions last, alphabetically. */
@@ -190,6 +202,11 @@ export const rolePermissionCount = (role: SystemRole): number =>
   );
 
 type ResourceKind = SystemRolePolicy["resourceKind"];
+
+/** PermissionEntity is the entity prefix of every action in the vocabulary. */
+type PermissionEntity = Action extends `${infer Entity}:${string}`
+  ? Entity
+  : never;
 
 type EntityGroup = {
   entity: string;
