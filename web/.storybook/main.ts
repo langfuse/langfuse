@@ -118,18 +118,6 @@ const config: StorybookConfig = {
       titlePrefix: "Playground",
     },
   ],
-  // Storybook applies `build.test` only with `--test`, which the
-  // `build-storybook` script always passes. Builds skip MDX docs pages, doc
-  // blocks, tree-shaking and sourcemaps. react-docgen stays on because it feeds
-  // the Controls panel (required markers, union radio options), and so do the
-  // docs addon and autodocs.
-  build: {
-    test: {
-      disabledAddons: [],
-      disableAutoDocs: false,
-      disableDocgen: false,
-    },
-  },
   experimental_indexers: flattenStoryIndexTitles(STORY_TITLE_GROUPS),
   features: {
     changeDetection: true,

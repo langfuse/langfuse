@@ -445,7 +445,7 @@ export const TestCheckboxAndSubmenu = meta.story({
     await expect(
       body.getByRole("menuitem", { name: "Destinations" }),
     ).toHaveFocus();
-    await waitFor(() => expect(menu).toBeVisible());
+    await expect(menu).toBeVisible();
 
     await userEvent.hover(body.getByRole("menuitem", { name: "Destinations" }));
     const submenu = await body.findByRole("menu", { name: "Destinations" });
