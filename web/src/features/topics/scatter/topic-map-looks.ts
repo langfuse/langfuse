@@ -78,6 +78,8 @@ const DARK = {
   fieldOpacity: 0.7,
   grain: 0.5,
   fieldTone: { lightness: 0.5, chroma: 0.13 },
+  ringAlpha: 0.18,
+  neutralDot: "oklch(0.62 0 0)",
 };
 
 const isDark = () => document.documentElement.classList.contains("dark");
@@ -238,6 +240,9 @@ export function drawLookFields(
 /** The color a look paints a topic's dots in, before shading. */
 export function lookDotColor(name: TopicMapLookName, color: string) {
   const { vivid } = TOPIC_MAP_LOOKS[name].dot;
+  // The dark neutral highlight sinks into the background, so dots use a mid grey.
+  if (isDark() && color.includes("--category-neutral-highlight"))
+    return DARK.neutralDot;
   const hue = /--category-(\w+)-highlight/.exec(color)?.[1];
   if (!vivid || !hue || CATEGORY_HUES[hue] === undefined) return color;
   return `oklch(${vivid.lightness} ${vivid.chroma} ${CATEGORY_HUES[hue]})`;
@@ -258,10 +263,14 @@ export function drawLookDot(
   // Dots grow gently as you zoom in (6px at the fit, about 10px at 300%) and on a larger stage.
   const radius = (dot.size * stage * Math.sqrt(Math.max(1, zoom))) / 2;
   const [r, g, b] = rgb.map((value) => Math.round(value * dot.shade));
-  context.globalAlpha = opacity * dot.ringAlpha;
+  // On dark, a faint light ring separates dots without outlining them in black.
+  const dark = isDark();
+  context.globalAlpha = opacity * (dark ? DARK.ringAlpha : dot.ringAlpha);
   context.beginPath();
   context.arc(center.x, center.y, radius + dot.ring * stage, 0, 2 * Math.PI);
-  context.fillStyle = `rgb(${background.join(", ")})`;
+  context.fillStyle = dark
+    ? "rgb(255, 255, 255)"
+    : `rgb(${background.join(", ")})`;
   context.fill();
   context.globalAlpha = opacity;
   context.beginPath();
