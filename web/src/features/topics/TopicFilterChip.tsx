@@ -12,7 +12,11 @@ export function TopicFilterChip({
       <span className="text-muted-foreground shrink-0">
         {column} {operator}
       </span>
-      <span className="text-foreground truncate" title={value}>
+      {/* The shell is leading-none, so clipping vertically would cut descenders. */}
+      <span
+        className="text-foreground min-w-0 overflow-x-clip overflow-y-visible py-0.5 text-ellipsis whitespace-nowrap"
+        title={value}
+      >
         {value}
       </span>
     </BadgeShell>
