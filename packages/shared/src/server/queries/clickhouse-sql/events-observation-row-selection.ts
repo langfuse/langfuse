@@ -1,3 +1,8 @@
+import { type AgentTraceScope } from "../../../features/agents/api";
+import {
+  agentTraceScopeFilter,
+  agentScoreScopeFilter,
+} from "../../repositories/agents";
 import { eventsTableCols } from "../../../eventsTable";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import type { OrderByState } from "../../../interfaces/orderBy";
@@ -82,6 +87,7 @@ export type EventsObservationFilterGroups = Record<
 >;
 
 export type EventsObservationRowSelectionInput = {
+  agentScope?: AgentTraceScope;
   projectId: string;
   filter: FilterCondition[] | null;
   searchQuery?: string;
@@ -411,6 +417,7 @@ const compileScoreRowConditions = ({
 const buildEventsObservationRowSelectionInternal = (
   {
     projectId,
+    agentScope,
     filter,
     searchQuery,
     searchType,
@@ -443,11 +450,30 @@ const buildEventsObservationRowSelectionInternal = (
   const scoreOrderLevel = scoreOrderLevelOf(orderBy);
   const ordersByObservationScore = scoreOrderLevel === "observation";
   const ordersByTraceScore = scoreOrderLevel === "trace";
-  const { scoreFilter, scoreRowsFilter } = compileScoreRowConditions({
-    filterGroups,
-    ordersByScore: scoreOrderLevel !== undefined,
-    includeScoreProjection,
-  });
+  const { scoreFilter, scoreRowsFilter: plannedScoreRowsFilter } =
+    compileScoreRowConditions({
+      filterGroups,
+      ordersByScore: scoreOrderLevel !== undefined,
+      includeScoreProjection,
+    });
+  const membershipScoreFilter = agentScope
+    ? agentScoreScopeFilter(projectId, agentScope)
+    : undefined;
+  const scoreRowsFilter = membershipScoreFilter
+    ? {
+        query: [plannedScoreRowsFilter?.query, membershipScoreFilter.query]
+          .filter(
+            (query): query is string =>
+              typeof query === "string" && query.length > 0,
+          )
+          .map((query) => `(${query})`)
+          .join(" AND "),
+        params: {
+          ...plannedScoreRowsFilter?.params,
+          ...membershipScoreFilter.params,
+        },
+      }
+    : plannedScoreRowsFilter;
   const startTimeFrom = rowConditions.startTimeFrom;
   const hasObservationScoreFilter = filterGroups.observationScores.length > 0;
   const needsObservationScores =
@@ -462,6 +488,8 @@ const buildEventsObservationRowSelectionInternal = (
     ordersByTraceScore ||
     includeScoreProjection;
   const queryBuilder = new EventsQueryBuilder({ projectId });
+  if (agentScope)
+    queryBuilder.where(agentTraceScopeFilter(projectId, agentScope));
 
   if (needsObservationScores) {
     queryBuilder

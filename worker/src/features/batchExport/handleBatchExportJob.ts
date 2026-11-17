@@ -4,7 +4,7 @@ import {
   BATCH_EXPORT_ABANDONED_AFTER_MS,
   BATCH_EXPORT_HEARTBEAT_INTERVAL_MS,
   BatchExportFileFormat,
-  BatchExportQuerySchema,
+  PersistedBatchExportQuerySchema,
   BatchExportStatus,
   BatchExportTableName,
   exportOptions,
@@ -169,7 +169,9 @@ const runExport = async ({
   span: ReturnType<typeof getCurrentSpan>;
 }) => {
   // Parse query from job
-  const parsedQuery = BatchExportQuerySchema.safeParse(jobDetails.query);
+  const parsedQuery = PersistedBatchExportQuerySchema.safeParse(
+    jobDetails.query,
+  );
   if (!parsedQuery.success) {
     throw new Error(
       `Failed to parse query for ${batchExportId}: ${parsedQuery.error.message}`,

@@ -266,10 +266,8 @@ export const toAbsoluteTimeRange = (
     return null;
   }
 
-  return {
-    from: addMinutes(new Date(), -preset.minutes),
-    to: new Date(),
-  };
+  const now = new Date();
+  return { from: addMinutes(now, -preset.minutes), to: now };
 };
 
 /**

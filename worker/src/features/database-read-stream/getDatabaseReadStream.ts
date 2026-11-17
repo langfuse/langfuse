@@ -220,6 +220,7 @@ export const getDatabaseReadStreamPaginated = async ({
   searchQuery,
   searchType,
   useEventsTable,
+  agentScope,
   preferredClickhouseService,
   rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   pageSize = env.BATCH_EXPORT_PAGE_SIZE,
@@ -363,6 +364,7 @@ export const getDatabaseReadStreamPaginated = async ({
           const sessions = useEventsTable
             ? await getSessionsTableFromEvents({
                 projectId: projectId,
+                agentScope,
                 filter: sessionsFilter,
                 fields: [
                   "session_id",

@@ -1,3 +1,4 @@
+import type { AgentIdentity } from "../otel/agentMetadata";
 import type {
   SkillsAvailableInput,
   SkillsResourceLoaded,
@@ -46,6 +47,8 @@ export type InternalTraceExperimentContext = {
  * table schema evolves. Only required fields are enforced.
  */
 export type InternalTraceEventInput = {
+  /** Undefined permits legacy metadata parsing; null means OTel without context; an object is authoritative. */
+  agentIdentity?: AgentIdentity | null;
   projectId: string;
   traceId: string;
   spanId: string;
@@ -117,6 +120,7 @@ export type InternalTraceEventInput = {
 };
 
 type InternalTraceSnapshot = {
+  agentIdentity?: AgentIdentity | null;
   spanId: string;
   traceId: string;
   parentSpanId?: string;
@@ -241,8 +245,12 @@ function mergeSnapshotEvent(
     body.skillsAvailable,
   );
 
+  let agentIdentity = event.agentIdentity ?? snapshot.agentIdentity;
+  if (event.agentIdentity === null && agentIdentity === undefined)
+    agentIdentity = null;
   return {
     ...snapshot,
+    agentIdentity,
     traceId: asString(body.traceId) ?? snapshot.traceId,
     parentSpanId: asString(body.parentObservationId) ?? snapshot.parentSpanId,
     type:
@@ -434,6 +442,7 @@ export function buildInternalTraceEventInputs(params: {
           ? stringifyValue(snapshot.output)
           : undefined,
       metadata: snapshot.metadata,
+      agentIdentity: snapshot.agentIdentity,
       source,
       experimentId: experimentContext?.id,
       experimentName: experimentContext?.name,

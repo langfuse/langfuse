@@ -406,6 +406,8 @@ export function prepareOutlierSeries(params: {
   stepSeconds: number;
   /** Plot width; drives tick spacing. 0/absent = no ticks (tests). */
   widthPx?: number;
+  /** Optional time labels for surfaces that compare activity across days. */
+  formatTimestamp?: (timestamp: Date) => string;
 }): {
   dense: OutlierStripDenseBin[];
   /** Max metric value across buckets; 0 when the range has no data. */
@@ -458,10 +460,10 @@ export function prepareOutlierSeries(params: {
     const tickStepMs = pickTickStepMs(stepMs, slotPx, TICK_MIN_SPACING_PX);
     for (let i = 1; i < dense.length; i++) {
       if ((dense[i].bucketStartMs - phase) % tickStepMs === 0) {
-        const label = format(
-          new Date(dense[i].bucketStartMs),
-          tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm",
-        );
+        const timestamp = new Date(dense[i].bucketStartMs);
+        const label = params.formatTimestamp
+          ? params.formatTimestamp(timestamp)
+          : format(timestamp, tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm");
         ticks.push({
           index: i,
           label,

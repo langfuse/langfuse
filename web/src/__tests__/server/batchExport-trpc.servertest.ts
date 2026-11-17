@@ -1,22 +1,119 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma, type Role } from "@langfuse/shared/src/db";
+import { prisma, type Prisma, type Role } from "@langfuse/shared/src/db";
 import {
   BatchExportQueue,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { vi } from "vitest";
 import { randomUUID } from "crypto";
+import { z } from "zod/v4";
 import type { Session } from "next-auth";
 import {
   BatchExportFileFormat,
   BatchExportStatus,
   BatchTableNames,
+  BatchExportQuerySchema,
+  PersistedBatchExportQuerySchema,
+  persistBatchExportQuery,
   type Plan,
 } from "@langfuse/shared";
 
 const __orgIds: string[] = [];
+
+it("preserves immutable agent scope after export jobs serialize and rejects unsupported readers", () => {
+  const agentScope = {
+    identity: { kind: "id" as const, value: "agent-1" },
+    from: new Date("2026-11-02T11:00:00Z"),
+    to: new Date("2026-11-02T15:00:00Z"),
+    environment: "production",
+    mode: "tools" as const,
+  };
+  const input = {
+    tableName: BatchTableNames.Events,
+    filter: [],
+    orderBy: null,
+    agentScope,
+  };
+  const persisted = JSON.parse(JSON.stringify(persistBatchExportQuery(input)));
+  const job = PersistedBatchExportQuerySchema.parse(persisted);
+  expect(job.agentScope).toEqual(agentScope);
+  const oldWorkerRequiredShape = z.object({
+    tableName: BatchExportQuerySchema.shape.tableName,
+    filter: BatchExportQuerySchema.shape.filter,
+    orderBy: BatchExportQuerySchema.shape.orderBy,
+  });
+  expect(oldWorkerRequiredShape.safeParse(persisted).success).toBe(false);
+  expect(PersistedBatchExportQuerySchema.safeParse(input).success).toBe(false);
+  expect(
+    PersistedBatchExportQuerySchema.safeParse({
+      tableName: BatchTableNames.Events,
+      filter: [],
+      orderBy: null,
+      ...persisted,
+      kind: "agent-scoped-export-v3",
+    }).success,
+  ).toBe(false);
+  const filteredScope = {
+    ...agentScope,
+    environment: null,
+    environmentFilter: [
+      {
+        column: "environment" as const,
+        type: "stringOptions" as const,
+        operator: "none of" as const,
+        value: ["staging", "preview"],
+      },
+    ],
+  };
+  const filteredJob = JSON.parse(
+    JSON.stringify(
+      persistBatchExportQuery({ ...input, agentScope: filteredScope }),
+    ),
+  );
+  expect(filteredJob.kind).toBe("agent-scoped-export-v2");
+  const previousEnvelope = z.object({
+    kind: z.literal("agent-scoped-export-v1"),
+    query: z.object({ tableName: z.enum(BatchTableNames) }),
+  });
+  expect(previousEnvelope.safeParse(persisted).success).toBe(true);
+  expect(previousEnvelope.safeParse(filteredJob).success).toBe(false);
+  expect(PersistedBatchExportQuerySchema.parse(filteredJob).agentScope).toEqual(
+    filteredScope,
+  );
+  expect(
+    PersistedBatchExportQuerySchema.safeParse({
+      ...filteredJob,
+      kind: "agent-scoped-export-v1",
+    }).success,
+  ).toBe(false);
+  const ordinary = {
+    tableName: BatchTableNames.Events,
+    filter: [],
+    orderBy: null,
+  };
+  expect(PersistedBatchExportQuerySchema.parse(ordinary)).toEqual(ordinary);
+  expect(() =>
+    BatchExportQuerySchema.parse({
+      ...input,
+      tableName: BatchTableNames.Traces,
+    }),
+  ).toThrow();
+  expect(() =>
+    BatchExportQuerySchema.parse({
+      ...input,
+      tableName: BatchTableNames.Sessions,
+    }),
+  ).toThrow();
+  expect(
+    BatchExportQuerySchema.parse({
+      ...input,
+      tableName: BatchTableNames.Sessions,
+      agentScope: { ...agentScope, mode: "traces" },
+    }).agentScope?.mode,
+  ).toBe("traces");
+});
 
 function makeSession(
   orgId: string,
@@ -171,6 +268,7 @@ const seedCompletedExport = (opts: {
   projectId: string;
   name: string;
   tableName: BatchTableNames;
+  query?: Prisma.InputJsonValue;
 }) =>
   prisma.batchExport.create({
     data: {
@@ -184,7 +282,7 @@ const seedCompletedExport = (opts: {
       url: "not-a-valid-url",
       finishedAt: new Date(),
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      query: {
+      query: opts.query ?? {
         tableName: opts.tableName,
         filter: null,
         orderBy: null,
@@ -329,6 +427,50 @@ describe("batchExport tRPC – audit_logs download and list authorization", () =
       name: "traces export visible",
       tableName: BatchTableNames.Traces,
     });
+    const wrappedAuditJobs = [];
+    for (const kind of ["agent-scoped-export-v1", "agent-scoped-export-v2"]) {
+      const query = {
+        tableName: BatchTableNames.Events,
+        filter: [],
+        orderBy: null,
+        agentScope: {
+          identity: { kind: "id", value: "researcher" },
+          from: "2026-11-10T00:00:00.000Z",
+          to: "2026-11-17T00:00:00.000Z",
+          environment: "production",
+          mode: "runs",
+        },
+      };
+      await seedCompletedExport({
+        projectId: project.id,
+        name: `${kind} visible`,
+        tableName: BatchTableNames.Events,
+        query: { kind, query },
+      });
+      wrappedAuditJobs.push(
+        await seedCompletedExport({
+          projectId: project.id,
+          name: `${kind} audit hidden`,
+          tableName: BatchTableNames.AuditLogs,
+          query: {
+            kind,
+            query: { ...query, tableName: BatchTableNames.AuditLogs },
+          },
+        }),
+      );
+      wrappedAuditJobs.push(
+        await seedCompletedExport({
+          projectId: project.id,
+          name: `${kind} mixed audit hidden`,
+          tableName: BatchTableNames.Events,
+          query: {
+            tableName: BatchTableNames.Events,
+            kind,
+            query: { ...query, tableName: BatchTableNames.AuditLogs },
+          },
+        }),
+      );
+    }
 
     const memberCaller = appRouter.createCaller({
       ...createInnerTRPCContext({
@@ -347,10 +489,20 @@ describe("batchExport tRPC – audit_logs download and list authorization", () =
       limit: 50,
     });
 
-    expect(result.exports.map((e) => e.name)).toEqual([
+    expect(result.exports.map((e) => e.name).sort()).toEqual([
+      "agent-scoped-export-v1 visible",
+      "agent-scoped-export-v2 visible",
       "traces export visible",
     ]);
-    expect(result.totalCount).toBe(1);
+    expect(result.totalCount).toBe(3);
+    for (const job of wrappedAuditJobs) {
+      await expect(
+        memberCaller.batchExport.downloadUrl({
+          projectId: project.id,
+          batchExportId: job.id,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
   });
 
   it("includes audit_logs exports in all for an OWNER with entitlement", async () => {

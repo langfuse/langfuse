@@ -1,3 +1,5 @@
+import { type AgentTraceScope } from "@langfuse/shared/agents";
+import { agentScoreScopeFilter } from "@langfuse/shared/agents/server";
 /**
  * Event stream for batch exports.
  * Queries the ClickHouse events table with filters and streams results
@@ -39,6 +41,7 @@ const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
  */
 export const getEventsStream = async (props: {
   projectId: string;
+  agentScope?: AgentTraceScope;
   cutoffCreatedAt: Date;
   filter: FilterCondition[] | null;
   searchQuery?: string;
@@ -47,6 +50,7 @@ export const getEventsStream = async (props: {
 }): Promise<Readable> => {
   const {
     projectId,
+    agentScope,
     cutoffCreatedAt,
     filter = [],
     searchQuery,
@@ -67,6 +71,7 @@ export const getEventsStream = async (props: {
 
   const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
     projectId,
+    agentScope,
     cutoffCreatedAt,
     filter,
     searchQuery,
@@ -78,6 +83,9 @@ export const getEventsStream = async (props: {
   // Get distinct score names for empty columns
   // Same service as the values read below: a missing name is silently dropped.
   const distinctScoreNames = await getDistinctScoreNames({
+    traceScope: agentScope
+      ? agentScoreScopeFilter(projectId, agentScope, "s.")
+      : undefined,
     projectId,
     cutoffCreatedAt,
     startTimeFrom,

@@ -156,6 +156,11 @@ describe("InAppAgentInstrumentation", () => {
         startTime: expect.any(Date),
         endTime: expect.any(Date),
         completionStartTime: expect.any(Date),
+        agentIdentity: expect.objectContaining({
+          id: "langfuse:halo",
+          name: "Halo",
+          runId: agentRunObservationId,
+        }),
         metadata: expect.objectContaining({
           toolCallId: "tool-1",
           parentMessageId: "assistant-message-1",
@@ -172,6 +177,12 @@ describe("InAppAgentInstrumentation", () => {
         id: agentRunObservationId,
         traceId,
         name: "agent-turn",
+        agentIdentity: expect.objectContaining({
+          id: "langfuse:halo",
+          name: "Halo",
+          runId: agentRunObservationId,
+        }),
+        metadata: expect.objectContaining({}),
         input: expectedAgentRunInput,
         output: {
           messages: [
@@ -1434,6 +1445,11 @@ describe("InAppAgentInstrumentation", () => {
         expect(observation).toMatchObject({
           userId: "user-1",
           sessionId: "conversation-1",
+          agentIdentity: {
+            id: "langfuse:halo",
+            name: "Halo",
+            runId: getInAppAgentInstrumentationObservationId("root-run-1"),
+          },
           metadata: {
             langfuse_project_id: "project-1",
             langfuse_user_email: "user@example.com",

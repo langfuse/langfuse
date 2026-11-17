@@ -10,7 +10,15 @@ export type PersistedSidebarFilterQueryState = {
  * inherited User ID would AND with the page's own and return nothing
  * (LFE-14824).
  */
-export type EmbeddedFilterScope = "user" | "session" | "prompt" | "model";
+export type EmbeddedFilterScope =
+  | "user"
+  | "session"
+  | "prompt"
+  | "model"
+  | "agent"
+  | "agent-traces"
+  | "agent-tools"
+  | "agent-runs";
 
 export function buildSidebarFilterSessionContextId(
   projectId: string,

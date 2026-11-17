@@ -1,0 +1,348 @@
+{
+  "repositorySha256": "c95568d402873b22fe22b6bf18482353e927fe71404a0d0683c3d57b8c607fa3",
+  "kind": "synthetic-local-baseline",
+  "measuredAt": "2026-11-05T23:06:18.887Z",
+  "scope": {
+    "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    "from": "2026-11-02T11:00:00.000Z",
+    "to": "2026-11-02T15:00:00.000Z",
+    "environment": "production"
+  },
+  "iterations": 3,
+  "measurements": [
+    {
+      "name": "gallery",
+      "status": "failed",
+      "durationMs": 127.29770899999994,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "detail",
+      "status": "failed",
+      "durationMs": 118.51037499999984,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "runs",
+      "status": "failed",
+      "durationMs": 91.15937499999973,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "traces",
+      "status": "failed",
+      "durationMs": 88.07012500000019,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "skills",
+      "status": "failed",
+      "durationMs": 75.11304100000007,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "info",
+      "status": "failed",
+      "durationMs": 92.256167,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "environments",
+      "status": "failed",
+      "durationMs": 77.63516699999991,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "gallery",
+      "status": "failed",
+      "durationMs": 86.83604099999957,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "detail",
+      "status": "failed",
+      "durationMs": 87.03237499999977,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "runs",
+      "status": "failed",
+      "durationMs": 90.70858300000009,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "traces",
+      "status": "failed",
+      "durationMs": 89.30070800000021,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "skills",
+      "status": "failed",
+      "durationMs": 74.97245800000019,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "info",
+      "status": "failed",
+      "durationMs": 93.07883399999992,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "environments",
+      "status": "failed",
+      "durationMs": 77.72650000000021,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "gallery",
+      "status": "failed",
+      "durationMs": 88.11291599999959,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "detail",
+      "status": "failed",
+      "durationMs": 85.94429100000025,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "runs",
+      "status": "failed",
+      "durationMs": 85.86970800000017,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "traces",
+      "status": "failed",
+      "durationMs": 84.23299999999972,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "skills",
+      "status": "failed",
+      "durationMs": 74.25262500000008,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "info",
+      "status": "failed",
+      "durationMs": 89.64162499999975,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    },
+    {
+      "name": "environments",
+      "status": "failed",
+      "durationMs": 69.94166700000005,
+      "code": "unknown",
+      "reason": "ClickHouseResourceError"
+    }
+  ],
+  "queryLog": [
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 102,
+      "read_rows": 1006416,
+      "read_bytes": 216897447,
+      "memory_usage": 266026351,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 113,
+      "read_rows": 1006416,
+      "read_bytes": 216897447,
+      "memory_usage": 262777367,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 86,
+      "read_rows": 1006416,
+      "read_bytes": 206891537,
+      "memory_usage": 266211045,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 82,
+      "read_rows": 989296,
+      "read_bytes": 235173889,
+      "memory_usage": 267280547,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 69,
+      "read_rows": 1006416,
+      "read_bytes": 160971929,
+      "memory_usage": 262740552,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 85,
+      "read_rows": 793202,
+      "read_bytes": 242619811,
+      "memory_usage": 268338713,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 73,
+      "read_rows": 1006416,
+      "read_bytes": 152959535,
+      "memory_usage": 265586069,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 81,
+      "read_rows": 1006416,
+      "read_bytes": 216897447,
+      "memory_usage": 266026351,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 80,
+      "read_rows": 1006416,
+      "read_bytes": 216897447,
+      "memory_usage": 265906199,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 83,
+      "read_rows": 1006416,
+      "read_bytes": 206891537,
+      "memory_usage": 266211045,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 84,
+      "read_rows": 994707,
+      "read_bytes": 236464878,
+      "memory_usage": 267280547,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 71,
+      "read_rows": 1006416,
+      "read_bytes": 160971929,
+      "memory_usage": 264051304,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 87,
+      "read_rows": 801394,
+      "read_bytes": 245126563,
+      "memory_usage": 265361387,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 72,
+      "read_rows": 1006416,
+      "read_bytes": 152959535,
+      "memory_usage": 265586069,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 83,
+      "read_rows": 1006416,
+      "read_bytes": 216897447,
+      "memory_usage": 266026351,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 81,
+      "read_rows": 1006416,
+      "read_bytes": 216897447,
+      "memory_usage": 265906199,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 80,
+      "read_rows": 1006416,
+      "read_bytes": 206891537,
+      "memory_usage": 267569749,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 78,
+      "read_rows": 983053,
+      "read_bytes": 233684312,
+      "memory_usage": 267280547,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 68,
+      "read_rows": 1006416,
+      "read_bytes": 160971929,
+      "memory_usage": 262740552,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 83,
+      "read_rows": 793202,
+      "read_bytes": 242619811,
+      "memory_usage": 265764845,
+      "exception_code": 241
+    },
+    {
+      "type": "ExceptionWhileProcessing",
+      "query_duration_ms": 65,
+      "read_rows": 1006416,
+      "read_bytes": 152959535,
+      "memory_usage": 265586069,
+      "exception_code": 241
+    }
+  ],
+  "limits": {
+    "maxExecutionSeconds": 10,
+    "maxMemoryBytes": 268435456,
+    "maxReadBytes": 536870912
+  },
+  "caveat": "Same seeded million-row mixed project and window as optimized source benchmark; no relaxed limits. Baseline excludes new completeness query work. Newly inserted physical identity columns; historical DEFAULT-column cold reads are not measured.",
+  "executedModuleSha256": "debb875d6c82075bd79e729495ef6b72637693771d55750ad5fab5529f1386ef",
+  "repositoryCommit": "5ab6b5220c7a0a387795c409f0b9f5e475c2bed3",
+  "population": {
+    "scenario": "agents-mvp",
+    "date": "2026-11-02",
+    "prefix": "agents-mvp-mixed-20261102",
+    "backgroundEvents": 1000000,
+    "unassignedModelCalls": 2,
+    "emittedVersions": 1000493,
+    "ordinaryRuns": 80
+  }
+}

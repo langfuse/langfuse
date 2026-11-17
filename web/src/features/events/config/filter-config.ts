@@ -71,6 +71,8 @@ export type ObservationEventsOmittableFilterColumn =
   | "sessionId"
   | "userId"
   | "promptName"
+  | "environment"
+  | "type"
   | "topics";
 
 export const observationEventsFilterConfig: FilterConfig = {

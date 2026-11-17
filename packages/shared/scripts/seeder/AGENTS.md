@@ -14,6 +14,9 @@ pnpm run seed -- trace-tree --observations 12 --v4 --tags "Zebra,apple,Ärger"  
 pnpm run seed -- trace-tree --observations 12000 --stride-ms 10 --v4  # more observations than the detail view loads; --stride-ms makes the startTime-ordered cap boundary exact (index < 10000 loads)
 pnpm run seed -- deep-chain --v4  # 1401 sequential generations in ONE parent chain (depth = count; LFE-10959 layout stress)
 pnpm run seed -- agent-timeline --turns 6 --v4  # realistic agent flow-with-loop over a timeline (graph view)
+pnpm run seed -- agents-mvp --environment production --date YYYY-MM-DD --id-prefix fresh-prefix  # eight agent identities, agent run/model accounting, native skill versions and revision cases; v4-only, 11:00–15:00 UTC; --runs 10000 for scale
+pnpm run seed -- agents-activity-demo --environment production --date YYYY-MM-DD --id-prefix fresh-prefix  # 14 days, 120 conversations, 13 agents across research/product answers/coding; opens 7 days vs prior 7; hero: 1 session, 3 traces, 6 researcher runs; --replay adds bounded fresh OTLP traffic
+NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- agents-activity-demo-api --environment production --id-prefix fresh-prefix  # same authored history via public APIs; no database tunnels; optional private --credentials-file
 pnpm run seed -- agent-graph --v4  # graph-DENSE trace: ~1,350 distinct node-pair connections from 350 observations (trace-graph layout stress)
 pnpm run seed -- agent-timeline --turns 120 --turn-gap-ms 60000 --v4  # ~2.5h wall clock: idle between turns, so the work is a few percent of the trace
 pnpm run seed -- timeline-shapes --v4  # a dozen SMALL traces, one per timeline morphology (retry backoff, human wait, fan-out, slow tool, in-flight, instants, ...)
@@ -72,8 +75,8 @@ progress output. Full usage and the need→command table live in the
   randomness re-keys rows whenever an unrelated flag (e.g. payload size)
   changes how much rng earlier code consumed, silently duplicating rows on
   re-run; `uniqExact` readbacks cannot see it.
-- Every scenario verifies its writes with a ClickHouse readback and fails
-  loudly on mismatch.
+- Local scenarios verify writes with a ClickHouse readback; API-target scenarios
+  use the matching public read APIs. Fail loudly on mismatch.
 - New scenarios: add `scenarios/<name>.ts`, register in `scenarios/index.ts`,
   update the skill and this file, and run
   `pnpm exec eslint scripts/seeder --fix` plus `pnpm run typecheck` in

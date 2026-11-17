@@ -1,3 +1,4 @@
+import { AgentTraceScopeSchema } from "@langfuse/shared/agents";
 import { z } from "zod";
 import {
   hasValidTracingSearchTypes,
@@ -8,6 +9,7 @@ import {
 } from "@langfuse/shared";
 
 const eventsTableOptionsShape = {
+  agentScope: AgentTraceScopeSchema.optional(),
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: singleFilterList,
   searchQuery: z.string().nullable(),

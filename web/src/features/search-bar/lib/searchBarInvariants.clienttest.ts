@@ -34,6 +34,14 @@ import {
   type ScoresTableHiddenColumn,
 } from "@/src/features/filters/config/scores-config";
 import type { FilterState } from "@langfuse/shared";
+import {
+  AgentEnvironmentFilterListSchema,
+  AgentListFilterListSchema,
+} from "@langfuse/shared/agents";
+import {
+  AGENTS_FIELD_REGISTRY,
+  AGENT_ENVIRONMENT_FIELD_REGISTRY,
+} from "@/src/features/agents/config/agentFilters";
 import { validateQuery } from "./validate";
 import { DEFAULT_SEARCH_TYPE, planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
@@ -47,6 +55,82 @@ import {
   runSearchBarInvariants,
   type RegistryUnderTest,
 } from "./searchBarInvariants";
+
+describe("search bar invariants — Agents registries", () => {
+  it("round-trips agent filters through the native grammar and backend contract", () => {
+    const query =
+      "research env:(production OR staging) -env:dev name:review id:=reviewer runs:>10 tokens:>=100 cost:<2 durationMs:>3000";
+    const plan = planCommit(query, undefined, AGENTS_FIELD_REGISTRY);
+    if (plan.status !== "committed") throw new Error(JSON.stringify(plan));
+    expect(plan.searchQuery).toBe("research");
+    expect(AgentListFilterListSchema.safeParse(plan.filters).success).toBe(
+      true,
+    );
+    expect(plan.filters).toContainEqual({
+      column: "averageRunDurationMs",
+      type: "number",
+      operator: ">",
+      value: 3000,
+    });
+    const serialized = filterStateToQueryText(
+      plan.filters,
+      { searchQuery: plan.searchQuery, searchType: plan.searchType },
+      AGENTS_FIELD_REGISTRY,
+    );
+    expect(
+      planCommit(serialized.text, undefined, AGENTS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: plan.filters,
+      searchQuery: "research",
+    });
+
+    const environments = plan.filters.filter(
+      (filter) => filter.column === "environment",
+    );
+    expect(
+      AgentEnvironmentFilterListSchema.safeParse(environments).success,
+    ).toBe(true);
+    const environmentQuery = filterStateToQueryText(
+      environments,
+      undefined,
+      AGENT_ENVIRONMENT_FIELD_REGISTRY,
+    );
+    expect(
+      planCommit(
+        environmentQuery.text,
+        undefined,
+        AGENT_ENVIRONMENT_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({ status: "committed", filters: environments });
+    expect(
+      planCommit("cost:>1", undefined, AGENT_ENVIRONMENT_FIELD_REGISTRY).status,
+    ).toBe("invalid");
+    expect(
+      planCommit("metadata.region:eu", undefined, AGENTS_FIELD_REGISTRY).status,
+    ).toBe("invalid");
+    expect(
+      runSearchBarInvariants({
+        name: "agents",
+        registry: AGENTS_FIELD_REGISTRY,
+        extraKeys: ["name", "env", "runs", "durationMs"],
+        scoreContexts: [],
+        fieldValues: ["research", '"two words"', "10", "0.5"],
+        freeTextValues: ["reviewer", "two words", "OR", "!important"],
+      }),
+    ).toEqual([]);
+    expect(
+      runSearchBarInvariants({
+        name: "agent environment",
+        registry: AGENT_ENVIRONMENT_FIELD_REGISTRY,
+        extraKeys: ["env"],
+        scoreContexts: [],
+        fieldValues: ["production", '"local demo"', '"OR"'],
+        freeTextValues: [],
+      }),
+    ).toEqual([]);
+  });
+});
 
 describe("search bar invariants — Scores registry", () => {
   it("preserves parent-owned filters as skipped and rejects conflicting scoped fields", () => {

@@ -1,3 +1,4 @@
+import type { AgentIdentity } from "../otel/agentMetadata";
 import isEmpty from "lodash/isEmpty";
 import { z } from "zod";
 
@@ -873,7 +874,10 @@ export const ingestionEvent = publicSchemas.ingestionEvent;
  * The environment field remains `string` in all cases - only the validation logic differs.
  */
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- Internal backwards-compatible ingestion schema alias.
-export type IngestionEventType = z.infer<typeof ingestionEvent>;
+export type IngestionEventType = z.infer<typeof ingestionEvent> & {
+  /** Trusted attribution from the OTel processor; excluded from the public schema. */
+  agentIdentity?: AgentIdentity | null;
+};
 export type TraceEventType = z.infer<typeof traceEvent>;
 export type ScoreEventType = z.infer<typeof scoreEvent>;
 export type DatasetRunItemEventType = z.infer<typeof datasetRunItemCreateEvent>;
@@ -889,7 +893,7 @@ export const createIngestionEventSchema = (isLangfuseInternal = false) => {
     : publicSchemas.ingestionEvent;
 };
 
-export type ObservationEvent =
+export type ObservationEvent = (
   | z.infer<typeof legacyObservationCreateEvent>
   | z.infer<typeof legacyObservationUpdateEvent>
   | z.infer<typeof eventCreateEvent>
@@ -903,4 +907,5 @@ export type ObservationEvent =
   | z.infer<typeof retrieverCreateEvent>
   | z.infer<typeof evaluatorCreateEvent>
   | z.infer<typeof embeddingCreateEvent>
-  | z.infer<typeof guardrailCreateEvent>;
+  | z.infer<typeof guardrailCreateEvent>
+) & { agentIdentity?: AgentIdentity };

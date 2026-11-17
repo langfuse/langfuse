@@ -1,0 +1,275 @@
+{
+  "status": "passed",
+  "assertions": 87,
+  "measurements": [
+    {
+      "name": "gallery",
+      "durationMs": 178.24
+    },
+    {
+      "name": "environments",
+      "durationMs": 53.84
+    },
+    {
+      "name": "accounting-0",
+      "durationMs": 37.08
+    },
+    {
+      "name": "runs-0",
+      "durationMs": 32.47
+    },
+    {
+      "name": "traces-0",
+      "durationMs": 24.28
+    },
+    {
+      "name": "accounting-2",
+      "durationMs": 33.56
+    },
+    {
+      "name": "runs-2",
+      "durationMs": 31.91
+    },
+    {
+      "name": "traces-2",
+      "durationMs": 26.59
+    },
+    {
+      "name": "accounting-3",
+      "durationMs": 34.66
+    },
+    {
+      "name": "runs-3",
+      "durationMs": 30.54
+    },
+    {
+      "name": "traces-3",
+      "durationMs": 22.12
+    },
+    {
+      "name": "skills",
+      "durationMs": 21.78
+    },
+    {
+      "name": "skills-agentique:0",
+      "durationMs": 21.54
+    },
+    {
+      "name": "skills-agentique:5",
+      "durationMs": 19.82
+    },
+    {
+      "name": "skills-agentique:1",
+      "durationMs": 19.74
+    },
+    {
+      "name": "skills-agentique:2",
+      "durationMs": 18.07
+    },
+    {
+      "name": "skills-agentique:3",
+      "durationMs": 20.31
+    },
+    {
+      "name": "skills-agentique:4",
+      "durationMs": 17.78
+    },
+    {
+      "name": "skills-agentique:6",
+      "durationMs": 19.87
+    },
+    {
+      "name": "skills-native-name-only",
+      "durationMs": 20.26
+    },
+    {
+      "name": "info",
+      "durationMs": 43.82
+    },
+    {
+      "name": "name-fallback",
+      "durationMs": 51.9
+    },
+    {
+      "name": "project-isolation",
+      "durationMs": 14.85
+    },
+    {
+      "name": "crossing-period-detail",
+      "durationMs": 32.68
+    },
+    {
+      "name": "crossing-period-traces",
+      "durationMs": 21.43
+    },
+    {
+      "name": "crossing-period-gallery",
+      "durationMs": 33.71
+    },
+    {
+      "name": "explicit-identity-without-owner",
+      "durationMs": 34.78
+    }
+  ],
+  "list": {
+    "agents": 8,
+    "environments": [
+      "production",
+      "staging"
+    ],
+    "stats": [
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:0"
+        },
+        "modelCalls": 28,
+        "inputTokens": 142245,
+        "outputTokens": 3999,
+        "totalTokens": 146244,
+        "cost": 0.261,
+        "usageKnownCalls": 27,
+        "pricedModelCalls": 27,
+        "unattributedModelCalls": 0,
+        "traceUnassignedModelCalls": 2,
+        "runs": 9,
+        "traces": 10,
+        "errorRuns": 1,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:5"
+        },
+        "modelCalls": 27,
+        "inputTokens": 130509,
+        "outputTokens": 3577,
+        "totalTokens": 134086,
+        "cost": 0.239,
+        "usageKnownCalls": 25,
+        "pricedModelCalls": 25,
+        "unattributedModelCalls": 3,
+        "traceUnassignedModelCalls": 0,
+        "runs": 9,
+        "traces": 9,
+        "errorRuns": 0,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:1"
+        },
+        "modelCalls": 24,
+        "inputTokens": 125129,
+        "outputTokens": 3507,
+        "totalTokens": 128636,
+        "cost": 0.228,
+        "usageKnownCalls": 23,
+        "pricedModelCalls": 23,
+        "unattributedModelCalls": 0,
+        "traceUnassignedModelCalls": 0,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 1,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:2"
+        },
+        "modelCalls": 24,
+        "inputTokens": 125129,
+        "outputTokens": 3507,
+        "totalTokens": 128636,
+        "cost": 0.228,
+        "usageKnownCalls": 23,
+        "pricedModelCalls": 23,
+        "unattributedModelCalls": 3,
+        "traceUnassignedModelCalls": 0,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 1,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:3"
+        },
+        "modelCalls": 24,
+        "inputTokens": 136856,
+        "outputTokens": 3928,
+        "totalTokens": 140784,
+        "cost": 0.248,
+        "usageKnownCalls": 24,
+        "pricedModelCalls": 24,
+        "unattributedModelCalls": 0,
+        "traceUnassignedModelCalls": 0,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 1,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:4"
+        },
+        "modelCalls": 24,
+        "inputTokens": 125129,
+        "outputTokens": 3507,
+        "totalTokens": 128636,
+        "cost": 0.228,
+        "usageKnownCalls": 23,
+        "pricedModelCalls": 23,
+        "unattributedModelCalls": 3,
+        "traceUnassignedModelCalls": 0,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 1,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:6"
+        },
+        "modelCalls": 24,
+        "inputTokens": 125129,
+        "outputTokens": 3507,
+        "totalTokens": 128636,
+        "cost": 0.228,
+        "usageKnownCalls": 23,
+        "pricedModelCalls": 23,
+        "unattributedModelCalls": 3,
+        "traceUnassignedModelCalls": 0,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 0,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "name",
+          "value": "native-name-only"
+        },
+        "modelCalls": 24,
+        "inputTokens": 125129,
+        "outputTokens": 3507,
+        "totalTokens": 128636,
+        "cost": 0.228,
+        "usageKnownCalls": 23,
+        "pricedModelCalls": 23,
+        "unattributedModelCalls": 3,
+        "traceUnassignedModelCalls": 0,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 0,
+        "averageRunDurationMs": 5000
+      }
+    ]
+  }
+}

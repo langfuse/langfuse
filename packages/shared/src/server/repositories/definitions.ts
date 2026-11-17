@@ -47,6 +47,10 @@ export const observationRecordBaseSchema = z.object({
   environment: z.string().default("default"),
   name: z.string().nullish(),
   metadata: z.record(z.string(), z.string()),
+  agent_id: z.string().optional(),
+  agent_name: z.string().optional(),
+  agent_run_id: z.string().optional(),
+  agent_identity_source: z.string().optional(),
   level: z.string().nullish(),
   status_message: z.string().nullish(),
   version: z.string().nullish(),
@@ -475,6 +479,11 @@ export const eventRecordBaseSchema = z.object({
   // We mainly use the id for compatibility with old events that always had a `id` column.
   id: z.string(), // same as span_id. Needs to be set manually.
   parent_span_id: z.string().nullish(),
+
+  agent_id: z.string().optional(),
+  agent_name: z.string().optional(),
+  agent_run_id: z.string().optional(),
+  agent_identity_source: z.string().optional(),
 
   // Core properties
   name: z.string(),

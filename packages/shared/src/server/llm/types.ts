@@ -584,6 +584,7 @@ export enum LangfuseInternalTraceEnvironment {
 }
 
 export type ProcessedTraceEvent = {
+  agentIdentity?: InternalTraceEventInput["agentIdentity"];
   type: string;
   timestamp: string;
   body: Record<string, unknown>;

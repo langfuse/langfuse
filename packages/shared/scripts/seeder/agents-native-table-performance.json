@@ -1,0 +1,935 @@
+{
+  "kind": "synthetic-local-native-agent-table-measurement",
+  "measuredAt": "2026-11-06T11:24:32.673Z",
+  "scope": {
+    "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    "identity": {
+      "kind": "id",
+      "value": "agentique:0"
+    },
+    "from": "2026-11-02T11:00:00.000Z",
+    "to": "2026-11-02T15:00:00.000Z",
+    "environment": "production"
+  },
+  "iterations": 3,
+  "population": {
+    "scenario": "agents-mvp",
+    "date": "2026-11-02",
+    "prefix": "agents-mvp-mixed-20261102",
+    "backgroundEvents": 1000000,
+    "unassignedModelCalls": 2
+  },
+  "sourceSha256": {
+    "packages/shared/src/server/repositories/agents.ts": "cb018200c5dfe95d379903befe76919d19a2166c03b53b89b18a160a8475a132",
+    "packages/shared/src/server/repositories/events.ts": "20413af8095854b8ac32290f8d9cd5db9de1387d0b9e9e15e374d2beb7a09b61",
+    "packages/shared/src/server/queries/clickhouse-sql/events-observation-row-selection.ts": "933b4e0e53aaabd47c756455810c6cbf863aca909b58d85fc1abbc7821e2eefe",
+    "packages/shared/src/server/queries/clickhouse-sql/events-stream-query.ts": "a40190eb9ae40ddc275d80f9cd10d7e4086d85ca3e3ef7d094db8ccf36a00e78",
+    "packages/shared/src/server/queries/clickhouse-sql/event-filter-options.ts": "ce80d1e0128de0c320e76722b6d1c6055248d4c75739fc9d059031250622ff52",
+    "web/src/features/events/server/eventsService.ts": "3df1616ff6b70f2fcc350202e676b2795328f2b149cfa7c971ee41e867a0f1dd"
+  },
+  "measurements": [
+    {
+      "iteration": 0,
+      "mode": "traces",
+      "name": "rows",
+      "status": "passed",
+      "durationMs": 78.9987500000002,
+      "resultCount": 9
+    },
+    {
+      "iteration": 0,
+      "mode": "traces",
+      "name": "count",
+      "status": "passed",
+      "durationMs": 25.890041999999994,
+      "resultCount": 9
+    },
+    {
+      "iteration": 0,
+      "mode": "traces",
+      "name": "facets",
+      "status": "passed",
+      "durationMs": 28.50783300000012,
+      "resultCount": null
+    },
+    {
+      "iteration": 0,
+      "mode": "traces",
+      "name": "score-facets",
+      "status": "passed",
+      "durationMs": 24.071500000000015,
+      "resultCount": null
+    },
+    {
+      "iteration": 0,
+      "mode": "traces",
+      "name": "export-sql",
+      "status": "passed",
+      "durationMs": 84.30770799999982,
+      "resultCount": 9
+    },
+    {
+      "iteration": 0,
+      "mode": "tools",
+      "name": "rows",
+      "status": "passed",
+      "durationMs": 41.52737500000012,
+      "resultCount": 9
+    },
+    {
+      "iteration": 0,
+      "mode": "tools",
+      "name": "count",
+      "status": "passed",
+      "durationMs": 24.089375000000018,
+      "resultCount": 9
+    },
+    {
+      "iteration": 0,
+      "mode": "tools",
+      "name": "facets",
+      "status": "passed",
+      "durationMs": 29.130083000000013,
+      "resultCount": null
+    },
+    {
+      "iteration": 0,
+      "mode": "tools",
+      "name": "score-facets",
+      "status": "passed",
+      "durationMs": 37.48700000000008,
+      "resultCount": null
+    },
+    {
+      "iteration": 0,
+      "mode": "tools",
+      "name": "export-sql",
+      "status": "passed",
+      "durationMs": 108.91445899999962,
+      "resultCount": 9
+    },
+    {
+      "iteration": 0,
+      "mode": "invocations",
+      "name": "rows",
+      "status": "passed",
+      "durationMs": 51.9778339999998,
+      "resultCount": 9
+    },
+    {
+      "iteration": 0,
+      "mode": "invocations",
+      "name": "count",
+      "status": "passed",
+      "durationMs": 32.420040999999856,
+      "resultCount": 9
+    },
+    {
+      "iteration": 0,
+      "mode": "invocations",
+      "name": "facets",
+      "status": "passed",
+      "durationMs": 45.504709000000275,
+      "resultCount": null
+    },
+    {
+      "iteration": 0,
+      "mode": "invocations",
+      "name": "score-facets",
+      "status": "passed",
+      "durationMs": 44.443874999999935,
+      "resultCount": null
+    },
+    {
+      "iteration": 0,
+      "mode": "invocations",
+      "name": "export-sql",
+      "status": "passed",
+      "durationMs": 119.16341600000032,
+      "resultCount": 9
+    },
+    {
+      "iteration": 1,
+      "mode": "traces",
+      "name": "rows",
+      "status": "passed",
+      "durationMs": 39.178625000000466,
+      "resultCount": 9
+    },
+    {
+      "iteration": 1,
+      "mode": "traces",
+      "name": "count",
+      "status": "passed",
+      "durationMs": 23.553249999999935,
+      "resultCount": 9
+    },
+    {
+      "iteration": 1,
+      "mode": "traces",
+      "name": "facets",
+      "status": "passed",
+      "durationMs": 27.16833399999996,
+      "resultCount": null
+    },
+    {
+      "iteration": 1,
+      "mode": "traces",
+      "name": "score-facets",
+      "status": "passed",
+      "durationMs": 24.33862499999941,
+      "resultCount": null
+    },
+    {
+      "iteration": 1,
+      "mode": "traces",
+      "name": "export-sql",
+      "status": "passed",
+      "durationMs": 82.0428750000001,
+      "resultCount": 9
+    },
+    {
+      "iteration": 1,
+      "mode": "tools",
+      "name": "rows",
+      "status": "passed",
+      "durationMs": 41.11424999999963,
+      "resultCount": 9
+    },
+    {
+      "iteration": 1,
+      "mode": "tools",
+      "name": "count",
+      "status": "passed",
+      "durationMs": 26.703542000000198,
+      "resultCount": 9
+    },
+    {
+      "iteration": 1,
+      "mode": "tools",
+      "name": "facets",
+      "status": "passed",
+      "durationMs": 28.624042000000372,
+      "resultCount": null
+    },
+    {
+      "iteration": 1,
+      "mode": "tools",
+      "name": "score-facets",
+      "status": "passed",
+      "durationMs": 37.09387499999957,
+      "resultCount": null
+    },
+    {
+      "iteration": 1,
+      "mode": "tools",
+      "name": "export-sql",
+      "status": "passed",
+      "durationMs": 120.21679200000017,
+      "resultCount": 9
+    },
+    {
+      "iteration": 1,
+      "mode": "invocations",
+      "name": "rows",
+      "status": "passed",
+      "durationMs": 43.720916999999645,
+      "resultCount": 9
+    },
+    {
+      "iteration": 1,
+      "mode": "invocations",
+      "name": "count",
+      "status": "passed",
+      "durationMs": 27.178625000000466,
+      "resultCount": 9
+    },
+    {
+      "iteration": 1,
+      "mode": "invocations",
+      "name": "facets",
+      "status": "passed",
+      "durationMs": 31.489708999999493,
+      "resultCount": null
+    },
+    {
+      "iteration": 1,
+      "mode": "invocations",
+      "name": "score-facets",
+      "status": "passed",
+      "durationMs": 42.84766600000057,
+      "resultCount": null
+    },
+    {
+      "iteration": 1,
+      "mode": "invocations",
+      "name": "export-sql",
+      "status": "passed",
+      "durationMs": 127.03416600000037,
+      "resultCount": 9
+    },
+    {
+      "iteration": 2,
+      "mode": "traces",
+      "name": "rows",
+      "status": "passed",
+      "durationMs": 37.41941700000007,
+      "resultCount": 9
+    },
+    {
+      "iteration": 2,
+      "mode": "traces",
+      "name": "count",
+      "status": "passed",
+      "durationMs": 22.404167000000598,
+      "resultCount": 9
+    },
+    {
+      "iteration": 2,
+      "mode": "traces",
+      "name": "facets",
+      "status": "passed",
+      "durationMs": 25.254667000000154,
+      "resultCount": null
+    },
+    {
+      "iteration": 2,
+      "mode": "traces",
+      "name": "score-facets",
+      "status": "passed",
+      "durationMs": 22.79199999999946,
+      "resultCount": null
+    },
+    {
+      "iteration": 2,
+      "mode": "traces",
+      "name": "export-sql",
+      "status": "passed",
+      "durationMs": 78.49904199999946,
+      "resultCount": 9
+    },
+    {
+      "iteration": 2,
+      "mode": "tools",
+      "name": "rows",
+      "status": "passed",
+      "durationMs": 40.3252080000002,
+      "resultCount": 9
+    },
+    {
+      "iteration": 2,
+      "mode": "tools",
+      "name": "count",
+      "status": "passed",
+      "durationMs": 25.13891699999931,
+      "resultCount": 9
+    },
+    {
+      "iteration": 2,
+      "mode": "tools",
+      "name": "facets",
+      "status": "passed",
+      "durationMs": 30.798917000000074,
+      "resultCount": null
+    },
+    {
+      "iteration": 2,
+      "mode": "tools",
+      "name": "score-facets",
+      "status": "passed",
+      "durationMs": 49.99212499999976,
+      "resultCount": null
+    },
+    {
+      "iteration": 2,
+      "mode": "tools",
+      "name": "export-sql",
+      "status": "passed",
+      "durationMs": 117.79133300000012,
+      "resultCount": 9
+    },
+    {
+      "iteration": 2,
+      "mode": "invocations",
+      "name": "rows",
+      "status": "passed",
+      "durationMs": 38.89554099999987,
+      "resultCount": 9
+    },
+    {
+      "iteration": 2,
+      "mode": "invocations",
+      "name": "count",
+      "status": "passed",
+      "durationMs": 24.050624999999854,
+      "resultCount": 9
+    },
+    {
+      "iteration": 2,
+      "mode": "invocations",
+      "name": "facets",
+      "status": "passed",
+      "durationMs": 28.14808399999947,
+      "resultCount": null
+    },
+    {
+      "iteration": 2,
+      "mode": "invocations",
+      "name": "score-facets",
+      "status": "passed",
+      "durationMs": 48.11499999999978,
+      "resultCount": null
+    },
+    {
+      "iteration": 2,
+      "mode": "invocations",
+      "name": "export-sql",
+      "status": "passed",
+      "durationMs": 104.35612500000025,
+      "resultCount": 9
+    }
+  ],
+  "queryLog": [
+    {
+      "query_duration_ms": 39,
+      "read_rows": 414975,
+      "read_bytes": 48355851,
+      "memory_usage": 21220216
+    },
+    {
+      "query_duration_ms": 3,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3660579
+    },
+    {
+      "query_duration_ms": 3,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3656629
+    },
+    {
+      "query_duration_ms": 22,
+      "read_rows": 341247,
+      "read_bytes": 31472618,
+      "memory_usage": 9578036
+    },
+    {
+      "query_duration_ms": 24,
+      "read_rows": 341247,
+      "read_bytes": 35244927,
+      "memory_usage": 10387372
+    },
+    {
+      "query_duration_ms": 17,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9522341
+    },
+    {
+      "query_duration_ms": 17,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9557431
+    },
+    {
+      "query_duration_ms": 17,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9552071
+    },
+    {
+      "query_duration_ms": 19,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9552071
+    },
+    {
+      "query_duration_ms": 81,
+      "read_rows": 763354,
+      "read_bytes": 94228087,
+      "memory_usage": 110177858
+    },
+    {
+      "query_duration_ms": 32,
+      "read_rows": 342186,
+      "read_bytes": 44322324,
+      "memory_usage": 21342860
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3656051
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3657351
+    },
+    {
+      "query_duration_ms": 21,
+      "read_rows": 268458,
+      "read_bytes": 31438640,
+      "memory_usage": 9693386
+    },
+    {
+      "query_duration_ms": 25,
+      "read_rows": 268458,
+      "read_bytes": 32800984,
+      "memory_usage": 10512819
+    },
+    {
+      "query_duration_ms": 32,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10434861
+    },
+    {
+      "query_duration_ms": 32,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10409091
+    },
+    {
+      "query_duration_ms": 32,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10453621
+    },
+    {
+      "query_duration_ms": 34,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10426269
+    },
+    {
+      "query_duration_ms": 107,
+      "read_rows": 1047378,
+      "read_bytes": 135092678,
+      "memory_usage": 111892215
+    },
+    {
+      "query_duration_ms": 40,
+      "read_rows": 342186,
+      "read_bytes": 47072968,
+      "memory_usage": 21320838
+    },
+    {
+      "query_duration_ms": 3,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3655921
+    },
+    {
+      "query_duration_ms": 3,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3655979
+    },
+    {
+      "query_duration_ms": 27,
+      "read_rows": 268458,
+      "read_bytes": 31999907,
+      "memory_usage": 10159132
+    },
+    {
+      "query_duration_ms": 40,
+      "read_rows": 268458,
+      "read_bytes": 33502852,
+      "memory_usage": 10971397
+    },
+    {
+      "query_duration_ms": 37,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10899165
+    },
+    {
+      "query_duration_ms": 36,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10919703
+    },
+    {
+      "query_duration_ms": 35,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10920271
+    },
+    {
+      "query_duration_ms": 35,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10917047
+    },
+    {
+      "query_duration_ms": 116,
+      "read_rows": 1047378,
+      "read_bytes": 134108412,
+      "memory_usage": 111980125
+    },
+    {
+      "query_duration_ms": 28,
+      "read_rows": 414975,
+      "read_bytes": 48355851,
+      "memory_usage": 21222840
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3655933
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3656251
+    },
+    {
+      "query_duration_ms": 19,
+      "read_rows": 341247,
+      "read_bytes": 31472618,
+      "memory_usage": 9578036
+    },
+    {
+      "query_duration_ms": 23,
+      "read_rows": 341247,
+      "read_bytes": 35244927,
+      "memory_usage": 10387372
+    },
+    {
+      "query_duration_ms": 17,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9521749
+    },
+    {
+      "query_duration_ms": 19,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9555767
+    },
+    {
+      "query_duration_ms": 17,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9551623
+    },
+    {
+      "query_duration_ms": 18,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9553431
+    },
+    {
+      "query_duration_ms": 80,
+      "read_rows": 763354,
+      "read_bytes": 94228087,
+      "memory_usage": 110166038
+    },
+    {
+      "query_duration_ms": 29,
+      "read_rows": 342186,
+      "read_bytes": 44322324,
+      "memory_usage": 21266217
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3656287
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3655979
+    },
+    {
+      "query_duration_ms": 22,
+      "read_rows": 268458,
+      "read_bytes": 31438640,
+      "memory_usage": 9693386
+    },
+    {
+      "query_duration_ms": 24,
+      "read_rows": 268458,
+      "read_bytes": 32800984,
+      "memory_usage": 10512819
+    },
+    {
+      "query_duration_ms": 31,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10407411
+    },
+    {
+      "query_duration_ms": 32,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10426269
+    },
+    {
+      "query_duration_ms": 31,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10451749
+    },
+    {
+      "query_duration_ms": 31,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10438413
+    },
+    {
+      "query_duration_ms": 117,
+      "read_rows": 1047378,
+      "read_bytes": 135092678,
+      "memory_usage": 111893795
+    },
+    {
+      "query_duration_ms": 31,
+      "read_rows": 342186,
+      "read_bytes": 47072968,
+      "memory_usage": 18355197
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3655641
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3656059
+    },
+    {
+      "query_duration_ms": 23,
+      "read_rows": 268458,
+      "read_bytes": 31999907,
+      "memory_usage": 10159132
+    },
+    {
+      "query_duration_ms": 26,
+      "read_rows": 268458,
+      "read_bytes": 33502852,
+      "memory_usage": 10971397
+    },
+    {
+      "query_duration_ms": 36,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10894717
+    },
+    {
+      "query_duration_ms": 36,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10918231
+    },
+    {
+      "query_duration_ms": 36,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10921679
+    },
+    {
+      "query_duration_ms": 35,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10921191
+    },
+    {
+      "query_duration_ms": 124,
+      "read_rows": 1047378,
+      "read_bytes": 134108412,
+      "memory_usage": 111997043
+    },
+    {
+      "query_duration_ms": 26,
+      "read_rows": 414975,
+      "read_bytes": 48355851,
+      "memory_usage": 21219037
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3655565
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3656251
+    },
+    {
+      "query_duration_ms": 18,
+      "read_rows": 341247,
+      "read_bytes": 31472618,
+      "memory_usage": 9578036
+    },
+    {
+      "query_duration_ms": 21,
+      "read_rows": 341247,
+      "read_bytes": 35244927,
+      "memory_usage": 10387372
+    },
+    {
+      "query_duration_ms": 16,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9518789
+    },
+    {
+      "query_duration_ms": 16,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9567607
+    },
+    {
+      "query_duration_ms": 17,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9543959
+    },
+    {
+      "query_duration_ms": 16,
+      "read_rows": 194730,
+      "read_bytes": 21177431,
+      "memory_usage": 9552215
+    },
+    {
+      "query_duration_ms": 76,
+      "read_rows": 763354,
+      "read_bytes": 94228087,
+      "memory_usage": 110166041
+    },
+    {
+      "query_duration_ms": 28,
+      "read_rows": 342186,
+      "read_bytes": 44322324,
+      "memory_usage": 21342860
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3655999
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3656267
+    },
+    {
+      "query_duration_ms": 21,
+      "read_rows": 268458,
+      "read_bytes": 31438640,
+      "memory_usage": 9693386
+    },
+    {
+      "query_duration_ms": 26,
+      "read_rows": 268458,
+      "read_bytes": 32800984,
+      "memory_usage": 10512819
+    },
+    {
+      "query_duration_ms": 41,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10420179
+    },
+    {
+      "query_duration_ms": 41,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10431901
+    },
+    {
+      "query_duration_ms": 43,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10436309
+    },
+    {
+      "query_duration_ms": 41,
+      "read_rows": 389460,
+      "read_bytes": 42463348,
+      "memory_usage": 10435453
+    },
+    {
+      "query_duration_ms": 115,
+      "read_rows": 1047378,
+      "read_bytes": 135092678,
+      "memory_usage": 111892539
+    },
+    {
+      "query_duration_ms": 28,
+      "read_rows": 342186,
+      "read_bytes": 47072968,
+      "memory_usage": 18355197
+    },
+    {
+      "query_duration_ms": 2,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3655737
+    },
+    {
+      "query_duration_ms": 1,
+      "read_rows": 0,
+      "read_bytes": 0,
+      "memory_usage": 3656251
+    },
+    {
+      "query_duration_ms": 20,
+      "read_rows": 268458,
+      "read_bytes": 31999907,
+      "memory_usage": 10159132
+    },
+    {
+      "query_duration_ms": 23,
+      "read_rows": 268458,
+      "read_bytes": 33502852,
+      "memory_usage": 10971397
+    },
+    {
+      "query_duration_ms": 37,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10909341
+    },
+    {
+      "query_duration_ms": 37,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10917903
+    },
+    {
+      "query_duration_ms": 37,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10909527
+    },
+    {
+      "query_duration_ms": 37,
+      "read_rows": 389460,
+      "read_bytes": 42664412,
+      "memory_usage": 10919415
+    },
+    {
+      "query_duration_ms": 103,
+      "read_rows": 1047378,
+      "read_bytes": 134108412,
+      "memory_usage": 111984449
+    }
+  ],
+  "caveat": "Same native Events service/query builders as the UI, without HTTP/auth overhead. Traces uses its normal root view; Tools and Invocations use exact current span scope. Export SQL executes at most500rows; real queued export is verified separately. Newly inserted physical identity columns; no historical DEFAULT cold-read claim and no production latency guarantee."
+}

@@ -99,6 +99,11 @@ import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/Cor
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  sanitizeAgentsTelemetryEvent,
+  sanitizeAgentsTelemetryPersistence,
+  sanitizeAgentsTelemetryUrl,
+} from "@/src/features/posthog-analytics/agentsTelemetryPrivacy";
+import {
   getPostHogClientConfig,
   isPostHogClientEnabled,
   isProductAnalyticsAvailable,
@@ -119,8 +124,13 @@ if (typeof window !== "undefined" && postHogClientConfig) {
   posthog.init(postHogClientConfig.key, {
     api_host: postHogClientConfig.host,
     ui_host: "https://eu.posthog.com",
+    before_send: (event) => {
+      sanitizeAgentsTelemetryPersistence(posthog);
+      return sanitizeAgentsTelemetryEvent(event);
+    },
     // Enable debug mode in development
     loaded: (posthog) => {
+      sanitizeAgentsTelemetryPersistence(posthog);
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
     disable_session_recording: !isPostHogSessionRecordingEnabled,
@@ -133,6 +143,11 @@ if (typeof window !== "undefined" && postHogClientConfig) {
       // the surrounding UI without capturing customer input/output values.
       blockClass: "ph-no-capture",
       maskCapturedNetworkRequestFn(request) {
+        request.name = sanitizeAgentsTelemetryUrl(request.name);
+        for (const headers of [request.requestHeaders, request.responseHeaders])
+          if (headers)
+            for (const name of Object.keys(headers))
+              headers[name] = sanitizeAgentsTelemetryUrl(headers[name]!);
         request.requestBody = request.requestBody ? "REDACTED" : undefined;
         request.responseBody = request.responseBody ? "REDACTED" : undefined;
         return request;

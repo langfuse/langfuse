@@ -863,6 +863,10 @@ export { AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME } from "./otel/OtelIngestionProce
 export { type OtelIngestionProcessorConfig } from "./otel/OtelIngestionProcessor";
 export { type ResourceSpan } from "./otel/OtelIngestionProcessor";
 export { OtelIngestionProcessor } from "./otel/OtelIngestionProcessor";
+export {
+  normalizeAgentIdentity,
+  type AgentIdentity,
+} from "./otel/agentMetadata";
 export { type OtelMediaKind } from "./otel/OtelMediaProcessor";
 export { type OtelMediaWritePath } from "./otel/OtelMediaProcessor";
 export { type OtelMediaPayload } from "./otel/OtelMediaProcessor";

@@ -12,6 +12,7 @@ export type Flags = {
       | "aiGateway"
       | "unifiedTraceSessionView"
       | "sessionViewV2Timeline"
+      | "agentsView"
       | typeof INTERNAL_FEATURE_FLAG
     >
   ]: boolean;
@@ -21,5 +22,6 @@ export type Flags = {
   aiGateway?: boolean;
   unifiedTraceSessionView?: boolean;
   sessionViewV2Timeline?: boolean;
+  agentsView?: boolean;
   [INTERNAL_FEATURE_FLAG]?: boolean;
 };

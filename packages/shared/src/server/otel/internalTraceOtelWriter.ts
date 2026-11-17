@@ -58,6 +58,7 @@ export function internalTraceEventToOtelAttributes(
     | "input"
     | "output"
     | "metadata"
+    | "agentIdentity"
     | "type"
     | "modelName"
     | "modelParameters"
@@ -79,12 +80,23 @@ export function internalTraceEventToOtelAttributes(
 ): Attributes {
   const observationType = observationTypeToOtelAttribute(eventInput.type);
   const metadataJson = asOtelAttributeString(eventInput.metadata);
+  const agentAttributes: Attributes = {};
+  for (const [key, attribute] of [
+    ["id", "langfuse.agent.id"],
+    ["name", "langfuse.agent.name"],
+    ["runId", "langfuse.agent.run_id"],
+  ] as const) {
+    const value = eventInput.agentIdentity?.[key];
+    if (typeof value === "string" && value.trim().length > 0)
+      agentAttributes[attribute] = value;
+  }
   const evaluationAttributes = eventInput.evaluationContext
     ? buildEvaluationAttributes(eventInput.evaluationContext)
     : undefined;
   const { isRoot } = options;
 
   return {
+    ...agentAttributes,
     ...(eventInput.environment !== undefined
       ? { [LangfuseOtelSpanAttributes.ENVIRONMENT]: eventInput.environment }
       : {}),

@@ -10,6 +10,7 @@ import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizati
 import type { Session } from "next-auth";
 import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { canViewAgents } from "@/src/features/agents/agentsAccess";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import { visibleGatewayPages } from "@/src/features/ai-gateway/fns/visibleGatewayPages";
 /** Organization type from user session (can be null when not in project/org context) */
@@ -185,6 +186,9 @@ const filters = {
     return route.show({
       organization: organization ?? undefined,
       projectId: ctx.routerProjectId,
+      canViewAgents:
+        Boolean(ctx.routerProjectId) &&
+        canViewAgents(ctx.session, ctx.routerProjectId ?? ""),
       canViewTopics: canViewTopics(
         ctx.session,
         organization?.projects.find(

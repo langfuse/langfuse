@@ -1,3 +1,4 @@
+import { type AgentTraceScope } from "../../../features/agents/api";
 import type { FilterCondition } from "../../../types";
 import type { TracingSearchType } from "../../../interfaces/search";
 import type { EventsQueryBuilder } from "./event-query-builder";
@@ -8,6 +9,7 @@ import {
 } from "./events-observation-row-selection";
 
 export type EventsStreamQueryInput = {
+  agentScope?: AgentTraceScope;
   projectId: string;
   cutoffCreatedAt?: Date;
   filter: FilterCondition[] | null;
@@ -37,6 +39,7 @@ export type EventsBlobExportStreamQuery = EventsStreamQuery & {
 const buildEventsStreamQueryInternal = (
   {
     projectId,
+    agentScope,
     cutoffCreatedAt,
     filter,
     searchQuery,
@@ -57,6 +60,7 @@ const buildEventsStreamQueryInternal = (
 
   const { queryBuilder, rowConditions } = buildRowSelection({
     projectId,
+    agentScope,
     filter: filterConditions,
     searchQuery,
     searchType,

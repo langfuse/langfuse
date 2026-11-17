@@ -21,11 +21,10 @@ type SelectInputProps<V extends string> = Pick<
   | "aria-label"
   | "disabled"
   | "onBlur"
+  | "noCapture"
 > & {
   placeholder: string;
   search?: { placeholder: string };
-  /** Keeps the portaled option list out of session replay; not applied with `search`. */
-  noCapture?: boolean;
   error?: boolean;
   muted?: boolean;
 };
@@ -95,6 +94,7 @@ function SelectInputInner<V extends string>(
         }}
         error={error}
         muted={muted}
+        noCapture={noCapture}
       />
     );
   }

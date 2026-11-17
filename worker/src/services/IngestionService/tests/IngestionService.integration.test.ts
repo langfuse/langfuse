@@ -2021,18 +2021,31 @@ describe("Ingestion end-to-end tests", () => {
     const traceId = randomUUID();
     const observationId = randomUUID();
 
-    const latestEvent = new Date();
+    const agentIdentity = {
+      id: "research",
+      name: "Research",
+      runId: randomUUID(),
+      source: "native" as const,
+    };
+    const metadata = {
+      langfuse_agent_id: "user-agent",
+      langfuse_agent_run_id: "user-run",
+      note: "preserve",
+    };
 
     const observationEventList1: ObservationEvent[] = [
       {
         id: randomUUID(),
         type: "generation-create",
+        agentIdentity,
         timestamp: new Date().toISOString(),
         body: {
           id: observationId,
           traceId: traceId,
           startTime: new Date().toISOString(),
           output: "to overwrite",
+          name: "generation-name",
+          metadata,
           usage: undefined,
           environment,
         },
@@ -2044,6 +2057,7 @@ describe("Ingestion end-to-end tests", () => {
       entityId: observationId,
       createdAtTimestamp: new Date(),
       observationEventList: observationEventList1,
+      writeToStagingTables: true,
     });
     await clickhouseWriter.flushAll(true);
 
@@ -2051,11 +2065,12 @@ describe("Ingestion end-to-end tests", () => {
       {
         id: randomUUID(),
         type: "generation-update",
+        agentIdentity: null,
         timestamp: new Date().toISOString(),
         body: {
           id: observationId,
-          name: "generation-name",
           traceId: traceId,
+          endTime: new Date().toISOString(),
           output: "overwritten",
           usage: undefined,
           environment,
@@ -2068,6 +2083,7 @@ describe("Ingestion end-to-end tests", () => {
       entityId: observationId,
       createdAtTimestamp: new Date(),
       observationEventList: observationEventList2,
+      writeToStagingTables: true,
     });
     await clickhouseWriter.flushAll(true);
 
@@ -2078,6 +2094,20 @@ describe("Ingestion end-to-end tests", () => {
 
     expect(observation.name).toBe("generation-name");
     expect(observation.output).toBe("overwritten");
+    const expected = {
+      agent_id: agentIdentity.id,
+      agent_name: agentIdentity.name,
+      agent_run_id: agentIdentity.runId,
+      agent_identity_source: agentIdentity.source,
+      metadata,
+    };
+    expect(observation).toMatchObject(expected);
+    const staged = await queryClickhouse<Record<string, unknown>>({
+      query:
+        "SELECT agent_id, agent_name, agent_run_id, agent_identity_source, metadata, output FROM observations_batch_staging FINAL WHERE project_id = {projectId: String} AND id = {observationId: String} ORDER BY event_ts DESC LIMIT 1",
+      params: { projectId, observationId },
+    });
+    expect(staged[0]).toMatchObject({ ...expected, output: "overwritten" });
   });
 
   it("should put observation updates after creates if timestamp is same", async () => {

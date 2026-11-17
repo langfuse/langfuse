@@ -21,6 +21,7 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  Bot,
   Waypoints,
   Box,
   KeyRound,
@@ -93,6 +94,7 @@ export type Route = {
       | undefined;
     projectId: string | undefined;
     canViewTopics: boolean;
+    canViewAgents: boolean;
     visibleGatewayPages: Record<GatewayPageSlug, boolean>;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
@@ -211,6 +213,18 @@ export const ROUTES: Route[] = [
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
+  },
+  {
+    title: "Agents",
+    href: "/project/[projectId]/agents",
+    icon: Bot,
+    featureFlag: "agentsView",
+    projectRbacScopes: ["project:read"],
+    productModule: "tracing",
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+    show: ({ canViewAgents, v4WriteMode }) =>
+      canViewAgents && Boolean(v4WriteMode) && v4WriteMode !== "legacy",
   },
   {
     title: "Topics",

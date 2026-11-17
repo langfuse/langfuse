@@ -908,7 +908,16 @@ export class InAppAgentInstrumentation {
         : {}),
       userId: this.userId,
       sessionId: this.sessionId,
-      metadata: { ...this.metadata, ...body.metadata },
+      metadata: {
+        ...this.metadata,
+        ...body.metadata,
+      },
+      agentIdentity: {
+        id: "langfuse:halo",
+        name: "Halo",
+        runId: this.rootObservationId,
+        source: "native",
+      },
     });
   }
 

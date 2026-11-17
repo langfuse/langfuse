@@ -1,3 +1,4 @@
+import { assertAgentScopeAccess } from "@/src/features/agents/server/assertAgentScopeAccess";
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { recordTrpcAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
@@ -25,8 +26,9 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   paginationZod,
+  persistBatchExportQuery,
 } from "@langfuse/shared";
-import { type Prisma, type PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   BatchExportQueue,
   logger,
@@ -44,14 +46,28 @@ const LEGACY_DOWNLOAD_WINDOW_MS = 24 * 60 * 60 * 1000;
 // signature expiry when the request starts, not while the download streams.
 const FRESH_DOWNLOAD_URL_TTL_SECONDS = 10 * 60;
 
+const AGENT_EXPORT_ENVELOPE_KINDS = [
+  "agent-scoped-export-v1",
+  "agent-scoped-export-v2",
+] as const;
+
 // A persisted export's query is a Json column, so its table name is only
 // known at runtime. On create the query is still the validated input, where
 // `tableName` is typed and compared directly.
-const isAuditLogExport = (query: Prisma.JsonValue): boolean =>
-  typeof query === "object" &&
-  query !== null &&
-  !Array.isArray(query) &&
-  query.tableName === BatchExportTableName.AuditLogs;
+const isAuditLogExport = (query: Prisma.JsonValue): boolean => {
+  if (typeof query !== "object" || query === null || Array.isArray(query))
+    return false;
+  if (query.tableName === BatchExportTableName.AuditLogs) return true;
+  if (!AGENT_EXPORT_ENVELOPE_KINDS.some((kind) => query.kind === kind))
+    return false;
+  const scopedQuery = query.query;
+  return (
+    typeof scopedQuery === "object" &&
+    scopedQuery !== null &&
+    !Array.isArray(scopedQuery) &&
+    scopedQuery.tableName === BatchExportTableName.AuditLogs
+  );
+};
 
 const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
   hasEntitlement({
@@ -105,13 +121,20 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         const { projectId, format, name } = input;
+        assertAgentScopeAccess({
+          session: ctx.session,
+          projectId,
+          agentScope: input.query.agentScope,
+        });
 
         // Snapshot the user's v4 beta flag into the persisted query so the
         // worker reads events-aware data sources from the dispatch-time
         // snapshot, never the live user record. Overrides any client-sent value.
         const query = {
           ...input.query,
-          useEventsTable: ctx.session.user.v4BetaEnabled ?? false,
+          useEventsTable: input.query.agentScope
+            ? true
+            : (ctx.session.user.v4BetaEnabled ?? false),
         };
 
         if (query.tableName === BatchExportTableName.AuditLogs) {
@@ -137,7 +160,9 @@ export const batchExportRouter = createTRPCRouter({
             status: BatchExportStatus.QUEUED,
             name,
             format,
-            query,
+            query: JSON.parse(
+              JSON.stringify(persistBatchExportQuery(query)),
+            ) as Prisma.InputJsonValue,
           },
         });
 
@@ -295,12 +320,40 @@ export const batchExportRouter = createTRPCRouter({
         ...(canReadAuditLogs(ctx.session, input.projectId)
           ? {}
           : {
-              NOT: {
-                query: {
-                  path: ["tableName"],
-                  equals: BatchExportTableName.AuditLogs,
+              OR: [
+                {
+                  AND: [
+                    { query: { path: ["kind"], equals: Prisma.AnyNull } },
+                    {
+                      NOT: {
+                        query: {
+                          path: ["tableName"],
+                          equals: BatchExportTableName.AuditLogs,
+                        },
+                      },
+                    },
+                  ],
                 },
-              },
+                ...AGENT_EXPORT_ENVELOPE_KINDS.map((kind) => ({
+                  AND: [
+                    { query: { path: ["kind"], equals: kind } },
+                    {
+                      query: { path: ["tableName"], equals: Prisma.AnyNull },
+                    },
+                    {
+                      OR: [
+                        BatchExportTableName.Events,
+                        BatchExportTableName.Sessions,
+                      ].map((tableName) => ({
+                        query: {
+                          path: ["query", "tableName"],
+                          equals: tableName,
+                        },
+                      })),
+                    },
+                  ],
+                })),
+              ],
             }),
       };
 

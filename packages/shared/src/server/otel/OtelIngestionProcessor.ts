@@ -44,6 +44,13 @@ import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
+import {
+  type AgentIdentity,
+  hasAgentIdentityContext,
+  agentSpanKey,
+  resolveAgentBatchIdentity,
+  type AgentSpan,
+} from "./agentMetadata";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
@@ -219,7 +226,17 @@ interface CreateTraceEventParams {
   span: any;
 }
 
+type PreparedOtelSpan = AgentSpan & { observationType: ObservationType };
+type PreparedOtelBatch = {
+  spans: WeakMap<object, PreparedOtelSpan>;
+  resources: WeakMap<object, Record<string, unknown>>;
+  identities: Map<string, AgentIdentity | null>;
+};
+
 interface CreateObservationEventParams {
+  observationType: ObservationType;
+  observationName: string;
+  spanId: string;
   span: any;
   traceId: string;
   parentObservationId: string | null;
@@ -232,6 +249,7 @@ interface CreateObservationEventParams {
   isLangfuseSDKSpans: boolean;
   startTimeISO: string;
   endTimeISO: string;
+  agentIdentity: AgentIdentity | null;
 }
 
 type NanoTimestamp =
@@ -423,22 +441,24 @@ export class OtelIngestionProcessor {
           return [];
         }
 
+        const preparedBatch = this.prepareBatch(resourceSpans);
         const events = resourceSpans
           .filter((r) => Boolean(r))
           .flatMap((resourceSpan) => {
             const resourceAttributes =
-              this.extractResourceAttributes(resourceSpan);
+              preparedBatch.resources.get(resourceSpan)!;
             const events: any[] = [];
 
             for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
               const scopeAttributes = this.extractScopeAttributes(scopeSpan);
               for (const span of scopeSpan?.spans ?? []) {
-                const spanAttributes = this.extractSpanAttributes(span);
-                const traceId = this.parseId(span.traceId);
-                const spanId = this.parseId(span.spanId);
-                const parentSpanId = span?.parentSpanId
-                  ? this.parseId(span.parentSpanId)
-                  : null;
+                const prepared = preparedBatch.spans.get(span)!;
+                const {
+                  attributes: spanAttributes,
+                  traceId,
+                  spanId,
+                  parentSpanId,
+                } = prepared;
                 const { startTimeISO, endTimeISO } =
                   OtelIngestionProcessor.resolveSpanTimestamps({
                     startTimeUnixNano: span.startTimeUnixNano,
@@ -547,13 +567,7 @@ export class OtelIngestionProcessor {
                   source: "event" as const,
                 };
 
-                const observationType =
-                  observationTypeMapper.mapToObservationType(
-                    spanAttributes,
-                    resourceAttributes,
-                    scopeSpan?.scope,
-                    span.name,
-                  );
+                const observationType = prepared.observationType;
                 // AI SDK agent spans carry aggregate usage duplicating their
                 // child model-call spans — skip model/usage/cost for them.
                 // Also Claude Managed Agent create_session spans have a model logged
@@ -597,12 +611,7 @@ export class OtelIngestionProcessor {
                 const canLinkPrompt =
                   observationType === ObservationType.GENERATION;
 
-                const name = this.extractName(
-                  span.name,
-                  spanAttributes,
-                  observationType,
-                  scopeSpan.scope?.name,
-                );
+                const name = prepared.name;
 
                 const level =
                   parseObservationLevel(
@@ -718,7 +727,16 @@ export class OtelIngestionProcessor {
                   output: normalizedTools.output,
 
                   // Metadata
-                  metadata: normalizedTools.metadata,
+                  metadata: {
+                    ...(normalizedTools.metadata &&
+                    typeof normalizedTools.metadata === "object"
+                      ? normalizedTools.metadata
+                      : {}),
+                  },
+                  agentIdentity:
+                    preparedBatch.identities.get(
+                      agentSpanKey(traceId, spanId),
+                    ) ?? null,
 
                   // Instrumentation metadata
                   source: "otel",
@@ -802,9 +820,10 @@ export class OtelIngestionProcessor {
           }
 
           // Process all events normally first
+          const preparedBatch = this.prepareBatch(resourceSpans);
           const allEvents = resourceSpans.flatMap((resourceSpan) => {
             if (!resourceSpan) return [];
-            return this.processResourceSpan(resourceSpan);
+            return this.processResourceSpan(resourceSpan, preparedBatch);
           });
 
           // Filter out redundant shallow trace events
@@ -964,10 +983,58 @@ export class OtelIngestionProcessor {
     return true;
   }
 
+  private prepareBatch(resourceSpans: ResourceSpan[]): PreparedOtelBatch {
+    const spans: PreparedOtelSpan[] = [];
+    const preparedSpans = new WeakMap<object, PreparedOtelSpan>();
+    const resources = new WeakMap<object, Record<string, unknown>>();
+    let hasAgentData = false;
+    for (const resourceSpan of resourceSpans) {
+      if (!resourceSpan) continue;
+      const resourceAttributes = this.extractResourceAttributes(resourceSpan);
+      resources.set(resourceSpan, resourceAttributes);
+      for (const scopeSpan of resourceSpan.scopeSpans ?? []) {
+        for (const span of scopeSpan.spans ?? []) {
+          const attributes = this.extractSpanAttributes(span);
+          const type = observationTypeMapper.mapToObservationType(
+            attributes,
+            resourceAttributes,
+            scopeSpan.scope,
+            span.name,
+          );
+          const prepared: PreparedOtelSpan = {
+            traceId: this.parseId(span.traceId),
+            spanId: this.parseId(span.spanId),
+            parentSpanId: span.parentSpanId
+              ? this.parseId(span.parentSpanId)
+              : null,
+            isAgent: type === ObservationType.AGENT,
+            observationType: type,
+            name: this.extractName(
+              span.name,
+              attributes,
+              type,
+              scopeSpan.scope?.name,
+            ),
+            attributes,
+          };
+          if (!hasAgentData) hasAgentData = hasAgentIdentityContext(prepared);
+          preparedSpans.set(span, prepared);
+          spans.push(prepared);
+        }
+      }
+    }
+    return {
+      spans: preparedSpans,
+      resources,
+      identities: hasAgentData ? resolveAgentBatchIdentity(spans) : new Map(),
+    };
+  }
+
   private processResourceSpan(
     resourceSpan: ResourceSpan,
+    preparedBatch: PreparedOtelBatch,
   ): IngestionEventType[] {
-    const resourceAttributes = this.extractResourceAttributes(resourceSpan);
+    const resourceAttributes = preparedBatch.resources.get(resourceSpan)!;
     const events: IngestionEventType[] = [];
 
     for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
@@ -986,6 +1053,7 @@ export class OtelIngestionProcessor {
           resourceAttributes,
           scopeAttributes,
           isLangfuseSDKSpans,
+          preparedBatch,
         );
         events.push(...spanEvents);
       }
@@ -1000,14 +1068,12 @@ export class OtelIngestionProcessor {
     resourceAttributes: Record<string, unknown>,
     scopeAttributes: Record<string, unknown>,
     isLangfuseSDKSpans: boolean,
+    preparedBatch: PreparedOtelBatch,
   ): IngestionEventType[] {
     const events: IngestionEventType[] = [];
-    const attributes = this.extractSpanAttributes(span);
-
-    const traceId = this.parseId(span.traceId?.data ?? span.traceId);
-    const parentObservationId = span?.parentSpanId
-      ? this.parseId(span.parentSpanId?.data ?? span.parentSpanId)
-      : null;
+    const prepared = preparedBatch.spans.get(span)!;
+    const { attributes, traceId } = prepared;
+    const parentObservationId = prepared.parentSpanId;
 
     const decodeMetadataValues = this.shouldDecodeMetadataValues(
       scopeSpan,
@@ -1063,6 +1129,9 @@ export class OtelIngestionProcessor {
     // Create observation event
     const observationEvent = this.createObservationEvent({
       span,
+      spanId: prepared.spanId,
+      observationType: prepared.observationType,
+      observationName: prepared.name,
       traceId,
       parentObservationId,
       attributes,
@@ -1074,6 +1143,9 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       startTimeISO,
       endTimeISO,
+      agentIdentity:
+        preparedBatch.identities.get(agentSpanKey(traceId, prepared.spanId)) ??
+        null,
     });
     events.push(observationEvent);
 
@@ -1258,6 +1330,10 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       startTimeISO,
       endTimeISO,
+      agentIdentity,
+      spanId,
+      observationType: mappedObservationType,
+      observationName: name,
     } = params;
 
     const instrumentationScopeName = scopeSpan?.scope?.name;
@@ -1288,12 +1364,6 @@ export class OtelIngestionProcessor {
       metadata,
     );
 
-    const mappedObservationType = observationTypeMapper.mapToObservationType(
-      attributes,
-      resourceAttributes,
-      scopeSpan?.scope,
-      span.name,
-    );
     const skipModelUsageAndCost = this.shouldSkipModelUsageAndCost(
       attributes,
       mappedObservationType,
@@ -1303,12 +1373,6 @@ export class OtelIngestionProcessor {
     // Prompts can only be linked to GENERATION observations
     const canLinkPrompt = mappedObservationType === ObservationType.GENERATION;
 
-    const name = this.extractName(
-      span.name,
-      attributes,
-      mappedObservationType,
-      instrumentationScopeName,
-    );
     const level =
       parseObservationLevel(
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
@@ -1321,7 +1385,7 @@ export class OtelIngestionProcessor {
           : ObservationLevel.DEFAULT);
 
     const observation = {
-      id: this.parseId(span.spanId?.data ?? span.spanId),
+      id: spanId,
       traceId,
       parentObservationId,
       name,
@@ -1332,7 +1396,12 @@ export class OtelIngestionProcessor {
         attributes,
         startTimeISO,
       ),
-      metadata: normalizedToolMetadata.metadata,
+      metadata: {
+        ...(normalizedToolMetadata.metadata &&
+        typeof normalizedToolMetadata.metadata === "object"
+          ? normalizedToolMetadata.metadata
+          : {}),
+      },
       level,
       statusMessage:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
@@ -1404,6 +1473,7 @@ export class OtelIngestionProcessor {
       type: getIngestionEventType(),
       timestamp: new Date().toISOString(),
       body: observation,
+      agentIdentity,
     } as unknown as IngestionEventType;
   }
 
@@ -2730,10 +2800,11 @@ export class OtelIngestionProcessor {
       decodedPrefix: decodeValues ? metadataKeyPrefix : undefined,
     });
 
-    return {
+    const metadata = {
       ...topLevelMetadata,
       ...langfuseMetadata,
     };
+    return metadata;
   }
 
   private extractUserId(
@@ -4071,7 +4142,9 @@ export class OtelIngestionProcessor {
   private parseId(data: any): string {
     // JS SDK sends IDs already in hex strings
     // Python SDK sends Int array
-    return typeof data === "string" ? data : Buffer.from(data).toString("hex");
+    return typeof data === "string"
+      ? data
+      : Buffer.from(data?.data ?? data).toString("hex");
   }
 
   /**

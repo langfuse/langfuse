@@ -76,6 +76,40 @@ it.each([
   },
 );
 
+it.each([true, false])(
+  "keeps Agents navigation consistent with v4 access (%s)",
+  (v4BetaEnabled) => {
+    const route = ROUTES.find((route) => route.title === "Agents")!;
+    const organization = {
+      id: "org-1",
+      role: "VIEWER",
+      projects: [{ id: "project-1", role: "VIEWER" }],
+    } as unknown as NonNullable<Session["user"]>["organizations"][number];
+    const context: NavigationFilterContext = {
+      routerProjectId: "project-1",
+      routerOrganizationId: undefined,
+      session: {
+        user: {
+          v4BetaEnabled,
+          featureFlags: testFeatureFlags({ agentsView: true }),
+          organizations: [organization],
+        },
+        environment: { v4WriteMode: "dual" },
+      } as Session,
+      enableExperimentalFeatures: false,
+      internalFeaturesEnabled: false,
+      entitlements: [],
+      uiCustomization: null,
+      isLangfuseCloud: true,
+      hasActiveCloudIncident: false,
+      forceV3Experience: false,
+    };
+    expect(applyNavigationFilters([route], context, organization)).toEqual(
+      v4BetaEnabled ? [route] : [],
+    );
+  },
+);
+
 it.each([
   { topicsEnabled: true, visible: true },
   { topicsEnabled: false, visible: false },

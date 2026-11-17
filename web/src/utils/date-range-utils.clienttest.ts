@@ -1,13 +1,30 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
   rangeToString,
   resolveTimeRange,
+  toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
+
+it("keeps a preset's exact duration when the clock advances between Date constructions", () => {
+  let tick = new Date("2026-11-05T12:00:00Z").getTime();
+  class AdvancingDate extends Date {
+    constructor(value?: string | number) {
+      super(value ?? tick++);
+    }
+  }
+  vi.stubGlobal("Date", AdvancingDate);
+  try {
+    const range = toAbsoluteTimeRange({ range: "last30Days" });
+    expect(range!.to.getTime() - range!.from.getTime()).toBe(30 * 86400000);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
 
 describe("resolveTimeRange (presence-XOR)", () => {
   const allowed = DASHBOARD_AGGREGATION_OPTIONS;

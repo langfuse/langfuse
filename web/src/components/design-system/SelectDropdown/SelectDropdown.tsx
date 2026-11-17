@@ -91,7 +91,7 @@ export function SelectDropdown<V extends string>({
   options: readonly SelectNode<V>[];
   onValueChange: (value: V) => void;
   emptyMessage?: string;
-  /** Keeps the portaled option list out of session replay. */
+  /** Block customer-controlled option text and attributes in session replay. */
   noCapture?: boolean;
   children: (
     controls: TriggerControls & { selectedLabel: string | undefined },
@@ -208,6 +208,7 @@ export function SelectDropdown<V extends string>({
   return (
     <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
       <SelectPrimitive.Trigger
+        className={noCapture ? "ph-no-capture" : undefined}
         asChild
         ref={ref}
         title={selectedOption?.label}

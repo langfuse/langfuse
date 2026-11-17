@@ -12,6 +12,7 @@ import {
 import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
+import { type AgentTraceScope } from "@langfuse/shared/agents";
 import { DataTable } from "@/src/components/table/data-table";
 import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -136,7 +137,10 @@ import {
   useAppRootDefault,
   useApplyAppRootFallback,
 } from "@/src/features/events/hooks/useAppRootDefault";
-import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
+import {
+  getAppRootSavedViewComparisonFilters,
+  removeAppRootDefaultFilter,
+} from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
@@ -173,6 +177,7 @@ import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
+import { AgentEventsActivityPulse } from "@/src/features/agents/components/AgentEventsActivityPulse";
 import {
   chartFacetExclusionReason,
   chartSearchFieldReason,
@@ -260,6 +265,8 @@ export type EventsTableRow = {
 
 export type EventsTableProps = {
   projectId: string;
+  /** Immutable membership scope, independent of editable observation filters. */
+  agentScope?: AgentTraceScope;
   userId?: string;
   promptName?: string;
   promptVersion?: number;
@@ -319,6 +326,7 @@ const toStartTimeFilterState = (range?: TableDateRange): TimeFilter[] =>
 
 export default function ObservationsEventsTable({
   projectId,
+  agentScope,
   userId,
   promptName,
   promptVersion,
@@ -370,7 +378,12 @@ export default function ObservationsEventsTable({
     hideControls: !showToolbar,
     isolateTableState,
     hasParentScope: Boolean(
-      peekContext || userId || sessionId || promptName || promptVersion,
+      peekContext ||
+      userId ||
+      sessionId ||
+      promptName ||
+      promptVersion ||
+      agentScope,
     ),
   });
   const searchQuery = tableStatePolicy.useIsolatedSearch
@@ -388,7 +401,11 @@ export default function ObservationsEventsTable({
       ? setIsolatedSearchType
       : urlSearch.setSearchType;
 
-  const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
+  const { selectAll: storedSelection, setSelectAll } = useSelectAll(
+    projectId,
+    "observations",
+  );
+  const selectAll = !agentScope && storedSelection;
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
 
@@ -495,10 +512,10 @@ export default function ObservationsEventsTable({
   }, [utils]);
 
   useEffect(() => {
-    if (!refreshInterval) return;
+    if (!refreshInterval || agentScope) return;
     const id = setInterval(handleRefresh, refreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval, handleRefresh]);
+  }, [refreshInterval, handleRefresh, agentScope]);
 
   const { range: tableDateRange, anchoredTo } =
     useLiveTableDateRange(timeRange);
@@ -634,7 +651,9 @@ export default function ObservationsEventsTable({
   // so the same state that scopes the rows can refine the counts (LFE-14489).
   const filterStateOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
-      implicitDefaultConfig: implicitEnvironmentConfig(showAllEnvironments),
+      implicitDefaultConfig: agentScope
+        ? undefined
+        : implicitEnvironmentConfig(showAllEnvironments),
       defaultExplicitFilterState: appRootDefault.defaultExplicitFilterState,
       onExplicitFilterStateChange,
     };
@@ -654,6 +673,8 @@ export default function ObservationsEventsTable({
       };
     }
 
+    if (agentScope) return { ...baseOptions, stateLocation: "url" };
+
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
@@ -668,6 +689,7 @@ export default function ObservationsEventsTable({
     projectId,
     userId,
     sessionId,
+    agentScope,
     appRootDefault.defaultExplicitFilterState,
     onExplicitFilterStateChange,
     showAllEnvironments,
@@ -689,6 +711,17 @@ export default function ObservationsEventsTable({
               type: "string" as const,
               operator: "=" as const,
               value: userId,
+            },
+          ]
+        : []),
+      ...(agentScope?.environment !== null &&
+      agentScope?.environment !== undefined
+        ? [
+            {
+              column: "environment",
+              type: "stringOptions" as const,
+              operator: "any of" as const,
+              value: [agentScope.environment],
             },
           ]
         : []),
@@ -738,7 +771,7 @@ export default function ObservationsEventsTable({
           ]
         : []),
     ],
-    [userId, sessionId, promptName, promptVersion, skill],
+    [userId, sessionId, promptName, promptVersion, skill, agentScope],
   );
 
   const facetRefiningFilter = useMemo(
@@ -769,6 +802,7 @@ export default function ObservationsEventsTable({
     requestColumns,
   } = useEventsFilterOptions({
     projectId,
+    agentScope,
     startTimeFilter: facetStartTimeFilter,
     refiningFilter: facetRefiningFilter,
     // "Total ≈ X" rides the facet scan (uniq(span_id) over facetRefiningFilter); skip for embedded/preview tables.
@@ -965,7 +999,8 @@ export default function ObservationsEventsTable({
   // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
   // chart: the chart forwards what it can and the sidebar + search bar mark the
   // rest as "not applied" (see chartFilterExclusions below).
-  const chartEnabled = showToolbar && !userId && !sessionId && !skill;
+  const chartEnabled =
+    showToolbar && !userId && !sessionId && !skill && !agentScope;
 
   // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =
@@ -1006,9 +1041,11 @@ export default function ObservationsEventsTable({
     usedAppRootFallback,
   } = useEventsTableData({
     projectId,
+    agentScope,
     filterState,
     tableDataScope: {
       projectId,
+      agentScope,
       filter:
         externalFilterState ??
         queryFilter.effectiveFilterState.concat(embedScopeFilterState),
@@ -1326,7 +1363,7 @@ export default function ObservationsEventsTable({
   const enableSorting = showToolbar;
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
-    ...(showToolbar && !isMobile ? [selectActionColumn] : []),
+    ...(showToolbar && !isMobile && !agentScope ? [selectActionColumn] : []),
     createDateTableColumn<EventsTableRow>({
       accessorKey: "startTime",
       header: getEventsColumnName("startTime"),
@@ -1794,6 +1831,9 @@ export default function ObservationsEventsTable({
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.ObservationsEvents,
     projectId,
+    persistenceContext: agentScope
+      ? `agent-${agentScope.mode ?? "traces"}`
+      : undefined,
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setSavedViewFiltersWrapper,
@@ -1971,13 +2011,16 @@ export default function ObservationsEventsTable({
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
-        {showControlsInPageHeader && showToolbar && !isMobile && (
-          <TableHeaderControls
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
-            refresh={refreshConfig}
-          />
-        )}
+        {showControlsInPageHeader &&
+          showToolbar &&
+          !isMobile &&
+          !externalDateRange && (
+            <TableHeaderControls
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+              refresh={refreshConfig}
+            />
+          )}
         {/* Mobile: a single toolbar row — Filters(N) sheet trigger + view-mode
             toggle. Search, time range, preset chips, saved views and the facet
             sidebar all move INTO the sheet (same controllers, hosted there).
@@ -2044,15 +2087,18 @@ export default function ObservationsEventsTable({
                 ))
               }
               headerControls={
-                showToolbar && (
+                showToolbar &&
+                !agentScope && (
                   <div className="flex min-w-0 items-center gap-1">
-                    <TimeRangePicker
-                      compact
-                      timeRange={timeRange}
-                      onTimeRangeChange={setTimeRange}
-                      timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-                      className="my-0"
-                    />
+                    {!externalDateRange && (
+                      <TimeRangePicker
+                        compact
+                        timeRange={timeRange}
+                        onTimeRangeChange={setTimeRange}
+                        timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+                        className="my-0"
+                      />
+                    )}
                     <DataTableRefreshButton
                       compact
                       onRefresh={refreshConfig.onRefresh}
@@ -2222,9 +2268,15 @@ export default function ObservationsEventsTable({
                 rowHeight={rowHeight}
                 setRowHeight={setRowHeight}
                 customRowHeight={customRowHeightMenu(rowHeights)}
-                timeRange={showControlsInPageHeader ? undefined : timeRange}
+                timeRange={
+                  showControlsInPageHeader || externalDateRange
+                    ? undefined
+                    : timeRange
+                }
                 setTimeRange={
-                  showControlsInPageHeader ? undefined : setTimeRange
+                  showControlsInPageHeader || externalDateRange
+                    ? undefined
+                    : setTimeRange
                 }
                 viewModeToggle={
                   chartEnabled ? (
@@ -2242,6 +2294,7 @@ export default function ObservationsEventsTable({
                     <BatchExportTableButton
                       {...{
                         projectId,
+                        agentScope,
                         filterState,
                         orderByState,
                         searchQuery,
@@ -2257,6 +2310,7 @@ export default function ObservationsEventsTable({
                     />
                   ) : null,
                   !chartActive &&
+                  !agentScope &&
                   (selectedObservationIds.length > 0 || selectAll) ? (
                     <AddTracesToAnnotationQueueDialogController
                       key="observations-multi-select-actions"
@@ -2310,7 +2364,7 @@ export default function ObservationsEventsTable({
                 // menu (incl. Delete) operable. The selection is preserved and
                 // reappears on switching back to Table.
                 multiSelect={
-                  chartActive
+                  chartActive || agentScope
                     ? undefined
                     : {
                         selectAll,
@@ -2388,6 +2442,19 @@ export default function ObservationsEventsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
+            {agentScope && (
+              <AgentEventsActivityPulse
+                projectId={projectId}
+                agentScope={agentScope}
+                filter={
+                  usedAppRootFallback
+                    ? removeAppRootDefaultFilter(filterState)
+                    : filterState
+                }
+                searchQuery={searchQuery ?? null}
+                searchType={searchType ?? ["id", "content"]}
+              />
+            )}
             {/* Pulse strip (LFE-14451): table-width, so the facet sidebar keeps
                 its full height (design feedback); hidden in full chart mode. */}
             {outlierStripEnabled && chartViewMode !== "chart" && (

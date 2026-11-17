@@ -219,6 +219,10 @@ export const handleEventPropagationJob = async (
           project_id,
           trace_id,
           span_id,
+          agent_id,
+          agent_name,
+          agent_run_id,
+          agent_identity_source,
           parent_span_id,
           start_time,
           end_time,
@@ -271,6 +275,10 @@ export const handleEventPropagationJob = async (
           obs.project_id,
           obs.trace_id,
           obs.id AS span_id,
+          obs.agent_id,
+          obs.agent_name,
+          obs.agent_run_id,
+          obs.agent_identity_source,
           -- When the observation IS the trace itself (id = trace_id), parent should be NULL
           -- Otherwise, use standard wrapper logic: parent_observation_id or prefixed trace_id as fallback
           CASE

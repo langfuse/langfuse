@@ -36,6 +36,7 @@ export function AsyncSelectInput<V extends string>({
   emptyMessage = "No options available.",
   error,
   muted,
+  noCapture,
   ref,
   ...triggerProps
 }: Pick<
@@ -48,6 +49,7 @@ export function AsyncSelectInput<V extends string>({
   | "aria-label"
   | "disabled"
   | "onBlur"
+  | "noCapture"
 > & {
   value: SelectedOption<V> | null;
   onValueChange: (option: SelectedOption<V>) => void;
@@ -175,6 +177,7 @@ export function AsyncSelectInput<V extends string>({
         disabled={triggerProps.disabled}
       >
         <PopoverPrimitive.Trigger
+          className={noCapture ? "ph-no-capture" : undefined}
           ref={ref}
           type="button"
           role="combobox"
@@ -199,6 +202,7 @@ export function AsyncSelectInput<V extends string>({
       <PopoverPrimitive.Portal container={container}>
         <InputDropdown.Content width="popover-trigger">
           <PopoverPrimitive.Content
+            className={noCapture ? "ph-no-capture" : undefined}
             align="start"
             sideOffset={4}
             onWheel={stopScrollPropagation()}

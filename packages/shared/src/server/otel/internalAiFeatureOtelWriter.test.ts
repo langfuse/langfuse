@@ -148,6 +148,60 @@ beforeEach(() => {
 });
 
 describe("publishAiFeatureTraceViaOtelIngestion", () => {
+  it("preserves explicit Halo ownership when a child arrives without its agent batch", async () => {
+    const { eventInputs } = buildInternalTraceEventInputs({
+      processedEvents: processedEvents.map((event) => ({
+        ...event,
+        agentIdentity: {
+          id: "langfuse:halo",
+          name: "Halo",
+          runId: RUN_ID,
+          source: "native" as const,
+        },
+      })),
+      traceId: TRACE_ID,
+      projectId: "project-1",
+    });
+    await publishAiFeatureTraceViaOtelIngestion({
+      projectId: "project-1",
+      eventInputs,
+    });
+    const resource = getPublishedResourceSpans()[0]!;
+    const scope = resource.scopeSpans![0]!;
+    const childBatch = [
+      {
+        ...resource,
+        scopeSpans: [
+          {
+            ...scope,
+            spans: scope.spans!.filter((span) => span.name === "invoke-model"),
+          },
+        ],
+      },
+    ];
+    const expectedIdentity = {
+      id: "langfuse:halo",
+      name: "Halo",
+      runId: RUN_ID,
+      source: "native",
+    };
+    const processor = await createProcessor();
+    const [native] = await processor.processToEvent(childBatch);
+    expect(native).toMatchObject({
+      spanId: `${RUN_ID}-llm-0`,
+      type: "GENERATION",
+      agentIdentity: expectedIdentity,
+    });
+    vi.spyOn(
+      processor as unknown as { getSeenTracesSet: () => Promise<Set<string>> },
+      "getSeenTracesSet",
+    ).mockResolvedValue(new Set());
+    const legacy = await processor.processToIngestionEvents(childBatch);
+    expect(
+      legacy.find((event) => event.type === "generation-create"),
+    ).toMatchObject({ agentIdentity: expectedIdentity });
+  });
+
   it("preserves agent and tool observation types from SDK event types", async () => {
     await publishFixture();
 
@@ -256,9 +310,18 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
     ]);
 
     expect(independentEvent?.traceName).toBeNull();
-    expect(
-      batchedEvents.find((event) => event.name === "invoke-model"),
-    ).toEqual(independentEvent);
+    const batchedGeneration = batchedEvents.find(
+      (event) => event.name === "invoke-model",
+    );
+    expect(batchedGeneration?.traceName).toBeNull();
+    expect(batchedGeneration).toEqual({
+      ...independentEvent,
+      agentIdentity: {
+        name: "agent-turn",
+        runId: RUN_ID,
+        source: "span-name",
+      },
+    });
   });
 
   it("links the generation prompt as an integer version in legacy ingestion events", async () => {

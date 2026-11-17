@@ -569,7 +569,7 @@ export function OutlierBarStrip({
       {hovered && mouse && !activePreview && (
         <Layer name="tooltip">
           <div
-            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 text-[11px] leading-tight whitespace-nowrap shadow-sm"
+            className="ph-no-capture bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 text-[11px] leading-tight whitespace-nowrap shadow-sm"
             style={
               // Top-right of the cursor; flips to top-left near the viewport's
               // right edge so it never runs off screen.
@@ -613,7 +613,7 @@ export function OutlierBarStrip({
           <div
             key={`${activePreview.fromMs}:${activePreview.toMs}`}
             ref={measurePreview}
-            className="bg-popover text-popover-foreground fixed max-w-[calc(100vw-16px)] rounded border px-2 py-1.5 text-[11px] leading-tight whitespace-nowrap shadow-md"
+            className="ph-no-capture bg-popover text-popover-foreground fixed max-w-[calc(100vw-16px)] rounded border px-2 py-1.5 text-[11px] leading-tight whitespace-nowrap shadow-md"
             style={{
               // Clamp the center so the measured box stays fully on-screen —
               // edge-of-viewport taps would otherwise clip half the tooltip.
@@ -645,6 +645,11 @@ export function OutlierBarStrip({
                     : previewStats.count > 0
                       ? "no data"
                       : metricSpec.format(0)}
+                  {activePreview.toMs - activePreview.fromMs > stepMs && (
+                    <span className="text-muted-foreground ml-1.5 font-normal">
+                      peak per bucket
+                    </span>
+                  )}
                   {metric !== "count" && (
                     <span className="text-muted-foreground ml-1.5 font-normal">
                       · {previewStats.count} observations
