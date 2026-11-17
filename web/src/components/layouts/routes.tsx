@@ -107,7 +107,7 @@ export type Route = {
 
 /** Sits closer to the title than the row gap, so it reads as part of it. */
 const externalLinkArrow = (
-  <span className="-ml-1 flex" aria-hidden>
+  <span className="-ml-0.5 flex" aria-hidden>
     <ArrowUpRight size="base" color="tertiary" />
   </span>
 );
