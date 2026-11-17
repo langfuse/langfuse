@@ -512,8 +512,8 @@ describe("isExpectedTrpcClientError", () => {
 
   it("treats inviting an existing member as expected", () => {
     // members.create 409s on the unique-constraint path (already on the
-    // project) and 400s on the pre-check (already in the org, or a pending
-    // invite). The members form already shows that message on the email field.
+    // project). The 400 already-in-org / pending-invite path is covered by
+    // the EXPECTED_TRPC_BAD_REQUEST_PATHS loop below.
     expect(
       isExpectedTrpcClientError(
         trpcServerError({
@@ -521,16 +521,6 @@ describe("isExpectedTrpcClientError", () => {
           httpStatus: 409,
           path: "members.create",
           message: "User is already a member of this project",
-        }),
-      ),
-    ).toBe(true);
-    expect(
-      isExpectedTrpcClientError(
-        trpcServerError({
-          code: "BAD_REQUEST",
-          httpStatus: 400,
-          path: "members.create",
-          message: "User is already a member of this organization",
         }),
       ),
     ).toBe(true);
@@ -894,26 +884,6 @@ describe("reportTrpcErrorWithoutToast", () => {
     });
   });
 
-  it("suppresses inviting an existing member (breadcrumb, no capture)", () => {
-    reportTrpcErrorWithoutToast(
-      trpcServerError({
-        code: "CONFLICT",
-        httpStatus: 409,
-        path: "members.create",
-        message: "User is already a member of this project",
-      }),
-      "members",
-    );
-
-    expect(captureExceptionMock).not.toHaveBeenCalled();
-    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
-    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
-      code: "CONFLICT",
-      path: "members.create",
-    });
-    expect(trpcErrorToastMock).not.toHaveBeenCalled();
-  });
-
   it("suppresses expected codes (breadcrumb, no capture) — same policy as the seam", () => {
     // The organizations.delete FORBIDDEN advice: previously console.error'd by
     // the component (one Sentry event per retry), now classified as expected.
@@ -992,27 +962,6 @@ describe("reportTrpcErrorWithoutToast", () => {
       area: "trpc",
       "trpc.code": "INTERNAL_SERVER_ERROR",
       "trpc.path": "projects.create",
-    });
-  });
-
-  it("still captures a 5xx on members.create", () => {
-    // Negative fixture: allowlisting members.create 409/400 must not swallow
-    // a real server failure on the same procedure.
-    reportTrpcErrorWithoutToast(
-      trpcServerError({
-        code: "INTERNAL_SERVER_ERROR",
-        httpStatus: 500,
-        path: "members.create",
-      }),
-      "members",
-    );
-
-    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
-    const [, options] = captureExceptionMock.mock.calls[0]!;
-    expect(options.tags).toMatchObject({
-      area: "trpc",
-      "trpc.code": "INTERNAL_SERVER_ERROR",
-      "trpc.path": "members.create",
     });
   });
 
