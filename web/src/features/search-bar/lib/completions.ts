@@ -866,6 +866,7 @@ function keyPathOptions(
 // ---- value-stage planning per resolved field kind ----
 
 type ValueStageInput = {
+  grouped: boolean;
   ref: FieldRef;
   typed: string;
   valuePrefix: string;
@@ -1198,7 +1199,10 @@ function valueStageSections(input: ValueStageInput): {
         label: o.value,
         detail: o.count !== undefined ? String(o.count) : undefined,
         value: o.value,
-        insert: f.exactSuggestions ? `=${serializeValue(o.value)}` : undefined,
+        insert:
+          f.exactSuggestions && !input.grouped
+            ? `=${serializeValue(o.value)}`
+            : undefined,
       }));
       const values = valueOptions(all, typed);
       // Array fields reject match operators — operatorIssue routes them to
@@ -2024,6 +2028,7 @@ function planUnscopedInputCompletions(
     grouped === null ? {} : { keepOpenOnPick: !grouped.completeGroup };
 
   const staged = valueStageSections({
+    grouped: grouped !== null,
     ref,
     typed,
     valuePrefix,

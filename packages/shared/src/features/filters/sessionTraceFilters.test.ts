@@ -129,22 +129,41 @@ describe("session customization filters", () => {
     ]);
   });
 
-  it("rejects unsupported legacy filters at the saved-view input boundary", () => {
-    expect(
-      SessionViewInputSchema.safeParse({
-        projectId: "project",
-        name: "Legacy",
-        filters: [
+  it.each(["type", "level", "environment"])(
+    "accepts grouped %s at the saved-view input boundary",
+    (column) => {
+      expect(
+        SessionViewInputSchema.safeParse({
+          projectId: "project",
+          name: "Legacy",
+          filters: [
+            {
+              column,
+              type: "stringOptions",
+              operator: "any of",
+              value: ["GENERATION", "SPAN"],
+            },
+          ],
+          viewMode: "list",
+          unmatchedTraces: "hide",
+        }).success,
+      ).toBe(true);
+    },
+  );
+
+  it.each(["type", "level", "environment"])(
+    "rejects negated %s groups",
+    (column) => {
+      expect(
+        sessionTraceFilterSchema.safeParse([
           {
-            column: "type",
+            column,
             type: "stringOptions",
-            operator: "any of",
-            value: ["GENERATION", "SPAN"],
+            operator: "none of",
+            value: ["AGENT", "TOOL"],
           },
-        ],
-        viewMode: "list",
-        unmatchedTraces: "hide",
-      }).success,
-    ).toBe(false);
-  });
+        ]).success,
+      ).toBe(false);
+    },
+  );
 });
