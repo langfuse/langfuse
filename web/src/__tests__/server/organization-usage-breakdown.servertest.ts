@@ -8,8 +8,6 @@ import {
   createTraceScore,
   createTracesCh,
 } from "@langfuse/shared/src/server";
-import type { TopicSummary } from "@langfuse/shared/topics";
-import { writeTopicSummaries } from "@langfuse/shared/topics/server";
 import type { Session } from "next-auth";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { getOrgUsageBreakdown } from "@/src/features/organization-usage/server/usageBreakdown";
@@ -171,82 +169,6 @@ describe("getOrgUsageBreakdown", () => {
         },
       ]),
     );
-  });
-
-  it("counts each Topics facet summary once by processed_at", async () => {
-    const {
-      orgId,
-      projectIds: [projectId],
-    } = await createOrgWithProjects([{ name: "topics" }]);
-    const summary = (
-      overrides: Partial<
-        Pick<
-          TopicSummary,
-          "state" | "embedding" | "processedAt" | "unitStartTime"
-        >
-      >,
-    ): TopicSummary => ({
-      projectId,
-      facetId: "facet",
-      facetVersion: 1,
-      traceId: randomUUID(),
-      sessionId: null,
-      triggerType: "manual_poc",
-      environment: "default",
-      traceName: "trace",
-      unitStartTime: "2026-07-20T12:00:00.000Z",
-      state: "complete",
-      summary: "summary",
-      embedding: [1, ...Array<number>(255).fill(0)],
-      transcriptId: "transcript",
-      transcriptVersion: "1",
-      summaryModel: "test",
-      embeddingModel: "test",
-      providedUsageDetails: {},
-      usageDetails: {},
-      providedCostDetails: {},
-      costDetails: {},
-      processedAt: "2026-08-03T10:00:00.000Z",
-      metadata: {},
-      ...overrides,
-    });
-    const summarized = summary({});
-
-    // Separate inserts: whether or not ClickHouse has merged the duplicate,
-    // it is billed once
-    await writeTopicSummaries([summarized]);
-    await writeTopicSummaries([
-      { ...summarized, processedAt: "2026-08-03T11:00:00.000Z" },
-      summary({ state: "not_applicable", embedding: [] }),
-      summary({ state: "insufficient_input", embedding: [] }),
-      summary({ processedAt: "2026-08-04T10:00:00.000Z" }),
-      // Written after the window
-      summary({ processedAt: "2026-08-06T00:00:00.000Z" }),
-      // Source older than the longest Topics time range
-      summary({ unitStartTime: "2026-04-01T00:00:00.000Z" }),
-    ]);
-
-    const result = await getOrgUsageBreakdown({
-      prisma,
-      orgId,
-      from: new Date("2026-08-03T00:00:00Z"),
-      to: new Date("2026-08-06T00:00:00Z"),
-    });
-
-    expect(sortRows(result.rows)).toEqual([
-      {
-        bucket: "2026-08-03T00:00:00.000Z",
-        projectId,
-        unitType: "facet_summaries",
-        count: 3,
-      },
-      {
-        bucket: "2026-08-04T00:00:00.000Z",
-        projectId,
-        unitType: "facet_summaries",
-        count: 1,
-      },
-    ]);
   });
 
   it("puts ClickHouse week buckets on the generated Monday axis", async () => {

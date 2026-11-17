@@ -7,8 +7,8 @@ import {
   CloudSpendAlertQueue,
   compareWithBillingLedger,
   getObservationCountsByProjectInCreationInterval,
+  getFacetSummaryCountsByProjectInWindow,
   getScoreCountsByProjectInCreationInterval,
-  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
   logger,
 } from "@langfuse/shared/src/server";
@@ -220,9 +220,9 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     end: meterIntervalEnd,
   });
   const facetSummaryCountsByProject =
-    await getTopicFacetSummaryCountsByProjectInCreationInterval({
-      start: meterIntervalStart,
-      end: meterIntervalEnd,
+    await getFacetSummaryCountsByProjectInWindow({
+      windowFrom: meterIntervalStart,
+      windowTo: meterIntervalEnd,
     });
 
   // setup stripe client

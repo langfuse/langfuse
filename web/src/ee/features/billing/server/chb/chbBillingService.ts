@@ -8,8 +8,8 @@ import {
   getBillingCycleEnd,
   getBillingCycleStart,
   getObservationCountsByProjectInCreationInterval,
+  getFacetSummaryCountsByProjectInWindow,
   getScoreCountsByProjectInCreationInterval,
-  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
   logger,
 } from "@langfuse/shared/src/server";
@@ -696,7 +696,11 @@ export class ChbBillingService {
       getTraceCountsByProjectInCreationInterval(interval),
       getObservationCountsByProjectInCreationInterval(interval),
       getScoreCountsByProjectInCreationInterval(interval),
-      getTopicFacetSummaryCountsByProjectInCreationInterval(interval),
+      getFacetSummaryCountsByProjectInWindow({
+        windowFrom: interval.start,
+        windowTo: interval.end,
+        projectIds: interval.projectIds,
+      }),
     ]);
     return counts.flat().reduce((sum, row) => sum + row.count, 0);
   }

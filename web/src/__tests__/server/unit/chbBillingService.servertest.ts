@@ -29,8 +29,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     getTraceCountsByProjectInCreationInterval: mocks.traceCounts,
     getObservationCountsByProjectInCreationInterval: mocks.observationCounts,
     getScoreCountsByProjectInCreationInterval: mocks.scoreCounts,
-    getTopicFacetSummaryCountsByProjectInCreationInterval:
-      mocks.facetSummaryCounts,
+    getFacetSummaryCountsByProjectInWindow: mocks.facetSummaryCounts,
   };
 });
 
@@ -844,7 +843,11 @@ describe("chbBillingService", () => {
       expect(mocks.traceCounts).toHaveBeenCalledWith(interval);
       expect(mocks.observationCounts).toHaveBeenCalledWith(interval);
       expect(mocks.scoreCounts).toHaveBeenCalledWith(interval);
-      expect(mocks.facetSummaryCounts).toHaveBeenCalledWith(interval);
+      expect(mocks.facetSummaryCounts).toHaveBeenCalledWith({
+        windowFrom: interval.start,
+        windowTo: interval.end,
+        projectIds: interval.projectIds,
+      });
     });
 
     it("falls back to the cached cycle counter without an attached plan", async () => {

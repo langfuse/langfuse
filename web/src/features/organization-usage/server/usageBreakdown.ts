@@ -3,9 +3,8 @@ import {
   CORRECTION_SCORES_BILLABLE_FROM,
   LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
+import { env } from "@langfuse/shared/src/env";
 import {
-  BILLABLE_TOPIC_FACET_SUMMARY_SQL,
-  billableTopicFacetSummaryParams,
   convertDateToClickhouseDateTime,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
@@ -113,7 +112,9 @@ const getBucketStarts = (
  * definition used for Stripe and ClickHouse Billing: rows counted by
  * `created_at` in a half-open window, no FINAL. Scores include the listable
  * data types, plus CORRECTION rows created at or after the billing cutoff.
- * Topics facet summaries are counted by `processed_at` instead.
+ * Topics facet summaries are read from the billable_events ledger by
+ * `ingested_at`. They count once per bucket, without the ledger's 24-hour
+ * lookback, so a bucket can show a re-summary that was not billed again.
  */
 const getBillableUnitsByBucket = async ({
   projectIds,
@@ -127,7 +128,19 @@ const getBillableUnitsByBucket = async ({
   granularity: UsageBreakdownGranularity;
 }) => {
   const bucket = `toUnixTimestamp(${BUCKET_SQL[granularity]("created_at")})`;
-  const facetSummaryBucket = `toUnixTimestamp(${BUCKET_SQL[granularity]("processed_at")})`;
+  const facetSummaryBucket = `toUnixTimestamp(${BUCKET_SQL[granularity]("ingested_at")})`;
+  const facetSummaries =
+    env.LANGFUSE_BILLING_FACET_SUMMARIES_ENABLED === "true"
+      ? `
+    UNION ALL
+    SELECT ${facetSummaryBucket} AS bucket, project_id, 'facet_summaries' AS unit_type, uniqExact(event_id) AS count
+    FROM billable_events
+    WHERE project_id IN {projectIds: Array(String)}
+    AND event_type = 'facet_summary'
+    AND ingested_at >= {start: DateTime64(3)}
+    AND ingested_at < {end: DateTime64(3)}
+    GROUP BY bucket, project_id`
+      : "";
   const where = `
     project_id IN {projectIds: Array(String)}
     AND created_at >= {start: DateTime64(3)}
@@ -155,12 +168,7 @@ const getBillableUnitsByBucket = async ({
       )
     )
     GROUP BY bucket, project_id
-    UNION ALL
-    SELECT ${facetSummaryBucket} AS bucket, project_id, 'facet_summaries' AS unit_type, uniqExact${BILLABLE_TOPIC_FACET_SUMMARY_SQL.unit} AS count
-    FROM topic_facet_summaries
-    WHERE project_id IN {projectIds: Array(String)}
-    AND ${BILLABLE_TOPIC_FACET_SUMMARY_SQL.condition}
-    GROUP BY bucket, project_id
+    ${facetSummaries}
   `;
 
   const rows = await queryClickhouse<{
@@ -172,7 +180,8 @@ const getBillableUnitsByBucket = async ({
     query,
     params: {
       projectIds,
-      ...billableTopicFacetSummaryParams({ start, end }),
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
       dataTypes: LISTABLE_SCORE_TYPES,
       correctionsFrom: convertDateToClickhouseDateTime(
         CORRECTION_SCORES_BILLABLE_FROM,

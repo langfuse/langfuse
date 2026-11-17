@@ -12,6 +12,8 @@ import {
   getBillableUnitCountsByProjectInWindow,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
+import type { TopicSummary } from "@langfuse/shared/topics";
+import { writeTopicSummaries } from "@langfuse/shared/topics/server";
 import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
 // billable_events and its MVs are created only by the ClickHouse dev-tables
@@ -308,6 +310,54 @@ describe("billable_events materialized views", () => {
     });
     expect(Number(remainingEvents[0].count)).toBe(0);
     expect(await billedUnitsAroundNow(projectId)).toEqual(billedBeforeDelete);
+  });
+
+  it("bills a Topics facet summary once per source and facet version", async (ctx) => {
+    await skipUnlessBillableEvents(ctx);
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    const summary: TopicSummary = {
+      projectId,
+      facetId: "facet",
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      triggerType: "automatic",
+      environment: "default",
+      traceName: "trace",
+      unitStartTime: new Date(Date.now() - HOUR).toISOString(),
+      state: "complete",
+      summary: "summary",
+      embedding: [1, ...Array<number>(255).fill(0)],
+      transcriptId: "transcript",
+      transcriptVersion: "1",
+      summaryModel: "test",
+      embeddingModel: "test",
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+      processedAt: new Date().toISOString(),
+      metadata: {},
+    };
+
+    await writeTopicSummaries([summary]);
+    await writeTopicSummaries([
+      // A duplicate write of the same summary
+      { ...summary, processedAt: new Date(Date.now() + SECOND).toISOString() },
+      { ...summary, facetVersion: 2 },
+      { ...summary, traceId: null, sessionId: "session", traceName: "" },
+      // A re-insert of an older summary is not new usage
+      {
+        ...summary,
+        facetId: "backfilled",
+        processedAt: new Date(THREE_DAYS_AGO).toISOString(),
+      },
+    ]);
+
+    expect(await billedUnitsAroundNow(projectId)).toEqual({
+      facet_summary: 3,
+    });
   });
 });
 

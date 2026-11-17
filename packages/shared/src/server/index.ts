@@ -427,12 +427,6 @@ export { readProjectHasTracesFlag } from "./repositories/traces";
 export { persistProjectHasTracesFlag } from "./repositories/traces";
 export { hasAnyTrace } from "./repositories/traces";
 export { getTraceCountsByProjectInCreationInterval } from "./repositories/traces";
-export {
-  BILLABLE_TOPIC_FACET_SUMMARY_SQL,
-  billableTopicFacetSummaryParams,
-  getTopicFacetSummaryCountsByProjectAndDay,
-  getTopicFacetSummaryCountsByProjectInCreationInterval,
-} from "./repositories/topic-facet-summary-usage";
 export { getLastTraceTimestampsByProjectsFromTracesTable } from "./repositories/traces";
 export { getTraceCountOfProjectsSinceCreationDate } from "./repositories/traces";
 export { getTraceByIdFromTracesTable } from "./repositories/traces";
@@ -740,7 +734,10 @@ export { getAuditLogResourceRefs } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForUserId } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
-export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
+export {
+  getBillableUnitCountsByProjectInWindow,
+  getFacetSummaryCountsByProjectInWindow,
+} from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
 export {
   getTopicSetupTraceBounds,

@@ -123,10 +123,10 @@ SELECT
     byteSize(*) AS total_size
 FROM traces;
 
--- Billing ledger: one row per billable unit (observation, trace, score) each
--- time it is ingested. A unit is billed once in a billing window of
--- ingested_at when its id appears there and not in the 24 hours before the
--- window starts (getBillableUnitCountsByProjectInWindow).
+-- Billing ledger: one row per billable unit (observation, trace, score, Topics
+-- facet summary) each time it is ingested. A unit is billed once in a billing
+-- window of ingested_at when its id appears there and not in the 24 hours
+-- before the window starts (getBillableUnitCountsByProjectInWindow).
 -- Most reads are scoped to a project or an org, so project_id leads the key.
 -- Weekly partitions bound what a cross-project window scan reads: granules
 -- where one project ends and the next begins cannot be skipped by time.
@@ -206,6 +206,26 @@ SELECT
 FROM scores
 WHERE is_deleted = 0
   AND created_at >= now() - INTERVAL 48 HOUR;
+
+-- MV: topic_facet_summaries -> billable_events, one row per summary write.
+-- A summary belongs to a trace or a session for one facet version, so
+-- event_id is '<length(facet_id)>:<facet_id>:<facet_version>:<length(trace_id)>:<trace_id>:<session_id>'.
+-- Summaries carry processed_at instead of created_at; a re-insert of an older
+-- summary keeps it and is not new usage.
+CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_facet_summaries_mv
+TO billable_events AS
+SELECT
+    now() AS ingested_at,
+    project_id,
+    'facet_summary' AS event_type,
+    concat(
+        toString(length(facet_id)), ':', facet_id, ':', toString(facet_version), ':',
+        toString(length(trace_id)), ':', trace_id, ':', session_id
+    ) AS event_id,
+    unit_start_time AS event_time,
+    byteSize(*) AS event_bytes
+FROM topic_facet_summaries
+WHERE processed_at >= now() - INTERVAL 48 HOUR;
 
 -- PROD ROLLOUT: unlike analytics_scores (managed via numbered migrations),
 -- this view is NOT migration-managed because it is a Cloud-only diagnostic

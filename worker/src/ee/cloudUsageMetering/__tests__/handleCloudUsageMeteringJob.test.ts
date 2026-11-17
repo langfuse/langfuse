@@ -72,7 +72,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   getObservationCountsByProjectInCreationInterval: mockObservationCounts,
   getTraceCountsByProjectInCreationInterval: mockTraceCounts,
   getScoreCountsByProjectInCreationInterval: mockScoreCounts,
-  getTopicFacetSummaryCountsByProjectInCreationInterval: mockFacetSummaryCounts,
+  getFacetSummaryCountsByProjectInWindow: mockFacetSummaryCounts,
   logger: {
     info: mockLoggerInfo,
     warn: mockLoggerWarn,

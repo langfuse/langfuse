@@ -3,7 +3,7 @@ import {
   getTraceCountsByProjectAndDay,
   getObservationCountsByProjectAndDay,
   getScoreCountsByProjectAndDay,
-  getTopicFacetSummaryCountsByProjectAndDay,
+  getFacetSummaryCountsByProjectInWindow,
   getBillingCycleStart,
   startOfDayUTC,
   endOfDayUTC,
@@ -111,7 +111,7 @@ function aggregateByOrg(
   traceCounts: Array<{ count: number; projectId: string; date: string }>,
   obsCounts: Array<{ count: number; projectId: string; date: string }>,
   scoreCounts: Array<{ count: number; projectId: string; date: string }>,
-  facetSummaryCounts: Array<{ count: number; projectId: string; date: string }>,
+  facetSummaryCounts: Array<{ count: number; projectId: string }>,
   projectToOrgMap: ProjectToOrgMap,
 ): UsageByOrg {
   const orgCounts: UsageByOrg = {};
@@ -316,10 +316,13 @@ export async function processUsageAggregationForAllOrgs(
                 endDate: dayEnd,
               }),
             ),
-            withRetry("getTopicFacetSummaryCountsByProjectAndDay", () =>
-              getTopicFacetSummaryCountsByProjectAndDay({
-                startDate: dayStart,
-                endDate: dayEnd,
+            withRetry("getFacetSummaryCountsByProjectInWindow", () =>
+              getFacetSummaryCountsByProjectInWindow({
+                windowFrom: dayStart,
+                windowTo:
+                  daysAgo === 0
+                    ? normalizedReferenceDate
+                    : startOfDayUTC(new Date(dayEnd.getTime() + 1)),
               }),
             ),
           ]);

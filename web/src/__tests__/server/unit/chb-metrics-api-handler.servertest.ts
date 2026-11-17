@@ -33,8 +33,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     getTraceCountsByProjectInCreationInterval: mocks.traceCounts,
     getObservationCountsByProjectInCreationInterval: mocks.observationCounts,
     getScoreCountsByProjectInCreationInterval: mocks.scoreCounts,
-    getTopicFacetSummaryCountsByProjectInCreationInterval:
-      mocks.facetSummaryCounts,
+    getFacetSummaryCountsByProjectInWindow: mocks.facetSummaryCounts,
     recordIncrement: mocks.recordIncrement,
     compareWithBillingLedger: mocks.compareWithBillingLedger,
   };

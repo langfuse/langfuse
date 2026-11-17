@@ -9,8 +9,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   compareWithBillingLedger,
   getObservationCountsByProjectInCreationInterval,
+  getFacetSummaryCountsByProjectInWindow,
   getScoreCountsByProjectInCreationInterval,
-  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
   logger,
   recordIncrement,
@@ -150,9 +150,9 @@ export async function chbMetricsApiHandler(req: NextRequest) {
           end,
           projectId: resourceId,
         }),
-        getTopicFacetSummaryCountsByProjectInCreationInterval({
-          start,
-          end,
+        getFacetSummaryCountsByProjectInWindow({
+          windowFrom: start,
+          windowTo: end,
           projectId: resourceId,
         }),
       ]);

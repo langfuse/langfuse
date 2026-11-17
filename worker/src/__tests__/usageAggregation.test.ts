@@ -22,7 +22,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     getTraceCountsByProjectAndDay: vi.fn(),
     getObservationCountsByProjectAndDay: vi.fn(),
     getScoreCountsByProjectAndDay: vi.fn(),
-    getTopicFacetSummaryCountsByProjectAndDay: vi.fn(),
+    getFacetSummaryCountsByProjectInWindow: vi.fn(),
     parseDbOrg: vi.fn((org: any) => org), // Pass through by default
   };
 });
