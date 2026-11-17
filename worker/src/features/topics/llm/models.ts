@@ -25,17 +25,17 @@ import {
   type TopicFacetVersion,
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
-import { createEventLoopYielder } from "./event-loop";
-import { recordTopicModelCall, recordTopicTokenUsage } from "./metrics";
+import { createEventLoopYielder } from "../event-loop";
+import { recordTopicModelCall, recordTopicTokenUsage } from "../metrics";
 import {
   llmRequestEgressBytes,
   recordExportVolume,
-} from "../../services/exportVolumeMetric";
-import type { TopicModelUsage } from "./summaryResult";
+} from "../../../services/exportVolumeMetric";
+import type { TopicModelUsage } from "../summaryResult";
 import {
   TopicsProviderUnavailable,
   topicProviderError,
-} from "./provider-error";
+} from "../provider-error";
 
 /** Price canonical usage before adding the stage prefix used by summary rows. */
 async function priceTopicUsage(

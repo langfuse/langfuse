@@ -13,8 +13,9 @@
   },
   "scripts": {
     "test": "vitest run",
-    "test:exclude-llm-connections": "vitest run --exclude '**/llmConnections.test.ts'",
+    "test:exclude-llm-connections": "vitest run --exclude '**/llmConnections.test.ts' --exclude '**/topicsLlmProviders.test.ts'",
     "test:llm-connections-only": "vitest run llmConnections.test.ts",
+    "test:topics-llm-providers": "vitest run topicsLlmProviders.test.ts",
     "coverage": "vitest run --coverage",
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",

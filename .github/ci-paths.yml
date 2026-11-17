@@ -1,5 +1,5 @@
-# Common inputs affect both live suites.
-common: &common
+# Dependencies, build and CI setup shared by every live suite.
+infra: &infra
   - package.json
   - pnpm-lock.yaml
   - pnpm-workspace.yaml
@@ -13,15 +13,33 @@ common: &common
   - packages/config-typescript/**
   - packages/shared/package.json
   - packages/shared/tsconfig*.json
-  - packages/shared/{src,prisma,clickhouse,scripts}/**
   - worker/package.json
   - worker/tsconfig*.json
+
+# Common inputs affect both the LLM connection and AI gateway suites.
+common: &common
+  - *infra
+  - packages/shared/{src,prisma,clickhouse,scripts}/**
 
 llm_connections:
   - *common
   - worker/vitest.config.ts
   - worker/src/__tests__/llmConnections.test.ts
   - worker/src/__tests__/helpers/localLlmServer.ts
+
+# Code that builds, sends or parses Topics summary and naming requests.
+topics_llm:
+  - *infra
+  - worker/vitest.config.ts
+  - worker/src/features/topics/llm/**
+  - worker/src/features/topics/{event-loop,metrics,provider-error,summaryResult}.ts
+  - worker/src/services/exportVolumeMetric.ts
+  - packages/shared/src/topics/**
+  - packages/shared/src/server/topics/{text,embeddings,model-config}.ts
+  - packages/shared/src/server/llm/**
+  - packages/shared/src/server/outbound-url/**
+  - packages/shared/src/encryption/**
+  - packages/shared/src/interfaces/customLLMProviderConfigSchemas.ts
 
 ai_gateway:
   - *common

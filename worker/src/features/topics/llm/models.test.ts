@@ -71,7 +71,7 @@ import {
 } from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
-import { recordTopicModelCall } from "./metrics";
+import { recordTopicModelCall } from "../metrics";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
 async function nameTopicGroup(

@@ -41,7 +41,7 @@ import {
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
 import { prisma } from "@langfuse/shared/src/db";
-import { nameTopicGroup, prepareTopicNamingGroup } from "./models";
+import { nameTopicGroup, prepareTopicNamingGroup } from "./llm/models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,

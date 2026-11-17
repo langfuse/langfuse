@@ -24,7 +24,7 @@ import type {
 } from "@langfuse/shared/topics";
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { topicAssignmentRows } from "./assignments";
-import { TopicInputTooLarge } from "./models";
+import { TopicInputTooLarge } from "./llm/models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
