@@ -15,9 +15,9 @@ const MARKETO_MUNCHKIN_ID = "238-FPC-317";
 const MARKETO_FORM_ID = 1839;
 const MARKETO_TIMEOUT_MS = 20_000;
 
-/** The form stores the program as free text. */
+/** The form stores the program as free text; GTM matches these exact names. */
 const MARKETO_PROGRAM_VALUES: Record<CouponProgram, string> = {
-  yc: "Y Combinator",
+  yc: "YC",
   startup: "Startup",
   research: "Research",
 };
