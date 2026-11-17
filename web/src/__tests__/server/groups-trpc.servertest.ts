@@ -20,7 +20,7 @@ async function prepare() {
     data: { name: "other-project", orgId: otherOrg.id },
   });
   const group = await prisma.group.create({
-    data: { orgId: org.id, displayName: "engineering" },
+    data: { orgId: org.id, displayName: "engineering", source: "MANUAL" },
   });
 
   const session = {
@@ -294,6 +294,60 @@ describe("groups CRUD from the UI", () => {
     expect(
       await prisma.groupMembership.count({ where: { groupId: group.id } }),
     ).toBe(0);
+  });
+
+  it("keeps the name and members of a SCIM group read-only but lets admins set its role", async () => {
+    const { org, caller, addOrgMember } = await prepare();
+    const alice = await addOrgMember(org.id);
+    const scimGroup = await prisma.group.create({
+      data: { orgId: org.id, displayName: "okta-admins", source: "SCIM" },
+    });
+    const orgMembership = await prisma.organizationMembership.findFirstOrThrow({
+      where: { orgId: org.id, userId: alice },
+    });
+    await prisma.groupMembership.create({
+      data: { groupId: scimGroup.id, orgMembershipId: orgMembership.id },
+    });
+    const bob = await addOrgMember(org.id);
+
+    const synced = "This group is synced from your identity provider";
+    await expect(
+      caller.groups.rename({
+        orgId: org.id,
+        groupId: scimGroup.id,
+        displayName: "renamed",
+      }),
+    ).rejects.toThrow(synced);
+    await expect(
+      caller.groups.addMembers({
+        orgId: org.id,
+        groupId: scimGroup.id,
+        userIds: [bob],
+      }),
+    ).rejects.toThrow(synced);
+    await expect(
+      caller.groups.removeMember({
+        orgId: org.id,
+        groupId: scimGroup.id,
+        userId: alice,
+      }),
+    ).rejects.toThrow(synced);
+    await expect(
+      caller.groups.delete({ orgId: org.id, groupId: scimGroup.id }),
+    ).rejects.toThrow(synced);
+    expect(await prisma.group.count({ where: { id: scimGroup.id } })).toBe(1);
+    expect(
+      await prisma.groupMembership.count({ where: { groupId: scimGroup.id } }),
+    ).toBe(1);
+
+    await caller.groups.setOrgRole({
+      orgId: org.id,
+      groupId: scimGroup.id,
+      role: Role.ADMIN,
+    });
+    expect(await storedRoles(scimGroup.id)).toMatchObject([
+      { projectId: null, systemRole: Role.ADMIN },
+    ]);
   });
 
   it("cannot touch a group of another organization", async () => {

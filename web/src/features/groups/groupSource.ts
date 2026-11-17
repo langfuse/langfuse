@@ -6,31 +6,30 @@ type GroupSourceValue = "SCIM" | "MANUAL" | "SYSTEM";
 // and Langfuse-managed groups never look alike.
 export const GROUP_SOURCE_DISPLAY = {
   SCIM: {
-    badge: "SCIM",
-    color: "blue",
+    label: "SCIM",
     icon: RefreshCw,
     description:
-      "Synced from your identity provider through SCIM. Changes made here can be overwritten by the next sync.",
+      "Synced from your identity provider. Its name and members are managed there.",
   },
   MANUAL: {
-    badge: "User-created",
-    color: "green",
+    label: "Langfuse",
     icon: UserRound,
     description:
       "Created by an admin in Langfuse. Your identity provider cannot see or change it.",
   },
   SYSTEM: {
-    badge: "System",
-    color: "violet",
+    label: "System",
     icon: Cog,
     description: "Managed by Langfuse.",
   },
 } as const satisfies Record<
   GroupSourceValue,
-  {
-    badge: string;
-    color: "blue" | "green" | "violet";
-    icon: typeof Cog;
-    description: string;
-  }
+  { label: string; icon: typeof Cog; description: string }
 >;
+
+/** SCIM groups mirror the identity provider, so their name and members are read-only here. */
+export const isScimManaged = (group: { source: string }) =>
+  group.source === "SCIM";
+
+export const SCIM_LOCK_LABEL =
+  "Synced from your identity provider. Its name and members are managed there; you can still set its roles here.";

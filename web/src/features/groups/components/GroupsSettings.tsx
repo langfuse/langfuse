@@ -1,6 +1,7 @@
 import { useCallback, useId, useMemo, useState } from "react";
 import {
   AlertCircle,
+  Lock,
   PencilLine,
   PlusIcon,
   Trash,
@@ -16,22 +17,29 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { Input } from "@/src/components/design-system/Input/Input";
 import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import { type TableProps } from "@/src/components/design-system/table/Table";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import Header from "@/src/components/layouts/header";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { GROUP_SOURCE_DISPLAY } from "@/src/features/groups/groupSource";
+import { GroupMemberStack } from "@/src/features/groups/components/GroupMemberStack";
+import { GroupName } from "@/src/features/groups/components/GroupName";
+import { GroupSourceLabel } from "@/src/features/groups/components/GroupSourceLabel";
+import {
+  GROUP_SOURCE_DISPLAY,
+  isScimManaged,
+  SCIM_LOCK_LABEL,
+} from "@/src/features/groups/groupSource";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
+import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 type Group = RouterOutputs["groups"]["list"][number];
 type GroupMember = Group["members"][number];
+type GroupMemberRow = GroupMember & { effectiveRole: string };
 type GroupRole = "ADMIN" | "MEMBER" | "VIEWER";
 
 // Groups never grant OWNER; NONE removes the group's org-wide role.
@@ -40,6 +48,26 @@ const roleLabel = (role: string) =>
   role === "NONE" ? "None" : role.charAt(0) + role.slice(1).toLowerCase();
 const NO_EDIT_REASON = {
   reason: "You do not have permission to manage groups",
+};
+const SCIM_LOCKED_REASON = {
+  reason: "Synced from your identity provider. Change it there.",
+};
+const SCIM_DELETE_REASON = {
+  reason: "Synced from your identity provider. Delete it there.",
+};
+
+/** Why a group's name or members cannot be edited, if they cannot. */
+const editBlockedReason = (canEdit: boolean, group?: { source: string }) => {
+  if (!canEdit) return NO_EDIT_REASON;
+  if (group && isScimManaged(group)) return SCIM_LOCKED_REASON;
+  return undefined;
+};
+
+/** Why a group cannot be deleted here, if it cannot. SCIM groups are deleted by the identity provider. */
+const deleteBlockedReason = (canEdit: boolean, group: { source: string }) => {
+  if (!canEdit) return NO_EDIT_REASON;
+  if (isScimManaged(group)) return SCIM_DELETE_REASON;
+  return undefined;
 };
 
 type GroupRow = {
@@ -54,15 +82,16 @@ type GroupRow = {
 const toRow = (group: Group): GroupRow => ({
   group,
   displayName: group.displayName,
-  source: GROUP_SOURCE_DISPLAY[group.source].badge,
+  source: GROUP_SOURCE_DISPLAY[group.source].label,
   externalId: group.externalId,
   memberCount: group.members.length,
   updatedAt: group.updatedAt,
 });
 
-// Groups come from SCIM or are created here. For now every group can be
-// edited in the UI; locking SCIM-managed groups comes later. Project roles
-// are set in each project's settings, like project roles of members.
+// Groups come from SCIM or are created here. SCIM groups mirror the identity
+// provider, so their name and members are read-only; their roles stay
+// editable. Project roles are set in each project's settings, like project
+// roles of members.
 export function GroupsSettings({ orgId }: { orgId: string }) {
   const hasEntitlement = useHasEntitlement("admin-api");
   const hasAccess = useHasOrganizationAccess({
@@ -79,7 +108,7 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
       title="Groups"
       help={{
         description:
-          "Groups are synced from your identity provider through SCIM or created here. A group's organization role adds to the roles its members already have and never lowers them. Project roles for groups are set in each project's settings.",
+          "Groups are synced from your identity provider through SCIM or created here. Synced groups are locked: manage their name, members and deletion in your identity provider. A group's organization role adds to the roles its members already have and never lowers them. Project roles for groups are set in each project's settings.",
       }}
     />
   );
@@ -125,24 +154,24 @@ function groupColumns(
   canEdit: boolean,
 ): LangfuseColumnDef<GroupRow>[] {
   return [
-    createTextTableColumn<GroupRow>({
+    {
       accessorKey: "displayName",
       header: "Name",
-    }),
-    createBadgeTableColumn<GroupRow>({
+      cell: ({ row }) => <GroupName group={row.original.group} />,
+    },
+    {
       accessorKey: "source",
       header: "Source",
+      enableHiding: true,
       headerTooltip: {
         description:
-          "SCIM: synced from your identity provider. User-created: created by an admin in Langfuse. System: managed by Langfuse.",
+          "SCIM: synced from your identity provider, so its name and members are managed there. Langfuse: created here by an admin.",
       },
-      size: 140,
-      range: "decorative",
-      getBadge: (value, { row }) => {
-        const display = GROUP_SOURCE_DISPLAY[row.original.group.source];
-        return { value, variant: display.color, icon: display.icon };
-      },
-    }),
+      size: 120,
+      cell: ({ row }) => (
+        <GroupSourceLabel source={row.original.group.source} />
+      ),
+    },
     createTextTableColumn<GroupRow>({
       accessorKey: "externalId",
       header: "IdP ID",
@@ -150,14 +179,17 @@ function groupColumns(
       enableHiding: true,
       defaultHidden: true,
     }),
-    createNumberTableColumn<GroupRow>({
+    {
       accessorKey: "memberCount",
       header: "Members",
-      size: 100,
-    }),
+      size: 180,
+      cell: ({ row }) => (
+        <GroupMemberStack members={row.original.group.members} />
+      ),
+    },
     {
       accessorKey: "orgRole",
-      header: "Organization Role",
+      header: "Organization role",
       headerTooltip: {
         description:
           "Every member of the group gets this role in the organization, on top of their own role.",
@@ -262,7 +294,8 @@ function GroupsSettingsTable({
       {
         id: "members",
         type: "item",
-        title: canEdit ? "Manage members" : "View members",
+        title:
+          canEdit && !isScimManaged(group) ? "Manage members" : "View members",
         icon: Users,
         onClick: () => onMembers(group),
       },
@@ -271,7 +304,7 @@ function GroupsSettingsTable({
         type: "item",
         title: "Rename",
         icon: PencilLine,
-        disabled: canEdit ? undefined : NO_EDIT_REASON,
+        disabled: editBlockedReason(canEdit, group),
         onClick: () => onRename(group),
       },
       {
@@ -280,7 +313,7 @@ function GroupsSettingsTable({
         title: "Delete group",
         icon: Trash,
         variant: "destructive",
-        disabled: canEdit ? undefined : NO_EDIT_REASON,
+        disabled: deleteBlockedReason(canEdit, group),
         onClick: () => onDelete(group),
       },
     ],
@@ -365,6 +398,37 @@ function GroupOrgRoleSelect({
 
 type OpenWith<T> = (value: T) => void;
 
+/** Highest of the member's own org role and the org roles of all their groups, with its source. */
+function effectiveOrgRoleLabel(member: GroupMember) {
+  const top = member.groupOrgRoles.reduce<Role>(
+    (best, grant) =>
+      orderedRoles[grant.role] > orderedRoles[best] ? grant.role : best,
+    member.directOrgRole,
+  );
+  if (top === member.directOrgRole) return `${roleLabel(top)} (own role)`;
+  const sources = [
+    ...new Set(
+      member.groupOrgRoles
+        .filter((grant) => grant.role === top)
+        .map((grant) => grant.groupName),
+    ),
+  ];
+  return `${roleLabel(top)} via ${sources.join(", ")}`;
+}
+
+/** What every member of the group gets, e.g. "Grants Member in the organization and roles in 2 projects." */
+function grantsSummary(group: Group) {
+  const projects = group.projectRoles.length;
+  const org = group.orgRole
+    ? `${roleLabel(group.orgRole)} in the organization`
+    : "no organization role";
+  const project =
+    projects > 0
+      ? ` and roles in ${projects} ${projects === 1 ? "project" : "projects"}`
+      : "";
+  return `Grants ${org}${project}.`;
+}
+
 function GroupMembersDialogController({
   orgId,
   canEdit,
@@ -401,29 +465,38 @@ function GroupMembersDialog({
   const removeMember = api.groups.removeMember.useMutation({
     onSuccess: () => utils.groups.invalidate(),
   });
+  const canEditMembers =
+    canEdit && group !== undefined && !isScimManaged(group);
 
-  const columns = useMemo<LangfuseColumnDef<GroupMember>[]>(
+  const columns = useMemo<LangfuseColumnDef<GroupMemberRow>[]>(
     () => [
-      createTextTableColumn<GroupMember>({
+      createTextTableColumn<GroupMemberRow>({
         accessorKey: "name",
         header: "Name",
         nullValue: "-",
       }),
-      createTextTableColumn<GroupMember>({
+      createTextTableColumn<GroupMemberRow>({
         accessorKey: "email",
         header: "Email",
         nullValue: "-",
       }),
-      createTextTableColumn<GroupMember>({
+      createTextTableColumn<GroupMemberRow>({
         accessorKey: "directOrgRole",
         header: "Own role",
         mapValue: (value) => (value ? roleLabel(value) : undefined),
         size: 110,
       }),
+      createTextTableColumn<GroupMemberRow>({
+        accessorKey: "effectiveRole",
+        header: "Effective role",
+        size: 200,
+      }),
     ],
     [],
   );
-  const actions = useCallback<NonNullable<TableProps<GroupMember>["actions"]>>(
+  const actions = useCallback<
+    NonNullable<TableProps<GroupMemberRow>["actions"]>
+  >(
     (member) => [
       {
         id: "remove",
@@ -431,16 +504,23 @@ function GroupMembersDialog({
         title: "Remove from group",
         icon: Trash,
         variant: "destructive",
-        disabled: canEdit ? undefined : NO_EDIT_REASON,
+        disabled: editBlockedReason(canEdit, group),
         onClick: () =>
           removeMember.mutate({ orgId, groupId, userId: member.userId }),
       },
     ],
-    [canEdit, orgId, groupId, removeMember],
+    [canEdit, group, orgId, groupId, removeMember],
   );
 
-  const membersData = useMemo<TableProps<GroupMember>["data"]>(() => {
-    if (group) return { status: "success", data: group.members };
+  const membersData = useMemo<TableProps<GroupMemberRow>["data"]>(() => {
+    if (group)
+      return {
+        status: "success",
+        data: group.members.map((member) => ({
+          ...member,
+          effectiveRole: effectiveOrgRoleLabel(member),
+        })),
+      };
     if (groups.error) return { status: "error", error: groups.error.message };
     return { status: "loading" };
   }, [group, groups.error]);
@@ -453,16 +533,25 @@ function GroupMembersDialog({
     >
       <Dialog.Body>
         <div className="flex flex-col gap-3">
-          {group?.source === "SCIM" && (
-            <p className="text-muted-foreground text-xs">
-              {GROUP_SOURCE_DISPLAY.SCIM.description}
+          {group && isScimManaged(group) && (
+            <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+              <Lock size="sm" aria-hidden />
+              {SCIM_LOCK_LABEL}
             </p>
           )}
-          {group && canEdit && <AddGroupMembers orgId={orgId} group={group} />}
+          {group && (
+            <p className="text-muted-foreground text-xs">
+              {grantsSummary(group)}
+            </p>
+          )}
+          {group && canEditMembers && (
+            <AddGroupMembers orgId={orgId} group={group} />
+          )}
           <SettingsTable
             tableName="group members"
             columns={columns}
-            actions={actions}
+            // Members of SCIM groups are managed in the identity provider.
+            actions={group && isScimManaged(group) ? undefined : actions}
             data={membersData}
             getRowLabel={(member) => member.email ?? member.name ?? ""}
             noResultsMessage="This group has no members."
@@ -694,11 +783,7 @@ function DeleteGroupDialogController({
       text={(group) =>
         `${group.members.length} ${
           group.members.length === 1 ? "member loses" : "members lose"
-        } the roles this group grants. Their own roles stay.${
-          group.source === "SCIM"
-            ? " Your identity provider may push this group again on its next sync."
-            : ""
-        }`
+        } the roles this group grants. Their own roles stay.`
       }
       confirmationText={(group) => group.displayName}
       confirmLabel="Delete group"

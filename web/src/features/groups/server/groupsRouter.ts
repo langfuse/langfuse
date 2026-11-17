@@ -84,6 +84,21 @@ async function findGroupOrThrow(
 }
 
 /**
+ * SCIM groups mirror the identity provider: their name, members and existence
+ * are owned there, so changing them here would be undone by the next sync.
+ * Their roles stay editable, since the IdP never sends roles.
+ */
+function throwIfScimManaged(group: { source: GroupSource }) {
+  if (group.source === GroupSource.SCIM) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        "This group is synced from your identity provider. Change its name and members, or delete it, there.",
+    });
+  }
+}
+
+/**
  * Project admins may only hand out (or take away) a project role whose every
  * permission they hold on the project themselves, directly or through groups.
  */
@@ -154,6 +169,7 @@ export const groupsRouter = createTRPCRouter({
         input.orgId,
         input.groupId,
       );
+      throwIfScimManaged(before);
       const after = await ctx.prisma.group.update({
         where: { id: before.id },
         data: { displayName: input.displayName },
@@ -170,7 +186,10 @@ export const groupsRouter = createTRPCRouter({
       return after;
     }),
 
-  /** Deletes the group with its memberships and role assignments (FK cascade). */
+  /**
+   * Deletes a user-created group with its memberships and role assignments
+   * (FK cascade). SCIM groups are deleted by the IdP through `DELETE /scim/Groups`.
+   */
   delete: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string(), groupId: z.string() }))
     .mutation(async ({ input, ctx }) => {
@@ -180,6 +199,7 @@ export const groupsRouter = createTRPCRouter({
         input.orgId,
         input.groupId,
       );
+      throwIfScimManaged(group);
       await ctx.prisma.group.delete({ where: { id: group.id } });
       await auditLog({
         session: ctx.session,
@@ -210,6 +230,7 @@ export const groupsRouter = createTRPCRouter({
         input.orgId,
         input.groupId,
       );
+      throwIfScimManaged(group);
       const userIds = [...new Set(input.userIds)];
       const memberships = await ctx.prisma.organizationMembership.findMany({
         where: { orgId: input.orgId, userId: { in: userIds } },
@@ -248,6 +269,7 @@ export const groupsRouter = createTRPCRouter({
         input.orgId,
         input.groupId,
       );
+      throwIfScimManaged(group);
       await ctx.prisma.groupMembership.deleteMany({
         where: {
           groupId: group.id,
@@ -288,7 +310,9 @@ export const groupsRouter = createTRPCRouter({
               organizationMembership: {
                 select: {
                   role: true,
-                  user: { select: { id: true, name: true, email: true } },
+                  user: {
+                    select: { id: true, name: true, email: true, image: true },
+                  },
                   // Org-wide roles from all of the member's groups
                   groupMemberships: {
                     select: {
@@ -332,6 +356,7 @@ export const groupsRouter = createTRPCRouter({
             userId: organizationMembership.user.id,
             name: organizationMembership.user.name,
             email: organizationMembership.user.email,
+            image: organizationMembership.user.image,
             directOrgRole: organizationMembership.role,
             groupOrgRoles,
             addedAt: createdAt,
@@ -508,6 +533,18 @@ export const groupsRouter = createTRPCRouter({
           externalId: true,
           source: true,
           _count: { select: { members: true } },
+          members: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              organizationMembership: {
+                select: {
+                  user: {
+                    select: { id: true, name: true, email: true, image: true },
+                  },
+                },
+              },
+            },
+          },
           roleAssignments: {
             where: {
               OR: [{ projectId: null }, { projectId: input.projectId }],
@@ -523,6 +560,12 @@ export const groupsRouter = createTRPCRouter({
         externalId: group.externalId,
         source: group.source,
         memberCount: group._count.members,
+        members: group.members.map(({ organizationMembership: { user } }) => ({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+        })),
         orgRole:
           (group.roleAssignments.find((a) => a.projectId === null)
             ?.systemRole as Role | undefined) ?? null,

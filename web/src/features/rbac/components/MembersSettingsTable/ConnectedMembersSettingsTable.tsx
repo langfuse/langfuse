@@ -339,6 +339,16 @@ export function ConnectedMembersSettingsTable({
               icon: <PlusIcon size="base" aria-hidden="true" />,
               onClick: openDialog,
             },
+            ...(project && hasOrgCudAccess
+              ? [
+                  {
+                    id: "org-members",
+                    label: "Organization members",
+                    variant: "outline" as const,
+                    href: `/organization/${orgId}/settings/members`,
+                  },
+                ]
+              : []),
           ]}
           pagination={{
             mode: "offset",

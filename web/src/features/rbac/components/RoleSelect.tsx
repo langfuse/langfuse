@@ -36,6 +36,7 @@ export function RoleSelect({
   isProjectRole = false,
   canManageOwnership,
   disabled = false,
+  roleDisabledReason,
   triggerId,
   size,
 }: {
@@ -45,6 +46,8 @@ export function RoleSelect({
   isProjectRole?: boolean;
   canManageOwnership: boolean;
   disabled?: boolean;
+  /** Makes single options unselectable and says why, e.g. a group already grants more. */
+  roleDisabledReason?: (role: Role) => string | undefined;
   triggerId?: string;
 } & VariantProps<typeof triggerVariants>) {
   const [open, setOpen] = useState(false);
@@ -95,7 +98,7 @@ export function RoleSelect({
               disabledReason={
                 role === "OWNER" && !canManageOwnership
                   ? "requires owner access"
-                  : undefined
+                  : roleDisabledReason?.(role)
               }
               onViewPermissions={openPermissions}
             />

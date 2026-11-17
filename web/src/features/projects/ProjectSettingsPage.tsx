@@ -286,9 +286,7 @@ const getProjectSettingsPages = ({
     title: "Groups",
     slug: "groups",
     cmdKKeywords: ["scim", "groups", "okta", "entra", "idp"],
-    content: (
-      <ProjectGroupsSettings orgId={organization.id} projectId={project.id} />
-    ),
+    content: <ProjectGroupsSettings projectId={project.id} />,
     show: showGroups,
   },
   {

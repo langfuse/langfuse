@@ -168,6 +168,8 @@ async function getMembers(
             select: {
               id: true,
               displayName: true,
+              source: true,
+              _count: { select: { members: true } },
               roleAssignments: {
                 where: {
                   OR: [
@@ -218,6 +220,8 @@ async function getMembers(
         group.roleAssignments.map((assignment) => ({
           groupId: group.id,
           groupName: group.displayName,
+          groupSource: group.source,
+          memberCount: group._count.members,
           role: assignment.systemRole as Role,
           level:
             assignment.projectId === null

@@ -30,6 +30,8 @@ const members: MembersSettingsTableRow[] = [
       {
         groupId: "group-1",
         groupName: "platform-admins",
+        groupSource: "SCIM",
+        memberCount: 12,
         role: "ADMIN",
         level: "organization",
       },
@@ -196,5 +198,60 @@ export const Loading = meta.story({
       onChange: fn(),
     },
     data: { status: "loading" },
+  },
+});
+
+const groupMember: MembersSettingsTableRow = {
+  user: { name: "Vera Viewer", image: null },
+  email: "vera@example.com",
+  providers: ["okta"],
+  createdAt: new Date("2026-10-01"),
+  orgRole: "VIEWER",
+  projectRole: "VIEWER",
+  groupRoles: [
+    {
+      groupId: "group-admins",
+      groupName: "langfuse-org-admins",
+      groupSource: "SCIM",
+      memberCount: 4,
+      role: "ADMIN",
+      level: "organization",
+    },
+    {
+      groupId: "group-maintainers",
+      groupName: "llm-app-maintainers",
+      groupSource: "MANUAL",
+      memberCount: 17,
+      role: "MEMBER",
+      level: "project",
+    },
+  ],
+  featurePreviews: null,
+  featurePreviewManagement: null,
+  meta: { userId: "user-7", orgMembershipId: "membership-7" },
+};
+
+export const EffectiveRoleFromGroup = meta.story({
+  name: "(Test) A group raises the effective role",
+  args: {
+    ...Default.input.args,
+    data: { status: "success", data: [groupMember, ...members] },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const vera = within(canvas.getByRole("row", { name: /Vera Viewer/ }));
+    await expect(vera.getByRole("combobox")).toHaveTextContent("Admin");
+    await expect(
+      vera.getByLabelText("Admin, inherited from langfuse-org-admins"),
+    ).toBeInTheDocument();
+  },
+});
+
+export const ProjectMembersWithGroups = meta.story({
+  args: {
+    ...Default.input.args,
+    project: { id: "project-1", name: "LLM app" },
+    hasProjectCudAccess: true,
+    data: { status: "success", data: [groupMember, ...members] },
   },
 });

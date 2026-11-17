@@ -1,21 +1,19 @@
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { AlertCircle } from "@langfuse/icons";
 import { projectRoleAccessRights, type Role } from "@langfuse/shared";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { type TableProps } from "@/src/components/design-system/table/Table";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
-import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import Header from "@/src/components/layouts/header";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { GroupMemberStack } from "@/src/features/groups/components/GroupMemberStack";
+import { GroupName } from "@/src/features/groups/components/GroupName";
+import { GroupProjectRoleCell } from "@/src/features/groups/components/GroupProjectRoleCell";
+import { GroupSourceLabel } from "@/src/features/groups/components/GroupSourceLabel";
 import { GROUP_SOURCE_DISPLAY } from "@/src/features/groups/groupSource";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
 import {
   hasProjectAccess,
   useHasProjectAccess,
@@ -37,8 +35,8 @@ type ProjectGroupRow = {
 };
 
 type ColumnContext = {
-  orgId: string;
-  canEdit: boolean;
+  /** Why project roles cannot be changed here, if they cannot. */
+  editBlockedReason?: string;
   pendingGroupId: string | null;
   /** Roles you cannot grant are left out, as on the Members page. */
   projectRoles: (current: string | null) => Role[];
@@ -46,98 +44,60 @@ type ColumnContext = {
 };
 
 function projectGroupColumns({
-  orgId,
-  canEdit,
+  editBlockedReason,
   pendingGroupId,
   projectRoles,
   onChange,
 }: ColumnContext): LangfuseColumnDef<ProjectGroupRow>[] {
   return [
-    createTextTableColumn<ProjectGroupRow>({
+    {
       accessorKey: "displayName",
       header: "Name",
-    }),
-    createBadgeTableColumn<ProjectGroupRow>({
+      cell: ({ row }) => <GroupName group={row.original.group} />,
+    },
+    {
       accessorKey: "source",
       header: "Source",
-      size: 140,
-      range: "decorative",
-      getBadge: (value, { row }) => {
-        const display = GROUP_SOURCE_DISPLAY[row.original.group.source];
-        return { value, variant: display.color, icon: display.icon };
-      },
-    }),
-    createNumberTableColumn<ProjectGroupRow>({
-      accessorKey: "memberCount",
-      header: "Members",
-      size: 100,
-    }),
-    {
-      accessorKey: "orgRole",
-      header: "Organization Role",
+      enableHiding: true,
       headerTooltip: {
         description:
-          "The group's organization role applies to every project. It is set in the organization settings.",
-        href: "https://langfuse.com/docs/administration/rbac",
+          "SCIM: synced from your identity provider, so its name and members are managed there. Langfuse: created here by an admin.",
       },
-      size: 160,
+      size: 120,
       cell: ({ row }) => (
-        <HoverCard
-          openDelay={0}
-          closeDelay={0}
-          placement="right"
-          content={
-            <div className="w-64 p-3">
-              <p className="text-xs">
-                The organization-level role of a group can be edited in the{" "}
-                <Link
-                  href={`/organization/${orgId}/settings/groups`}
-                  className="underline"
-                >
-                  organization settings
-                </Link>
-                .
-              </p>
-            </div>
-          }
-        >
-          {({ getTriggerProps }) => (
-            <span className="inline-flex" {...getTriggerProps()}>
-              <RoleSelect
-                roles={["NONE"]}
-                value={(row.original.group.orgRole as Role | null) ?? "NONE"}
-                canManageOwnership={false}
-                size="compact"
-                disabled
-                onValueChange={() => undefined}
-              />
-            </span>
-          )}
-        </HoverCard>
+        <GroupSourceLabel source={row.original.group.source} />
+      ),
+    },
+    {
+      accessorKey: "memberCount",
+      header: "Members",
+      size: 180,
+      cell: ({ row }) => (
+        <GroupMemberStack members={row.original.group.members} />
       ),
     },
     {
       accessorKey: "projectRole",
-      header: "Project Role",
+      header: "Project role",
       headerTooltip: {
         description:
-          "Every member of the group gets this role on this project, on top of their own role.",
+          "What every member of the group gets on this project: the group's organization role, or a higher project role set here. Click it to change the project role.",
         href: "https://langfuse.com/docs/administration/rbac",
       },
-      size: 160,
+      size: 300,
       cell: ({ row }) => {
         const { group } = row.original;
         return (
-          <RoleSelect
-            roles={projectRoles(group.projectRole)}
-            value={(group.projectRole as Role | null) ?? "NONE"}
-            isProjectRole
-            canManageOwnership={false}
-            size="compact"
-            disabled={!canEdit || pendingGroupId === group.id}
-            onValueChange={(role) =>
-              onChange(group, role === "NONE" ? null : (role as GroupRole))
+          <GroupProjectRoleCell
+            groupName={group.displayName}
+            memberCount={group.memberCount}
+            orgRole={group.orgRole}
+            projectRole={group.projectRole}
+            grantableRoles={projectRoles(group.projectRole)}
+            disabledReason={
+              pendingGroupId === group.id ? "Saving…" : editBlockedReason
             }
+            onChange={(role) => onChange(group, role)}
           />
         );
       },
@@ -145,16 +105,24 @@ function projectGroupColumns({
   ];
 }
 
+/** Why group project roles cannot be changed here, if they cannot. */
+function projectRolesBlockedReason({
+  hasProjectRoles,
+  canEditProjectMembers,
+}: {
+  hasProjectRoles: boolean;
+  canEditProjectMembers: boolean;
+}) {
+  if (!hasProjectRoles) return "Project roles are not available on your plan.";
+  if (!canEditProjectMembers)
+    return "You do not have permission to change roles on this project.";
+  return undefined;
+}
+
 // Project admins give the org's groups a role on this project, like project
 // roles of members. Groups, their members and org-wide roles are managed in
 // the organization settings.
-export function ProjectGroupsSettings({
-  orgId,
-  projectId,
-}: {
-  orgId: string;
-  projectId: string;
-}) {
+export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
   const session = useSession();
   const hasAdminApi = useHasEntitlement("admin-api");
   const hasProjectRoles = useHasEntitlement("rbac-project-roles");
@@ -162,9 +130,14 @@ export function ProjectGroupsSettings({
     projectId,
     scope: "projectMembers:read",
   });
-  const canEdit =
-    useHasProjectAccess({ projectId, scope: "projectMembers:CUD" }) &&
-    hasProjectRoles;
+  const canEditProjectMembers = useHasProjectAccess({
+    projectId,
+    scope: "projectMembers:CUD",
+  });
+  const editBlockedReason = projectRolesBlockedReason({
+    hasProjectRoles,
+    canEditProjectMembers,
+  });
   const utils = api.useUtils();
   const [search, setSearch] = useState("");
 
@@ -196,8 +169,7 @@ export function ProjectGroupsSettings({
   const columns = useMemo(
     () =>
       projectGroupColumns({
-        orgId,
-        canEdit,
+        editBlockedReason,
         pendingGroupId,
         // A role can be granted or taken away only if you hold all of its permissions.
         projectRoles: (current) => [
@@ -213,7 +185,7 @@ export function ProjectGroupsSettings({
         onChange: (group, role) =>
           setRole.mutate({ projectId, groupId: group.id, role }),
       }),
-    [orgId, canEdit, pendingGroupId, session.data, projectId, setRole],
+    [editBlockedReason, pendingGroupId, session.data, projectId, setRole],
   );
 
   const data = useMemo<TableProps<ProjectGroupRow>["data"]>(() => {
@@ -229,7 +201,7 @@ export function ProjectGroupsSettings({
         .map((group) => ({
           group,
           displayName: group.displayName,
-          source: GROUP_SOURCE_DISPLAY[group.source].badge,
+          source: GROUP_SOURCE_DISPLAY[group.source].label,
           memberCount: group.memberCount,
         })),
     };
@@ -237,7 +209,7 @@ export function ProjectGroupsSettings({
 
   const header = (
     <Header
-      title="Project Groups"
+      title="Project groups"
       help={{
         description:
           "Give your organization's groups a role on this project. Members keep their own role and gain the group role's permissions on top. Groups and their members are managed in the organization settings.",
