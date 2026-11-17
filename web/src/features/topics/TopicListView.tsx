@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState, type ComponentProps } from "react";
 import { useMediaQuery } from "react-responsive";
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
@@ -16,6 +16,7 @@ import {
 import { TopicTraceList } from "./TopicTraceList";
 import { TopicsSplit } from "./TopicsSplit";
 import { UNASSIGNED_SWATCH_COLOR } from "./topic-map-colors";
+import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
 
 /** Only the largest topics keep their map color; the rest are grey. */
 const COLORED_RANKS = 3;
@@ -26,6 +27,11 @@ type TopicListViewProps = {
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
+  /** Draws the scatter above the topic rows, in the map's colors. */
+  scatter?: {
+    query: ComponentProps<typeof TopicEmbeddingMap>["query"];
+    onOpenTrace: (traceId: string) => void;
+  };
 };
 
 /** Topics as a table, largest first, with the selected topic's traces beside it. */
@@ -35,43 +41,83 @@ export function TopicListView({
   peekView,
   tracePanelRef,
   useTraces,
+  scatter,
 }: TopicListViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  const topics = prepareTopicDisplay(facet, "treemap").topics.map(
-    (topic, rank) =>
-      rank < COLORED_RANKS
-        ? topic
-        : { ...topic, color: UNASSIGNED_SWATCH_COLOR },
-  );
+  const topics = scatter
+    ? prepareTopicDisplay(facet, "map").topics
+    : prepareTopicDisplay(facet, "treemap").topics.map((topic, rank) =>
+        rank < COLORED_RANKS
+          ? topic
+          : { ...topic, color: UNASSIGNED_SWATCH_COLOR },
+      );
   const selected =
     topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
   const traces = useTraces(selected ? topicQuery(selected.id) : null);
   const maxCount = Math.max(1, ...topics.map((topic) => topic.count));
   const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
+  const mapData = scatter?.query.data;
+  const highlightedTraceIds = useMemo(() => {
+    if (selectedTopicId === null || mapData?.status !== "ready")
+      return undefined;
+    const topicId =
+      selectedTopicId === UNASSIGNED_TOPIC_ID ? null : selectedTopicId;
+    return new Set(
+      mapData.points
+        .filter((point) => (point.topicId ?? null) === topicId)
+        .map((point) => point.traceId),
+    );
+  }, [mapData, selectedTopicId]);
   if (facet.topics.length === 0 || !selected) {
     return <TopicsEmptyState />;
   }
+  const rows = (
+    <ul
+      aria-label="Topics"
+      className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-4"
+    >
+      {topics.map((topic) => (
+        <li key={topic.id}>
+          <TopicRow
+            topic={topic}
+            maxCount={maxCount}
+            selected={topic.id === selected.id}
+            onSelect={() => setSelectedTopicId(topic.id)}
+          />
+        </li>
+      ))}
+    </ul>
+  );
   return (
     <TopicsSplit
-      id="topics-list-split"
+      id={scatter ? "topics-scatter-split" : "topics-list-split"}
       orientation={isWide ? "horizontal" : "vertical"}
       defaultTopicsSize={isWide ? "40%" : "50%"}
       topics={
-        <ul
-          aria-label="Topics"
-          className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-4"
-        >
-          {topics.map((topic) => (
-            <li key={topic.id}>
-              <TopicRow
-                topic={topic}
-                maxCount={maxCount}
-                selected={topic.id === selected.id}
-                onSelect={() => setSelectedTopicId(topic.id)}
+        scatter && facet.map ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 basis-3/5 flex-col">
+              <TopicEmbeddingMap
+                key={facet.map.runId}
+                query={scatter.query}
+                topics={facet.map.topics}
+                selectedTopic={null}
+                matchingTraceIds={highlightedTraceIds}
+                onSelectTopic={(id) => {
+                  if (id) setSelectedTopicId(id);
+                }}
+                onSelectTrace={(traceId) => {
+                  if (traceId) scatter.onOpenTrace(traceId);
+                }}
+                selectedTraceId={null}
+                fillContainer
               />
-            </li>
-          ))}
-        </ul>
+            </div>
+            {rows}
+          </div>
+        ) : (
+          rows
+        )
       }
       traces={
         <TopicTraceList

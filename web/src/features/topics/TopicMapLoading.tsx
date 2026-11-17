@@ -5,7 +5,7 @@ export function TopicMapLoading({ fillContainer }: TopicMapLoadingProps) {
     <div
       role="status"
       className={cn(
-        "bg-muted/20 flex min-w-0 flex-col overflow-hidden rounded-lg border text-sm",
+        "bg-muted/20 flex min-w-0 flex-col overflow-hidden text-sm",
         fillContainer && "h-full min-h-0",
       )}
     >

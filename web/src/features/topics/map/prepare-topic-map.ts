@@ -8,6 +8,9 @@ export type MapData = Pick<
 export type MapTopic = { id: string; name: string; description?: string };
 export type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
 export type Camera = { x: number; y: number; zoom: number };
+
+/** Deepest zoom, as a multiple of the whole-map fit. */
+const MAX_ZOOM = 10;
 export type Size = { width: number; height: number };
 export type MapPoint = MapData["points"][number] & {
   groupId: string;
@@ -114,7 +117,7 @@ export function fitCamera(bounds: Bounds, whole: Bounds, size: Size): Camera {
     x: (bounds.minX + bounds.maxX) / 2,
     y: (bounds.minY + bounds.maxY) / 2,
     zoom: Math.min(
-      32,
+      MAX_ZOOM,
       Math.max(0.4, baseScale(bounds, size) / baseScale(whole, size)),
     ),
   };
@@ -140,7 +143,7 @@ export function zoomCamera(
   bounds: Bounds,
   size: Size,
 ): Camera {
-  const zoom = Math.min(128, Math.max(0.4, camera.zoom * 2 ** levels));
+  const zoom = Math.min(MAX_ZOOM, Math.max(0.4, camera.zoom * 2 ** levels));
   const before = baseScale(bounds, size) * camera.zoom;
   const after = baseScale(bounds, size) * zoom;
   const dx = (anchor.x - 0.5) * size.width;

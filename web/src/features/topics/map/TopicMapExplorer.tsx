@@ -34,7 +34,6 @@ import {
   prepareMapHover,
   prepareMapTextLabels,
   prepareTopicMap,
-  nodeDetailBlend,
   zoomCamera,
   type Camera,
   type MapData,
@@ -376,9 +375,9 @@ export function TopicMapExplorer({
       ref={sectionRef}
       aria-label="Scatter"
       className={cn(
-        "ph-no-capture bg-background flex min-w-0 flex-col overflow-hidden rounded-lg border",
+        "ph-no-capture bg-background flex min-w-0 flex-col overflow-hidden",
         fillContainer && "h-full min-h-0",
-        fullscreen && "h-dvh rounded-none border-0",
+        fullscreen && "h-dvh",
       )}
     >
       {fullscreenError && (
@@ -410,7 +409,7 @@ export function TopicMapExplorer({
         <div
           role="toolbar"
           aria-label="Scatter controls"
-          className="bg-background/85 absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md border p-0.5 shadow-sm backdrop-blur-sm"
+          className="bg-background/85 absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md p-0.5"
           onPointerDown={stopPointerPropagation}
           onPointerMove={stopPointerPropagation}
           onPointerEnter={handleControlPointerEnter}
@@ -465,8 +464,6 @@ export function TopicMapExplorer({
         <div className="text-muted-foreground pointer-events-none absolute right-4 bottom-3 left-4 flex flex-wrap items-center justify-between gap-2 text-[11px]">
           <LayoutReadout
             store={store}
-            initialCamera={initialCamera}
-            scope={selectedTopic}
             population={
               matchingTraceIds
                 ? `${model.points.filter((point) => matchingTraceIds.has(point.traceId)).length.toLocaleString()} of ${model.populationLabel} match`
@@ -513,15 +510,10 @@ function ZoomReadout({
 
 function LayoutReadout({
   store,
-  initialCamera,
-  scope,
   population,
   missingSummaryCount,
   unpositionedCount,
 }: LayoutReadoutProps) {
-  const camera = useStore(store, (s) => s.camera);
-  const cameraScope = useStore(store, (s) => s.scope);
-  const current = cameraScope === scope && camera ? camera : initialCamera;
   const handlePointerEnter = () => clearTopicMapHover(store);
   return (
     <Tooltip
@@ -542,10 +534,7 @@ function LayoutReadout({
           onPointerMove={stopPointerPropagation}
           onPointerEnter={handlePointerEnter}
         >
-          {population} ·{" "}
-          {nodeDetailBlend(current.zoom) > 0
-            ? "Adaptive detail"
-            : "Saved 2D projection"}
+          {population}
         </button>
       )}
     </Tooltip>
@@ -793,8 +782,6 @@ export type TopicMapExplorerProps = {
 
 type LayoutReadoutProps = {
   store: TopicMapStore;
-  initialCamera: Camera;
-  scope: string | null;
   population: string;
   missingSummaryCount: number;
   unpositionedCount: number;
