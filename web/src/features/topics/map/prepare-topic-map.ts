@@ -425,8 +425,10 @@ export function prepareMapTextLabels(
 ): MapTextLabel[] {
   const { camera, model, size, readingTopic, matchingTraceIds } = frame;
   const zoom = detailZoom(camera.zoom, size);
-  // Exploratory scatter looks label the map from the whole-map fit.
-  const visibility = above ? 1 : smoothStep(1.5, 3, zoom);
+  // Exploratory scatter looks name topics after the first zoom step.
+  const visibility = above
+    ? smoothStep(1.05, 1.3, camera.zoom)
+    : smoothStep(1.5, 3, zoom);
   if (!visibility) return [];
   const labels: MapTextLabel[] = [];
   const fontSize = 15 + smoothStep(3, 8, zoom) * 3;
