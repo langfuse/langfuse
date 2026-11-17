@@ -3,21 +3,7 @@ import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
-import { env } from "@/src/env.mjs";
-import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 import { authorize } from "@/src/features/rbac/authorize";
-
-/** Demo LLM operations need Internal view and project permissions. */
-const demoProjectLlmScopes = new Set<ProjectScope>([
-  "playground:execute",
-  "topics:CUD",
-  "evaluator:CUD",
-  "evaluationRule:CUD",
-  "promptExperiments:CUD",
-  "evalDefaultModel:CUD",
-  "llmApiKeys:create",
-  "llmApiKeys:update",
-]);
 
 /** HasProjectAccessParams is a session and the projectId whose policies decide scope. */
 type HasProjectAccessParams = {
@@ -59,7 +45,6 @@ export const useHasProjectAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
-  if (isDemoProjectLlmRestricted(p)) return false;
   const { session, projectId, scope } = p;
   const org = getOrganization(session, projectId);
   if (!session || !org) return false;
@@ -71,14 +56,5 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
 function getOrganization(session: Session | null, projectId: string) {
   return session?.user?.organizations.find((org) =>
     org.projects.some((project) => project.id === projectId),
-  );
-}
-
-/** isDemoProjectLlmRestricted reports whether scope is an LLM operation on the demo project the user may not run outside the internal view. */
-function isDemoProjectLlmRestricted(p: HasProjectAccessParams): boolean {
-  return (
-    p.projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-    demoProjectLlmScopes.has(p.scope) &&
-    !isInternalViewEnabled(p.session)
   );
 }

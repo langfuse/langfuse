@@ -70,10 +70,9 @@ async function recordUserAccess(
     remoteAddress?: string;
   },
 ): Promise<void> {
-  const user = session?.user;
-  if (!session || !user) return;
+  if (!isSignedIn(session)) return;
 
-  const org = user.organizations.find((o) =>
+  const org = session.user.organizations.find((o) =>
     o.projects.some((p) => p.id === projectId),
   );
   const supportAccess = org?.supportAccess === true;
@@ -94,7 +93,7 @@ async function recordUserAccess(
     ...read,
     orgId: auditOrg.orgId,
     projectId,
-    actor: toUserActor({ ...session, user }, auditOrg.orgId, projectId),
+    actor: toUserActor(session, auditOrg.orgId, projectId),
     surface: via.surface,
     request: getAuditRequestContext(via.headers, via.remoteAddress),
   });
@@ -226,3 +225,10 @@ export async function recordMcpAccess(
 
 /** UserSession is the part of a session that records a user's read. */
 type UserSession = Pick<Session, "user" | "policies">;
+
+/** isSignedIn reports whether the session has a user. */
+function isSignedIn(
+  session: UserSession | null | undefined,
+): session is UserSession & { user: NonNullable<UserSession["user"]> } {
+  return !!session?.user;
+}
