@@ -9,35 +9,20 @@ import {
 import { getV4MigrationTopBannerState } from "@/src/features/v4-migration/server/v4MigrationTopBannerService";
 
 const mocks = vi.hoisted(() => ({
-  bannerStateByOrgId: new Map<
-    string,
-    {
-      severity: "off" | "warning" | "critical";
-      message: string | null;
-      exempt: boolean;
-    }
-  >(),
+  bannerState: {
+    severity: "warning",
+    message: "Action required.",
+  } as { severity: "off" | "warning" | "critical"; message: string | null },
   getMigrationActionsByProject: vi.fn(),
 }));
 
 vi.mock("@/src/features/v4-migration/server/v4MigrationBannerConfig", () => ({
-  getV4MigrationBannerConfig: ({ orgId }: { orgId: string }) =>
-    mocks.bannerStateByOrgId.get(orgId) ?? {
-      severity: "off",
-      message: null,
-      exempt: false,
-    },
+  getV4MigrationBannerConfig: () => mocks.bannerState,
 }));
 
 vi.mock("@/src/features/v4/server/v4TransitionService", () => ({
   getMigrationActionsByProject: mocks.getMigrationActionsByProject,
 }));
-
-const warningState = {
-  severity: "warning" as const,
-  message: "Action required.",
-  exempt: false,
-};
 
 const session = {
   user: {
@@ -89,15 +74,7 @@ const noActionNeeded = {
 
 describe("getV4MigrationTopBannerState", () => {
   beforeEach(() => {
-    mocks.bannerStateByOrgId = new Map();
-    mocks.bannerStateByOrgId.set("org-a", warningState);
-    mocks.bannerStateByOrgId.set("org-b", {
-      severity: "off",
-      message: null,
-      exempt: true,
-    });
-    mocks.bannerStateByOrgId.set("org-c", warningState);
-    mocks.bannerStateByOrgId.set("demo-org", warningState);
+    mocks.bannerState = { severity: "warning", message: "Action required." };
     mocks.getMigrationActionsByProject.mockReset();
     mocks.getMigrationActionsByProject.mockResolvedValue(
       new Map([
@@ -107,7 +84,7 @@ describe("getV4MigrationTopBannerState", () => {
     );
   });
 
-  it("aggregates all eligible session organizations while excluding demo, exempt, and deleted projects", async () => {
+  it("aggregates all eligible session organizations while excluding demo and deleted projects", async () => {
     await expect(
       getV4MigrationTopBannerState({
         prisma: {} as PrismaClient,
@@ -122,8 +99,20 @@ describe("getV4MigrationTopBannerState", () => {
     });
 
     expect(mocks.getMigrationActionsByProject).toHaveBeenCalledWith(
-      expect.objectContaining({ projectIds: ["project-a", "project-c"] }),
+      expect.objectContaining({
+        projectIds: ["project-a", "project-b", "project-c"],
+      }),
     );
+
+    mocks.bannerState = { severity: "off", message: null };
+    await expect(
+      getV4MigrationTopBannerState({
+        prisma: {} as PrismaClient,
+        session,
+        demoOrgId: "demo-org",
+        isLangfuseCloud: true,
+      }),
+    ).resolves.toMatchObject({ severity: "off", message: null });
   });
 
   it("counts actionable projects and excludes forced-v3 projects", async () => {

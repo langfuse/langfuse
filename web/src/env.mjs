@@ -734,18 +734,6 @@ export const env = createEnv({
     LANGFUSE_V4_BANNER_SEVERITY: z
       .enum(["off", "warning", "critical"])
       .default("off"),
-    // Comma-separated organization ids that never see the banner.
-    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: z
-      .string()
-      .optional()
-      .transform((value) =>
-        value
-          ? value
-              .split(",")
-              .map((organizationId) => organizationId.trim())
-              .filter(Boolean)
-          : [],
-      ),
     // Comma-separated project ids whose deadline is December 31, 2026.
     // The December sentence shows only when every actionable project is on
     // this list. These projects also belong on the cutoff-exempt list so the
@@ -1422,8 +1410,6 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
-    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
-      process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
     LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS:
       process.env.LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS,
     LANGFUSE_V4_CUTOFF_INGESTION: process.env.LANGFUSE_V4_CUTOFF_INGESTION,

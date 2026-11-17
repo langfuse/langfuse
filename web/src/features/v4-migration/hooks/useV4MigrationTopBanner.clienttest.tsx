@@ -53,7 +53,6 @@ vi.mock("@/src/utils/api", () => ({
             data: {
               severity: mocks.severity,
               message: mocks.message,
-              exempt: false,
               actionNeededCount: mocks.actionNeededCount,
               variant: mocks.variant,
             },

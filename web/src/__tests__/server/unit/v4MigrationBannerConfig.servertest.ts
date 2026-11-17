@@ -21,36 +21,23 @@ describe("v4 migration banner config", () => {
     return getV4MigrationBannerConfig;
   }
 
-  it("uses fixed copy and hides exempt orgs, self-hosted, and off banners", async () => {
+  it("uses fixed copy and hides self-hosted and off banners", async () => {
     const configured = await loadState({
       LANGFUSE_V4_BANNER_SEVERITY: "critical",
-      LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: " org-exempt , ,org-b",
     });
 
-    expect(configured({ orgId: "org-exempt", isLangfuseCloud: true })).toEqual({
-      severity: "off",
-      message: null,
-      exempt: true,
+    expect(configured({ isLangfuseCloud: true })).toEqual({
+      severity: "critical",
+      message: V4_MIGRATION_TOP_BANNER_MESSAGE,
     });
-    expect(configured({ orgId: "org-b", isLangfuseCloud: true }).exempt).toBe(
-      true,
-    );
-    expect(configured({ orgId: "org-c", isLangfuseCloud: true })).toMatchObject(
-      {
-        severity: "critical",
-        message: V4_MIGRATION_TOP_BANNER_MESSAGE,
-        exempt: false,
-      },
-    );
-    expect(configured({ orgId: "org-c", isLangfuseCloud: false })).toEqual({
+    expect(configured({ isLangfuseCloud: false })).toEqual({
       severity: "off",
       message: null,
-      exempt: false,
     });
 
     const off = await loadState({
       LANGFUSE_V4_BANNER_SEVERITY: "off",
     });
-    expect(off({ orgId: "org-a", isLangfuseCloud: true }).severity).toBe("off");
+    expect(off({ isLangfuseCloud: true }).severity).toBe("off");
   });
 });

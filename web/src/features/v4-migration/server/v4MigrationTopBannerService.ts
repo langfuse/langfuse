@@ -58,24 +58,18 @@ export async function getV4MigrationTopBannerState({
     return hiddenState;
   }
 
-  const sessionOrganizations = user.organizations ?? [];
-  const eligibleOrganizations = sessionOrganizations.filter(
-    (organization) =>
-      organization.id !== demoOrgId &&
-      getV4MigrationBannerConfig({
-        orgId: organization.id,
-        isLangfuseCloud,
-      }).severity !== "off",
-  );
+  const bannerConfig = getV4MigrationBannerConfig({ isLangfuseCloud });
+  if (bannerConfig.severity === "off") {
+    return hiddenState;
+  }
 
+  const eligibleOrganizations = (user.organizations ?? []).filter(
+    (organization) => organization.id !== demoOrgId,
+  );
   if (eligibleOrganizations.length === 0) {
     return hiddenState;
   }
 
-  const bannerConfig = getV4MigrationBannerConfig({
-    orgId: eligibleOrganizations[0]!.id,
-    isLangfuseCloud,
-  });
   const projectIds = eligibleOrganizations.flatMap((organization) =>
     organization.projects
       .filter((project) => !project.deletedAt)
