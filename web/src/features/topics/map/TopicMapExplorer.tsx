@@ -785,7 +785,7 @@ function MapBackgroundLabels({
               data-topic-background-label={label.id}
               title={label.title}
               className={cn(
-                "absolute truncate text-center",
+                "absolute line-clamp-2 text-center",
                 styles.lookLabel,
                 styles.backgroundLabel,
               )}

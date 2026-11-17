@@ -416,7 +416,7 @@ type MapTextLabel = {
   opacity: number;
 };
 
-/** Exploratory scatter looks: one fixed-size line above each cluster. */
+/** Exploratory scatter looks: up to two fixed-size lines above each cluster. */
 type LabelAbove = { fontSize: number; lineHeight: number };
 
 export function prepareMapTextLabels(
@@ -469,24 +469,24 @@ export function prepareMapTextLabels(
     if (right < left || bottom < top) continue;
     // Exploratory scatter looks
     if (above) {
-      const labelWidth = Math.min(
-        220,
-        zone.name.length * above.fontSize * 0.62,
-      );
+      const textWidth = zone.name.length * above.fontSize * 0.62;
+      const labelWidth = Math.min(220, textWidth);
+      const labelHeight =
+        Math.min(2, Math.ceil(textWidth / labelWidth)) * above.lineHeight;
       const x = Math.max(
         12 + labelWidth / 2,
         Math.min(size.width - 12 - labelWidth / 2, (left + right) / 2),
       );
       // The zoom toolbar holds the top-right corner.
       const underToolbar = x + labelWidth / 2 > size.width - 220;
-      let y = topLeft.y - above.lineHeight - 10;
+      let y = topLeft.y - labelHeight - 10;
       if (y < 12 || (underToolbar && y < 46)) y = bottomRight.y + 10;
-      y = Math.max(12, Math.min(size.height - above.lineHeight - 12, y));
+      y = Math.max(12, Math.min(size.height - labelHeight - 12, y));
       const rect = {
         x: x - labelWidth / 2,
         y,
         width: labelWidth,
-        height: above.lineHeight,
+        height: labelHeight,
       };
       if (!visible(rect)) continue;
       const matchesFilters =
