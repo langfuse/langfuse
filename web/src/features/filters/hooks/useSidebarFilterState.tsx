@@ -26,6 +26,7 @@ import {
   buildSidebarFilterQueryStorageKey,
   createPersistedSidebarFilterQueryState,
   getPersistedSidebarFilterQueryForContext,
+  writePersistedSidebarFilterQuery,
   type PersistedSidebarFilterQueryState,
 } from "../lib/persistedSidebarFilterQuery";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
@@ -609,6 +610,11 @@ export function useSidebarFilterStateCore(
   });
   const setStoredFiltersQuery = useCallback(
     (query: string) => {
+      writePersistedSidebarFilterQuery({
+        storageKey: FILTER_QUERY_SESSION_STORAGE_KEY,
+        contextId: normalizedSessionFilterContextId,
+        query,
+      });
       setStoredFilterQueryState(
         createPersistedSidebarFilterQueryState(
           normalizedSessionFilterContextId,
@@ -616,7 +622,11 @@ export function useSidebarFilterStateCore(
         ),
       );
     },
-    [setStoredFilterQueryState, normalizedSessionFilterContextId],
+    [
+      setStoredFilterQueryState,
+      normalizedSessionFilterContextId,
+      FILTER_QUERY_SESSION_STORAGE_KEY,
+    ],
   );
   const [urlFiltersQuery, setUrlFiltersQuery] = useQueryParam(
     "filter",
