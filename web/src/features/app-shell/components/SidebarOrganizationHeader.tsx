@@ -70,6 +70,7 @@ export function SidebarOrganizationHeader() {
         className={cn(styles.selector, motion.label)}
         data-surface={surface}
         data-sidebar-expanded-only=""
+        aria-hidden={isCollapsed || undefined}
         inert={isCollapsed}
       >
         {organization && (
