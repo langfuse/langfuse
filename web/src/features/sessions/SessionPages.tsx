@@ -84,7 +84,6 @@ import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualize
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
-import { SessionRedesignBanner } from "@/src/features/sessions/SessionRedesignBanner";
 import { ModernSessionSaveViewDialogContent } from "@/src/features/sessions/ModernSessionSaveViewDialogContent";
 import { ConnectedSessionManageViewsDialog } from "@/src/features/sessions/SessionManageViewsDialog/ConnectedSessionManageViewsDialog";
 import { SessionDuplicateViewDialog } from "@/src/features/sessions/SessionDuplicateViewDialog/SessionDuplicateViewDialog";
@@ -694,8 +693,6 @@ const LoadedSessionEventsPage: React.FC<{
       projectId,
     },
   );
-  const [isRedesignBannerDismissed, setIsRedesignBannerDismissed] =
-    useLocalStorage("sessionRedesignBannerDismissed", false);
   const {
     filters: traceFilters,
     unmatchedTraces,
@@ -819,10 +816,6 @@ const LoadedSessionEventsPage: React.FC<{
     });
     if (sessionViewId === "") selectSessionView(id);
   };
-  const showRedesignBanner =
-    isModernSessionEnabled &&
-    isSessionTimelineEnabled &&
-    !isRedesignBannerDismissed;
   const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
   const webCalloutAction = useWebCalloutAction(
@@ -1446,6 +1439,9 @@ const LoadedSessionEventsPage: React.FC<{
                   isOpen={isOpen}
                   projectId={projectId}
                   sessionId={sessionId}
+                  sessionIds={(detailPagelists.sessions ?? []).map(
+                    ({ id }) => id,
+                  )}
                   initialFilters={traceFilters}
                   initialUnmatchedTraces={unmatchedTraces}
                   initialViewMode={viewMode}
@@ -1560,6 +1556,9 @@ const LoadedSessionEventsPage: React.FC<{
                 <ConnectedSessionCustomizationDialog
                   projectId={projectId}
                   sessionId={sessionId}
+                  sessionIds={(detailPagelists.sessions ?? []).map(
+                    ({ id }) => id,
+                  )}
                   isOpen={isOpen}
                   initialFilters={state.view.filters}
                   initialUnmatchedTraces={state.view.unmatchedTraces}
@@ -1847,13 +1846,6 @@ const LoadedSessionEventsPage: React.FC<{
                               : "flex h-full flex-col overflow-auto"
                           }
                         >
-                          {showRedesignBanner ? (
-                            <SessionRedesignBanner
-                              onDismiss={() =>
-                                setIsRedesignBannerDismissed(true)
-                              }
-                            />
-                          ) : null}
                           {!isModernSessionEnabled && hasSessionControls ? (
                             <SessionControlsBar
                               isMobile={isMobile && !isModernSessionEnabled}

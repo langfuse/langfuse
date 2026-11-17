@@ -18,7 +18,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
       - name: Checkout repo

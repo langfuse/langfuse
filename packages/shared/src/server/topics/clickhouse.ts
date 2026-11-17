@@ -367,46 +367,6 @@ function summaryResult(row: SummaryRow): TopicSummary {
   };
 }
 
-export async function listTopicSummaries(
-  projectId: string,
-  filter: (
-    | {
-        sources: Pick<TopicSummary, "traceId" | "sessionId">[];
-        traceIds?: never;
-      }
-    | { traceIds: string[]; sources?: never }
-  ) & { facetId: string; facetVersion: number },
-  timeRange: TopicTimeRange,
-): Promise<TopicSummary[]> {
-  const rows: SummaryRow[] = [];
-  const scopeSql = `facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
-    AND ${sourceFilterSql}`;
-  const sources =
-    filter.sources ??
-    filter.traceIds.map((traceId) => ({ traceId, sessionId: null }));
-  for (const batch of sourceBatches(sources)) {
-    rows.push(
-      ...(await queryClickhouse<SummaryRow>({
-        query: `SELECT ${summaryColumns} FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
-        AND ${scopeSql} AND ${latestSummaryFilterSql(scopeSql)}
-      ORDER BY processed_at DESC LIMIT 1 BY ${sourceKeySql}`,
-        params: {
-          projectId,
-          ...timeRangeParams(timeRange),
-          facetId: filter.facetId,
-          facetVersion: filter.facetVersion,
-          ...batch,
-        },
-        tags: { route: "topics-summaries", projectId },
-      })),
-    );
-  }
-  rows.sort((a, b) => Number(b.processedAtMs) - Number(a.processedAtMs));
-  return rows
-    .filter((row) => !isInternalEvalEnvironment(row.environment))
-    .map(summaryResult);
-}
 /** Display fields only. Without a version filter, use each source's newest processed facet version. */
 export async function getLatestFacetSummaries(
   projectId: string,
@@ -532,54 +492,7 @@ function clusteringSummariesSql(
     )`;
 }
 
-/** Returns aggregate admission estimates; summary payloads stay in ClickHouse. */
-export async function getTopicClusteringSummaryStats(
-  projectId: string,
-  facetId: string,
-  facetVersion: number,
-  embeddingConfig: TopicEmbeddingConfig,
-  timeRange: TopicTimeRange,
-  limits: { maxRows: number; maxBytes: number },
-): Promise<{ count: number; bytes: number }> {
-  const [{ count }] = await getTopicSummaryCounts(
-    projectId,
-    [{ facetId, version: facetVersion }],
-    embeddingConfig,
-    timeRange,
-  );
-  const vectorBytes = count * embeddingConfig.embeddingDimensions * 8;
-  // Narrow oversized windows using metadata before inspecting their text payloads.
-  if (!count || count > limits.maxRows || vectorBytes > limits.maxBytes)
-    return { count, bytes: vectorBytes };
-  // UTF-8 JSON bytes bound UTF-16 code units, including escaping and map keys.
-  // Allow for field names and row overhead; this is not a total RSS estimate.
-  const estimatedBytesSql = `length(embedding) * 8 + 2 * length(toJSONString(tuple(
-    project_id, facet_id, facet_version, trace_id, session_id, trigger_type,
-    environment, trace_name, toUnixTimestamp64Milli(unit_start_time),
-    processing_state, summary, transcript_id, transcript_version, summary_model,
-    embedding_model, provided_usage_details, usage_details,
-    provided_cost_details, cost_details, toUnixTimestamp64Milli(processed_at), metadata
-  ))) + 2048`;
-  const [row] = await queryClickhouse<{ count: string; bytes: string }>({
-    query: clusteringSummariesSql(
-      "count() AS count, sum(estimated_bytes) AS bytes",
-      `processing_state, embedding_model, environment, ${estimatedBytesSql} AS estimated_bytes`,
-    ),
-    params: {
-      projectId,
-      facetId,
-      facetVersion,
-      ...embeddingConfig,
-      ...timeRangeParams(timeRange),
-      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
-    },
-    tags: { route: "topics-clustering-summary-stats", projectId },
-  });
-  return { count: Number(row?.count ?? 0), bytes: Number(row?.bytes ?? 0) };
-}
-
-export const TOPIC_CLUSTERING_CAPACITY_ERROR =
+const TOPIC_CLUSTERING_CAPACITY_ERROR =
   "Topics clustering exceeds this worker's capacity. Choose a smaller time window; no partial cohort was used.";
 
 export async function getTopicClusteringSummaries(
@@ -845,6 +758,9 @@ export async function getTopicExecutionCosts(
   );
 }
 
+// Bounds the preview count; a 14-day cohort takes about 10 s on the largest tenants.
+const COHORT_SUMMARY_COUNT_TIMEOUT_SECONDS = 30;
+
 /** Count current compatible summaries without loading summary text or vectors. */
 export async function getTopicSummaryCounts(
   projectId: string,
@@ -887,6 +803,20 @@ export async function getTopicSummaryCounts(
       publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     },
     tags: { route: "topics-summary-counts", projectId },
+    // A cohort scans events, so keep it off the primary like the other preview reads.
+    ...(cohort
+      ? {
+          preferredClickhouseService: "EventsReadOnly" as const,
+          // The client must outlast the server limit for the timeout to be reported as one.
+          clickhouseConfigs: {
+            request_timeout: (COHORT_SUMMARY_COUNT_TIMEOUT_SECONDS + 15) * 1000,
+          },
+          clickhouseSettings: {
+            max_execution_time: COHORT_SUMMARY_COUNT_TIMEOUT_SECONDS,
+            timeout_overflow_mode: "throw" as const,
+          },
+        }
+      : {}),
   });
   return facets.map(({ facetId, version }) => ({
     facetId,
@@ -1001,8 +931,7 @@ export function isValidTopicSummary(row: TopicSummary): boolean {
     topicSourceSchema.safeParse(row).success &&
     typeof row.environment === "string" &&
     row.embedding.every(Number.isFinite) &&
-    !(row.state === "complete" && row.embedding.length === 0) &&
-    row.state !== "summarized"
+    !(row.state === "complete" && row.embedding.length === 0)
   );
 }
 

@@ -52,17 +52,15 @@ export function normalizeMastraEvent(
       // Halo resumes approved tools from its durable transcript, independently
       // of the adapter's in-memory interrupt state.
       return [
-        ...interrupts.map(
-          ({ toolCallId, metadata }): AgUiEvent => ({
-            type: EventType.CUSTOM,
-            name: "on_interrupt",
-            value: {
-              ...metadata.mastra,
-              type: "mastra_suspend",
-              toolCallId,
-            },
-          }),
-        ),
+        ...interrupts.map(({ toolCallId, metadata }): AgUiEvent => ({
+          type: EventType.CUSTOM,
+          name: "on_interrupt",
+          value: {
+            ...metadata.mastra,
+            type: "mastra_suspend",
+            toolCallId,
+          },
+        })),
         {
           type: EventType.RUN_FINISHED,
           threadId: event.threadId,

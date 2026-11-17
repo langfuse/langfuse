@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import {
   type default as React,
@@ -74,7 +74,7 @@ import {
 import { Slider } from "@/src/components/ui/Slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
   NumericUIFilter,
@@ -692,6 +692,7 @@ export function DataTableControls({
           keyOptions={filter.keyOptions}
           keyDetails={filter.keyDetails}
           valueOptions={filter.valueOptions}
+          numericValues={filter.numericValues}
           value={filter.value}
           onChange={filter.onChange}
           isActive={filter.isActive}
@@ -974,7 +975,7 @@ export function DataTableControls({
                   No tooltip (the sheet auto-focuses it on open and a Radix
                   tooltip would pop up unprompted); an X is self-evident.
                 - desktop: collapse-to-rail via the Hide-filters button. */}
-            {layout === "inline" ? null : isMobile ? (
+            {layout !== "inline" && isMobile && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -987,7 +988,8 @@ export function DataTableControls({
               >
                 <X size="base" color="default" />
               </Button>
-            ) : (
+            )}
+            {layout !== "inline" && !isMobile && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -1368,6 +1370,7 @@ interface StringKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
   keyDetails?: Record<string, string>;
   valueOptions?: Record<string, string[]>;
+  numericValues?: boolean;
   value: StringKeyValueFilterEntry[];
   onChange: (filters: StringKeyValueFilterEntry[]) => void;
   keyPlaceholder?: string;
@@ -1453,35 +1456,31 @@ function FilterAccordionItem({
                   {disabledReason}
                 </TooltipContent>
               </Tooltip>
-            ) : help ? (
+            ) : (
               <div className="flex min-w-0 items-center gap-1">
                 <span className="min-w-0 truncate" title={label}>
                   {label}
                 </span>
-                <DocPopup description={help.description} href={help.href} />
+                {help && (
+                  <DocPopup description={help.description} href={help.href}>
+                    {({ getTriggerProps }) => (
+                      <DocPopupTrigger triggerProps={getTriggerProps()} />
+                    )}
+                  </DocPopup>
+                )}
+                {!help && tooltip && (
+                  // The tooltip triggers on the ⓘ icon only — hovering the label
+                  // itself must not pop explanatory text.
+                  <Tooltip delayDuration={80}>
+                    <TooltipTrigger asChild>
+                      <InfoIcon size="sm" color="muted" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-80 text-xs">
+                      {tooltip}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </div>
-            ) : tooltip ? (
-              // The tooltip triggers on the ⓘ icon only — hovering the label
-              // itself must not pop explanatory text.
-              <span className="flex min-w-0 items-center gap-1">
-                <span className="min-w-0 truncate" title={label}>
-                  {label}
-                </span>
-                <Tooltip delayDuration={80}>
-                  <TooltipTrigger asChild>
-                    <InfoIcon size="sm" color="muted" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-80 text-xs">
-                    {tooltip}
-                  </TooltipContent>
-                </Tooltip>
-              </span>
-            ) : (
-              <span className="flex min-w-0 items-center gap-1">
-                <span className="min-w-0 truncate" title={label}>
-                  {label}
-                </span>
-              </span>
             )}
           </FacetHeader>
         </AccordionPrimitive.Trigger>
@@ -1740,9 +1739,10 @@ function NumericFacet({
       onReset={onReset}
     >
       <div className="px-3 py-2">
-        {loading ? (
+        {loading && (
           <div className="text-muted-foreground text-sm">Loading...</div>
-        ) : value === null ? (
+        )}
+        {!loading && value === null && (
           <div className="ph-no-capture flex flex-col gap-1">
             {conditions.map((condition, index) => (
               <div
@@ -1765,7 +1765,8 @@ function NumericFacet({
               </div>
             ))}
           </div>
-        ) : (
+        )}
+        {!loading && value !== null && (
           <div className="grid gap-4">
             <div className="flex items-center gap-4">
               <div className="grid w-full gap-1.5">
@@ -2073,6 +2074,7 @@ function StringKeyValueFacet({
   keyOptions,
   keyDetails,
   valueOptions,
+  numericValues,
   value,
   onChange,
   isActive,
@@ -2103,6 +2105,7 @@ function StringKeyValueFacet({
           keyOptions={keyOptions}
           keyDetails={keyDetails}
           valueOptions={valueOptions}
+          numericValues={numericValues}
           activeFilters={value}
           onChange={onChange}
           keyPlaceholder={keyPlaceholder}

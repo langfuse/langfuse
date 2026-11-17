@@ -185,8 +185,8 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
       >
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4">
           <p className="bg-light-blue text-dark-blue rounded-md px-4 py-2.5 text-sm">
-            Applies to every scan in this project. Questions and filters live in
-            Edit scan.
+            Applies to every map in this project. Questions and filters live in
+            Edit map.
           </p>
           {automaticProcessingOff ? (
             <div className="flex items-center justify-between gap-3">

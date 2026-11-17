@@ -3,7 +3,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { type FilterState } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { ListTree, Sparkles } from "@langfuse/icons";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -17,6 +17,16 @@ import { SessionFilterPreview } from "./components/SessionFilterPreview/SessionF
 import { useSessionFilterPreview } from "./useSessionFilterPreview";
 
 type SessionViewMode = "conversational" | "list";
+
+function hasPreset(filters: FilterState, preset: FilterState[number]) {
+  return filters.some(
+    (existing) =>
+      existing.column === preset.column &&
+      existing.type === preset.type &&
+      existing.operator === preset.operator &&
+      existing.value === preset.value,
+  );
+}
 
 export function SessionCustomizationDialog({
   projectId,
@@ -48,7 +58,7 @@ export function SessionCustomizationDialog({
   }) => void;
   preview: Pick<
     ComponentProps<typeof SessionFilterPreview>,
-    "pending" | "error"
+    "pending" | "error" | "navigation"
   > & { traces: RouterOutputs["sessions"]["previewTree"] | undefined };
 }) {
   const editing = variant.type === "edit" ? variant : undefined;
@@ -75,17 +85,9 @@ export function SessionCustomizationDialog({
   const handlePresetToggle = (filter: FilterState[number]) => {
     const filters = filterInput.readFilters();
     if (filters === null) return;
-    const present = filters.some(
-      (existing) =>
-        existing.column === filter.column &&
-        existing.type === filter.type &&
-        existing.operator === filter.operator &&
-        existing.value === filter.value,
-    );
+    const present = hasPreset(filters, filter);
     const remaining = filters.filter(
-      (existing) =>
-        existing.column !== filter.column ||
-        existing.operator !== filter.operator,
+      (existing) => existing.column !== filter.column,
     );
     filterInput.applyFilters(present ? remaining : [...remaining, filter]);
   };
@@ -217,16 +219,13 @@ export function SessionCustomizationDialog({
                   ).map(({ label, icon: Icon, filter }) => (
                     <Button
                       key={label}
-                      type="button"
+                      text={label}
+                      icon={Icon}
                       variant="outline"
-                      size="sm"
-                      className="flex h-8 items-center gap-2 text-sm"
+                      aria-pressed={hasPreset(filterInput.filters, filter)}
                       disabled={filterInput.invalid}
                       onClick={() => handlePresetToggle(filter)}
-                    >
-                      <Icon size="base" />
-                      {label}
-                    </Button>
+                    />
                   ))}
                 </div>
                 <p className="text-muted-foreground text-sm">
@@ -293,6 +292,7 @@ export function SessionCustomizationDialog({
                 </div>
               </div>
               <SessionFilterPreview
+                key={preview.navigation?.sessionId}
                 {...preview}
                 traces={matchingTraces}
                 invalid={filterInput.invalid}

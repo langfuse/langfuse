@@ -8,6 +8,7 @@ import {
   type FilterSegment,
 } from "../composer-segments";
 import { type FieldRegistry } from "../fields";
+import type { CompareOp } from "../ast";
 import { indexOfOutsideQuotes } from "../langQ";
 import { explainSegment } from "../explain";
 import { deactivationReason } from "../../components/presentation";
@@ -27,7 +28,7 @@ type ProjectionOptions = {
   scoreTypes: ScoreTypeContext | undefined;
   registry: FieldRegistry;
   showDiagnostics: boolean;
-  fieldReason: ((field: string) => string | null) | undefined;
+  fieldReason: ((field: string, op?: CompareOp) => string | null) | undefined;
   freeTextReason: string | null | undefined;
 };
 

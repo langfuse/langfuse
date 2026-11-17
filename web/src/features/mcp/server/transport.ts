@@ -8,8 +8,8 @@
  */
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { NodeStreamableHTTPServerTransport } from "@modelcontextprotocol/node";
+import type { Server } from "@modelcontextprotocol/server";
 import { formatErrorForUser } from "../core/error-formatting";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -63,7 +63,7 @@ export async function handleMcpRequest(
     }
 
     // Create Streamable HTTP transport (stateless mode - no sessionIdGenerator)
-    const transport = new StreamableHTTPServerTransport({
+    const transport = new NodeStreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // Stateless mode
       enableJsonResponse: true, // Use JSON response (simpler for stateless mode)
     });

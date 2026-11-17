@@ -19,6 +19,11 @@ on:
   schedule:
     - cron: "31 13 * * 0"
 
+# Cancel superseded PR runs; keep other events independent with a unique group per run.
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
@@ -27,7 +32,7 @@ jobs:
     #   - https://gh.io/supported-runners-and-hardware-resources
     #   - https://gh.io/using-larger-runners (GitHub.com only)
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       # required for all workflows
       security-events: write

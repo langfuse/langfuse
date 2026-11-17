@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   openSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -231,7 +232,7 @@ function classifyChanges(codeFiles, packages, options, taskGraph) {
     )
       continue;
     if (
-      /^(prettier\.config\.[cm]?js|\.prettierrc(?:\.[^/]+)?|\.prettierignore|\.editorconfig)$/.test(
+      /^(\.oxfmtrc\.jsonc?|oxfmt\.config\.[cm]?[jt]s|\.editorconfig)$/.test(
         file,
       )
     ) {
@@ -558,11 +559,16 @@ function planRepositoryChecks(
 ) {
   const formatted = files.filter(
     (file) =>
-      /\.(js|jsx|ts|tsx|css)$/.test(file) && exists(resolve(root, file)),
+      /\.(js|jsx|mjs|cjs|ts|tsx|mts|cts|css)$/.test(file) &&
+      exists(resolve(root, file)),
   );
   const repositoryFormatting =
     options.all ||
-    codeFiles.some((file) => /prettier|(^|\/)\.editorconfig$/.test(file));
+    codeFiles.some((file) =>
+      /(^|\/)(\.oxfmtrc\.jsonc?|oxfmt\.config\.[cm]?[jt]s|\.editorconfig)$/.test(
+        file,
+      ),
+    );
   const repositoryChecks = [
     {
       component: "format",
@@ -576,7 +582,7 @@ function planRepositoryChecks(
       label: `Formatting · ${formatted.length} file${formatted.length === 1 ? "" : "s"}`,
       args: [
         "exec",
-        "prettier",
+        "oxfmt",
         "--check",
         "--",
         ...formatted.map((file) => `./${file}`),
@@ -1226,10 +1232,23 @@ function printFailure(result, isTurboBatch, indent) {
   return false;
 }
 
-if (
-  process.argv[1] &&
-  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  // A recognized entrypoint must run even if its path disappears after loading.
+  if (resolve(process.argv[1]) === modulePath) return true;
+  let entryPath;
+  try {
+    entryPath = realpathSync(process.argv[1]);
+  } catch (error) {
+    // Eval/import launchers can put non-file arguments in argv[1].
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return false;
+    throw error;
+  }
+  return entryPath === realpathSync(modulePath);
+}
+
+if (isMainModule()) {
   try {
     await main();
   } catch (error) {

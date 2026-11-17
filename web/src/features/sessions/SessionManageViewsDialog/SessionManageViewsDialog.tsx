@@ -9,6 +9,7 @@ import {
   Trash2,
 } from "@langfuse/icons";
 import { type RouterOutputs } from "@/src/utils/api";
+import { type DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
@@ -79,6 +80,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
     accessorFn: (view) => view.createdByUser,
     header: "Created by",
     enableResizing: false,
+    hideBelowMd: true,
     variant: "avatar",
     emptyValue: "Unknown user",
     nullValue: "Built-in",
@@ -94,6 +96,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
     headerClassName: "text-right",
     cellClassName: "text-right",
     enableResizing: false,
+    hideBelowMd: true,
     size: 160,
     cell: ({ row }) => {
       const view = row.original;
@@ -153,6 +156,74 @@ const columns: ColumnDef<SessionViewRow>[] = [
     },
   },
 ];
+
+/** The inline action column's actions, as a menu for screens where it is hidden. */
+function getViewActions(
+  view: SessionViewRow,
+): ComponentProps<typeof DropdownMenu>["items"] {
+  return [
+    ...(view.onSetDefaultPin
+      ? [
+          {
+            type: "item" as const,
+            id: "default-pin",
+            title: view.isPinnedByDefaultForProject
+              ? "Remove default pin"
+              : "Pin by default",
+            icon: view.isPinnedByDefaultForProject ? PinOff : Pin,
+            onClick: view.onSetDefaultPin,
+          },
+        ]
+      : []),
+    ...(view.onMoveUp
+      ? [
+          {
+            type: "item" as const,
+            id: "move-up",
+            title: "Move up",
+            icon: ArrowUp,
+            onClick: view.onMoveUp,
+          },
+        ]
+      : []),
+    ...(view.onMoveDown
+      ? [
+          {
+            type: "item" as const,
+            id: "move-down",
+            title: "Move down",
+            icon: ArrowDown,
+            onClick: view.onMoveDown,
+          },
+        ]
+      : []),
+    ...(view.showEditActions && view.id !== "messages"
+      ? [
+          {
+            type: "item" as const,
+            id: "edit",
+            title: "Edit",
+            icon: Pencil,
+            disabled: !view.canEdit
+              ? { reason: "Only the creator can edit this view." }
+              : undefined,
+            onClick: view.onEdit,
+          },
+          {
+            type: "item" as const,
+            id: "delete",
+            title: "Delete",
+            icon: Trash2,
+            variant: "destructive" as const,
+            disabled: !view.canEdit
+              ? { reason: "Only the creator can delete this view." }
+              : undefined,
+            onClick: view.onDelete,
+          },
+        ]
+      : []),
+  ];
+}
 
 function SessionManageViewsList({
   views,
@@ -258,6 +329,8 @@ function SessionManageViewsList({
           data={data}
           noResultsMessage={noResultsMessage}
           columns={columns}
+          actions={getViewActions}
+          actionsVisibility="belowMd"
           topBorder={false}
         />
       </div>
