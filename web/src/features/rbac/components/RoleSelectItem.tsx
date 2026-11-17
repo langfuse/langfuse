@@ -47,7 +47,7 @@ export const RoleSelectItem = ({
             </span>
             {showPermissionCount && (
               <span className="shrink-0 tabular-nums">
-                <RolePermissionCountBadge role={role} />
+                <RolePermissionCountBadge role={role} size="xs" />
               </span>
             )}
           </span>

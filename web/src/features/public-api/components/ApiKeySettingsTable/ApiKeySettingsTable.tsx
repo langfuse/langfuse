@@ -175,7 +175,7 @@ function PermissionsCell({
       <span className="flex min-w-0 flex-col items-start">
         {permissionSet && <PermissionSetLabel permissionSet={permissionSet} />}
         <span
-          className="text-muted-foreground max-w-full truncate"
+          className="text-muted-foreground max-w-full truncate text-[0.6875rem]"
           title={countLabel}
         >
           {countLabel}
