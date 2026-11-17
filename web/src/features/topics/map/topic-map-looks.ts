@@ -66,7 +66,7 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
     label: {
       size: 12,
       lineHeight: 16,
-      tracking: "0.04em",
+      tracking: "0",
       color: "#3f3f46",
       shadow: "none",
     },
