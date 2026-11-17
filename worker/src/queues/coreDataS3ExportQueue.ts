@@ -2,7 +2,7 @@ import { EventType } from "@ag-ui/core";
 import { Processor } from "bullmq";
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
-import { DashboardWidgetChartType } from "@prisma/client";
+import { DashboardWidgetChartType, Prisma } from "@prisma/client";
 import pLimit from "p-limit";
 import {
   DEFAULT_STARTER_PROJECT_NAME,
@@ -27,6 +27,11 @@ import { env } from "../env";
 
 const CORE_DATA_EXPORT_PAGE_SIZE = 1_000;
 const CORE_DATA_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
+// One query covers this many projects and hours. The result is one group per
+// project, hour, content type, and upload state, so Node only buffers that
+// slice — not a GROUP BY of the whole media table.
+const MEDIA_AGGREGATE_PROJECT_BATCH = 16;
+const MEDIA_AGGREGATE_HOUR_WINDOW = 24;
 // Each table export holds at most one postgres connection at a time (short
 // keyset page queries). Keep this below the worker's Prisma pool size
 // (default: 5 connections) so other queue jobs on the same worker never
@@ -632,6 +637,194 @@ export const uploadTableCoreDataJsonl = async <TRow>({
 
   logger.info(`[CORE DATA] Finished table ${tableName} (${rowCount} rows)`);
 };
+
+type MediaHourlyAggregateRow = {
+  projectId: string;
+  hour: string;
+  contentType: string;
+  uploaded: boolean;
+  mediaCount: bigint | number | string;
+  totalContentLengthBytes: bigint | number | string;
+};
+
+/**
+ * JSON.stringify throws on bigint. Match the monitor export, which sends
+ * BigInt durations as numbers, and refuse a sum that would lose precision.
+ */
+const jsonInteger = (value: bigint | number | string): number => {
+  const numeric = Number(value);
+  if (!Number.isSafeInteger(numeric)) {
+    throw new Error(
+      `Core data media aggregate is not a safe JSON integer: ${String(value)}`,
+    );
+  }
+  return numeric;
+};
+
+const mapMediaHourlyAggregateToCoreDataRow = (
+  row: MediaHourlyAggregateRow,
+) => ({
+  projectId: row.projectId,
+  hour: row.hour,
+  contentType: row.contentType,
+  uploaded: row.uploaded,
+  mediaCount: jsonInteger(row.mediaCount),
+  totalContentLengthBytes: jsonInteger(row.totalContentLengthBytes),
+});
+
+// Next projects that still have media, in id order. Soft-deleted projects stay
+// included: the other core-data exports do not filter deleted_at, and media
+// rows remain until the project is hard-deleted.
+const loadMediaAggregateProjectIds = async (
+  afterProjectId: string | null,
+  take: number,
+): Promise<string[]> => {
+  const afterFilter =
+    afterProjectId === null
+      ? Prisma.empty
+      : Prisma.sql`AND projects.id > ${afterProjectId}`;
+
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT projects.id
+    FROM projects
+    WHERE EXISTS (
+      SELECT 1
+      FROM media
+      WHERE media.project_id = projects.id
+    )
+    ${afterFilter}
+    ORDER BY projects.id ASC
+    LIMIT ${take}
+  `;
+
+  return rows.map((row) => row.id);
+};
+
+// Earliest UTC hour at or after the previous window. created_at is timestamp
+// without time zone, stored in UTC, and the (project_id, created_at) index
+// serves the range.
+const findNextMediaAggregateHour = async (
+  projectIds: string[],
+  previousWindowStart: string | null,
+): Promise<string | null> => {
+  const afterFilter =
+    previousWindowStart === null
+      ? Prisma.empty
+      : Prisma.sql`AND created_at >= ${previousWindowStart}::timestamp + ${MEDIA_AGGREGATE_HOUR_WINDOW} * INTERVAL '1 hour'`;
+
+  const rows = await prisma.$queryRaw<Array<{ hour: string | null }>>`
+    SELECT to_char(
+      date_trunc('hour', MIN(created_at)),
+      'YYYY-MM-DD HH24:MI:SS'
+    ) AS hour
+    FROM media
+    WHERE project_id = ANY(${projectIds}::text[])
+    ${afterFilter}
+  `;
+
+  return rows[0]?.hour ?? null;
+};
+
+// content_type is the MediaContentType allowlist enforced by the media upload
+// API and server-side writers, so the stored value is exported as-is.
+const aggregateMediaHourWindow = (
+  projectIds: string[],
+  windowStart: string,
+): Promise<MediaHourlyAggregateRow[]> =>
+  prisma.$queryRaw<MediaHourlyAggregateRow[]>`
+    SELECT
+      project_id AS "projectId",
+      to_char(
+        date_trunc('hour', created_at),
+        'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+      ) AS hour,
+      content_type AS "contentType",
+      (uploaded_at IS NOT NULL) AS uploaded,
+      COUNT(*)::bigint AS "mediaCount",
+      COALESCE(SUM(content_length), 0)::bigint AS "totalContentLengthBytes"
+    FROM media
+    WHERE project_id = ANY(${projectIds}::text[])
+      AND created_at >= ${windowStart}::timestamp
+      AND created_at < ${windowStart}::timestamp + ${MEDIA_AGGREGATE_HOUR_WINDOW} * INTERVAL '1 hour'
+    GROUP BY 1, 2, 3, 4
+    ORDER BY 1, 2, 3, 4
+  `;
+
+// Full recompute of one (project, hour, content type, upload state) group per
+// row. State advances one project batch and one hour window at a time; each
+// fetchPage call only returns `take` rows.
+const createMediaHourlyAggregateFetchPage =
+  (): FetchTablePage<MediaHourlyAggregateRow> => {
+    let afterProjectId: string | null = null;
+    let projectsExhausted = false;
+    let projectIds: string[] = [];
+    let previousWindowStart: string | null = null;
+    let windowOpen = false;
+    const pending: MediaHourlyAggregateRow[] = [];
+
+    return async ({ take }) => {
+      const page: MediaHourlyAggregateRow[] = [];
+
+      while (page.length < take) {
+        if (pending.length > 0) {
+          page.push(...pending.splice(0, take - page.length));
+          continue;
+        }
+
+        if (projectIds.length === 0) {
+          if (projectsExhausted) break;
+
+          projectIds = await loadMediaAggregateProjectIds(
+            afterProjectId,
+            MEDIA_AGGREGATE_PROJECT_BATCH,
+          );
+          if (projectIds.length === 0) {
+            projectsExhausted = true;
+            break;
+          }
+
+          afterProjectId = projectIds[projectIds.length - 1] ?? null;
+          previousWindowStart = null;
+          windowOpen = false;
+        }
+
+        const windowStart = await findNextMediaAggregateHour(
+          projectIds,
+          windowOpen ? previousWindowStart : null,
+        );
+        if (windowStart === null) {
+          projectIds = [];
+          continue;
+        }
+
+        pending.push(
+          ...(await aggregateMediaHourWindow(projectIds, windowStart)),
+        );
+        previousWindowStart = windowStart;
+        windowOpen = true;
+      }
+
+      return page;
+    };
+  };
+
+export const uploadMediaHourlyAggregates = ({
+  s3Client,
+  uploadPrefix,
+  pageSize,
+}: {
+  s3Client: StorageService;
+  uploadPrefix: string;
+  pageSize?: number;
+}): Promise<void> =>
+  uploadTableCoreDataJsonl({
+    s3Client,
+    uploadPrefix,
+    pageSize,
+    tableName: "mediaHourlyAggregates",
+    fetchPage: createMediaHourlyAggregateFetchPage(),
+    mapRow: mapMediaHourlyAggregateToCoreDataRow,
+  });
 
 // One entry per exported table. The tableName doubles as the S3 object base
 // name — keep names stable, downstream DWH consumers depend on them.
@@ -1856,6 +2049,7 @@ export const coreDataTableExports: Array<
           },
         }),
     }),
+  (args) => uploadMediaHourlyAggregates(args),
 ];
 
 export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
