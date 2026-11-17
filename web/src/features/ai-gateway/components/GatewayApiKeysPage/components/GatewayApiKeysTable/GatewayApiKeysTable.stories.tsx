@@ -62,6 +62,7 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
 
 const actions = {
   lastUsed: { status: "success", isTracked: true },
+  spend: { status: "success" },
   onEdit,
   onRevoke,
   pagination: {
@@ -73,12 +74,71 @@ const actions = {
   search: { value: "", onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  "lastUsed" | "onEdit" | "onRevoke" | "pagination" | "search"
+  "lastUsed" | "spend" | "onEdit" | "onRevoke" | "pagination" | "search"
 >;
 
 const lastUsedCell = (canvas: {
   getAllByRole: (role: "row") => HTMLElement[];
-}) => canvas.getAllByRole("row")[1]!.querySelectorAll("td")[5]!;
+}) => canvas.getAllByRole("row")[1]!.querySelectorAll("td")[6]!;
+
+const budgetCells = (canvas: {
+  getAllByRole: (role: "row") => HTMLElement[];
+}) =>
+  canvas
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => row.querySelectorAll("td")[5]!);
+
+const budgetApiKeys = (
+  [
+    [null, undefined],
+    [{ interval: "MONTHLY", limitUsd: 100 }, 42.5],
+    [{ interval: "WEEKLY", limitUsd: 500 }, 410],
+    [{ interval: "DAILY", limitUsd: 20 }, 23.75],
+    [{ interval: "TOTAL", limitUsd: 1000 }, undefined],
+  ] as const
+).map(([spendLimit, spentUsd], index) => ({
+  ...apiKeys[0]!,
+  spendLimit,
+  spentUsd,
+  apiKey: {
+    ...apiKeys[0]!.apiKey,
+    id: `gateway-key-budget-${index}`,
+    note: `Budget ${index}`,
+  },
+}));
+
+export const Budgets = meta.story({
+  name: "(Test) Budget shows spend against the limit",
+  args: {
+    data: { status: "success", data: budgetApiKeys },
+    ...actions,
+  },
+  play: async ({ canvas }) => {
+    const cells = budgetCells(canvas);
+    await expect(cells[0]).toHaveTextContent("No budget");
+    await expect(cells[1]).toHaveTextContent("$42.5 / $100 monthly");
+    await expect(cells[2]).toHaveTextContent("$410 / $500 weekly");
+    await expect(cells[3]).toHaveTextContent("$23.75 / $20 daily");
+    await expect(cells[4]).toHaveTextContent(/^\$1,000 total$/);
+  },
+});
+
+export const BudgetsLoading = meta.story({
+  name: "(Test) Budget shows a skeleton only for keys with a limit",
+  args: {
+    data: { status: "success", data: budgetApiKeys },
+    ...actions,
+    spend: { status: "loading" },
+  },
+  play: async ({ canvas }) => {
+    const cells = budgetCells(canvas);
+    await expect(cells[0]).toHaveTextContent("No budget");
+    await expect(
+      cells[1]!.querySelector("[data-slot='skeleton']"),
+    ).not.toBeNull();
+  },
+});
 
 export const LastUsedLoading = meta.story({
   name: "(Test) Last used shows a skeleton while loading",
@@ -148,7 +208,7 @@ export const PopulatedMetadata = meta.story({
   play: async ({ canvas }) => {
     const cells = canvas.getAllByRole("row")[1]!.querySelectorAll("td");
     await expect(cells[2]).toHaveClass("ph-no-capture");
-    await expect(cells[7]).toHaveClass("ph-no-capture");
+    await expect(cells[8]).toHaveClass("ph-no-capture");
   },
 });
 
@@ -179,7 +239,7 @@ export const OverflowingMetadata = meta.story({
   play: async ({ canvas }) => {
     const metadataCell = canvas
       .getAllByRole("row")[1]!
-      .querySelectorAll("td")[7]!;
+      .querySelectorAll("td")[8]!;
     await waitFor(() => {
       expect(metadataCell).toHaveTextContent(/\+\d+/);
     });
@@ -208,10 +268,10 @@ export const RestrictedModels = meta.story({
   },
   play: async ({ canvas }) => {
     const rows = canvas.getAllByRole("row");
-    await expect(rows[1]!.querySelectorAll("td")[6]).toHaveTextContent(
+    await expect(rows[1]!.querySelectorAll("td")[7]).toHaveTextContent(
       "All models",
     );
-    await expect(rows[2]!.querySelectorAll("td")[6]).toHaveTextContent(
+    await expect(rows[2]!.querySelectorAll("td")[7]).toHaveTextContent(
       "anthropic:*+1",
     );
   },

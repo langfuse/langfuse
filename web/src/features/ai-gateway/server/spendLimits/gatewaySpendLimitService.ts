@@ -19,7 +19,10 @@ import {
   getKeyOwnerFilter,
   type GatewayUsageScope,
 } from "@/src/features/ai-gateway/server/gatewayUsageScope";
-import { getGatewaySpendSince } from "./gatewaySpendRepository";
+import {
+  getGatewayApiKeysSpendSince,
+  getGatewaySpendSince,
+} from "./gatewaySpendRepository";
 import {
   GatewaySpendLimitRepository,
   type GatewaySpendLimitRecord,
@@ -104,6 +107,61 @@ export class GatewaySpendLimitService {
         windowStart: windowStarts[index]!,
         recordedSpendUsd:
           spend === null ? null : spend[index]! + baselineUsd(limit, now),
+      })),
+    };
+  }
+
+  /**
+   * What ClickHouse has recorded against each key's first limit in its current
+   * window, the limit the key list shows. Keys without a limit are absent.
+   */
+  async getApiKeysSpend(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    apiKeyIds: string[];
+  }) {
+    const recordingProjectId = await this.getRecordingProjectId(
+      params.organizationId,
+    );
+    if (!recordingProjectId) return { available: false, apiKeys: [] };
+    const limits = await this.repository.listFirstForApiKeys({
+      organizationId: params.organizationId,
+      ownerUserId: getKeyOwnerFilter(params.usageScope),
+      apiKeyIds: params.apiKeyIds,
+    });
+    const now = new Date();
+    const counted = limits.flatMap((limit) =>
+      limit.apiKeyId
+        ? [
+            {
+              limit,
+              apiKeyId: limit.apiKeyId,
+              since: new Date(
+                Math.max(
+                  getGatewaySpendLimitWindowStart(
+                    limit.interval,
+                    now,
+                  ).getTime(),
+                  limit.countingStartedAt.getTime(),
+                ),
+              ),
+            },
+          ]
+        : [],
+    );
+    const spend = new Map(
+      (
+        await getGatewayApiKeysSpendSince({
+          projectId: recordingProjectId,
+          apiKeys: counted,
+        })
+      ).map(({ id, spendUsd }) => [id, spendUsd]),
+    );
+    return {
+      available: true,
+      apiKeys: counted.map(({ limit, apiKeyId }) => ({
+        id: apiKeyId,
+        spentUsd: (spend.get(apiKeyId) ?? 0) + baselineUsd(limit, now),
       })),
     };
   }

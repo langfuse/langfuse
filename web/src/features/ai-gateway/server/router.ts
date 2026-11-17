@@ -603,6 +603,25 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  /** Loaded after listApiKeys for the visible page, like getApiKeysLastUsed. */
+  getApiKeysSpend: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        apiKeyIds: z.array(z.string()).max(100),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).getApiKeysSpend({
+        organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
+        apiKeyIds: input.apiKeyIds,
+      });
+    }),
+
   // Returns the plaintext secret key once, so the procedure must not be traced.
   createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(

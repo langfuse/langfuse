@@ -18,6 +18,7 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
+import { GatewayApiKeyBudgetCell } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyBudgetCell/GatewayApiKeyBudgetCell";
 import { GatewayApiKeyModelsCell } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyModelsCell/GatewayApiKeyModelsCell";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
@@ -42,6 +43,8 @@ type GatewayApiKey = {
   };
   /** Absent until the last-used query resolves, and when the key had no gateway traffic in the window. */
   lastUsedAt?: Date;
+  /** Spend against `spendLimit` in its current window; absent until the spend query resolves. */
+  spentUsd?: number;
 };
 
 const lastUsedSkeleton = <Skeleton className="h-4 w-1/2" />;
@@ -52,9 +55,14 @@ type GatewayApiKeysLastUsedState =
   | { status: "error" }
   | { status: "success"; isTracked: boolean };
 
+type GatewayApiKeysSpendState = { status: "loading" | "error" | "success" };
+
+const budgetSkeleton = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
+
 export function GatewayApiKeysTable({
   data,
   lastUsed,
+  spend,
   onEdit,
   onRevoke,
   pagination,
@@ -64,6 +72,7 @@ export function GatewayApiKeysTable({
 }: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
   data: AsyncTableData<GatewayApiKey[]>;
   lastUsed: GatewayApiKeysLastUsedState;
+  spend: GatewayApiKeysSpendState;
   onEdit: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
@@ -114,6 +123,27 @@ export function GatewayApiKeysTable({
       emptyValue: "No expiration",
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
+    }),
+    createTableColumn<GatewayApiKey, GatewayApiKey["spendLimit"]>({
+      accessorFn: (row) => row.spendLimit,
+      id: "budget",
+      header: "Budget",
+      size: 200,
+      hideBelowMd: true,
+      enableResizing: false,
+      loadingCell: budgetSkeleton,
+      renderCell: (spendLimit, { row }) => {
+        if (!spendLimit) {
+          return <span className="text-muted-foreground">No budget</span>;
+        }
+        if (spend.status === "loading") return budgetSkeleton;
+        return (
+          <GatewayApiKeyBudgetCell
+            spendLimit={spendLimit}
+            spentUsd={row.original.spentUsd}
+          />
+        );
+      },
     }),
     createTableColumn<GatewayApiKey, Date>({
       accessorFn: (row) => row.lastUsedAt,
