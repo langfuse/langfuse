@@ -1,16 +1,18 @@
 import { useState } from "react";
-import { ArrowLeftIcon } from "@langfuse/icons";
+import { ChevronRightIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { StudioTextWidget } from "./StudioTextWidget";
 
 export function StudioTextEditor({
   initialValue,
+  dashboardName,
   isNew,
   onApply,
   onCancel,
 }: {
   initialValue: { title: string; content: string };
+  dashboardName: string;
   isNew: boolean;
   onApply: (value: { title: string; content: string }) => void;
   onCancel: () => void;
@@ -21,25 +23,31 @@ export function StudioTextEditor({
       aria-label="Text editor"
       className="ph-no-capture bg-background flex h-full min-h-0 min-w-0 flex-col"
     >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 lg:px-6">
-        <div className="flex items-center gap-3">
-          <Button
-            text="Cancel"
-            icon={ArrowLeftIcon}
-            variant="ghost"
-            onClick={onCancel}
-          />
-          <h1 className="text-base font-bold">
-            {isNew ? "New text" : "Edit text"}
-          </h1>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+        <div className="flex min-w-0 items-center gap-2 text-sm">
+          <span
+            className="text-muted-foreground max-w-52 truncate"
+            title={dashboardName}
+          >
+            {dashboardName}
+          </span>
+          <ChevronRightIcon size="base" color="muted" />
+          <h1 className="font-medium">{isNew ? "New text" : "Edit text"}</h1>
         </div>
-        <Button text="Apply text" onClick={() => onApply(draft)} />
+        <div className="flex items-center gap-2">
+          <Button text="Cancel" variant="ghost" onClick={onCancel} />
+          <Button
+            text={isNew ? "Add to dashboard" : "Apply changes"}
+            disabled={!draft.content.trim() && !draft.title.trim()}
+            onClick={() => onApply(draft)}
+          />
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="grid gap-6 p-4 lg:grid-cols-2 lg:p-6">
-          <div className="flex min-w-0 flex-col gap-4">
+        <div className="grid min-h-full lg:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-4 border-b p-5 lg:border-r lg:border-b-0">
             <label className="flex flex-col gap-2 text-xs font-bold">
-              Title
+              Title (optional)
               <Input
                 aria-label="Text title"
                 maxLength={200}
@@ -50,7 +58,7 @@ export function StudioTextEditor({
               />
             </label>
             <label className="flex flex-col gap-2 text-xs font-bold">
-              Markdown
+              Content
               <textarea
                 aria-label="Markdown content"
                 className="bg-background min-h-96 resize-y rounded-md border p-3 font-mono text-sm font-normal"
@@ -58,15 +66,24 @@ export function StudioTextEditor({
                 onChange={(event) =>
                   setDraft({ ...draft, content: event.target.value })
                 }
-                placeholder="Write Markdown…"
+                placeholder="Use Markdown for headings, lists, emphasis and links…"
                 maxLength={10000}
               />
             </label>
+            <p className="text-muted-foreground text-xs">
+              Supports Markdown. Text grows to fit its content on the dashboard.
+            </p>
           </div>
-          <div className="flex min-w-0 flex-col gap-2">
+          <div className="bg-muted/20 flex min-w-0 flex-col gap-3 p-5">
             <h2 className="text-muted-foreground text-xs font-bold">Preview</h2>
             <div className="bg-background rounded-lg border">
-              <StudioTextWidget title={draft.title} content={draft.content} />
+              {draft.title || draft.content ? (
+                <StudioTextWidget title={draft.title} content={draft.content} />
+              ) : (
+                <p className="text-muted-foreground px-5 py-12 text-center text-sm">
+                  Your text will appear here.
+                </p>
+              )}
             </div>
           </div>
         </div>

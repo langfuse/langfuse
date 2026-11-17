@@ -82,6 +82,7 @@ const recipes: Record<HomeDashboardPresetId, StudioWidgetConfig> = {
       ),
     ],
     "HORIZONTAL_BAR",
+    { showHeadline: true, headlineMetricRef: "requests.traces" },
   ),
   "home-model-costs": config(
     "Model cost and tokens",

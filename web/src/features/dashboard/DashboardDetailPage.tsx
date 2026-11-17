@@ -1347,9 +1347,9 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                     ),
                     actionButtonsRight: (
                       <>
-                        {studioCapability.data === true && (
+                        {studioCapability.data === true && hasCUDAccess && (
                           <DesignSystemButton
-                            text="Open in studio"
+                            text="Edit dashboard"
                             variant="outline"
                             href={`/project/${projectId}/dashboards/${dashboardId}/studio?dateRange=${rangeToString(timeRange)}`}
                           />
@@ -1382,7 +1382,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                               : "Save Filters"}
                           </Button>
                         )}
-                        {hasRbacCUDAccess && (
+                        {hasRbacCUDAccess && studioCapability.data !== true && (
                           <Button onClick={handleAddWidget}>
                             <PlusIcon
                               size="base"

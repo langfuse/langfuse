@@ -1,13 +1,16 @@
-# Dashboard studio
+# Dashboard editor
 
-The studio edits the ordinary dashboard definition. Query and Markdown placements also render on the regular dashboard.
+The editor updates the ordinary dashboard definition. Query and Markdown placements also render on the regular dashboard.
 
 - `DashboardStudioPage` owns route/data loading, access checks, save workflow, time range, and the per-mount document store.
 - `studioStore` owns reversible document actions. Server data seeds it once after loading; query refreshes do not overwrite edits.
 - `StudioDashboardFilters` reuses shared dashboard facets and environment discovery. `saveStudioDashboard` persists the document and shared filters with separate saved baselines, so a partial failure remains retryable.
-- `StudioWidgetEditor`, `StudioSeriesEditor`, and `StudioFilterEditor` own explicit draft edits. Run preview validates and runs the draft; Apply widget writes it to the document. Save dashboard persists the document.
-- Widget editing replaces the dashboard canvas with a full-width workspace. Its action bar stays visible while the preview and configuration scroll. Queries contains compact source, metric, filter and breakdown controls; Visualization and Details hold presentation settings. The dashboard canvas is unmounted while editing so its queries do not compete with the preview.
-- `StudioQueryWidget` reads the protected studio query endpoint and uses the existing chart preparer and design-system renderer. `prepareStudioChart` adapts backend results without inventing totals or missing values.
+- `StudioWidgetEditor` owns the widget draft and last-run configuration. Run preview validates and runs data changes; Apply changes writes the widget to the dashboard draft. Save dashboard persists the document.
+- Widget editing replaces the dashboard canvas with a full-width workspace. The preview and query workspace share a resizable vertical split, with appearance settings in a separate column. Each area scrolls independently. The dashboard canvas is unmounted while editing so its queries do not compete with the preview.
+- `StudioQueryWorkspace`, `StudioSeriesEditor`, `StudioFilterEditor`, and `StudioFormulaEditor` own the query controls. `StudioWidgetAppearance` owns presentation controls.
+- `useStudioWidgetResult` owns scheduled execution and shares the bounded query cache between dashboard and editor. `studioQueryConfig` projects the data-affecting request and detects pending changes. Titles, labels, units, legend visibility, displayed series, and compatible chart types reuse results.
+- `StudioQueryWidget` renders the ordinary dashboard card; `StudioWidgetPreview` renders the editor result without nested card chrome. Both use the fetch-free result presentation and `prepareStudioChart`, which adapts backend results without inventing totals or missing values.
+- `StudioPresetGallery` provides editable templates and access to existing legacy widgets. `StudioMigrationPanel` compares a legacy widget with its replacement before changing the dashboard draft.
 - `StudioPlacementCard` provides chart/text placement chrome and actions. Markdown uses the existing protected renderer.
 - `clipboard` validates versioned placement payloads. `analytics` accepts structural metadata only.
 

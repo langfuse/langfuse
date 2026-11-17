@@ -32,6 +32,7 @@ const studioEvents = {
   query_inspected: "dashboard_studio:query_inspected",
   date_range_changed: "dashboard_studio:date_range_changed",
   changes_saved: "dashboard_studio:changes_saved",
+  changes_undone: "dashboard_studio:changes_undone",
   changes_discarded: "dashboard_studio:changes_discarded",
 } as const;
 
@@ -49,7 +50,16 @@ export type DashboardStudioEventProperties = {
   expressionCount?: number;
   widgetCount?: number;
   selectedCount?: number;
-  controlId?: "models" | "scores" | "series";
+  controlId?:
+    | "models"
+    | "scores"
+    | "series"
+    | "source"
+    | "metric"
+    | "breakdown"
+    | "sort"
+    | "score_target"
+    | "formula";
   scoreTarget?: "all" | "trace" | "observation" | "session" | "experiment";
   durationMs?: number;
   scope?: "display" | "widget" | "dashboard";
@@ -61,7 +71,11 @@ export type DashboardStudioEventProperties = {
     | "diagnostics"
     | "configuration_data"
     | "configuration_visualization"
-    | "configuration_details";
+    | "configuration_details"
+    | "template_library"
+    | "legacy_library"
+    | "metadata_comparison"
+    | "discard_changes";
   reason?: "validation" | "permission" | "network" | "unknown";
 };
 

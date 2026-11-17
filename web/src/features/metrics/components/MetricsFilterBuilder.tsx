@@ -38,6 +38,8 @@ type MetricsFilterBuilderProps = {
   onStringObjectKeyChange?: (key: string) => void;
   filters: FilterState;
   onChange: (filters: FilterState) => void;
+  onValidityChange?: (valid: boolean) => void;
+  compact?: boolean;
 };
 
 /** Renders the filter controls without fetching. */
@@ -49,6 +51,8 @@ export function MetricsFilterBuilder({
   onStringObjectKeyChange,
   filters,
   onChange,
+  onValidityChange,
+  compact = true,
 }: MetricsFilterBuilderProps) {
   const editorFilters = viewFiltersToEditorFilters(view, filters);
   const renderable = editorFilters.filter((filter) =>
@@ -78,10 +82,11 @@ export function MetricsFilterBuilder({
         onChange={(next: FilterState) =>
           onChange(editorFiltersToViewFilters(view, next))
         }
+        onValidityChange={onValidityChange}
         columnsWithCustomSelect={columnsWithCustomSelect}
         stringObjectValueOptions={stringObjectValueOptions}
         onStringObjectKeyChange={onStringObjectKeyChange}
-        compact
+        compact={compact}
       />
     </div>
   );

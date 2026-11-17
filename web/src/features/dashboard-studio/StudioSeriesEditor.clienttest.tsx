@@ -39,6 +39,13 @@ function renderEditor(initialQuery = query) {
 }
 
 async function select(label: string, option: string) {
+  if (label === "Measure" || label === "Aggregation") {
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /^Edit metric / })[0]!,
+    );
+    if (label === "Aggregation")
+      fireEvent.click(screen.getByText("Metric options", { exact: true }));
+  }
   fireEvent.keyDown(screen.getAllByRole("combobox", { name: label })[0]!, {
     key: "ArrowDown",
   });
@@ -96,6 +103,9 @@ describe("studio series sort scope", () => {
     else await select(edit.label!, edit.option!);
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        metrics: expect.arrayContaining([
+          expect.objectContaining({ id: edit.remove ? "cost" : "latency" }),
+        ]),
         orderBy: [
           { field: "sum_totalCost", direction: "asc" },
           { field: "providedModelName", direction: "asc" },

@@ -273,7 +273,7 @@ export const dashboardStoryScenario: ScenarioDefinition = {
       create: {
         id: projectId,
         orgId: source.orgId,
-        name: "Dashboard studio · synthetic story",
+        name: "Dashboard examples",
         hasTraces: true,
         metadata: {
           seedScenario: "dashboard-story",
@@ -286,6 +286,7 @@ export const dashboardStoryScenario: ScenarioDefinition = {
         },
       },
       update: {
+        name: "Dashboard examples",
         hasTraces: true,
         metadata: {
           seedScenario: "dashboard-story",
@@ -599,14 +600,15 @@ export const dashboardStoryScenario: ScenarioDefinition = {
       create: {
         id: dashboardId,
         projectId,
-        name: "Dashboards: from presets to questions",
-        description: `Synthetic dashboard studio demonstration. Full ${days}-day fixture; ${observationCount} observations.`,
+        name: "Dashboard capabilities",
+        description: `Dashboard examples with synthetic observations. Full ${days}-day fixture; ${observationCount} observations.`,
         definition,
         filters: [],
       },
       update: {
+        name: "Dashboard capabilities",
         definition,
-        description: `Synthetic dashboard studio demonstration. Full ${days}-day fixture; ${observationCount} observations.`,
+        description: `Dashboard examples with synthetic observations. Full ${days}-day fixture; ${observationCount} observations.`,
       },
     });
     await prisma.project.update({

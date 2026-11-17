@@ -124,8 +124,8 @@ export const buildDashboardStoryDefinition = (
   text(
     "story_intro",
     0,
-    "From presets to questions",
-    `# Dashboards: from presets to questions\n\nA real, editable dashboard with **${observationCount.toLocaleString("en-US")} synthetic observations over ${days} days**. Start with a question, compare several populations, and explain the answer with text.\n\nUse the full ${days}-day range for the truth fixture. Every chart below is saved configuration, not a screenshot.`,
+    "Dashboard examples",
+    `Explore **${observationCount.toLocaleString("en-US")} synthetic observations over ${days} days**. Each chart is editable.\n\n- Compare independently filtered populations, combine metrics and add formulas.\n- Add notes and arrange the dashboard to explain your results.\n- Compare each legacy widget with its configurable replacement below.`,
     2,
   );
   const presence: StudioWidgetConfig["queries"] = ["abc", "bbc"].map((key) =>
@@ -150,7 +150,7 @@ export const buildDashboardStoryDefinition = (
     2,
     0,
     config(
-      "Two questions, two bars",
+      "Observations by metadata presence",
       "Count observations where each metadata key exists. Empty values are still present. An observation carrying both keys belongs to both series.",
       presence,
       "VERTICAL_BAR",
@@ -162,7 +162,7 @@ export const buildDashboardStoryDefinition = (
     2,
     6,
     config(
-      "Count the overlap honestly",
+      "Metadata overlap",
       `Independent cohorts overlap; their sum is not a distinct total. Full fixture: abc ${observationCount * 0.6}; bbc ${observationCount * 0.5}; overlap ${observationCount * 0.2}; union ${observationCount * 0.9}.`,
       [
         ...presence,
@@ -183,8 +183,8 @@ export const buildDashboardStoryDefinition = (
     8,
     6,
     config(
-      "Errors as a percentage",
-      "A named formula over two hidden inputs. A zero denominator is a missing value, not an invented zero percent.",
+      "Observation error rate",
+      "Error observations divided by all observations. Open Data to inspect the numerator and denominator.",
       [
         {
           ...query(
@@ -222,8 +222,8 @@ export const buildDashboardStoryDefinition = (
     14,
     0,
     config(
-      "Choose the percentile you need",
-      "A real backend quantile parameter: p10 beside p50 and p90. Durations are in milliseconds; percentiles are queried from observations, not reconstructed from chart buckets.",
+      "Observation latency percentiles",
+      "The 10th, 50th and 90th percentile observation latency over the selected period.",
       [
         query(
           "low",
@@ -256,8 +256,8 @@ export const buildDashboardStoryDefinition = (
     14,
     6,
     config(
-      "Choose exact histogram bands",
-      "Exact observation counts in explicit latency intervals, in milliseconds: below zero, [0,1000), [1000,5000), [5000,30000), [30000,120000), 120000 or more, plus missing durations. These are not approximate adaptive bins.",
+      "Observation latency distribution",
+      "Observation counts in fixed latency bands. Every observation belongs to one band; missing durations appear separately.",
       [
         query("bands", "Observation latency", [
           metric("distribution", "latency", "histogram"),
@@ -273,7 +273,7 @@ export const buildDashboardStoryDefinition = (
     0,
     config(
       "Active days (UTC)",
-      "Distinct UTC calendar dates containing at least one observation. This is a real aggregate, not an estimate from displayed buckets.",
+      "Distinct UTC calendar dates with at least one observation.",
       [query("days", "Active days", [metric("days", "activeDays", "uniq")])],
       "NUMBER",
     ),
@@ -284,7 +284,7 @@ export const buildDashboardStoryDefinition = (
     6,
     config(
       "Accepted out of evaluated",
-      "Two exact observation-attached score counts in one tile. One boolean accepted score is seeded per evaluated trace; this definition counts score records, not arbitrary distinct observations.",
+      "Accepted observation scores compared with all evaluated observation scores. This chart counts score records.",
       [
         query(
           "accepted",
@@ -331,7 +331,7 @@ export const buildDashboardStoryDefinition = (
   text(
     "parity_intro",
     26,
-    "Every frozen card has a recipe",
+    "Replace legacy widgets",
     "## Before → after\n\nThe left column contains the current Home card. The right column is an editable query built from the same source vocabulary. Compare definitions, filters and period totals—not only the chart's shape. **Intentional changes are named in each description.**",
     2,
   );

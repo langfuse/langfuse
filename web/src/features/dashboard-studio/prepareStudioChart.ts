@@ -1,6 +1,7 @@
 import {
   type StudioResult,
   type StudioRow,
+  type StudioSeries,
   type StudioWidgetConfig,
 } from "@langfuse/shared";
 import { type Visualization } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
@@ -21,19 +22,20 @@ function chartDimension(
   row: StudioRow,
   config: StudioWidgetConfig,
   bucketUnit: string | undefined,
+  seriesLabel: string,
 ) {
   if (config.display.chartType === "HISTOGRAM") {
     const label = row.dimension ?? row.label;
     const suffix = bucketUnit === "milliseconds" ? "ms" : bucketUnit;
     const bin = suffix && label !== "No value" ? `${label} ${suffix}` : label;
-    return `${row.label} · ${bin}`;
+    return `${seriesLabel} · ${bin}`;
   }
   if (
     config.display.timeSeries ||
     config.display.chartType.endsWith("TIME_SERIES")
   )
     return row.seriesId;
-  return row.label;
+  return seriesLabel;
 }
 
 export function studioMetricFormatter(
@@ -66,24 +68,78 @@ export function formatStudioValue(
       );
 }
 
+function studioSeriesPresentation(config: StudioWidgetConfig) {
+  const queries = new Map(config.queries.map((query) => [query.id, query]));
+  const expressions = new Map(
+    config.expressions.map((expression) => [expression.id, expression]),
+  );
+  const labelFor = (
+    item: Pick<StudioRow, "queryId" | "metricId" | "dimensions" | "label">,
+  ) => {
+    const dimension = Object.values(item.dimensions)
+      .map((value) => value ?? "Unknown")
+      .join(" · ");
+    const expression = expressions.get(item.queryId);
+    if (expression)
+      return dimension
+        ? `${expression.label} · ${dimension}`
+        : expression.label;
+    const query = queries.get(item.queryId);
+    const metric = query?.metrics.find((metric) => metric.id === item.metricId);
+    if (!query || !metric) return item.label;
+    const aggregation =
+      metric.percentile === undefined
+        ? metric.aggregation
+        : `p${metric.percentile}`;
+    let metricLabel = metric.label;
+    if (!metricLabel)
+      metricLabel = `${aggregation} ${readableField(metric.measure)}`;
+    let base = query.label;
+    if (query.metrics.length > 1) base = `${query.label} · ${metricLabel}`;
+    else if (metric.label)
+      base =
+        config.queries.length > 1
+          ? `${query.label} · ${metric.label}`
+          : metric.label;
+    if (!dimension) return base;
+    if (query.metrics.length === 1) return `${base} · ${dimension}`;
+    if (
+      !metric.label &&
+      query.metrics.every((item) => item.measure === metric.measure)
+    )
+      metricLabel = aggregation;
+    return `${dimension} · ${metricLabel}${config.queries.length > 1 ? ` · ${query.label}` : ""}`;
+  };
+  const presentSeries = (series: StudioSeries) => ({
+    ...series,
+    label: labelFor(series),
+    unit:
+      expressions.get(series.queryId)?.unit || series.rawUnit || series.unit,
+  });
+  return { labelFor, presentSeries };
+}
+
 export function prepareStudioChart(
   result: StudioResult | undefined,
   config: StudioWidgetConfig,
 ) {
-  const availableSeries = (result?.series ?? []).filter((series) => {
-    const query = config.queries.find((query) => query.id === series.queryId);
-    const expression = config.expressions.find(
-      (expression) =>
-        expression.id === series.id || expression.id === series.queryId,
-    );
-    return (
-      !query?.hidden &&
-      !expression?.hidden &&
-      (Boolean(expression) ||
-        !config.display.activeQueryIds?.length ||
-        config.display.activeQueryIds.includes(series.queryId))
-    );
-  });
+  const presentation = studioSeriesPresentation(config);
+  const availableSeries = (result?.series ?? [])
+    .map(presentation.presentSeries)
+    .filter((series) => {
+      const query = config.queries.find((query) => query.id === series.queryId);
+      const expression = config.expressions.find(
+        (expression) =>
+          expression.id === series.id || expression.id === series.queryId,
+      );
+      return (
+        !query?.hidden &&
+        !expression?.hidden &&
+        (Boolean(expression) ||
+          !config.display.activeQueryIds?.length ||
+          config.display.activeQueryIds.includes(series.queryId))
+      );
+    });
   const hiddenIds = new Set(config.display.hiddenSeriesIds ?? []);
   const visibleSeries = availableSeries.filter(
     (series) => !hiddenIds.has(series.id),
@@ -113,9 +169,9 @@ export function prepareStudioChart(
       )
       .map((series) => `${series.queryId}.${series.metricId}`),
   );
-  const visibilitySummaries = (result?.summaries ?? []).filter((row) =>
-    visibleMetricRefs.has(`${row.queryId}.${row.metricId}`),
-  );
+  const visibilitySummaries = (result?.summaries ?? [])
+    .filter((row) => visibleMetricRefs.has(`${row.queryId}.${row.metricId}`))
+    .map((row) => ({ ...row, label: presentation.labelFor(row) }));
   const summaries = visibilitySummaries.filter(
     (row) => !partiallyHiddenMetricRefs.has(`${row.queryId}.${row.metricId}`),
   );
@@ -124,6 +180,7 @@ export function prepareStudioChart(
       row,
       config,
       seriesById.get(row.seriesId)?.bucketUnit,
+      seriesById.get(row.seriesId)?.label ?? presentation.labelFor(row),
     ),
     time_dimension: row.time ?? undefined,
     metric: row.value,
@@ -188,7 +245,11 @@ export function prepareStudioChart(
             columnId: "time",
             value: row.time ? new Date(row.time).toLocaleString() : "",
           },
-          { columnId: "series", value: row.label },
+          {
+            columnId: "series",
+            value:
+              seriesById.get(row.seriesId)?.label ?? presentation.labelFor(row),
+          },
           { columnId: "dimension", value: row.dimension ?? "" },
           {
             columnId: "value",
@@ -329,6 +390,7 @@ export function prepareStudioData(
     pageSize: number;
   },
 ) {
+  const presentation = studioSeriesPresentation(config);
   const expressions = new Set(
     config.expressions.map((expression) => expression.id),
   );
@@ -338,6 +400,9 @@ export function prepareStudioData(
       : `${row.queryId}.${row.metricId}`;
   const seriesByReference = new Map(
     (result?.series ?? []).map((series) => [referenceOf(series), series]),
+  );
+  const descriptorById = new Map(
+    (result?.series ?? []).map((series) => [series.id, series]),
   );
   const rows = result?.[page.scope] ?? [];
   const labels = new Map([
@@ -400,7 +465,12 @@ export function prepareStudioData(
         id: `${row.seriesId}_${index}`,
         cells: [
           { columnId: "reference", value: reference },
-          { columnId: "series", value: row.label },
+          {
+            columnId: "series",
+            value: presentation.labelFor(
+              descriptorById.get(row.seriesId) ?? row,
+            ),
+          },
           { columnId: "time", value: row.time ?? "Full time range" },
           {
             columnId: "dimension",

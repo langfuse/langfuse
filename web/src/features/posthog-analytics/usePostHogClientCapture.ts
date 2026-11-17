@@ -351,6 +351,7 @@ const events = {
     "query_inspected",
     "date_range_changed",
     "changes_saved",
+    "changes_undone",
     "changes_discarded",
   ],
   monitors: ["create", "delete_form_open", "delete_monitor_button_click"],

@@ -472,4 +472,83 @@ describe("studio chart preparation", () => {
     expect(prepareStudioChart(result, config).headline).toBeUndefined();
     expect(prepareStudioChart(result, config).headlineSuppressed).toBe(true);
   });
+  it("uses live labels and formula presentation units over cached canonical query results", () => {
+    const config = createStudioWidget();
+    config.queries[0]!.label = "Traffic";
+    config.expressions = [
+      {
+        id: "rate",
+        label: "Success rate",
+        formula: "a.count / a.count",
+        unit: "percent",
+      },
+    ];
+    const rows = [
+      {
+        seriesId: "a.count",
+        queryId: "a",
+        metricId: "count",
+        label: "a",
+        value: 2,
+        time: null,
+        dimension: null,
+        dimensions: {},
+      },
+      {
+        seriesId: "rate",
+        queryId: "rate",
+        metricId: "rate",
+        label: "rate",
+        value: 0.5,
+        time: null,
+        dimension: null,
+        dimensions: {},
+      },
+    ];
+    const result: StudioResult = {
+      status: "complete",
+      rows,
+      summaries: rows,
+      series: rows.map((row) => ({
+        id: row.seriesId,
+        queryId: row.queryId,
+        metricId: row.metricId,
+        label: row.label,
+        dimensions: {},
+        aggregation: row.queryId === "rate" ? "expression" : "count",
+        unit: row.queryId === "rate" ? "ratio" : "observations",
+        rawUnit: row.queryId === "rate" ? "ratio" : "observations",
+      })),
+      diagnostics: [],
+      warnings: [],
+    };
+    const prepared = prepareStudioChart(result, config);
+    expect(prepared.colors["a.count"]?.label).toBe("Traffic");
+    expect(prepared.colors.rate?.label).toBe("Success rate");
+    expect(
+      prepared.visibleSeries.find((series) => series.id === "rate")?.unit,
+    ).toBe("percent");
+    expect(prepared.summaries.map((row) => row.label)).toEqual([
+      "Traffic",
+      "Success rate",
+    ]);
+    const audit = prepareStudioData(result, config, {
+      scope: "rows",
+      reference: "rate",
+      pageIndex: 0,
+      pageSize: 50,
+    });
+    expect(
+      audit.table.rows[0]?.cells.find((cell) => cell.columnId === "series")
+        ?.value,
+    ).toBe("Success rate");
+    expect(
+      audit.table.rows[0]?.cells.find((cell) => cell.columnId === "value")
+        ?.value,
+    ).toBe(0.5);
+    expect(
+      audit.table.rows[0]?.cells.find((cell) => cell.columnId === "unit")
+        ?.value,
+    ).toBe("ratio");
+  });
 });

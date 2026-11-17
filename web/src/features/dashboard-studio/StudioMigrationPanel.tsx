@@ -43,7 +43,7 @@ export function StudioMigrationPanel({
     <section className="bg-background flex flex-col gap-4 rounded-xl border p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold">From home card to your widget</h2>
+          <h2 className="text-lg font-bold">Replace a legacy widget</h2>
           <p className="text-muted-foreground text-sm">
             Compare the same time range and dashboard filters, then choose how
             to continue.
@@ -54,7 +54,7 @@ export function StudioMigrationPanel({
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div className="min-w-0">
           <p className="text-muted-foreground mb-2 text-xs font-bold">
-            BEFORE · Frozen home card
+            Current widget
           </p>
           <DashboardGrid
             widgets={[{ ...placement, x: 0, y: 0, x_size: 12, y_size: 5 }]}
@@ -71,9 +71,7 @@ export function StudioMigrationPanel({
           />
         </div>
         <div className="flex min-w-0 flex-col gap-3">
-          <p className="text-primary text-xs font-bold">
-            AFTER · Fully editable
-          </p>
+          <p className="text-primary text-xs font-bold">Editable replacement</p>
           {configs.map((config, index) => (
             <div className="h-96" key={index}>
               <StudioQueryWidget
@@ -95,8 +93,8 @@ export function StudioMigrationPanel({
           </p>
         ))}
         <p className="text-muted-foreground mt-2 text-xs">
-          View all metrics, filters, breakdowns, and formulas in the editor.
-          Undo restores the original card before saving.
+          View all metrics, filters, breakdowns, and formulas in the editor. You
+          can undo this change during the editing session.
         </p>
       </div>
       <div className="flex flex-wrap justify-end gap-2">
@@ -106,7 +104,7 @@ export function StudioMigrationPanel({
           variant="outline"
           onClick={() => onKeepBoth(configs)}
         />
-        <Button text="Replace home card" onClick={() => onReplace(configs)} />
+        <Button text="Replace widget" onClick={() => onReplace(configs)} />
       </div>
     </section>
   );

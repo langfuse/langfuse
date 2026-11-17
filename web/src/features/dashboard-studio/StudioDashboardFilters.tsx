@@ -100,9 +100,6 @@ export function StudioDashboardFilters({
         tableName="dashboard-studio"
         isV4={isV4}
       />
-      <span className="text-muted-foreground text-xs">
-        Shared across widgets
-      </span>
     </div>
   );
 }

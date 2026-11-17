@@ -8,6 +8,7 @@ export function StudioFilterEditor({
   dateRange,
   filters,
   onChange,
+  onValidityChange,
 }: {
   projectId: string;
   view: StudioQuery["view"];
@@ -15,18 +16,25 @@ export function StudioFilterEditor({
   dateRange: { from: Date; to: Date };
   filters: FilterState;
   onChange: (filters: FilterState) => void;
+  onValidityChange?: (valid: boolean) => void;
 }) {
   return (
-    <div className="ph-no-capture flex flex-col gap-2">
-      <p className="text-xs font-bold">Filters</p>
-      <ConnectedMetricsFilterBuilder
-        version={isV4 ? "v2" : "v1"}
-        view={view}
-        projectId={projectId}
-        dateRange={dateRange}
-        filters={filters}
-        onChange={onChange}
-      />
+    <div className="ph-no-capture flex min-w-0 items-start gap-3">
+      <p className="text-muted-foreground w-16 shrink-0 pt-2 text-xs">
+        Filters
+      </p>
+      <div className="min-w-0 flex-1 overflow-x-auto">
+        <ConnectedMetricsFilterBuilder
+          compact={false}
+          version={isV4 ? "v2" : "v1"}
+          view={view}
+          projectId={projectId}
+          dateRange={dateRange}
+          filters={filters}
+          onChange={onChange}
+          onValidityChange={onValidityChange}
+        />
+      </div>
     </div>
   );
 }

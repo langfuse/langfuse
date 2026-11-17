@@ -51,7 +51,7 @@ export function createStudioWidget(): StudioWidgetConfig {
     expressions: [],
     display: {
       chartType: "VERTICAL_BAR",
-      showHeadline: true,
+      showHeadline: false,
       timeSeries: false,
       rowLimit: 100,
       legend: true,

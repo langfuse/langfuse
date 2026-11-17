@@ -229,22 +229,32 @@ type ScheduledDashboardExecuteQueryOptions = Omit<
 };
 
 const getDashboardExecuteQueryDurationMs = (
-  input: DashboardExecuteQueryInput,
+  range:
+    | Pick<
+        NonNullable<DashboardExecuteQueryInput["query"]>,
+        "fromTimestamp" | "toTimestamp"
+      >
+    | undefined,
 ): number | null => {
-  const fromMs = parseIsoDateMs(input.query?.fromTimestamp);
-  const toMs = parseIsoDateMs(input.query?.toTimestamp);
+  const fromMs = parseIsoDateMs(range?.fromTimestamp);
+  const toMs = parseIsoDateMs(range?.toTimestamp);
 
   if (fromMs === null || toMs === null) return null;
   return Math.max(0, toMs - fromMs);
 };
 
-const getDashboardExecuteQueryCachePolicy = (
-  input: DashboardExecuteQueryInput,
+export const getDashboardQueryCachePolicy = (
+  range:
+    | Pick<
+        NonNullable<DashboardExecuteQueryInput["query"]>,
+        "fromTimestamp" | "toTimestamp"
+      >
+    | undefined,
 ): {
   staleTime: number;
   gcTime: number;
 } => {
-  const durationMs = getDashboardExecuteQueryDurationMs(input);
+  const durationMs = getDashboardExecuteQueryDurationMs(range);
 
   if (durationMs === null) {
     return {
@@ -355,7 +365,7 @@ export const useScheduledDashboardExecuteQuery = (
   const shouldBucketQueriesByTimeRange =
     context?.shouldBucketQueriesByTimeRange ?? false;
   const cachePolicy = useMemo(
-    () => getDashboardExecuteQueryCachePolicy(input),
+    () => getDashboardQueryCachePolicy(input.query),
     [input],
   );
   const cacheKeyInput = useMemo(
