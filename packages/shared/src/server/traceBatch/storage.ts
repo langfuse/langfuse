@@ -130,8 +130,7 @@ function getStorage(): StorageService {
       env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       {
         // This timeout applies only to S3; Azure, GCS, and OCI retain their provider defaults.
-        s3RequestTimeoutMs:
-          env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS,
+        s3RequestTimeoutMs: 10_000,
       },
     );
   return storage;

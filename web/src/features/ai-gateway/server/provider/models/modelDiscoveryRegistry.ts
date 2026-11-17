@@ -6,6 +6,7 @@ import { googleAiStudioModelDiscoveryAdapter } from "./adapters/googleAiStudio";
 import { openAiModelDiscoveryAdapter } from "./adapters/openAi";
 import { openRouterModelDiscoveryAdapter } from "./adapters/openRouter";
 import { vercelModelDiscoveryAdapter } from "./adapters/vercel";
+import { vertexModelDiscoveryAdapter } from "./adapters/vertex";
 import { xaiModelDiscoveryAdapter } from "./adapters/xai";
 import type { ModelDiscoveryAdapter } from "./types";
 
@@ -23,6 +24,7 @@ const MODEL_DISCOVERY_ADAPTERS: Record<
   VERCEL: vercelModelDiscoveryAdapter,
   AZURE: azureModelDiscoveryAdapter,
   GOOGLE_AI_STUDIO: googleAiStudioModelDiscoveryAdapter,
+  VERTEX: vertexModelDiscoveryAdapter,
 };
 
 export function getModelDiscoveryAdapter(provider: GatewayProviderName) {

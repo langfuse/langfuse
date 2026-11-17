@@ -1,4 +1,4 @@
-use super::{ResolutionError, bedrock, valid_token};
+use super::{ResolutionError, bedrock, valid_token, vertex};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{
@@ -55,6 +55,7 @@ pub enum Provider {
     Vercel,
     #[serde(rename = "google_ai_studio")]
     GoogleAiStudio,
+    Vertex,
 }
 
 impl Provider {
@@ -69,13 +70,15 @@ impl Provider {
             Self::Xai => "xai",
             Self::Vercel => "vercel",
             Self::GoogleAiStudio => "google_ai_studio",
+            Self::Vertex => "vertex",
         }
     }
 
     /// Vercel serves every API format. `OpenRouter` and Azure serve every format
     /// but Decisions, each under its own path, and Bedrock neither Decisions nor
     /// Embeddings. xAI serves only the `OpenAI` Responses and Chat Completions formats,
-    /// and Google AI Studio only Chat Completions and Embeddings.
+    /// Google AI Studio only Chat Completions and Embeddings, and Vertex AI only its
+    /// OpenAI-compatible Chat Completions endpoint.
     fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
@@ -93,13 +96,15 @@ impl Provider {
                 api_format,
                 ApiFormat::OpenAiChatCompletions | ApiFormat::OpenAiEmbeddings
             ),
+            Self::Vertex => api_format == ApiFormat::OpenAiChatCompletions,
         }
     }
 
     /// The credential scheme follows the API format, so Azure and Bedrock take both.
-    /// `OpenRouter` and Vercel take a Bearer key on every format, including Anthropic Messages.
+    /// `OpenRouter` and Vercel take a Bearer key on every format, including Anthropic Messages,
+    /// and Vertex AI a Google OAuth access token.
     fn accepts(self, api_format: ApiFormat, credential: ProviderCredential<'_>) -> bool {
-        if matches!(self, Self::OpenRouter | Self::Vercel) {
+        if matches!(self, Self::OpenRouter | Self::Vercel | Self::Vertex) {
             return matches!(credential, ProviderCredential::Bearer(_));
         }
         matches!(
@@ -109,15 +114,16 @@ impl Provider {
         )
     }
 
-    // OpenAI and Anthropic connections may point at a compatible proxy, and Azure
-    // at the customer's resource, which Web validated on save; the transport's
+    // OpenAI and Anthropic connections may point at a compatible proxy, OpenRouter
+    // connections at another OpenRouter endpoint such as its EU one, and Azure at
+    // the customer's resource, which Web validated on save; the transport's
     // outbound policy still decides whether the destination is reachable. Azure
-    // serves each format family under its own path. Bedrock only ever targets its
-    // regional endpoints, and OpenRouter, xAI, Vercel and Google AI Studio their
-    // single hosted API.
+    // serves each format family under its own path. Bedrock and Vertex AI only
+    // ever target their regional endpoints, and xAI, Vercel and Google AI Studio
+    // their single hosted API.
     fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
         match self {
-            Self::OpenAi | Self::Anthropic => valid_custom_base_url(base_url),
+            Self::OpenAi | Self::Anthropic | Self::OpenRouter => valid_custom_base_url(base_url),
             Self::Azure => {
                 let path = match api_format {
                     ApiFormat::AnthropicMessages => AZURE_ANTHROPIC_PATH,
@@ -129,10 +135,10 @@ impl Provider {
                 valid_custom_base_url(base_url) && base_url.ends_with(path)
             }
             Self::Bedrock => bedrock::allows_runtime_base_url(api_format, base_url),
-            Self::OpenRouter => base_url == OPENROUTER_BASE_URL,
             Self::Xai => base_url == XAI_BASE_URL,
             Self::Vercel => base_url == VERCEL_BASE_URL,
             Self::GoogleAiStudio => base_url == GOOGLE_AI_STUDIO_BASE_URL,
+            Self::Vertex => vertex::allows_openai_compatible_base_url(base_url),
         }
     }
 }
@@ -265,18 +271,19 @@ impl ProviderConnection {
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
-    /// Bedrock's regional hosts and the official origins are fixed, so only a
+    /// Bedrock's and Vertex AI's regional hosts and the official origins are fixed, so only a
     /// user-entered base URL goes through the outbound policy.
     pub fn has_custom_base_url(&self) -> bool {
         let official = match self.provider {
             Provider::OpenAi => OPENAI_BASE_URL,
             Provider::Anthropic => ANTHROPIC_BASE_URL,
+            Provider::OpenRouter => OPENROUTER_BASE_URL,
             Provider::Azure => return true,
             Provider::Bedrock
-            | Provider::OpenRouter
             | Provider::Xai
             | Provider::Vercel
-            | Provider::GoogleAiStudio => return false,
+            | Provider::GoogleAiStudio
+            | Provider::Vertex => return false,
         };
         self.base_url.trim_end_matches('/') != official
     }

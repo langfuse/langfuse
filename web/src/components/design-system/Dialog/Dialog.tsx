@@ -45,6 +45,8 @@ type DialogAction = {
 };
 
 type DialogProps = {
+  /** Blocks the portaled dialog's text and attributes from session replay. */
+  noCapture?: boolean;
   /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
   closeLabel?: string;
   closeOnInteractionOutside?: boolean;
@@ -64,6 +66,7 @@ type DialogProps = {
 
 function DialogRoot({
   actions,
+  noCapture,
   children,
   closeLabel,
   closeOnInteractionOutside = false,
@@ -102,7 +105,11 @@ function DialogRoot({
       />
       <DialogPrimitive.Content
         aria-describedby={undefined}
-        className={cn(motionStyles.content, dialogContentVariants({ size }))}
+        className={cn(
+          motionStyles.content,
+          dialogContentVariants({ size }),
+          noCapture && "ph-no-capture",
+        )}
         onOpenAutoFocus={(event) => {
           // Radix otherwise focuses Cancel because it is the first tabbable.
           // Prefer the rightmost safe action, falling back to Cancel rather

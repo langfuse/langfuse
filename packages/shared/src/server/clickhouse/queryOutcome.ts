@@ -338,6 +338,8 @@ function clickHouseQueryMetricTags(
     table,
     query_shape: shape,
     clickhouse_service: clickhouseService,
+    project_size: tags.projectSize,
+    query_window: tags.queryWindow,
   };
 }
 

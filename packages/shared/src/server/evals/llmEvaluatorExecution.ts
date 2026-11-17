@@ -108,7 +108,9 @@ export async function generateLlmEvaluatorOutput(params: {
     messages: providerMessages,
     traceInput: traceMessages,
     output: createLLMOutput(modelFacingOutputSchema),
-    maxRetries: 1,
+    // The eval queue reschedules retryable failures with backoff; an in-call
+    // retry would only hold the worker slot and hit the provider again.
+    maxRetries: 0,
     trace: params.trace,
   });
 

@@ -93,7 +93,7 @@ The rewrites come from TypeScript's own `LanguageService.getEditsForFileRename` 
   would point a moved file at something left behind aborts the whole batch —
   move that sibling too, or do the move by hand.
 - **History is preserved**: `git mv`, so `log --follow` and `blame -C` keep
-  working. Importer rewrites go through prettier (a longer specifier can push a
+  working. Importer rewrites go through Oxfmt (a longer specifier can push a
   line past the print width) and are left **unstaged** — `git mv` stages the
   renames by nature, but staging edited importers would fold any unrelated work
   in them into this move's index entry. A rewrite target that already has

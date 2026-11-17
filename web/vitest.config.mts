@@ -144,6 +144,7 @@ function serverProject(
     database?: boolean;
     env?: Record<string, string>;
     exclude?: string[];
+    fileParallelism?: boolean;
     isolate?: boolean;
     resolve?: typeof sharedSourceResolve;
   } = {},
@@ -156,6 +157,9 @@ function serverProject(
       include,
       exclude: [...sharedExclude, ...(options.exclude ?? [])],
       ...(options.isolate === undefined ? {} : { isolate: options.isolate }),
+      ...(options.fileParallelism === undefined
+        ? {}
+        : { fileParallelism: options.fileParallelism }),
       ...(options.env ? { env: options.env } : {}),
       environment: "node" as const,
       setupFiles: ["./src/__tests__/after-teardown.ts"],
@@ -198,7 +202,6 @@ export default defineConfig({
       : ["default"],
     silent: "passed-only",
     globals: true,
-    retry: process.env.CI ? 3 : 0,
     // Servertests are DB-roundtrip bound, so hundreds cross the default 300ms
     // slow threshold on CI and the default reporter prints a line for each.
     // VitestCiReporter's top-10 slowest summary is unaffected (own accounting).
@@ -301,8 +304,9 @@ export default defineConfig({
       },
       serverProject(
         "ai-gateway-e2e-server",
-        ["src/__e2e__/**/ai-gateway.gatewaye2e.{ts,tsx}"],
-        { isolate: true },
+        ["src/__e2e__/ai-gateway/*.gatewaye2e.{ts,tsx}"],
+        // Every suite reconfigures the same organization's connections.
+        { isolate: true, fileParallelism: false },
       ),
     ],
   },

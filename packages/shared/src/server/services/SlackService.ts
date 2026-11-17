@@ -10,6 +10,7 @@
 import { WebClient } from "@slack/web-api";
 import { InstallProvider } from "@slack/oauth";
 import { logger } from "../logger";
+import { withoutBaggage } from "../instrumentation";
 import { env } from "../../env";
 import { prisma, type SlackIntegration } from "../../db";
 import { encrypt, decrypt } from "../../encryption";
@@ -664,18 +665,20 @@ export class SlackService {
    */
   async sendMessage(params: SlackMessageParams): Promise<SlackMessageResponse> {
     try {
-      const result = await params.client.chat.postMessage({
-        channel: params.channelId,
-        blocks: params.blocks,
-        attachments: params.attachments as any,
-        text:
-          params.text ||
-          (params.blocks?.length || params.attachments?.length
-            ? undefined
-            : "Langfuse Notification"),
-        unfurl_links: false,
-        unfurl_media: false,
-      });
+      const result = await withoutBaggage(() =>
+        params.client.chat.postMessage({
+          channel: params.channelId,
+          blocks: params.blocks,
+          attachments: params.attachments as any,
+          text:
+            params.text ||
+            (params.blocks?.length || params.attachments?.length
+              ? undefined
+              : "Langfuse Notification"),
+          unfurl_links: false,
+          unfurl_media: false,
+        }),
+      );
 
       if (!result.ok) {
         throw new Error(`Failed to send message: ${result.error}`);

@@ -6,6 +6,7 @@ import {
   createBullMQWorkerOptionsWithRedis,
   logger,
   QueueName,
+  type TQueueJobTypes,
   recordDistribution,
   recordIncrement,
   traceException,
@@ -97,13 +98,15 @@ export class WorkerManager {
     return { attempt: "first", waitMs: Math.max(0, nowMs - readyAt) };
   }
 
-  private static metricWrapper(
-    processor: Processor,
-    queueName: QueueName,
-  ): Processor {
-    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
+  private static metricWrapper<Q extends QueueName>(
+    processor: Processor<JobData<Q>>,
+    queueName: Q,
+    getTags: TagGetter<Q>,
+  ): Processor<JobData<Q>> {
+    const { baseMetric } = WorkerManager.resolveMetricInfo(queueName);
 
-    return async (job: Job) => {
+    return async (job: Job<JobData<Q>>) => {
+      const tags = getTags(job);
       const startTime = Date.now();
       const { attempt, waitMs } = WorkerManager.computeWaitTimeMs(
         job,
@@ -113,7 +116,7 @@ export class WorkerManager {
       recordIncrement(baseMetric + ".rate", 1, {
         type: "request",
         attempt,
-        ...shardTag,
+        ...tags,
       });
 
       if (waitMs !== undefined) {
@@ -121,7 +124,7 @@ export class WorkerManager {
           type: "wait",
           attempt,
           unit: "milliseconds",
-          ...shardTag,
+          ...tags,
         });
       }
 
@@ -140,7 +143,7 @@ export class WorkerManager {
       recordDistribution(baseMetric + ".time_distribution", processingTime, {
         type: "processing",
         unit: "milliseconds",
-        ...shardTag,
+        ...tags,
       });
 
       return result;
@@ -162,11 +165,12 @@ export class WorkerManager {
     return Object.keys(WorkerManager.workers);
   }
 
-  public static register(
-    queueName: QueueName,
-    processor: Processor,
-    additionalOptions: Partial<WorkerOptions> = {},
+  public static register<Q extends QueueName>(
+    queueName: Q,
+    processor: Processor<JobData<Q>>,
+    options: RegisterOptions<Q> = {},
   ): void {
+    const { metricTags = () => ({}), ...additionalOptions } = options;
     if (WorkerManager.workers[queueName]) {
       logger.info(`Worker ${queueName} is already registered`);
       return;
@@ -179,10 +183,13 @@ export class WorkerManager {
       return;
     }
 
+    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
+    const getTags = newTagGetter(metricTags, shardTag);
+
     // Register worker
     const worker = new Worker(
       queueName,
-      WorkerManager.metricWrapper(processor, queueName),
+      WorkerManager.metricWrapper(processor, queueName, getTags),
       {
         ...workerOptionsWithRedis,
         ...additionalOptions,
@@ -192,25 +199,24 @@ export class WorkerManager {
     markQueueWorkerRegistered();
     logger.info(`${queueName} executor started: ${worker.isRunning()}`);
 
-    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
-
     // Liveness signal for the ?failIfQueueConsumptionStuck=true health check.
     // "active" and "completed" prove this container's consumption loop is
     // alive; "failed" is excluded because the stalled-checker emits it for
     // jobs this container never picked up.
     worker.on("active", markQueueJobActivity);
     // No "active" counter: metricWrapper already records "request" on pickup.
-    worker.on("completed", () => {
+    worker.on("completed", (job: Job<JobData<Q>> | undefined) => {
       markQueueJobActivity();
       recordIncrement(baseMetric + ".rate", 1, {
         type: "completed",
-        ...shardTag,
+        ...getTags(job),
       });
     });
 
     // Add error handling
-    worker.on("failed", (job: Job | undefined, err: Error) => {
+    worker.on("failed", (job: Job<JobData<Q>> | undefined, err: Error) => {
       const reason = classifyJobFailure(err);
+      const tags = getTags(job);
       logRetryableJobFailure({
         message: `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
         error: err,
@@ -227,7 +233,7 @@ export class WorkerManager {
       recordIncrement(baseMetric + ".rate", 1, {
         type: "failed",
         reason,
-        ...shardTag,
+        ...tags,
       });
       // BullMQ sets finishedOn only when it moves the job to the failed set
       // instead of scheduling a retry.
@@ -235,7 +241,7 @@ export class WorkerManager {
         recordIncrement(baseMetric + ".rate", 1, {
           type: "failed_terminal",
           reason,
-          ...shardTag,
+          ...tags,
         });
       }
     });
@@ -247,7 +253,7 @@ export class WorkerManager {
       traceException(failedReason);
       recordIncrement(baseMetric + ".rate", 1, {
         type: "error",
-        ...shardTag,
+        ...getTags(),
       });
     });
     // Counts intermediate re-enqueues (LFE-10063), not just the terminal
@@ -260,8 +266,39 @@ export class WorkerManager {
       );
       recordIncrement(baseMetric + ".rate", 1, {
         type: "stalled",
-        ...shardTag,
+        ...getTags(),
       });
     });
   }
 }
+
+/** newTagGetter returns the function that tags a queue's metrics with a job's metric tags and the queue's shard. */
+function newTagGetter<Q extends QueueName>(
+  metricTags: MetricTags<Q>,
+  shardTag: { shard: string } | undefined,
+): TagGetter<Q> {
+  return (job) => {
+    if (!job) return { ...shardTag };
+    return { ...metricTags(job.data), ...shardTag };
+  };
+}
+
+/** JobData is the data a queue's jobs carry; cron-only queues send an empty object. */
+type JobData<Q extends QueueName> = Q extends keyof TQueueJobTypes
+  ? TQueueJobTypes[Q]
+  : Record<string, never>;
+
+/** MetricTags derives extra queue-metric tags from a job's data. */
+type MetricTags<Q extends QueueName> = (
+  data: JobData<Q>,
+) => Record<string, string>;
+
+/** RegisterOptions are BullMQ worker options plus the queue's metric tags. */
+type RegisterOptions<Q extends QueueName> = Partial<WorkerOptions> & {
+  metricTags?: MetricTags<Q>;
+};
+
+/** TagGetter tags a queue metric for a job, or for the queue alone when the event has no job. */
+type TagGetter<Q extends QueueName> = (
+  job?: Job<JobData<Q>>,
+) => Record<string, string>;

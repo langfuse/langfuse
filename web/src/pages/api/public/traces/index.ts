@@ -239,18 +239,15 @@ export default withMiddlewares(
       fn: async ({ body, auth }) => {
         const { traceIds } = body;
 
-        await Promise.all(
-          traceIds.map((traceId) =>
-            auditLog({
-              resourceType: "trace",
-              resourceId: traceId,
-              action: "delete",
-              projectId: auth.scope.projectId,
-              apiKeyId: auth.scope.apiKeyId,
-              orgId: auth.scope.orgId,
-            }),
-          ),
-        );
+        await auditLog({
+          resourceType: "project",
+          resourceId: auth.scope.projectId,
+          action: "deleteTraces",
+          before: { traceIds },
+          projectId: auth.scope.projectId,
+          apiKeyId: auth.scope.apiKeyId,
+          orgId: auth.scope.orgId,
+        });
 
         await traceDeletionProcessor(auth.scope.projectId, traceIds, {
           actor: {

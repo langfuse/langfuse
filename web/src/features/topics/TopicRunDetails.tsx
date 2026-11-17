@@ -1,11 +1,5 @@
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { format } from "date-fns";
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  CircleAlert,
-} from "@langfuse/icons";
+import { ChevronLeft, CircleAlert } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -31,15 +25,7 @@ type FacetProgress = Run["facets"][number];
 type TopicRunDetailsProps = {
   execution: Run;
   facets: Pick<TopicFacet, "id" | "name">[];
-  projectId: string;
   canWrite: boolean;
-  traceErrors: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    isPending: boolean;
-    errorMessage?: string;
-    data?: RouterOutputs["topics"]["traceErrors"];
-  };
   retry: {
     isPending: boolean;
     errorMessage?: string;
@@ -80,6 +66,7 @@ function formatCount(count: number) {
 }
 
 function canResume(execution: Run) {
+  if (execution.input.operation === "process") return false;
   return (
     execution.status === "failed" ||
     (execution.status === "completed_with_errors" &&
@@ -98,8 +85,6 @@ function questionStats(progress: FacetProgress, execution: Run) {
     return c.requested > 0
       ? `Grouping ${formatCount(c.complete)} summaries into topics`
       : null;
-  if (!isUpdate && busy(runStatus))
-    return `${formatCount(c.complete)} of ${formatCount(c.requested)} summarized`;
   if (!isUpdate && runStatus === "failed")
     return `${formatCount(c.complete)} of ${formatCount(c.requested)} summarized · ${formatCount(Math.max(0, c.requested - c.complete))} left`;
   const summaryNoun = isUpdate ? "summaries" : "summarized";
@@ -130,7 +115,7 @@ function questionNote(progress: FacetProgress, minimum: number | null) {
       : `${formatCount(unclustered)} summaries didn’t form clear groups. Try a larger, more varied set of traces.`;
   }
   if (progress.outcome === "awaiting_topics")
-    return `${formatCount(c.complete)} summaries are ready. Start a new scan to group them.`;
+    return `${formatCount(c.complete)} summaries are ready. Create a new snapshot to group them.`;
   return null;
 }
 
@@ -188,24 +173,24 @@ function QuestionRow({
 export function TopicRunDetails({
   execution,
   facets,
-  projectId,
   canWrite,
-  traceErrors,
   retry,
   onBack,
 }: TopicRunDetailsProps) {
   const isUpdate = execution.input.operation === "update";
+  // A summarizing snapshot counts traces, as a process run does.
+  const summarizing = execution.phase === "summarizing";
+  const perTrace = !isUpdate || summarizing;
   const counts = execution.facets.map((facet) => facet.counts);
-  const total = isUpdate
-    ? counts.reduce((sum, c) => sum + c.requested, 0)
-    : Math.max(0, ...counts.map((c) => c.requested));
-  const complete = isUpdate
-    ? counts.reduce((sum, c) => sum + c.complete, 0)
-    : Math.min(total, ...counts.map((c) => c.complete));
+  const total = perTrace
+    ? Math.max(0, ...counts.map((c) => c.requested))
+    : counts.reduce((sum, c) => sum + c.requested, 0);
+  const complete = perTrace
+    ? Math.min(total, ...counts.map((c) => c.complete))
+    : counts.reduce((sum, c) => sum + c.complete, 0);
   const isBusy = busy(execution.status);
   const costLabel = (() => {
-    if (isUpdate) return "Estimated cost";
-    return isBusy ? "Estimated cost so far" : "Estimated processing cost";
+    return isUpdate ? "Estimated cost" : "Estimated processing cost";
   })();
   const costDescription = (() => {
     if (isUpdate) return "Topic naming costs aren’t tracked yet.";
@@ -215,7 +200,6 @@ export function TopicRunDetails({
   })();
   const failed = execution.status === "failed";
   const resumable = canWrite && !isBusy && canResume(execution);
-  const traceErrorCount = Math.max(0, ...counts.map((c) => c.failed));
   const minimum =
     execution.input.operation === "update"
       ? (execution.input.minimumTraceCount ??
@@ -231,7 +215,7 @@ export function TopicRunDetails({
       ? ["small sample"]
       : []),
   ].join(" · ");
-  const showBar = !isUpdate && total > 0 && (isBusy || failed);
+  const showBar = perTrace && total > 0 && (isBusy || failed);
   const summaryLabel = (() => {
     if (isBusy)
       return (
@@ -241,7 +225,7 @@ export function TopicRunDetails({
     return isUpdate ? "Summaries" : "Summarized";
   })();
   const summaryValue = (() => {
-    if (isUpdate) return formatCount(total);
+    if (!perTrace) return formatCount(total);
     return total > 0
       ? `${formatCount(complete)} / ${formatCount(total)}`
       : null;
@@ -360,67 +344,6 @@ export function TopicRunDetails({
           ))}
         </div>
       </div>
-      {traceErrorCount > 0 && (
-        <div className="ph-no-capture flex flex-col gap-2 border-t px-4 py-3 text-sm">
-          <button
-            type="button"
-            aria-expanded={traceErrors.open}
-            onClick={() => traceErrors.onOpenChange(!traceErrors.open)}
-            className="flex items-center gap-1.5 self-start font-bold"
-          >
-            {traceErrors.open ? (
-              <ChevronDown size="base" color="muted" aria-hidden />
-            ) : (
-              <ChevronRight size="base" color="muted" aria-hidden />
-            )}
-            Trace errors
-            <span className="text-muted-foreground font-mono font-normal">
-              {formatCount(traceErrorCount)}
-            </span>
-          </button>
-          {traceErrors.open && (
-            <div className="flex flex-col gap-2 pl-5">
-              {traceErrors.isPending && (
-                <p className="text-muted-foreground text-xs">
-                  Loading trace errors…
-                </p>
-              )}
-              {traceErrors.errorMessage && (
-                <TopicsErrorMessage message={traceErrors.errorMessage} />
-              )}
-              {traceErrors.data?.expired && (
-                <p className="text-muted-foreground text-xs">
-                  Trace error details have expired. The run counts are still
-                  available.
-                </p>
-              )}
-              {traceErrors.data?.errors.map((item) => (
-                <div
-                  key={`${item.traceId}:${item.error}`}
-                  className="flex items-start gap-2.5"
-                >
-                  <span className="w-28 shrink-0 font-mono">
-                    <TextLink
-                      path={`/project/${projectId}/traces/${encodeURIComponent(item.traceId)}`}
-                      value={item.traceId}
-                    />
-                  </span>
-                  <span className="text-foreground-secondary min-w-0 text-xs break-words">
-                    {item.error}
-                  </span>
-                </div>
-              ))}
-              {traceErrors.data &&
-                !traceErrors.data.expired &&
-                traceErrors.data.errors.length === 0 && (
-                  <p className="text-muted-foreground text-xs">
-                    No trace-level errors were recorded.
-                  </p>
-                )}
-            </div>
-          )}
-        </div>
-      )}
     </section>
   );
 }

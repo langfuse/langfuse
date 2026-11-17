@@ -477,6 +477,11 @@ describe("current Topics results with several rules sharing a facet", () => {
       assign(bothSummary, runIds[0], "topic-support"),
       assign(bothSummary, runIds[1], "topic-billing"),
       assign(firstOnlySummary, runIds[0], "topic-support"),
+      // Billing assigned an older summary of this trace: awaiting its map there.
+      {
+        ...assign(firstOnlySummary, runIds[1], "topic-billing"),
+        summaryProcessedAt: "2026-10-05T01:00:00.000Z",
+      },
     ]);
   });
 
@@ -545,5 +550,45 @@ describe("current Topics results with several rules sharing a facet", () => {
         assignment: expect.objectContaining({ topicId: "topic-billing" }),
       }),
     ]);
+  });
+
+  it("filters summaries on every rule's assignment, not just the row it shows", async () => {
+    const list = (conditions: TopicResultCondition[]) =>
+      listCurrentTopicSummaries({
+        projectId,
+        window,
+        facetIds: [facetId],
+        conditions,
+        orderBy: "timestamp.desc",
+        limit: 50,
+        includeAssignment: true,
+        truncateSummaries: false,
+      }).then((result) => result.rows.map((row) => row.traceId));
+    // Excluding Billing's topic drops the trace Support also assigned.
+    expect(
+      await list([
+        {
+          column: "topicId",
+          match: { operator: "none of", values: ["topic-billing"] },
+        },
+      ]),
+    ).toEqual([firstOnly]);
+    // Unassigned rows add no topic id, so an empty id excludes nothing.
+    expect(
+      (
+        await list([
+          { column: "topicId", match: { operator: "none of", values: [""] } },
+        ])
+      ).sort(),
+    ).toEqual([both, firstOnly].sort());
+    // A stale assignment in one map doesn't make an assigned trace awaiting.
+    expect(
+      await list([
+        {
+          column: "assignmentStatus",
+          match: { operator: "any of", values: ["awaiting_map"] },
+        },
+      ]),
+    ).toEqual([]);
   });
 });

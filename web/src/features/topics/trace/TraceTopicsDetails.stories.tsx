@@ -71,6 +71,93 @@ export const OneTopicPerQuestion = meta.story({
   },
 });
 
+const overlaps = (a: Element, b: Element) => {
+  const first = a.getBoundingClientRect();
+  const second = b.getBoundingClientRect();
+  return (
+    first.left < second.right &&
+    second.left < first.right &&
+    first.top < second.bottom &&
+    second.top < first.bottom
+  );
+};
+
+const unbrokenRule =
+  "qa_chatbot_topics_for_onboarding_and_product_questions_production_v2";
+
+/** Long rule and topic names wrap inside the card instead of covering the question. */
+export const LongTopicNames = meta.story({
+  name: "(Test) Long rule and topic names keep the question label readable",
+  args: header([
+    result("intent", "Product questions", {
+      name: "Langfuse product overview and onboarding questions",
+      index: 0,
+    }),
+    result("intent", unbrokenRule, {
+      name: "Explain Langfuse uses with doc links and a follow-up quickstart offer",
+      index: 2,
+    }),
+    result("sentiment", "Tone", {
+      name: "Neutral, information-seeking tone without frustration or urgency",
+      index: 1,
+    }),
+  ]),
+  play: async ({ canvas }) => {
+    await userEvent.hover(
+      canvas.getAllByText(
+        "Langfuse product overview and onboarding questions +2",
+      )[0],
+    );
+    const card = within(document.body);
+    await card.findByText("Intent");
+    // Each question label with its rule captions and topic badges.
+    const rows = [
+      {
+        label: "Intent",
+        lines: [
+          [
+            "Product questions",
+            "Langfuse product overview and onboarding questions",
+          ],
+          [
+            unbrokenRule,
+            "Explain Langfuse uses with doc links and a follow-up quickstart offer",
+          ],
+        ],
+      },
+      {
+        label: "Sentiment",
+        lines: [
+          [
+            undefined,
+            "Neutral, information-seeking tone without frustration or urgency",
+          ],
+        ],
+      },
+    ];
+    for (const row of rows) {
+      const label = card.getByText(row.label);
+      const grid = label.parentElement!.getBoundingClientRect();
+      for (const [caption, topic] of row.lines) {
+        const badge = card.getByText(topic!);
+        const cells = caption ? [card.getByText(caption), badge] : [badge];
+        for (const cell of cells) {
+          await expect(overlaps(label, cell)).toBe(false);
+          const { left, right } = cell.getBoundingClientRect();
+          await expect(left).toBeGreaterThanOrEqual(grid.left);
+          await expect(right).toBeLessThanOrEqual(grid.right);
+        }
+        // A squeezed badge clips its own text.
+        await expect(badge.scrollWidth).toBeLessThanOrEqual(badge.clientWidth);
+        if (caption)
+          await expect(badge.getBoundingClientRect().left).toBeGreaterThan(
+            card.getByText(caption).getBoundingClientRect().right,
+          );
+      }
+    }
+  },
+});
+
 /** Two rules assigned the trace on Intent; rules that didn't stay out of the row. */
 export const TwoTopicsInOneQuestion = meta.story({
   name: "(Test) Two rules' topics share one question row",

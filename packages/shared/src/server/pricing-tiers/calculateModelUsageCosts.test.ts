@@ -1,7 +1,8 @@
 import { Decimal } from "decimal.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { calculateModelUsageCosts } from "./calculateModelUsageCosts";
 import type { ModelWithPrices } from "../ingestion/modelMatch";
+import { logger } from "../logger";
 import type { PricingTierWithPrices } from "./types";
 
 function modelWithPrices(prices: Record<string, number>): ModelWithPrices {
@@ -192,5 +193,77 @@ describe("calculateModelUsageCosts", () => {
       total_cost: 6.02,
       usage_pricing_tier_id: "priority-long",
     });
+  });
+
+  it("excludes non-BMP keys from tier conditions while preserving their costs", () => {
+    const model = modelWithPrices({ input: 0.01, "😀": 0.01 });
+    const tier: PricingTierWithPrices = {
+      ...model.pricingTiers[0],
+      id: "bmp",
+      name: "BMP usage",
+      isDefault: false,
+      priority: 2,
+      conditions: [
+        {
+          usageDetailPattern: "^😀$",
+          operator: "eq",
+          value: 0,
+          caseSensitive: true,
+        },
+        {
+          usageDetailPattern: ".*",
+          operator: "eq",
+          value: 104,
+          caseSensitive: false,
+        },
+      ],
+      prices: [
+        { usageType: "input", price: new Decimal(0.04) },
+        { usageType: "😀", price: new Decimal(0.02) },
+      ],
+    };
+    model.pricingTiers.push(
+      {
+        ...tier,
+        id: "non-bmp",
+        name: "Non-BMP usage",
+        priority: 1,
+        conditions: [
+          {
+            usageDetailPattern: "^😀$",
+            operator: "eq",
+            value: 50,
+            caseSensitive: true,
+          },
+        ],
+      },
+      tier,
+    );
+    const usageDetails = Object.freeze({
+      input: 100,
+      "😀": 50,
+      "\u{10000}": 1,
+      "\u{10ffff}": 1,
+      entrée: 1,
+      "\uffff": 1,
+      "\ud800": 1,
+      "\udfff": 1,
+    });
+
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    try {
+      expect(calculateModelUsageCosts({ model, usageDetails })).toMatchObject({
+        cost_details: { input: 4, "😀": 1, total: 5 },
+        total_cost: 5,
+        usage_pricing_tier_id: "bmp",
+      });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        "Pricing tier usage keys contain non-BMP characters",
+        { usageDetailKeys: ["😀", "\u{10000}", "\u{10ffff}"] },
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

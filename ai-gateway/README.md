@@ -976,7 +976,7 @@ not Cargo's potentially large `target` directory. Development similarly caches
 only the final debug binary so unchanged gateway builds can be reused across
 worktrees.
 The JavaScript CI jobs and commit-hook lint exclude it; the dedicated Rust CI job
-runs its checks without Node. Root Prettier formatting remains JavaScript/CSS-only;
+runs its checks without Node. Root Oxfmt formatting remains JavaScript/CSS-only;
 use the gateway `format` script for Rust. Docker builds also use Cargo directly.
 
 Equivalent Cargo checks, without pnpm:

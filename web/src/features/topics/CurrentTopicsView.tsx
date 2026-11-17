@@ -313,8 +313,8 @@ function TopicsOverviewSplit({
         {mapPanel}
       </ResizablePanel>
       <ResizableHandle
-        withHandle
         aria-label="Resize topic map and groups"
+        variant="gap"
         className="my-1"
       />
       <ResizablePanel id="groups" minSize="20%">
@@ -347,8 +347,8 @@ function TopicsWorkspaceSplit({
         {overviewPanel}
       </ResizablePanel>
       <ResizableHandle
-        withHandle
         aria-label="Resize topic overview and traces"
+        variant="gap"
         className="mx-1"
       />
       <ResizablePanel id="traces" minSize="25%">

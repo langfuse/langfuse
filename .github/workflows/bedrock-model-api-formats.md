@@ -18,6 +18,9 @@ engine:
   id: claude
   version: "2.1.280"
   max-turns: 60
+  # WebFetch's domain preflight calls api.anthropic.com, which the firewall
+  # blocks (inference uses the API proxy); skip it so allowlisted fetches work.
+  args: ["--settings", '{"skipWebFetchPreflight":true}']
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
@@ -84,8 +87,8 @@ it in sync with the AWS model cards.
    models, move models whose support changed, and keep each list sorted. Use
    the base model ID without an inference profile prefix such as `us.` or
    `global.`. Do not remove a model only because its card is missing.
-3. Run `pnpm --filter web exec prettier --write src/features/ai-gateway/constants/bedrockModelApiFormats.ts`.
-   Run `pnpm install` first if `prettier` is missing.
+3. Run `pnpm --filter web exec oxfmt --write src/features/ai-gateway/constants/bedrockModelApiFormats.ts`.
+   Run `pnpm install` first if `oxfmt` is missing.
 4. If the file changed, open one pull request with `create_pull_request`. The
    body lists every added or moved model with a link to its model card. If
    nothing changed, call `noop`.
