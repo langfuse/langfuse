@@ -70,7 +70,7 @@ describe("desktop expansion preference", () => {
       isExpanded: false,
       activeMenu: null,
     });
-    for (const menu of ["account", "version", "workspace"] as const) {
+    for (const menu of ["account", "version"] as const) {
       actions.setExpanded(true);
       actions.setActiveMenu(menu);
       actions.setExpanded(false);
@@ -92,38 +92,6 @@ describe("desktop expansion preference", () => {
 });
 
 describe("transient navigation", () => {
-  it("opens the desktop switcher from the rail without expanding it", () => {
-    const { store, actions } = setup({
-      [SIDEBAR_EXPANDED_STORAGE_KEY]: "false",
-    });
-
-    actions.openSwitcher("desktop");
-    expect(store.getState()).toMatchObject({
-      isExpanded: false,
-      activeMenu: "workspace",
-      isMobileOpen: false,
-    });
-
-    actions.setSwitcherOpen(false);
-    expect(store.getState().isExpanded).toBe(false);
-  });
-
-  it("opens the mobile menu with the switcher and closes both together", () => {
-    const { store, actions } = setup();
-
-    actions.openSwitcher("mobile");
-    expect(store.getState()).toMatchObject({
-      isMobileOpen: true,
-      activeMenu: "workspace",
-    });
-
-    actions.setMobileOpen(false);
-    expect(store.getState()).toMatchObject({
-      isMobileOpen: false,
-      activeMenu: null,
-    });
-  });
-
   it("toggles the mobile menu without changing desktop expansion", () => {
     const { store, storage, actions } = setup();
 
@@ -134,7 +102,7 @@ describe("transient navigation", () => {
       isExpanded: false,
       activeMenu: null,
     });
-    actions.setSwitcherOpen(true);
+    actions.setActiveMenu("organization");
     actions.toggleFromShortcut("mobile");
     expect(store.getState()).toMatchObject({
       isMobileOpen: false,
@@ -144,12 +112,12 @@ describe("transient navigation", () => {
     expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBeNull();
   });
 
-  it("releases account and version menus when their mobile parent closes", () => {
+  it("releases child menus when their mobile parent closes", () => {
     const { store, storage, actions } = setup({
       [SIDEBAR_EXPANDED_STORAGE_KEY]: "true",
     });
 
-    for (const menu of ["account", "version"] as const) {
+    for (const menu of ["account", "version", "organization"] as const) {
       for (const close of [actions.close, () => actions.setMobileOpen(false)]) {
         actions.setMobileOpen(true);
         actions.setActiveMenu(menu);
@@ -213,18 +181,21 @@ describe("transient navigation", () => {
   it("preserves a menu handoff against late close and autofocus callbacks", () => {
     const { store, actions } = setup();
 
-    for (const menu of ["account", "version"] as const) {
+    for (const [menu, nextMenu] of [
+      ["account", "version"],
+      ["version", "account"],
+    ] as const) {
       const controls = createSidebarMenuControls(store, menu);
       controls.onOpenChange(true);
-      actions.openSwitcher("desktop");
+      actions.setActiveMenu(nextMenu);
 
       controls.onOpenChange(false);
       const handoff = new Event("closeAutoFocus", { cancelable: true });
       controls.onCloseAutoFocus(handoff);
-      expect(store.getState().activeMenu).toBe("workspace");
+      expect(store.getState().activeMenu).toBe(nextMenu);
       expect(handoff.defaultPrevented).toBe(true);
 
-      actions.setSwitcherOpen(false);
+      actions.setActiveMenu(null);
       controls.onOpenChange(true);
       controls.onOpenChange(false);
       const escape = new Event("closeAutoFocus", { cancelable: true });
@@ -247,7 +218,8 @@ describe("transient navigation", () => {
     const { store, storage, actions } = setup({
       [SIDEBAR_EXPANDED_STORAGE_KEY]: "false",
     });
-    actions.openSwitcher("mobile");
+    actions.setMobileOpen(true);
+    actions.setActiveMenu("organization");
 
     actions.close();
 

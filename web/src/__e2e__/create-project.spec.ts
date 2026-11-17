@@ -42,14 +42,10 @@ test.describe("Create project", () => {
     // Sign in
     await page.goto("/auth/sign-in");
     await signIn(page);
-    await page.goto("/organizations");
 
-    // Start the create-organization flow from the projects overview.
-    const createOrganization = page.getByRole("link", {
-      name: /new organization/i,
-    });
-    await expect(createOrganization).toBeVisible();
-    await createOrganization.click();
+    // Start create org flow from the organization switcher in the breadcrumb.
+    await page.getByRole("button", { name: /^Seed Org/ }).click();
+    await page.getByRole("menuitem", { name: "New organization" }).click();
     await expect(page).toHaveURL("/setup");
 
     // Create an organization

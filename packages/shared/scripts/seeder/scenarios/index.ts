@@ -22,7 +22,6 @@ import { timelineShapesScenario } from "./timeline-shapes";
 import { topicsScenario } from "./topics";
 import { topicsMapScenario } from "./topics-map";
 import { traceTreeScenario } from "./trace-tree";
-import { workspacesScenario } from "./workspaces";
 import { ScenarioDefinition } from "./types";
 
 /**
@@ -53,7 +52,6 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "timeline-shapes": timelineShapesScenario,
   topics: topicsScenario,
   "topics-map": topicsMapScenario,
-  workspaces: workspacesScenario,
 };
 
 export * from "./types";

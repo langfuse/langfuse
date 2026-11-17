@@ -25,7 +25,7 @@ export type AppNavigation = {
   openMobileNavigation: () => void;
   /** The real hamburger remains the focus-return target for persistent mobile navigation. */
   mobileNavigationTriggerRef?: RefObject<HTMLButtonElement | null>;
-  /** Closes temporary navigation, such as the workspace switcher or mobile menu. */
+  /** Closes temporary navigation, including child menus and mobile navigation. */
   closeTransientNavigation: () => void;
 };
 

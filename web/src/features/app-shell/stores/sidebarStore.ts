@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 export type SidebarLayout = "desktop" | "mobile";
-export type SidebarMenu = "workspace" | "account" | "version" | "organization";
+export type SidebarMenu = "account" | "version" | "organization";
 
 export type SidebarStoreState = {
   /** Desktop preference: full navigation when true, a persistent icon rail otherwise. */
@@ -17,9 +17,6 @@ export type SidebarStoreState = {
     /** Mod+B toggles desktop expansion or the mobile navigation menu. */
     toggleFromShortcut: (layout: SidebarLayout) => void;
     setMobileOpen: (isOpen: boolean) => void;
-    /** Opens the workspace switcher without changing desktop expansion. */
-    openSwitcher: (layout: SidebarLayout) => void;
-    setSwitcherOpen: (isOpen: boolean) => void;
     /** The persistent sidebar has at most one open child menu. */
     setActiveMenu: (menu: SidebarMenu | null) => void;
     /** Closes transient navigation while preserving the desktop preference. */
@@ -105,17 +102,7 @@ export function createSidebarStore({
           else setExpanded(!get().isExpanded);
         },
         setMobileOpen,
-        openSwitcher: (layout) => {
-          set({
-            activeMenu: "workspace",
-            ...(layout === "mobile" ? { isMobileOpen: true } : {}),
-          });
-        },
         setActiveMenu,
-        setSwitcherOpen: (isOpen) => {
-          if (isOpen) setActiveMenu("workspace");
-          else if (get().activeMenu === "workspace") setActiveMenu(null);
-        },
         close: () => {
           if (get().isMobileOpen || get().activeMenu !== null) {
             set({ isMobileOpen: false, activeMenu: null });

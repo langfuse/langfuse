@@ -23,8 +23,6 @@ import { cn } from "@/src/utils/tailwind";
 import { useOptionalSidebar } from "@/src/components/ui/sidebar";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
-import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
-import { WorkspaceBreadcrumbSwitcher } from "@/src/features/app-shell/components/WorkspaceBreadcrumbSwitcher";
 
 const BreadcrumbComponent = ({
   items,
@@ -34,7 +32,6 @@ const BreadcrumbComponent = ({
   className?: string;
 }) => {
   const session = useSession();
-  const appNavigation = useAppNavigation();
   const { organization, project } = useQueryProjectOrOrganization();
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
@@ -52,12 +49,7 @@ const BreadcrumbComponent = ({
   return (
     <Breadcrumb className={className}>
       <BreadcrumbList>
-        {organization && appNavigation?.shell === "next" && (
-          <BreadcrumbItem>
-            <WorkspaceBreadcrumbSwitcher />
-          </BreadcrumbItem>
-        )}
-        {organization && appNavigation?.shell !== "next" && (
+        {organization && (
           <OrganizationDropdownMenu
             {...(organizations
               ? { state: "loaded", organizations }
@@ -95,7 +87,7 @@ const BreadcrumbComponent = ({
             )}
           </OrganizationDropdownMenu>
         )}
-        {organization && project && appNavigation?.shell !== "next" && (
+        {organization && project && (
           <>
             <BreadcrumbSeparator
               className={cn(

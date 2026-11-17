@@ -1,4 +1,3 @@
-import { ServerResponse, type IncomingMessage } from "http";
 const mockEnv = vi.hoisted(() => ({
   env: {
     NEXTAUTH_URL: "https://us.cloud.langfuse.com",
@@ -11,19 +10,12 @@ const mockEnv = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => mockEnv);
 
-const { getServerAuthSessionMock, recordLastVisitedProjectMock } = vi.hoisted(
-  () => ({
-    getServerAuthSessionMock: vi.fn(),
-    recordLastVisitedProjectMock: vi.fn(),
-  }),
-);
+const { getServerAuthSessionMock } = vi.hoisted(() => ({
+  getServerAuthSessionMock: vi.fn(),
+}));
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: getServerAuthSessionMock,
-}));
-
-vi.mock("@/src/features/projects/server/lastVisitedProject", () => ({
-  recordLastVisitedProject: recordLastVisitedProjectMock,
 }));
 
 import handler from "@/src/pages/api/project/[projectId]/visit";
@@ -31,7 +23,6 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 
 const makeSession = (projectIds: string[]) => ({
   user: {
-    id: "user-1",
     organizations: [
       { id: "org-1", projects: projectIds.map((id) => ({ id })) },
     ],
@@ -43,6 +34,7 @@ const makeReqRes = (opts: {
   query?: Record<string, string | string[]>;
   headers?: Record<string, string>;
 }) => {
+  const setHeader = vi.fn();
   const json = vi.fn();
   const end = vi.fn();
   const status = vi.fn().mockReturnValue({ json, end });
@@ -51,11 +43,7 @@ const makeReqRes = (opts: {
     query: opts.query ?? {},
     headers: opts.headers ?? { host: "us.cloud.langfuse.com" },
   } as unknown as NextApiRequest;
-  const res = Object.assign(
-    new ServerResponse(req as unknown as IncomingMessage),
-    { status },
-  ) as unknown as NextApiResponse;
-  const setHeader = vi.spyOn(res, "setHeader");
+  const res = { setHeader, status } as unknown as NextApiResponse;
   return { req, res, setHeader, status, json, end };
 };
 
@@ -106,23 +94,9 @@ describe("POST /api/project/visit", () => {
     expect(cookieJson).toEqual({
       origin: "https://us.cloud.langfuse.com",
       projectId: "proj-abc",
-      userId: "user-1",
     });
     expect(value).toContain("Domain=langfuse.com");
     expect(value).toContain("HttpOnly");
-  });
-
-  it("preserves refreshed session cookies when recording a member project", async () => {
-    getServerAuthSessionMock.mockResolvedValue(makeSession(["proj-abc"]));
-    const { req, res } = makeReqRes({ query: { projectId: "proj-abc" } });
-    res.setHeader("Set-Cookie", ["session-token=refreshed; HttpOnly"]);
-
-    await handler(req, res);
-
-    expect(res.getHeader("Set-Cookie")).toEqual([
-      "session-token=refreshed; HttpOnly",
-      expect.stringContaining("langfuse.project="),
-    ]);
   });
 
   it("non-member project: no-op (no cookie), returns 204", async () => {

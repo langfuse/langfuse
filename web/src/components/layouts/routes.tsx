@@ -70,13 +70,7 @@ export const ROUTE_GROUP_BADGES: Partial<Record<RouteGroup, ReactNode>> = {
 };
 
 export type Route = {
-  /** Lets a shell find a specific entry, e.g. to render it elsewhere. */
-  id?:
-    | "v4-migration"
-    | "organizations-overview"
-    | "organization-overview"
-    | "ai-gateway"
-    | "gateway-ingestion-project";
+  id?: "v4-migration" | "ai-gateway" | "gateway-ingestion-project";
   title: string;
   menuNode?: (props: { isCollapsed: boolean }) => ReactNode;
   featureFlag?: Flag;
@@ -124,15 +118,6 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    id: "organizations-overview",
-    title: "Organizations",
-    href: "/organizations",
-    icon: Grid2X2,
-    show: ({ organization }) => organization === undefined,
-    section: RouteSection.Main,
-  },
-  {
-    id: "organization-overview",
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
