@@ -74,6 +74,7 @@ import {
   topicMapsOverview,
 } from "./slices";
 import { topicFilterOptions, tracesTopics } from "./traceTopics";
+import { createsSummaries } from "../topic-run-labels";
 
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
@@ -539,7 +540,9 @@ export const topicsRouter = createTRPCRouter({
       Promise.all(listed.map(recoverExecutionState)),
       getTopicExecutionCosts(
         input.projectId,
-        listed.map((execution) => execution.id),
+        listed
+          .filter((execution) => createsSummaries(execution.input))
+          .map((execution) => execution.id),
       ),
     ]);
     return executions.map((execution) => ({
@@ -552,7 +555,11 @@ export const topicsRouter = createTRPCRouter({
       input.projectId,
       input.executionId,
     );
-    const costs = await getTopicExecutionCosts(input.projectId, [execution.id]);
+    // Only runs that create summaries have a cost; the lookup scans the project's summaries.
+    const costs = await getTopicExecutionCosts(
+      input.projectId,
+      createsSummaries(execution.input) ? [execution.id] : [],
+    );
     return { ...execution, estimatedCost: costs[execution.id] ?? null };
   }),
   setupTraceCounts: topicsProcedure

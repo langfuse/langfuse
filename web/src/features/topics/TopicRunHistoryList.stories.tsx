@@ -122,6 +122,22 @@ function summarizingSnapshot(id: string, createdAt: string): Run {
   return {
     ...run,
     phase: "summarizing",
+    estimatedCost: 0.31,
+    input: {
+      ...run.input,
+      operation: "update",
+      exploratory: false,
+      timeRange: {
+        from: new Date("2026-09-23T00:00:00Z"),
+        to: new Date("2026-10-23T00:00:00Z"),
+      },
+      analysis: {
+        label: "Checkout",
+        filter: [],
+        seed: "seed",
+        summarize: { limit: 500, selection: "latest" },
+      },
+    },
     facets: run.facets.map((facet) => ({
       ...facet,
       outcome: "pending",
@@ -199,10 +215,10 @@ export const PinsRunningAndGroupsByDay = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const active = canvas.getByRole("status");
-    await expect(active).toHaveTextContent("Regenerate topics");
+    await expect(active).toHaveTextContent("Snapshot · Checkout");
     await expect(active).toHaveTextContent("640 / 1,280");
     await expect(active).toHaveTextContent("Estimated cost");
-    await expect(active).toHaveTextContent("No new summaries");
+    await expect(active).toHaveTextContent("~$0.31");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
     ).toBeVisible();
@@ -212,7 +228,7 @@ export const PinsRunningAndGroupsByDay = meta.story({
     ).toEqual(["Yesterday", dayLabel(2), dayLabel(3), dayLabel(4)]);
 
     await userEvent.click(
-      within(active).getByRole("button", { name: /Regenerate topics/ }),
+      within(active).getByRole("button", { name: /Snapshot · Checkout/ }),
     );
     await expect(args.onOpen).toHaveBeenCalledWith("snapshot-running");
 
