@@ -4,6 +4,7 @@ import {
   activityDemoReplaySettings,
   buildActivityDemoLiveBatch,
 } from "../../../scripts/seeder/scenarios/agents-activity-demo-replay";
+import { buildActivityDemoApiPayload } from "../../../scripts/seeder/scenarios/agents-activity-demo-api-plan";
 import { AGENT_METADATA_KEYS } from "../../features/agents/api";
 import { PostScoreBody } from "../../features/scores/interfaces/api/shared";
 import {
@@ -40,6 +41,98 @@ describe("Opt-in synthetic activity replay", () => {
       expect(() =>
         activityDemoReplaySettings({ replay: true, ...invalid }),
       ).toThrow();
+  });
+
+  it("exports deterministic historical OTLP ids without moving timestamps or breaking parents, run owners, scores and skill evidence", () => {
+    const plan = buildAgentsActivityDemoPlan(ctx, {
+      date: "2026-11-01",
+      days: 3,
+      conversations: 6,
+      "background-jobs": 2,
+    });
+    const original = structuredClone(plan);
+    const payload = buildActivityDemoApiPayload(plan);
+    expect(buildActivityDemoApiPayload(plan)).toEqual(payload);
+    expect(plan).toEqual(original);
+    expect(validateOtelSpanIds(payload.resourceSpans)).toMatchObject({
+      invalidSpanCount: 0,
+      malformedCollectionCount: 0,
+    });
+    const mapped = new Map(
+      plan.events.map((event, index) => [
+        `${event.trace_id}:${event.span_id}`,
+        payload.events[index]!,
+      ]),
+    );
+    for (const [index, event] of payload.events.entries()) {
+      const source = plan.events[index]!;
+      expect(event.trace_id).toMatch(/^[0-9a-f]{32}$/);
+      expect(event.span_id).toMatch(/^[0-9a-f]{16}$/);
+      expect(event.start_time).toBe(source.start_time);
+      expect(event.end_time).toBe(source.end_time);
+      expect(event.session_id).toBe(source.session_id);
+      expect(event.parent_span_id).toBe(
+        source.parent_span_id
+          ? mapped.get(`${source.trace_id}:${source.parent_span_id}`)!.span_id
+          : "",
+      );
+      expect(event.agent_run_id).toBe(
+        source.agent_run_id
+          ? mapped.get(`${source.trace_id}:${source.agent_run_id}`)!.span_id
+          : "",
+      );
+      expect(event.skills_resource_loaded).toEqual(
+        source.skills_resource_loaded,
+      );
+    }
+    const spans = new Map(
+      payload.resourceSpans.flatMap((resource) =>
+        resource.scopeSpans.flatMap((scope) =>
+          scope.spans.map((span) => [span.spanId, span] as const),
+        ),
+      ),
+    );
+    for (const event of payload.events) {
+      const span = spans.get(event.span_id)!;
+      expect(span.startTimeUnixNano).toBe(
+        (
+          BigInt(Date.parse(`${event.start_time.replace(" ", "T")}Z`)) *
+          1_000_000n
+        ).toString(),
+      );
+      const attrs = Object.fromEntries(
+        span.attributes!.map((attribute) => [
+          attribute.key,
+          attribute.value?.stringValue,
+        ]),
+      );
+      if (event.agent_id)
+        expect(attrs["langfuse.agent.run_id"]).toBe(event.agent_run_id);
+      if (event.skills_resource_loaded?.length) {
+        const available = JSON.parse(
+          attrs["langfuse.observation.skills_available"]!,
+        );
+        expect(available).toContainEqual({
+          name: event.skills_resource_loaded[0]!.skillName,
+          version: event.skills_resource_loaded[0]!.skillVersion,
+        });
+      }
+    }
+    for (const [index, score] of payload.scoreBodies.entries()) {
+      PostScoreBody.parse(score);
+      const source = plan.scores[index]!;
+      expect(score.timestamp).toBe(
+        new Date(`${source.timestamp.replace(" ", "T")}Z`).toISOString(),
+      );
+      if (source.observation_id)
+        expect(score.observationId).toBe(
+          mapped.get(`${source.trace_id}:${source.observation_id}`)!.span_id,
+        );
+      if (source.session_id) expect(score.sessionId).toBe(source.session_id);
+    }
+    expect(
+      payload.scoreBodies.some((score) => score.sessionId && !score.traceId),
+    ).toBe(true);
   });
 
   it("produces fresh, completed OTLP work whose real ingestion parser preserves each agent owner, models, skill loads and run-score references", () => {
@@ -131,6 +224,13 @@ describe("Opt-in synthetic activity replay", () => {
       expect(event.level).toBe(expected.level);
       expect(event.statusMessage ?? null).toBe(expected.status_message ?? null);
       expect(event.environment).toBe(expected.environment);
+      expect(event.completionStartTime ?? null).toEqual(
+        expected.completion_start_time
+          ? new Date(
+              `${expected.completion_start_time.replace(" ", "T")}Z`,
+            ).toISOString()
+          : null,
+      );
       expect(event.sessionId ?? "").toBe(expected.session_id);
       expect(event.tags).toEqual(expected.tags);
       expect(event.serviceName).toBe(expected.service_name);

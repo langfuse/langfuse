@@ -198,6 +198,40 @@ real runs or describe this provider-free replay as an executed application.
 NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-activity-demo --project <project-id> --credentials-file /private/path/demo-credentials.json --environment production --id-prefix assistant-live-demo --replay --replay-count 6 --replay-interval-ms 5000
 ```
 
+### Agents activity demo through the public API
+
+Use `agents-activity-demo-api` for a disposable preview when you have the
+project's API key but no database tunnel. It sends the same authored history,
+managed prompts and skills through the supported public APIs. It makes no
+provider calls and writes no local database rows.
+
+```bash
+NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- agents-activity-demo-api --project <project-id> --credentials-file /private/path/preview-key.json --environment production --id-prefix agents-preview-YYYYMMDD --days 14 --conversations 120
+```
+
+For the default synthetic seed project, omit `--project` and
+`--credentials-file`. The target must be localhost or a disposable PR preview;
+the key's project is checked before writes. Use a fresh prefix for a fresh
+recording. The usual local checkout environment is still needed to load the CLI,
+but this scenario skips datastore preflight and requires no database access.
+
+Historical timestamps and session ids are preserved. Trace ids become stable
+32-character hex ids, span ids become stable 16-character hex ids, and parent,
+run-owner and score references follow the same mapping. Scores include both
+per-run evaluations and session outcomes. Readback uses the public observations
+and Scores v3 APIs: every expected observation and score must appear, hierarchy
+and times must match, and the hero conversation's model cost and token totals
+must agree. Managed prompt/skill versions are separately read back when created.
+Canonical run ownership and managed-load resolution should also be inspected in
+the Agents UI; those fields are not exposed by the observations readback.
+
+`--dry-run` computes the shape without API calls. The API scenario shares the
+history flags of `agents-activity-demo`, but does not support `--replay`.
+Requests have individual timeouts, idempotent ingestion batches retry at most
+twice, readback waits at most five minutes, and the whole run has a twenty-minute
+deadline. Real application recordings can then target the same preview project
+in a separate `demo-live` environment, using public or invented questions only.
+
 ### Agents regression fixture
 
 `agents-mvp` creates eight observed agent identities with AGENT observations,
@@ -273,6 +307,7 @@ table reset or resource-limit increase is needed for the fixture.
 | `support-agent`        | one demo-grade, fully handcrafted trace: a customer-support copilot resolving a duplicate-charge refund — input guardrail → intent classification → parallel context fan-out (CRM/billing/tickets) → 3-turn ReAct loop (llm.chat + Stripe tools) → drafted reply → output guardrail → send                                                                               | —                                                                                                                                                                                                 |
 | `incident-session`     | one demo-grade, fully handcrafted multi-user v4 session: an on-call copilot and four engineers work a checkout-latency incident over seven turns — parallel, untraced and failing tool calls, a nested sub-agent, reasoning, markdown answers, a guardrail-flagged refusal, typed session scores and comments                                                            | `--v4` (default true)                                                                                                                                                                             |
 | `timeline-shapes`      | a dozen SMALL traces (4-25 observations each), one per timeline morphology: rag answer, streamed chat, parallel fan-out, retry backoff with widening gaps, a 13-minute wait on a human, one slow tool dwarfing everything, an error cascade with failover, in-flight spans, zero-duration checkpoints, a ten-level ladder, 24 flat siblings, and a three-turn agent loop | `--shape all\|rag-answer\|streaming-chat\|parallel-fanout\|retry-backoff\|waiting-on-approval\|slow-tool\|error-cascade\|still-running\|checkpoint-marks\|deep-ladder\|flat-siblings\|mixed-loop` |
+| `agents-activity-demo-api` | the same authored activity history through public OTLP, Skills, Prompts and Scores APIs, without database tunnels | same history flags as `agents-activity-demo`; no replay |
 | `agents-activity-demo` | curated synthetic research, product-answer and coding history: repeated agent runs within traces, multi-trace sessions, sessionless jobs, baseline-only routing, model/skill revisions, run-owned quality scores and opt-in finite OTLP replay                                                                                                                           | `--date`, `--days`, `--conversations`, `--background-jobs`, `--candidate-environment`, `--credentials-file`, `--stories`, `--replay`, `--replay-count`, `--replay-interval-ms`                    |
 
 Common flags: `--project` (defaults to the seeded example project),
