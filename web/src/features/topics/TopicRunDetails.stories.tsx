@@ -147,6 +147,30 @@ const failedRun = processRun({
   ),
 });
 
+const summarizingSnapshot: Run = {
+  ...doneWithIssues,
+  id: "run-summarizing-snapshot",
+  estimatedCost: 0.42,
+  input: {
+    operation: "update",
+    projectId: "project",
+    requestId: "request-snapshot",
+    facets: facetRefs,
+    embeddingConfig: { embeddingDimensions: 1024 },
+    timeRange: {
+      from: new Date("2026-10-16T00:00:00Z"),
+      to: new Date("2026-10-23T00:00:00Z"),
+    },
+    exploratory: false,
+    analysis: {
+      label: "Checkout",
+      filter: [],
+      seed: "seed",
+      summarize: { limit: 500, selection: "latest" },
+    },
+  },
+};
+
 const meta = preview.meta({
   component: TopicRunDetails,
   args: {
@@ -280,9 +304,11 @@ export const QuestionStatusesExplainThemselves = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("alert")).toBeNull();
-    await expect(canvas.getByText("Not tracked")).toBeVisible();
+    await expect(canvas.getByText("No new summaries")).toBeVisible();
     await expect(
-      canvas.getByText("Topic naming costs aren’t tracked yet."),
+      canvas.getByText(
+        "Reuses stored summaries. Topic naming costs aren’t tracked yet.",
+      ),
     ).toBeVisible();
     await expect(canvas.getByText("Done with issues")).toBeVisible();
     await expect(
@@ -304,5 +330,15 @@ export const QuestionStatusesExplainThemselves = meta.story({
         "The other 340 didn’t form clear groups. Try a larger, more varied set of traces.",
       ),
     ).toBeVisible();
+  },
+});
+
+export const SummarizingSnapshotShowsItsCost = meta.story({
+  name: "(Test) A snapshot that summarized traces shows their cost",
+  args: { execution: summarizingSnapshot, retry: retryIdle },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("~$0.42")).toBeVisible();
+    await expect(canvas.queryByText("No new summaries")).toBeNull();
   },
 });

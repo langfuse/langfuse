@@ -539,9 +539,7 @@ export const topicsRouter = createTRPCRouter({
       Promise.all(listed.map(recoverExecutionState)),
       getTopicExecutionCosts(
         input.projectId,
-        listed
-          .filter((execution) => execution.input.operation === "process")
-          .map((execution) => execution.id),
+        listed.map((execution) => execution.id),
       ),
     ]);
     return executions.map((execution) => ({
@@ -554,10 +552,7 @@ export const topicsRouter = createTRPCRouter({
       input.projectId,
       input.executionId,
     );
-    const costs = await getTopicExecutionCosts(
-      input.projectId,
-      execution.input.operation === "process" ? [execution.id] : [],
-    );
+    const costs = await getTopicExecutionCosts(input.projectId, [execution.id]);
     return { ...execution, estimatedCost: costs[execution.id] ?? null };
   }),
   setupTraceCounts: topicsProcedure

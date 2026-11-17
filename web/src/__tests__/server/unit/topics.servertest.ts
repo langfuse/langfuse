@@ -706,7 +706,7 @@ describe("Topics local execution access and publication", () => {
     ]);
     expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
       projectId,
-      ["priced", "zero", "historical"],
+      ["priced", "zero", "historical", "execution-a"],
     );
 
     mocks.readTopicExecutionSummary.mockResolvedValue(priced);

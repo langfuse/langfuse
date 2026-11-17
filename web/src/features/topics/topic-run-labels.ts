@@ -40,11 +40,17 @@ export const executionBadgeTypes: Record<TopicExecutionStatus, Status> = {
 export const busy = (status: string) =>
   status === "queued" || status === "running";
 
+/** Only manual runs and summarizing snapshots create summaries, so only they have a cost. */
+export const createsSummaries = (input: {
+  operation: TopicOperation;
+  analysis?: { summarize?: unknown };
+}) => input.operation === "process" || Boolean(input.analysis?.summarize);
+
 export function formatTopicRunCost(
-  operation: TopicOperation,
+  input: { operation: TopicOperation; analysis?: { summarize?: unknown } },
   estimatedCost: number | null,
 ) {
-  if (operation === "update") return "Not tracked";
+  if (!createsSummaries(input)) return "No new summaries";
   return estimatedCost == null
     ? "Unavailable"
     : `~${costFormatter(estimatedCost)}`;

@@ -202,7 +202,7 @@ export const PinsRunningAndGroupsByDay = meta.story({
     await expect(active).toHaveTextContent("Regenerate topics");
     await expect(active).toHaveTextContent("640 / 1,280");
     await expect(active).toHaveTextContent("Estimated cost");
-    await expect(active).toHaveTextContent("Not tracked");
+    await expect(active).toHaveTextContent("No new summaries");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
     ).toBeVisible();
@@ -222,9 +222,9 @@ export const PinsRunningAndGroupsByDay = meta.story({
     await expect(rows[0]).toHaveTextContent("1,412 traces · Cost: ~$4.20");
     await expect(rows[1]).toHaveTextContent("1,330 traces · Cost: ~$3.95");
     await expect(rows[1]).toHaveTextContent("12 traces failed");
-    await expect(rows[2]).toHaveTextContent("Cost: Not tracked");
+    await expect(rows[2]).toHaveTextContent("Cost: No new summaries");
     await expect(rows[2]).toHaveTextContent("Embedding model returned 429.");
-    await expect(rows[3]).toHaveTextContent("Cost: Not tracked");
+    await expect(rows[3]).toHaveTextContent("Cost: No new summaries");
     await expect(within(rows[1]).getByText("Done with issues")).toBeVisible();
     await expect(within(rows[2]).getByText("Failed")).toBeVisible();
 

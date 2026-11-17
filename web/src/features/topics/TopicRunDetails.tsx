@@ -15,6 +15,7 @@ import {
   busy,
   executionBadgeTypes,
   executionLabels,
+  createsSummaries,
   formatTopicRunCost,
   runLabel,
 } from "./topic-run-labels";
@@ -193,7 +194,8 @@ export function TopicRunDetails({
     return isUpdate ? "Estimated cost" : "Estimated processing cost";
   })();
   const costDescription = (() => {
-    if (isUpdate) return "Topic naming costs aren’t tracked yet.";
+    if (!createsSummaries(execution.input))
+      return "Reuses stored summaries. Topic naming costs aren’t tracked yet.";
     if (execution.estimatedCost == null)
       return "No estimate is available for this run’s summaries and embeddings.";
     return "Total for this run’s stored summaries and embeddings. Excludes topic naming and failed calls. May temporarily overcount or change when summaries are replaced or deleted.";
@@ -317,10 +319,7 @@ export function TopicRunDetails({
         <div className="flex items-center justify-between gap-2.5">
           <span className="text-muted-foreground text-xs">{costLabel}</span>
           <span className="font-mono text-xs">
-            {formatTopicRunCost(
-              execution.input.operation,
-              execution.estimatedCost,
-            )}
+            {formatTopicRunCost(execution.input, execution.estimatedCost)}
           </span>
         </div>
         <p className="text-muted-foreground text-xs">{costDescription}</p>
