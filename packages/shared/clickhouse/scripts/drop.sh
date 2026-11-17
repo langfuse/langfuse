@@ -26,11 +26,16 @@ if [ -z "${CLICKHOUSE_DB}" ]; then
 fi
 
 # Construct the database URL
+DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true"
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
-else
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
+    DATABASE_URL="${DATABASE_URL}&secure=true"
+    # skip_verify defaults to true for backwards compatibility. Set
+    # CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY=false to verify the server certificate.
+    if [ "${CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY:-true}" = true ] ; then
+        DATABASE_URL="${DATABASE_URL}&skip_verify=true"
+    fi
 fi
+DATABASE_URL="${DATABASE_URL}&x-migrations-table-engine=MergeTree"
 # Drop does not execute migration SQL, so the canonical source needs no rendering.
 MIGRATIONS_DIRECTORY="$SCRIPT_DIR/../migrations/canonical"
 if [ "$SKIP_CONFIRM" = "1" ] || [ "$SKIP_CONFIRM" = "true" ]; then

@@ -64,6 +64,7 @@ function runMigrationScript({
   mode,
   script = "up",
   skipConfirm = script === "up" ? "false" : "true",
+  skipVerify,
   ssl = false,
 }: {
   clusterName?: string;
@@ -73,6 +74,7 @@ function runMigrationScript({
   mode: MigrationMode;
   script?: MigrationScript;
   skipConfirm?: "true" | "false" | "1";
+  skipVerify?: boolean;
   ssl?: boolean;
 }): MigrationRun {
   const root = createTemporaryDirectory("langfuse-clickhouse-migration-test-");
@@ -153,6 +155,9 @@ function runMigrationScript({
     delete env.CLICKHOUSE_CLUSTER_NAME;
   } else {
     env.CLICKHOUSE_CLUSTER_NAME = clusterName;
+  }
+  if (skipVerify !== undefined) {
+    env.CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY = skipVerify ? "true" : "false";
   }
 
   const migrationScriptPath =
@@ -345,6 +350,44 @@ describe("ClickHouse migration preparation", () => {
     expect(existsSync(join(targetDirectory, "clustered"))).toBe(false);
     expect(existsSync(join(targetDirectory, "unclustered"))).toBe(false);
   });
+
+  it.each(["up", "down", "drop"] as const)(
+    "keeps skip_verify on the %s database URL by default when SSL is enabled",
+    (script) => {
+      const run = runMigrationScript({ mode: "unclustered", script, ssl: true });
+
+      expect(run.databaseUrl).toContain("&secure=true&skip_verify=true");
+    },
+  );
+
+  it.each(["up", "down", "drop"] as const)(
+    "verifies the certificate on the %s database URL when CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY=false",
+    (script) => {
+      const run = runMigrationScript({
+        mode: "unclustered",
+        script,
+        skipVerify: false,
+        ssl: true,
+      });
+
+      expect(run.databaseUrl).toContain("&secure=true");
+      expect(run.databaseUrl).not.toContain("skip_verify");
+    },
+  );
+
+  it.each(["up", "down", "drop"] as const)(
+    "keeps skip_verify on the %s database URL when CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY=true",
+    (script) => {
+      const run = runMigrationScript({
+        mode: "unclustered",
+        script,
+        skipVerify: true,
+        ssl: true,
+      });
+
+      expect(run.databaseUrl).toContain("&secure=true&skip_verify=true");
+    },
+  );
 
   it("renders down migrations, confirms non-interactively, and cleans up", () => {
     const run = runMigrationScript({ mode: "unclustered", script: "down" });

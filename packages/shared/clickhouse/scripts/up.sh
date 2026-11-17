@@ -109,7 +109,12 @@ trap cleanup_migrations 0
 # Construct the database URL
 DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true"
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-  DATABASE_URL="${DATABASE_URL}&secure=true&skip_verify=true"
+  DATABASE_URL="${DATABASE_URL}&secure=true"
+  # skip_verify defaults to true for backwards compatibility. Set
+  # CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY=false to verify the server certificate.
+  if [ "${CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY:-true}" = true ] ; then
+    DATABASE_URL="${DATABASE_URL}&skip_verify=true"
+  fi
 fi
 DATABASE_URL="${DATABASE_URL}${CLICKHOUSE_CLUSTER_QUERY}&x-migrations-table-engine=${MIGRATIONS_TABLE_ENGINE}"
 
