@@ -27,11 +27,15 @@ import { env } from "../env";
 
 const CORE_DATA_EXPORT_PAGE_SIZE = 1_000;
 const CORE_DATA_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024;
-// One query covers this many projects and hours. The result is one group per
-// project, hour, content type, and upload state, so Node only buffers that
-// slice — not a GROUP BY of the whole media table.
-const MEDIA_AGGREGATE_PROJECT_BATCH = 16;
-const MEDIA_AGGREGATE_HOUR_WINDOW = 24;
+// Next project ids read per page. The GROUP BY covers that batch, not the
+// whole media table. A batch whose rows exceed the budget is not aggregated
+// over all history; that project is read one calendar month at a time.
+const MEDIA_AGGREGATE_PROJECT_BATCH = 8;
+const MEDIA_AGGREGATE_SCAN_ROW_BUDGET = 100_000;
+// upload_http_status is a non-negative HTTP code. Null has to take part in
+// the keyset comparison, so it sorts as this sentinel. The exported value
+// stays null.
+const MEDIA_AGGREGATE_NULL_HTTP_STATUS = -1;
 // Each table export holds at most one postgres connection at a time (short
 // keyset page queries). Keep this below the worker's Prisma pool size
 // (default: 5 connections) so other queue jobs on the same worker never
@@ -643,6 +647,7 @@ type MediaHourlyAggregateRow = {
   hour: string;
   contentType: string;
   uploaded: boolean;
+  uploadHttpStatus: number | null;
   mediaCount: bigint | number | string;
   totalContentLengthBytes: bigint | number | string;
 };
@@ -668,70 +673,163 @@ const mapMediaHourlyAggregateToCoreDataRow = (
   hour: row.hour,
   contentType: row.contentType,
   uploaded: row.uploaded,
+  uploadHttpStatus:
+    row.uploadHttpStatus == null ? null : jsonInteger(row.uploadHttpStatus),
   mediaCount: jsonInteger(row.mediaCount),
   totalContentLengthBytes: jsonInteger(row.totalContentLengthBytes),
 });
 
-// Next projects that still have media, in id order. Soft-deleted projects stay
-// included: the other core-data exports do not filter deleted_at, and media
-// rows remain until the project is hard-deleted.
-const loadMediaAggregateProjectIds = async (
-  afterProjectId: string | null,
-  take: number,
-): Promise<string[]> => {
-  const afterFilter =
-    afterProjectId === null
-      ? Prisma.empty
-      : Prisma.sql`AND projects.id > ${afterProjectId}`;
+const mediaAggregateStatusKey = (status: number | null): number =>
+  status == null ? MEDIA_AGGREGATE_NULL_HTTP_STATUS : status;
+
+// `hour` is the UTC hour string this export writes. The month bucket is the
+// same instant, truncated, formatted so it casts back to `timestamp`.
+const mediaAggregateMonthStart = (hour: string): string =>
+  `${hour.slice(0, 7)}-01 00:00:00`;
+
+// Next media-bearing project ids in text order. One index probe per id on
+// (project_id, created_at), so the lookup does not scan the media table.
+// Soft-deleted projects stay included: the other core-data exports do not
+// filter deleted_at, and media rows remain until the project is hard-deleted.
+const loadMediaAggregateProjectIds = async ({
+  inclusiveFrom,
+  exclusiveAfter,
+  take,
+}: {
+  inclusiveFrom: string | null;
+  exclusiveAfter: string | null;
+  take: number;
+}): Promise<string[]> => {
+  let lowerBound = Prisma.sql`TRUE`;
+  if (exclusiveAfter !== null) {
+    lowerBound = Prisma.sql`m.project_id > ${exclusiveAfter}`;
+  } else if (inclusiveFrom !== null) {
+    lowerBound = Prisma.sql`m.project_id >= ${inclusiveFrom}`;
+  }
 
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
-    SELECT projects.id
-    FROM projects
-    WHERE EXISTS (
-      SELECT 1
-      FROM media
-      WHERE media.project_id = projects.id
+    WITH RECURSIVE next_projects AS (
+      SELECT
+        (
+          SELECT m.project_id
+          FROM media m
+          WHERE ${lowerBound}
+          ORDER BY m.project_id
+          LIMIT 1
+        ) AS project_id,
+        1 AS n
+      UNION ALL
+      SELECT
+        (
+          SELECT m.project_id
+          FROM media m
+          WHERE m.project_id > next_projects.project_id
+          ORDER BY m.project_id
+          LIMIT 1
+        ),
+        next_projects.n + 1
+      FROM next_projects
+      WHERE next_projects.project_id IS NOT NULL
+        AND next_projects.n < ${take}
     )
-    ${afterFilter}
-    ORDER BY projects.id ASC
-    LIMIT ${take}
+    SELECT project_id AS id
+    FROM next_projects
+    WHERE project_id IS NOT NULL
+    ORDER BY n
   `;
 
   return rows.map((row) => row.id);
 };
 
-// Earliest UTC hour at or after the previous window. created_at is timestamp
-// without time zone, stored in UTC, and the (project_id, created_at) index
-// serves the range.
-const findNextMediaAggregateHour = async (
+const countMediaRowsByProject = async (
   projectIds: string[],
-  previousWindowStart: string | null,
-): Promise<string | null> => {
-  const afterFilter =
-    previousWindowStart === null
-      ? Prisma.empty
-      : Prisma.sql`AND created_at >= ${previousWindowStart}::timestamp + ${MEDIA_AGGREGATE_HOUR_WINDOW} * INTERVAL '1 hour'`;
-
-  const rows = await prisma.$queryRaw<Array<{ hour: string | null }>>`
-    SELECT to_char(
-      date_trunc('hour', MIN(created_at)),
-      'YYYY-MM-DD HH24:MI:SS'
-    ) AS hour
+): Promise<Map<string, bigint>> => {
+  const rows = await prisma.$queryRaw<
+    Array<{ projectId: string; mediaRows: bigint | number | string }>
+  >`
+    SELECT project_id AS "projectId", COUNT(*)::bigint AS "mediaRows"
     FROM media
     WHERE project_id = ANY(${projectIds}::text[])
-    ${afterFilter}
+    GROUP BY 1
   `;
 
-  return rows[0]?.hour ?? null;
+  return new Map(rows.map((row) => [row.projectId, BigInt(row.mediaRows)]));
+};
+
+// First month at or after `afterMonthStart`'s next month. `afterMonthStart`
+// null seeks the project's earliest media. One indexed MIN per call, used to
+// skip empty months — not to walk day by day.
+const findNextMediaMonth = async (
+  projectId: string,
+  afterMonthStart: string | null,
+): Promise<string | null> => {
+  const lowerBound =
+    afterMonthStart === null
+      ? Prisma.empty
+      : Prisma.sql`AND created_at >= ${afterMonthStart}::timestamp + INTERVAL '1 month'`;
+
+  const rows = await prisma.$queryRaw<Array<{ month: string | null }>>`
+    SELECT to_char(
+      date_trunc('month', MIN(created_at)),
+      'YYYY-MM-DD HH24:MI:SS'
+    ) AS month
+    FROM media
+    WHERE project_id = ${projectId}
+    ${lowerBound}
+  `;
+
+  return rows[0]?.month ?? null;
 };
 
 // content_type is the MediaContentType allowlist enforced by the media upload
 // API and server-side writers, so the stored value is exported as-is.
-const aggregateMediaHourWindow = (
-  projectIds: string[],
-  windowStart: string,
-): Promise<MediaHourlyAggregateRow[]> =>
-  prisma.$queryRaw<MediaHourlyAggregateRow[]>`
+// `uploaded` is `uploaded_at IS NOT NULL`. `upload_http_status` is its own
+// group so a failed PATCH (status set, uploaded_at set) stays visible.
+const aggregateMediaProjects = ({
+  projectIds,
+  after,
+  monthStart,
+  limit,
+}: {
+  projectIds: string[];
+  after: MediaHourlyAggregateRow | null;
+  monthStart: string | null;
+  limit: number;
+}): Promise<MediaHourlyAggregateRow[]> => {
+  const monthFilter =
+    monthStart === null
+      ? Prisma.empty
+      : Prisma.sql`
+          AND created_at >= ${monthStart}::timestamp
+          AND created_at < ${monthStart}::timestamp + INTERVAL '1 month'
+        `;
+  const afterFilter =
+    after === null
+      ? Prisma.empty
+      : Prisma.sql`
+          AND (
+            project_id > ${after.projectId}
+            OR created_at >= ${after.hour}::timestamp
+          )
+          AND (
+            project_id,
+            to_char(
+              date_trunc('hour', created_at),
+              'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+            ),
+            content_type,
+            (uploaded_at IS NOT NULL),
+            COALESCE(upload_http_status, ${MEDIA_AGGREGATE_NULL_HTTP_STATUS})
+          ) > (
+            ${after.projectId},
+            ${after.hour},
+            ${after.contentType},
+            ${after.uploaded},
+            ${mediaAggregateStatusKey(after.uploadHttpStatus)}
+          )
+        `;
+
+  return prisma.$queryRaw<MediaHourlyAggregateRow[]>`
     SELECT
       project_id AS "projectId",
       to_char(
@@ -740,89 +838,188 @@ const aggregateMediaHourWindow = (
       ) AS hour,
       content_type AS "contentType",
       (uploaded_at IS NOT NULL) AS uploaded,
+      upload_http_status AS "uploadHttpStatus",
       COUNT(*)::bigint AS "mediaCount",
       COALESCE(SUM(content_length), 0)::bigint AS "totalContentLengthBytes"
     FROM media
     WHERE project_id = ANY(${projectIds}::text[])
-      AND created_at >= ${windowStart}::timestamp
-      AND created_at < ${windowStart}::timestamp + ${MEDIA_AGGREGATE_HOUR_WINDOW} * INTERVAL '1 hour'
-    GROUP BY 1, 2, 3, 4
-    ORDER BY 1, 2, 3, 4
+    ${monthFilter}
+    ${afterFilter}
+    GROUP BY 1, 2, 3, 4, 5
+    ORDER BY 1, 2, 3, 4, COALESCE(upload_http_status, ${MEDIA_AGGREGATE_NULL_HTTP_STATUS})
+    LIMIT ${limit}
   `;
+};
 
-// Full recompute of one (project, hour, content type, upload state) group per
-// row. State advances one project batch and one hour window at a time; each
-// fetchPage call only returns `take` rows.
-const createMediaHourlyAggregateFetchPage =
-  (): FetchTablePage<MediaHourlyAggregateRow> => {
-    let afterProjectId: string | null = null;
-    let projectsExhausted = false;
-    let projectIds: string[] = [];
-    let previousWindowStart: string | null = null;
-    let windowOpen = false;
-    const pending: MediaHourlyAggregateRow[] = [];
+// One project, one calendar month per query. Empty months are skipped.
+const appendMediaProjectByMonth = async ({
+  projectId,
+  after,
+  take,
+  page,
+}: {
+  projectId: string;
+  after: MediaHourlyAggregateRow | null;
+  take: number;
+  page: MediaHourlyAggregateRow[];
+}): Promise<"full" | "exhausted"> => {
+  const continuing = after?.projectId === projectId;
+  let monthStart = continuing
+    ? mediaAggregateMonthStart(after.hour)
+    : await findNextMediaMonth(projectId, null);
 
-    return async ({ take }) => {
-      const page: MediaHourlyAggregateRow[] = [];
+  while (page.length < take) {
+    if (monthStart === null) return "exhausted";
 
-      while (page.length < take) {
-        if (pending.length > 0) {
-          page.push(...pending.splice(0, take - page.length));
-          continue;
-        }
+    page.push(
+      ...(await aggregateMediaProjects({
+        projectIds: [projectId],
+        after: continuing ? after : null,
+        monthStart,
+        limit: take - page.length,
+      })),
+    );
+    if (page.length >= take) return "full";
 
-        if (projectIds.length === 0) {
-          if (projectsExhausted) break;
+    const previousMonth = monthStart;
+    monthStart = await findNextMediaMonth(projectId, previousMonth);
+    if (monthStart !== null && monthStart <= previousMonth) {
+      throw new Error(
+        `Media aggregate month did not advance for project ${projectId}`,
+      );
+    }
+  }
 
-          projectIds = await loadMediaAggregateProjectIds(
-            afterProjectId,
-            MEDIA_AGGREGATE_PROJECT_BATCH,
-          );
-          if (projectIds.length === 0) {
-            projectsExhausted = true;
-            break;
-          }
+  return "full";
+};
 
-          afterProjectId = projectIds[projectIds.length - 1] ?? null;
-          previousWindowStart = null;
-          windowOpen = false;
-        }
+// Same cursor contract as the other core-data tables: the next `take` groups
+// strictly after `lastRow`, ordered by the group key, with no OFFSET and no
+// cursor stored between calls. Each query reads one bounded project batch.
+// The page keeps taking the next batch until it has `take` groups or the
+// projects run out. Small batches are one GROUP BY over all history. A
+// project over the row budget, and any later page still inside a project, is
+// one GROUP BY per calendar month. Worst case is about one aggregate per
+// project-month (and another only when that month fills more than one page),
+// not one per day.
+const fetchMediaHourlyAggregatePage = async ({
+  lastRow,
+  take,
+  projectBatchSize = MEDIA_AGGREGATE_PROJECT_BATCH,
+  scanRowBudget = MEDIA_AGGREGATE_SCAN_ROW_BUDGET,
+}: {
+  lastRow: MediaHourlyAggregateRow | null;
+  take: number;
+  projectBatchSize?: number;
+  scanRowBudget?: number;
+}): Promise<MediaHourlyAggregateRow[]> => {
+  const page: MediaHourlyAggregateRow[] = [];
+  let inclusiveFrom = lastRow?.projectId ?? null;
+  let exclusiveAfter: string | null = null;
+  const rowBudget = BigInt(scanRowBudget);
 
-        const windowStart = await findNextMediaAggregateHour(
-          projectIds,
-          windowOpen ? previousWindowStart : null,
-        );
-        if (windowStart === null) {
-          projectIds = [];
-          continue;
-        }
+  while (page.length < take) {
+    const projectIds = await loadMediaAggregateProjectIds({
+      inclusiveFrom,
+      exclusiveAfter,
+      take: projectBatchSize,
+    });
+    if (projectIds.length === 0) break;
 
-        pending.push(
-          ...(await aggregateMediaHourWindow(projectIds, windowStart)),
-        );
-        previousWindowStart = windowStart;
-        windowOpen = true;
+    let index = 0;
+    if (
+      lastRow !== null &&
+      exclusiveAfter === null &&
+      projectIds[0] === lastRow.projectId
+    ) {
+      const status = await appendMediaProjectByMonth({
+        projectId: projectIds[0],
+        after: lastRow,
+        take,
+        page,
+      });
+      if (status === "full") return page;
+      index = 1;
+    }
+
+    const counts =
+      index < projectIds.length
+        ? await countMediaRowsByProject(projectIds.slice(index))
+        : new Map<string, bigint>();
+
+    while (index < projectIds.length && page.length < take) {
+      const projectId = projectIds[index]!;
+      const mediaRows = counts.get(projectId) ?? 0n;
+      if (mediaRows > rowBudget) {
+        const status = await appendMediaProjectByMonth({
+          projectId,
+          after: null,
+          take,
+          page,
+        });
+        if (status === "full") return page;
+        index += 1;
+        continue;
       }
 
-      return page;
-    };
-  };
+      const batch: string[] = [];
+      let scannedRows = 0n;
+      while (index < projectIds.length) {
+        const candidate = projectIds[index]!;
+        const candidateRows = counts.get(candidate) ?? 0n;
+        if (candidateRows > rowBudget) break;
+        if (batch.length > 0 && scannedRows + candidateRows > rowBudget) {
+          break;
+        }
+        batch.push(candidate);
+        scannedRows += candidateRows;
+        index += 1;
+      }
+
+      const rows = await aggregateMediaProjects({
+        projectIds: batch,
+        after: lastRow,
+        monthStart: null,
+        limit: take - page.length,
+      });
+      page.push(...rows);
+    }
+
+    if (page.length >= take) return page;
+
+    exclusiveAfter = projectIds[projectIds.length - 1] ?? exclusiveAfter;
+    inclusiveFrom = null;
+    if (projectIds.length < projectBatchSize) break;
+  }
+
+  return page;
+};
 
 export const uploadMediaHourlyAggregates = ({
   s3Client,
   uploadPrefix,
   pageSize,
+  projectBatchSize,
+  scanRowBudget,
 }: {
   s3Client: StorageService;
   uploadPrefix: string;
   pageSize?: number;
+  projectBatchSize?: number;
+  scanRowBudget?: number;
 }): Promise<void> =>
   uploadTableCoreDataJsonl({
     s3Client,
     uploadPrefix,
     pageSize,
     tableName: "mediaHourlyAggregates",
-    fetchPage: createMediaHourlyAggregateFetchPage(),
+    fetchPage: ({ lastRow, take }) =>
+      fetchMediaHourlyAggregatePage({
+        lastRow,
+        take,
+        projectBatchSize,
+        scanRowBudget,
+      }),
     mapRow: mapMediaHourlyAggregateToCoreDataRow,
   });
 

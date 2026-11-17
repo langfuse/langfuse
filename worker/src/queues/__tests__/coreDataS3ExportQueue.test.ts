@@ -1153,7 +1153,45 @@ describe("uploadMediaHourlyAggregates", () => {
     });
   };
 
-  it("aggregates media by project, hour, content type, and upload state", async () => {
+  const exportRows = async (
+    projectIds: string[],
+    options: {
+      pageSize: number;
+      projectBatchSize?: number;
+      scanRowBudget?: number;
+    },
+  ) => {
+    let jsonl = "";
+    const uploadFileBuffered = vi.fn(async ({ data }: { data: Readable }) => {
+      jsonl = await readStream(data);
+    });
+    const s3Client = { uploadFileBuffered } as unknown as StorageService;
+
+    await uploadMediaHourlyAggregates({
+      s3Client,
+      uploadPrefix: "core/",
+      ...options,
+    });
+
+    const rows = jsonl
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((row) => projectIds.includes(String(row.projectId)));
+
+    return { jsonl, rows, uploadFileBuffered };
+  };
+
+  const groupSortKey = (row: Record<string, unknown>) =>
+    [
+      String(row.projectId),
+      String(row.hour),
+      String(row.contentType),
+      row.uploaded === true ? "1" : "0",
+      String(row.uploadHttpStatus ?? -1).padStart(6, "0"),
+    ].join("\u0000");
+
+  it("aggregates one group per project, hour, content type, upload state, and status", async () => {
     const secret = `media-export-secret-${randomUUID()}`;
     const orgIds: string[] = [];
 
@@ -1184,6 +1222,7 @@ describe("uploadMediaHourlyAggregates", () => {
         contentType: "image/png",
         contentLength: 40,
         uploadedAt: "2024-06-01T10:46:00.000Z",
+        uploadHttpStatus: 500,
         secret,
       });
       await createMedia({
@@ -1244,102 +1283,201 @@ describe("uploadMediaHourlyAggregates", () => {
         secret,
       });
 
-      let jsonl = "";
-      const uploadFileBuffered = vi.fn(async ({ data }: { data: Readable }) => {
-        jsonl = await readStream(data);
-      });
-      const s3Client = { uploadFileBuffered } as unknown as StorageService;
-
-      await uploadMediaHourlyAggregates({
-        s3Client,
-        uploadPrefix: "core/",
-        pageSize: 2,
-      });
+      const { jsonl, rows, uploadFileBuffered } = await exportRows(
+        [active.projectId, deleted.projectId, empty.projectId],
+        { pageSize: 2 },
+      );
 
       expect(jsonl).not.toContain(secret);
-      const rows = jsonl
-        .split("\n")
-        .filter((line) => line.length > 0)
-        .map((line) => JSON.parse(line) as Record<string, unknown>)
-        .filter(
-          (row) =>
-            row.projectId === active.projectId ||
-            row.projectId === deleted.projectId ||
-            row.projectId === empty.projectId,
-        );
+      const expected = [
+        {
+          projectId: active.projectId,
+          hour: "2024-06-01T10:00:00.000Z",
+          contentType: "image/png",
+          uploaded: false,
+          uploadHttpStatus: null,
+          mediaCount: 1,
+          totalContentLengthBytes: 5,
+        },
+        {
+          projectId: active.projectId,
+          hour: "2024-06-01T10:00:00.000Z",
+          contentType: "image/png",
+          uploaded: false,
+          uploadHttpStatus: 200,
+          mediaCount: 1,
+          totalContentLengthBytes: 1,
+        },
+        {
+          projectId: active.projectId,
+          hour: "2024-06-01T10:00:00.000Z",
+          contentType: "image/png",
+          uploaded: true,
+          uploadHttpStatus: null,
+          mediaCount: 1,
+          totalContentLengthBytes: 100,
+        },
+        {
+          projectId: active.projectId,
+          hour: "2024-06-01T10:00:00.000Z",
+          contentType: "image/png",
+          uploaded: true,
+          uploadHttpStatus: 500,
+          mediaCount: 1,
+          totalContentLengthBytes: 40,
+        },
+        {
+          projectId: active.projectId,
+          hour: "2024-06-01T11:00:00.000Z",
+          contentType: "text/plain",
+          uploaded: true,
+          uploadHttpStatus: null,
+          mediaCount: 1,
+          totalContentLengthBytes: 7,
+        },
+        {
+          projectId: active.projectId,
+          hour: "2024-06-02T09:00:00.000Z",
+          contentType: "image/webp",
+          uploaded: true,
+          uploadHttpStatus: null,
+          mediaCount: 1,
+          totalContentLengthBytes: 8,
+        },
+        {
+          projectId: active.projectId,
+          hour: "2024-06-02T10:00:00.000Z",
+          contentType: "image/gif",
+          uploaded: true,
+          uploadHttpStatus: null,
+          mediaCount: 1,
+          totalContentLengthBytes: 9,
+        },
+        {
+          projectId: deleted.projectId,
+          hour: "2024-06-02T00:00:00.000Z",
+          contentType: "image/jpeg",
+          uploaded: false,
+          uploadHttpStatus: null,
+          mediaCount: 1,
+          totalContentLengthBytes: 1000,
+        },
+        {
+          projectId: deleted.projectId,
+          hour: "2024-06-02T00:00:00.000Z",
+          contentType: "image/jpeg",
+          uploaded: true,
+          uploadHttpStatus: null,
+          mediaCount: 1,
+          totalContentLengthBytes: 3,
+        },
+      ].sort((a, b) => (groupSortKey(a) < groupSortKey(b) ? -1 : 1));
 
-      expect(rows).toEqual(
-        expect.arrayContaining([
-          {
-            projectId: active.projectId,
-            hour: "2024-06-01T10:00:00.000Z",
-            contentType: "image/png",
-            uploaded: true,
-            mediaCount: 2,
-            totalContentLengthBytes: 140,
-          },
-          {
-            projectId: active.projectId,
-            hour: "2024-06-01T10:00:00.000Z",
-            contentType: "image/png",
-            uploaded: false,
-            mediaCount: 2,
-            totalContentLengthBytes: 6,
-          },
-          {
-            projectId: active.projectId,
-            hour: "2024-06-01T11:00:00.000Z",
-            contentType: "text/plain",
-            uploaded: true,
-            mediaCount: 1,
-            totalContentLengthBytes: 7,
-          },
-          {
-            projectId: active.projectId,
-            hour: "2024-06-02T09:00:00.000Z",
-            contentType: "image/webp",
-            uploaded: true,
-            mediaCount: 1,
-            totalContentLengthBytes: 8,
-          },
-          {
-            projectId: active.projectId,
-            hour: "2024-06-02T10:00:00.000Z",
-            contentType: "image/gif",
-            uploaded: true,
-            mediaCount: 1,
-            totalContentLengthBytes: 9,
-          },
-          {
-            projectId: deleted.projectId,
-            hour: "2024-06-02T00:00:00.000Z",
-            contentType: "image/jpeg",
-            uploaded: false,
-            mediaCount: 1,
-            totalContentLengthBytes: 1000,
-          },
-          {
-            projectId: deleted.projectId,
-            hour: "2024-06-02T00:00:00.000Z",
-            contentType: "image/jpeg",
-            uploaded: true,
-            mediaCount: 1,
-            totalContentLengthBytes: 3,
-          },
-        ]),
+      expect(rows).toEqual(expected);
+      expect(rows.map(groupSortKey)).toEqual(
+        [...rows].map(groupSortKey).sort(),
       );
-      expect(rows).toHaveLength(7);
       expect(rows.every((row) => typeof row.mediaCount === "number")).toBe(
         true,
       );
       expect(
         rows.every((row) => typeof row.totalContentLengthBytes === "number"),
       ).toBe(true);
+      expect(Object.keys(rows[0] ?? {}).sort()).toEqual(
+        [
+          "contentType",
+          "hour",
+          "mediaCount",
+          "projectId",
+          "totalContentLengthBytes",
+          "uploadHttpStatus",
+          "uploaded",
+        ].sort(),
+      );
       expect(uploadFileBuffered).toHaveBeenCalledWith(
         expect.objectContaining({
           fileName: "core/mediaHourlyAggregates.jsonl",
           fileType: "application/x-ndjson",
         }),
+      );
+    } finally {
+      await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
+    }
+  });
+
+  it("pages a project by month and still returns every later group", async () => {
+    const secret = `media-export-month-${randomUUID()}`;
+    const orgIds: string[] = [];
+
+    try {
+      const juneAndAugust = await createOrgProjectAndApiKey();
+      orgIds.push(juneAndAugust.orgId);
+      const other = await createOrgProjectAndApiKey();
+      orgIds.push(other.orgId);
+
+      await createMedia({
+        projectId: juneAndAugust.projectId,
+        createdAt: "2024-06-15T04:00:00.000Z",
+        contentType: "image/png",
+        contentLength: 11,
+        uploadedAt: "2024-06-15T04:01:00.000Z",
+        secret,
+      });
+      await createMedia({
+        projectId: juneAndAugust.projectId,
+        createdAt: "2024-08-02T01:00:00.000Z",
+        contentType: "image/jpeg",
+        contentLength: 22,
+        uploadedAt: null,
+        uploadHttpStatus: 500,
+        secret,
+      });
+      await createMedia({
+        projectId: other.projectId,
+        createdAt: "2024-07-01T00:30:00.000Z",
+        contentType: "text/plain",
+        contentLength: 33,
+        uploadedAt: "2024-07-01T00:31:00.000Z",
+        secret,
+      });
+
+      const { rows } = await exportRows(
+        [juneAndAugust.projectId, other.projectId],
+        // Budget 0 forces the month split. Batch size 1 forces the next
+        // project lookup after the first project is exhausted.
+        { pageSize: 5, projectBatchSize: 1, scanRowBudget: 0 },
+      );
+
+      expect(rows).toEqual(
+        [
+          {
+            projectId: juneAndAugust.projectId,
+            hour: "2024-06-15T04:00:00.000Z",
+            contentType: "image/png",
+            uploaded: true,
+            uploadHttpStatus: null,
+            mediaCount: 1,
+            totalContentLengthBytes: 11,
+          },
+          {
+            projectId: juneAndAugust.projectId,
+            hour: "2024-08-02T01:00:00.000Z",
+            contentType: "image/jpeg",
+            uploaded: false,
+            uploadHttpStatus: 500,
+            mediaCount: 1,
+            totalContentLengthBytes: 22,
+          },
+          {
+            projectId: other.projectId,
+            hour: "2024-07-01T00:00:00.000Z",
+            contentType: "text/plain",
+            uploaded: true,
+            uploadHttpStatus: null,
+            mediaCount: 1,
+            totalContentLengthBytes: 33,
+          },
+        ].sort((a, b) => (groupSortKey(a) < groupSortKey(b) ? -1 : 1)),
       );
     } finally {
       await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
