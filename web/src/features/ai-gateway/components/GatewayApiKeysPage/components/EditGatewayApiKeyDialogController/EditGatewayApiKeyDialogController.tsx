@@ -93,6 +93,7 @@ export function EditGatewayApiKeyDialogController({
           utils.aiGateway.getAnalyticsLabels.invalidate({
             orgId: organizationId,
           }),
+          utils.aiGateway.getApiKeysSpend.invalidate({ orgId: organizationId }),
         ]);
         closeDialog();
       } catch (error) {

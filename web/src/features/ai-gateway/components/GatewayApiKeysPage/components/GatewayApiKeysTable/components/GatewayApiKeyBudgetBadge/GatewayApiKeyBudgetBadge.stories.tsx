@@ -49,6 +49,23 @@ export const VariantMatrix = meta.story({
   ),
 });
 
+export const UnderLimit = meta.story({
+  args: states[0],
+});
+
+export const UnderLimitExplainsUsage = meta.story({
+  name: "(Test) Budget under its limit explains usage and reset",
+  args: UnderLimit.input.args,
+  play: async ({ canvas }) => {
+    await userEvent.hover(canvas.getByText("$42.5 / $100 monthly"));
+    const tooltip = await screen.findByRole("tooltip");
+    await expect(tooltip).toHaveTextContent("Within budget");
+    await expect(tooltip).toHaveTextContent(
+      /42% of the budget is used\. It resets on .*\d/,
+    );
+  },
+});
+
 export const Reached = meta.story({
   args: { spendLimit: { interval: "DAILY", limitUsd: 20 }, spentUsd: 23.75 },
 });

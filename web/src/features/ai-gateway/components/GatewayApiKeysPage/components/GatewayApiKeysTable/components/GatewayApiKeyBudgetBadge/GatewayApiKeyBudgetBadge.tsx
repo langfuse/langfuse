@@ -28,52 +28,76 @@ export function GatewayApiKeyBudgetBadge({
   spentUsd,
 }: GatewayApiKeyBudgetBadgeProps) {
   const limit = `${formatUsd(spendLimit.limitUsd)} ${intervalLabels[spendLimit.interval]}`;
-  if (spentUsd === undefined) {
-    return <Badge color="filled" size="md" text={limit} />;
-  }
-
-  const badge = (
-    <Badge
-      color={budgetColor(spentUsd, spendLimit.limitUsd)}
-      size="md"
-      text={`${formatUsd(spentUsd)} / ${limit}`}
-    />
-  );
-  if (spentUsd < spendLimit.limitUsd) return badge;
+  const { title, description } = describeBudget(spendLimit, spentUsd);
 
   return (
     <CustomTooltip
       content={
         <span className="flex flex-col gap-0.5">
-          <span className="font-medium">Budget reached</span>
-          <span className="text-muted-foreground text-xs">
-            {reachedDescription(spendLimit.interval)}
-          </span>
+          <span className="font-medium">{title}</span>
+          <span className="text-muted-foreground text-xs">{description}</span>
         </span>
       }
     >
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} tabIndex={0} className="inline-flex">
-          {badge}
+          <Badge
+            color={
+              spentUsd === undefined
+                ? "filled"
+                : budgetColor(spentUsd, spendLimit.limitUsd)
+            }
+            size="md"
+            interactive
+            text={
+              spentUsd === undefined
+                ? limit
+                : `${formatUsd(spentUsd)} / ${limit}`
+            }
+          />
         </span>
       )}
     </CustomTooltip>
   );
 }
 
-function reachedDescription(interval: GatewaySpendBudgetInterval) {
-  const resetsAt = getGatewaySpendLimitWindowEnd(
+function describeBudget(
+  { interval, limitUsd }: GatewayApiKeyBudgetBadgeProps["spendLimit"],
+  spentUsd: number | undefined,
+) {
+  if (spentUsd === undefined) {
+    return {
+      title: "Spend unavailable",
+      description:
+        "Spend is counted only while gateway requests are recorded, so only the limit is shown.",
+    };
+  }
+  const resetsAt = formatResetsAt(interval);
+  if (spentUsd >= limitUsd) {
+    return {
+      title: "Budget reached",
+      description: resetsAt
+        ? `Requests with this key are rejected until the budget resets on ${resetsAt}.`
+        : "Requests with this key are rejected until an admin raises or removes the budget.",
+    };
+  }
+  const used = `${Math.floor((spentUsd / limitUsd) * 100)}% of the budget is used.`;
+  return {
+    title:
+      budgetColor(spentUsd, limitUsd) === "warning"
+        ? "Budget nearly reached"
+        : "Within budget",
+    description: resetsAt
+      ? `${used} It resets on ${resetsAt}.`
+      : `${used} It never resets.`,
+  };
+}
+
+function formatResetsAt(interval: GatewaySpendBudgetInterval) {
+  return getGatewaySpendLimitWindowEnd(
     interval,
     getGatewaySpendLimitWindowStart(interval),
-  );
-  if (!resetsAt) {
-    return "Requests with this key are rejected until an admin raises or removes the budget.";
-  }
-  const date = resetsAt.toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-  return `Requests with this key are rejected until the budget resets on ${date}.`;
+  )?.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 function budgetColor(spentUsd: number, limitUsd: number) {
