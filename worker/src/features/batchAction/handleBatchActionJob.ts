@@ -641,24 +641,24 @@ export const handleBatchActionJob = async (
       filter: convertDatesInFiltersFromStrings(query.filter ?? []),
     });
 
-    const dbReadStream = await getEventsStreamForEval({
-      projectId,
-      cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter,
-      searchQuery: query.searchQuery ?? undefined,
-      searchType: query.searchType ?? ["id", "content"],
-      rowLimit: Math.min(
-        rowLimit,
-        env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
-      ),
-    });
-
     await processBatchedObservationEval({
       projectId,
       batchActionId,
       evaluators,
       evaluatorLabels,
-      observationStream: dbReadStream,
+      rowLimit: Math.min(
+        rowLimit,
+        env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+      ),
+      openObservationStream: (resume) =>
+        getEventsStreamForEval({
+          projectId,
+          cutoffCreatedAt: new Date(cutoffCreatedAt),
+          filter,
+          searchQuery: query.searchQuery ?? undefined,
+          searchType: query.searchType ?? ["id", "content"],
+          ...resume,
+        }),
     });
   }
 

@@ -203,6 +203,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
 
       - name: Build and push ${{ matrix.target }} image
+        timeout-minutes: 21 # 5 * 4.2 minutes average build time
         env:
           COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
           IMAGE: ${{ matrix.image }}
@@ -333,6 +334,7 @@ jobs:
 
       - name: Build and push ai-gateway image
         if: steps.gate.outputs.skip != 'true'
+        timeout-minutes: 18 # 5 * 3.45 minutes average gateway build time
         env:
           COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
           IMAGE: ${{ needs.meta.outputs.ai_gateway_image }}

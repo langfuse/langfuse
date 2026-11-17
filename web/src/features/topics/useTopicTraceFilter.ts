@@ -29,6 +29,8 @@ const ruleColumns = new Set(
   traceTranscriptFilterDefinition.columns.map((column) => column.id),
 );
 // Rules match at ingestion, so they only offer the trace-transcript filter fields.
+// Lookup stays on the full rule registry so an out-of-list filter (e.g. from
+// Ask AI) shows as a token that validation flags, instead of hiding.
 export const topicsFilterRegistry = {
   ...RULE_FIELD_REGISTRY,
   fields: RULE_FIELD_REGISTRY.fields.filter((field) =>
@@ -36,6 +38,19 @@ export const topicsFilterRegistry = {
   ),
   columns: RULE_FIELD_REGISTRY.columns.filter((column) =>
     ruleColumns.has(column.id),
+  ),
+  // Live scans reject negated filters, so no `-env:dev` example.
+  searchExamples: [
+    "level:ERROR",
+    "env:prod",
+    "tags:billing",
+    "type:GENERATION",
+  ],
+  aiContextFields: RULE_FIELD_REGISTRY.aiContextFields.filter(
+    ({ observedOptionsKey }) =>
+      ruleColumns.has(
+        observedOptionsKey === "traceTags" ? "tags" : observedOptionsKey,
+      ),
   ),
   filterStateErrors: (filters: FilterState) => {
     const error = topicRuleFilterError(filters);
@@ -67,7 +82,7 @@ const OPTION_COLUMNS = topicsFilterRegistry.columns
   .map((column) => optionColumn(column.id)) as OptionColumns;
 
 // Matches the setup backfill window.
-const WINDOW_MS = 7 * 86_400_000;
+const DAY_MS = 86_400_000;
 const PREVIEW_TRACES = 20;
 
 export type TopicTracePreviewRow =
@@ -139,17 +154,21 @@ export function useTopicTraceFilter({
   active,
   filters,
   onFiltersChange,
+  days = 7,
 }: {
   projectId: string;
   /** Loads suggestions and the preview only while the Traces step shows. */
   active: boolean;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  /** Window the preview counts, ending when the hook mounts. */
+  days?: number;
 }) {
-  const [range] = useState(() => {
-    const to = new Date();
-    return { from: new Date(to.getTime() - WINDOW_MS), to };
-  });
+  const [to] = useState(() => new Date());
+  const range = useMemo(
+    () => ({ from: new Date(to.getTime() - days * DAY_MS), to }),
+    [to, days],
+  );
   const startTimeFilter = useMemo<TimeFilter[]>(
     () => [
       {

@@ -21,7 +21,6 @@ import { createObservationEvalSchedulerDeps } from "../../features/evaluation/ob
 import { Prisma } from "@langfuse/shared/src/db";
 import { observationForEvalSchema, TopicsTargetObject } from "@langfuse/shared";
 import {
-  isTopicsEnabled,
   getTopicsProcessingSampling,
   isTopicsProcessingActive,
   isTopicsProjectEnabled,
@@ -32,7 +31,6 @@ import {
   createTestEvalConfig,
   createMockSchedulerDeps,
 } from "../../features/evaluation/observationEval/__tests__/fixtures";
-import { trackLegacyTopicsBatchActivity } from "../../features/traceBatching/traceBatching";
 import {
   batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
@@ -74,10 +72,6 @@ vi.mock(
     scheduleObservationEvals: vi.fn(),
   }),
 );
-vi.mock("../../features/traceBatching/traceBatching", () => ({
-  trackLegacyTopicsBatchActivity: vi.fn(),
-}));
-
 vi.mock("../../features/traceBatching/traceRuleRecording", () => ({
   recordTraceActivity: vi.fn(),
 }));
@@ -143,11 +137,12 @@ describe("trace-rule recording at the evaluation stage", () => {
       vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
         topicsEnabled ? 1 : 0,
       );
-      env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 1;
-      env.LANGFUSE_TRACE_DISPATCH_ENABLED = ingestionEnabled ? "true" : "false";
+      env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 1;
+      env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
+        ? "true"
+        : "false";
       const includeTraceTranscriptRules =
         shouldWriteToEventsTable && ingestionEnabled;
-      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
       env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
       const projectId = "recording-test";
       const observationRule = createTestEvalConfig({ projectId });
@@ -291,7 +286,6 @@ describe("trace-rule recording at the evaluation stage", () => {
         expect(writeEventRecord).toHaveBeenCalledTimes(
           shouldWriteToEventsTable ? 3 : 0,
         );
-        expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
         expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith(projectId, {
           includeTraceTranscriptRules,
         });
@@ -332,11 +326,10 @@ describe("trace-rule recording at the evaluation stage", () => {
       let recordedActivity: unknown;
       try {
         env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloud ? "DEV" : undefined;
-        env.LANGFUSE_TRACE_DISPATCH_ENABLED = ingestionEnabled
+        env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
           ? "true"
           : "false";
-        env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = rate;
-        env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
+        env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = rate;
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
         vi.mocked(fetchEvalRules).mockResolvedValue({
           observationRules: [],
@@ -397,157 +390,6 @@ describe("trace-rule recording at the evaluation stage", () => {
       }
     },
   );
-});
-
-describe("direct-v4 trace batch tracking", () => {
-  it("tracks accepted writes together and excludes failed writes, disabled intake, and legacy writes", async () => {
-    const original = {
-      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      LANGFUSE_TRACE_DISPATCH_ENABLED: env.LANGFUSE_TRACE_DISPATCH_ENABLED,
-      LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-      LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
-        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
-      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED:
-        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED,
-      LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS:
-        env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS,
-    };
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
-    vi.mocked(isTopicsEnabled).mockReturnValue(true);
-    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
-    env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
-    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
-    env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS = ["*"];
-
-    try {
-      vi.mocked(getS3EventStorageClient).mockReturnValue({
-        downloadBytes: vi.fn().mockResolvedValue(Buffer.from("[]")),
-      } as unknown as ReturnType<typeof getS3EventStorageClient>);
-      vi.spyOn(otelPreparation, "prepareOtelBatch").mockResolvedValue({
-        sourceUnchanged: false,
-        batch: {
-          takeJsonBuffer: () => Buffer.from("[]"),
-          dispose: vi.fn(),
-        } as unknown as EarlyOtelBatch,
-      });
-      const restore = vi
-        .spyOn(mediaRestoration, "restoreInlineMedia")
-        .mockResolvedValue(undefined);
-      vi.mocked(fetchEvalRules).mockResolvedValue({
-        observationRules: [],
-        traceTranscriptRules: [],
-      });
-      vi.spyOn(ClickhouseWriter, "getInstance").mockReturnValue(
-        {} as ClickhouseWriter,
-      );
-      vi.spyOn(
-        OtelIngestionProcessor.prototype,
-        "processToIngestionEvents",
-      ).mockResolvedValue([]);
-      const inputs = [
-        { traceId: "accepted", spanId: "first" },
-        { traceId: "accepted", spanId: "second" },
-        { traceId: "write-failed", spanId: "third" },
-        { traceId: "conversion-failed", spanId: "fourth" },
-      ].map((entry, index) => ({
-        ...entry,
-        projectId: "project",
-        startTimeISO: new Date(1_000 + index * 1_000).toISOString(),
-      }));
-      vi.spyOn(
-        OtelIngestionProcessor.prototype,
-        "processToEvent",
-      ).mockReturnValue(
-        inputs as ReturnType<OtelIngestionProcessor["processToEvent"]>,
-      );
-      vi.spyOn(
-        IngestionService.prototype,
-        "createEventRecord",
-      ).mockImplementation(async (input) => {
-        if (input.traceId === "conversion-failed") throw new Error("invalid");
-        return { span_id: input.spanId, event_bytes: 10_000 } as Awaited<
-          ReturnType<IngestionService["createEventRecord"]>
-        >;
-      });
-      const write = vi
-        .spyOn(IngestionService.prototype, "writeEventRecord")
-        .mockImplementation(async (record) => {
-          if (record.span_id === "third") throw new Error("write rejected");
-          return {
-            ...record,
-            event_bytes: 1234,
-            input: "post-overflow 🔥",
-          };
-        });
-      const processor = otelIngestionQueueProcessorBuilder(false);
-      const job = {
-        data: {
-          id: "ingestion",
-          timestamp: new Date(),
-          name: QueueJobs.OtelIngestionJob,
-          payload: {
-            data: { fileKey: "synthetic.json" },
-            authCheck: {
-              validKey: true,
-              scope: {
-                projectId: "project",
-                orgId: "org",
-                accessLevel: "project",
-              },
-            },
-            ingestionVersion: "4",
-          },
-        },
-      } as Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>;
-
-      await processor(job, undefined);
-      expect(restore.mock.calls.map(([, records]) => records)).toEqual([
-        inputs,
-      ]);
-      expect(write).toHaveBeenCalledTimes(3);
-      expect(recordTraceActivity).not.toHaveBeenCalled();
-      expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith("project", {
-        includeTraceTranscriptRules: false,
-      });
-      expect(trackLegacyTopicsBatchActivity).toHaveBeenCalledExactlyOnceWith(
-        "project",
-        inputs.slice(0, 2).map(({ traceId, startTimeISO }) => ({
-          traceId,
-          startTimeISO,
-          serializedEventBytes: 1234,
-        })),
-      );
-
-      vi.mocked(trackLegacyTopicsBatchActivity).mockClear();
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      await processor(job, undefined);
-      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-      vi.mocked(isTopicsEnabled).mockReturnValue(false);
-      await processor(job, undefined);
-      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
-
-      env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
-      vi.mocked(isTopicsEnabled).mockReturnValue(true);
-      write.mockRejectedValue(new Error("all writes rejected"));
-      await processor(job, undefined);
-      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
-
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
-      write.mockClear();
-      restore.mockClear();
-      await processor(job, undefined);
-      expect(restore.mock.calls.map(([, records]) => records)).toEqual([[]]);
-      expect(write).not.toHaveBeenCalled();
-      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
-    } finally {
-      Object.assign(env, original);
-      vi.mocked(isTopicsEnabled).mockReturnValue(false);
-      vi.restoreAllMocks();
-      vi.clearAllMocks();
-    }
-  });
 });
 
 describe("early media extraction rollout", () => {

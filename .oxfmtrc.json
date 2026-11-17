@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "trailingComma": "all",
+  "printWidth": 80,
+  "sortImports": false,
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "packages/shared/prisma/generated",
+    ".screenshots-review",
+    "packages/native/index.js",
+    "packages/native/index.d.ts"
+  ]
+}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMediaQuery } from "react-responsive";
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { TopicsEmptyState } from "./TopicsEmptyState";
@@ -13,6 +14,7 @@ import {
   UNASSIGNED_TOPIC_ID,
 } from "./prepare-topic-display";
 import { TopicTraceList } from "./TopicTraceList";
+import { TopicsSplit } from "./TopicsSplit";
 import { UNASSIGNED_SWATCH_COLOR } from "./topic-map-colors";
 
 /** Only the largest topics keep their map color; the rest are grey. */
@@ -45,46 +47,56 @@ export function TopicListView({
     topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
   const traces = useTraces(selected ? topicQuery(selected.id) : null);
   const maxCount = Math.max(1, ...topics.map((topic) => topic.count));
+  const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
   if (facet.topics.length === 0 || !selected) {
     return <TopicsEmptyState />;
   }
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
-      <ul
-        aria-label="Topics"
-        className="flex min-h-48 shrink-0 basis-1/2 flex-col gap-px overflow-y-auto p-4 lg:shrink lg:basis-2/5"
-      >
-        {topics.map((topic) => (
-          <li key={topic.id}>
-            <TopicRow
-              topic={topic}
-              maxCount={maxCount}
-              selected={topic.id === selected.id}
-              onSelect={() => setSelectedTopicId(topic.id)}
-            />
-          </li>
-        ))}
-      </ul>
-      <TopicTraceList
-        key={selected.id}
-        projectId={projectId}
-        title={selected.name}
-        description={
-          selected.id === UNASSIGNED_TOPIC_ID ? undefined : selected.description
-        }
-        swatchColor={selected.color}
-        traces={traces}
-        totalCount={selected.count}
-        tracingTopic={
-          selected.id === UNASSIGNED_TOPIC_ID
-            ? undefined
-            : { facet, name: selected.name }
-        }
-        peekView={peekView}
-        tracePanelRef={tracePanelRef}
-        divider="side"
-      />
-    </div>
+    <TopicsSplit
+      id="topics-list-split"
+      orientation={isWide ? "horizontal" : "vertical"}
+      defaultTopicsSize={isWide ? "40%" : "50%"}
+      topics={
+        <ul
+          aria-label="Topics"
+          className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto p-4"
+        >
+          {topics.map((topic) => (
+            <li key={topic.id}>
+              <TopicRow
+                topic={topic}
+                maxCount={maxCount}
+                selected={topic.id === selected.id}
+                onSelect={() => setSelectedTopicId(topic.id)}
+              />
+            </li>
+          ))}
+        </ul>
+      }
+      traces={
+        <TopicTraceList
+          key={selected.id}
+          projectId={projectId}
+          title={selected.name}
+          description={
+            selected.id === UNASSIGNED_TOPIC_ID
+              ? undefined
+              : selected.description
+          }
+          swatchColor={selected.color}
+          traces={traces}
+          totalCount={selected.count}
+          tracingTopic={
+            selected.id === UNASSIGNED_TOPIC_ID
+              ? undefined
+              : { facet, name: selected.name }
+          }
+          peekView={peekView}
+          tracePanelRef={tracePanelRef}
+          divider="none"
+        />
+      }
+    />
   );
 }
 

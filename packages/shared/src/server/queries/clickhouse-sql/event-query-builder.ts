@@ -978,7 +978,9 @@ type AliasedColumns<
   RegisteredCTEs extends Record<string, string[]>,
   Aliases extends Record<string, keyof RegisteredCTEs>,
 > = {
-  [Alias in keyof Aliases]: `${Alias & string}.${RegisteredCTEs[Aliases[Alias]][number]}`;
+  [
+    Alias in keyof Aliases
+  ]: `${Alias & string}.${RegisteredCTEs[Aliases[Alias]][number]}`;
 }[keyof Aliases];
 
 /**

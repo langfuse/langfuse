@@ -21,6 +21,8 @@ export const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
 /** A queue that runs per-trace work from the stored transcript; it resolves its rule's definitions itself. */
 type EventsDispatchEnqueueContext = {
   transcriptS3Path: string;
+  /** The snapshot that seeded the trace, when it came from one. */
+  batchActionId?: string;
 };
 
 type EventsDispatchConsumer = {
@@ -33,37 +35,39 @@ type EventsDispatchConsumer = {
   ) => Promise<void>;
 };
 
-const CONSUMERS: EventsDispatchConsumer[] = [
-  {
-    name: "topics",
-    evaluatorTypes: [EvalTemplateType.FACET],
-    enqueue: async (reference, ruleIds) => {
-      const queue = TopicsTraceQueue.getInstance({
-        shardingKey: `${reference.projectId}-${reference.traceId}`,
-      });
-      if (!queue) throw new Error("Topics trace queue is unavailable.");
-      await queue.add(
-        QueueJobs.TopicsTraceJob,
-        {
-          name: QueueJobs.TopicsTraceJob,
-          id: randomUUID(),
-          timestamp: new Date(),
-          payload: { ...reference, ruleIds },
+const TOPICS_CONSUMER: EventsDispatchConsumer = {
+  name: "topics",
+  evaluatorTypes: [EvalTemplateType.FACET],
+  enqueue: async (reference, ruleIds, { batchActionId }) => {
+    const queue = TopicsTraceQueue.getInstance({
+      shardingKey: `${reference.projectId}-${reference.traceId}`,
+    });
+    if (!queue) throw new Error("Topics trace queue is unavailable.");
+    await queue.add(
+      QueueJobs.TopicsTraceJob,
+      {
+        name: QueueJobs.TopicsTraceJob,
+        id: randomUUID(),
+        timestamp: new Date(),
+        payload: { ...reference, ruleIds, batchActionId },
+      },
+      {
+        // A retried job within its lifetime never enqueues a trace revision twice.
+        deduplication: {
+          id: JSON.stringify([
+            reference.projectId,
+            reference.traceId,
+            reference.revision,
+          ]),
+          ttl: JOB_MAX_AGE_MS,
         },
-        {
-          // A retried job within its lifetime never enqueues a trace revision twice.
-          deduplication: {
-            id: JSON.stringify([
-              reference.projectId,
-              reference.traceId,
-              reference.revision,
-            ]),
-            ttl: JOB_MAX_AGE_MS,
-          },
-        },
-      );
-    },
+      },
+    );
   },
+};
+
+const CONSUMERS: EventsDispatchConsumer[] = [
+  TOPICS_CONSUMER,
   {
     name: TRACE_TRANSCRIPT_EVAL_CONSUMER,
     evaluatorTypes: TRACE_TRANSCRIPT_EVAL_TYPES,
@@ -115,6 +119,9 @@ function ruleEvaluatorTypes(
   rules.catch(() => ruleCache.delete(projectId));
   return rules;
 }
+
+/** A snapshot's traces go to Topics alone; its execution names the facets. */
+export const SNAPSHOT_JOBS = [{ consumer: TOPICS_CONSUMER, ruleIds: [] }];
 
 /** Routes recorded rule IDs to the consumers whose evaluator type each rule runs; unknown IDs are returned separately. */
 export async function routeRules(
