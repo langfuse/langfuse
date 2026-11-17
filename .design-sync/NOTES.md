@@ -28,6 +28,7 @@
 - `cfg.storyImports.shim` lists the shared modules whose filename doesn't match the export (`drawer.tsx`, `MarkdownViewer.tsx`) plus `ui/sidebar.tsx`. Without the shim the preview bundles a second source copy, which loses LangfuseProvider's contexts ("`Tooltip` must be used within `TooltipProvider`", "useSidebar must be used within a Sidebar"). Modules whose filename matches their export (`ScoreTag.tsx`, and since 2026-10-22 `ui/AIAssistedInput.tsx`, `GroupedScoreBadges.tsx`, `layouts/MobilePageActionsContent.tsx` - renamed from kebab-case upstream) redirect to the bundle without a shim entry. The shim list still carries the dead `ai-assisted-input.tsx`/`grouped-score-badge.tsx` patterns (they match nothing): `cfg.storyImports` is in the GLOBAL grade key, so editing it re-grades all ~82 components - drop them only when a global re-grade happens anyway. gen-entry.sh also exports `SCORE_LEVEL_LABELS`, which `ScoreTag.stories.tsx` imports (without it: `Cannot convert undefined or null to object`, empty ScoreTag card). A story importing a non-component name from a module whose filename matches its export needs that name in gen-entry.sh.
 - MobilePageActionsContent (2026-10-22): after the rename it redirects to the bundle, while its story's `<Popover>` (ui/popover, lowercase filename -> never shimmed) bundled a second copy -> "`PopoverPortal` must be used within `Popover`". Fix without touching the global key: gen-entry.sh exports ui `Popover`, `PopoverTrigger` (no DS name clash; the design agent needs them to open MobilePageActionsContent anyway), and owned `previews/MobilePageActionsContent.tsx` mirrors the story importing both from the package.
 - `SidebarProvider` + `SidebarInset` are exported because `AppSidebar` can't render outside them.
+- Public-asset discovery (2026-11-12): `LangfuseWordmark` (used by `LangfuseLogo` and `AppSidebar`) loads `${basePath}/langfuse-by-clickhouse*.svg` after `const basePath = env.NEXT_PUBLIC_BASE_PATH ?? ""`, which the old grep (`NEXT_PUBLIC_BASE_PATH ?? ""}/` only) missed - broken image on BOTH panels, so compare graded it a false match on AppSidebar. gen-entry.sh's grep now also matches `{basePath}/<file>`. A broken image on both sides is a mismatch, not a match.
 
 ## Fonts
 
@@ -61,6 +62,9 @@
 - ExpandToggle "(Test) Flips label and aria-expanded" is skipped by id (2026-10-25): its play() flips the toggle to "Show less".
 - Avatar `TintedFallback` story (added upstream): the owned `previews/Avatar.tsx` needs one export per story, in story order. A missing export pairs stories by order, so "Tinted Fallback" rendered the `(Test)` hover story. Add an export whenever Avatar gains a story.
 - ExpandToggle (added 2026-10-25): `cardMode: "column"` for `[GRID_OVERFLOW] wide` on Overview.
+- Play-state skips added 2026-11-12 (new upstream `(Test)` stories that leave an overlay open): ProjectDropdownMenu/OrganizationDropdownMenu `--test-search`, SelectInput `--test-disabled-option-shows-reason`, AsyncSelectInput `--external-results`, Dialog `--disabled-action-with-reason`, DropdownMenu `--test-clears-the-search`, KeyValueFilterBuilder `--test-session-replay-block` (adds a condition and opens the key dropdown).
+- GroupedScoreBadges: `cardMode: "column"` (2026-11-12) for `[GRID_OVERFLOW]` on DetailsInsideBadge.
+- OverviewSelectionBar "Hidden" and QueryTokens "Empty" render nothing by design (both panels blank) - graded match.
 - HoverCard "(Test) Delayed" matches only because both captures land before its 700ms openDelay - skip it if a capture ever shows the card open.
 
 ## Known validate warnings (expected)
@@ -69,6 +73,11 @@
 - `[RENDER] ... root empty` on `Table` and/or `DataTable` (2026-11-03): false positive, but it fails validate and so blocks upload. `package-validate.mjs` reads the root right after `networkidle`; on a cold load the two largest previews (`_preview/Table.js` ~5.3 MB) have not mounted yet (probe: root 0 bytes at networkidle -> 8 KB / 60 KB 1.5s later; warm reloads and the validator's own screenshot show the full table). Which of the two trips varies per run. Unresolved: needs a validator wait-for-mount (staged script, not repo config) or a smaller Table preview (it carries ~90 absorbed column stories).
 
 ## Re-sync risks (check these first when a re-sync diverges)
+
+- Remote anchor still from 10-29 (2026-11-12): scriptsSha `cca50c6b4bf08bb1`; the 11-03 run never uploaded. Every component was `changed` again and the whole roster was re-graded this run.
+- Formatter re-key (2026-11-17): #20262 ran the repo formatter over `.design-sync/overrides/*.mjs` (quote style only). Fork bytes are in the global grade key, so the next sync after it lists every component as `changed` again - expect a full re-grade; keep the forks inside the formatter's scope from now on so this happens once.
+- Upload refused (2026-11-17): the 2026-11-12 run's verified build was blocked at the first `write_files` with `HTTP 403 {"code":"permission_denied","message":"cannot edit this project"}` while `get_project` showed no `moveState`. Edit access for the routine's account on the pinned project has to be restored before any re-sync can upload; reads still work.
+- U+FFFD in `_preview/Table.js` / `_preview/DataTable.js` comes from vendored `posthog-js` dist (UTF-16 decoder literal), not repo source - cannot be fixed at source; accept until those previews stop pulling posthog.
 
 - Order: `@langfuse/shared` build -> Storybook build under `.env.dev.example` -> `gen-entry.sh` -> `copy-css.sh` (re-injects fonts + public assets into `sb-reference/iframe.html`; a fresh Storybook build drops both) -> package-build.
 - `ds-package/` sources (LangfuseProvider, next-router.ts, csf-factories-preview.tsx incl. FullscreenFrame, process-shim/public-assets generation, tsconfig) are NOT grade-keyed: after editing them, delete the affected `.cache/compare/<Name>.grade.json` by hand.
