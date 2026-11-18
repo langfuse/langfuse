@@ -62,6 +62,7 @@ export function TopicTreemapView({
       traces={
         <TopicTraceList
           key={selected?.id ?? "all"}
+          rowHeightKey="topicTracesTreemap"
           projectId={projectId}
           title={selected ? selected.name : "All traces"}
           description={

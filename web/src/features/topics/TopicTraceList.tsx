@@ -17,7 +17,6 @@ import {
   DataTableRowHeightSwitch,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -37,13 +36,6 @@ import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
-// TEMP comparison, remove before merge: "rows" = row height menu, "words" = wrap capped at 20 words.
-type SummaryMode = "rows" | "words";
-const SUMMARY_WORD_CAP = 20;
-function capWords(text: string, cap: number) {
-  const words = text.trim().split(/\s+/);
-  return words.length > cap ? `${words.slice(0, cap).join(" ")}…` : text;
-}
 /** Summaries run up to about 230 characters, so medium fits two lines and large about four. */
 const TRACE_ROW_HEIGHTS: CustomHeights = { s: "h-7", m: "h-16", l: "h-24" };
 /** More rows load from the server as the list nears its end. */
@@ -83,6 +75,7 @@ export function TopicTraceList({
   description,
   swatchColor,
   traces,
+  rowHeightKey = "topicTraces",
   selectedTraceId = null,
   totalCount,
   tracingTopic,
@@ -103,17 +96,10 @@ export function TopicTraceList({
     Math.floor(Math.max(0, (tableSize?.width ?? 0) - 16) * share);
   // Taller rows wrap the summary and topic, since the list is the only place to read them.
   const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
-    "topicTraces",
+    rowHeightKey,
     "s",
   );
-  // TEMP comparison toggle, remove before merge.
-  const [summaryMode, setSummaryMode] = useLocalStorage<SummaryMode>(
-    "topics-trace-summary-mode-temp",
-    "rows",
-  );
-  const capsWords = summaryMode === "words";
-  const wrapsSummary =
-    !capsWords && (rowHeight !== "s" || rowHeights.mode === "custom");
+  const wrapsSummary = rowHeight !== "s" || rowHeights.mode === "custom";
   const selectedRowLoaded = rows.some((row) => row.traceId === selectedTraceId);
   // A trace picked on the map scrolls into view once its row is loaded.
   useEffect(() => {
@@ -222,14 +208,12 @@ export function TopicTraceList({
         return (
           <p
             className={cn(
-              wrapsSummary || capsWords
-                ? "break-words whitespace-pre-wrap"
-                : "truncate",
+              wrapsSummary ? "break-words whitespace-pre-wrap" : "truncate",
               CELL,
             )}
             title={summary}
           >
-            {capsWords ? capWords(summary, SUMMARY_WORD_CAP) : summary}
+            {summary}
           </p>
         );
       },
@@ -273,21 +257,12 @@ export function TopicTraceList({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {/* TEMP comparison toggle, remove before merge. */}
-            <Button
-              text={capsWords ? "Compare: 20-word cap" : "Compare: row height"}
-              variant="outline"
-              size="sm"
-              onClick={() => setSummaryMode(capsWords ? "rows" : "words")}
+            <DataTableRowHeightSwitch
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              tableName="topics-trace-list"
+              customRowHeight={customRowHeightMenu(rowHeights)}
             />
-            {!capsWords && (
-              <DataTableRowHeightSwitch
-                rowHeight={rowHeight}
-                setRowHeight={setRowHeight}
-                tableName="topics-trace-list"
-                customRowHeight={customRowHeightMenu(rowHeights)}
-              />
-            )}
             {tracingHref && (
               <Button
                 href={tracingHref}
@@ -328,12 +303,12 @@ export function TopicTraceList({
               noResultsMessage={emptyMessage}
               peekView={peekView}
               rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
-              rowHeight={capsWords ? undefined : rowHeight}
+              rowHeight={rowHeight}
               customRowHeights={TRACE_ROW_HEIGHTS}
-              customRowHeightPx={capsWords ? null : rowHeights.activeHeightPx}
+              customRowHeightPx={rowHeights.activeHeightPx}
               onCustomRowHeightChange={rowHeights.setCustomPx}
               onSelectRowHeight={setRowHeight}
-              topAlignCells={wrapsSummary || capsWords}
+              topAlignCells={wrapsSummary}
             />
           )}
         </div>
@@ -349,6 +324,8 @@ type TopicTraceListProps = {
   description?: string;
   swatchColor?: string;
   traces: TopicTracesResult;
+  /** Each view keeps its own row height: the list sits beside the map in Scatter, full width elsewhere. */
+  rowHeightKey?: string;
   /** Highlighted and scrolled into view, e.g. a trace picked on the map. */
   selectedTraceId?: string | null;
   /** Count of the listed traces; null when only the loaded rows are known. */
