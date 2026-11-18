@@ -12,8 +12,16 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
       try {
         return await actual.generateTopicText(params);
       } catch (error: any) {
+        const body = [
+          error,
+          error?.cause,
+          error?.lastError,
+          ...(error?.errors ?? []),
+        ]
+          .map((e: any) => e?.responseBody ?? e?.data)
+          .find(Boolean);
         raw.push(
-          `text=${JSON.stringify(error?.text)} cause=${String(error?.cause?.message ?? error?.cause ?? "").slice(0, 800)}`,
+          `text=${JSON.stringify(error?.text)} cause=${String(error?.cause?.message ?? error?.cause ?? "").slice(0, 400)} body=${String(typeof body === "string" ? body : JSON.stringify(body)).slice(0, 1200)}`,
         );
         throw error;
       }
@@ -129,7 +137,7 @@ test("list live model ids", async () => {
   );
   if (haiku && anthropic) {
     const { models } = resolveTopicsLlmCombination(haiku);
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 1; i++) {
       try {
         await nameTopicGroup(models, { ...prepared, facetName: "Intent" });
         lines.push(`[probe] haiku naming ${i}: ok`);
@@ -156,7 +164,6 @@ test("list live model ids", async () => {
       "gemini-4-argon",
       "gemini-4-carbon",
       "gemini-4-hydrogen",
-      "gemini-3.8-flash",
     ]) {
       const { models } = resolveTopicsLlmCombination({
         name: `Vertex ${model}`,
