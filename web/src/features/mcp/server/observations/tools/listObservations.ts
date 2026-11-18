@@ -156,8 +156,8 @@ export const [listObservationsTool, handleListObservations] = defineTool({
       spanName: "mcp.observations.list",
       context,
       attributes: {
-        "mcp.pagination_limit": input.limit,
-        "mcp.limit_lowered": limit < input.limit,
+        "mcp.requested_limit": input.limit,
+        "mcp.applied_limit": limit,
         "mcp.filters_input": filterColumns.has("input"),
         "mcp.filters_output": filterColumns.has("output"),
         "mcp.filters_metadata": filterColumns.has("metadata"),

@@ -181,6 +181,24 @@ describe("MCP observation search cooldown", () => {
     );
   });
 
+  it("records requested and applied limits when an input projection lowers the page size", async () => {
+    await handleListObservations(
+      { ...input, fields: ["id", "input"], limit: 100 },
+      context,
+    );
+
+    expect(fakeSpan.setAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "mcp.requested_limit": 100,
+        "mcp.applied_limit": 50,
+      }),
+    );
+    expect(queryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 50 }),
+      expect.anything(),
+    );
+  });
+
   it.each(["input", "output"])(
     "records %s content filtering independently of projection",
     async (column) => {
