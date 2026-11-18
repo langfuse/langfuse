@@ -25,23 +25,23 @@ const bedrockGptModel = () =>
 export const TOPICS_LLM_COMBINATIONS: TopicsLlmCombination[] = [
   {
     name: "OpenAI",
-    summary: { connection: "openai", model: "gpt-5-mini" },
+    summary: { connection: "openai", model: "gpt-6-luna" },
     embedding: {
       connection: "openai",
       model: "text-embedding-3-small",
       dimensions: 1024,
     },
-    clustering: { connection: "openai", model: "gpt-5-mini" },
+    clustering: { connection: "openai", model: "gpt-6-luna" },
   },
   {
     name: "Anthropic + Bedrock Cohere embeddings",
-    summary: { connection: "anthropic", model: "claude-sonnet-4-6" },
+    summary: { connection: "anthropic", model: "claude-haiku-5-5" },
     embedding: {
       connection: "bedrock",
       model: "eu.cohere.embed-v4:0",
       dimensions: 1024,
     },
-    clustering: { connection: "anthropic", model: "claude-sonnet-4-6" },
+    clustering: { connection: "anthropic", model: "claude-haiku-5-5" },
   },
   {
     name: "Azure",
@@ -58,7 +58,7 @@ export const TOPICS_LLM_COMBINATIONS: TopicsLlmCombination[] = [
     name: "Bedrock",
     summary: {
       connection: "bedrock",
-      model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      model: "eu.anthropic.claude-haiku-5-5",
     },
     embedding: {
       connection: "bedrock",
@@ -67,14 +67,14 @@ export const TOPICS_LLM_COMBINATIONS: TopicsLlmCombination[] = [
     },
     clustering: {
       connection: "bedrock",
-      model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      model: "eu.anthropic.claude-haiku-5-5",
     },
   },
   {
     name: "Bedrock (API key)",
     summary: {
       connection: "bedrockApiKey",
-      model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      model: "eu.anthropic.claude-haiku-5-5",
     },
     embedding: {
       connection: "bedrockApiKey",
@@ -83,7 +83,7 @@ export const TOPICS_LLM_COMBINATIONS: TopicsLlmCombination[] = [
     },
     clustering: {
       connection: "bedrockApiKey",
-      model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      model: "eu.anthropic.claude-haiku-5-5",
     },
   },
   {
@@ -102,14 +102,14 @@ export const TOPICS_LLM_COMBINATIONS: TopicsLlmCombination[] = [
   },
   {
     name: "Vertex AI",
-    summary: { connection: "vertex", model: "gemini-2.5-flash-lite" },
+    summary: { connection: "vertex", model: "gemini-3.8-flash" },
     // text-embedding-005 batches inputs but stops at 768 dimensions.
     embedding: {
       connection: "vertex",
       model: "text-embedding-005",
       dimensions: 768,
     },
-    clustering: { connection: "vertex", model: "gemini-2.5-flash-lite" },
+    clustering: { connection: "vertex", model: "gemini-3.8-flash" },
   },
   {
     name: "Google AI Studio",
