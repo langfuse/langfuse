@@ -209,21 +209,22 @@ WHERE is_deleted = 0
   AND created_at >= now() - INTERVAL 48 HOUR;
 
 -- MV: topic_facet_summaries -> billable_events, one row per summary write.
--- A summary belongs to a trace or a session for one facet version, so
--- event_id is '<length(facet_id)>:<facet_id>:<facet_version>:<length(trace_id)>:<trace_id>:<session_id>'.
--- Summaries carry processed_at instead of created_at; a re-insert of an older
--- summary keeps it and is not new usage. insufficient_input rows never reach
--- the model, so they are not usage. event_bytes stays 0 until summaries
--- record their transcript size.
-CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_facet_summaries_mv
+-- A summary is one facet version over a trace or a session. Facet ids are
+-- cuids and trace ids are client-chosen, so event_id is
+-- '<facet_id>:<facet_version>:<length(trace_id)>:<trace_id>:<session_id>',
+-- with session_id only for session summaries, as in the table's sorting key.
+-- insufficient_input rows never reach the model, so they are not usage.
+-- event_bytes stays 0 until summaries record their transcript size.
+CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_topic_facet_summaries_mv
 TO billable_events AS
 SELECT
     now() AS ingested_at,
     project_id,
-    'facet_summary' AS event_type,
+    'topic_facet_summary' AS event_type,
     concat(
-        toString(length(facet_id)), ':', facet_id, ':', toString(facet_version), ':',
-        toString(length(trace_id)), ':', trace_id, ':', session_id
+        facet_id, ':', toString(facet_version), ':',
+        toString(length(trace_id)), ':', trace_id, ':',
+        if(trace_id = '', session_id, '')
     ) AS event_id,
     unit_start_time AS event_time,
     toUInt64(0) AS event_bytes,

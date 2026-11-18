@@ -3,7 +3,6 @@ import {
   getTraceCountsByProjectAndDay,
   getObservationCountsByProjectAndDay,
   getScoreCountsByProjectAndDay,
-  getFacetSummaryCountsByProjectInWindow,
   getBillingCycleStart,
   startOfDayUTC,
   endOfDayUTC,
@@ -55,18 +54,9 @@ interface UsageByOrg {
     traces: number;
     observations: number;
     scores: number;
-    facetSummaries: number;
     total: number;
   };
 }
-
-const EMPTY_USAGE: UsageByOrg[string] = {
-  traces: 0,
-  observations: 0,
-  scores: 0,
-  facetSummaries: 0,
-  total: 0,
-};
 
 /**
  * Organization with calculated billing cycle start date
@@ -111,7 +101,6 @@ function aggregateByOrg(
   traceCounts: Array<{ count: number; projectId: string; date: string }>,
   obsCounts: Array<{ count: number; projectId: string; date: string }>,
   scoreCounts: Array<{ count: number; projectId: string; date: string }>,
-  facetSummaryCounts: Array<{ count: number; projectId: string }>,
   projectToOrgMap: ProjectToOrgMap,
 ): UsageByOrg {
   const orgCounts: UsageByOrg = {};
@@ -127,7 +116,7 @@ function aggregateByOrg(
     }
 
     if (!orgCounts[orgId]) {
-      orgCounts[orgId] = { ...EMPTY_USAGE };
+      orgCounts[orgId] = { traces: 0, observations: 0, scores: 0, total: 0 };
     }
     orgCounts[orgId].traces += row.count;
   }
@@ -143,7 +132,7 @@ function aggregateByOrg(
     }
 
     if (!orgCounts[orgId]) {
-      orgCounts[orgId] = { ...EMPTY_USAGE };
+      orgCounts[orgId] = { traces: 0, observations: 0, scores: 0, total: 0 };
     }
     orgCounts[orgId].observations += row.count;
   }
@@ -159,35 +148,15 @@ function aggregateByOrg(
     }
 
     if (!orgCounts[orgId]) {
-      orgCounts[orgId] = { ...EMPTY_USAGE };
+      orgCounts[orgId] = { traces: 0, observations: 0, scores: 0, total: 0 };
     }
     orgCounts[orgId].scores += row.count;
-  }
-
-  // Aggregate Topics facet summaries
-  for (const row of facetSummaryCounts) {
-    const orgId = projectToOrgMap[row.projectId];
-    if (!orgId) {
-      logger.warn(
-        `[FREE TIER USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
-      );
-      continue;
-    }
-
-    if (!orgCounts[orgId]) {
-      orgCounts[orgId] = { ...EMPTY_USAGE };
-    }
-    orgCounts[orgId].facetSummaries += row.count;
   }
 
   // Calculate totals
   for (const orgId of Object.keys(orgCounts)) {
     const counts = orgCounts[orgId];
-    counts.total =
-      counts.traces +
-      counts.observations +
-      counts.scores +
-      counts.facetSummaries;
+    counts.total = counts.traces + counts.observations + counts.scores;
   }
 
   return orgCounts;
@@ -252,7 +221,7 @@ export async function processUsageAggregationForAllOrgs(
   // Initialize usage state for all orgs
   const usageByOrgMap: UsageByOrg = {};
   for (const org of allOrgs) {
-    usageByOrgMap[org.id] = { ...EMPTY_USAGE };
+    usageByOrgMap[org.id] = { traces: 0, observations: 0, scores: 0, total: 0 };
   }
 
   // Initialize statistics tracking
@@ -293,46 +262,35 @@ export async function processUsageAggregationForAllOrgs(
         span.setAttribute("langfuse.free_tier.dayDate", dayDateString);
         span.setAttribute("langfuse.free_tier.daysAgo", daysAgo);
 
-        // Fetch counts from Clickhouse (4 queries for ALL projects).
+        // Fetch counts from Clickhouse (3 queries for ALL projects).
         // Each query gets an extended timeout and automatic retries — a single
         // re-run is cheap compared to failing the whole job.
-        const [traceCounts, obsCounts, scoreCounts, facetSummaryCounts] =
-          await Promise.all([
-            withRetry("getTraceCountsByProjectAndDay", () =>
-              getTraceCountsByProjectAndDay({
-                startDate: dayStart,
-                endDate: dayEnd,
-              }),
-            ),
-            withRetry("getObservationCountsByProjectAndDay", () =>
-              getObservationCountsByProjectAndDay({
-                startDate: dayStart,
-                endDate: dayEnd,
-              }),
-            ),
-            withRetry("getScoreCountsByProjectAndDay", () =>
-              getScoreCountsByProjectAndDay({
-                startDate: dayStart,
-                endDate: dayEnd,
-              }),
-            ),
-            withRetry("getFacetSummaryCountsByProjectInWindow", () =>
-              getFacetSummaryCountsByProjectInWindow({
-                windowFrom: dayStart,
-                windowTo:
-                  daysAgo === 0
-                    ? normalizedReferenceDate
-                    : startOfDayUTC(new Date(dayEnd.getTime() + 1)),
-              }),
-            ),
-          ]);
+        const [traceCounts, obsCounts, scoreCounts] = await Promise.all([
+          withRetry("getTraceCountsByProjectAndDay", () =>
+            getTraceCountsByProjectAndDay({
+              startDate: dayStart,
+              endDate: dayEnd,
+            }),
+          ),
+          withRetry("getObservationCountsByProjectAndDay", () =>
+            getObservationCountsByProjectAndDay({
+              startDate: dayStart,
+              endDate: dayEnd,
+            }),
+          ),
+          withRetry("getScoreCountsByProjectAndDay", () =>
+            getScoreCountsByProjectAndDay({
+              startDate: dayStart,
+              endDate: dayEnd,
+            }),
+          ),
+        ]);
 
         // Aggregate to org level
         const orgDailyCounts = aggregateByOrg(
           traceCounts,
           obsCounts,
           scoreCounts,
-          facetSummaryCounts,
           projectToOrgMap,
         );
 
@@ -343,7 +301,6 @@ export async function processUsageAggregationForAllOrgs(
             state.traces += counts.traces;
             state.observations += counts.observations;
             state.scores += counts.scores;
-            state.facetSummaries += counts.facetSummaries;
             state.total += counts.total;
           }
         }

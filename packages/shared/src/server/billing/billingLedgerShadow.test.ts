@@ -62,7 +62,6 @@ describe("compareWithBillingLedger", () => {
       windowFrom: FROM,
       windowTo: TO,
       projectId: undefined,
-      eventTypes: ["trace", "observation", "score"],
     });
     expect(incrementsOf("langfuse.billing.ledger_shadow.units")).toEqual(
       expect.arrayContaining([
@@ -183,7 +182,6 @@ describe("compareWithBillingLedger", () => {
       windowFrom: from,
       windowTo: to,
       projectId: "p-1",
-      eventTypes: ["trace", "observation", "score"],
     });
   });
 

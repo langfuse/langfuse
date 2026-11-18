@@ -1,4 +1,3 @@
-import { env } from "../../env";
 import { queryClickhouse } from "./clickhouse";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
@@ -6,7 +5,7 @@ export type BillableEventType =
   | "observation"
   | "trace"
   | "score"
-  | "facet_summary";
+  | "topic_facet_summary";
 
 const BILLING_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
@@ -28,14 +27,10 @@ export const getBillableUnitCountsByProjectInWindow = async ({
   windowFrom,
   windowTo,
   projectId,
-  projectIds,
-  eventTypes,
 }: {
   windowFrom: Date;
   windowTo: Date;
   projectId?: string;
-  projectIds?: string[];
-  eventTypes?: BillableEventType[];
 }): Promise<
   Array<{ projectId: string; eventType: BillableEventType; count: number }>
 > => {
@@ -45,11 +40,7 @@ export const getBillableUnitCountsByProjectInWindow = async ({
     );
   }
 
-  const projectFilter = [
-    projectId ? "AND project_id = {projectId: String}" : "",
-    projectIds ? "AND project_id IN {projectIds: Array(String)}" : "",
-    eventTypes ? "AND event_type IN {eventTypes: Array(String)}" : "",
-  ].join("\n");
+  const projectFilter = projectId ? "AND project_id = {projectId: String}" : "";
 
   // The NOT IN set only holds lookback ids that also appear in the window, so
   // memory grows with the window, not with the 24-hour lookback.
@@ -92,8 +83,6 @@ export const getBillableUnitCountsByProjectInWindow = async ({
         new Date(windowFrom.getTime() - BILLING_LOOKBACK_MS),
       ),
       ...(projectId ? { projectId } : {}),
-      ...(projectIds ? { projectIds } : {}),
-      ...(eventTypes ? { eventTypes } : {}),
     },
     clickhouseConfigs: {
       request_timeout: 300000, // 5 minutes timeout
@@ -106,27 +95,4 @@ export const getBillableUnitCountsByProjectInWindow = async ({
     eventType: row.event_type,
     count: Number(row.count),
   }));
-};
-
-/**
- * Billable Topics facet summaries per project in `[windowFrom, windowTo)`,
- * counted from the ledger like any other unit. Returns no rows unless
- * `LANGFUSE_BILLING_FACET_SUMMARIES_ENABLED` is set, so regions without the
- * ledger keep billing as before.
- */
-export const getFacetSummaryCountsByProjectInWindow = async (params: {
-  windowFrom: Date;
-  windowTo: Date;
-  projectId?: string;
-  projectIds?: string[];
-}): Promise<Array<{ projectId: string; count: number }>> => {
-  if (env.LANGFUSE_BILLING_FACET_SUMMARIES_ENABLED !== "true") return [];
-  if (params.projectIds?.length === 0) return [];
-  if (params.windowTo.getTime() <= params.windowFrom.getTime()) return [];
-
-  const rows = await getBillableUnitCountsByProjectInWindow({
-    ...params,
-    eventTypes: ["facet_summary"],
-  });
-  return rows.map(({ projectId, count }) => ({ projectId, count }));
 };

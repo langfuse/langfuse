@@ -22,7 +22,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
     getTraceCountsByProjectAndDay: vi.fn(),
     getObservationCountsByProjectAndDay: vi.fn(),
     getScoreCountsByProjectAndDay: vi.fn(),
-    getFacetSummaryCountsByProjectInWindow: vi.fn(),
     parseDbOrg: vi.fn((org: any) => org), // Pass through by default
   };
 });
@@ -93,7 +92,6 @@ describe("aggregateByOrg", () => {
       traceCounts,
       obsCounts,
       scoreCounts,
-      [],
       projectToOrgMap,
     );
 
@@ -102,14 +100,12 @@ describe("aggregateByOrg", () => {
         traces: 300, // 100 + 200
         observations: 50,
         scores: 10,
-        facetSummaries: 0,
         total: 360,
       },
       "org-b": {
         traces: 300,
         observations: 75,
         scores: 0,
-        facetSummaries: 0,
         total: 375,
       },
     });
@@ -125,14 +121,13 @@ describe("aggregateByOrg", () => {
       { count: 200, projectId: "proj-unknown", date: "2024-03-01" },
     ];
 
-    const result = aggregateByOrg(traceCounts, [], [], [], projectToOrgMap);
+    const result = aggregateByOrg(traceCounts, [], [], projectToOrgMap);
 
     expect(result).toEqual({
       "org-a": {
         traces: 100,
         observations: 0,
         scores: 0,
-        facetSummaries: 0,
         total: 100,
       },
     });
@@ -144,7 +139,7 @@ describe("aggregateByOrg", () => {
       "proj-1": "org-a",
     };
 
-    const result = aggregateByOrg([], [], [], [], projectToOrgMap);
+    const result = aggregateByOrg([], [], [], projectToOrgMap);
 
     expect(result).toEqual({});
   });
@@ -162,7 +157,7 @@ describe("aggregateByOrg edge cases", () => {
       { count: 50, projectId: "proj-1", date: "2024-03-01" },
     ];
 
-    const result = aggregateByOrg(traceCounts, [], [], [], projectToOrgMap);
+    const result = aggregateByOrg(traceCounts, [], [], projectToOrgMap);
 
     expect(result["org-a"].traces).toBe(150); // Should sum both
   });
@@ -181,15 +176,11 @@ describe("aggregateByOrg edge cases", () => {
     const scoreCounts = [
       { count: 3000, projectId: "proj-1", date: "2024-03-01" },
     ];
-    const facetSummaryCounts = [
-      { count: 4000, projectId: "proj-1", date: "2024-03-01" },
-    ];
 
     const result = aggregateByOrg(
       traceCounts,
       obsCounts,
       scoreCounts,
-      facetSummaryCounts,
       projectToOrgMap,
     );
 
@@ -197,8 +188,7 @@ describe("aggregateByOrg edge cases", () => {
       traces: 1000,
       observations: 2000,
       scores: 3000,
-      facetSummaries: 4000,
-      total: 10000,
+      total: 6000,
     });
   });
 });

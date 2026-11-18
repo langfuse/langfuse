@@ -8,7 +8,6 @@ import {
   getBillingCycleEnd,
   getBillingCycleStart,
   getObservationCountsByProjectInCreationInterval,
-  getFacetSummaryCountsByProjectInWindow,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
   logger,
@@ -672,9 +671,9 @@ export class ChbBillingService {
   }
 
   /**
-   * Billable units (traces + observations + scores + Topics facet summaries)
-   * ingested into the org's live projects since the period start. Soft-deleted
-   * projects are left out, as they are when usage is metered.
+   * Billable units (traces + observations + scores) ingested into the org's
+   * live projects since the period start. Soft-deleted projects are left out,
+   * as they are when usage is metered.
    */
   private async countBillableUnits(
     orgId: string,
@@ -696,11 +695,6 @@ export class ChbBillingService {
       getTraceCountsByProjectInCreationInterval(interval),
       getObservationCountsByProjectInCreationInterval(interval),
       getScoreCountsByProjectInCreationInterval(interval),
-      getFacetSummaryCountsByProjectInWindow({
-        windowFrom: interval.start,
-        windowTo: interval.end,
-        projectIds: interval.projectIds,
-      }),
     ]);
     return counts.flat().reduce((sum, row) => sum + row.count, 0);
   }

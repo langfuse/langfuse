@@ -345,6 +345,8 @@ describe("billable_events materialized views", () => {
     await writeTopicSummaries([
       // A duplicate write of the same summary
       { ...summary, processedAt: new Date(Date.now() + SECOND).toISOString() },
+      // The trace joined a session after its first summary
+      { ...summary, sessionId: "late-session" },
       { ...summary, facetVersion: 2 },
       { ...summary, traceId: null, sessionId: "session", traceName: "" },
       // A re-insert of an older summary is not new usage
@@ -364,7 +366,7 @@ describe("billable_events materialized views", () => {
     ]);
 
     expect(await billedUnitsAroundNow(projectId)).toEqual({
-      facet_summary: 3,
+      topic_facet_summary: 3,
     });
     const ledgerRows = await queryClickhouse<{
       environment: string;

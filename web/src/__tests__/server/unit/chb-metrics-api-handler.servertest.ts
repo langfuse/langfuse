@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   traceCounts: vi.fn(),
   observationCounts: vi.fn(),
   scoreCounts: vi.fn(),
-  facetSummaryCounts: vi.fn(),
   recordIncrement: vi.fn(),
   compareWithBillingLedger: vi.fn(),
 }));
@@ -33,7 +32,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     getTraceCountsByProjectInCreationInterval: mocks.traceCounts,
     getObservationCountsByProjectInCreationInterval: mocks.observationCounts,
     getScoreCountsByProjectInCreationInterval: mocks.scoreCounts,
-    getFacetSummaryCountsByProjectInWindow: mocks.facetSummaryCounts,
     recordIncrement: mocks.recordIncrement,
     compareWithBillingLedger: mocks.compareWithBillingLedger,
   };
@@ -82,9 +80,6 @@ describe("chbMetricsApiHandler", () => {
       { projectId: PROJECT_ID, count: 11 },
     ]);
     mocks.scoreCounts.mockResolvedValue([{ projectId: PROJECT_ID, count: 3 }]);
-    mocks.facetSummaryCounts.mockResolvedValue([
-      { projectId: PROJECT_ID, count: 5 },
-    ]);
   });
 
   it("returns per-resource usage counts for an authorized poll", async () => {
@@ -96,7 +91,6 @@ describe("chbMetricsApiHandler", () => {
         traces: { sum: 7 },
         observations: { sum: 11 },
         scores: { sum: 3 },
-        facetSummaries: { sum: 5 },
       },
     });
     // The window is passed through as instants and scoped to the resource, so a
@@ -113,7 +107,6 @@ describe("chbMetricsApiHandler", () => {
     mocks.traceCounts.mockResolvedValue([]);
     mocks.observationCounts.mockResolvedValue([]);
     mocks.scoreCounts.mockResolvedValue([]);
-    mocks.facetSummaryCounts.mockResolvedValue([]);
 
     const response = await chbMetricsApiHandler(
       createRequest({ resourceId: "never-existed" }),
@@ -125,7 +118,6 @@ describe("chbMetricsApiHandler", () => {
         traces: { sum: 0 },
         observations: { sum: 0 },
         scores: { sum: 0 },
-        facetSummaries: { sum: 0 },
       },
     });
     expect(mocks.recordIncrement).toHaveBeenCalledWith(
@@ -243,7 +235,6 @@ describe("chbMetricsApiHandler", () => {
         traces: { sum: 7 },
         observations: { sum: 11 },
         scores: { sum: 3 },
-        facetSummaries: { sum: 5 },
       },
     });
     expect(mocks.compareWithBillingLedger).toHaveBeenCalledWith({

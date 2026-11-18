@@ -61,11 +61,6 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
-  // Bills Topics facet summaries from the billable_events ledger. Requires the
-  // ledger table and its facet summary view, which only Langfuse Cloud has.
-  LANGFUSE_BILLING_FACET_SUMMARIES_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
   // Internal Topics PoC controls; not a supported self-hosting configuration.
   LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
