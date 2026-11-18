@@ -8,7 +8,20 @@ import type {
   GatewaySpendLimit,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { GatewayDefaultBudgetDialog } from "./components/GatewayDefaultBudgetDialog/GatewayDefaultBudgetDialog";
+import { GatewayBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetDialog/GatewayBudgetDialog";
+
+const copyBySubject = {
+  key: {
+    title: "Default key budget",
+    description:
+      "Every gateway key without its own budget gets this budget, including service account keys.",
+  },
+  user: {
+    title: "Default user budget",
+    description:
+      "Every user without their own budget gets this budget. It caps all of their gateway keys, in addition to each key's own budget.",
+  },
+} as const satisfies Record<GatewayBudgetSubject, Record<string, string>>;
 
 type GatewayDefaultBudgetDialogControllerProps = {
   organizationId: string;
@@ -46,9 +59,14 @@ export function GatewayDefaultBudgetDialogController({
       onBeforeClose={() => !mutation.isPending}
       onDismiss={() => mutation.reset()}
       renderDialog={({ closeDialog }) => (
-        <GatewayDefaultBudgetDialog
+        <GatewayBudgetDialog
+          title={copyBySubject[subject].title}
+          description={copyBySubject[subject].description}
           subject={subject}
           spendLimit={defaultBudget ?? null}
+          saveLabel="Save default"
+          requiresChange
+          removeLabel={defaultBudget ? "Remove default" : undefined}
           unavailableReason={
             isRecording === false
               ? "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to set one."

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { GatewayEditBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayEditBudgetDialog/GatewayEditBudgetDialog";
+import { GatewayBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetDialog/GatewayBudgetDialog";
 import {
   type GatewayBudgetSubject,
   type GatewaySpendLimit,
@@ -60,11 +60,17 @@ export function GatewayEditBudgetDialogController({
       onBeforeClose={() => !mutation.isPending}
       onDismiss={() => mutation.reset()}
       renderDialog={({ state, closeDialog }) => (
-        <GatewayEditBudgetDialog
+        <GatewayBudgetDialog
+          title={getTitle(state)}
+          description={<EditedBudgetsDescription budgets={state} />}
+          warning={getReplaceWarning(state)}
           subject={state.subject}
-          subjectNames={state.subjects.map(({ name }) => name)}
           spendLimit={state.spendLimit}
-          existingBudgetCount={state.existingBudgetCount}
+          saveLabel="Save changes"
+          // Selected budgets may differ, and a key or user on the default gets a budget of its own, so saving the prefilled one changes them.
+          requiresChange={
+            state.subjects.length === 1 && state.existingBudgetCount > 0
+          }
           removeLabel={getRemoveLabel(state, Boolean(defaultBudget))}
           unavailableReason={
             isRecording === false
@@ -91,4 +97,52 @@ function getRemoveLabel(budgets: GatewayEditedBudgets, hasDefault: boolean) {
   if (!isBulk && budgets.existingBudgetCount === 0) return undefined;
   if (hasDefault) return isBulk ? "Use default budgets" : "Use default budget";
   return isBulk ? "Remove budgets" : "Remove budget";
+}
+
+function EditedBudgetsDescription({
+  budgets,
+}: {
+  budgets: GatewayEditedBudgets;
+}) {
+  const isBulk = budgets.subjects.length > 1;
+  const applies = isBulk ? "Each budget applies" : "Applies";
+  const name = (
+    <span className="text-foreground font-medium">
+      {isBulk
+        ? `${budgets.subjects.length} ${budgets.subject}s`
+        : budgets.subjects[0]?.name}
+    </span>
+  );
+  if (budgets.subject === "user") {
+    return (
+      <>
+        {applies} to every gateway key of {name}, in addition to each key&apos;s
+        own budget.
+      </>
+    );
+  }
+  return (
+    <>
+      {applies} to requests with {name}.
+    </>
+  );
+}
+
+function getTitle(budgets: GatewayEditedBudgets) {
+  return budgets.subjects.length > 1
+    ? `Edit ${budgets.subjects.length} ${budgets.subject} budgets`
+    : `Edit ${budgets.subject} budget`;
+}
+
+function getReplaceWarning({
+  subject,
+  subjects,
+  existingBudgetCount,
+}: GatewayEditedBudgets) {
+  if (subjects.length === 1 || existingBudgetCount === 0) return undefined;
+  const pronoun = existingBudgetCount === 1 ? "it" : "them";
+  if (existingBudgetCount === subjects.length) {
+    return `All selected ${subject}s already have a budget. Saving replaces ${pronoun} with this one.`;
+  }
+  return `${existingBudgetCount} of the selected ${subject}s already have a budget. Saving replaces ${pronoun} with this one.`;
 }

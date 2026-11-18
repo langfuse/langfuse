@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { type ReactNode, useId } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
@@ -18,18 +18,20 @@ type GatewaySpendLimit = {
   limitUsd: number;
 };
 
-const nouns = { key: "key", user: "user" } as const;
-
-type GatewayEditBudgetDialogProps = {
-  /** What each budget caps: one key, or all keys of a user. */
-  subject: keyof typeof nouns;
-  /** The keys or users whose budgets change together. */
-  subjectNames: string[];
-  /** Prefills the form; null when the key or user has no budget yet. */
+type GatewayBudgetDialogProps = {
+  title: string;
+  /** What the budget applies to, above the inputs. */
+  description: ReactNode;
+  /** Shown as a warning above the inputs, e.g. that saving replaces budgets. */
+  warning?: string;
+  /** What the budget caps: one key, or all keys of a user. */
+  subject: "key" | "user";
+  /** Prefills the form; null when there is no budget yet. */
   spendLimit: GatewaySpendLimit | null;
-  /** How many of them already have a budget that saving replaces. */
-  existingBudgetCount: number;
-  /** The action that drops the budgets; undefined when there is none to drop. */
+  saveLabel: string;
+  /** Saving is disabled until the form changes; false when saving the prefilled budget changes something. */
+  requiresChange: boolean;
+  /** The action that drops the budget; undefined when there is none to drop. */
   removeLabel?: string;
   /** Why the budget cannot be changed; undefined when it can. */
   unavailableReason?: string;
@@ -39,19 +41,22 @@ type GatewayEditBudgetDialogProps = {
   onRemove: () => void;
 };
 
-/** Changes or removes the budgets of keys or of all of users' keys. */
-export function GatewayEditBudgetDialog({
+/** Sets or removes a budget: of keys, of users, or the organization's default for either. */
+export function GatewayBudgetDialog({
+  title,
+  description,
+  warning,
   subject,
-  subjectNames,
   spendLimit,
-  existingBudgetCount,
+  saveLabel,
+  requiresChange,
   removeLabel,
   unavailableReason,
   errorMessage,
   isSubmitting,
   onSubmit,
   onRemove,
-}: GatewayEditBudgetDialogProps) {
+}: GatewayBudgetDialogProps) {
   const formId = useId();
   const form = useForm<GatewayBudgetFormValues>({
     resolver: zodResolver(gatewayBudgetFormSchema),
@@ -73,25 +78,9 @@ export function GatewayEditBudgetDialog({
     });
   };
 
-  const isBulk = subjectNames.length > 1;
-  const noun = nouns[subject];
-  const applies = isBulk ? "Each budget applies" : "Applies";
-  const replaceWarning = isBulk
-    ? describeReplacedBudgets(existingBudgetCount, subjectNames.length, noun)
-    : null;
-  const name = (
-    <span className="text-foreground font-medium">
-      {isBulk ? `${subjectNames.length} ${noun}s` : subjectNames[0]}
-    </span>
-  );
-
   return (
     <Dialog
-      title={
-        isBulk
-          ? `Edit ${subjectNames.length} ${noun} budgets`
-          : `Edit ${noun} budget`
-      }
+      title={title}
       size="md"
       noCapture
       actions={[
@@ -107,15 +96,14 @@ export function GatewayEditBudgetDialog({
             ]
           : []),
         {
-          label: "Save changes",
+          label: saveLabel,
           type: "submit",
           form: formId,
           loading: isSubmitting,
           disabled:
             unavailableReason !== undefined ||
             !form.formState.isValid ||
-            // Selected budgets may differ, and a key or user on the default gets a budget of its own, so saving the prefilled one changes them.
-            (!isBulk && existingBudgetCount > 0 && !form.formState.isDirty),
+            (requiresChange && !form.formState.isDirty),
         },
       ]}
     >
@@ -126,21 +114,10 @@ export function GatewayEditBudgetDialog({
           actions={[]}
           onSubmit={form.handleSubmit(handleValidSubmit)}
         >
-          <p className="text-muted-foreground text-sm">
-            {subject === "user" ? (
-              <>
-                {applies} to every gateway key of {name}, in addition to each
-                key&apos;s own budget.
-              </>
-            ) : (
-              <>
-                {applies} to requests with {name}.
-              </>
-            )}
-          </p>
-          {replaceWarning !== null ? (
+          <p className="text-muted-foreground text-sm">{description}</p>
+          {warning !== undefined ? (
             <Alert variant="warning" size="sm">
-              <Alert.Description>{replaceWarning}</Alert.Description>
+              <Alert.Description>{warning}</Alert.Description>
             </Alert>
           ) : null}
           <GatewaySpendBudgetField.Inputs
@@ -158,17 +135,4 @@ export function GatewayEditBudgetDialog({
       </Dialog.Body>
     </Dialog>
   );
-}
-
-function describeReplacedBudgets(
-  existingCount: number,
-  selectedCount: number,
-  noun: string,
-) {
-  if (existingCount === 0) return null;
-  const pronoun = existingCount === 1 ? "it" : "them";
-  if (existingCount === selectedCount) {
-    return `All selected ${noun}s already have a budget. Saving replaces ${pronoun} with this one.`;
-  }
-  return `${existingCount} of the selected ${noun}s already have a budget. Saving replaces ${pronoun} with this one.`;
 }
