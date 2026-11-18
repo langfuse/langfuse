@@ -13,7 +13,8 @@ const NEAR_LIMIT_SHARE = 0.8;
 
 const dotClasses = {
   reached: "bg-dark-red",
-  near: "bg-dark-yellow",
+  // `dark-yellow` reads as brown in light mode.
+  near: "bg-yellow-400 dark:bg-dark-yellow",
 } as const;
 
 const intervalLabels: Record<GatewaySpendBudgetInterval, string> = {
