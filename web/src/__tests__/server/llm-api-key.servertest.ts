@@ -1098,7 +1098,7 @@ describe("llmApiKey.all RPC", () => {
       const hobby = callerWithPlan("cloud:hobby");
       await expect(
         hobby.llmApiKey.bedrockIamRoleAuth({ projectId }),
-      ).resolves.toEqual({ crossAccountRoleArn: null, requiresUpgrade: true });
+      ).resolves.toEqual({ crossAccountRoleArn: null });
       await expect(
         hobby.llmApiKey.bedrockExternalId({ projectId, nonce }),
       ).rejects.toMatchObject({

@@ -62,9 +62,6 @@ import {
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-const IAM_ROLE_UPGRADE_MESSAGE =
-  "IAM role auth is not part of your plan. Upgrade to Enterprise to use it.";
-
 /**
  * UI-only sentinel value for the adapter dropdown. Selecting it does not set a
  * real adapter; instead it surfaces guidance that any OpenAI-compatible
@@ -509,21 +506,14 @@ export function CreateLLMApiKeyForm({
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
     isMatchingBedrockAuthMethod(currentAuthMethod, existingKey?.authMethod);
-  const bedrockIamRoleAuth = useBedrockIamRoleAuth(
-    owner.scope === "project" && currentAdapter === LLMAdapter.Bedrock
-      ? owner.projectId
-      : null,
-  );
+  const bedrockIamRoleAuth = useBedrockIamRoleAuth({
+    projectId: owner.scope === "project" ? owner.projectId : null,
+    enabled: currentAdapter === LLMAdapter.Bedrock,
+  });
+  // A connection that already uses a role keeps it selectable, so a downgraded
+  // organization can still edit it or switch to another method.
   const usesIamRole = existingKey?.authMethod === AuthMethod.IamRole;
-  // A connection that already uses a role keeps the option visible so it can be
-  // switched to another method. Organizations without the plan see it disabled.
-  const canChooseIamRole =
-    owner.scope === "project" &&
-    (Boolean(bedrockIamRoleAuth.data?.crossAccountRoleArn) ||
-      Boolean(bedrockIamRoleAuth.data?.requiresUpgrade) ||
-      usesIamRole);
-  const isIamRoleLocked =
-    Boolean(bedrockIamRoleAuth.data?.requiresUpgrade) && !usesIamRole;
+  const isIamRoleDisabled = !bedrockIamRoleAuth.isAvailable && !usesIamRole;
   const isUsingDefaultAwsCredentialsForCurrentAuthMethod =
     currentAuthMethod === AuthMethod.AccessKeys &&
     existingKey?.authMethod === AuthMethod.DefaultCredentials;
@@ -1097,20 +1087,19 @@ export function CreateLLMApiKeyForm({
                                   value={AuthMethod.ApiKey}
                                   label="API key"
                                 />
-                                {canChooseIamRole ? (
-                                  <Tabs.Trigger
-                                    value={AuthMethod.IamRole}
-                                    label="IAM role"
-                                    disabled={isIamRoleLocked}
-                                  />
-                                ) : null}
+                                <Tabs.Trigger
+                                  value={AuthMethod.IamRole}
+                                  label="IAM role"
+                                  disabled={isIamRoleDisabled}
+                                />
                               </Tabs.List>
                             </Tabs>
                           </div>
                         </FormControl>
-                        {isIamRoleLocked ? (
+                        {isIamRoleDisabled &&
+                        bedrockIamRoleAuth.unavailableReason ? (
                           <FormDescription>
-                            {IAM_ROLE_UPGRADE_MESSAGE}
+                            {bedrockIamRoleAuth.unavailableReason}
                           </FormDescription>
                         ) : null}
                         <FormMessage />
@@ -1176,13 +1165,13 @@ export function CreateLLMApiKeyForm({
                         )}
                       />
                       {owner.scope === "project" &&
-                      bedrockIamRoleAuth.data?.crossAccountRoleArn ? (
+                      bedrockIamRoleAuth.crossAccountRoleArn ? (
                         <BedrockRoleSetupInstructions
                           projectId={owner.projectId}
                           nonce={bedrockExternalIdNonce}
                           connectionId={existingKey?.id}
                           crossAccountRoleArn={
-                            bedrockIamRoleAuth.data.crossAccountRoleArn
+                            bedrockIamRoleAuth.crossAccountRoleArn
                           }
                         />
                       ) : null}

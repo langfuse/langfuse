@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
+vi.mock("@/src/features/entitlements/hooks", () => ({
+  useHasEntitlement: () => false,
+}));
 vi.mock("@/src/utils/api", () => {
   const mutation = { useMutation: () => ({ mutateAsync: vi.fn() }) };
   return {
@@ -97,6 +100,39 @@ describe("CreateLLMApiKeyForm", () => {
     expect(
       screen.getByRole("textbox", { name: "Custom base URL" }),
     ).toHaveValue("https://gateway.example.com/v1");
+  });
+
+  it("shows IAM role auth disabled with the reason when the plan does not include it", () => {
+    const existingKey = {
+      id: "key",
+      organizationId: "org",
+      provider: "bedrock",
+      adapter: "bedrock",
+      authMethod: "access-keys",
+      displaySecretKey: "...test",
+      config: { region: "us-east-1" },
+      customModels: [],
+      withDefaultModels: true,
+      extraHeaderKeys: [],
+    } as unknown as RouterOutputs["llmApiKey"]["all"]["data"][number];
+
+    render(
+      <CreateLLMApiKeyForm
+        owner={{ scope: "organization", organizationId: "org" }}
+        onSuccess={vi.fn()}
+        customization={null}
+        mode="update"
+        existingKey={existingKey}
+      />,
+      { wrapper: LayerProvider },
+    );
+
+    expect(screen.getByRole("tab", { name: "IAM role" })).toBeDisabled();
+    expect(
+      screen.getByText(
+        "IAM role auth is available on the Enterprise plan. Upgrade to use it.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows save errors in the form instead of reporting a toast", async () => {

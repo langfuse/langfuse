@@ -233,15 +233,15 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:read",
       });
-      const deploymentRoleArn = getCrossAccountRoleArn();
       const planIncludesRoleAuth = canUseBedrockIamRole({
         sessionUser: ctx.session.user,
         projectId: input.projectId,
       });
       return {
         /** Null when this deployment or the organization does not offer IAM role auth. */
-        crossAccountRoleArn: planIncludesRoleAuth ? deploymentRoleArn : null,
-        requiresUpgrade: deploymentRoleArn !== null && !planIncludesRoleAuth,
+        crossAccountRoleArn: planIncludesRoleAuth
+          ? getCrossAccountRoleArn()
+          : null,
       };
     }),
 
