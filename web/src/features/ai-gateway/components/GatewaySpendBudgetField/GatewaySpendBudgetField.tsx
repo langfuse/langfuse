@@ -40,8 +40,9 @@ export function GatewaySpendBudgetField<
     <CustomTooltip
       content={
         <span>
-          Caps what {requestsBySubject[subject]} may cost, in USD. Spend is
-          counted from the traces the gateway records.
+          Caps what {requestsBySubject[subject]} may cost, in USD, counted from
+          when the budget is set. Daily budgets reset at 00:00 UTC, weekly ones
+          on Monday and monthly ones on the 1st.
         </span>
       }
     >

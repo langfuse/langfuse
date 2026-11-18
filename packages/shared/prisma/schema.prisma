@@ -436,10 +436,8 @@ model GatewaySpendLimit {
   user              User?                     @relation("GatewaySpendLimitUser", fields: [userId], references: [id], onDelete: Cascade)
   interval          GatewaySpendLimitInterval
   limitUsd          Decimal                   @map("limit_usd")
-  // Set when the limit is created. The gateway's usage counters are keyed by it.
+  // When the limit starts counting spend, set when it is created; earlier spend does not count. The gateway's usage counters and the alert rows are keyed by it, so moving it starts counting afresh.
   countingStartedAt DateTime                  @map("counting_started_at")
-  // Spend recorded in ClickHouse before countingStartedAt, within the window containing it. Applies while that window is current, so always for total limits.
-  baselineSpendUsd  Decimal                   @default(0) @map("baseline_spend_usd")
   // Whoever last created or updated the limit. Gateway members may change only their own limits; admins may change all.
   ownerUserId       String?                   @map("owner_user_id")
   ownerUser         User?                     @relation("GatewaySpendLimitOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)

@@ -73,9 +73,6 @@ export const GatewayResolveSpendLimitsSchema = z.array(
       limit_usd: z.number(),
       // Unix milliseconds; part of the gateway's usage counter key.
       counting_started_at: z.number().int().nonnegative(),
-      // Spend recorded before counting started, within the window containing
-      // counting_started_at. Counts only while that window is current.
-      baseline_usd: z.number(),
     })
     .strict(),
 );

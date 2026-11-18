@@ -561,7 +561,6 @@ export { getAvgCostByEvaluatorIds } from "./repositories/events";
 export { getTotalCostByRule } from "./repositories/events";
 export { getTotalCostByEvaluatorIds } from "./repositories/events";
 export { getLatestEvaluatorRunCost } from "./repositories/events";
-export { getGatewayApiKeySpendSinceFromEvents } from "./repositories/events";
 export { getGatewayApiKeysSpendSinceFromEvents } from "./repositories/events";
 export { getGatewayUsersSpendSinceFromEvents } from "./repositories/events";
 export { getEvaluatorExecutionSummaries } from "./repositories/events";

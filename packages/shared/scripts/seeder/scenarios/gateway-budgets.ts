@@ -455,7 +455,7 @@ const run = async (
         countingStartedAt,
         ownerUserId: key.userId,
       },
-      update: { limitUsd, countingStartedAt, baselineSpendUsd: 0 },
+      update: { limitUsd, countingStartedAt },
     });
   }
 
@@ -487,7 +487,7 @@ const run = async (
         limitUsd,
         countingStartedAt,
       },
-      update: { limitUsd, countingStartedAt, baselineSpendUsd: 0 },
+      update: { limitUsd, countingStartedAt },
     });
   }
 

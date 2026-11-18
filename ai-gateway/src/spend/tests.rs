@@ -120,7 +120,7 @@ fn a_spent_user_limit_rejects_the_key_and_counts_across_the_users_keys() {
     let limit = |id: &str, scope: &str| -> SpendLimit {
         serde_json::from_value(json!({
             "id": id, "scope": scope, "interval": "total", "limit_usd": 10,
-            "counting_started_at": 0, "baseline_usd": 0,
+            "counting_started_at": 0,
         }))
         .unwrap()
     };

@@ -17,7 +17,6 @@ const GATEWAY_SPEND_LIMIT_SELECT = {
   interval: true,
   limitUsd: true,
   countingStartedAt: true,
-  baselineSpendUsd: true,
   ownerUserId: true,
   createdAt: true,
   updatedAt: true,
@@ -179,7 +178,6 @@ export class GatewaySpendLimitRepository {
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
     countingStartedAt: Date;
-    baselineSpendUsd: number;
     ownerUserId: string;
   }) {
     return this.prisma.gatewaySpendLimit.create({

@@ -10,7 +10,6 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 import {
-  getGatewayApiKeySpendSinceFromEvents,
   getGatewayApiKeysSpendSinceFromEvents,
   getGatewayUsersSpendSinceFromEvents,
 } from "@langfuse/shared/src/server";
@@ -102,7 +101,6 @@ export class GatewaySpendLimitService {
       limit.apiKeyId
         ? [
             {
-              limit,
               apiKeyId: limit.apiKeyId,
               since: new Date(
                 Math.max(
@@ -127,9 +125,9 @@ export class GatewaySpendLimitService {
     );
     return {
       available: true,
-      apiKeys: counted.map(({ limit, apiKeyId }) => ({
+      apiKeys: counted.map(({ apiKeyId }) => ({
         id: apiKeyId,
-        spentUsd: (spend.get(apiKeyId) ?? 0) + baselineUsd(limit, now),
+        spentUsd: spend.get(apiKeyId) ?? 0,
       })),
     };
   }
@@ -192,9 +190,7 @@ export class GatewaySpendLimitService {
         interval: limit.interval,
         limitUsd: limit.limitUsd.toNumber(),
       },
-      spentUsd: spend
-        ? (spend.get(userId) ?? 0) + baselineUsd(limit, now)
-        : undefined,
+      spentUsd: spend ? (spend.get(userId) ?? 0) : undefined,
     }));
   }
 
@@ -245,7 +241,7 @@ export class GatewaySpendLimitService {
         interval: limit.interval,
         limitUsd: limit.limitUsd.toNumber(),
       },
-      spentUsd: spend === null ? undefined : spend + baselineUsd(limit, now),
+      spentUsd: spend ?? undefined,
       isEditable: isEditable(limit),
     });
 
@@ -445,21 +441,13 @@ export class GatewaySpendLimitService {
         "A gateway admin set this key's spend budget, so only an admin can change it.",
       );
     }
-    const recordingProjectId =
-      limit && !isUnchanged
-        ? await this.requireRecordingProjectId(organizationId)
-        : null;
+    if (limit && !isUnchanged) {
+      await this.requireRecordingProjectId(organizationId);
+    }
 
     return async () => {
-      if (limit && !kept && recordingProjectId) {
-        await this.create({
-          organizationId,
-          scope,
-          subjectCreatedAt: subject.createdAt,
-          recordingProjectId,
-          ...limit,
-          session,
-        });
+      if (limit && !kept) {
+        await this.create({ organizationId, scope, ...limit, session });
       } else if (limit && kept && !isUnchanged) {
         await this.update({ before: kept, limitUsd: limit.limitUsd, session });
       }
@@ -477,34 +465,10 @@ export class GatewaySpendLimitService {
   private async create(params: {
     organizationId: string;
     scope: GatewaySpendLimitScope;
-    subjectCreatedAt: Date;
-    recordingProjectId: string;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
     session: OrgAuthedContext["session"];
   }) {
-    const countingStartedAt = new Date();
-    const windowStart = getGatewaySpendLimitWindowStart(
-      params.interval,
-      countingStartedAt,
-    );
-    // A user's total budget counts from its creation, not over the user's history.
-    // Otherwise a total limit's window starts at the epoch, so the subject's creation bounds the scan.
-    const [baselineSpendUsd] =
-      params.scope.type === "USER" && params.interval === "TOTAL"
-        ? [0]
-        : await getScopeSpendSince({
-            projectId: params.recordingProjectId,
-            scope: params.scope,
-            since: [
-              new Date(
-                Math.max(
-                  windowStart.getTime(),
-                  params.subjectCreatedAt.getTime(),
-                ),
-              ),
-            ],
-          });
     let limit: GatewaySpendLimitRecord;
     try {
       limit = await this.repository.create({
@@ -512,8 +476,7 @@ export class GatewaySpendLimitService {
         scope: params.scope,
         interval: params.interval,
         limitUsd: params.limitUsd,
-        countingStartedAt,
-        baselineSpendUsd: baselineSpendUsd ?? 0,
+        countingStartedAt: new Date(),
         ownerUserId: params.session.user.id,
       });
     } catch (error) {
@@ -582,7 +545,6 @@ export class GatewaySpendLimitService {
         });
         if (!apiKey) throw new LangfuseNotFoundError("Gateway key not found");
         return {
-          createdAt: apiKey.createdAt,
           invalidateResolveCache: async () => {
             if (apiKey.fastHashedSecretKey) {
               await invalidateGatewayResolveCacheForApiKey(
@@ -600,11 +562,10 @@ export class GatewaySpendLimitService {
               userId: params.scope.userId,
             },
           },
-          select: { createdAt: true },
+          select: { orgId: true },
         });
         if (!membership) throw new LangfuseNotFoundError("User not found");
         return {
-          createdAt: membership.createdAt,
           // Every key of the user resolves the limit, so all of them are dropped.
           invalidateResolveCache: () =>
             invalidateGatewayResolveCacheForOrganization(params.organizationId),
@@ -645,45 +606,5 @@ export class GatewaySpendLimitService {
       },
       this.prisma,
     );
-  }
-}
-
-/** The baseline counts while the window containing the counting start is current, as in the gateway. */
-function baselineUsd(limit: GatewaySpendLimitRecord, now: Date) {
-  const current = getGatewaySpendLimitWindowStart(limit.interval, now);
-  const counting = getGatewaySpendLimitWindowStart(
-    limit.interval,
-    limit.countingStartedAt,
-  );
-  return current.getTime() === counting.getTime()
-    ? limit.baselineSpendUsd.toNumber()
-    : 0;
-}
-
-/** USD the scope spent since each `since`, in the gateway ingestion project. */
-function getScopeSpendSince(params: {
-  projectId: string;
-  scope: GatewaySpendLimitScope;
-  since: Date[];
-}) {
-  switch (params.scope.type) {
-    case "API_KEY":
-      return getGatewayApiKeySpendSinceFromEvents({
-        projectId: params.projectId,
-        apiKeyId: params.scope.apiKeyId,
-        since: params.since,
-      });
-    case "USER": {
-      const { userId } = params.scope;
-      return Promise.all(
-        params.since.map(async (since) => {
-          const [spend] = await getGatewayUsersSpendSinceFromEvents({
-            projectId: params.projectId,
-            users: [{ userId, since }],
-          });
-          return spend?.spendUsd ?? 0;
-        }),
-      );
-    }
   }
 }

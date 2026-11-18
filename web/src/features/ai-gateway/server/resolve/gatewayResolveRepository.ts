@@ -39,7 +39,6 @@ export class GatewayResolveRepository {
                 interval: true,
                 limitUsd: true,
                 countingStartedAt: true,
-                baselineSpendUsd: true,
               },
             },
           },
@@ -53,7 +52,6 @@ export class GatewayResolveRepository {
             interval: true,
             limitUsd: true,
             countingStartedAt: true,
-            baselineSpendUsd: true,
           },
         },
         organization: {

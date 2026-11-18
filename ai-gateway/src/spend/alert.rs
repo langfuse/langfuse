@@ -24,8 +24,7 @@ pub(super) struct CountedLimit {
     pub window_start: i64,
     pub counter: Counter,
     pub alerted_flag: String,
-    /// The counter's value at which the limit is reached: the limit less the baseline.
-    pub reached_at_usd: f64,
+    pub limit_usd: f64,
     /// The limit's alert flag was already set when the request was checked.
     pub alerted: bool,
 }
