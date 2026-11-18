@@ -44,7 +44,7 @@ export function ScatterTopicsView({
   useTraces,
   onOpenTrace,
 }: ScatterTopicsViewProps) {
-  // A dot click selects its trace and keeps its card open; the row opens the peek.
+  // A dot click opens its trace and highlights its row.
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   // The rows are the map's legend, so they take the scatter's colors.
   const topics = withScatterColors(
@@ -194,14 +194,12 @@ export function ScatterTopicsView({
                 onSelectTrace={(traceId) => {
                   setSelectedTraceId(traceId);
                   if (!traceId) return clearPickedTopic();
-                  // Fullscreen hides the list, so a click there leaves fullscreen and opens the trace.
-                  if (document.fullscreenElement) {
+                  // The map already shows the summary, so a dot click opens the trace; its row stays highlighted.
+                  if (document.fullscreenElement)
                     document.exitFullscreen().catch(() => undefined);
-                    onOpenTrace(traceId);
-                  }
+                  onOpenTrace(traceId);
                 }}
                 selectedTraceId={mapSelectedTraceId}
-                pinSelection
                 fillContainer
               />
             }

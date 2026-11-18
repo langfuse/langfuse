@@ -72,7 +72,6 @@ export function TopicMapExplorer({
   matchingTraceIds,
   fillContainer = false,
   previewOnSelect = false,
-  pinSelection = false,
 }: TopicMapExplorerProps) {
   // Projection preparation is independent of the high-frequency camera store.
   const model = useMemo(() => prepareTopicMap(data, topics), [data, topics]);
@@ -229,8 +228,6 @@ export function TopicMapExplorer({
       store.setState({ fullscreenError: true });
     }
   };
-  // With a pinned selection, the selected trace's card shows whenever nothing else is hovered.
-  const pinnedId = pinSelection ? selectedTraceId : null;
   const selectTrace = (id: string | null) => {
     if (id !== null && matchingTraceIds && !matchingTraceIds.has(id)) return;
     if (previewOnSelect) {
@@ -248,9 +245,7 @@ export function TopicMapExplorer({
         return;
       }
     }
-    // A pinned selection keeps its summary card open after the click.
-    if (pinSelection && id !== null) setTopicMapHover(store, id, null);
-    else clearTopicMapHover(store);
+    clearTopicMapHover(store);
     if (previewOnSelect && id === null) return;
     onSelectTrace(id);
   };
@@ -295,7 +290,7 @@ export function TopicMapExplorer({
       frame.camera.x !== intended.x ||
       frame.camera.y !== intended.y
     ) {
-      setTopicMapHover(store, pinnedId, null, pointer, pointerAt);
+      setTopicMapHover(store, null, null, pointer, pointerAt);
       return;
     }
     const hovered = hitMapNode(frame, at);
@@ -307,7 +302,7 @@ export function TopicMapExplorer({
         : null;
     setTopicMapHover(
       store,
-      traceLabel?.dataset.topicTrace ?? hovered?.traceId ?? pinnedId,
+      traceLabel?.dataset.topicTrace ?? hovered?.traceId ?? null,
       null,
       pointer,
       pointerAt,
@@ -340,7 +335,7 @@ export function TopicMapExplorer({
   };
   const handlePointerLeave = () => {
     if (previewOnSelect) return;
-    setTopicMapHover(store, pinnedId, null, { x: 0, y: 0 });
+    setTopicMapHover(store, null, null, { x: 0, y: 0 });
   };
   const handleStageKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget || !mapKeys.has(event.key)) return;
@@ -804,8 +799,6 @@ export type TopicMapExplorerProps = {
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
   previewOnSelect?: boolean;
-  /** Keeps the selected trace's summary card open after a click. */
-  pinSelection?: boolean;
 };
 
 type LayoutReadoutProps = {
