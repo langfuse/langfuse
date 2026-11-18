@@ -140,6 +140,7 @@ const mapActions = prepareTopicsActions({
   onConfigure: fn(),
   onHistory: fn(),
   ...mapActionHandlers,
+  mapPickerShown: true,
   showUnassigned: true,
   onShowUnassignedChange: fn(),
 });
