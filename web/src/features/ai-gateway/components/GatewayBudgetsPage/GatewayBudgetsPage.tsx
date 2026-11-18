@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useGatewayAnalyticsFetchQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFetchQuery";
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
+import { GatewayDefaultBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayDefaultBudgetDialogController/GatewayDefaultBudgetDialogController";
+import { formatGatewayDefaultBudgetLabel } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/formatGatewayDefaultBudgetLabel";
 import type { GatewaySpendInterval } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendIntervals";
 import { GatewayBudgetsTabContent } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/GatewayBudgetsTabContent";
 import { useGatewayBudgetsTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTab";
@@ -51,6 +54,22 @@ export function GatewayBudgetsPage({
   return (
     <>
       <PageHeaderControlsPortal>
+        {canManageGateway && (
+          <GatewayDefaultBudgetDialogController
+            organizationId={organizationId}
+            subject={tab === "apiKeys" ? "key" : "user"}
+          >
+            {({ openDialog, defaultBudget }) => (
+              <Button
+                variant="outline"
+                text={formatGatewayDefaultBudgetLabel(defaultBudget)}
+                // The dialog prefills the current default, so it opens once that has loaded.
+                disabled={defaultBudget === undefined}
+                onClick={openDialog}
+              />
+            )}
+          </GatewayDefaultBudgetDialogController>
+        )}
         <TimeRangePicker
           timeRange={timeRange}
           onTimeRangeChange={setTimeRange}

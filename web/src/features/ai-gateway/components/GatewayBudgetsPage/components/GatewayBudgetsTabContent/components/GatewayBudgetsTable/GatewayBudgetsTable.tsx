@@ -1,5 +1,6 @@
 import { Pencil } from "@langfuse/icons";
 
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -14,6 +15,7 @@ import {
   type GatewayBudgetStatus,
 } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { isGatewayBudgetStatusShown } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/isGatewayBudgetStatusShown";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import {
   getGatewaySpendLimitWindowEnd,
@@ -39,8 +41,10 @@ export type GatewayBudgetRow = {
   name: string;
   /** The key's user, or the budgeted user; null for service account keys. */
   user: GatewayBudgetUser | null;
-  /** Null when the key or user has no budget. */
+  /** Its own budget, or else the organization's default; null when it has neither. */
   spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number } | null;
+  /** Whether `spendLimit` is the organization's default. */
+  isDefault: boolean;
   /** Spend in the current window; absent while spend is not recorded. */
   spentUsd?: number;
   isEditable: boolean;
@@ -60,11 +64,14 @@ type GatewayBudgetsTableProps = Pick<
   /** Selects rows for the spend chart and bulk changes. */
   selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
   onEditBudget: (row: GatewayBudgetRow) => void;
+  /** With a default, every key or user has a budget, so none is unlimited. */
+  hasDefault: boolean;
 };
 
 const statusOptions: { value: GatewayBudgetStatus; label: string }[] = [
   { value: "all", label: "All" },
   { value: "budgeted", label: "With budget" },
+  { value: "default", label: "Default budget" },
   { value: "unlimited", label: "Unlimited" },
   { value: "exceeded", label: "Exceeded" },
 ];
@@ -85,12 +92,15 @@ const budgetColumn = (subject: "key" | "user") =>
     loadingCell: budgetSkeleton,
     renderCell: (spendLimit, { row }) =>
       spendLimit ? (
-        <GatewaySpendBudgetBadge
-          subject={subject}
-          spendLimit={spendLimit}
-          spentUsd={row.original.spentUsd}
-          format="amounts"
-        />
+        <span className="inline-flex items-center gap-2">
+          <GatewaySpendBudgetBadge
+            subject={subject}
+            spendLimit={spendLimit}
+            spentUsd={row.original.spentUsd}
+            format="amounts"
+          />
+          {row.original.isDefault && <Tag text="Default" />}
+        </span>
       ) : (
         <span className="text-muted-foreground font-mono text-xs">
           Unlimited
@@ -180,8 +190,12 @@ export function GatewayBudgetsTable({
   status,
   selectColumn,
   onEditBudget,
+  hasDefault,
 }: GatewayBudgetsTableProps) {
   const copy = copyByTab[tab];
+  const shownStatusOptions = statusOptions.filter(({ value }) =>
+    isGatewayBudgetStatusShown(value, hasDefault),
+  );
   const isFiltered = search.value.trim().length > 0 || status.value !== "all";
 
   return (
@@ -210,7 +224,7 @@ export function GatewayBudgetsTable({
           type: "select",
           label: "Status",
           placeholder: "All",
-          options: statusOptions,
+          options: shownStatusOptions,
           value: status.value,
           onChange: (value) => status.onChange(toGatewayBudgetStatus(value)),
           muted: status.value === "all",

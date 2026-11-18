@@ -8,6 +8,7 @@ type GatewayBudgetsSelectionBarProps = {
   isSaving: boolean;
   /** Set when the selection includes a row the caller can't edit. */
   disabledReason?: string;
+  removeLabel: string;
   onClear: () => void;
   onEdit: () => void;
   onRemove: () => void;
@@ -17,6 +18,7 @@ export function GatewayBudgetsSelectionBar({
   selectedCount,
   isSaving,
   disabledReason,
+  removeLabel,
   onClear,
   onEdit,
   onRemove,
@@ -43,7 +45,7 @@ export function GatewayBudgetsSelectionBar({
         onClick={onRemove}
       >
         <Trash2 size="base" color="default" __rawClassName="mr-2" />
-        Remove budget
+        {removeLabel}
       </Button>
     </OverviewSelectionBar>
   );

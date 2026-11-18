@@ -2,6 +2,7 @@
 export const GATEWAY_BUDGET_STATUSES = [
   "all",
   "budgeted",
+  "default",
   "unlimited",
   "exceeded",
 ] as const;

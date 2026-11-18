@@ -7,6 +7,7 @@ import {
   type GatewaySpendLimit,
   useSetGatewayBudgets,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
+import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayDefaultBudget";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 
 export type GatewayEditedBudgets = {
@@ -22,6 +23,7 @@ export type GatewayEditedBudgets = {
 
 type GatewayEditBudgetDialogControllerProps = {
   organizationId: string;
+  subject: GatewayBudgetSubject;
   children: (control: {
     openDialog: (budgets: GatewayEditedBudgets) => void;
   }) => ReactNode;
@@ -30,10 +32,12 @@ type GatewayEditBudgetDialogControllerProps = {
 /** Updates or deletes key or user budgets; the server checks who may. */
 export function GatewayEditBudgetDialogController({
   organizationId,
+  subject,
   children,
 }: GatewayEditBudgetDialogControllerProps) {
   const { isRecording } = useGatewaySettingsAccess(organizationId);
   const { setBudgets, mutation } = useSetGatewayBudgets(organizationId);
+  const defaultBudget = useGatewayDefaultBudget(organizationId, subject);
 
   const save = async (
     budgets: GatewayEditedBudgets,
@@ -61,6 +65,7 @@ export function GatewayEditBudgetDialogController({
           subjectNames={state.subjects.map(({ name }) => name)}
           spendLimit={state.spendLimit}
           existingBudgetCount={state.existingBudgetCount}
+          removeLabel={getRemoveLabel(state, Boolean(defaultBudget))}
           unavailableReason={
             isRecording === false
               ? "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to change one."
@@ -78,4 +83,12 @@ export function GatewayEditBudgetDialogController({
       {({ openDialog }) => children({ openDialog })}
     </DialogController>
   );
+}
+
+/** Removing a budget falls back to the default, so the action says so while one is set. */
+function getRemoveLabel(budgets: GatewayEditedBudgets, hasDefault: boolean) {
+  const isBulk = budgets.subjects.length > 1;
+  if (!isBulk && budgets.existingBudgetCount === 0) return undefined;
+  if (hasDefault) return isBulk ? "Use default budgets" : "Use default budget";
+  return isBulk ? "Remove budgets" : "Remove budget";
 }

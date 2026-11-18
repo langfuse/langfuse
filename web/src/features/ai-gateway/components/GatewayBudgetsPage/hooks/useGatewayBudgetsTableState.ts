@@ -4,6 +4,8 @@ import { useStore } from "zustand";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { isGatewayBudgetStatusShown } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/isGatewayBudgetStatusShown";
+import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayDefaultBudget";
 import { api } from "@/src/utils/api";
 
 const PAGE_SIZE = 10;
@@ -18,7 +20,16 @@ export function useGatewayBudgetsTableState(
   tab: GatewaySpendTab,
 ) {
   const [state, setState] = useState(initialState);
-  const { searchQuery, status, pagination, selectionStore } = state;
+  const { searchQuery, selectionStore } = state;
+  const hasDefault = Boolean(
+    useGatewayDefaultBudget(organizationId, tab === "apiKeys" ? "key" : "user"),
+  );
+  // Setting or removing a default can hide the chosen status; the table then lists all from the first page.
+  const isStatusShown = isGatewayBudgetStatusShown(state.status, hasDefault);
+  const status = isStatusShown ? state.status : "all";
+  const pagination = isStatusShown
+    ? state.pagination
+    : firstPage(state.pagination);
 
   const budgets = api.aiGateway.listBudgets.useQuery({
     orgId: organizationId,
@@ -44,6 +55,7 @@ export function useGatewayBudgetsTableState(
 
   return {
     budgets,
+    hasDefault,
     selectionStore,
     selectedRows,
     clearSelection,

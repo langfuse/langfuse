@@ -1,27 +1,17 @@
 import { useId } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
-import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetLimitError";
 import { emptyGatewaySpendBudget } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
-
-const gatewayEditBudgetFormSchema = z.object({
-  spendBudget: z.object({
-    interval: z.custom<GatewaySpendBudgetInterval>(),
-    limitUsd: z.string().superRefine((value, context) => {
-      const message = getGatewaySpendBudgetLimitError(value);
-      if (message) context.addIssue({ code: "custom", message });
-    }),
-  }),
-});
-
-type GatewayEditBudgetFormValues = z.infer<typeof gatewayEditBudgetFormSchema>;
+import {
+  type GatewayBudgetFormValues,
+  gatewayBudgetFormSchema,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/types/gatewayBudgetFormSchema";
 
 type GatewaySpendLimit = {
   interval: GatewaySpendBudgetInterval;
@@ -39,6 +29,8 @@ type GatewayEditBudgetDialogProps = {
   spendLimit: GatewaySpendLimit | null;
   /** How many of them already have a budget that saving replaces. */
   existingBudgetCount: number;
+  /** The action that drops the budgets; undefined when there is none to drop. */
+  removeLabel?: string;
   /** Why the budget cannot be changed; undefined when it can. */
   unavailableReason?: string;
   errorMessage: string | null;
@@ -53,6 +45,7 @@ export function GatewayEditBudgetDialog({
   subjectNames,
   spendLimit,
   existingBudgetCount,
+  removeLabel,
   unavailableReason,
   errorMessage,
   isSubmitting,
@@ -60,8 +53,8 @@ export function GatewayEditBudgetDialog({
   onRemove,
 }: GatewayEditBudgetDialogProps) {
   const formId = useId();
-  const form = useForm<GatewayEditBudgetFormValues>({
-    resolver: zodResolver(gatewayEditBudgetFormSchema),
+  const form = useForm<GatewayBudgetFormValues>({
+    resolver: zodResolver(gatewayBudgetFormSchema),
     defaultValues: {
       spendBudget: spendLimit
         ? {
@@ -73,7 +66,7 @@ export function GatewayEditBudgetDialog({
     mode: "onChange",
   });
 
-  const handleValidSubmit = (values: GatewayEditBudgetFormValues) => {
+  const handleValidSubmit = (values: GatewayBudgetFormValues) => {
     onSubmit({
       interval: values.spendBudget.interval,
       limitUsd: Number(values.spendBudget.limitUsd.trim()),
@@ -83,7 +76,6 @@ export function GatewayEditBudgetDialog({
   const isBulk = subjectNames.length > 1;
   const noun = nouns[subject];
   const applies = isBulk ? "Each budget applies" : "Applies";
-  const removeLabel = isBulk ? "Remove budgets" : "Remove budget";
   const replaceWarning = isBulk
     ? describeReplacedBudgets(existingBudgetCount, subjectNames.length, noun)
     : null;
@@ -103,7 +95,7 @@ export function GatewayEditBudgetDialog({
       size="md"
       noCapture
       actions={[
-        ...(isBulk || spendLimit
+        ...(removeLabel !== undefined
           ? [
               {
                 label: removeLabel,

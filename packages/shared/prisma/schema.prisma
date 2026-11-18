@@ -413,6 +413,9 @@ model GatewayApiKeyAssociation {
 enum GatewaySpendLimitScope {
   API_KEY
   USER
+  // The organization's fallback for keys or users without a limit of their own; no subject column is set. One per organization and scope (partial unique index in the migration).
+  API_KEY_DEFAULT
+  USER_DEFAULT
 }
 
 enum GatewaySpendLimitInterval {
@@ -457,17 +460,19 @@ enum GatewaySpendLimitAlertType {
   EXCEEDED
 }
 
-/// One notification per limit, alert type, counting start and window, so the gateway may report a limit any number of times.
+/// One notification per limit, subject, alert type, counting start and window, so the gateway may report a limit any number of times.
 model GatewaySpendLimitAlert {
   id                String                     @id @default(cuid())
   spendLimitId      String                     @map("spend_limit_id")
   spendLimit        GatewaySpendLimit          @relation(fields: [spendLimitId], references: [id], onDelete: Cascade)
+  // The key or user a default limit was reached for; empty for a limit of one key or user.
+  subjectId         String                     @default("") @map("subject_id")
   type              GatewaySpendLimitAlertType
   countingStartedAt DateTime                   @map("counting_started_at")
   windowStart       DateTime                   @map("window_start")
   createdAt         DateTime                   @default(now()) @map("created_at")
 
-  @@unique([spendLimitId, type, countingStartedAt, windowStart], map: "gateway_spend_limit_alerts_limit_type_counting_window_key")
+  @@unique([spendLimitId, subjectId, type, countingStartedAt, windowStart], map: "gateway_spend_limit_alerts_limit_type_counting_window_key")
   @@map("gateway_spend_limit_alerts")
 }
 
