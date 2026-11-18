@@ -24,12 +24,13 @@ import {
   createOrgProjectAndApiKey,
   createTrace,
   createTracesCh,
+  clearModelCacheForProject,
   findModel,
   getObservationsTableWithModelData,
 } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 type ModelOwner =
   | { scope: "LANGFUSE" }
@@ -169,6 +170,17 @@ describe("organization model definitions", () => {
       exact(orgBName),
       "0.005",
     );
+  });
+
+  afterAll(async () => {
+    const projectIds = [orgA.projectId, projectA2Id, orgB.projectId];
+    await prisma.model.deleteMany({
+      where: { id: { in: Object.values(ids) } },
+    });
+    await prisma.organization.deleteMany({
+      where: { id: { in: [orgA.orgId, orgB.orgId] } },
+    });
+    await Promise.all(projectIds.map((id) => clearModelCacheForProject(id)));
   });
 
   describe("database constraints", () => {

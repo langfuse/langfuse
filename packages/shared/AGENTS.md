@@ -33,6 +33,14 @@
   `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
   generation after history is split off; it is not the depth of the first
   generation in the full thread.
+- Model definition visibility: `src/server/ingestion/modelVisibility.ts`.
+  Every project-scoped read of `models` filters with `visibleModelsWhere`
+  (Prisma) or `visibleModelsSql` (raw SQL): the project's rows, its
+  organization's rows, and Langfuse rows. Never filter on null owner columns.
+  Resolution ranks project over organization over Langfuse
+  (`modelScopeRankSql`) before pattern or start date. After changing an
+  organization's definitions, call `clearModelCacheForOrganization`
+  (`src/server/ingestion/modelMatch.ts`).
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Audit snapshots and replay: `src/server/repositories/auditLogs.ts`; `getAuditLogResourceRefs` derives bulk trace refs from the persisted snapshot for live staging and backfill.
