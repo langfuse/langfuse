@@ -19,6 +19,7 @@ export const [updateEvaluatorTool, handleUpdateEvaluator] = defineTool({
     "This is a full replacement, not a partial patch: every call must include evaluatorId, name, type, and the complete definition fields for that type, even to change only the name or description. Omitted optional fields, including description, are cleared.",
     "Get evaluatorId from the `id` returned by listEvaluators or createEvaluator.",
     "To change part of an evaluator, first call getEvaluator and resend its current values: name, description, type, and from the latest entry in `versions` the definition (`promptMessages` content as prompt, outputDefinition, variableMapping, and provider, model, and modelParams as modelConfig for `LLM_AS_JUDGE`; sourceCode and sourceCodeLanguage for `CODE`; questions, provider and model as modelConfig, and variableMapping for `DECISION_MODEL`).",
+    "prompt is saved as a single user message: when the latest `promptMessages` has more than one entry or a non-user role, this tool would flatten it and change evaluation behavior, so do not update that evaluator here; ask the user to edit it in the Langfuse UI instead.",
     "Definition changes append an immutable version; name and description changes do not.",
     EVALUATOR_DEFINITION_FIELDS_DESCRIPTION,
     `Use ${DECISION_MODEL_CONNECTIONS_HINT}.`,
