@@ -47,6 +47,9 @@ pub(crate) fn known_reference_spans(
                 end,
                 json_layers: 0,
             });
+            true
+        } else {
+            false
         }
     });
     if spans
@@ -128,12 +131,14 @@ fn collect_layers(
                         collect_layers(text.as_str(), depth + 1, layers, is_known, needs_depth)?;
                     } else {
                         scan_reference_ranges(text.as_str(), |_, _, reference| {
-                            if is_known(reference) && needs_depth(reference) {
+                            let known = is_known(reference);
+                            if known && needs_depth(reference) {
                                 layers
                                     .entry(reference.to_owned())
                                     .or_default()
                                     .push_back(depth);
                             }
+                            known
                         });
                     }
                 }
@@ -153,14 +158,14 @@ fn collect_layers(
     }
 }
 
-/// Visit complete temporary-reference markers while borrowing each marker from `text`.
-/// When a suffix begins another marker, resume at that nested prefix so later valid
-/// occurrences remain visible.
-pub(crate) fn for_each_media_reference(text: &str, mut visit: impl FnMut(&str)) {
+/// Visit candidate references, borrowing each marker from `text`.
+/// Return true to consume an accepted reference, or false to keep searching inside
+/// an unknown candidate. Always returning false also visits overlapping candidates.
+pub(crate) fn for_each_media_reference(text: &str, mut visit: impl FnMut(&str) -> bool) {
     scan_reference_ranges(text, |_, _, reference| visit(reference));
 }
 
-fn scan_reference_ranges<'a>(text: &'a str, mut visit: impl FnMut(usize, usize, &'a str)) {
+fn scan_reference_ranges<'a>(text: &'a str, mut visit: impl FnMut(usize, usize, &'a str) -> bool) {
     let mut cursor = 0;
     while let Some(relative) = text
         .get(cursor..)
@@ -171,21 +176,91 @@ fn scan_reference_ranges<'a>(text: &'a str, mut visit: impl FnMut(usize, usize, 
         let Some(relative_end) = text[suffix_start..].find(MEDIA_REFERENCE_SUFFIX) else {
             break;
         };
-        let suffix = suffix_start + relative_end;
-        if text[suffix..].starts_with(MEDIA_REFERENCE_PREFIX) {
-            cursor = suffix;
-            continue;
-        }
-        let end = suffix + MEDIA_REFERENCE_SUFFIX.len();
-        visit(start, end, &text[start..end]);
-        cursor = end;
+        let end = suffix_start + relative_end + MEDIA_REFERENCE_SUFFIX.len();
+        // Unknown text can borrow a real reference's opening delimiter as its suffix.
+        // Search inside it so that media still gets uploaded or restored. Accepted
+        // references consume their whole range so trailing text cannot steal their suffix.
+        cursor = if visit(start, end, &text[start..end]) {
+            end
+        } else {
+            suffix_start
+        };
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{reference_spans, rewrite_known_references, MAX_SERIALIZED_REFERENCE_LAYERS};
+    use super::{
+        for_each_media_reference, reference_spans, rewrite_known_references,
+        MAX_SERIALIZED_REFERENCE_LAYERS,
+    };
     use crate::otel::value::Value;
+
+    #[test]
+    fn malformed_markers_cannot_hide_later_known_references() {
+        let reference = "@@@langfuseMedia:type=image/png|id=one|source=bytes@@@";
+        for extra_ats in 0..=5 {
+            let plain = format!(
+                "é @@@langfuseMedia:unknown@@@ @@@langfuseMedia:unfinished {}{reference} tail {reference}",
+                "@".repeat(extra_ats),
+            );
+            for source in [plain.clone(), serde_json::to_string(&plain).unwrap()] {
+                let expected_starts = source
+                    .match_indices(reference)
+                    .map(|(index, _)| index)
+                    .collect::<Vec<_>>();
+                let mut references = std::collections::HashSet::new();
+                crate::otel_media::collect_media_references(&source, &mut references);
+                assert!(references.contains(reference));
+                let mut collected = 0;
+                for_each_media_reference(&source, |candidate| {
+                    if candidate == reference {
+                        collected += 1;
+                        true
+                    } else {
+                        false
+                    }
+                });
+                assert_eq!(collected, 2, "extra @ count: {extra_ats}");
+                assert_eq!(
+                    reference_spans(&source, reference)
+                        .into_iter()
+                        .map(|span| span.start)
+                        .collect::<Vec<_>>(),
+                    expected_starts,
+                );
+                let mut text = source.clone().into();
+                rewrite_known_references(
+                    &mut text,
+                    |candidate| candidate == reference,
+                    |_| false,
+                    |_, _| Ok::<_, ()>("uploaded-reference".to_owned()),
+                )
+                .unwrap();
+                assert_eq!(
+                    text.into_utf8_lossy(),
+                    source.replace(reference, "uploaded-reference"),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn unknown_markers_cannot_steal_a_known_references_closing_delimiter() {
+        let reference = "@@@langfuseMedia:type=image/png|id=one|source=bytes@@@";
+        for extra_ats in 0..=5 {
+            let source = format!(
+                "é {reference}{}langfuseMedia:unknown@@@ tail",
+                "@".repeat(extra_ats),
+            );
+            let mut references = std::collections::HashSet::new();
+            crate::otel_media::collect_media_references(&source, &mut references);
+            assert!(references.contains(reference));
+            let spans = reference_spans(&source, reference);
+            assert_eq!(spans.len(), 1, "extra @ count: {extra_ats}");
+            assert_eq!(&source[spans[0].start..spans[0].end], reference);
+        }
+    }
 
     #[test]
     fn finds_plain_and_json_encoded_scalar_references_at_their_source_depth() {

@@ -160,6 +160,8 @@ pub(crate) fn extract_media_at_depth(
 pub fn collect_media_references(value: &str, references: &mut HashSet<String>) {
     source_text::for_each_media_reference(value, |reference| {
         references.insert(reference.to_owned());
+        // Collision checks include overlapping candidates because ownership is not known yet.
+        false
     });
 }
 

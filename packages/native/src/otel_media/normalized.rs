@@ -77,6 +77,9 @@ impl MediaReferenceCollector {
         for_each_media_reference(text, |reference| {
             if let Some(index) = registry.get(reference) {
                 eligible.push(*index);
+                true
+            } else {
+                false
             }
         });
     }
