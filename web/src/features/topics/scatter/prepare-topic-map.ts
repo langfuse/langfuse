@@ -415,7 +415,7 @@ export function hitMapNode(
   return nearest?.point ?? null;
 }
 
-/** Topic halos fade out as you zoom in, so close clusters keep a clean background, as in the original map. */
+/** Topic halos fade out as you zoom in, so close clusters keep a clean background. */
 export function haloVisibility(zoom: number) {
   return 1 - smoothStep(3, 10, zoom);
 }
