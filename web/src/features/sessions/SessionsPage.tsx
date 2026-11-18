@@ -46,6 +46,7 @@ export default function SessionsPage() {
     <Page
       headerProps={{
         title: "Sessions",
+        divider: false,
         help: {
           description: (
             <>

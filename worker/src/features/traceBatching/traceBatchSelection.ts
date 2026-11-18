@@ -9,11 +9,10 @@ const MINUTE_MS = 60_000;
 const NARROW_BATCH_MAX_ENVELOPE_MS = 60 * MINUTE_MS;
 const WIDE_MAX_EXPANSION_RATIO = 0.25;
 
-export type TraceBatchStrategy = "project" | "locality";
 export type PendingTrace = {
   member: string;
   due: number;
-  estimates?: { eventUpdateCount?: number; serializedEventBytes: number };
+  estimates?: { serializedEventBytes: number };
   trace: TQueueJobTypes[QueueName.EventsDispatch]["payload"]["traces"][number];
 };
 
@@ -23,31 +22,23 @@ export type PendingTrace = {
  * batch even when it alone exceeds a budget.
  */
 export type TraceBatchWeightLimits = {
-  maxEventUpdates: number;
   maxSerializedEventBytes: number;
 };
 
 const UNBOUNDED_WEIGHT_LIMITS: TraceBatchWeightLimits = {
-  maxEventUpdates: Number.POSITIVE_INFINITY,
   maxSerializedEventBytes: Number.POSITIVE_INFINITY,
 };
 
 export const toLimit = (value: number) =>
   value > 0 ? value : Number.POSITIVE_INFINITY;
 
-const getEventUpdates = ({ estimates }: PendingTrace) =>
-  estimates?.eventUpdateCount ?? 0;
-
 const getSerializedEventBytes = ({ estimates }: PendingTrace) =>
   estimates?.serializedEventBytes ?? 0;
 
 const fitsWeightLimits = (
-  eventUpdates: number,
   serializedEventBytes: number,
   limits: TraceBatchWeightLimits,
-) =>
-  eventUpdates <= limits.maxEventUpdates &&
-  serializedEventBytes <= limits.maxSerializedEventBytes;
+) => serializedEventBytes <= limits.maxSerializedEventBytes;
 
 const isWithinWeightLimits = (
   batch: readonly PendingTrace[],
@@ -55,20 +46,15 @@ const isWithinWeightLimits = (
 ) =>
   batch.length <= 1 ||
   fitsWeightLimits(
-    batch.reduce((total, entry) => total + getEventUpdates(entry), 0),
     batch.reduce((total, entry) => total + getSerializedEventBytes(entry), 0),
     limits,
   );
 
 // A heavy trace uses more than half of a batch budget.
 const isHeavyTrace = (entry: PendingTrace, limits: TraceBatchWeightLimits) =>
-  getEventUpdates(entry) * 2 > limits.maxEventUpdates ||
   getSerializedEventBytes(entry) * 2 > limits.maxSerializedEventBytes;
 
-export type TraceExclusionReason =
-  | "event_updates"
-  | "serialized_bytes"
-  | "start_too_old";
+export type TraceExclusionReason = "serialized_bytes" | "start_too_old";
 
 // Older recorded starts (e.g. SDKs sending 0) widen the trace read to a full-table scan.
 const MAX_TRACE_START_AGE_MS = 365 * 24 * 60 * 60_000;
@@ -80,11 +66,6 @@ export const getTraceExclusionReason = (
   if (trace.minStart < Date.now() - MAX_TRACE_START_AGE_MS)
     return "start_too_old";
   if (!estimates) return undefined;
-  if (
-    estimates.eventUpdateCount !== undefined &&
-    estimates.eventUpdateCount > limits.maxEventUpdates
-  )
-    return "event_updates";
   if (estimates.serializedEventBytes > limits.maxSerializedEventBytes)
     return "serialized_bytes";
   return undefined;
@@ -245,19 +226,14 @@ const selectLocalityBatches = (
     let maxMinute = Number.NEGATIVE_INFINITY;
     let minStart = Number.POSITIVE_INFINITY;
     let maxStart = Number.NEGATIVE_INFINITY;
-    let eventUpdates = 0;
     let serializedEventBytes = 0;
     const seedEnvelopeMs = allowedEnvelopeMs(sorted[start].entry);
     const maxLength = Math.min(maxBatchSize, candidateCount - start);
     for (let length = 1; length <= maxLength; length++) {
       const candidate = sorted[start + length - 1];
-      eventUpdates += getEventUpdates(candidate.entry);
       serializedEventBytes += getSerializedEventBytes(candidate.entry);
       // Weights are nonnegative, so every longer slice is also over budget.
-      if (
-        length > 1 &&
-        !fitsWeightLimits(eventUpdates, serializedEventBytes, weightLimits)
-      )
+      if (length > 1 && !fitsWeightLimits(serializedEventBytes, weightLimits))
         break;
       minMinute = Math.min(minMinute, candidate.minMinute);
       maxMinute = Math.max(maxMinute, candidate.maxMinute);
@@ -364,54 +340,22 @@ const selectLocalityBatches = (
  * that envelope cap forbids a cheaper fill. Among feasible partitions with
  * that minimum job count, dynamic programming first avoids crossing projects,
  * then minimizes minute × trace-hash cells, then splits the largest hash gaps.
- * Both strategies also close a multi-trace batch before its estimated event
- * updates or serialized bytes would exceed `weightLimits`. Locality packs
- * traces above half of either budget in a separate lane.
+ * A multi-trace batch also closes before its estimated serialized bytes would
+ * exceed `weightLimits`; traces above half of the budget are packed in a
+ * separate lane.
  *
  * Selection uses O(n × k × maxBatchSize) time and
  * O(n × min(n, maxBatchSize) + n × k) memory, where k is the fewest feasible
  * jobs (at least ceil(n / maxBatchSize), up to n for disjoint envelopes).
- * Locality callers bound n to CHUNK_SIZE (1,000) hydrated candidates plus
- * at most maxBatchSize - 1 traces across all retained partials.
- * Project mode also accepts a tail of at most maxBatchSize - 1 traces and is O(n).
+ * Callers bound n to CHUNK_SIZE (1,000) hydrated candidates plus at most
+ * maxBatchSize - 1 traces across all retained partials.
  */
 export function selectTraceBatches(
   candidates: readonly PendingTrace[],
   maxBatchSize: number,
-  strategy: TraceBatchStrategy,
   weightLimits: TraceBatchWeightLimits = UNBOUNDED_WEIGHT_LIMITS,
 ): PendingTrace[][] {
   if (candidates.length === 0) return [];
-  if (strategy === "project") {
-    const batches: PendingTrace[][] = [];
-    let batch: PendingTrace[] = [];
-    let eventUpdates = 0;
-    let serializedEventBytes = 0;
-    for (const candidate of candidates) {
-      const candidateEventUpdates = getEventUpdates(candidate);
-      const candidateBytes = getSerializedEventBytes(candidate);
-      if (
-        batch.length > 0 &&
-        (batch.length === maxBatchSize ||
-          !fitsWeightLimits(
-            eventUpdates + candidateEventUpdates,
-            serializedEventBytes + candidateBytes,
-            weightLimits,
-          ))
-      ) {
-        batches.push(batch);
-        batch = [];
-        eventUpdates = 0;
-        serializedEventBytes = 0;
-      }
-      batch.push(candidate);
-      eventUpdates += candidateEventUpdates;
-      serializedEventBytes += candidateBytes;
-    }
-    batches.push(batch);
-    return batches;
-  }
-
   // Two heavy traces cannot share a batch on the dimension that makes them
   // heavy, so packing them separately keeps them from fragmenting the light
   // traces around them in locality order.

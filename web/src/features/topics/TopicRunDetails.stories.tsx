@@ -58,8 +58,6 @@ function processRun(overrides: Partial<Run>): Run {
       requestId: "request-process",
       facets: facetRefs,
       embeddingConfig: { embeddingDimensions: 1024 },
-      reuseExistingSummaries: false,
-      processingConfig: { maxInputTokens: 120_000, maxOutputTokens: 512 },
     },
     ...overrides,
   };
@@ -155,23 +153,6 @@ const meta = preview.meta({
     facets,
     canWrite: true,
     onBack: fn(),
-  },
-});
-
-export const Running = meta.story({
-  args: {
-    execution: processRun({
-      status: "running",
-      phase: "summarizing",
-      facets: facetRefs.map(({ facetId }) =>
-        facetProgress(facetId, {
-          outcome: "pending",
-          runId: null,
-          counts: { complete: 180, assigned: 0, outlier: 0 },
-        }),
-      ),
-    }),
-    retry: retryIdle,
   },
 });
 

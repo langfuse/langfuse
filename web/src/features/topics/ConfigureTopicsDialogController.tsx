@@ -277,7 +277,6 @@ function useSaveTopicsSetup(projectId: string) {
     onSuccess: () => {
       utils.topics.modelSettings.invalidate({ projectId });
       utils.topics.facets.invalidate({ projectId });
-      utils.topics.rules.invalidate({ projectId });
       utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
   });
