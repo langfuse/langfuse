@@ -52,7 +52,7 @@ export default function ExperimentsPage() {
 
   if (!canAccessExperiments) {
     return (
-      <Page headerProps={{ title: "Experiments" }}>
+      <Page headerProps={{ title: "Experiments", divider: false }}>
         <div className="flex h-full items-center justify-center">
           <Spinner size="xl" variant="muted" />
         </div>
@@ -64,6 +64,7 @@ export default function ExperimentsPage() {
     <Page
       headerProps={{
         title: "Experiments",
+        divider: false,
         titleBadges: <V4MigrationDelayBadge page="experiments" />,
         actionButtonsRight: (
           <div className="flex items-center gap-2">
