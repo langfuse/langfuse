@@ -332,6 +332,34 @@ export const mapTriggerToCoreDataRow = ({
   ),
 });
 
+type ApiKeyCoreDataInput = {
+  orgId: string | null;
+  project: { orgId: string } | null;
+} & Record<string, unknown>;
+
+/** Project keys store only their project, so their organization is the project's. */
+export const mapApiKeyToCoreDataRow = ({
+  project,
+  ...apiKey
+}: ApiKeyCoreDataInput) => ({
+  ...apiKey,
+  orgId: project?.orgId ?? apiKey.orgId,
+});
+
+type GatewayApiKeyAssociationCoreDataInput = {
+  apiKey: { orgId: string | null; userId: string | null };
+} & Record<string, unknown>;
+
+/** Gateway keys are organization- or user-scoped, so they always carry an organization and never a project. */
+export const mapGatewayApiKeyAssociationToCoreDataRow = ({
+  apiKey,
+  ...association
+}: GatewayApiKeyAssociationCoreDataInput) => ({
+  ...association,
+  orgId: apiKey.orgId,
+  userId: apiKey.userId,
+});
+
 type GatewayAiConnectionCoreDataInput = {
   allowedModels: unknown;
   customModels: unknown;
@@ -1164,8 +1192,10 @@ export const coreDataTableExports: Array<
             lastUsedAt: true,
             expiresAt: true,
             createdAt: true,
+            project: { select: { orgId: true } },
           },
         }),
+      mapRow: mapApiKeyToCoreDataRow,
     }),
   (args) =>
     uploadTableCoreDataJsonl({
@@ -1283,8 +1313,12 @@ export const coreDataTableExports: Array<
             ? { cursor: { apiKeyId: lastRow.apiKeyId }, skip: 1 }
             : {}),
           orderBy: { apiKeyId: "asc" },
-          select: { apiKeyId: true },
+          select: {
+            apiKeyId: true,
+            apiKey: { select: { orgId: true, userId: true } },
+          },
         }),
+      mapRow: mapGatewayApiKeyAssociationToCoreDataRow,
     }),
   (args) =>
     uploadTableCoreDataJsonl({

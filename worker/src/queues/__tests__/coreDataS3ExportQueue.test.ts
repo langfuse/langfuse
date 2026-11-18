@@ -9,6 +9,7 @@ import {
 } from "@langfuse/shared";
 import {
   coreDataTableExports,
+  mapApiKeyToCoreDataRow,
   mapDashboardToCoreDataRow,
   mapDashboardWidgetToCoreDataRow,
   mapDatasetToCoreDataRow,
@@ -17,6 +18,7 @@ import {
   mapEvaluationRuleToCoreDataRow,
   mapEvaluatorVersionToCoreDataRow,
   mapGatewayAiConnectionToCoreDataRow,
+  mapGatewayApiKeyAssociationToCoreDataRow,
   mapInAppAgentRunToCoreDataRow,
   mapJobConfigurationToCoreDataRow,
   mapMembershipInvitationToCoreDataRow,
@@ -1110,5 +1112,49 @@ describe("mapTopicConfigToCoreDataRow", () => {
       embeddingModel: "__invalid__",
       clusteringModel: null,
     });
+  });
+});
+
+describe("mapApiKeyToCoreDataRow", () => {
+  it("takes a project key's organization from its project", () => {
+    expect(
+      mapApiKeyToCoreDataRow({
+        id: "key-1",
+        scope: "PROJECT",
+        projectId: "project-1",
+        orgId: null,
+        project: { orgId: "org-1" },
+      }),
+    ).toStrictEqual({
+      id: "key-1",
+      scope: "PROJECT",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+    expect(
+      mapApiKeyToCoreDataRow({
+        id: "key-2",
+        scope: "ORGANIZATION",
+        projectId: null,
+        orgId: "org-2",
+        project: null,
+      }),
+    ).toStrictEqual({
+      id: "key-2",
+      scope: "ORGANIZATION",
+      projectId: null,
+      orgId: "org-2",
+    });
+  });
+});
+
+describe("mapGatewayApiKeyAssociationToCoreDataRow", () => {
+  it("carries the key's organization and bound user", () => {
+    expect(
+      mapGatewayApiKeyAssociationToCoreDataRow({
+        apiKeyId: "key-1",
+        apiKey: { orgId: "org-1", userId: "user-1" },
+      }),
+    ).toStrictEqual({ apiKeyId: "key-1", orgId: "org-1", userId: "user-1" });
   });
 });
