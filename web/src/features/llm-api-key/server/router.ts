@@ -1,14 +1,8 @@
 import { z } from "zod";
-import { type Session } from "next-auth";
-import { decrypt } from "@langfuse/shared/encryption";
-import { deriveBedrockExternalId } from "@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials";
-import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
-import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   CreateLlmApiKey,
   UpdateLlmApiKey,
 } from "@/src/features/llm-api-key/types";
-import { TRPCError } from "@trpc/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -16,29 +10,11 @@ import {
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
-  type BedrockIamRoleAccess,
-  LlmConnectionService,
-} from "./llmConnectionService";
-
-// Only the organization's plan grants IAM role auth; Langfuse admins get no bypass.
-function canUseBedrockIamRole(params: {
-  sessionUser: NonNullable<Session["user"]>;
-  projectId: string;
-}) {
-  return Boolean(
-    hasEntitlement({ ...params, entitlement: "bedrock-iam-role-auth" }),
-  );
-}
-
-function getBedrockIamRoleAccess(params: {
-  sessionUser: NonNullable<Session["user"]>;
-  projectId: string;
-  externalIdNonce: string | undefined;
-}): BedrockIamRoleAccess | undefined {
-  return canUseBedrockIamRole(params)
-    ? { projectId: params.projectId, externalIdNonce: params.externalIdNonce }
-    : undefined;
-}
+  getBedrockCrossAccountRoleArn,
+  getBedrockExternalId,
+  getBedrockIamRoleAccess,
+} from "./bedrockIamRoleAccess";
+import { LlmConnectionService } from "./llmConnectionService";
 
 export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedureWithoutTracing
@@ -60,7 +36,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         actor: { session: ctx.session },
         bedrockIamRole: getBedrockIamRoleAccess({
           sessionUser: ctx.session.user,
-          projectId,
+          owner: { type: "project", projectId },
           externalIdNonce: bedrockExternalIdNonce,
         }),
       });
@@ -170,7 +146,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       return new LlmConnectionService().test(connectionInput, {
         bedrockIamRole: getBedrockIamRoleAccess({
           sessionUser: ctx.session.user,
-          projectId,
+          owner: { type: "project", projectId },
           externalIdNonce: bedrockExternalIdNonce,
         }),
       });
@@ -194,7 +170,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         input: connectionInput,
         bedrockIamRole: getBedrockIamRoleAccess({
           sessionUser: ctx.session.user,
-          projectId,
+          owner: { type: "project", projectId },
           externalIdNonce: bedrockExternalIdNonce,
         }),
       });
@@ -219,7 +195,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         actor: { session: ctx.session },
         bedrockIamRole: getBedrockIamRoleAccess({
           sessionUser: ctx.session.user,
-          projectId,
+          owner: { type: "project", projectId },
           externalIdNonce: bedrockExternalIdNonce,
         }),
       });
@@ -233,15 +209,11 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:read",
       });
-      const planIncludesRoleAuth = canUseBedrockIamRole({
-        sessionUser: ctx.session.user,
-        projectId: input.projectId,
-      });
       return {
-        /** Null when this deployment or the organization does not offer IAM role auth. */
-        crossAccountRoleArn: planIncludesRoleAuth
-          ? getCrossAccountRoleArn()
-          : null,
+        crossAccountRoleArn: getBedrockCrossAccountRoleArn({
+          sessionUser: ctx.session.user,
+          owner: { type: "project", projectId: input.projectId },
+        }),
       };
     }),
 
@@ -260,32 +232,14 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:create",
       });
-      if (
-        !getCrossAccountRoleArn() ||
-        !canUseBedrockIamRole({
-          sessionUser: ctx.session.user,
-          projectId: input.projectId,
-        })
-      ) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "IAM role auth for Bedrock is not available for this project.",
-        });
-      }
-      const stored = input.connectionId
-        ? await ctx.prisma.llmApiKeys.findFirst({
-            where: { id: input.connectionId, projectId: input.projectId },
-            select: { externalId: true },
-          })
-        : null;
       return {
-        externalId: stored?.externalId
-          ? decrypt(stored.externalId)
-          : deriveBedrockExternalId({
-              projectId: input.projectId,
-              nonce: input.nonce,
-            }),
+        externalId: await getBedrockExternalId({
+          prisma: ctx.prisma,
+          sessionUser: ctx.session.user,
+          owner: { type: "project", projectId: input.projectId },
+          nonce: input.nonce,
+          connectionId: input.connectionId,
+        }),
       };
     }),
 });

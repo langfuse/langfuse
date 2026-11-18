@@ -507,7 +507,7 @@ export function CreateLLMApiKeyForm({
     currentAdapter === LLMAdapter.Bedrock &&
     isMatchingBedrockAuthMethod(currentAuthMethod, existingKey?.authMethod);
   const bedrockIamRoleAuth = useBedrockIamRoleAuth({
-    projectId: owner.scope === "project" ? owner.projectId : null,
+    owner,
     enabled: currentAdapter === LLMAdapter.Bedrock,
   });
   // A connection that already uses a role keeps it selectable, so a downgraded
@@ -796,7 +796,11 @@ export function CreateLLMApiKeyForm({
             ? await mutTestLLMApiKey.mutateAsync(input)
             : await mutTestUpdateLLMApiKey.mutateAsync(input);
       } else {
-        const input = { ...connectionInput, orgId: owner.organizationId };
+        const input = {
+          ...connectionInput,
+          orgId: owner.organizationId,
+          bedrockExternalIdNonce,
+        };
         testResult =
           mode === "create"
             ? await mutTestOrganizationLlmApiKey.mutateAsync(input)
@@ -828,7 +832,11 @@ export function CreateLLMApiKeyForm({
           ? mutCreateLlmApiKey.mutateAsync(input)
           : mutUpdateLlmApiKey.mutateAsync(input);
     } else {
-      const input = { ...connectionInput, orgId: owner.organizationId };
+      const input = {
+        ...connectionInput,
+        orgId: owner.organizationId,
+        bedrockExternalIdNonce,
+      };
       mutation =
         mode === "create"
           ? mutCreateOrganizationLlmApiKey.mutateAsync(input)
@@ -1168,10 +1176,9 @@ export function CreateLLMApiKeyForm({
                           </FormItem>
                         )}
                       />
-                      {owner.scope === "project" &&
-                      bedrockIamRoleAuth.crossAccountRoleArn ? (
+                      {bedrockIamRoleAuth.crossAccountRoleArn ? (
                         <BedrockRoleSetupInstructions
-                          projectId={owner.projectId}
+                          owner={owner}
                           nonce={bedrockExternalIdNonce}
                           connectionId={existingKey?.id}
                           crossAccountRoleArn={

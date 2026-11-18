@@ -58,8 +58,8 @@ export const BedrockCredentialSchema = z.union([
 ]);
 export type BedrockCredential = z.infer<typeof BedrockCredentialSchema>;
 
-// Not part of BedrockCredentialSchema: only project connections created by an
-// entitled organization may store a role, so every other path keeps rejecting it.
+// Not part of BedrockCredentialSchema: only connections created by an entitled
+// organization may store a role, so every other path keeps rejecting it.
 export const BedrockIamRoleSchema = z
   .object({
     roleArn: z

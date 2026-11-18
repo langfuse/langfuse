@@ -1125,7 +1125,10 @@ describe("llmApiKey.all RPC", () => {
         enterprise.llmApiKey.bedrockExternalId({ projectId, nonce }),
       ).resolves.toEqual({ externalId });
       expect(
-        deriveBedrockExternalId({ projectId: "another-project", nonce }),
+        deriveBedrockExternalId({
+          owner: { type: "project", projectId: "another-project" },
+          nonce,
+        }),
       ).not.toBe(externalId);
       await expect(
         enterprise.llmApiKey.create(connectionInput()),
@@ -1187,19 +1190,37 @@ describe("llmApiKey.all RPC", () => {
       expect(decrypt(updated.externalId!)).toBe(externalId);
     });
 
-    it("is rejected for organization connections", async () => {
+    it("stores the external ID shown in the form on organization connections", async () => {
+      const nonce = randomUUID();
       const { projectId: _projectId, ...input } = connectionInput();
+      const enterprise = callerWithPlan("cloud:enterprise");
+      const { externalId } =
+        await enterprise.organizationLlmApiKey.bedrockExternalId({
+          orgId,
+          nonce,
+        });
+
       await expect(
-        callerWithPlan("cloud:enterprise").organizationLlmApiKey.create({
+        enterprise.organizationLlmApiKey.test({
           ...input,
           orgId,
+          bedrockExternalIdNonce: nonce,
         }),
-      ).rejects.toMatchObject({
-        code: "BAD_REQUEST",
-        message: expect.stringContaining(
-          "only available for project LLM connections",
-        ),
+      ).resolves.toEqual({ success: true });
+      const testedConnection = mockGenerateLLMText.mock.calls.at(-1)?.[0]
+        .connection as { organizationId?: string; externalId?: string };
+      expect(testedConnection.organizationId).toBe(orgId);
+      expect(decrypt(testedConnection.externalId!)).toBe(externalId);
+
+      await enterprise.organizationLlmApiKey.create({
+        ...input,
+        orgId,
+        bedrockExternalIdNonce: nonce,
       });
+      const stored = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { organizationId: orgId, provider: "bedrock-role" },
+      });
+      expect(decrypt(stored.externalId!)).toBe(externalId);
     });
   });
 

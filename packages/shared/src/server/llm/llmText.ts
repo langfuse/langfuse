@@ -83,6 +83,8 @@ export type LLMModelRef = {
 export type LLMConnection = {
   /** Project from the stored credential's DB row, never from a raw credential request. */
   projectId?: string;
+  /** Set instead of projectId when testing an organization connection. */
+  organizationId?: string;
   /** Encrypted credential. It is decrypted only inside the execution boundary. */
   secretKey: string;
   /** Encrypted external ID of a Bedrock connection with IAM role auth, from its DB row. */
@@ -331,6 +333,7 @@ async function prepareLLMTextCall<
     extraHeaders,
     config: options.connection.config,
     projectId: options.connection.projectId,
+    organizationId: options.connection.organizationId,
     externalId: options.connection.externalId,
     credentialSource,
     createFetch,
@@ -411,6 +414,7 @@ export async function embedLLMText(options: {
   const embeddingModel = await buildAiSdkEmbeddingModel({
     model: options.model,
     projectId: options.connection.projectId,
+    organizationId: options.connection.organizationId,
     externalId: options.connection.externalId,
     apiKey,
     baseURL: options.connection.baseURL,

@@ -33,7 +33,10 @@ import {
   type JSONValue,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
-import { deriveBedrockExternalId } from "@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials";
+import {
+  type BedrockConnectionOwner,
+  deriveBedrockExternalId,
+} from "@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials";
 import {
   assertStorageRolePartition,
   getCrossAccountRoleArn,
@@ -106,11 +109,11 @@ export type SafeLlmConnection = {
 };
 
 /**
- * Set only for a project connection whose organization's plan includes Bedrock
- * IAM role auth. Without it, IAM role credentials are rejected.
+ * Set only when the organization's plan includes Bedrock IAM role auth.
+ * Without it, IAM role credentials are rejected.
  */
 export type BedrockIamRoleAccess = {
-  projectId: string;
+  owner: BedrockConnectionOwner;
   /** From the form, which shows the derived external ID before saving. */
   externalIdNonce?: string;
 };
@@ -126,6 +129,8 @@ type TestLlmConnectionParams = Omit<
 > & {
   /** Set only when reusing a credential from a project-owned database row. */
   projectId?: string;
+  /** Set only when reusing a credential from an organization-owned database row. */
+  organizationId?: string;
   validateBaseUrlBeforeTest?: boolean;
   validateSecretBeforeTest?: boolean;
   bedrockIamRole?: BedrockIamRoleAccess;
@@ -190,7 +195,7 @@ function resolveBedrockExternalId(params: {
   }
   return encrypt(
     deriveBedrockExternalId({
-      projectId: params.bedrockIamRole.projectId,
+      owner: params.bedrockIamRole.owner,
       nonce,
     }),
   );
@@ -224,7 +229,7 @@ function validateBedrockSecretKey(
   if (iamRole) {
     if (!bedrockIamRole) {
       throw new InvalidRequestError(
-        "IAM role auth for Bedrock is only available for project LLM connections on the Enterprise plan.",
+        "IAM role auth for Bedrock is only available on the Enterprise plan.",
       );
     }
     if (!getCrossAccountRoleArn()) {
@@ -389,6 +394,7 @@ async function testLlmConnection(
       });
     }
     const iamRole = isBedrockIamRole(params.adapter, params.secretKey);
+    const roleOwner = iamRole ? params.bedrockIamRole?.owner : undefined;
 
     const model = params.customModels?.length
       ? params.customModels[0]
@@ -448,7 +454,12 @@ async function testLlmConnection(
           secretKey: encrypt(params.secretKey),
           projectId:
             params.projectId ??
-            (iamRole ? params.bedrockIamRole?.projectId : undefined),
+            (roleOwner?.type === "project" ? roleOwner.projectId : undefined),
+          organizationId:
+            params.organizationId ??
+            (roleOwner?.type === "organization"
+              ? roleOwner.organizationId
+              : undefined),
           externalId: iamRole
             ? resolveBedrockExternalId({
                 bedrockIamRole: params.bedrockIamRole,
@@ -895,6 +906,9 @@ export class LlmConnectionService {
         projectId: hasNewSecretKey
           ? undefined
           : (existingKey.projectId ?? undefined),
+        organizationId: hasNewSecretKey
+          ? undefined
+          : (existingKey.organizationId ?? undefined),
         baseURL,
         customModels: params.input.customModels ?? existingKey.customModels,
         extraHeaders,

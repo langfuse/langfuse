@@ -1,16 +1,13 @@
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import type { LlmConnectionFormOwner } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 import { api } from "@/src/utils/api";
 
 function getUnavailableReason(params: {
   hasEntitlement: boolean;
-  isProjectConnection: boolean;
   deploymentHasRole: boolean | undefined;
 }): string | null {
   if (!params.hasEntitlement) {
     return "IAM role auth is available on the Enterprise plan. Upgrade to use it.";
-  }
-  if (!params.isProjectConnection) {
-    return "IAM role auth is available for project connections, since each project gets its own external ID. Add this connection in the project settings.";
   }
   if (params.deploymentHasRole === false) {
     return "IAM role auth needs a cross-account role on this deployment. Set LANGFUSE_CROSS_ACCOUNT_ROLE_ARN to enable it.";
@@ -24,27 +21,33 @@ function getUnavailableReason(params: {
  * deployment's role is loading, the option is disabled without a reason.
  */
 export function useBedrockIamRoleAuth({
-  projectId,
+  owner,
   enabled,
 }: {
-  /** Null for organization connections, which cannot use a role. */
-  projectId: string | null;
+  owner: LlmConnectionFormOwner;
   enabled: boolean;
 }) {
   const hasEntitlement = useHasEntitlement("bedrock-iam-role-auth");
-  const query = api.llmApiKey.bedrockIamRoleAuth.useQuery(
-    { projectId: projectId ?? "" },
-    { enabled: enabled && hasEntitlement && projectId !== null },
+  const shouldQuery = enabled && hasEntitlement;
+  const projectQuery = api.llmApiKey.bedrockIamRoleAuth.useQuery(
+    { projectId: owner.scope === "project" ? owner.projectId : "" },
+    { enabled: shouldQuery && owner.scope === "project" },
   );
-  const crossAccountRoleArn = query.data?.crossAccountRoleArn ?? null;
+  const organizationQuery =
+    api.organizationLlmApiKey.bedrockIamRoleAuth.useQuery(
+      { orgId: owner.scope === "organization" ? owner.organizationId : "" },
+      { enabled: shouldQuery && owner.scope === "organization" },
+    );
+  const data =
+    owner.scope === "project" ? projectQuery.data : organizationQuery.data;
+  const crossAccountRoleArn = data?.crossAccountRoleArn ?? null;
 
   return {
     crossAccountRoleArn,
     isAvailable: crossAccountRoleArn !== null,
     unavailableReason: getUnavailableReason({
       hasEntitlement,
-      isProjectConnection: projectId !== null,
-      deploymentHasRole: query.data ? crossAccountRoleArn !== null : undefined,
+      deploymentHasRole: data ? crossAccountRoleArn !== null : undefined,
     }),
   };
 }

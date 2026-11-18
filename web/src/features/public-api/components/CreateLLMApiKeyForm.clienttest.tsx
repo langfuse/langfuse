@@ -39,6 +39,7 @@ vi.mock("@/src/utils/api", () => {
         update: mutation,
         test: mutation,
         testUpdate: mutation,
+        bedrockIamRoleAuth: { useQuery: () => ({ data: undefined }) },
       },
       useUtils: () => ({
         llmApiKey: { invalidate: vi.fn() },

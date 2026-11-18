@@ -239,16 +239,26 @@ describe("resolveBedrockProviderAuth", () => {
     );
   });
 
-  it("rejects an IAM role without the project that owns the connection", () => {
-    expect(() =>
-      resolveBedrockProviderAuth({
-        secretKey: JSON.stringify({
-          roleArn: "arn:aws:iam::123456789012:role/langfuse-bedrock",
-        }),
-        allowDefaultCredentials: false,
-        externalId: "encrypted:lf-external-id",
+  it("assumes an IAM role for an organization without a project", async () => {
+    findProject.mockClear();
+    getStorageRoleCredentialsProvider.mockClear();
+
+    const auth = resolveBedrockProviderAuth({
+      secretKey: JSON.stringify({
+        roleArn: "arn:aws:iam::123456789012:role/langfuse-bedrock",
       }),
-    ).toThrow("only available for project LLM connections");
+      allowDefaultCredentials: false,
+      organizationId: "org-1",
+      externalId: "encrypted:lf-external-id",
+    });
+
+    await expect(auth.credentialProvider?.()).resolves.toMatchObject({
+      sessionToken: "session",
+    });
+    expect(findProject).not.toHaveBeenCalled();
+    expect(getStorageRoleCredentialsProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: undefined, orgId: "org-1" }),
+    );
   });
 });
 
