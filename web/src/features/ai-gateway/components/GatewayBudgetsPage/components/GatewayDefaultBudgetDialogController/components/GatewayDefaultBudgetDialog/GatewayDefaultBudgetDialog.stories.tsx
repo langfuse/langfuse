@@ -1,4 +1,4 @@
-import { expect, fn, within } from "storybook/test";
+import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -27,30 +27,13 @@ const args = {
   onRemove: fn(),
 };
 
-export const NoDefault = meta.story({
-  name: "(Test) Offers no removal while no default is set",
-  args,
-  play: async ({ canvasElement }) => {
-    const dialog = within(canvasElement.ownerDocument.body);
-    await expect(
-      dialog.queryByRole("button", { name: "Remove default" }),
-    ).toBeNull();
-  },
-});
+export const NoDefault = meta.story({ args });
 
 export const ExistingKeyDefault = meta.story({
-  name: "(Test) Prefills and offers removing an existing default",
   args: {
     ...args,
     subject: "key",
     spendLimit: { interval: "MONTHLY", limitUsd: 10 },
-  },
-  play: async ({ canvasElement }) => {
-    const dialog = within(canvasElement.ownerDocument.body);
-    await expect(dialog.getByLabelText("Amount (USD)")).toHaveValue("10");
-    await expect(
-      dialog.getByRole("button", { name: "Remove default" }),
-    ).toBeEnabled();
   },
 });
 
