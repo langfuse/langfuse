@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
-import { useTagOverflow } from "./useTagOverflow";
+import { useTagOverflow } from "@/src/components/design-system/internal/useTagOverflow";
 import { cn } from "@/src/utils/tailwind";
 import {
   VisualizationFrame,
