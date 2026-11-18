@@ -21,7 +21,7 @@ type PromptsListFilterParams = Omit<GetPromptsMetaType, "page">;
 export const getPromptsMeta = async (
   params: GetPromptsMetaParams,
 ): Promise<PromptsMetaResponse> => {
-  const { page, limit } = params;
+  const { projectId, page, limit } = params;
 
   addTagsToCurrentSpan({
     "langfuse.prompt_list.page": page,
@@ -35,7 +35,27 @@ export const getPromptsMeta = async (
     offset: limit * (page - 1),
   });
 
-  const { totalItems, countSource } = await countPromptNames(params);
+  // Page crawls repeat the same full-project count on every page.
+  const filterCondition = getPromptsFilterCondition(params);
+  let countSource: "cache" | "computed" = "cache";
+  const totalItems = await new PromptService(prisma, redis).getPromptListCount({
+    projectId,
+    filterKey: JSON.stringify([filterCondition.sql, filterCondition.values]),
+    computeCount: async () => {
+      countSource = "computed";
+      const [{ count }] = (await prisma.$queryRaw`
+          SELECT COUNT(*) AS count
+          FROM (
+            SELECT p.name
+            FROM prompts p
+            WHERE p."project_id" = ${projectId}
+            ${filterCondition}
+            GROUP BY p.name
+          ) names
+        `) as { count: BigInt }[];
+      return Number(count);
+    },
+  });
   const totalPages = Math.ceil(totalItems / limit);
 
   addTagsToCurrentSpan({
@@ -57,30 +77,25 @@ export const getPromptsMeta = async (
 export type GetPromptsMetaCursorParams = PromptsListFilterParams & {
   projectId: string;
   cursor?: PromptsCursorV3;
-  includeTotal?: boolean;
 };
 
 export const getPromptsMetaWithCursor = async (
   params: GetPromptsMetaCursorParams,
 ): Promise<PromptsMetaCursorResponse> => {
-  const { limit, cursor, includeTotal } = params;
+  const { limit, cursor } = params;
 
   addTagsToCurrentSpan({
     "langfuse.prompt_list.limit": limit,
     "langfuse.prompt_list.has_cursor": cursor !== undefined,
-    "langfuse.prompt_list.include_total": includeTotal === true,
   });
 
   // Fetch one extra row to know whether a next page exists.
-  const [rows, total] = await Promise.all([
-    queryPromptsMetaPage({
-      params,
-      limit: limit + 1,
-      offset: 0,
-      afterName: cursor?.lastName,
-    }),
-    includeTotal ? countPromptNames(params) : undefined,
-  ]);
+  const rows = await queryPromptsMetaPage({
+    params,
+    limit: limit + 1,
+    offset: 0,
+    afterName: cursor?.lastName,
+  });
   const data = rows.slice(0, limit);
   const nextCursor =
     rows.length > limit
@@ -89,21 +104,11 @@ export const getPromptsMetaWithCursor = async (
 
   addTagsToCurrentSpan({
     "langfuse.prompt_list.result_count": data.length,
-    ...(total
-      ? {
-          "langfuse.prompt_list.total_items": total.totalItems,
-          "langfuse.prompt_list.count_source": total.countSource,
-        }
-      : {}),
   });
 
   return {
     data,
-    meta: {
-      limit,
-      ...(nextCursor ? { cursor: nextCursor } : {}),
-      ...(total ? { totalItems: total.totalItems } : {}),
-    },
+    meta: { limit, ...(nextCursor ? { cursor: nextCursor } : {}) },
   };
 };
 
@@ -129,34 +134,6 @@ export const EncodedPromptsCursorV3 = z
 
 const encodePromptsCursorV3 = (cursor: PromptsCursorV3): string =>
   Buffer.from(JSON.stringify(cursor)).toString("base64url");
-
-const countPromptNames = async (
-  params: PromptsListFilterParams & { projectId: string },
-): Promise<{ totalItems: number; countSource: "cache" | "computed" }> => {
-  const { projectId } = params;
-  // Page crawls repeat the same full-project count on every page.
-  const filterCondition = getPromptsFilterCondition(params);
-  let countSource: "cache" | "computed" = "cache";
-  const totalItems = await new PromptService(prisma, redis).getPromptListCount({
-    projectId,
-    filterKey: JSON.stringify([filterCondition.sql, filterCondition.values]),
-    computeCount: async () => {
-      countSource = "computed";
-      const [{ count }] = (await prisma.$queryRaw`
-          SELECT COUNT(*) AS count
-          FROM (
-            SELECT p.name
-            FROM prompts p
-            WHERE p."project_id" = ${projectId}
-            ${filterCondition}
-            GROUP BY p.name
-          ) names
-        `) as { count: BigInt }[];
-      return Number(count);
-    },
-  });
-  return { totalItems, countSource };
-};
 
 const queryPromptsMetaPage = async ({
   params,
@@ -252,7 +229,6 @@ export type PromptsMetaCursorResponse = {
   meta: {
     limit: number;
     cursor?: string;
-    totalItems?: number;
   };
 };
 

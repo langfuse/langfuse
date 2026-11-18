@@ -8,10 +8,6 @@ import { GetPromptsMetaSchema } from "@langfuse/shared";
 
 const GetPromptsV3Query = GetPromptsMetaSchema.omit({ page: true }).extend({
   cursor: EncodedPromptsCursorV3.optional(),
-  includeTotal: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
 });
 
 export const promptsV3Handler = withMiddlewares({
