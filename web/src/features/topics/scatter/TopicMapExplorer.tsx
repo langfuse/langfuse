@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
+  type CSSProperties,
   useEffect,
   useMemo,
   useRef,
@@ -439,7 +440,6 @@ export function TopicMapExplorer({
             onClick={handleToggleFullscreen}
           />
         </div>
-        <MapBackgroundLabels store={store} />
         <TopicMapCanvas
           model={model}
           size={size}
@@ -449,6 +449,7 @@ export function TopicMapExplorer({
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
         />
+        <MapBackgroundLabels store={store} />
         <MapLabels
           model={model}
           size={size}
@@ -716,11 +717,14 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
               className={cn(
                 "line-clamp-2 block leading-[1.2]",
                 label.kind === "zone" && "font-bold",
+                styles.labelTitle,
               )}
-              style={{
-                fontSize: label.fontSize,
-                color: `color-mix(in srgb, ${label.color} 35%, hsl(var(--foreground)))`,
-              }}
+              style={
+                {
+                  fontSize: label.fontSize,
+                  "--label-color": label.color,
+                } as CSSProperties
+              }
             >
               {label.title}
             </span>
