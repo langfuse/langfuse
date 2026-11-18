@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
-import { useTagOverflow } from "@/src/components/design-system/internal/useTagOverflow";
+import { useFittingCount } from "@/src/components/design-system/internal/useFittingCount";
 import {
   VisualizationFrame,
   type Visualization,
@@ -303,38 +303,35 @@ function FilterTags({
 }: {
   filter: NonNullable<ComponentProps<typeof DataCard>["filter"]>;
 }) {
-  const {
-    availableRef,
-    measureRef,
-    overflowTagRef,
-    visibleCount,
-    hiddenCount,
-  } = useTagOverflow(filter.items.length);
+  const { listRef, probeRef, fittingCount } = useFittingCount({
+    itemCount: filter.items.length,
+    itemsKey: filter.items
+      .map(({ value, label }) => `${value}:${label}`)
+      .join("\u0000"),
+  });
+  const hiddenCount = filter.items.length - fittingCount;
 
   return (
     <div
-      ref={availableRef}
+      ref={listRef}
       className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)]"
     >
-      {/* Invisible copies give each tag's natural width without taking up the row. */}
+      {/* Invisible copies give the row its natural width and each tag's width to measure. */}
       <div
-        ref={measureRef}
+        ref={probeRef}
         aria-hidden
+        inert
         className="invisible col-start-1 row-start-1 flex h-0 gap-1 overflow-hidden"
       >
         {filter.items.map((item) => (
           <span key={item.value} className="flex max-w-48 min-w-10 shrink-0">
-            <FilterTag item={item} onRemove={ignoreRemove} />
+            <FilterTag item={item} onRemove={filter.onRemove} />
           </span>
         ))}
+        <span className="flex shrink-0">
+          <Tag text={`+${filter.items.length}`} />
+        </span>
       </div>
-      <span
-        ref={overflowTagRef}
-        aria-hidden
-        className="invisible col-start-1 row-start-1 flex h-0 w-fit overflow-hidden"
-      >
-        <Tag text={`+${filter.items.length}`} />
-      </span>
       <div className="col-start-1 row-start-1 flex min-w-0 justify-end">
         <div
           role="group"
@@ -342,8 +339,8 @@ function FilterTags({
           // Same height as the toggle beside it so both center on one line.
           className="flex h-6 min-w-0 items-center gap-1"
         >
-          {filter.items.slice(0, visibleCount).map((item) => (
-            <span key={item.value} className="flex max-w-48 min-w-10 shrink-0">
+          {filter.items.slice(0, fittingCount).map((item) => (
+            <span key={item.value} className="flex max-w-48 min-w-10 shrink">
               <FilterTag item={item} onRemove={filter.onRemove} />
             </span>
           ))}
@@ -360,8 +357,6 @@ function FilterTags({
     </div>
   );
 }
-
-function ignoreRemove() {}
 
 function FilterTag({
   item,
