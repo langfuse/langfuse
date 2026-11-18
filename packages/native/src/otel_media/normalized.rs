@@ -424,6 +424,31 @@ mod tests {
     }
 
     #[test]
+    fn extracts_small_inline_media_between_existing_references() {
+        let first = "@@@langfuseMedia:type=image/png|id=first|source=bytes@@@";
+        let last = "@@@langfuseMedia:type=image/png|id=last|source=bytes@@@";
+        let uri = data_uri(b"tiny");
+        let escaped = uri.replacen("data:", r"\u0064ata:", 1);
+        for (source, inline) in [
+            (format!("{first} caption {uri} {last}"), uri),
+            (
+                format!(r#"{{"text":"{first} caption {escaped} {last}"}}"#),
+                escaped,
+            ),
+        ] {
+            let mut value = Value::String(source.clone().into());
+            let mut registry = Vec::new();
+            extract_normalized_media(&mut value, &mut registry).unwrap();
+            assert_eq!(registry.len(), 1);
+            assert_eq!(registry[0].decode().unwrap(), b"tiny");
+            assert_eq!(
+                value.as_str().unwrap(),
+                source.replace(&inline, &registry[0].reference()),
+            );
+        }
+    }
+
+    #[test]
     fn late_normalization_extracts_small_media_from_stringified_documents() {
         let uri = data_uri(b"tiny");
         let provider_data = BASE64.encode(b"small-provider");
