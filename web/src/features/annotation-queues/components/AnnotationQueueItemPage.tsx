@@ -13,6 +13,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "zustand";
 import {
+  AnnotationScoreSaveError,
   createAnnotationQueueRun,
   type AnnotationQueueRun,
   type QueueRunDependencies,
@@ -233,10 +234,13 @@ function AnnotationQueueRunContent({
   const handleComplete = useCallback(() => {
     // Numeric and text scores save on blur, which Mark Completed and
     // Cmd/Ctrl+Enter already trigger. A comment draft stays on this item's
-    // annotation form until Save Changes, so write it before completion
-    // unmounts the row.
-    commentFlushRef.current?.flushPendingComments();
-    return run.actions.complete(dependencies);
+    // annotation form until Save Changes, so write it and wait for that
+    // score's saves before completion unmounts the row.
+    return run.actions.complete(dependencies, async () => {
+      const failed =
+        (await commentFlushRef.current?.flushPendingComments()) ?? [];
+      if (failed.length > 0) throw new AnnotationScoreSaveError(failed);
+    });
   }, [run, dependencies]);
 
   // Brief highlight on the button when its shortcut fires.
@@ -260,7 +264,7 @@ function AnnotationQueueRunContent({
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   useEffect(() => {
-    if (isSingleItem) return; // single-item view has no queue navigation
+    if (isSingleItem) return; // process-queue shortcuts stay on the run controls
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       if (!hasAccess) return;

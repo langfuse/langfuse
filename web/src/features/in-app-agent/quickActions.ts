@@ -68,7 +68,12 @@ export type InAppAgentSubmitOptions = {
   /** Force a fresh conversation instead of appending to the selected one. */
   newConversation?: boolean;
   /** Which surface sent the message; PostHog only. Defaults to "chat". */
-  entryPoint?: "chat" | "add-widget-modal" | "evaluators-empty-state";
+  entryPoint?:
+    | "chat"
+    | "add-widget-modal"
+    | "command_menu"
+    | "evaluators-empty-state"
+    | "skill-editor";
 };
 
 // Version 1 starter sets. Idea is that periodic curation replaces sets when usage

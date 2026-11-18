@@ -998,6 +998,391 @@ async fn bedrock_connections_only_reach_the_regional_runtime_path_of_their_forma
     }
 }
 
+fn openrouter_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("openrouter");
+    body
+}
+
+#[tokio::test]
+async fn openrouter_connections_serve_every_format_with_bearer_auth_from_their_base_url() {
+    const OPENROUTER: &str = "https://openrouter.ai/api/v1";
+    const OPENROUTER_EU: &str = "https://eu.openrouter.ai/api/v1";
+    let bearer = json!({"type": "Bearer", "token": "openrouter-key"});
+    for api_format in [
+        ApiFormat::OpenAiResponses,
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::AnthropicMessages,
+    ] {
+        let body = openrouter_success(api_format.as_str(), OPENROUTER, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "openrouter:model",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "openrouter");
+        assert_eq!(context.connection().base_url(), OPENROUTER);
+        assert!(!context.connection().has_custom_base_url());
+    }
+
+    let web = FakeWeb::start(move |_| async move {
+        response(openrouter_success(
+            "openai.chat-completions",
+            OPENROUTER_EU,
+            &json!({"type": "Bearer", "token": "openrouter-key"}),
+        ))
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiChatCompletions,
+            "openrouter:model",
+            0,
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(context.connection().base_url(), OPENROUTER_EU);
+    assert!(context.connection().has_custom_base_url());
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "openrouter-key"});
+    for (base_url, auth) in [
+        (OPENROUTER, &x_api_key),
+        ("ftp://eu.openrouter.ai/api/v1", &bearer),
+        ("https://user:pass@eu.openrouter.ai/api/v1", &bearer),
+    ] {
+        assert_invalid_context_for(
+            openrouter_success("anthropic.messages", base_url, auth),
+            ApiFormat::AnthropicMessages,
+        )
+        .await;
+    }
+}
+
+fn xai_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("xai");
+    body
+}
+
+#[tokio::test]
+async fn xai_connections_serve_the_openai_formats_from_its_hosted_api_with_bearer_auth() {
+    const XAI: &str = "https://api.x.ai/v1";
+    let bearer = json!({"type": "Bearer", "token": "xai-key"});
+    for api_format in [ApiFormat::OpenAiResponses, ApiFormat::OpenAiChatCompletions] {
+        let body = xai_success(api_format.as_str(), XAI, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(GATEWAY_KEY, api_format, "xai:grok", 0, NOW_TIME, REQUEST_ID)
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "xai");
+        assert_eq!(context.connection().base_url(), XAI);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "xai-key"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::AnthropicMessages, XAI, &x_api_key),
+        (ApiFormat::AnthropicMessages, XAI, &bearer),
+        (
+            ApiFormat::OpenAiResponses,
+            "https://us.api.x.ai/v1",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiResponses,
+            "https://proxy.example/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(xai_success(api_format.as_str(), base_url, auth), api_format)
+            .await;
+    }
+}
+
+fn azure_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("azure");
+    body
+}
+
+#[tokio::test]
+async fn azure_connections_reach_their_resource_on_the_path_of_their_format() {
+    const RESOURCE: &str = "https://contoso.services.ai.azure.com";
+    let openai = format!("{RESOURCE}/openai/v1");
+    let anthropic = format!("{RESOURCE}/anthropic/v1");
+    let bearer = json!({"type": "Bearer", "token": "azure-key"});
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "azure-key"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::OpenAiResponses, &openai, &bearer),
+        (ApiFormat::OpenAiChatCompletions, &openai, &bearer),
+        (ApiFormat::OpenAiEmbeddings, &openai, &bearer),
+        (ApiFormat::AnthropicMessages, &anthropic, &x_api_key),
+    ] {
+        let body = azure_success(api_format.as_str(), base_url, auth);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "azure:my-deployment",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "azure");
+        assert_eq!(context.connection().base_url(), base_url.as_str());
+        assert!(context.connection().has_custom_base_url());
+    }
+
+    // Decisions, the other family's path, the wrong credential scheme, or a
+    // URL that is not a plain endpoint.
+    for (api_format, base_url, auth) in [
+        (ApiFormat::OpenAiDecisions, openai.clone(), &bearer),
+        (ApiFormat::OpenAiResponses, anthropic.clone(), &bearer),
+        (ApiFormat::AnthropicMessages, openai.clone(), &x_api_key),
+        (ApiFormat::OpenAiResponses, openai.clone(), &x_api_key),
+        (ApiFormat::AnthropicMessages, anthropic.clone(), &bearer),
+        (ApiFormat::OpenAiResponses, RESOURCE.to_owned(), &bearer),
+        (
+            ApiFormat::OpenAiResponses,
+            format!("{openai}?api-version=preview"),
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            azure_success(api_format.as_str(), &base_url, auth),
+            api_format,
+        )
+        .await;
+    }
+}
+
+fn google_ai_studio_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("google_ai_studio");
+    body
+}
+
+#[tokio::test]
+async fn google_ai_studio_connections_serve_chat_completions_and_embeddings_with_bearer_auth() {
+    const GOOGLE_AI_STUDIO: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
+    let bearer = json!({"type": "Bearer", "token": "gemini-key"});
+    for api_format in [
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::OpenAiEmbeddings,
+    ] {
+        let body = google_ai_studio_success(api_format.as_str(), GOOGLE_AI_STUDIO, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "gemini:gemini-3.5-flash",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "google_ai_studio");
+        assert_eq!(context.connection().base_url(), GOOGLE_AI_STUDIO);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "gemini-key"});
+    for (api_format, base_url, auth) in [
+        (
+            ApiFormat::OpenAiChatCompletions,
+            GOOGLE_AI_STUDIO,
+            &x_api_key,
+        ),
+        (ApiFormat::OpenAiResponses, GOOGLE_AI_STUDIO, &bearer),
+        (ApiFormat::AnthropicMessages, GOOGLE_AI_STUDIO, &x_api_key),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://generativelanguage.googleapis.com/v1beta/openai/",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://proxy.example/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            google_ai_studio_success(api_format.as_str(), base_url, auth),
+            api_format,
+        )
+        .await;
+    }
+}
+
+fn vercel_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("vercel");
+    body
+}
+
+#[tokio::test]
+async fn vercel_connections_serve_every_format_from_its_hosted_api_with_bearer_auth() {
+    const VERCEL: &str = "https://ai-gateway.vercel.sh/v1";
+    let bearer = json!({"type": "Bearer", "token": "vck-key"});
+    for api_format in [
+        ApiFormat::OpenAiResponses,
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::OpenAiDecisions,
+        ApiFormat::AnthropicMessages,
+    ] {
+        let body = vercel_success(api_format.as_str(), VERCEL, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "vercel:anthropic/claude-sonnet-5",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "vercel");
+        assert_eq!(context.connection().base_url(), VERCEL);
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "vck-key"});
+    for (base_url, auth) in [
+        (VERCEL, &x_api_key),
+        ("https://ai-gateway.vercel.sh/v1/", &bearer),
+        ("https://proxy.example/v1", &bearer),
+    ] {
+        assert_invalid_context_for(
+            vercel_success("anthropic.messages", base_url, auth),
+            ApiFormat::AnthropicMessages,
+        )
+        .await;
+    }
+}
+
+fn vertex_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("vertex");
+    body
+}
+
+#[tokio::test]
+async fn vertex_connections_only_reach_the_openai_compatible_endpoint_of_their_location() {
+    const GLOBAL: &str = "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi";
+    let bearer = json!({"type": "Bearer", "token": "vertex-access-token"});
+    for base_url in [
+        GLOBAL,
+        "https://europe-west4-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4/endpoints/openapi",
+    ] {
+        let body = vertex_success("openai.chat-completions", base_url, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                ApiFormat::OpenAiChatCompletions,
+                "vertex:google/gemini-3.5-flash",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "vertex");
+        assert_eq!(context.connection().base_url(), base_url);
+    }
+
+    let x_api_key =
+        json!({"type": "x-api-key", "header": "x-api-key", "value": "vertex-access-token"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::OpenAiChatCompletions, GLOBAL, &x_api_key),
+        (ApiFormat::OpenAiResponses, GLOBAL, &bearer),
+        (ApiFormat::AnthropicMessages, GLOBAL, &bearer),
+        // The host's location must match the path's.
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4/endpoints/openapi",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/endpoints/openapi",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://attacker.example/x-aiplatform.googleapis.com/v1/projects/my-project/locations/x/endpoints/openapi",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi/",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://aiplatform.googleapis.com/v1/projects/a/b/locations/global/endpoints/openapi",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "http://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            vertex_success(api_format.as_str(), base_url, auth),
+            api_format,
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [

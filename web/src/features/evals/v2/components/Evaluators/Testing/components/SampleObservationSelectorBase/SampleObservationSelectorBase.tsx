@@ -41,7 +41,7 @@ import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
-import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
+import { EvaluatorFilterModeDropdown } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/EvaluatorFilterModeDropdown";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { buildSampleQueryFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
 import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
@@ -504,7 +504,7 @@ export function SampleObservationSelectorBase(
           description={filterDescription}
           tooltip={filterTooltip}
           trailing={
-            <FilterModeToggle
+            <EvaluatorFilterModeDropdown
               mode={filterMode}
               onChange={(mode) => {
                 if (mode === "builder" && searchQuery !== null) {

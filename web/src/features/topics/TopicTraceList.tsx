@@ -1,6 +1,10 @@
 /* eslint-disable react/no-unstable-nested-components */
 import {
   type PointerEvent,
+  type ComponentProps,
+  useContext,
+  useEffect,
+  useRef,
   type RefObject,
   type UIEvent,
   useState,
@@ -14,10 +18,14 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
+  type Facet,
   type FacetRow,
   type TopicTracesResult,
   topicTracesHref,
 } from "./facet-topics";
+import { FacetTraceSource } from "./useFacetTopicTraces";
+import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
+import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
@@ -58,13 +66,26 @@ export function TopicTraceList({
   description,
   swatchColor,
   traces,
+  selectedTraceId = null,
   totalCount,
+  tracingTopic,
   peekView,
   tracePanelRef,
   headerRef,
   divider,
+  search,
+  topicColors,
+  emptyMessage = "No trace summaries.",
 }: TopicTraceListProps) {
   const { rows } = traces;
+  const tableRef = useRef<HTMLDivElement>(null);
+  const selectedRowLoaded = rows.some((row) => row.traceId === selectedTraceId);
+  // A trace picked on the map scrolls into view once its row is loaded.
+  useEffect(() => {
+    tableRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [selectedTraceId, selectedRowLoaded]);
   const onScrollCapture = (event: UIEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     if (
@@ -76,7 +97,14 @@ export function TopicTraceList({
   const titleTooltip = useTruncatedTitle(title, "truncate");
   const descriptionTooltip = useTruncatedTitle(description ?? "", "line-clamp");
   const { isV4 } = useReadPath();
-  const tracingHref = topicTracesHref(projectId, rows, isV4);
+  // Analysis snapshots have their own topics, which the tracing filter can't match.
+  const isAnalysis = Boolean(useContext(FacetTraceSource)?.analysisId);
+  const tracingHref = topicTracesHref(
+    projectId,
+    rows,
+    isV4,
+    isAnalysis ? undefined : tracingTopic,
+  );
   const columns: LangfuseColumnDef<FacetRow>[] = [
     {
       accessorKey: "traceId",
@@ -95,6 +123,40 @@ export function TopicTraceList({
         </span>
       ),
     },
+    ...(topicColors
+      ? [
+          {
+            accessorKey: "topicName",
+            header: () => <span className={CELL}>Topic</span>,
+            size: 200,
+            minSize: 120,
+            cell: ({ row }) => {
+              // Outliers read Unassigned, as in the topic rows and on the map.
+              const name =
+                row.original.topicName ??
+                (row.original.outcome === "outlier"
+                  ? "Unassigned"
+                  : row.original.outcome.replaceAll("_", " "));
+              return (
+                <span className={cn(CELL, "flex min-w-0 items-center gap-2")}>
+                  <span
+                    aria-hidden
+                    className="size-2.5 shrink-0 rounded-xs"
+                    style={{
+                      backgroundColor: topicColors.get(
+                        row.original.topicId ?? UNASSIGNED_TOPIC_ID,
+                      ),
+                    }}
+                  />
+                  <span className="min-w-0 truncate text-sm" title={name}>
+                    {name}
+                  </span>
+                </span>
+              );
+            },
+          } satisfies LangfuseColumnDef<FacetRow>,
+        ]
+      : []),
     {
       accessorKey: "summary",
       header: () => <span className={CELL}>Summary</span>,
@@ -119,10 +181,10 @@ export function TopicTraceList({
       className={cn(
         "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
         divider === "side" && "border-t lg:border-t-0 lg:border-l",
-        divider === "top" && "border-t",
         !divider && "rounded-md border",
       )}
     >
+      {search && <TopicsTraceToolbar {...search} divider={false} />}
       <div ref={headerRef} className="flex shrink-0 flex-col gap-1 px-4 py-3">
         <div className="flex h-7 items-center justify-between gap-4">
           <p className="text-muted-foreground flex min-w-0 items-center gap-2">
@@ -135,9 +197,9 @@ export function TopicTraceList({
             )}
             <span
               className="truncate font-mono text-xs"
-              title={`~${totalCount.toLocaleString()} traces`}
+              title={traceCountLabel(totalCount)}
             >
-              {`~${totalCount.toLocaleString()} traces`}
+              {traceCountLabel(totalCount)}
             </span>
           </p>
           {tracingHref && (
@@ -167,20 +229,23 @@ export function TopicTraceList({
           </p>
         )}
       </div>
-      <DataTable
-        tableName="topics-topic-traces"
-        columns={columns}
-        data={{
-          isLoading: traces.isLoading,
-          isError: traces.error !== null,
-          error: traces.error ?? undefined,
-          data: rows.map((row) => ({ ...row, id: row.traceId })),
-        }}
-        className="min-h-0 overscroll-contain"
-        cellPadding="relaxed"
-        noResultsMessage="No trace summaries."
-        peekView={peekView}
-      />
+      <div ref={tableRef} className="contents">
+        <DataTable
+          tableName="topics-topic-traces"
+          columns={columns}
+          data={{
+            isLoading: traces.isLoading,
+            isError: traces.error !== null,
+            error: traces.error ?? undefined,
+            data: rows.map((row) => ({ ...row, id: row.traceId })),
+          }}
+          className="min-h-0 overscroll-contain"
+          cellPadding="relaxed"
+          noResultsMessage={emptyMessage}
+          peekView={peekView}
+          rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
+        />
+      </div>
       {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
     </section>
   );
@@ -192,11 +257,27 @@ type TopicTraceListProps = {
   description?: string;
   swatchColor?: string;
   traces: TopicTracesResult;
-  /** Approximate count of the listed topic's traces. */
-  totalCount: number;
+  /** Highlighted and scrolled into view, e.g. a trace picked on the map. */
+  selectedTraceId?: string | null;
+  /** Count of the listed traces; null when only the loaded rows are known. */
+  totalCount: number | null;
+  /** The listed topic, so Open in Tracing can filter by it instead of trace IDs. */
+  tracingTopic?: { facet: Facet; name: string };
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   /** Lets a neighbouring panel match this header's height. */
   headerRef?: RefObject<HTMLDivElement | null>;
-  divider?: "top" | "side";
+  /** `none` when the parent draws the divider, e.g. a resize handle. */
+  divider?: "side" | "none";
+  /** Search and filters above the header. */
+  search?: Omit<ComponentProps<typeof TopicsTraceToolbar>, "divider">;
+  /** Shown when the list is empty, e.g. for a search that matches nothing. */
+  emptyMessage?: string;
+  /** Adds a Topic column, colored per topic ID. */
+  topicColors?: ReadonlyMap<string, string>;
 };
+
+function traceCountLabel(count: number | null) {
+  if (count === null) return "Traces";
+  return `${count.toLocaleString()} traces`;
+}

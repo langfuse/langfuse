@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
@@ -21,7 +22,14 @@ const meta = preview.meta({
 const MODEL_ID = "eu.anthropic.claude-opus-4-7";
 
 const args = {
+  connections: [
+    { id: "conn-bedrock", name: "Bedrock-prod", provider: "BEDROCK" as const },
+    { id: "conn-openai", name: "OpenAI-primary", provider: "OPENAI" as const },
+  ],
+  connectionId: "conn-bedrock",
+  onConnectionChange: fn(),
   existingModels: ["gpt-4o", "gpt-4o-mini"],
+  existingModelsFailed: false,
   isAdding: false,
   isTesting: false,
   onAdd: fn(async () => true),
@@ -34,7 +42,7 @@ const failedTestArgs = {
   onTest: fn(async () => ({
     success: false as const,
     status: "404 Not Found",
-    error: `This credential cannot access ${MODEL_ID} in the selected region.`,
+    error: `This connection cannot access ${MODEL_ID} in the selected region.`,
   })),
 };
 
@@ -48,7 +56,7 @@ export const BeforeTest = meta.story({
     await userEvent.type(dialog.getByLabelText("Model ID"), MODEL_ID);
     await expect(
       dialog.getByText(
-        "This model hasn't been tested with your credential yet.",
+        "This model hasn't been tested with this connection yet.",
       ),
     ).toBeVisible();
     await expect(
@@ -134,6 +142,53 @@ export const EditingClearsTestResult = meta.story({
     );
     await dialog.findByText("Request accepted");
     await userEvent.type(input, "-v2");
+    await expect(dialog.queryByText("Request accepted")).toBeNull();
+    await expect(
+      dialog.getByRole("button", { name: "Add model" }),
+    ).toBeDisabled();
+  },
+});
+
+export const ModelsLoading = meta.story({
+  name: "(Test) Blocks adding until the connection's models load",
+  args: { ...args, existingModels: undefined },
+  play: async ({ canvasElement }) => {
+    const dialog = within(canvasElement.ownerDocument.body);
+    await userEvent.type(dialog.getByLabelText("Model ID"), MODEL_ID);
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Send test request" }),
+    );
+    await dialog.findByText("Request accepted");
+    await expect(
+      dialog.getByRole("button", { name: "Add model" }),
+    ).toBeDisabled();
+  },
+});
+
+export const SwitchingConnectionClearsTestResult = meta.story({
+  name: "(Test) Clears the test result when the connection changes",
+  args,
+  render: function Render(storyArgs) {
+    const [connectionId, setConnectionId] = useState(storyArgs.connectionId);
+    return (
+      <AddCustomModelDialog
+        {...storyArgs}
+        connectionId={connectionId}
+        onConnectionChange={setConnectionId}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const dialog = within(canvasElement.ownerDocument.body);
+    await userEvent.type(dialog.getByLabelText("Model ID"), MODEL_ID);
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Send test request" }),
+    );
+    await dialog.findByText("Request accepted");
+    await userEvent.click(dialog.getByLabelText("Connection"));
+    await userEvent.click(
+      await dialog.findByRole("option", { name: "OpenAI-primary" }),
+    );
     await expect(dialog.queryByText("Request accepted")).toBeNull();
     await expect(
       dialog.getByRole("button", { name: "Add model" }),

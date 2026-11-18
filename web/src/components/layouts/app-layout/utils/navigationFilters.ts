@@ -3,7 +3,7 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import type { Route } from "@/src/components/layouts/routes";
+import { type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -11,7 +11,7 @@ import type { Session } from "next-auth";
 import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
-
+import { visibleGatewayPages } from "@/src/features/ai-gateway/fns/visibleGatewayPages";
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
   | NonNullable<Session["user"]>["organizations"][number]
@@ -118,13 +118,9 @@ const filters = {
   /**
    * Filter routes based on plan entitlements
    * OR logic - user needs at least one of the required entitlements
-   * Cloud admins bypass this check
    */
   entitlements: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (!route.entitlements || route.entitlements.length === 0) return route;
-
-    // Cloud admins bypass entitlement checks
-    if (ctx.cloudAdmin) return route;
 
     // OR logic - user needs at least one entitlement
     const hasEntitlement = route.entitlements.some((ent) =>
@@ -137,13 +133,9 @@ const filters = {
   /**
    * Filter routes based on project-level RBAC scopes
    * OR logic - user needs at least one of the required scopes
-   * Cloud admins bypass this check
    */
   projectRbac: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (!route.projectRbacScopes || !ctx.routerProjectId) return route;
-
-    // Cloud admins bypass RBAC checks
-    if (ctx.cloudAdmin) return route;
 
     // OR logic - user needs at least one scope
     const hasScope = route.projectRbacScopes.some((scope) =>
@@ -159,16 +151,12 @@ const filters = {
 
   /**
    * Filter routes based on organization-level RBAC scope
-   * Cloud admins bypass this check
    */
   organizationRbac: (
     route: Route,
     ctx: NavigationFilterContext,
   ): Route | null => {
     if (!route.organizationRbacScope || !ctx.routerOrganizationId) return route;
-
-    // Cloud admins bypass RBAC checks
-    if (ctx.cloudAdmin) return route;
 
     const hasScope = hasOrganizationAccess({
       session: ctx.session,
@@ -189,6 +177,10 @@ const filters = {
     organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
+    const gatewayPages = visibleGatewayPages(
+      ctx.session,
+      ctx.routerOrganizationId,
+    );
     // Convert null to undefined for route.show compatibility
     return route.show({
       organization: organization ?? undefined,
@@ -199,6 +191,7 @@ const filters = {
           (project) => project.id === ctx.routerProjectId,
         ),
       ),
+      visibleGatewayPages: gatewayPages,
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,

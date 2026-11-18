@@ -50,14 +50,20 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
         { id: "rule", assignments: [{ evaluator: { type: "FACET" } }] },
       ]),
     },
+    evaluationRuleEvaluatorAssignment: {
+      findMany: vi.fn(async () => []),
+    },
+    jobExecution: {
+      createMany: vi.fn(async () => ({ count: 0 })),
+      deleteMany: vi.fn(async () => ({ count: 0 })),
+    },
   },
 }));
 
 const originals = {
   region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  traceDispatch: env.LANGFUSE_TRACE_DISPATCH_ENABLED,
   eventsDispatch: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
-  storeAll: env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES,
+  storeAll: env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL,
 };
 const MINUTE_MS = 60_000;
 // Keys share the local Redis, so each run uses its own project.
@@ -146,18 +152,20 @@ const job = (
 describe("events dispatch consumer", () => {
   beforeEach(async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
-    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES = originals.storeAll;
+    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = originals.storeAll;
     vi.clearAllMocks();
-    inputStorage.put.mockResolvedValue({ outcome: "stored", jsonLength: 10 });
+    inputStorage.put.mockResolvedValue({
+      outcome: "stored",
+      jsonLength: 10,
+      key: "stored.json",
+    });
   });
 
   afterAll(async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originals.region;
-    env.LANGFUSE_TRACE_DISPATCH_ENABLED = originals.traceDispatch;
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = originals.eventsDispatch;
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES = originals.storeAll;
+    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = originals.storeAll;
     redis?.disconnect();
   });
 
@@ -166,7 +174,7 @@ describe("events dispatch consumer", () => {
     streamRows(["failed", "stored"]);
     inputStorage.put.mockImplementation(async ({ traceId }) => {
       if (traceId === "failed") throw new Error("SlowDown");
-      return { outcome: "stored", jsonLength: 10 };
+      return { outcome: "stored", jsonLength: 10, key: "stored.json" };
     });
     const startedAt = Date.now();
 
@@ -256,7 +264,7 @@ describe("events dispatch consumer", () => {
   });
 
   it("stores traces without consumer rules only in the store-all experiment, still enqueueing Topics where rules apply", async () => {
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = "true";
     streamRows(["marker", "topics"]);
 
     const result = await eventsDispatchQueueProcessor(
@@ -277,7 +285,7 @@ describe("events dispatch consumer", () => {
   });
 
   it("does not return a failed storage-only trace to Redis, while a failed Topics trace is restored", async () => {
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = "true";
     const revisions = await recordAndAcknowledge(["topics"]);
     // Bounds without a pending selection, as recorded for experiment-only traces.
     await recordTraceActivity(projectId, [

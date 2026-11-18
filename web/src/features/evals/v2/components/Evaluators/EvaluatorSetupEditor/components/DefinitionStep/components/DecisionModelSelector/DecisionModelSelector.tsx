@@ -1,8 +1,9 @@
 import { useState } from "react";
 import {
+  DECISION_MODEL_CONNECTIONS_HINT,
   isAllowedDecisionModel,
-  isOpenAIDecisionModel,
-  OPENAI_DECISION_MODEL_IDS,
+  isTextAdapterDecisionModel,
+  unsupportedDecisionModelMessage,
 } from "@langfuse/shared";
 import { useStore } from "zustand";
 
@@ -47,7 +48,7 @@ export function DecisionModelSelector({
     (connection) => connection.provider === selectedModel?.provider,
   );
   // A saved TypeSafe version can outlive the connection's current list. An
-  // OpenAI model outside the decision-model list must not be offered again.
+  // OpenAI or Google model outside the decision-model list must not be offered again.
   const selectedIsAllowed =
     selectedModel != null &&
     (selectedConnection == null ||
@@ -64,10 +65,17 @@ export function DecisionModelSelector({
 
   const providerGroups = Array.from(modelsByProvider.entries()).sort(
     (left, right) =>
-      Number(right[1].some(isOpenAIDecisionModel)) -
-      Number(left[1].some(isOpenAIDecisionModel)),
+      Number(right[1].some(isTextAdapterDecisionModel)) -
+      Number(left[1].some(isTextAdapterDecisionModel)),
   );
-  const unsupported = selectedModel != null && !selectedIsAllowed;
+  const unsupportedMessage =
+    selectedModel != null && selectedConnection != null && !selectedIsAllowed
+      ? (unsupportedDecisionModelMessage(
+          selectedConnection.adapter,
+          selectedModel.model,
+        ) ??
+        `Connection "${selectedConnection.provider}" is not a decision-model connection. Use ${DECISION_MODEL_CONNECTIONS_HINT}.`)
+      : null;
   // Shown until the user picks a model. The store stays untouched.
   const displayedModel = selectedModel ?? preferredDecisionModel(rows);
 
@@ -78,7 +86,7 @@ export function DecisionModelSelector({
   ) {
     return (
       <Button type="button" variant="outline" onClick={onConfigureProviders}>
-        Add an OpenAI or TypeSafe connection
+        Add an OpenAI, Google AI Studio or TypeSafe connection
       </Button>
     );
   }
@@ -102,11 +110,8 @@ export function DecisionModelSelector({
           />
         </PopoverTrigger>
       </JudgeModelPicker>
-      {unsupported ? (
-        <p className="text-destructive text-xs">
-          {selectedModel.model} is not supported for decision models. Choose{" "}
-          {OPENAI_DECISION_MODEL_IDS.join(", ")}.
-        </p>
+      {unsupportedMessage ? (
+        <p className="text-destructive text-xs">{unsupportedMessage}</p>
       ) : null}
     </div>
   );

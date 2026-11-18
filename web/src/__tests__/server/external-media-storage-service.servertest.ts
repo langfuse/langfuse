@@ -2,7 +2,7 @@ import dns from "node:dns/promises";
 import { randomUUID } from "crypto";
 import type { Mock } from "vitest";
 
-import { InvalidRequestError } from "@langfuse/shared";
+import { InvalidRequestError, type Plan } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -124,7 +124,7 @@ describe("external media storage service", () => {
     await createExternalMediaStorageService(prisma).saveConfiguration({
       actor: { apiKeyId: "test-api-key", orgId: project.orgId },
       projectId: project.id,
-      canUseRoleAuth: false,
+      plan: "cloud:hobby",
       values: {
         type: "S3",
         bucketName: "media-bucket",
@@ -201,7 +201,7 @@ describe("external media storage service", () => {
       await createExternalMediaStorageService(prisma).saveConfiguration({
         actor: { apiKeyId: "test-api-key", orgId: project.orgId },
         projectId: project.id,
-        canUseRoleAuth: false,
+        plan: "cloud:hobby",
         values: { ...savedValues, prefix: "customer/" },
       });
 
@@ -225,7 +225,7 @@ describe("external media storage service", () => {
         ).saveConfiguration({
           actor: { apiKeyId: "test-api-key", orgId: project.orgId },
           projectId: project.id,
-          canUseRoleAuth: false,
+          plan: "cloud:hobby",
           values: { ...savedValues, ...change },
         });
         await expect(rejection).rejects.toBeInstanceOf(InvalidRequestError);
@@ -336,12 +336,12 @@ describe("external media storage service", () => {
       prefix: "media/",
       forcePathStyle: false,
     };
-    const save = (canUseRoleAuth = true) =>
+    const save = (plan: Plan = "cloud:enterprise") =>
       service.saveConfiguration({
         actor: { apiKeyId: "test-api-key", orgId: project.orgId },
         projectId: project.id,
         values,
-        canUseRoleAuth,
+        plan,
       });
 
     await expect(save()).rejects.toThrow(
@@ -351,7 +351,7 @@ describe("external media storage service", () => {
     (getCrossAccountRoleArn as Mock).mockReturnValue(
       "arn:aws:iam::210987654321:role/langfuse-cross-account",
     );
-    await expect(save(false)).rejects.toThrow(
+    await expect(save("cloud:team")).rejects.toThrow(
       "IAM role auth requires an Enterprise plan",
     );
     await save();

@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
-import { Check, ChevronDown } from "@langfuse/icons";
+import { Check, ChevronDown, Info } from "@langfuse/icons";
 
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 const markerVariants = cva(
@@ -61,6 +62,8 @@ const descriptionVariants = cva("text-muted-foreground", {
 type StepperProps = {
   number: number;
   title: string;
+  /** Shown in an info tooltip beside the title, outside the collapse control. */
+  tooltipText?: string;
   description?: ReactNode;
   variant?: "filled" | "outline";
   size?: "default" | "sm";
@@ -94,6 +97,7 @@ type StepperProps = {
 export function Stepper({
   number,
   title,
+  tooltipText,
   description,
   variant = "filled",
   size = "default",
@@ -134,29 +138,43 @@ export function Stepper({
           compactBottomSpacing ? "pb-3" : "pb-8",
         )}
       >
-        {isCollapsible ? (
-          <button
-            type="button"
-            className={headerVariants({ size })}
-            aria-label={`Step ${number}: ${title}`}
-            aria-expanded={expanded}
-            onClick={toggle}
-          >
-            <ChevronDown
-              size="base"
-              color="tertiary"
-              __rawClassName={cn(
-                "translate-y-px transition-transform",
-                !expanded && "-rotate-90",
+        <div className={headerVariants({ size })}>
+          {isCollapsible ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5"
+              aria-label={`Step ${number}: ${title}`}
+              aria-expanded={expanded}
+              onClick={toggle}
+            >
+              <ChevronDown
+                size="base"
+                color="tertiary"
+                __rawClassName={cn(
+                  "translate-y-px transition-transform",
+                  !expanded && "-rotate-90",
+                )}
+              />
+              <span className={titleVariants({ size, status })}>{title}</span>
+            </button>
+          ) : (
+            <span className={titleVariants({ size, status })}>{title}</span>
+          )}
+          {tooltipText ? (
+            <Tooltip label={tooltipText}>
+              {({ getTriggerProps }) => (
+                <button
+                  {...getTriggerProps()}
+                  type="button"
+                  aria-label={`About ${title}`}
+                  className="inline-flex cursor-help items-center"
+                >
+                  <Info aria-hidden size="base" color="muted" />
+                </button>
               )}
-            />
-            <span className={titleVariants({ size, status })}>{title}</span>
-          </button>
-        ) : (
-          <div className={headerVariants({ size })}>
-            <span className={titleVariants({ size, status })}>{title}</span>
-          </div>
-        )}
+            </Tooltip>
+          ) : null}
+        </div>
         {expanded && hasBody ? (
           <div
             className={cn(

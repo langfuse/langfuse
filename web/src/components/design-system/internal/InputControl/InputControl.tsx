@@ -39,6 +39,10 @@ const inputControlVariants = cva(
         within:
           "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
       },
+      focused: {
+        true: "ring-ring ring-2 ring-offset-2",
+        false: null,
+      },
       prefixed: {
         true: "flex min-w-0 items-center overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
         false: null,
@@ -74,6 +78,11 @@ const inputControlVariants = cva(
         className:
           "focus-within:ring-destructive/40 focus-within:ring-offset-0",
       },
+      {
+        focused: true,
+        error: true,
+        className: "ring-destructive/40 ring-offset-0",
+      },
     ],
   },
 );
@@ -82,7 +91,10 @@ type InputControlProps = Omit<
   ComponentPropsWithoutRef<typeof Slot>,
   "className" | "prefix"
 > &
-  Pick<VariantProps<typeof inputControlVariants>, "height" | "focusTarget"> & {
+  Pick<
+    VariantProps<typeof inputControlVariants>,
+    "height" | "focusTarget" | "focused"
+  > & {
     contentLayout: "none" | "text" | "spread";
     error?: boolean;
     disabled?: boolean;
@@ -106,6 +118,7 @@ export function InputControl({
   contentLayout,
   height,
   focusTarget,
+  focused,
   error,
   disabled,
   trailingAction,
@@ -115,6 +128,7 @@ export function InputControl({
   const controlClassName = inputControlVariants({
     height,
     focusTarget,
+    focused,
     prefixed: prefix !== undefined,
     error,
     disabled,
@@ -164,7 +178,7 @@ export function InputControl({
           disabled={trailingAction.disabled}
           // Keep the action out of the tab order so Tab moves between inputs.
           tabIndex={-1}
-          className="absolute top-1/2 right-3 flex -translate-y-1/2 cursor-pointer items-center justify-center disabled:cursor-not-allowed"
+          className="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center disabled:cursor-not-allowed"
           onClick={trailingAction.onClick}
         >
           <TrailingActionIcon

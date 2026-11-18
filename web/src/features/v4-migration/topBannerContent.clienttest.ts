@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { V4_MIGRATION_TOP_BANNER_MESSAGE } from "./v4MigrationBannerCopy";
 import { isV4MigrationTopBannerVisible } from "./topBannerContent";
 
 const visible = {
   severity: "warning",
-  message:
-    "Action required: After November 16, 2026, some features may stop working for at least one of your projects.",
+  message: V4_MIGRATION_TOP_BANNER_MESSAGE,
   v4UpgradeUiEnabled: true,
   isLangfuseCloud: true,
   actionNeededCount: 2,

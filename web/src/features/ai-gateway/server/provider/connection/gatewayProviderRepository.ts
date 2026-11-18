@@ -11,9 +11,9 @@ import {
   parseGatewayCustomModels,
 } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
 import {
-  type GatewayBedrockConfig,
-  GatewayBedrockConfigSchema,
-} from "@/src/features/ai-gateway/server/provider/bedrock";
+  type GatewayProviderConfig,
+  GatewayProviderConfigSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 
 const safeConnectionSelect = {
   id: true,
@@ -42,7 +42,7 @@ function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
     allowedModels: parseGatewayAllowedModels(connection.allowedModels),
     customModels: parseGatewayCustomModels(connection.customModels),
     config:
-      GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
+      GatewayProviderConfigSchema.safeParse(connection.config).data ?? null,
   };
 }
 
@@ -136,7 +136,7 @@ export class GatewayProviderRepository {
     provider: GatewayProvider;
     encryptedCredential: string;
     displaySecret: string;
-    config: GatewayBedrockConfig | null;
+    config: GatewayProviderConfig | null;
     baseURL: string | null;
     extraHeaders: string | null;
     extraHeaderKeys: string[];
@@ -150,20 +150,29 @@ export class GatewayProviderRepository {
     return toSafeConnection(connection);
   }
 
-  async updateConnection(params: {
-    organizationId: string;
-    id: string;
-    name?: string;
-    encryptedCredential?: string;
-    displaySecret?: string;
-    baseURL?: string | null;
-    extraHeaders?: string | null;
-    extraHeaderKeys?: string[];
-    status?: GatewayConnectionStatus;
-  }) {
-    const { organizationId, id, ...data } = params;
-    const connection = await this.prisma.gatewayAiConnection.update({
-      where: { id, organizationId },
+  async updateConnection(
+    params: {
+      organizationId: string;
+      id: string;
+      name?: string;
+      encryptedCredential?: string;
+      displaySecret?: string;
+      baseURL?: string | null;
+      extraHeaders?: string | null;
+      extraHeaderKeys?: string[];
+      status?: GatewayConnectionStatus;
+      /** Matching it makes a concurrent rename fail with P2025 instead of leaving key model patterns on a stale name. */
+      previousName?: string;
+    },
+    client: Prisma.TransactionClient = this.prisma,
+  ) {
+    const { organizationId, id, previousName, ...data } = params;
+    const connection = await client.gatewayAiConnection.update({
+      where: {
+        id,
+        organizationId,
+        ...(previousName !== undefined && { name: previousName }),
+      },
       data,
       select: safeConnectionSelect,
     });

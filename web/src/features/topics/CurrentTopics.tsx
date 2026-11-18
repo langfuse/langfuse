@@ -1,5 +1,6 @@
-import { useMemo, useRef } from "react";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { type ComponentProps, useMemo, useRef } from "react";
+import { CircleAlert } from "@langfuse/icons";
+import { TopicsCenteredState } from "./TopicsCenteredState";
 import { Spinner } from "@/src/components/layouts/Spinner";
 import { cn } from "@/src/utils/tailwind";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -7,30 +8,39 @@ import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { CurrentTopicsView } from "./CurrentTopicsView";
-import { TopicGridView } from "./TopicGridView";
+import { ScatterTopicsView } from "./scatter/ScatterTopicsView";
 import { TopicTreemapView } from "./TopicTreemapView";
-import { type TopicsResultsView } from "./TopicsResultsViewSelect";
+import {
+  type MobileTopicsVisualization,
+  type TopicsResultsView,
+  useMobileTopicsVisualization,
+} from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
+import { type TopicsActions } from "./prepare-topics-actions";
 import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
 } from "./prepare-topic-display";
-import { FacetTraceSource, useFacetTopicTraces } from "./useFacetTopicTraces";
+import {
+  FacetTraceSource,
+  useFacetTopicTraces,
+  type TopicMapScope,
+} from "./useFacetTopicTraces";
 
 export function CurrentTopics({
   projectId,
+  scope,
   result,
   selectedFacetId,
   view,
   tracePanelRef,
   traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
   showUnassigned,
+  mapActions,
 }: CurrentTopicsProps) {
   const selectedFacet = result.data?.facets.find(
     (facet) => facet.facetId === selectedFacetId,
@@ -45,24 +55,26 @@ export function CurrentTopics({
       )}
     >
       {result.error && (
-        <Alert variant="destructive" size="sm">
-          <Alert.Description>
-            <p className="break-words">{result.error.message}</p>
-          </Alert.Description>
-        </Alert>
+        <TopicsCenteredState
+          icon={<CircleAlert size="lg" color="destructive" aria-hidden />}
+          title={
+            scope.analysisId ? "Couldn’t load this map" : "Couldn’t load topics"
+          }
+          body={result.error.message}
+        />
       )}
       {result.isLoading && <Spinner message="Loading topics" />}
       {selectedFacet && (
         <CurrentFacet
           key={projectId}
           projectId={projectId}
+          scope={scope}
           facet={selectedFacet}
           view={view}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
           showUnassigned={showUnassigned}
+          mapActions={mapActions}
         />
       )}
     </section>
@@ -71,25 +83,33 @@ export function CurrentTopics({
 
 function CurrentFacet({
   projectId,
+  scope,
   facet: resultFacet,
   view,
   tracePanelRef,
   traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
   showUnassigned,
+  mapActions,
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
+  const mobileVisualization = useMobileTopicsVisualization();
+  // Only the Map view needs the run's projection.
   const mapQuery = useCurrentTopicMap(
     projectId,
-    view === "treemap" || view === "treemap-side"
-      ? undefined
-      : resultFacet.map?.runId,
+    ["map", "scatter"].includes(isHandheld ? mobileVisualization.view : view)
+      ? resultFacet.map?.runId
+      : undefined,
   );
   // Stable identities keep the map camera and grid layout across re-renders.
   const facet = useMemo(
     () => (showUnassigned ? resultFacet : facetWithoutUnassigned(resultFacet)),
     [resultFacet, showUnassigned],
+  );
+
+  const { ruleId, analysisId } = scope;
+  const traceSource = useMemo(
+    () => ({ projectId, facetId: facet.facetId, ruleId, analysisId }),
+    [projectId, facet.facetId, ruleId, analysisId],
   );
   const mapData = useMemo(
     () =>
@@ -97,10 +117,6 @@ function CurrentFacet({
         ? mapQuery.data
         : mapWithoutUnassigned(mapQuery.data),
     [mapQuery.data, showUnassigned],
-  );
-  const traceSource = useMemo(
-    () => ({ projectId, facetId: facet.facetId }),
-    [projectId, facet.facetId],
   );
   const mapResult = { data: mapData, error: mapQuery.error };
   const peekNavigation = usePeekNavigation({
@@ -120,27 +136,13 @@ function CurrentFacet({
         <MobileTopics
           projectId={projectId}
           facet={facet}
-          view={view === "treemap-side" ? "treemap" : view}
+          view={mobileVisualization.view}
+          onViewChange={mobileVisualization.onViewChange}
           mapResult={mapResult}
           traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
           onOpenTrace={peekNavigation.openPeek}
           showUnassigned={showUnassigned}
-        />
-      );
-    if (view === "treemap" || view === "treemap-side")
-      return (
-        <TopicTreemapView
-          key={facet.facetId}
-          projectId={projectId}
-          facet={facet}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
-          peekView={peekView}
-          sideBySide={view === "treemap-side"}
-          tracePanelRef={tracePanelRef}
-          useTraces={useFacetTopicTraces}
+          mapActions={mapActions}
         />
       );
     if (view === "map")
@@ -152,27 +154,34 @@ function CurrentFacet({
           mapResult={mapResult}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
           onOpenTrace={peekNavigation.openPeek}
           peekView={peekView}
           useTraces={useFacetTopicTraces}
           showUnassigned={showUnassigned}
         />
       );
+    if (view === "scatter")
+      return (
+        <ScatterTopicsView
+          key={facet.facetId}
+          projectId={projectId}
+          facet={facet}
+          mapResult={mapResult}
+          traceFilters={traceFilters}
+          showUnassigned={showUnassigned}
+          peekView={peekView}
+          tracePanelRef={tracePanelRef}
+          useTraces={useFacetTopicTraces}
+          onOpenTrace={peekNavigation.openPeek}
+        />
+      );
     return (
-      <TopicGridView
+      <TopicTreemapView
         key={facet.facetId}
         projectId={projectId}
         facet={facet}
-        mapResult={mapResult}
-        tracePanelRef={tracePanelRef}
-        onGenerateTopics={onGenerateTopics}
-        canGenerateTopics={canGenerateTopics}
-        onOpenTrace={peekNavigation.openPeek}
         peekView={peekView}
         useTraces={useFacetTopicTraces}
-        showUnassigned={showUnassigned}
       />
     );
   }
@@ -182,34 +191,32 @@ function MobileTopics({
   projectId,
   facet,
   view,
+  onViewChange,
   mapResult,
   traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
   onOpenTrace,
   showUnassigned,
+  mapActions,
 }: Pick<
   CurrentFacetProps,
-  | "projectId"
-  | "facet"
-  | "view"
-  | "traceFilters"
-  | "onGenerateTopics"
-  | "canGenerateTopics"
-  | "showUnassigned"
+  "projectId" | "facet" | "traceFilters" | "showUnassigned" | "mapActions"
 > & {
-  mapResult: Pick<ReturnType<typeof useCurrentTopicMap>, "data" | "error">;
+  view: MobileTopicsVisualization;
+  onViewChange: ComponentProps<typeof MobileTopicsView>["onViewChange"];
+  mapResult: ComponentProps<typeof MobileTopicsView>["mapResult"];
   onOpenTrace: (traceId: string) => void;
 }) {
   const { isV4 } = useReadPath();
-  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
-    string | null
-  >(`topics-selected-trace:${projectId}`, null);
+  const [selectedTraceId, setSelectedTraceId] = useMobileTraceSelection(
+    projectId,
+    facet.facetId,
+  );
   return (
     <MobileTopicsView
       projectId={projectId}
       facet={facet}
       view={view}
+      onViewChange={onViewChange}
       mapResult={mapResult}
       filters={traceFilters.filters}
       searchQuery={traceFilters.searchQuery}
@@ -218,11 +225,10 @@ function MobileTopics({
       selectedTraceId={selectedTraceId}
       onSelectTrace={setSelectedTraceId}
       onOpenTrace={onOpenTrace}
-      onGenerateTopics={onGenerateTopics}
-      canGenerateTopics={canGenerateTopics}
       isV4={isV4}
       useTraces={useFacetTopicTraces}
       showUnassigned={showUnassigned}
+      mapActions={mapActions}
     />
   );
 }
@@ -232,23 +238,28 @@ export function useCurrentTopics({
   running,
   pollForSummaries = false,
   refreshAfter,
+  ruleId,
+  enabled = true,
 }: {
   projectId: string;
   running: boolean;
   pollForSummaries?: boolean;
   refreshAfter: number;
+  /** Scopes topics to one rule's map; omitted means every rule. */
+  ruleId?: string;
+  enabled?: boolean;
 }) {
   const utils = api.useUtils();
   const tracesResetFor = useRef(refreshAfter);
   return useQuery({
     queryKey: [
-      ...getQueryKey(api.topics.currentResults, { projectId }, "query"),
+      ...getQueryKey(api.topics.currentResults, { projectId, ruleId }, "query"),
       // A completed status needs a new request, even if an older poll is in flight.
       running ? 0 : refreshAfter,
     ],
     queryFn: async ({ signal }) => {
       const results = await utils.client.topics.currentResults.query(
-        { projectId },
+        { projectId, ruleId },
         { signal },
       );
       // A completed run restarts trace lists at their first page; polls keep loaded pages.
@@ -265,11 +276,59 @@ export function useCurrentTopics({
         ? 10000
         : false;
     },
+    enabled,
     meta: { toastOperation: "topics.load" },
   });
 }
 
-/** The published run's own cluster map; it does not follow any time range. */
+type CurrentTopicsProps = {
+  projectId: string;
+  scope: TopicMapScope;
+  /** Current topics of a rule, or one analysis run's snapshot. */
+  result: {
+    data: { facets: Facet[] } | undefined;
+    isLoading: boolean;
+    error: { message: string } | null;
+  };
+  selectedFacetId: string | undefined;
+  view: TopicsResultsView;
+  tracePanelRef?: (element: HTMLElement | null) => void;
+  traceFilters: ReturnType<typeof useTopicTraceFilters>;
+  showUnassigned: boolean;
+  /** Offered on phones under an empty topic list. */
+  mapActions: TopicsActions;
+};
+
+type CurrentFacetProps = {
+  projectId: string;
+  scope: TopicMapScope;
+  facet: Facet;
+  view: TopicsResultsView;
+  tracePanelRef?: (element: HTMLElement | null) => void;
+  traceFilters: ReturnType<typeof useTopicTraceFilters>;
+  showUnassigned: boolean;
+  /** Offered on phones under an empty topic list. */
+  mapActions: TopicsActions;
+};
+
+type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
+
+function useMobileTraceSelection(projectId: string, facetId: string) {
+  const [selection, setSelection] = useSessionStorage<{
+    facetId: string;
+    traceId: string | null;
+  }>(`topics-mobile-selected-trace:${projectId}`, { facetId, traceId: null });
+  const traceId = selection.facetId === facetId ? selection.traceId : null;
+  if (selection.facetId !== facetId) {
+    setSelection({ facetId, traceId: null });
+  }
+  return [
+    traceId,
+    (nextTraceId: string | null) =>
+      setSelection({ facetId, traceId: nextTraceId }),
+  ] as const;
+}
+
 function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   return api.topics.map.useQuery(
     { projectId, runId: runId ?? "" },
@@ -277,32 +336,4 @@ function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   );
 }
 
-type CurrentTopicsProps = {
-  projectId: string;
-  result: Pick<
-    ReturnType<typeof useCurrentTopics>,
-    "data" | "isLoading" | "error"
-  >;
-  selectedFacetId: string | undefined;
-  view: TopicsResultsView;
-  tracePanelRef?: (element: HTMLElement | null) => void;
-  traceFilters: ReturnType<typeof useTopicTraceFilters>;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
-  showUnassigned: boolean;
-};
-
-type CurrentFacetProps = {
-  projectId: string;
-  facet: Facet;
-  view: TopicsResultsView;
-  tracePanelRef?: (element: HTMLElement | null) => void;
-  traceFilters: ReturnType<typeof useTopicTraceFilters>;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
-  showUnassigned: boolean;
-};
-
-type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
-
-export const __test = { useCurrentTopics };
+export const __test = { useCurrentTopics, useMobileTraceSelection };

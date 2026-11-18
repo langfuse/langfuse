@@ -2,12 +2,7 @@ import { z } from "zod/v4";
 import { isoDateTime, jsonSchema } from "../../utils/zod";
 import { PromptLabelSchema } from "../prompts/types";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "../prompts/constants";
-import {
-  MAX_SKILL_FILES,
-  MAX_SKILL_BYTES,
-  MAX_SKILL_PATH_LENGTH,
-  SKILL_LATEST_LABEL,
-} from "./constants";
+import { MAX_SKILL_PATH_LENGTH, SKILL_LATEST_LABEL } from "./constants";
 
 export const SkillNameSchema = z
   .string()
@@ -61,12 +56,6 @@ export const SkillFileContentSchema = z
       ctx.addIssue({
         code: "custom",
         message: "Skill files must contain well-formed Unicode text",
-      });
-    }
-    if (new TextEncoder().encode(content).byteLength > MAX_SKILL_BYTES) {
-      ctx.addIssue({
-        code: "custom",
-        message: `Skill files must not exceed ${MAX_SKILL_BYTES} UTF-8 bytes`,
       });
     }
   });
@@ -170,27 +159,11 @@ export const CreateSkillVersionBodySchema = z
       .array(
         z.union([SkillVersionFileInputSchema, SkillVersionFileReferenceSchema]),
       )
-      .min(1)
-      .max(MAX_SKILL_FILES),
+      .min(1),
     commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
   })
+  // Size and file count limits are deployment config enforced by the server.
   .superRefine(({ files }, ctx) => {
-    if (
-      files.reduce(
-        (total, file) =>
-          total +
-          (file.content !== undefined
-            ? new TextEncoder().encode(file.content).byteLength
-            : 0),
-        0,
-      ) > MAX_SKILL_BYTES
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["files"],
-        message: `A skill must not exceed ${MAX_SKILL_BYTES} UTF-8 bytes in total`,
-      });
-    }
     const paths = files.map((file) => file.path);
     if (new Set(paths).size !== paths.length) {
       ctx.addIssue({

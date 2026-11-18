@@ -87,8 +87,6 @@ const defaultArgs: ComponentProps<typeof TopicGridView> = {
   useTraces: staticTopicTraces(rows),
   showUnassigned: true,
   onOpenTrace: fn(),
-  onGenerateTopics: fn(),
-  canGenerateTopics: true,
   peekView: {
     itemType: "TRACE",
     tableName: "topics-topic-traces",

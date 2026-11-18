@@ -26,6 +26,10 @@ import { Input } from "@/src/components/ui/input";
 import { useRef, useState, useMemo, useCallback } from "react";
 import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 
+/** Rows span the menu edge to edge, so their hover meets the separators. */
+const groupClassName = "p-0";
+const itemClassName = "rounded-none px-3";
+
 /** compactSelectAllLimit is the most options a compact select shows Select All for. */
 const compactSelectAllLimit = 100;
 
@@ -230,11 +234,12 @@ export function MultiSelect({
             {!isCustomSelectEnabled && !isLoading && (
               <InputCommandEmpty>No results found.</InputCommandEmpty>
             )}
-            <InputCommandGroup>
+            <InputCommandGroup className={groupClassName}>
               {showSelectAll && (
                 <>
                   <InputCommandItem
                     key="select-all"
+                    className={itemClassName}
                     onSelect={handleSelectAll}
                     disabled={isLoading}
                   >
@@ -252,7 +257,7 @@ export function MultiSelect({
                       {allSelectedState ? "Deselect All" : "Select All"}
                     </div>
                   </InputCommandItem>
-                  <InputCommandSeparator />
+                  <InputCommandSeparator className="mx-0" />
                 </>
               )}
               {mergedOptions.map((option) => {
@@ -268,6 +273,7 @@ export function MultiSelect({
                 const commandItem = (
                   <InputCommandItem
                     key={option.value}
+                    className={itemClassName}
                     disabled={isLoading}
                     onSelect={() => {
                       if (isSelected) {
@@ -320,10 +326,11 @@ export function MultiSelect({
               })}
             </InputCommandGroup>
             {isCustomSelectEnabled && (
-              <InputCommandGroup forceMount={true}>
-                <InputCommandSeparator />
+              <InputCommandGroup forceMount={true} className={groupClassName}>
+                <InputCommandSeparator className="mx-0" />
                 <InputCommandItem
                   key="freeTextField"
+                  className={itemClassName}
                   disabled={isLoading}
                   onSelect={() => {
                     const freeTextInput = getFreeTextInput(
@@ -375,19 +382,19 @@ export function MultiSelect({
                       e.stopPropagation();
                     }}
                     placeholder="Enter custom value"
-                    className="h-6 w-full rounded-none border-t-0 border-r-0 border-b-2 border-l-0 border-dotted p-0 text-sm"
+                    className="h-5 w-full rounded-none border-t-0 border-r-0 border-b-2 border-l-0 border-dotted p-0 text-sm"
                   />
                 </InputCommandItem>
               </InputCommandGroup>
             )}
             {selectedValues.size > 0 && (
               <>
-                <InputCommandSeparator />
-                <InputCommandGroup>
+                <InputCommandSeparator className="mx-0" />
+                <InputCommandGroup className={groupClassName}>
                   <InputCommandItem
                     disabled={isLoading}
                     onSelect={() => onValueChange([])}
-                    className="justify-center text-center"
+                    className={cn(itemClassName, "justify-center text-center")}
                   >
                     Clear filters
                   </InputCommandItem>

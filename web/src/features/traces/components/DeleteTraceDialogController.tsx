@@ -3,9 +3,9 @@ import { type ReactNode, useMemo, useState } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { markTracesPendingDeletion } from "@/src/features/traces/pendingTraceDeletions";
 import { api } from "@/src/utils/api";
 
 export function DeleteTraceDialogController({
@@ -53,7 +53,7 @@ export function DeleteTraceDialogController({
       onAfterDelete?: (deletedTraceId: string) => void;
     }>
       title={(target) => `Delete trace ${target.traceName || target.traceId}?`}
-      text="This action cannot be undone. It removes all the data associated with this trace. If this is the project default, it will be deleted for all users."
+      text="This action cannot be undone. It removes all the data associated with this trace. Trace deletion happens asynchronously and may take up to 24 hours."
       confirmationText={(target) => target.traceName || ""}
       confirmLabel="Delete trace"
       variant="destructive"
@@ -64,13 +64,8 @@ export function DeleteTraceDialogController({
           traceIds: [target.traceId],
           projectId: target.projectId,
         });
+        markTracesPendingDeletion(target.projectId, [target.traceId]);
         setIsDeleted(true);
-        showSuccessToast({
-          operation: "trace.delete",
-          title: "Trace deleted",
-          description:
-            "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
-        });
         capture("trace:delete", { source: "trace" });
         if (target.redirectUrl) {
           router.push(target.redirectUrl).catch(() => undefined);

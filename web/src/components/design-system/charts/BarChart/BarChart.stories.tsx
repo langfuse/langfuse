@@ -71,8 +71,9 @@ export const PositiveBaseline = meta.story({
   play: async ({ canvasElement }) => {
     const bars = within(canvasElement).getAllByRole("graphics-symbol");
     const smallestBar = bars[0];
-    if (!smallestBar) throw new Error("Bar not found");
-    await expect(Number(smallestBar.getAttribute("height"))).toBeGreaterThan(1);
+    if (!(smallestBar instanceof SVGGraphicsElement))
+      throw new Error("Bar not found");
+    await expect(smallestBar.getBBox().height).toBeGreaterThan(1);
   },
 });
 

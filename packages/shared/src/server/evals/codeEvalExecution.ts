@@ -35,6 +35,8 @@ const INTERNAL_CODE_EVAL_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
   CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
   CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
   CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
+  CodeEvalDispatcherErrorCodes.EXTERNAL_CONFIGURATION_ERROR,
+  CodeEvalDispatcherErrorCodes.EXTERNAL_INVOCATION_ERROR,
 ]);
 
 const USER_VISIBLE_CODE_EVAL_ERROR_MESSAGE_BY_CODE: Partial<
@@ -139,7 +141,6 @@ function buildCodeEvalPayload(params: {
       toolCalls,
     },
   };
-
   if (params.hasExperimentContext) {
     payload.experiment = {
       itemExpectedOutput: byName.get("experimentItemExpectedOutput") ?? null,

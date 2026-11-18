@@ -26,6 +26,11 @@ import {
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 
+// Deleting a user fires a foreign-key action on every table that references
+// users, and many of those columns are unindexed, so the delete scans those
+// tables. On a cold cache that exceeds Prisma's 5s interactive default.
+const DELETE_ACCOUNT_TRANSACTION_TIMEOUT_MS = 30_000;
+
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
     100,
@@ -95,7 +100,6 @@ export const userAccountRouter = createTRPCRouter({
         input.mode === "INTERNAL" &&
         !hasInternalAccess({
           email: ctx.session.user.email,
-          isAdmin: ctx.session.user.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })
@@ -228,6 +232,7 @@ export const userAccountRouter = createTRPCRouter({
         const revokedKeys = await deleteUserBoundApiKeys(tx, { userId });
 
         // Delete the user (cascade will handle related records)
+        await tx.sessionView.deleteMany({ where: { createdBy: userId } });
         await tx.user.delete({
           where: { id: userId },
         });
@@ -242,6 +247,7 @@ export const userAccountRouter = createTRPCRouter({
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        timeout: DELETE_ACCOUNT_TRANSACTION_TIMEOUT_MS,
       },
     );
 
@@ -344,21 +350,18 @@ export const userAccountRouter = createTRPCRouter({
         });
       }
 
-      const userCanToggleV4 = canToggleV4(
-        {
-          userCreatedAt: userRolloutState.createdAt,
-          organizations: userRolloutState.organizationMemberships.map(
-            (membership) => ({
-              id: membership.organization.id,
-              createdAt: membership.organization.createdAt,
-            }),
-          ),
-          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
-            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-            : [],
-        },
-        { isLangfuseCloudAdmin: ctx.session.user.admin === true },
-      );
+      const userCanToggleV4 = canToggleV4({
+        userCreatedAt: userRolloutState.createdAt,
+        organizations: userRolloutState.organizationMemberships.map(
+          (membership) => ({
+            id: membership.organization.id,
+            createdAt: membership.organization.createdAt,
+          }),
+        ),
+        excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+          ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+          : [],
+      });
 
       // Rollout-locked users may recover a missing opt-in, but cannot opt out.
       if (!userCanToggleV4 && !input.enabled) {

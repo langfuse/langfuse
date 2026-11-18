@@ -884,10 +884,14 @@ export default function SessionsTable({
         <StickySearchableTableFilterLayout
           search={
             <TableSearchBar
+              spacing="page"
               size={showControlsInPageHeader ? "large" : "default"}
               key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               isV4={isV4}
               filterState={queryFilter.searchBarFilterState}
+              managedEnvironmentPolicy={
+                queryFilter.managedEnvironmentPolicyConfig
+              }
               setFilterState={setFiltersWrapper}
               projectId={projectId}
               tableName={sessionsFilterConfig.tableName}
@@ -897,6 +901,7 @@ export default function SessionsTable({
           }
           toolbar={
             <DataTableToolbar
+              className="px-3"
               rowClassName="my-1"
               filterState={queryFilter.explicitFilterState}
               actionButtons={[

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import {
@@ -22,8 +23,10 @@ import {
   type RequestPolicyFactory,
 } from "@azure/storage-blob";
 import { Storage, Bucket, GetSignedUrlConfig } from "@google-cloud/storage";
+import { JWT } from "google-auth-library";
 import { logger } from "../logger";
 import { env } from "../../env";
+import { GCPServiceAccountKeySchema } from "../../interfaces/customLLMProviderConfigSchemas";
 import { normalizeBlobStorageRegion } from "../../utils/stringChecks";
 import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors/ServiceUnavailableError";
@@ -32,6 +35,7 @@ import {
   type UploadPartStats,
 } from "./BufferedStreamUploader";
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
+import { addS3ContentMd5Middleware } from "./s3ContentMd5";
 import {
   buildS3RequestDiagnostics,
   isS3DiagnosableError,
@@ -47,6 +51,32 @@ import {
 } from "../outbound-url/connection";
 
 import { isS3SlowDownError } from "./s3ThrottleError";
+
+const GOOGLE_CLOUD_STORAGE_AUTH_SCOPES = [
+  "https://www.googleapis.com/auth/iam",
+  "https://www.googleapis.com/auth/cloud-platform",
+  "https://www.googleapis.com/auth/devstorage.full_control",
+];
+
+/**
+ * Build a Storage `authClient` from a service-account JSON string or file path.
+ * Parses and validates the key before constructing the JWT so unexpected
+ * credential types are rejected at initialization.
+ */
+function createGoogleCloudStorageAuthClient(googleCloudCredentials: string) {
+  const trimmed = googleCloudCredentials.trim();
+  const raw = trimmed.startsWith("{")
+    ? JSON.parse(trimmed)
+    : JSON.parse(readFileSync(trimmed, "utf8"));
+  const key = GCPServiceAccountKeySchema.parse(raw);
+
+  return new JWT({
+    email: key.client_email,
+    key: key.private_key,
+    projectId: key.project_id,
+    scopes: GOOGLE_CLOUD_STORAGE_AUTH_SCOPES,
+  });
+}
 
 export interface S3SseConfig {
   serverSideEncryption?: string;
@@ -388,6 +418,7 @@ export class StorageServiceFactory {
    * @param params.maxAttempts - Maximum AWS SDK attempts for each S3 operation.
    * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
    * @param params.s3RequestTimeoutMs - Optional S3 HTTP request deadline; timeout rejects the request.
+   * @param params.sendContentMd5 - S3 only: send Content-MD5 on object and part writes. Set for customer buckets, which may use Object Lock.
    */
   public static getInstance(params: {
     credentials: StorageCredentials | undefined;
@@ -406,6 +437,7 @@ export class StorageServiceFactory {
     maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
     s3RequestTimeoutMs?: number;
+    sendContentMd5?: boolean;
   }): StorageService {
     if (
       params.useAzureBlob !== undefined
@@ -816,6 +848,7 @@ class S3StorageService implements StorageService {
     maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
     s3RequestTimeoutMs?: number;
+    sendContentMd5?: boolean;
   }) {
     // Undefined uses the default chain; a role provider never falls back to it
     const credentials =
@@ -856,6 +889,7 @@ class S3StorageService implements StorageService {
       maxAttempts: params.maxAttempts,
     });
 
+    if (params.sendContentMd5) addS3ContentMd5Middleware(this.client);
     addS3DiagnosticsMiddleware(this.client, {
       bucketName: params.bucketName,
       endpoint: params.endpoint,
@@ -1217,29 +1251,20 @@ class GoogleCloudStorageService implements StorageService {
   private bucket: Bucket;
 
   constructor(params: { bucketName: string; googleCloudCredentials?: string }) {
-    // Initialize Google Cloud Storage client
     if (params.googleCloudCredentials) {
       try {
-        // Check if the credentials are a JSON string or a path to a file
-        if (params.googleCloudCredentials.trim().startsWith("{")) {
-          // It's a JSON string
-          this.storage = new Storage({
-            universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
-            credentials: JSON.parse(params.googleCloudCredentials),
-          });
-        } else {
-          // It's a path to a credentials file
-          this.storage = new Storage({
-            universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
-            keyFilename: params.googleCloudCredentials,
-          });
-        }
+        this.storage = new Storage({
+          universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
+          authClient: createGoogleCloudStorageAuthClient(
+            params.googleCloudCredentials,
+          ),
+        });
       } catch (err) {
         logger.error("Failed to parse Google Cloud Storage credentials", err);
         throw new Error("Failed to initialize Google Cloud Storage");
       }
     } else {
-      // Use default authentication (environment variables or instance metadata)
+      // Application Default Credentials (environment variables or instance metadata)
       this.storage = new Storage({
         universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
       });
