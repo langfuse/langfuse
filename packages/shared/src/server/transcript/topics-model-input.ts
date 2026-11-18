@@ -120,7 +120,8 @@ const UNCAPPED_TOPICS_CONFIG = {
 /**
  * Renders a stored transcript as Topics text. Stored inputs have no observations, so the renderer gets
  * stand-ins carrying each execution issue; issues outside the turns' observations are placed by start time,
- * except root-span issues, which describe the whole run and go at its end.
+ * except issues of a wrapping root span, which describe the whole run and go at its end. With several traces,
+ * root issues go after the last message.
  */
 export function renderStoredTopicText(
   transcript: Transcript,
@@ -140,11 +141,18 @@ export function renderStoredTopicText(
       ),
     ),
   ];
+  const roots: string[] = [];
   for (const issue of executionIssues) {
     if (ids.includes(issue.observationId)) continue;
-    // A root span starts before everything it wraps, so its start time would put a run-level error first.
-    if (issue.parentObservationId === null) {
-      ids.push(issue.observationId);
+    // A wrapping root span starts before the run it wraps, so its start time would put a run-level error first.
+    // A top-level observation that starts after its trace's first message is a mid-run step and keeps its time.
+    // An issue without a trace ID matches no message and counts as run-level.
+    const first = messages.find((message) => message.traceId === issue.traceId);
+    if (
+      issue.parentObservationId === null &&
+      (!first || issue.startTime <= first.startTime)
+    ) {
+      roots.push(issue.observationId);
       continue;
     }
     const next = messages.find(
@@ -153,6 +161,8 @@ export function renderStoredTopicText(
     const at = next ? ids.indexOf(next.observationId) : -1;
     ids.splice(at === -1 ? ids.length : at, 0, issue.observationId);
   }
+  // Run-level failures come last, after time-placed issues that have no later message.
+  ids.push(...roots);
   // Renderer reads id, type, name, level, statusMessage, parentObservationId, input and metadata.
   const observations = ids.map((id) => {
     const issue = issues.get(id);
