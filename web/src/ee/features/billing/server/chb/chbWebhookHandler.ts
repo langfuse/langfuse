@@ -582,6 +582,13 @@ async function readAttachedPlanState(
   };
 }
 
+/** A new plan anchors the billing cycle on its start, or on today when CHB
+ * reports no period. */
+function planStartAnchor(attachedPlan: ChbAttachedPlan): Date {
+  const startDate = attachedPlan.period?.startDate;
+  return startDate ? new Date(startDate) : startOfDayUTC(new Date());
+}
+
 /**
  * BILLING_ATTACHEDPLAN_UPDATED and BILLING_ATTACHEDPLAN_SCHEDULED: an upsert of
  * the attached plan. Both re-read the plan and overwrite the snapshot.
@@ -611,11 +618,7 @@ async function handleAttachedPlanUpsert(
     clickhouse,
     orgColumns: {
       ...(isNewAttachedPlan
-        ? {
-            cloudBillingCycleAnchor: attachedPlan.period?.startDate
-              ? new Date(attachedPlan.period.startDate)
-              : startOfDayUTC(new Date()),
-          }
+        ? { cloudBillingCycleAnchor: planStartAnchor(attachedPlan) }
         : {}),
       ...(isPaidAndCurrent ? { cloudFreeTierUsageThresholdState: null } : {}),
     },
