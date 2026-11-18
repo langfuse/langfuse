@@ -28,8 +28,6 @@ const badgeVariants = cva(
         filled:
           "border-transparent bg-foreground/5 text-foreground-secondary dark:bg-foreground/10",
         inverted: "border-transparent bg-primary text-primary-foreground",
-        /** No border or fill, but the same box, so text lines up with badges in a column. */
-        ghost: "border-transparent bg-transparent text-foreground",
         error:
           "border-red-100 bg-red-50 text-red-800 dark:border-dark-red/5 dark:bg-light-red/40 dark:text-dark-red/90",
         warning:

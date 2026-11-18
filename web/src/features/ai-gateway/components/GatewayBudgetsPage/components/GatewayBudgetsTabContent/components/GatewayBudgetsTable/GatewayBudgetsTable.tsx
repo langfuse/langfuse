@@ -1,6 +1,5 @@
 import { Pencil } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -93,7 +92,9 @@ const budgetColumn = (subject: "key" | "user") =>
           format="amounts"
         />
       ) : (
-        <Badge color="ghost" size="md" text="Unlimited" />
+        <span className="text-muted-foreground font-mono text-xs">
+          Unlimited
+        </span>
       ),
   });
 

@@ -1,4 +1,3 @@
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import {
@@ -6,9 +5,15 @@ import {
   getGatewaySpendLimitWindowStart,
 } from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
 import { usdFormatter } from "@/src/utils/numbers";
+import { cn } from "@/src/utils/tailwind";
 
 /** Share of the limit from which a budget shows as nearly used up. */
 const NEAR_LIMIT_SHARE = 0.8;
+
+const dotClasses = {
+  reached: "bg-dark-red",
+  near: "bg-dark-yellow",
+} as const;
 
 const intervalLabels: Record<GatewaySpendBudgetInterval, string> = {
   DAILY: "daily",
@@ -48,10 +53,8 @@ export function GatewaySpendBudgetBadge({
     requestsBySubject[subject],
   );
 
-  const color =
-    spentUsd === undefined
-      ? "ghost"
-      : budgetColor(spentUsd, spendLimit.limitUsd);
+  const status =
+    spentUsd === undefined ? "ok" : budgetStatus(spentUsd, spendLimit.limitUsd);
   const text =
     spentUsd === undefined ? limit : `${formatUsd(spentUsd)} / ${limit}`;
 
@@ -65,13 +68,21 @@ export function GatewaySpendBudgetBadge({
       }
     >
       {({ getTriggerProps }) => (
-        <span {...getTriggerProps()} tabIndex={0} className="inline-flex">
-          <Badge
-            color={color}
-            size="md"
-            interactive={color !== "ghost"}
-            text={text}
-          />
+        <span
+          {...getTriggerProps()}
+          tabIndex={0}
+          className="inline-flex items-center gap-1.5 font-mono text-xs"
+        >
+          {text}
+          {status !== "ok" && (
+            <span
+              aria-hidden
+              className={cn(
+                "size-1.5 shrink-0 rounded-full",
+                dotClasses[status],
+              )}
+            />
+          )}
         </span>
       )}
     </CustomTooltip>
@@ -102,7 +113,7 @@ function describeBudget(
   const used = `${Math.floor((spentUsd / limitUsd) * 100)}% of the budget is used.`;
   return {
     title:
-      budgetColor(spentUsd, limitUsd) === "warning"
+      budgetStatus(spentUsd, limitUsd) === "near"
         ? "Budget nearly reached"
         : "Within budget",
     description: resetsAt
@@ -118,10 +129,10 @@ function formatResetsAt(interval: GatewaySpendBudgetInterval) {
   )?.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
-function budgetColor(spentUsd: number, limitUsd: number) {
-  if (spentUsd >= limitUsd) return "error";
-  if (spentUsd >= limitUsd * NEAR_LIMIT_SHARE) return "warning";
-  return "ghost";
+function budgetStatus(spentUsd: number, limitUsd: number) {
+  if (spentUsd >= limitUsd) return "reached";
+  if (spentUsd >= limitUsd * NEAR_LIMIT_SHARE) return "near";
+  return "ok";
 }
 
 function formatUsd(value: number) {
