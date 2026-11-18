@@ -19,12 +19,13 @@
 //!
 //! Both forms can also occur in JSON stored inside strings, within `scanner`'s
 //! embedded-JSON nesting limit. Beyond that limit, only unambiguous Data URI text
-//! is extracted. Arbitrary base64-looking strings outside recognized provider
-//! objects stay inline.
+//! is extracted.
 //!
-//! Early extraction inspects the payload locations selected by `rules`. It leaves
-//! candidates smaller than `rules::MIN_EARLY_MEDIA_BYTES` for the normalized pass,
-//! limiting the number of media records retained while the raw document is parsed.
+//! Early extraction inspects the payload locations selected by `rules`. Arbitrary
+//! base64-looking strings outside recognized provider objects stay inline, as do
+//! candidates smaller than `rules::MIN_EARLY_MEDIA_BYTES`. The size cutoff limits
+//! retained media records during parsing; the normalized pass can extract smaller
+//! candidates later.
 //! Validation and extraction are separate so masking can run in between. Changed
 //! masking output must be validated again before extraction.
 //!
