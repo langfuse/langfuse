@@ -1,3 +1,5 @@
+ALTER TYPE "GatewaySpendLimitScope" ADD VALUE IF NOT EXISTS 'USER';
+
 ALTER TABLE "gateway_spend_limits" ADD COLUMN IF NOT EXISTS "user_id" TEXT;
 
 DO $$ BEGIN
@@ -12,9 +14,10 @@ END $$;
 ALTER TABLE "gateway_spend_limits" DROP CONSTRAINT IF EXISTS "gateway_spend_limits_scope_check";
 ALTER TABLE "gateway_spend_limits"
   ADD CONSTRAINT "gateway_spend_limits_scope_check"
+  -- Compares as text: Postgres cannot use a new enum value in the transaction that adds it.
   CHECK (
-    ("scope" = 'API_KEY') = ("api_key_id" IS NOT NULL)
-    AND ("scope" = 'USER') = ("user_id" IS NOT NULL)
+    ("scope"::text = 'API_KEY') = ("api_key_id" IS NOT NULL)
+    AND ("scope"::text = 'USER') = ("user_id" IS NOT NULL)
   );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "gateway_spend_limits_organization_id_user_id_interval_key" ON "gateway_spend_limits"("organization_id", "user_id", "interval");
