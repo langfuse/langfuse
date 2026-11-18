@@ -2594,22 +2594,20 @@ describe("AI gateway control plane", () => {
       orgId: org.id,
       limit: 2,
     });
-    expect(firstKeys.data).toHaveLength(2);
+    expect(firstKeys.data.map(({ apiKey }) => apiKey.note)).toEqual([
+      "Third",
+      "Second",
+    ]);
     expect(firstKeys.totalCount).toBe(3);
     const remainingKeys = await caller.aiGateway.listApiKeys({
       orgId: org.id,
       page: 1,
       limit: 2,
     });
-    expect(remainingKeys.data).toHaveLength(1);
+    expect(remainingKeys.data.map(({ apiKey }) => apiKey.note)).toEqual([
+      "First",
+    ]);
     expect(remainingKeys.totalCount).toBe(3);
-    expect(
-      new Set(
-        [...firstKeys.data, ...remainingKeys.data].map(
-          ({ apiKey }) => apiKey.note,
-        ),
-      ),
-    ).toEqual(new Set(["First", "Second", "Third"]));
   });
 
   it("sorts gateway keys by expiration with never-expiring keys as the latest", async () => {
