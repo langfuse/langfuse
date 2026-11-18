@@ -59,6 +59,7 @@ export function ConnectedGatewayBudgetsTable({
                 subject,
                 subjects: [{ id: row.subjectId, name: row.name }],
                 spendLimit: row.spendLimit,
+                existingBudgetCount: row.spendLimit ? 1 : 0,
               })
             }
             search={table.search}
@@ -107,6 +108,9 @@ export function ConnectedGatewayBudgetsTable({
                       name: row.name,
                     })),
                     spendLimit: first.spendLimit,
+                    existingBudgetCount: selectedRows.filter(
+                      (row) => row.spendLimit !== null,
+                    ).length,
                     onSaved: clearSelection,
                   });
                 }}

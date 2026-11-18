@@ -1,8 +1,6 @@
 import { useId } from "react";
 import { useWatch, type Control } from "react-hook-form";
-import { Info } from "@langfuse/icons";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
@@ -164,14 +162,6 @@ function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
           </div>
         )}
       </Form.Field>
-      <div className="w-full">
-        <Alert icon={Info} variant="info" size="sm">
-          <Alert.Description>
-            Spend counts from when the budget is set. Earlier spend is not
-            included.
-          </Alert.Description>
-        </Alert>
-      </div>
     </div>
   );
 }

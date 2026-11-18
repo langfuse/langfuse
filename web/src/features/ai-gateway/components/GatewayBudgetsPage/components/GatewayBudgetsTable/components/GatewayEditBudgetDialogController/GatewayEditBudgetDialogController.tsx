@@ -15,6 +15,8 @@ export type GatewayEditedBudgets = {
   subjects: { id: string; name: string }[];
   /** Prefills the form; null when the first of them has no budget yet. */
   spendLimit: GatewaySpendLimit | null;
+  /** How many of the subjects already have a budget that saving replaces. */
+  existingBudgetCount: number;
   onSaved?: () => void;
 };
 
@@ -58,6 +60,7 @@ export function GatewayEditBudgetDialogController({
           subject={state.subject}
           subjectNames={state.subjects.map(({ name }) => name)}
           spendLimit={state.spendLimit}
+          existingBudgetCount={state.existingBudgetCount}
           unavailableReason={
             isRecording === false
               ? "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to change one."

@@ -37,6 +37,8 @@ type GatewayEditBudgetDialogProps = {
   subjectNames: string[];
   /** Prefills the form; null when the key or user has no budget yet. */
   spendLimit: GatewaySpendLimit | null;
+  /** How many of them already have a budget that saving replaces. */
+  existingBudgetCount: number;
   /** Why the budget cannot be changed; undefined when it can. */
   unavailableReason?: string;
   errorMessage: string | null;
@@ -50,6 +52,7 @@ export function GatewayEditBudgetDialog({
   subject,
   subjectNames,
   spendLimit,
+  existingBudgetCount,
   unavailableReason,
   errorMessage,
   isSubmitting,
@@ -139,6 +142,17 @@ export function GatewayEditBudgetDialog({
               </>
             )}
           </p>
+          {isBulk && existingBudgetCount > 0 ? (
+            <Alert variant="warning" size="sm">
+              <Alert.Description>
+                {existingBudgetCount === subjectNames.length
+                  ? `All selected ${noun}s already have a budget.`
+                  : `${existingBudgetCount} of the selected ${noun}s already have a budget.`}{" "}
+                Saving replaces {existingBudgetCount === 1 ? "it" : "them"} with
+                this one.
+              </Alert.Description>
+            </Alert>
+          ) : null}
           <GatewaySpendBudgetField.Inputs
             subject={subject}
             control={form.control}
