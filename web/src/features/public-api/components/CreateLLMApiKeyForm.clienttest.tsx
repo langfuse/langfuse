@@ -102,7 +102,7 @@ describe("CreateLLMApiKeyForm", () => {
     ).toHaveValue("https://gateway.example.com/v1");
   });
 
-  it("shows IAM role auth disabled with the reason when the plan does not include it", () => {
+  it("shows IAM role auth disabled with the reason when the plan does not include it", async () => {
     const existingKey = {
       id: "key",
       organizationId: "org",
@@ -127,12 +127,14 @@ describe("CreateLLMApiKeyForm", () => {
       { wrapper: LayerProvider },
     );
 
-    expect(screen.getByRole("tab", { name: "IAM role" })).toBeDisabled();
-    expect(
-      screen.getByText(
-        "IAM role auth is available on the Enterprise plan. Upgrade to use it.",
-      ),
-    ).toBeInTheDocument();
+    const reason =
+      "IAM role auth is available on the Enterprise plan. Upgrade to use it.";
+    const iamRoleTab = screen.getByRole("tab", { name: "IAM role" });
+    expect(iamRoleTab).toBeDisabled();
+    expect(screen.getByText(reason)).toBeInTheDocument();
+
+    fireEvent.mouseEnter(iamRoleTab.parentElement!);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(reason);
   });
 
   it("shows save errors in the form instead of reporting a toast", async () => {

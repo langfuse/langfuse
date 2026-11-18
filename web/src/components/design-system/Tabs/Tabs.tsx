@@ -313,7 +313,7 @@ type TabsTriggerProps = {
       label: string;
       /** Shown after the label in regular weight, e.g. "Called 6". */
       count?: number;
-      /** Rich tooltip on the label; replaces the native title. */
+      /** Rich tooltip on the label; replaces the native title. On a disabled tab, it explains why the tab can't be selected. */
       tooltip?: string;
       children?: never;
       title?: never;
@@ -352,13 +352,15 @@ function TabsTrigger(props: TabsTriggerProps) {
     tabsTriggerVariants({ look: list.look, size: list.size }),
   );
   const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
+  // A disabled trigger gets no pointer events, so its reason sits on a wrapper.
+  const disabledReason = disabled && props.href === undefined ? tooltip : null;
   const content = (
     <TabsTriggerContent
       icon={icon}
       internal={internal}
       label={label}
       count={count}
-      tooltip={tooltip}
+      tooltip={disabledReason ? undefined : tooltip}
     >
       {children}
     </TabsTriggerContent>
@@ -381,7 +383,7 @@ function TabsTrigger(props: TabsTriggerProps) {
     );
   }
 
-  return (
+  const trigger = (
     <TabsPrimitive.Trigger
       value={props.value}
       disabled={disabled}
@@ -390,6 +392,20 @@ function TabsTrigger(props: TabsTriggerProps) {
     >
       {content}
     </TabsPrimitive.Trigger>
+  );
+
+  if (!disabledReason) {
+    return trigger;
+  }
+
+  return (
+    <Tooltip label={disabledReason}>
+      {({ getTriggerProps }) => (
+        <span {...getTriggerProps()} className="cursor-not-allowed">
+          {trigger}
+        </span>
+      )}
+    </Tooltip>
   );
 }
 

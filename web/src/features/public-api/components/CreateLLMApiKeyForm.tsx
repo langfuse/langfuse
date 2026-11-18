@@ -18,7 +18,7 @@ import {
   STORAGE_ROLE_ARN_REGEX,
   type TypeSafeUpstream,
 } from "@langfuse/shared";
-import { ChevronDown, PlusIcon, TrashIcon } from "@langfuse/icons";
+import { ChevronDown, Lock, PlusIcon, TrashIcon } from "@langfuse/icons";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
@@ -514,6 +514,9 @@ export function CreateLLMApiKeyForm({
   // organization can still edit it or switch to another method.
   const usesIamRole = existingKey?.authMethod === AuthMethod.IamRole;
   const isIamRoleDisabled = !bedrockIamRoleAuth.isAvailable && !usesIamRole;
+  const iamRoleDisabledReason = isIamRoleDisabled
+    ? bedrockIamRoleAuth.unavailableReason
+    : null;
   const isUsingDefaultAwsCredentialsForCurrentAuthMethod =
     currentAuthMethod === AuthMethod.AccessKeys &&
     existingKey?.authMethod === AuthMethod.DefaultCredentials;
@@ -1091,15 +1094,16 @@ export function CreateLLMApiKeyForm({
                                   value={AuthMethod.IamRole}
                                   label="IAM role"
                                   disabled={isIamRoleDisabled}
+                                  icon={isIamRoleDisabled ? Lock : undefined}
+                                  tooltip={iamRoleDisabledReason ?? undefined}
                                 />
                               </Tabs.List>
                             </Tabs>
                           </div>
                         </FormControl>
-                        {isIamRoleDisabled &&
-                        bedrockIamRoleAuth.unavailableReason ? (
+                        {iamRoleDisabledReason ? (
                           <FormDescription>
-                            {bedrockIamRoleAuth.unavailableReason}
+                            {iamRoleDisabledReason}
                           </FormDescription>
                         ) : null}
                         <FormMessage />

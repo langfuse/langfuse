@@ -1,6 +1,6 @@
 import React from "react";
 import { cn } from "@/src/utils/tailwind";
-import { KeyRound, User } from "@langfuse/icons";
+import { KeyRound, Lock, User } from "@langfuse/icons";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -211,6 +211,13 @@ export const Disabled = meta.story({
         <Tabs.List variant="inset" size="md">
           <Tabs.Trigger value="account" label="Account" />
           <Tabs.Trigger value="password" disabled label="Password" />
+          <Tabs.Trigger
+            value="sso"
+            disabled
+            icon={Lock}
+            label="SSO"
+            tooltip="SSO is available on the Enterprise plan."
+          />
         </Tabs.List>
         <Tabs.Content value="account">Account settings</Tabs.Content>
         <Tabs.Content value="password">Password settings</Tabs.Content>
