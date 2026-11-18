@@ -94,9 +94,10 @@ export function TopicTraceList({
   const { rows } = traces;
   const tableRef = useRef<HTMLDivElement>(null);
   const [sizeRef, tableSize] = useElementSize<HTMLDivElement>();
-  // Default widths: 20% trace ID, 30% topic, the rest for the summary.
+  // Default widths: 20% trace ID, 30% topic, 50% summary of the measured list.
+  // The table keeps a small right gutter, so shares come from the width without it.
   const widthShare = (share: number) =>
-    Math.round((tableSize?.width ?? 0) * share);
+    Math.floor(Math.max(0, (tableSize?.width ?? 0) - 16) * share);
   // Taller rows wrap the summary and topic, since the list is the only place to read them.
   const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "topicTraces",
@@ -207,9 +208,9 @@ export function TopicTraceList({
     {
       accessorKey: "summary",
       header: () => <span className={CELL}>Summary</span>,
-      size: 300,
+      // A share, not a flexible width: the table layout would hand the spare space to the other columns.
+      size: widthShare(0.5),
       minSize: 180,
-      isFlexWidth: true,
       cell: ({ row }) => {
         const summary = row.original.summary || "No applicable summary.";
         return (
