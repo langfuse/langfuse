@@ -177,7 +177,7 @@ export function DataCard({
         <div className="flex max-w-2/3 min-w-0 items-center justify-end gap-2">
           {filter && filter.items.length > 0 && <FilterTags filter={filter} />}
           {tabs && isToggle && (
-            <div className="shrink-0">
+            <div className="flex shrink-0">
               <Tabs.List
                 variant="inset"
                 size="sm"
@@ -316,7 +316,8 @@ function FilterTags({
     <div
       role="group"
       aria-label={filter.label}
-      className="flex min-w-0 items-center gap-1"
+      // Same track as the toggle beside it, so both share a height and tags sit like its options.
+      className="bg-control-track/60 dark:bg-muted flex h-6 min-w-0 items-center gap-1 rounded-md p-0.5"
     >
       {hiddenCount > 0 && (
         <span
