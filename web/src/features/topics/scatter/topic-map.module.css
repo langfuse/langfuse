@@ -45,36 +45,3 @@
     transition-duration: 1ms;
   }
 }
-
-/* Stage, chrome and label styles for the new scatter look. */
-.look {
-  background-color: var(--look-bg);
-  --look-label-halo: hsl(var(--background));
-}
-
-:global(.dark) .look {
-  background-color: hsl(var(--sidebar-background));
-  --look-label-halo: hsl(var(--sidebar-background));
-}
-
-.lookChrome {
-  color: #6b6b6b;
-}
-
-:global(.dark) .lookChrome {
-  color: hsl(var(--muted-foreground));
-}
-
-.lookLabel {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: var(--look-label-size);
-  line-height: var(--look-label-line);
-  letter-spacing: var(--look-label-tracking);
-  color: var(--look-label-color);
-  text-shadow: var(--look-label-shadow);
-}
-
-/* Brighter than the dots, so labels do not sink into the grey ones. */
-:global(.dark) .lookLabel {
-  color: hsl(var(--primary));
-}

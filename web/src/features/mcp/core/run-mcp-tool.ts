@@ -9,7 +9,7 @@ import { ZodError } from "zod";
 
 import { StructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 
-import { isUserInputError } from "./errors";
+import { isUserInputError, McpQueryCooldownError } from "./errors";
 import type { ServerContext } from "../types";
 
 type McpToolAttribute = string | number | boolean;
@@ -52,6 +52,12 @@ export const runMcpTool = async <TResult>({
         span.setAttribute("mcp.outcome", "success");
         return result;
       } catch (error) {
+        if (error instanceof McpQueryCooldownError) {
+          span.setAttribute("mcp.outcome", "throttled");
+          span.setAttribute("mcp.retry_after_seconds", error.retryAfterSeconds);
+          throw error;
+        }
+
         // Keep telemetry aligned with formatErrorForUser: resource limits
         // return actionable query guidance, not an unexpected server failure.
         // Response validators should wrap schema drift in a server-side BaseError.

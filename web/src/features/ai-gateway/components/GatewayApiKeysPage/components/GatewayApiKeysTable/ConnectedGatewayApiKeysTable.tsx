@@ -29,7 +29,7 @@ export function ConnectedGatewayApiKeysTable({
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [orderBy, setOrderBy] = useOrderByState();
-  const { apiKeysQuery, rows, lastUsed } = useGatewayApiKeysTableData({
+  const { apiKeysQuery, rows, lastUsed, spend } = useGatewayApiKeysTableData({
     organizationId,
     searchQuery,
     orderBy,
@@ -116,6 +116,7 @@ export function ConnectedGatewayApiKeysTable({
                       : { status: "success", data: rows }
                   }
                   lastUsed={lastUsed}
+                  spend={spend}
                   orderBy={orderBy}
                   setOrderBy={handleOrderByChange}
                   pagination={{

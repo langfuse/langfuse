@@ -229,6 +229,27 @@ export const TestSwitchesMaps = meta.story({
   },
 });
 
+export const TestExplainsNewEntries = meta.story({
+  name: "(Test) Hovering a create entry explains it",
+  play: async ({ canvasElement }) => {
+    const picker = await openPicker(canvasElement);
+    await userEvent.hover(picker.getByRole("button", { name: "New live map" }));
+    await expect(
+      picker.getByText(/keeps sorting new traces into them/),
+    ).toBeVisible();
+    await userEvent.hover(picker.getByRole("button", { name: "New snapshot" }));
+    await expect(
+      picker.getByText(/A snapshot doesn’t change afterwards/),
+    ).toBeVisible();
+    await userEvent.hover(
+      picker.getByRole("button", { name: /Support agent/ }),
+    );
+    await expect(
+      picker.queryByText(/A snapshot doesn’t change afterwards/),
+    ).not.toBeInTheDocument();
+  },
+});
+
 export const TestPausedLast = meta.story({
   name: "(Test) Paused maps sort below active ones",
   play: async ({ canvasElement }) => {
