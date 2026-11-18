@@ -29,7 +29,6 @@ import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { type Prisma, WebhookProtectedHeaders } from "@langfuse/shared";
@@ -73,11 +72,6 @@ export const RemoteExperimentUpsertForm = ({
   setShowRemoteExperimentUpsertForm: (show: boolean) => void;
   onBack?: () => void;
 }) => {
-  const hasDatasetAccess = useHasProjectAccess({
-    projectId,
-    scope: "datasets:CUD",
-  });
-
   const dataset = api.datasets.byId.useQuery({
     projectId,
     datasetId,
@@ -217,18 +211,6 @@ export const RemoteExperimentUpsertForm = ({
       });
     }
   };
-
-  if (!hasDatasetAccess) {
-    return (
-      <DialogHeader>
-        <DialogTitle>Access denied</DialogTitle>
-        <DialogDescription>
-          You do not have permission to configure remote experiment triggers for
-          this dataset.
-        </DialogDescription>
-      </DialogHeader>
-    );
-  }
 
   if (dataset.isPending) {
     return <Skeleton className="h-48 w-full" />;
