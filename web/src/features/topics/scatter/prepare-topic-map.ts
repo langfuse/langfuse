@@ -284,6 +284,9 @@ export function prepareMapNodes(
   const zoom = detailZoom(camera.zoom, size);
   let visible = 0;
   for (const point of model.points) {
+    // Dimmed dots never grow into cards, so only highlighted ones count.
+    if (readingTopic && point.groupId !== readingTopic) continue;
+    if (matchingTraceIds && !matchingTraceIds.has(point.traceId)) continue;
     const at = screenPoint(point, camera, model.bounds, size);
     if (at.x >= 0 && at.x <= size.width && at.y >= 0 && at.y <= size.height)
       visible++;

@@ -109,10 +109,8 @@ export function TopicMapCanvas({
       };
     }
     const cameraMoving = unsettled;
-    scene.pointer = {
-      x: approach(scene.pointer.x, targetPointer.x, 120, 0.001),
-      y: approach(scene.pointer.y, targetPointer.y, 120, 0.001),
-    };
+    // Nothing drawn follows the pointer, so it needs no easing (and no extra frames).
+    scene.pointer = targetPointer;
     const frame = prepareMapNodes(
       model,
       scene.camera,
@@ -200,9 +198,16 @@ const UNASSIGNED_OPACITY = 0.35;
 const isUnassigned = (node: TopicMapNodeFrame["nodes"][number]) =>
   node.point.groupId === "outliers" || node.point.groupId === "awaiting_map";
 
-const fadedOpacity = (node: TopicMapNodeFrame["nodes"][number]) =>
-  (node.matchesFilters ? 1 : DIMMED) *
-  (isUnassigned(node) ? UNASSIGNED_OPACITY : 1);
+/** Unassigned dots recede only on an unfiltered map; a highlighted one draws at full strength. */
+function fadedOpacity(
+  node: TopicMapNodeFrame["nodes"][number],
+  frame: TopicMapNodeFrame,
+) {
+  if (!node.matchesFilters) return DIMMED;
+  const highlighting =
+    frame.readingTopic !== null || frame.matchingTraceIds !== undefined;
+  return !highlighting && isUnassigned(node) ? UNASSIGNED_OPACITY : 1;
+}
 
 function drawMap(
   canvas: HTMLCanvasElement,
@@ -244,7 +249,7 @@ function drawMap(
       node.center,
       rgb,
       ring,
-      fadedOpacity(node) + active * (1 - fadedOpacity(node)),
+      fadedOpacity(node, frame) + active * (1 - fadedOpacity(node, frame)),
       camera.zoom,
       stage,
     );
