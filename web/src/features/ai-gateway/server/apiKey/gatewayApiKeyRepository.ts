@@ -102,7 +102,7 @@ export class GatewayApiKeyRepository {
     const findPage = this.prisma.gatewayApiKeyAssociation.findMany({
       where,
       select: GATEWAY_API_KEY_LIST_SELECT,
-      orderBy: [gatewayApiKeyOrderBy(params.orderBy), { apiKeyId: "asc" }],
+      orderBy: [gatewayApiKeyOrderBy(params.orderBy), { apiKeyId: "desc" }],
       take: params.limit,
       skip: params.page * params.limit,
     });
@@ -236,7 +236,7 @@ function gatewayApiKeySearch(searchQuery: string) {
 }
 
 /**
- * gatewayApiKeyOrderBy maps a gateway keys table sort to the key list order; other columns keep the default oldest-first order.
+ * gatewayApiKeyOrderBy maps a gateway keys table sort to the key list order; other columns keep the default newest-first order.
  * A key without expiration never expires, so it sorts after every expiration date ascending and before them descending.
  */
 function gatewayApiKeyOrderBy(
@@ -255,6 +255,6 @@ function gatewayApiKeyOrderBy(
         },
       };
     default:
-      return { apiKey: { createdAt: "asc" } };
+      return { apiKey: { createdAt: "desc" } };
   }
 }
