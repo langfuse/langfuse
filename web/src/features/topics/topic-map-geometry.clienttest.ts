@@ -415,69 +415,17 @@ describe("fixed projection detail", () => {
     }
   });
 });
-describe("continuous trace nodes", () => {
-  it("grows overview dots during zoom before reading rectangles open", () => {
+describe("trace dots", () => {
+  it("grows round, centered dots with zoom up to 4x, then keeps their size", () => {
     const model = prepareTopicMap(data([point("trace", 0, 0)]), topics);
-    const dots = [1, 2, 3].map((zoom) => frameFor(model, zoom).nodes[0]);
+    const dots = [1, 2, 4, 8].map((zoom) => frameFor(model, zoom).nodes[0]);
     expect(dots[1].rect.width).toBeGreaterThan(dots[0].rect.width);
     expect(dots[2].rect.width).toBeGreaterThan(dots[1].rect.width);
+    expect(dots[3].rect.width).toBeCloseTo(dots[2].rect.width, 8);
     for (const dot of dots) {
       expect(dot.rect.width).toBe(dot.rect.height);
-      expect(dot.expansion).toBe(0);
-      expect(dot.textOpacity).toBe(0);
-    }
-  });
-
-  it("keeps readable content centered on the trace that grows into it", () => {
-    const model = prepareTopicMap(data([point("trace", 0, 0)]), topics);
-    let previousWidth = 0;
-    for (const zoom of [1, 3, 4, 6, 8, 10, 20]) {
-      const node = frameFor(model, zoom).nodes[0];
-      expect(node.rect.x + node.rect.width / 2).toBeCloseTo(node.center.x, 8);
-      expect(node.rect.y + node.rect.height / 2).toBeCloseTo(node.center.y, 8);
-      expect(node.rect.width).toBeGreaterThanOrEqual(previousWidth - 0.01);
-      expect(node.excerpt).toBe(model.points[0].summary);
-      previousWidth = node.rect.width;
-    }
-  });
-  it.each([3, 10])(
-    "changes footprints continuously across detail transition %s",
-    (zoom) => {
-      const model = prepareTopicMap(
-        data([point("a", -2, 1), point("b", 2, -1)]),
-        topics,
-      );
-      const before = frameFor(model, zoom - 0.0001);
-      const after = frameFor(model, zoom + 0.0001);
-      for (const p of model.points) {
-        const a = before.nodeById.get(p.traceId)!;
-        const b = after.nodeById.get(p.traceId)!;
-        expect(a.worldPosition).toEqual(b.worldPosition);
-        expect(Math.abs(a.rect.width - b.rect.width)).toBeLessThan(0.1);
-        expect(Math.abs(a.rect.height - b.rect.height)).toBeLessThan(0.1);
-      }
-    },
-  );
-
-  it("keeps growing nodes separated beside foreign dots without rearranging the projection", () => {
-    const model = prepareTopicMap(
-      data(
-        Array.from({ length: 100 }, (_, i) =>
-          point(`trace-${i}`, (i % 10) * 0.6, Math.floor(i / 10) * 0.5, {
-            topicId: i % 5 === 0 ? "retrieval" : "billing",
-          }),
-        ),
-      ),
-      topics,
-    );
-    for (const zoom of [3.01, 4, 5, 6, 7, 8, 9, 10, 16]) {
-      const all = [...frameFor(model, zoom, size, "billing").nodeById.values()];
-      for (let i = 0; i < all.length; i++) {
-        for (let j = i + 1; j < all.length; j++) {
-          if (all[i].expansion === 0 && all[j].expansion === 0) continue;
-          expect(overlaps(all[i].rect, all[j].rect)).toBe(false);
-        }
-      }
+      expect(dot.rect.x + dot.rect.width / 2).toBeCloseTo(dot.center.x, 8);
+      expect(dot.rect.y + dot.rect.height / 2).toBeCloseTo(dot.center.y, 8);
     }
   });
   it("retains every visible glyph in dense and coincident cohorts", () => {
@@ -494,11 +442,6 @@ describe("continuous trace nodes", () => {
       { x: 500, y: 300 },
     ]);
     expect(coincident.nodes).toHaveLength(2);
-    expect(
-      coincident.nodes.every(
-        (node) => node.expansion === 0 && node.textOpacity === 0,
-      ),
-    ).toBe(true);
   });
 });
 describe("background group labels", () => {

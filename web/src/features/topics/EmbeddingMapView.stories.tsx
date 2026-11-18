@@ -203,7 +203,7 @@ async function waitForMapSettled(canvasElement: HTMLElement) {
     () => {
       const current = Array.from(
         canvasElement.querySelectorAll<HTMLElement>(
-          "[data-topic-background-label], [data-topic-node]",
+          "[data-topic-background-label]",
         ),
       )
         .map((element) => element.getAttribute("style"))
@@ -582,7 +582,6 @@ export const FilteringPreservesCamera = meta.story({
     await waitForMapSettled(canvasElement);
     expect(positions()).toEqual(before);
     expect(canvas.getByLabelText("Zoom level").textContent).toBe(zoom);
-    expect(canvasElement.querySelectorAll("[data-topic-node]")).toHaveLength(0);
     await expect(stage).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Clear filter" }));
     await expect(
