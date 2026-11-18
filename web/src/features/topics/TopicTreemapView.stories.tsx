@@ -350,11 +350,13 @@ export const DescriptionTooltipWhenClipped = meta.story({
       name: "Langfuse user assistance",
     });
     const description = list.getByText(LONG_DESCRIPTION);
-    await userEvent.hover(title);
+    // The title lives on the name span, not the heading.
+    const name = within(title).getByText("Langfuse user assistance");
+    await userEvent.hover(name);
     await userEvent.hover(description);
     await waitFor(() =>
       expect(description).toHaveAttribute("title", LONG_DESCRIPTION),
     );
-    await expect(title).not.toHaveAttribute("title");
+    await expect(name).not.toHaveAttribute("title");
   },
 });

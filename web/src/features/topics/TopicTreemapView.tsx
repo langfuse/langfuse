@@ -24,6 +24,8 @@ type TopicTreemapViewProps = {
   /** Applied to the trace list only when side by side, so the peek matches its width. */
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
+  /** Off leaves unassigned traces out of the all-traces list, as their tile is hidden. */
+  showUnassigned?: boolean;
 };
 
 export function TopicTreemapView({
@@ -33,12 +35,14 @@ export function TopicTreemapView({
   sideBySide = false,
   tracePanelRef,
   useTraces,
+  showUnassigned = true,
 }: TopicTreemapViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const { topics, total } = prepareTopicDisplay(facet, "treemap");
   // No tile picked lists every trace; picking a tile again clears it.
   const selected = topics.find((topic) => topic.id === selectedTopicId);
-  const traces = useTraces(selected ? topicQuery(selected.id) : {});
+  const allTraces = showUnassigned ? {} : { assigned: true };
+  const traces = useTraces(selected ? topicQuery(selected.id) : allTraces);
   const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
   const horizontal = sideBySide && isWide;
   if (facet.topics.length === 0) {

@@ -15,6 +15,7 @@ import {
   type CustomHeights,
   customRowHeightMenu,
   DataTableRowHeightSwitch,
+  isCompactRowHeight,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { useElementSize } from "@/src/hooks/useElementSize";
@@ -99,7 +100,13 @@ export function TopicTraceList({
     rowHeightKey,
     "s",
   );
-  const wrapsSummary = rowHeight !== "s" || rowHeights.mode === "custom";
+  // Same threshold as the table: custom heights under medium stay one truncated line.
+  const wrapsSummary = !isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+    TRACE_ROW_HEIGHTS,
+  );
   const selectedRowLoaded = rows.some((row) => row.traceId === selectedTraceId);
   // A trace picked on the map scrolls into view once its row is loaded.
   useEffect(() => {
