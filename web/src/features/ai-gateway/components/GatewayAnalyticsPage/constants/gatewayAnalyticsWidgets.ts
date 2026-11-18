@@ -129,3 +129,17 @@ export const GATEWAY_UNPRICED_USAGE_QUERY: GatewayAnalyticsWidget = {
   chartConfig: { type: "HORIZONTAL_BAR", row_limit: 1000 },
   size: "full",
 };
+
+/** Whether any gateway usage exists, to tell a first visit from keys that were deleted. */
+export const GATEWAY_USAGE_EXISTS_QUERY: GatewayAnalyticsWidget = {
+  id: "usage-exists",
+  name: "Usage exists",
+  description: "Requests recorded by the gateway",
+  view: "observations",
+  dimensions: [],
+  metrics: [{ measure: "count", agg: "count" }],
+  filters: [],
+  chartType: "NUMBER",
+  chartConfig: { type: "NUMBER" },
+  size: "small",
+};

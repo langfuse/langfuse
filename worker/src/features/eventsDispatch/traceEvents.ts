@@ -7,6 +7,7 @@ import {
 export type TraceEventObservation = Observation & {
   eventTimestamp: string;
   sessionId: string | null;
+  traceName: string | null;
 };
 
 /** Identity of one trace within a job; a job spans projects. */
@@ -32,6 +33,7 @@ export function toTraceEventObservation(
     }),
     eventTimestamp: row.event_ts,
     sessionId: row.session_id || null,
+    traceName: row.trace_name || null,
   };
 }
 
@@ -60,5 +62,12 @@ export function newestEvent<T extends TraceEventObservation>(
 export function newestSessionId(observations: TraceEventObservation[]) {
   return (
     newestEvent(observations.filter((row) => row.sessionId))?.sessionId ?? null
+  );
+}
+
+/** Stored trace name of the newest event that has one, as manual processing reads it. */
+export function newestTraceName(observations: TraceEventObservation[]) {
+  return (
+    newestEvent(observations.filter((row) => row.traceName))?.traceName ?? null
   );
 }

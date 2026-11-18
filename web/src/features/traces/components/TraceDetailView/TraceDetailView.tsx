@@ -424,7 +424,7 @@ function LoadedTraceDetailView({
                   input={trace.input ?? undefined}
                   output={trace.output ?? undefined}
                   metadata={trace.metadata ?? undefined}
-                  outputCorrection={outputCorrection}
+                  traceOutputCorrection={outputCorrection}
                   parsedInput={parsedInput}
                   parsedOutput={parsedOutput}
                   parsedMetadata={parsedMetadata}

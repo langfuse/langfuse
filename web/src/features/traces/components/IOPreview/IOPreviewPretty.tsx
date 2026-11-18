@@ -57,10 +57,11 @@ import {
   type ExpansionStateProps,
   type IOPreviewContentMode,
 } from "./IOPreview";
+import { useCorrectOutputAction } from "./components/CorrectedOutputField";
 import {
-  CorrectedOutputField,
-  useCorrectOutputAction,
-} from "./components/CorrectedOutputField";
+  CorrectedOutputSection,
+  shouldShowCorrectedOutputSection,
+} from "./components/CorrectedOutputSection";
 import { useCorrectionData } from "./hooks/useCorrectionData";
 import {
   getMessageTitle,
@@ -228,6 +229,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
+  traceOutputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -268,6 +270,7 @@ export function IOPreviewPretty({
   status,
   metadata,
   outputCorrection,
+  traceOutputCorrection,
   parsedInput: preParsedInput,
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
@@ -534,11 +537,22 @@ export function IOPreviewPretty({
     projectId,
     onOpen: () => setCorrectionOpen(true),
   });
-  const { effectiveCorrection } = useCorrectionData(
+  const { effectiveCorrection: effectiveObsCorrection } = useCorrectionData(
     outputCorrection,
     observationId,
     traceId,
   );
+  const { effectiveCorrection: effectiveTraceCorrection } = useCorrectionData(
+    traceOutputCorrection,
+    undefined,
+    traceId,
+  );
+  // TraceDetailView has no observationId — pen creates a trace-scoped CORRECTION.
+  // Observation views keep the pen obs-scoped.
+  const isTraceScopedView = !observationId;
+  const effectivePrimaryCorrection = isTraceScopedView
+    ? effectiveTraceCorrection
+    : effectiveObsCorrection;
   const hasOutputHeader = shouldRenderMessages
     ? allMessages.some(
         (message, index) =>
@@ -553,26 +567,37 @@ export function IOPreviewPretty({
   const correctionTrigger = hasOutputHeader ? "header" : "inline";
   const outputActions =
     showCorrections &&
+    (Boolean(observationId) || isTraceScopedView) &&
     hasOutputHeader &&
     !correctionOpen &&
-    !effectiveCorrection
+    !effectivePrimaryCorrection
       ? [correctOutputAction]
       : undefined;
-  // In header mode the field mounts only while open or with a correction.
   const showCorrectionField =
     showCorrections &&
-    (correctionTrigger === "inline" || correctionOpen || !!effectiveCorrection);
+    shouldShowCorrectedOutputSection({
+      observationId,
+      outputCorrection: effectiveObsCorrection ?? outputCorrection,
+      traceOutputCorrection: effectiveTraceCorrection ?? traceOutputCorrection,
+      obsEditorOpen: correctionOpen && Boolean(observationId),
+      traceEditorOpen: correctionOpen && isTraceScopedView,
+      startEditing: correctionOpen && !effectivePrimaryCorrection,
+      trigger: correctionTrigger,
+    });
   const correctedOutputField = showCorrectionField ? (
-    <CorrectedOutputField
+    <CorrectedOutputSection
       actualOutput={parsedOutput}
-      existingCorrection={outputCorrection}
+      outputCorrection={outputCorrection}
+      traceOutputCorrection={traceOutputCorrection}
       observationId={observationId}
       projectId={projectId}
       traceId={traceId}
       environment={environment}
       trigger={correctionTrigger}
-      startEditing={correctionOpen && !effectiveCorrection}
+      startEditing={correctionOpen && !effectivePrimaryCorrection}
       onClosed={() => setCorrectionOpen(false)}
+      obsEditorOpen={correctionOpen && Boolean(observationId)}
+      traceEditorOpen={correctionOpen && isTraceScopedView}
     />
   ) : null;
   // Non-generation I/O that is not chat (plain strings, loose records) is
@@ -1278,12 +1303,14 @@ export function IOPreviewPretty({
                             aria-label={otherMessagesLabel}
                             onClick={() => setOthersOpen((open) => !open)}
                           >
-                            <HistoryCaret
-                              size="base"
-                              color="default"
-                              aria-hidden
-                            />
                             {otherMessagesLabel}
+                            <span className="-ml-1 flex shrink-0 translate-y-px">
+                              <HistoryCaret
+                                size="base"
+                                color="default"
+                                aria-hidden
+                              />
+                            </span>
                           </button>
                         </Fragment>
                       );
@@ -1292,6 +1319,7 @@ export function IOPreviewPretty({
                   },
                 )}
               </div>
+              {correctedOutputField}
               {showData && additionalInputToShow && (
                 <JsonViewController
                   json={additionalInputToShow}
@@ -1346,7 +1374,6 @@ export function IOPreviewPretty({
               )}
             </div>
           </div>
-          {correctedOutputField}
         </div>
       ) : showData ? (
         <div>

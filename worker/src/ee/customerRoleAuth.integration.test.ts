@@ -12,8 +12,9 @@ import {
 } from "@aws-sdk/client-s3";
 import { describe, expect, it } from "vitest";
 import {
-  buildStorageRoleReadPermissionPolicy,
+  buildStorageRolePermissionPolicy,
   buildStorageRoleTrustPolicy,
+  STORAGE_ROLE_READ_ACTIONS,
 } from "@langfuse/shared";
 import {
   generateCustomerRoleExternalId,
@@ -130,10 +131,11 @@ async function setUpRoles({
         },
     // The role may read the whole bucket; only the session policy limits the
     // session to the prefix.
-    permissions: buildStorageRoleReadPermissionPolicy({
+    permissions: buildStorageRolePermissionPolicy({
       roleArn: customerRoleArn,
       bucketName,
       prefix: null,
+      actions: STORAGE_ROLE_READ_ACTIONS,
     }),
   });
 

@@ -234,5 +234,125 @@ describe("PostHog transformers", () => {
       expect(result.properties.langfuse_score_name).toBe("quality");
       expect(result.properties.langfuse_score_value).toBe(0.95);
     });
+
+    it("truncates oversized metadata so PostHog capture accepts the event", () => {
+      const nested = JSON.stringify(
+        Array.from({ length: 6_000 }, (_, i) => ({
+          rule: `rule-${i}`,
+          findings: [{ path: "a/b/c.ts", line: i, ok: false }],
+        })),
+      );
+      expect(nested.length).toBeGreaterThan(400_000);
+      const score: AnalyticsScoreEvent = {
+        langfuse_id: "score-big",
+        timestamp: new Date("2026-10-24T17:57:18Z"),
+        langfuse_score_name: "origin_tag_lint",
+        langfuse_score_comment: "kept",
+        langfuse_score_metadata: { report: nested, again: nested },
+        langfuse_score_string_value: null,
+      };
+
+      const result = transformScoreForPostHog(score, projectId);
+
+      // PostHog capture re-encodes the event into a 1,000,000-byte Kafka message.
+      const kafkaData = JSON.stringify(JSON.stringify(result));
+      expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
+      const metadata = result.properties.langfuse_score_metadata as Record<
+        string,
+        string
+      >;
+      expect(metadata.report.endsWith("…[truncated]")).toBe(true);
+      expect(nested.startsWith(metadata.report.slice(0, -12))).toBe(true);
+      expect(metadata.again).toBe(nested);
+      expect(result.properties.langfuse_score_truncated_fields).toEqual([
+        "langfuse_score_metadata.report",
+      ]);
+      expect(result.properties.langfuse_score_comment).toBe("kept");
+    });
+
+    it("counts the rest of the score towards the PostHog limit", () => {
+      const score: AnalyticsScoreEvent = {
+        langfuse_id: "score-tags",
+        timestamp: new Date("2026-10-24T17:57:18Z"),
+        langfuse_score_comment: "c".repeat(850_000),
+        langfuse_tags: Array.from({ length: 16_000 }, (_, i) => `tag-${i}`),
+      };
+
+      const result = transformScoreForPostHog(score, projectId);
+
+      const kafkaData = JSON.stringify(JSON.stringify(result));
+      expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
+      expect(result.properties.langfuse_score_truncated_fields).toEqual([
+        "langfuse_score_comment",
+      ]);
+      expect(result.properties.langfuse_score_comment).toMatch(
+        /^c+…\[truncated]$/,
+      );
+    });
+
+    it("keeps as much of the string as fits when its tail escapes heavily", () => {
+      const score: AnalyticsScoreEvent = {
+        langfuse_id: "score-uneven",
+        timestamp: new Date("2026-10-24T17:57:18Z"),
+        langfuse_score_comment: "a".repeat(500_000) + '"'.repeat(200_000),
+      };
+
+      const result = transformScoreForPostHog(score, projectId);
+
+      const kafkaData = JSON.stringify(JSON.stringify(result));
+      expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
+      // ~95K quotes (4 bytes each after two encodings) still fit the budget.
+      const comment = result.properties.langfuse_score_comment as string;
+      expect(comment.split('"').length - 1).toBeGreaterThan(90_000);
+    });
+
+    it("drops metadata whose keys alone exceed the PostHog limit", () => {
+      const comment = "c".repeat(200_000);
+      const score: AnalyticsScoreEvent = {
+        langfuse_id: "score-keys",
+        timestamp: new Date("2026-10-24T17:57:18Z"),
+        langfuse_score_comment: comment,
+        langfuse_score_metadata: Object.fromEntries(
+          Array.from({ length: 40_000 }, (_, i) => [
+            `key-${i}`,
+            "v".repeat(20),
+          ]),
+        ),
+      };
+
+      const result = transformScoreForPostHog(score, projectId);
+
+      const kafkaData = JSON.stringify(JSON.stringify(result));
+      expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
+      expect(result.properties.langfuse_score_metadata).toBeNull();
+      expect(result.properties.langfuse_score_omitted_fields).toEqual([
+        "langfuse_score_metadata",
+      ]);
+      // Fits once metadata is gone, so it must not stay cut.
+      expect(result.properties.langfuse_score_comment).toBe(comment);
+      expect(result.properties.langfuse_score_truncated_fields).toBeUndefined();
+    });
+
+    it("keeps metadata when hundreds of truncated values fit", () => {
+      const score: AnalyticsScoreEvent = {
+        langfuse_id: "score-many-cuts",
+        timestamp: new Date("2026-10-24T17:57:18Z"),
+        langfuse_score_metadata: Object.fromEntries(
+          Array.from({ length: 500 }, (_, i) => [
+            `metadata_entry_key_${i}`,
+            '"'.repeat(2_000),
+          ]),
+        ),
+      };
+
+      const result = transformScoreForPostHog(score, projectId);
+
+      const kafkaData = JSON.stringify(JSON.stringify(result));
+      expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
+      expect(result.properties.langfuse_score_omitted_fields).toBeUndefined();
+      expect(
+        Object.keys(result.properties.langfuse_score_metadata as object),
+      ).toHaveLength(500);
+    });
   });
 });

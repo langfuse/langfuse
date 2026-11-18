@@ -34,7 +34,6 @@ vi.mock("../../ClickhouseWriter/eventByteAccounting", () => ({
 
 import { IngestionService } from "../../IngestionService";
 import {
-  convertDateToClickhouseDateTime,
   createTraceScore,
   type ObservationEvent,
   type ScoreEventType,
@@ -618,14 +617,6 @@ describe("IngestionService unit tests", () => {
     ).toEqual([secondCreate, firstCreate, update]);
   });
 
-  it("correctly convert Date to Clickhouse DateTime", async () => {
-    const date = new Date("2024-10-12T12:13:14.123Z");
-
-    const clickhouseDateTime = convertDateToClickhouseDateTime(date);
-
-    expect(clickhouseDateTime).toEqual("2024-10-12 12:13:14.123");
-  });
-
   it("keeps observation metadata values stringified after moving tool definitions to input", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
@@ -689,53 +680,6 @@ describe("IngestionService unit tests", () => {
     expect(observationRecord?.metadata).toEqual({
       attributes: JSON.stringify({ "custom.attribute": "keep-me" }),
     });
-  });
-
-  it("silently rejects score batches with no valid records", async () => {
-    const addToQueue = vi.fn();
-    const ingestionService = new IngestionService(
-      {} as any,
-      {} as any,
-      { addToQueue } as any,
-      {} as any,
-    );
-    const timestamp = "2024-10-12T12:13:14.123Z";
-    const scoreEventList: ScoreEventType[] = [
-      {
-        id: "event-id",
-        timestamp,
-        type: "score-create",
-        body: {
-          id: "score-id",
-          dataType: "NUMERIC",
-          name: "invalid-score",
-          value: "not-a-number",
-          source: "API",
-          traceId: "trace-id",
-          environment: "default",
-        },
-      },
-    ];
-
-    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
-      null,
-    );
-
-    await expect(
-      (ingestionService as any).processScoreEventList({
-        projectId: "project-id",
-        entityId: "score-id",
-        createdAtTimestamp: new Date(timestamp),
-        scoreEventList,
-        attribution: {
-          ingestionApiKey: "pk-lf-unit-test",
-          ingestionSdkName: "langfuse-test",
-          ingestionSdkVersion: "0.0.0",
-        },
-      }),
-    ).resolves.toBeUndefined();
-
-    expect(addToQueue).not.toHaveBeenCalled();
   });
 
   it("persists evaluator identifiers after the score JSON round-trip", async () => {

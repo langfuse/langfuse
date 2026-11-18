@@ -756,6 +756,7 @@ describe("MCP Read Tools", () => {
       const sharedProvider = `shared-${nanoid()}`;
       const orgOnlyProvider = `org-only-${nanoid()}`;
       const otherOrgProvider = `other-org-${nanoid()}`;
+      const googleProvider = `google-${nanoid()}`;
       const connection = (
         owner: { projectId: string } | { organizationId: string },
         data: {
@@ -801,13 +802,21 @@ describe("MCP Read Tools", () => {
         { organizationId: otherSetup.orgId },
         { provider: otherOrgProvider, adapter: LLMAdapter.OpenAI },
       );
+      await connection(
+        { organizationId: setup.orgId },
+        {
+          provider: googleProvider,
+          adapter: LLMAdapter.GoogleAIStudio,
+          withDefaultModels: true,
+        },
+      );
 
       const result = (await handleListLlmConnections({}, setup.context)) as {
         data: Array<Record<string, unknown>>;
       };
 
       expect(result.data.map((c) => c.provider).sort()).toEqual(
-        [orgOnlyProvider, sharedProvider].sort(),
+        [googleProvider, orgOnlyProvider, sharedProvider].sort(),
       );
       expect(result.data).toEqual(
         expect.arrayContaining([
@@ -829,6 +838,12 @@ describe("MCP Read Tools", () => {
             adapter: LLMAdapter.Anthropic,
             scope: "organization",
             availableModels: ["claude-custom"],
+            decisionModels: [],
+          }),
+          expect.objectContaining({
+            provider: googleProvider,
+            availableModels: supportedModels[LLMAdapter.GoogleAIStudio],
+            decisionModels: ["gemini-decision-1"],
           }),
         ]),
       );
@@ -1489,8 +1504,8 @@ describe("MCP Read Tools", () => {
       },
     );
 
-    it.each(["2026-01-15T00:00:00.001Z", "2026-01-15T23:59:59.000Z"])(
-      "should reject list periods exceeding 336 hours: %s",
+    it.each(["2026-01-16T00:00:00.001Z", "2026-01-16T23:59:59.000Z"])(
+      "should reject list periods exceeding the 360-hour validation limit: %s",
       async (toStartTime) => {
         await expect(
           handleListObservations(
@@ -2067,7 +2082,7 @@ describe("MCP Read Tools", () => {
           {
             fields: ["input"],
             fromStartTime: "2026-01-01T00:00:00.000Z",
-            toStartTime: "2026-01-16T00:00:00.000Z",
+            toStartTime: "2026-01-17T00:00:00.000Z",
             limit: 50,
           },
           context,
@@ -2079,7 +2094,7 @@ describe("MCP Read Tools", () => {
           {
             fields: ["id"],
             fromStartTime: "2026-01-01T00:00:00.000Z",
-            toStartTime: "2026-01-16T00:00:00.000Z",
+            toStartTime: "2026-01-17T00:00:00.000Z",
             filter: [
               {
                 type: "string",
@@ -2104,14 +2119,17 @@ describe("MCP Read Tools", () => {
           },
           context,
         ),
-      ).rejects.toThrow(/maximum limit of 50/i);
+      ).resolves.toMatchObject({
+        data: [],
+        meta: { notice: expect.stringMatching(/lowered from 51 to 50/) },
+      });
 
       await expect(
         handleListObservations(
           {
             fields: ["input"],
             fromStartTime: "2026-01-01T00:00:00.000Z",
-            toStartTime: "2026-01-15T00:00:00.000Z",
+            toStartTime: "2026-01-15T23:00:00.000Z",
             limit: 50,
           },
           context,
@@ -2149,7 +2167,7 @@ describe("MCP Read Tools", () => {
             ...scope,
             fields: ["metadata"],
             fromStartTime: "2026-01-01T00:00:00.000Z",
-            toStartTime: "2026-01-16T00:00:00.000Z",
+            toStartTime: "2026-01-17T00:00:00.000Z",
             limit: 50,
           },
           context,
@@ -2397,6 +2415,55 @@ describe("MCP Read Tools", () => {
 
       expect(result.data).toHaveLength(1);
       expect(result.meta.cursor).toEqual(expect.any(String));
+    });
+
+    it("should page through every observation when an input projection lowers the limit", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const observations = Array.from({ length: 60 }, (_, i) =>
+        createObservationEvent({
+          projectId,
+          traceId,
+          input: `input-${i}`,
+          startTime: new Date(Date.UTC(2026, 0, 1, 0, i)),
+        }),
+      );
+      await createEventsCh(observations);
+
+      type Page = {
+        data: Array<{ id: string }>;
+        meta: { cursor?: string; notice?: string };
+      };
+      const request = {
+        traceId,
+        fields: ["id", "input"],
+        limit: 100,
+        fromStartTime: "2026-01-01T00:00:00.000Z",
+        toStartTime: "2026-01-02T00:00:00.000Z",
+      };
+
+      const firstPage = (await handleListObservations(
+        request,
+        context,
+      )) as Page;
+      expect(firstPage.data).toHaveLength(50);
+      expect(firstPage.meta.notice).toMatch(/lowered from 100 to 50/);
+      expect(firstPage.meta.cursor).toEqual(expect.any(String));
+
+      const secondPage = (await handleListObservations(
+        { ...request, cursor: firstPage.meta.cursor },
+        context,
+      )) as Page;
+      expect(secondPage.data).toHaveLength(10);
+      expect(secondPage.meta.cursor).toBeUndefined();
+
+      const returnedIds = [...firstPage.data, ...secondPage.data].map(
+        (observation) => observation.id,
+      );
+      expect(new Set(returnedIds).size).toBe(60);
+      expect(returnedIds.sort()).toEqual(
+        observations.map((observation) => observation.id).sort(),
+      );
     });
 
     it("should reject invalid field projections", async () => {

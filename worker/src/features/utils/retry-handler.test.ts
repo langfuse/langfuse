@@ -164,6 +164,42 @@ describe("retryLLMRateLimitError", () => {
     expect(add).not.toHaveBeenCalled();
   });
 
+  it("waits at least the provider-suggested delay and spends an attempt", async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    const originalJobTimestamp = new Date("2026-01-01T01:00:00.000Z");
+
+    const result = await retryLLMRateLimitError(
+      {
+        data: {
+          timestamp: originalJobTimestamp,
+          payload: {
+            projectId: "project-id",
+            jobExecutionId: "job-execution-id",
+          },
+          retryBaggage: { originalJobTimestamp, attempt: 1 },
+        },
+      },
+      {
+        table: "job_executions",
+        idField: "jobExecutionId",
+        queue: { add },
+        queueName: "llm-as-a-judge-execution-queue-1",
+        jobName: "llm-as-a-judge-execution-job",
+      },
+      { providerDelayMs: 30_000 },
+    );
+
+    // Attempt 2 targets ~43 min into the window; 60 min have passed, so the
+    // schedule alone would retry at once.
+    const retryBaggage = { originalJobTimestamp, attempt: 2 };
+    expect(result).toMatchObject({ outcome: "scheduled", retryBaggage });
+    expect(add).toHaveBeenCalledWith(
+      "llm-as-a-judge-execution-queue-1",
+      expect.objectContaining({ retryBaggage }),
+      { delay: 33_000 },
+    );
+  });
+
   it("returns too_old without queueing when retry age budget is exhausted", async () => {
     const add = vi.fn();
     (prisma.jobExecution.findFirstOrThrow as Mock).mockResolvedValue({

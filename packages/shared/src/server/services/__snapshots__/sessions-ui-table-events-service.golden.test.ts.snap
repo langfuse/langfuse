@@ -68,7 +68,6 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     any(e.experiment_id) AS experiment_id
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
-    AND (e.is_deleted = 0)
     AND (e.session_id = {param2:String})
 GROUP BY
     trace_id,
@@ -210,14 +209,15 @@ exports[`golden: sessions table aggregation family > getSessionsTableFromEvents 
         WHERE (e.project_id = {param1:String})
             AND (session_id != '')
             AND (session_id IN (
-                WITH page_sessions AS
+                WITH
+                    page_sessions AS
                     (
                         SELECT
                             e.session_id AS session_id,
                             max(e.start_time) AS max_timestamp,
                             min(e.start_time) AS min_timestamp,
                             groupUniqArray(e.trace_id) AS trace_ids,
-                            groupUniqArrayIf(e.user_id, (e.user_id IS NOT NULL) AND (e.user_id != '')) AS user_ids,
+                            groupUniqArrayIf(e.user_id, ((e.user_id IS NOT NULL) AND (e.user_id != ''))) AS user_ids,
                             uniq(e.trace_id) AS trace_count,
                             groupUniqArrayArrayIf(e.tags, notEmpty(e.tags)) AS trace_tags,
                             argMaxIf(e.environment, e.event_ts, e.environment != '') AS environment,

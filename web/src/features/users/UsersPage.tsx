@@ -46,6 +46,7 @@ export default function UsersPage() {
     <Page
       headerProps={{
         title: "Users",
+        divider: false,
         help: {
           description: (
             <>

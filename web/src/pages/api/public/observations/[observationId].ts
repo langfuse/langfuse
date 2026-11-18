@@ -82,7 +82,7 @@ export default withMiddlewares(
                         projectId: auth.scope.projectId,
                       },
                       {
-                        projectId: null,
+                        scope: "LANGFUSE",
                       },
                     ],
                   },

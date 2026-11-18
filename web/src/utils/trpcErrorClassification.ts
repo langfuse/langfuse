@@ -7,10 +7,12 @@ import {
   type ToastErrorAnalytics,
   type ToastOperation,
 } from "@/src/features/notifications/toastAnalytics";
+import {
+  isTrpcNonJsonBodyError,
+  readAnnotatedResponseStatus,
+} from "@/src/utils/trpcResponseParseError";
 import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 import { getTrpcToastOperation } from "@/src/utils/trpcToastOperation";
-
-type SyntaxErrorWithResponseStatus = SyntaxError & { responseStatus?: number };
 
 /**
  * BAD_REQUEST is normally a client bug. These procedures also use it for
@@ -27,13 +29,8 @@ export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
 const FAILED_FETCH_MESSAGE = /^failed to fetch(?: \([^)]+\))?$/i;
 
 const getResponseStatus = (error: TRPCClientError<any>): number | undefined => {
-  if (
-    error.cause instanceof SyntaxError &&
-    typeof (error.cause as SyntaxErrorWithResponseStatus).responseStatus ===
-      "number"
-  ) {
-    return (error.cause as SyntaxErrorWithResponseStatus).responseStatus;
-  }
+  const annotated = readAnnotatedResponseStatus(error.cause);
+  if (annotated !== undefined) return annotated;
 
   return error.meta?.response instanceof Response
     ? error.meta.response.status
@@ -111,10 +108,7 @@ export const classifyTrpcToastError = (
   const path = getPath(error);
   const httpStatus = getHttpStatus(error);
 
-  if (
-    error.cause instanceof SyntaxError &&
-    ![414, 431].includes(httpStatus ?? 0)
-  ) {
+  if (isTrpcNonJsonBodyError(error) && ![414, 431].includes(httpStatus ?? 0)) {
     return classify({
       errorOrigin: "network",
       errorCategory: "transient",

@@ -10,6 +10,7 @@ describe("updateGatewayAllowedModels", () => {
       updateGatewayAllowedModels({
         allowedModels: null,
         availableModels: models,
+        catalogComplete: true,
         targetModels: ["gpt-4o", "o3"],
         enabled: false,
       }),
@@ -21,6 +22,7 @@ describe("updateGatewayAllowedModels", () => {
       updateGatewayAllowedModels({
         allowedModels: ["gpt-4o"],
         availableModels: models,
+        catalogComplete: true,
         targetModels: ["gpt-4o-mini", "o3"],
         enabled: true,
       }),
@@ -32,9 +34,34 @@ describe("updateGatewayAllowedModels", () => {
       updateGatewayAllowedModels({
         allowedModels: ["legacy-model", "gpt-4o"],
         availableModels: models,
+        catalogComplete: true,
         targetModels: ["gpt-4o"],
         enabled: false,
       }),
     ).toEqual(["legacy-model"]);
+  });
+
+  it("disables models outside the current provider catalog when every catalog model is disabled", () => {
+    expect(
+      updateGatewayAllowedModels({
+        allowedModels: ["legacy-model", "gpt-4o"],
+        availableModels: models,
+        catalogComplete: true,
+        targetModels: models,
+        enabled: false,
+      }),
+    ).toEqual([]);
+  });
+
+  it("keeps stored models the provider did not list when listing was denied", () => {
+    expect(
+      updateGatewayAllowedModels({
+        allowedModels: ["grok-4", "my-custom"],
+        availableModels: ["my-custom"],
+        catalogComplete: false,
+        targetModels: ["my-custom"],
+        enabled: false,
+      }),
+    ).toEqual(["grok-4"]);
   });
 });

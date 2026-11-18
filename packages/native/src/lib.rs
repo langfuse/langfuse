@@ -5,13 +5,18 @@
 //! `metrics` and `tracing` facades set up in [`telemetry`]; it never hands
 //! values back for Node to record.
 
+mod command_paths;
+
 /// Rust-only encoder for prepared v4 `events_full` rows.
 pub mod native_codec;
 mod native_columns;
 mod native_js;
 mod native_memory;
-pub(crate) mod native_schema;
+mod native_owned;
+pub mod native_schema;
 mod native_task;
+pub mod otel;
+pub mod otel_enrichment;
 mod otel_input;
 mod otel_media;
 mod otel_media_task;

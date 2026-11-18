@@ -1,10 +1,11 @@
 import { EvaluatorBlockReason } from "@prisma/client";
 import { APICallError, NoOutputGeneratedError, RetryError } from "ai";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { classifyEvaluatorLlmError } from "../evals/classifyEvaluatorLlmError";
 import {
   getLLMErrorInfo,
+  getLLMRetryAfterMs,
   LLMValidationError,
   type LLMValidationErrorCode,
 } from "./errors";
@@ -114,6 +115,25 @@ describe("getLLMErrorInfo", () => {
   });
 });
 
+describe("getLLMRetryAfterMs", () => {
+  it("reads an HTTP-date Retry-After as the time until that date", () => {
+    vi.useFakeTimers({ now: new Date("2026-01-01T00:00:00.000Z") });
+    try {
+      const error = new APICallError({
+        message: "Rate limit reached",
+        url: "https://api.example.com/v1/messages",
+        requestBodyValues: {},
+        statusCode: 429,
+        responseHeaders: { "retry-after": "Thu, 01 Jan 2026 00:01:30 GMT" },
+      });
+
+      expect(getLLMRetryAfterMs(error)).toBe(90_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("classifyEvaluatorLlmError", () => {
   it("uses the provider's structured insufficient_quota code for billing blocks", () => {
     const error = apiCallError({
@@ -155,6 +175,7 @@ describe("classifyEvaluatorLlmError", () => {
   it.each([
     [401, EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID],
     [402, EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED],
+    [403, EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID],
     [404, EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE],
   ])(
     "maps provider status %i to evaluator block reason %s",
@@ -167,6 +188,40 @@ describe("classifyEvaluatorLlmError", () => {
       expect(classifyEvaluatorLlmError(error)?.blockReason).toBe(reason);
     },
   );
+
+  it.each([
+    [
+      "a recognized billing message",
+      { message: "Insufficient credits. Add more credits to continue." },
+      EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED,
+    ],
+    [
+      "a content-filter rejection",
+      {
+        message: "The response was filtered",
+        data: { error: { code: "content_filter" } },
+      },
+      null,
+    ],
+    [
+      "a moderation rejection of the input",
+      {
+        message: "Input was flagged by moderation",
+        data: {
+          error: {
+            code: 403,
+            message: "Input was flagged by moderation",
+            metadata: { reasons: ["harassment"], flagged_input: "..." },
+          },
+        },
+      },
+      null,
+    ],
+  ])("classifies a 403 with %s by its body", (_, params, reason) => {
+    const error = apiCallError({ ...params, statusCode: 403 });
+
+    expect(classifyEvaluatorLlmError(error)?.blockReason).toBe(reason);
+  });
 
   it("keeps narrow provider-specific message fallbacks isolated to evaluator policy", () => {
     const error = apiCallError({

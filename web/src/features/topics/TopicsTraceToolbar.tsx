@@ -1,4 +1,5 @@
 import type { FilterState } from "@langfuse/shared";
+import { cn } from "@/src/utils/tailwind";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import {
   createTopicTraceRegistry,
@@ -12,12 +13,13 @@ export function TopicsTraceToolbar({
   onFiltersChange,
   searchQuery,
   onSearchQueryChange,
+  divider = true,
 }: TopicsTraceToolbarProps) {
   const registry = createTopicTraceRegistry(topics, filters);
   const topicField = registry.fields.find((field) => field.id === "topic");
 
   return (
-    <div className="shrink-0 border-b p-2">
+    <div className={cn("shrink-0", divider ? "border-b p-2" : "px-4 pt-3")}>
       <TableSearchBar
         projectId={projectId}
         tableName="topics"
@@ -53,4 +55,6 @@ type TopicsTraceToolbarProps = {
   onFiltersChange: (filters: FilterState) => void;
   searchQuery: string | null;
   onSearchQueryChange: (query: string | null) => void;
+  /** Off when something below already draws the line, e.g. a table header. */
+  divider?: boolean;
 };

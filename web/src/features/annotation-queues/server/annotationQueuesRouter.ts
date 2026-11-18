@@ -25,6 +25,18 @@ import {
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
+const queueOrderByColumns = {
+  name: Prisma.sql`aq.name`,
+  createdAt: Prisma.sql`aq.created_at`,
+} as const;
+
+const QueueOrderBy = z
+  .object({
+    column: z.enum(["name", "createdAt"]),
+    order: z.enum(["ASC", "DESC"]),
+  })
+  .nullish();
+
 const QueueData = CreateQueueData.extend({
   scoreConfigIds: CreateQueueData.shape.scoreConfigIds.refine(
     (ids) => new Set(ids).size === ids.length,
@@ -60,6 +72,7 @@ export const queueRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        orderBy: QueueOrderBy,
         ...optionalPaginationZod,
       }),
     )
@@ -70,6 +83,14 @@ export const queueRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "annotationQueues:read",
         });
+
+        const orderBy = input.orderBy ?? {
+          column: "createdAt",
+          order: "DESC",
+        };
+        const orderByColumn = queueOrderByColumns[orderBy.column];
+        const orderByDirection =
+          orderBy.order === "ASC" ? Prisma.sql`ASC` : Prisma.sql`DESC`;
 
         const [queues, totalCount, scoreConfigs] = await Promise.all([
           ctx.prisma.$queryRaw<
@@ -100,7 +121,7 @@ export const queueRouter = createTRPCRouter({
           GROUP BY
             aq.id, aq.name, aq.description, aq.created_at
           ORDER BY
-            aq.created_at DESC
+            ${orderByColumn} ${orderByDirection}, aq.id ${orderByDirection}
           ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
           ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
         `),
@@ -230,10 +251,11 @@ export const queueRouter = createTRPCRouter({
         });
 
         const scoreConfigsById = new Map(
-          filterAndValidateDbScoreConfigList(configs).map((config) => [
-            config.id,
-            config,
-          ]),
+          filterAndValidateDbScoreConfigList(configs, (error) =>
+            logger.warn("Invalid score config omitted from response", {
+              error,
+            }),
+          ).map((config) => [config.id, config]),
         );
 
         return {

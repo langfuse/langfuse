@@ -284,11 +284,16 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evaluationRule:read",
     "evaluator:CUD",
     "evaluator:read",
+    "experiments:read",
     "llmApiKeys:read",
     "llmSchemas:CUD",
     "llmSchemas:read",
     "llmTools:CUD",
     "llmTools:read",
+    "media:create",
+    "media:read",
+    "metrics:read",
+    "models:read",
     "objects:bookmark",
     "objects:publish",
     "objects:tag",
@@ -302,13 +307,17 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "scoreConfigs:CUD",
     "scoreConfigs:read",
     "scores:delete",
+    "scores:read",
     "scores:save",
+    "sessions:read",
     "skills:CUD",
     "skills:read",
     "TableViewPresets:CUD",
     "TableViewPresets:read",
     "topics:CUD",
     "topics:read",
+    "traces:create",
+    "traces:read",
   ],
   VIEWER: [
     "alerts:read",
@@ -354,8 +363,6 @@ export const projectNoneRoleComment =
 export function hasProjectAccessByRole(p: {
   role: Role;
   scope: ProjectScope;
-  admin?: boolean;
 }): boolean {
-  if (p.admin) return true;
   return projectRoleAccessRights[p.role].includes(p.scope);
 }

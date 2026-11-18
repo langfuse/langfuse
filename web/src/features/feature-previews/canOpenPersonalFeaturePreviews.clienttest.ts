@@ -14,7 +14,6 @@ it("opens personal previews through Internal view or a Topics grant on self-host
     user: {
       id: "user-1",
       email: "member@clickhouse.com",
-      admin: false,
       v4BetaEnabled: false,
       canCreateOrganizations: true,
       organizations: [],
@@ -36,7 +35,6 @@ it("opens personal previews through Internal view or a Topics grant on self-host
   expect(canOpenPersonalFeaturePreviews(input)).toBe(true);
 
   session.user.featureFlags.langfuseTopics = false;
-  session.user.admin = true;
   expect(canOpenPersonalFeaturePreviews(input)).toBe(false);
 
   session.user.v4BetaEnabled = true;

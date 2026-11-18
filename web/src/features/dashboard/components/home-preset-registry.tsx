@@ -1,16 +1,17 @@
 import { type ReactNode } from "react";
+import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import { type FilterState, type HomeDashboardPresetId } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
-import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
-import { ModelCostTable } from "@/src/features/dashboard/components/ModelCostTable";
-import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
-import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
-import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import { UserChart } from "@/src/features/dashboard/components/UserChart";
-import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
-import { LatencyTable } from "@/src/features/dashboard/components/LatencyTables";
-import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
+import { TracesBarListCard } from "@/src/features/dashboard/components/TracesBarListCard";
+import { ModelCostTableCard } from "@/src/features/dashboard/components/ModelCostTableCard";
+import { ScoresTableCard } from "@/src/features/dashboard/components/ScoresTableCard";
+import { TracesAndObservationsTimeSeriesCard } from "@/src/features/dashboard/components/TracesAndObservationsTimeSeriesCard";
+import { ModelUsageCard } from "@/src/features/dashboard/components/ModelUsageCard";
+import { UserConsumptionCard } from "@/src/features/dashboard/components/UserConsumptionCard";
+import { ScoresCard } from "@/src/features/dashboard/components/ScoresCard";
+import { LatencyTableCard } from "@/src/features/dashboard/components/LatencyTableCard";
+import { GenerationLatencyCard } from "@/src/features/dashboard/components/GenerationLatencyCard";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 
 /**
@@ -20,6 +21,7 @@ import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analyt
  * bespoke Home page used to pass them.
  */
 export interface PresetWidgetContext {
+  actions?: DataCardActions;
   projectId: string;
   /** Page-level filters WITHOUT the time window (time arrives as timestamps). */
   globalFilterState: FilterState;
@@ -51,7 +53,8 @@ const HOME_PRESETS: Record<
   (ctx: PresetWidgetContext) => ReactNode
 > = {
   "home-traces": (ctx) => (
-    <TracesBarListChart
+    <TracesBarListCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -63,7 +66,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-model-costs": (ctx) => (
-    <ModelCostTable
+    <ModelCostTableCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -75,7 +79,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-scores-table": (ctx) => (
-    <ScoresTable
+    <ScoresTableCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.mergedFilterState}
@@ -84,7 +89,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-traces-obs-time-series": (ctx) => (
-    <TracesAndObservationsTimeSeriesChart
+    <TracesAndObservationsTimeSeriesCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -99,7 +105,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-model-usage": (ctx) => (
-    <ModelUsageChart
+    <ModelUsageCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.mergedFilterState}
@@ -115,7 +122,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-users": (ctx) => (
-    <UserChart
+    <UserConsumptionCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -127,7 +135,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-chart-scores": (ctx) => (
-    <ChartScores
+    <ScoresCard
+      actions={ctx.actions}
       className={ctx.className}
       agg={ctx.agg}
       projectId={ctx.projectId}
@@ -142,8 +151,9 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-latency-table-traces": (ctx) => (
-    <LatencyTable
+    <LatencyTableCard
       kind="traces"
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -155,8 +165,9 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-latency-table-generations": (ctx) => (
-    <LatencyTable
+    <LatencyTableCard
       kind="generations"
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -168,8 +179,9 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-latency-table-observations": (ctx) => (
-    <LatencyTable
+    <LatencyTableCard
       kind="observations"
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -181,7 +193,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-generation-latency": (ctx) => (
-    <GenerationLatencyChart
+    <GenerationLatencyCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       agg={ctx.agg}
@@ -197,6 +210,7 @@ const HOME_PRESETS: Record<
   ),
   "home-score-analytics": (ctx) => (
     <ScoreAnalytics
+      actions={ctx.actions}
       className={ctx.className}
       agg={ctx.agg}
       projectId={ctx.projectId}

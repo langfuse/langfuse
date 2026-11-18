@@ -230,15 +230,39 @@ export function getCustomerRoleCredentialsProvider({
           getCrossAccountRoleCredentials(crossAccountRoleArn),
         params: params(externalId),
         clientConfig: STS_CLIENT_CONFIG,
-      })();
+      })().catch((error: unknown) => {
+        throw toCustomerRoleAssumeError(error);
+      });
     });
 }
 
-function isAccessDeniedError(error: unknown) {
+function isAccessDeniedError(error: unknown): error is Error {
   return (
     error instanceof Error &&
     (error.name === "AccessDenied" || error.name === "AccessDeniedException")
   );
+}
+
+// AWS names the policy type behind a denial. These policies sit on Langfuse's
+// side of the role chain; a denial by the customer's trust policy names none.
+const LANGFUSE_SIDE_DENIAL_REGEX =
+  /identity-based policy|service control policy|permissions boundary/i;
+
+/**
+ * Maps a failure to assume the customer role to a `CrossAccountRoleError` when
+ * Langfuse's cross-account role lacks the permission, so it is not reported
+ * as a fault in the customer's role.
+ */
+export function toCustomerRoleAssumeError(error: unknown): unknown {
+  if (
+    isAccessDeniedError(error) &&
+    LANGFUSE_SIDE_DENIAL_REGEX.test(error.message)
+  ) {
+    return new CrossAccountRoleError(
+      "Langfuse's cross-account role is not allowed to assume customer roles (AccessDenied)",
+    );
+  }
+  return error;
 }
 
 type AssumeRoleParams = Parameters<
@@ -267,8 +291,9 @@ async function verifyRoleRequiresExternalId(
       clientConfig: STS_CLIENT_CONFIG,
     })();
   } catch (error) {
-    if (isAccessDeniedError(error)) return;
-    throw error;
+    const mapped = toCustomerRoleAssumeError(error);
+    if (mapped === error && isAccessDeniedError(error)) return;
+    throw mapped;
   }
 
   throw new InvalidRequestError(

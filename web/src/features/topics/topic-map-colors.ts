@@ -1,20 +1,15 @@
 /** Canvas colors: the six category hues of styles/globals.css at oklch(0.58 0.13 h). */
 const COLORS = [
-  { color: "#7e69c0", badgeColor: "violet" },
-  { color: "#397dc4", badgeColor: "blue" },
-  { color: "#00918b", badgeColor: "teal" },
-  { color: "#578b35", badgeColor: "green" },
-  { color: "#aa6a00", badgeColor: "amber" },
-  { color: "#b25785", badgeColor: "pink" },
+  { color: "#7e69c0" },
+  { color: "#397dc4" },
+  { color: "#00918b" },
+  { color: "#578b35" },
+  { color: "#aa6a00" },
+  { color: "#b25785" },
 ] as const;
 
 export const topicColor = (index: number) =>
   index < 0 ? "#94a3b8" : COLORS[index % COLORS.length].color;
-
-export const topicBadgeColor = (
-  index: number,
-): (typeof COLORS)[number]["badgeColor"] | "outline" =>
-  index < 0 ? "outline" : COLORS[index % COLORS.length].badgeColor;
 
 const TREEMAP_HUES = [
   {
@@ -48,6 +43,21 @@ export const treemapTileClasses = (rank: number, big: boolean) => {
 
 export const treemapSwatchColor = (rank: number) =>
   `var(--category-${["violet", "blue", "amber"][Math.max(0, rank) % 3]}-highlight)`;
+
+/** The scatter extends the treemap's three hues to eight category hues. */
+const SCATTER_HUES = [
+  "violet",
+  "blue",
+  "amber",
+  "pink",
+  "green",
+  "teal",
+  "peach",
+  "olive",
+];
+
+export const scatterSwatchColor = (rank: number) =>
+  `var(--category-${SCATTER_HUES[Math.max(0, rank) % SCATTER_HUES.length]}-highlight)`;
 
 /** Topic chip color for a treemap rank; grey when the topic is not in the current results. */
 export const treemapBadgeColor = (rank: number) =>

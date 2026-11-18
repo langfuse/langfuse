@@ -1,8 +1,8 @@
 import { CheckIcon, CopyIcon } from "@langfuse/icons";
-import { useSession } from "next-auth/react";
 
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
@@ -101,7 +101,6 @@ export function useSessionHeaderMenuItems({
   sessionId: string;
   isPublic: boolean;
 }) {
-  const session = useSession();
   const capture = usePostHogClientCapture();
   const { copy } = useCopyToClipboard();
   const { copy: copySessionId, isCopied } = useCopyToClipboard({
@@ -115,20 +114,18 @@ export function useSessionHeaderMenuItems({
   });
   const displayItems = buildDisplayItems(displaySettings);
 
-  const adminItems: DropdownMenuItemDefinition[] =
-    session.data?.user?.admin === true
-      ? (["events_full", "events_core"] as const).map((table) => ({
-          type: "item" as const,
-          id: `copy-${table}-query`,
-          title: `Copy ${table} query`,
-          icon: CopyIcon,
-          onClick: async () => {
-            await copy(
-              buildSessionClickHouseQuery(table, projectId, sessionId),
-            );
-          },
-        }))
-      : [];
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const internalItems: DropdownMenuItemDefinition[] = internalFeaturesEnabled
+    ? (["events_full", "events_core"] as const).map((table) => ({
+        type: "item" as const,
+        id: `copy-${table}-query`,
+        title: `Copy ${table} query`,
+        icon: CopyIcon,
+        onClick: async () => {
+          await copy(buildSessionClickHouseQuery(table, projectId, sessionId));
+        },
+      }))
+    : [];
 
   const items: DropdownMenuItemDefinition[] = [
     ...shareItems,
@@ -142,7 +139,7 @@ export function useSessionHeaderMenuItems({
         return copySessionId(sessionId);
       },
     },
-    ...adminItems,
+    ...internalItems,
     ...(displayItems.length > 0
       ? [
           { id: "display-separator", type: "separator" as const },

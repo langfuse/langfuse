@@ -12,6 +12,7 @@ vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { EventType } from "@ag-ui/core";
+import { EventSchema } from "@ag-ui/core/schemas";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
 import waitForExpect from "wait-for-expect";
@@ -126,7 +127,6 @@ describe("in-app agent persistence", () => {
           },
         ],
         featureFlags: testFeatureFlags({ templateFlag: false }),
-        admin: false,
       },
       environment: {} as any,
     };
@@ -911,6 +911,7 @@ describe("in-app agent persistence", () => {
     });
     await process({
       type: EventType.REASONING_START,
+      messageId: "reasoning-1",
     });
     await process({
       type: EventType.REASONING_MESSAGE_START,
@@ -939,6 +940,7 @@ describe("in-app agent persistence", () => {
     });
     await process({
       type: EventType.REASONING_END,
+      messageId: "reasoning-1",
     });
     await process({
       type: EventType.ACTIVITY_SNAPSHOT,
@@ -1049,6 +1051,18 @@ describe("in-app agent persistence", () => {
         type: EventType.REASONING_MESSAGE_CONTENT,
         delta: "Checking filters",
       }),
+    ]);
+    expect(
+      persistedEvents
+        .filter(
+          ({ type }) =>
+            type === EventType.REASONING_START ||
+            type === EventType.REASONING_END,
+        )
+        .map(({ event }) => EventSchema.parse(event)),
+    ).toEqual([
+      { type: EventType.REASONING_START, messageId: "reasoning-1" },
+      { type: EventType.REASONING_END, messageId: "reasoning-1" },
     ]);
     expect(JSON.stringify(persistedEvents)).not.toContain(
       "encrypted-reasoning",

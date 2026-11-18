@@ -1,4 +1,4 @@
-import { BookOpen, Plus, Trash, UserPlus } from "@langfuse/icons";
+import { Pencil, Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -18,9 +18,16 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
+import { GatewayApiKeyBudgetBadge } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyBudgetBadge/GatewayApiKeyBudgetBadge";
+import { GatewayApiKeyModelsCell } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyModelsCell/GatewayApiKeyModelsCell";
+import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 
 type GatewayApiKey = {
   metadata: unknown;
+  allowedModels: unknown;
+  spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number } | null;
+  hasSeveralSpendLimits: boolean;
   apiKey: {
     id: string;
     publicKey: string;
@@ -36,6 +43,8 @@ type GatewayApiKey = {
   };
   /** Absent until the last-used query resolves, and when the key had no gateway traffic in the window. */
   lastUsedAt?: Date;
+  /** Spend against `spendLimit` in its current window; absent until the spend query resolves. */
+  spentUsd?: number;
 };
 
 const lastUsedSkeleton = <Skeleton className="h-4 w-1/2" />;
@@ -46,12 +55,15 @@ type GatewayApiKeysLastUsedState =
   | { status: "error" }
   | { status: "success"; isTracked: boolean };
 
+type GatewayApiKeysSpendState = { status: "loading" | "error" | "success" };
+
+const budgetSkeleton = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
+
 export function GatewayApiKeysTable({
   data,
   lastUsed,
-  createAction,
-  inviteAction,
-  usageInstructionsAction,
+  spend,
+  onEdit,
   onRevoke,
   pagination,
   search,
@@ -60,10 +72,8 @@ export function GatewayApiKeysTable({
 }: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
   data: AsyncTableData<GatewayApiKey[]>;
   lastUsed: GatewayApiKeysLastUsedState;
-  createAction: () => void;
-  /** Omit for callers who cannot invite people to the organization. */
-  inviteAction?: () => void;
-  usageInstructionsAction: () => void;
+  spend: GatewayApiKeysSpendState;
+  onEdit: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
@@ -80,19 +90,19 @@ export function GatewayApiKeysTable({
       enableSorting: true,
     }),
     createTextTableColumn<GatewayApiKey>({
-      accessorFn: (row) => row.apiKey.displaySecretKey,
-      id: "key",
-      header: "Key",
-      sensitive: true,
-      enableResizing: false,
-    }),
-    createTextTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.note,
       id: "description",
       header: "Name",
       nullValue: "-",
       enableResizing: false,
       enableSorting: true,
+    }),
+    createTextTableColumn<GatewayApiKey>({
+      accessorFn: (row) => row.apiKey.displaySecretKey,
+      id: "key",
+      header: "Key",
+      sensitive: true,
+      enableResizing: false,
     }),
     createUserTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.user,
@@ -113,6 +123,27 @@ export function GatewayApiKeysTable({
       emptyValue: "No expiration",
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
+    }),
+    createTableColumn<GatewayApiKey, GatewayApiKey["spendLimit"]>({
+      accessorFn: (row) => row.spendLimit,
+      id: "budget",
+      header: "Budget",
+      size: 200,
+      hideBelowMd: true,
+      enableResizing: false,
+      loadingCell: budgetSkeleton,
+      renderCell: (spendLimit, { row }) => {
+        if (!spendLimit) {
+          return <span className="text-muted-foreground">No budget</span>;
+        }
+        if (spend.status === "loading") return budgetSkeleton;
+        return (
+          <GatewayApiKeyBudgetBadge
+            spendLimit={spendLimit}
+            spentUsd={row.original.spentUsd}
+          />
+        );
+      },
     }),
     createTableColumn<GatewayApiKey, Date>({
       accessorFn: (row) => row.lastUsedAt,
@@ -142,6 +173,18 @@ export function GatewayApiKeysTable({
         );
       },
     }),
+    createTableColumn<GatewayApiKey, string[]>({
+      accessorFn: (row) => parseGatewayAllowedModels(row.allowedModels),
+      id: "allowedModels",
+      header: "Models",
+      sensitive: true,
+      hideBelowMd: true,
+      enableResizing: false,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
+      renderCell: (patterns) => (
+        <GatewayApiKeyModelsCell patterns={patterns ?? null} />
+      ),
+    }),
     createBadgeListTableColumn<GatewayApiKey>({
       accessorFn: (row) => getMetadataEntries(row.metadata),
       id: "metadata",
@@ -160,6 +203,13 @@ export function GatewayApiKeysTable({
       setOrderBy={setOrderBy}
       actions={(row) => [
         {
+          id: "edit",
+          type: "item",
+          title: "Edit key",
+          icon: Pencil,
+          onClick: () => onEdit(row),
+        },
+        {
           id: "revoke",
           type: "item",
           title: "Revoke key",
@@ -169,33 +219,11 @@ export function GatewayApiKeysTable({
         },
       ]}
       pagination={pagination}
-      search={{ ...search, placeholder: "Search by name or user" }}
-      toolbarActions={[
-        ...(inviteAction
-          ? [
-              {
-                id: "invite",
-                label: "Notify team",
-                variant: "outline" as const,
-                icon: <UserPlus size="base" aria-hidden="true" />,
-                onClick: inviteAction,
-              },
-            ]
-          : []),
-        {
-          id: "usage-instructions",
-          label: "Usage instructions",
-          variant: "outline",
-          icon: <BookOpen size="base" aria-hidden="true" />,
-          onClick: usageInstructionsAction,
-        },
-        {
-          id: "create-key",
-          label: "Create key",
-          icon: <Plus size="base" aria-hidden="true" />,
-          onClick: createAction,
-        },
-      ]}
+      search={
+        hasNoKeys
+          ? undefined
+          : { ...search, placeholder: "Search by name or user" }
+      }
       noResultsMessage={
         hasSearch
           ? "No gateway keys match the current search."

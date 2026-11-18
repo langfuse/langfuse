@@ -13,10 +13,6 @@ on:
     # Environment secrets don't auto-resolve in reusable workflows.
     # See: https://github.com/actions/runner/issues/3206
     secrets:
-      AWS_ACCESS_KEY_ID:
-        required: true
-      AWS_SECRET_ACCESS_KEY:
-        required: true
       SENTRY_AUTH_TOKEN:
         required: false
       IRONBANK_USER:
@@ -29,6 +25,7 @@ jobs:
     environment: ${{ inputs.environment }}
     permissions:
       contents: read
+      id-token: write # assume the AWS deploy role via OIDC
     env:
       # Iron Bank UBI 9 bases, the same ones pipeline.yml uses for release images.
       BASE_IMAGE: registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
@@ -45,12 +42,11 @@ jobs:
         with:
           persist-credentials: false
       - name: Authenticate with AWS
-        # GitHub/AWS recommend to use OIDC here: https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#oidc
-        # Probably more painful to configure, but would remove all long-lived credentials.
+        # Short-lived credentials via GitHub OIDC. The role trusts only this
+        # workflow file, run from any branch.
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
       - name: Login to AWS ECR
         id: login-ecr

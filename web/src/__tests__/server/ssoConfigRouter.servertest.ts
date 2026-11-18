@@ -83,7 +83,6 @@ function createSession(
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -1052,6 +1051,37 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
           clientId: "onelogin-client",
           clientSecret: "onelogin-secret",
           issuer,
+          allowDangerousEmailAccountLinking: false,
+        },
+      };
+    }
+  });
+
+  describe("GitHub Enterprise", () => {
+    it("rejects an internal base URL", async () => {
+      const { org, caller } = await prepare();
+      const domain = `ghe-ssrf-${uuidv4().slice(0, 8)}.com`;
+      await addVerifiedDomain(org.id, domain);
+
+      await expect(
+        caller.ssoConfig.save({
+          orgId: org.id,
+          payload: gitHubEnterprisePayload(domain, "https://169.254.169.254"),
+        }),
+      ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+      const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+      expect(row).toBeNull();
+    });
+
+    function gitHubEnterprisePayload(domain: string, baseUrl: string) {
+      return {
+        domain,
+        authProvider: "github-enterprise" as const,
+        authConfig: {
+          clientId: "ghe-client",
+          clientSecret: "ghe-secret",
+          enterprise: { baseUrl },
           allowDangerousEmailAccountLinking: false,
         },
       };

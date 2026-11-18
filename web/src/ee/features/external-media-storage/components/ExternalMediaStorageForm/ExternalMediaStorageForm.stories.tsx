@@ -81,6 +81,19 @@ export const SavedCredentials = meta.story({
   },
 });
 
+export const IamRoleAvailable = meta.story({
+  args: {
+    crossAccountRoleArn:
+      "arn:aws:iam::210987654321:role/LangfuseCustomerStorageAccess",
+  },
+});
+
+export const IamRoleRequiresUpgrade = meta.story({
+  args: {
+    roleAuthRequiresUpgrade: true,
+  },
+});
+
 export const IamRole = meta.story({
   args: {
     initialValues: {
@@ -111,6 +124,27 @@ export const IamRoleRevealedExternalId = meta.story({
       isSet: true,
       value: "lf-0123456789abcdef0123456789abcdef",
     },
+  },
+});
+
+export const DisablesIamRoleWithoutEntitlement = meta.story({
+  name: "(Test) Disables IAM role without entitlement",
+  args: IamRoleRequiresUpgrade.input.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await expect(
+      canvas.getByText(
+        "IAM role auth is not part of your plan. Upgrade to Enterprise to use it.",
+      ),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("combobox", { name: "Authentication" }),
+    );
+    await expect(
+      await body.findByRole("option", { name: /IAM role/ }),
+    ).toHaveAttribute("aria-disabled", "true");
   },
 });
 
