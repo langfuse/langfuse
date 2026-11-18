@@ -63,7 +63,6 @@ export function GatewayDefaultBudgetDialogController({
           subject={subject}
           spendLimit={defaultBudget ?? null}
           saveLabel="Save default"
-          requiresChange
           removeLabel={defaultBudget ? "Remove default" : undefined}
           unavailableReason={spendBudgetUnavailableReason}
           errorMessage={

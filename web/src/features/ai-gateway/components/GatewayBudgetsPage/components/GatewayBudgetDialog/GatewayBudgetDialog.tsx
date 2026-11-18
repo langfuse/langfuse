@@ -31,8 +31,6 @@ type GatewayBudgetDialogProps = {
   /** Prefills the form; null when there is no budget yet. */
   spendLimit: GatewaySpendLimit | null;
   saveLabel: string;
-  /** Saving is disabled until the form changes; false when saving the prefilled budget changes something. */
-  requiresChange: boolean;
   /** The action that drops the budget; undefined when there is none to drop. */
   removeLabel?: string;
   /** Why the budget cannot be changed; undefined when it can. */
@@ -51,7 +49,6 @@ export function GatewayBudgetDialog({
   subject,
   spendLimit,
   saveLabel,
-  requiresChange,
   removeLabel,
   unavailableReason,
   errorMessage,
@@ -94,10 +91,8 @@ export function GatewayBudgetDialog({
           type: "submit",
           form: formId,
           loading: isSubmitting,
-          disabled:
-            unavailableReason !== undefined ||
-            !form.formState.isValid ||
-            (requiresChange && !form.formState.isDirty),
+          // Saving an unchanged budget changes nothing, so it is not disabled.
+          disabled: unavailableReason !== undefined || !form.formState.isValid,
         },
       ]}
     >

@@ -75,10 +75,6 @@ export function GatewayEditBudgetDialogController({
           subject={GATEWAY_SPEND_TABS[state.tab].subject}
           spendLimit={state.spendLimit}
           saveLabel="Save changes"
-          // Selected budgets may differ, and a key or user on the default gets a budget of its own, so saving the prefilled one changes them.
-          requiresChange={
-            state.count === 1 && (state.existingBudgetCount ?? 0) > 0
-          }
           removeLabel={getRemoveLabel(state, Boolean(defaultBudget))}
           unavailableReason={spendBudgetUnavailableReason}
           errorMessage={

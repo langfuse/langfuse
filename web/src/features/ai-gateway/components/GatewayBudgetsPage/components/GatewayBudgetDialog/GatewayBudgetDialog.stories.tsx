@@ -24,7 +24,6 @@ const args = {
   subject: "key" as const,
   spendLimit: { interval: "MONTHLY" as const, limitUsd: 10 },
   saveLabel: "Save changes",
-  requiresChange: true,
   removeLabel: "Remove budget",
   errorMessage: null,
   isSubmitting: false,
@@ -41,7 +40,6 @@ export const EditSeveralBudgets = meta.story({
     description: "Each budget applies to requests with 3 keys.",
     warning:
       "2 of the selected keys already have a budget. Saving replaces them with this one.",
-    requiresChange: false,
     removeLabel: "Use default budgets",
   },
 });
