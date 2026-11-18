@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -19,7 +19,8 @@ import Page from "@/src/components/layouts/Page";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
@@ -320,9 +321,6 @@ export function EvaluatorSetupPage(
   const hasCreatedRef = useRef(false);
   const [saveInFlight, setSaveInFlight] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [discardOpen, setDiscardOpen] = useState(false);
-  const [versionConflictOpen, setVersionConflictOpen] = useState(false);
   const [savedEvaluator, setSavedEvaluator] = useState<{
     id: string;
     name: string;
@@ -560,13 +558,15 @@ export function EvaluatorSetupPage(
   const close = async () => {
     await router.push(`/project/${projectId}/evals`);
   };
-  const requestClose = () => {
+  const requestClose = (openDialog: () => void) => {
     const currentSnapshot = getCurrentSnapshot();
-    if (currentSnapshot !== initialSnapshot.current) setDiscardOpen(true);
+    if (currentSnapshot !== initialSnapshot.current) openDialog();
     else close().catch((error) => trpcErrorToast(error, "evaluator.navigate"));
   };
 
-  const save = async () => {
+  const save = async (
+    openVersionConflictDialog: (retry: () => Promise<void>) => void,
+  ) => {
     if (saveInFlightRef.current || hasCreatedRef.current) return;
     saveInFlightRef.current = true;
     setSaveInFlight(true);
@@ -733,7 +733,7 @@ export function EvaluatorSetupPage(
         error instanceof TRPCClientError &&
         error.data?.code === "CONFLICT"
       ) {
-        setVersionConflictOpen(true);
+        openVersionConflictDialog(() => save(openVersionConflictDialog));
       } else {
         trpcErrorToast(error, "evaluator.save");
       }
@@ -745,16 +745,10 @@ export function EvaluatorSetupPage(
 
   const discardConflictingChanges = async () => {
     if (!initialEvaluator) return;
-    setVersionConflictOpen(false);
     await utils.evalsV2.get.invalidate({
       projectId,
       evaluatorId: initialEvaluator.id,
     });
-  };
-
-  const overrideConflictingChanges = async () => {
-    setVersionConflictOpen(false);
-    await save();
   };
 
   const runTest = () => {
@@ -779,63 +773,73 @@ export function EvaluatorSetupPage(
   };
 
   const evaluatorEditor = (
-    <EvaluatorSetupEditor
-      projectId={projectId}
-      store={evaluatorSetupStore}
-      isEditing={Boolean(initialEvaluator)}
-      defaultModel={projectDefaultModel.defaultModel}
-      providerGroups={projectDefaultModel.providerGroups}
-      providerAdapters={projectDefaultModel.providerAdapters}
-      connectionsPending={projectDefaultModel.connectionsPending}
-      canSetProjectDefault={projectDefaultModel.canUpdate}
-      onConfigureProviders={() => {
-        onboardingAnalytics?.track(
-          "eval:onboarding_llm_connection_tab_opened",
-          {},
-        );
-        projectDefaultModel.openProviderSettings();
-      }}
-      onSetProjectDefault={projectDefaultModel.update.requestUpdate}
-      codeValidationResult={
-        codeValidation.isPending ? null : codeValidation.validationResult
-      }
-      onStepOpenChange={setStepOpen}
-      nameAIAssistance={
-        !nameAIAssistanceAvailable
-          ? { state: "unavailable" }
-          : suggestName.isPending
-            ? { state: "generating" }
-            : {
-                state: "idle",
-                onGenerate: () => {
-                  onboardingAnalytics?.track(
-                    "eval:onboarding_ai_generate_requested",
-                    { field: "name" },
-                  );
-                  requestNameSuggestion(true).catch((error) =>
-                    trpcErrorToast(error, "evaluator_name.generate"),
-                  );
-                },
-              }
-      }
-      descriptionAIAssistance={
-        !nameAIAssistanceAvailable
-          ? { state: "unavailable" }
-          : suggestDescription.isPending
-            ? { state: "generating" }
-            : {
-                state: "idle",
-                // requestDescriptionSuggestion reports its own failures.
-                onGenerate: () => {
-                  onboardingAnalytics?.track(
-                    "eval:onboarding_ai_generate_requested",
-                    { field: "description" },
-                  );
-                  requestDescriptionSuggestion();
-                },
-              }
-      }
-    />
+    <DefaultModelChangeConfirmationDialog
+      currentModel={projectDefaultModel.defaultModel}
+      loading={projectDefaultModel.update.isPending}
+      onConfirm={projectDefaultModel.update.confirmUpdate}
+    >
+      {({ openDialog }) => (
+        <EvaluatorSetupEditor
+          projectId={projectId}
+          store={evaluatorSetupStore}
+          isEditing={Boolean(initialEvaluator)}
+          defaultModel={projectDefaultModel.defaultModel}
+          providerGroups={projectDefaultModel.providerGroups}
+          providerAdapters={projectDefaultModel.providerAdapters}
+          connectionsPending={projectDefaultModel.connectionsPending}
+          canSetProjectDefault={projectDefaultModel.canUpdate}
+          onConfigureProviders={() => {
+            onboardingAnalytics?.track(
+              "eval:onboarding_llm_connection_tab_opened",
+              {},
+            );
+            projectDefaultModel.openProviderSettings();
+          }}
+          onSetProjectDefault={(model) =>
+            projectDefaultModel.update.requestUpdate(model, openDialog)
+          }
+          codeValidationResult={
+            codeValidation.isPending ? null : codeValidation.validationResult
+          }
+          onStepOpenChange={setStepOpen}
+          nameAIAssistance={
+            !nameAIAssistanceAvailable
+              ? { state: "unavailable" }
+              : suggestName.isPending
+                ? { state: "generating" }
+                : {
+                    state: "idle",
+                    onGenerate: () => {
+                      onboardingAnalytics?.track(
+                        "eval:onboarding_ai_generate_requested",
+                        { field: "name" },
+                      );
+                      requestNameSuggestion(true).catch((error) =>
+                        trpcErrorToast(error, "evaluator_name.generate"),
+                      );
+                    },
+                  }
+          }
+          descriptionAIAssistance={
+            !nameAIAssistanceAvailable
+              ? { state: "unavailable" }
+              : suggestDescription.isPending
+                ? { state: "generating" }
+                : {
+                    state: "idle",
+                    // requestDescriptionSuggestion reports its own failures.
+                    onGenerate: () => {
+                      onboardingAnalytics?.track(
+                        "eval:onboarding_ai_generate_requested",
+                        { field: "description" },
+                      );
+                      requestDescriptionSuggestion();
+                    },
+                  }
+          }
+        />
+      )}
+    </DefaultModelChangeConfirmationDialog>
   );
 
   const evaluatorTestPanel = (
@@ -870,233 +874,235 @@ export function EvaluatorSetupPage(
   );
 
   return (
-    <Page
-      headerProps={{
-        title: initialEvaluator ? "Configure evaluator" : "New evaluator",
-        breadcrumb: [
-          { name: "Evaluators", href: `/project/${projectId}/evals` },
-        ],
-        actionButtonsRight: initialEvaluator ? (
-          <div className="flex gap-2">
-            <EvaluatorRuleRelationships
-              projectId={projectId}
-              evaluatorId={initialEvaluator.id}
-              evaluatorName={initialEvaluator.name}
-              evaluatorType={initialEvaluator.type}
-              evaluatorDefaultVariableMapping={
-                initialEvaluator.definition.variableMapping
-              }
-            />
-            <EvaluatorAlertButton
-              scope="evaluator"
-              projectId={projectId}
-              evaluatorId={initialEvaluator.id}
-              evaluatorType={initialEvaluator.type}
-              scoreDataType={scoreDataType}
-              {...evaluatorAlerts}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              title="View version history"
-              onClick={() => {
-                capture("evaluators:version_history_interaction", {
-                  action: "open",
-                });
-                setHistoryOpen(true);
-              }}
-            >
-              <History size="base" color="default" __rawClassName="mr-2" />
-              Version history
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              title="Delete evaluator"
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 size="base" color="destructive" />
-            </Button>
-          </div>
-        ) : undefined,
-      }}
+    <DialogController<() => Promise<void>>
+      onBeforeClose={() => !update.isPending}
+      renderDialog={({ state: retrySave, closeDialog }) => (
+        <EvaluatorVersionConflictDialog
+          isOverriding={update.isPending}
+          onDiscard={async () => {
+            closeDialog();
+            await discardConflictingChanges();
+          }}
+          onOverride={async () => {
+            closeDialog();
+            await retrySave();
+          }}
+        />
+      )}
     >
-      <EvalOnboardingAnalyticsProvider value={onboardingAnalytics}>
-        <div className="flex min-h-0 flex-1 flex-col">
-          <TableHeaderControls
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
-          />
-          {initialEvaluator?.blockedAt && !draftResolvesEvaluatorBlock ? (
-            <div className="mx-3 mt-3">
-              <EvaluatorBlockedBanner
-                projectId={projectId}
-                blockedAt={initialEvaluator.blockedAt}
-                blockReason={initialEvaluator.blockReason}
-                blockMessage={initialEvaluator.blockMessage}
-                canReactivate={canReactivate}
-                reactivationPending={reactivate.isPending}
-                onReactivate={() => {
-                  capture("evaluators:reactivate", {
-                    blockReason:
-                      initialEvaluator.blockReason ??
-                      "EVAL_MODEL_CONFIG_INVALID",
-                  });
-                  reactivate.mutate({
-                    projectId,
-                    evaluatorId: initialEvaluator.id,
-                  });
-                }}
-              />
-            </div>
-          ) : null}
-          {isMobile ? (
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <div>{evaluatorEditor}</div>
-              <div className="border-t [&>aside]:h-auto">
-                {evaluatorTestPanel}
-              </div>
-            </div>
-          ) : (
-            <ResizableSplitLayout
-              className="h-auto min-h-0 flex-1"
-              primaryContent={evaluatorEditor}
-              secondaryContent={evaluatorTestPanel}
-              open={testPanelOpen}
-              defaultPrimarySize={60}
-              defaultSecondarySize={40}
-              minPrimarySize={30}
-              minSecondarySize="360px"
-              collapsedSecondarySize="48px"
-              onOpenChange={
-                evaluatorSetupStore.getState().actions.setTestPanelOpen
-              }
-              persistId="evaluator-test-panel"
-            />
-          )}
-          <EvaluatorSetupFooter
-            store={evaluatorSetupStore}
-            initialSnapshot={initialSnapshot.current}
-            isEditing={Boolean(initialEvaluator)}
-            isSaving={
-              saveInFlight ||
-              create.isPending ||
-              update.isPending ||
-              suggestName.isPending ||
-              suggestDescription.isPending
-            }
-            nameAIAssistanceAvailable={nameAIAssistanceAvailable}
-            codeValidation={
-              codeDraft.type === "CODE"
-                ? {
-                    isValid: codeValidation.isValid,
-                    isPending: codeValidation.isPending,
+      {({ openDialog: openVersionConflictDialog }) => (
+        <Page
+          headerProps={{
+            title: initialEvaluator ? "Configure evaluator" : "New evaluator",
+            breadcrumb: [
+              { name: "Evaluators", href: `/project/${projectId}/evals` },
+            ],
+            actionButtonsRight: initialEvaluator ? (
+              <div className="flex gap-2">
+                <EvaluatorRuleRelationships
+                  projectId={projectId}
+                  evaluatorId={initialEvaluator.id}
+                  evaluatorName={initialEvaluator.name}
+                  evaluatorType={initialEvaluator.type}
+                  evaluatorDefaultVariableMapping={
+                    initialEvaluator.definition.variableMapping
                   }
-                : null
-            }
-            fallbackDecisionModel={fallbackDecisionModel}
-            onClose={requestClose}
-            onSave={save}
+                />
+                <EvaluatorAlertButton
+                  scope="evaluator"
+                  projectId={projectId}
+                  evaluatorId={initialEvaluator.id}
+                  evaluatorType={initialEvaluator.type}
+                  scoreDataType={scoreDataType}
+                  {...evaluatorAlerts}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  title="View version history"
+                  onClick={() => {
+                    capture("evaluators:version_history_interaction", {
+                      action: "open",
+                    });
+                    setHistoryOpen(true);
+                  }}
+                >
+                  <History size="base" color="default" __rawClassName="mr-2" />
+                  Version history
+                </Button>
+                <ConfirmationDialogController
+                  title="Delete evaluator?"
+                  text="This deletes the evaluator and its complete version history. This action cannot be undone."
+                  confirmLabel="Delete evaluator"
+                  variant="destructive"
+                  loading={deleteEvaluator.isPending}
+                  onConfirm={async () => {
+                    await deleteEvaluator.mutateAsync({
+                      projectId,
+                      evaluatorId: initialEvaluator.id,
+                    });
+                  }}
+                >
+                  {({ openDialog }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      title="Delete evaluator"
+                      onClick={openDialog}
+                    >
+                      <Trash2 size="base" color="destructive" />
+                    </Button>
+                  )}
+                </ConfirmationDialogController>
+              </div>
+            ) : undefined,
+          }}
+        >
+          <EvalOnboardingAnalyticsProvider value={onboardingAnalytics}>
+            <div className="flex min-h-0 flex-1 flex-col">
+              <TableHeaderControls
+                timeRange={timeRange}
+                setTimeRange={setTimeRange}
+              />
+              {initialEvaluator?.blockedAt && !draftResolvesEvaluatorBlock ? (
+                <div className="mx-3 mt-3">
+                  <EvaluatorBlockedBanner
+                    projectId={projectId}
+                    blockedAt={initialEvaluator.blockedAt}
+                    blockReason={initialEvaluator.blockReason}
+                    blockMessage={initialEvaluator.blockMessage}
+                    canReactivate={canReactivate}
+                    reactivationPending={reactivate.isPending}
+                    onReactivate={() => {
+                      capture("evaluators:reactivate", {
+                        blockReason:
+                          initialEvaluator.blockReason ??
+                          "EVAL_MODEL_CONFIG_INVALID",
+                      });
+                      reactivate.mutate({
+                        projectId,
+                        evaluatorId: initialEvaluator.id,
+                      });
+                    }}
+                  />
+                </div>
+              ) : null}
+              {isMobile ? (
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div>{evaluatorEditor}</div>
+                  <div className="border-t [&>aside]:h-auto">
+                    {evaluatorTestPanel}
+                  </div>
+                </div>
+              ) : (
+                <ResizableSplitLayout
+                  className="h-auto min-h-0 flex-1"
+                  primaryContent={evaluatorEditor}
+                  secondaryContent={evaluatorTestPanel}
+                  open={testPanelOpen}
+                  defaultPrimarySize={60}
+                  defaultSecondarySize={40}
+                  minPrimarySize={30}
+                  minSecondarySize="360px"
+                  collapsedSecondarySize="48px"
+                  onOpenChange={
+                    evaluatorSetupStore.getState().actions.setTestPanelOpen
+                  }
+                  persistId="evaluator-test-panel"
+                />
+              )}
+              <ConfirmationDialogController
+                title="Discard unsaved changes?"
+                text="Your evaluator changes will be lost."
+                confirmLabel="Discard changes"
+                variant="destructive"
+                onConfirm={close}
+              >
+                {({ openDialog }) => (
+                  <EvaluatorSetupFooter
+                    store={evaluatorSetupStore}
+                    initialSnapshot={initialSnapshot.current}
+                    isEditing={Boolean(initialEvaluator)}
+                    isSaving={
+                      saveInFlight ||
+                      create.isPending ||
+                      update.isPending ||
+                      suggestName.isPending ||
+                      suggestDescription.isPending
+                    }
+                    nameAIAssistanceAvailable={nameAIAssistanceAvailable}
+                    codeValidation={
+                      codeDraft.type === "CODE"
+                        ? {
+                            isValid: codeValidation.isValid,
+                            isPending: codeValidation.isPending,
+                          }
+                        : null
+                    }
+                    fallbackDecisionModel={fallbackDecisionModel}
+                    onClose={() => requestClose(openDialog)}
+                    onSave={() => save(openVersionConflictDialog)}
+                  />
+                )}
+              </ConfirmationDialogController>
+            </div>
+          </EvalOnboardingAnalyticsProvider>
+          {initialEvaluator ? (
+            <EvaluatorVersionHistorySheet
+              open={historyOpen}
+              onOpenChange={setHistoryOpen}
+              evaluatorName={initialEvaluator.name}
+              versions={versions}
+              currentVersionId={versions[0]?.id ?? ""}
+              defaultModel={projectDefaultModel.defaultModel}
+              onVersionExpansionChange={(versionId) => {
+                capture("evaluators:version_history_interaction", {
+                  action:
+                    versionId === null ? "collapse_version" : "expand_version",
+                });
+              }}
+              onRestoreVersion={(version) => {
+                restoreEvaluatorVersion({
+                  store: evaluatorSetupStore,
+                  version,
+                  resetTestState: () => {
+                    setTestResult(null);
+                    setHasCompletedTestCall(false);
+                    setLastTestRunCostUsd(null);
+                    setRawResultOpen(false);
+                  },
+                });
+                capture("evaluators:version_history_interaction", {
+                  action: "restore_version",
+                });
+              }}
+              isLoading={versionHistory.isPending}
+              hasMore={versionHistory.hasNextPage}
+              isLoadingMore={versionHistory.isFetchingNextPage}
+              onLoadMore={() => versionHistory.fetchNextPage()}
+            />
+          ) : null}
+          <TablePeekViewTraceDetail
+            {...sampleTracePeekConfig}
+            projectId={projectId}
           />
-        </div>
-      </EvalOnboardingAnalyticsProvider>
-      {initialEvaluator ? (
-        <EvaluatorVersionHistorySheet
-          open={historyOpen}
-          onOpenChange={setHistoryOpen}
-          evaluatorName={initialEvaluator.name}
-          versions={versions}
-          currentVersionId={versions[0]?.id ?? ""}
-          defaultModel={projectDefaultModel.defaultModel}
-          onVersionExpansionChange={(versionId) => {
-            capture("evaluators:version_history_interaction", {
-              action:
-                versionId === null ? "collapse_version" : "expand_version",
-            });
-          }}
-          onRestoreVersion={(version) => {
-            restoreEvaluatorVersion({
-              store: evaluatorSetupStore,
-              version,
-              resetTestState: () => {
-                setTestResult(null);
-                setHasCompletedTestCall(false);
-                setLastTestRunCostUsd(null);
-                setRawResultOpen(false);
-              },
-            });
-            capture("evaluators:version_history_interaction", {
-              action: "restore_version",
-            });
-          }}
-          isLoading={versionHistory.isPending}
-          hasMore={versionHistory.hasNextPage}
-          isLoadingMore={versionHistory.isFetchingNextPage}
-          onLoadMore={() => versionHistory.fetchNextPage()}
-        />
-      ) : null}
-      {initialEvaluator ? (
-        <ConfirmDialog
-          open={deleteOpen}
-          onOpenChange={setDeleteOpen}
-          title="Delete evaluator?"
-          description="This deletes the evaluator and its complete version history. This action cannot be undone."
-          confirmLabel="Delete evaluator"
-          onConfirm={() =>
-            deleteEvaluator.mutate({
-              projectId,
-              evaluatorId: initialEvaluator.id,
-            })
-          }
-        />
-      ) : null}
-      <TablePeekViewTraceDetail
-        {...sampleTracePeekConfig}
-        projectId={projectId}
-      />
-      <ConfirmDialog
-        open={discardOpen}
-        onOpenChange={setDiscardOpen}
-        title="Discard unsaved changes?"
-        description="Your evaluator changes will be lost."
-        confirmLabel="Discard changes"
-        onConfirm={close}
-      />
-      <EvaluatorVersionConflictDialog
-        open={versionConflictOpen}
-        onOpenChange={setVersionConflictOpen}
-        isOverriding={update.isPending}
-        onDiscard={discardConflictingChanges}
-        onOverride={overrideConflictingChanges}
-      />
-      {savedEvaluator ? (
-        <EvaluatorSavedDialogContainer
-          projectId={projectId}
-          evaluator={savedEvaluator}
-          onboardingAnalytics={onboardingAnalytics}
-          onDismiss={async () => {
-            await router.push(
-              `/project/${projectId}/evals/${savedEvaluator.id}`,
-            );
-          }}
-          onFinish={async () => {
-            await router.push(`/project/${projectId}/evals`);
-          }}
-        />
-      ) : null}
-      {projectDefaultModel.defaultModel &&
-      projectDefaultModel.update.pendingModel ? (
-        <DefaultModelChangeConfirmationDialog
-          open
-          currentModel={projectDefaultModel.defaultModel}
-          nextModel={projectDefaultModel.update.pendingModel}
-          loading={projectDefaultModel.update.isPending}
-          onOpenChange={(open) => {
-            if (!open) projectDefaultModel.update.dismissConfirmation();
-          }}
-          onConfirm={projectDefaultModel.update.confirmUpdate}
-        />
-      ) : null}
-    </Page>
+          {savedEvaluator ? (
+            <EvaluatorSavedDialogContainer
+              projectId={projectId}
+              evaluator={savedEvaluator}
+              onboardingAnalytics={onboardingAnalytics}
+              onDismiss={async () => {
+                await router.push(
+                  `/project/${projectId}/evals/${savedEvaluator.id}`,
+                );
+              }}
+              onFinish={async () => {
+                await router.push(`/project/${projectId}/evals`);
+              }}
+            />
+          ) : null}
+        </Page>
+      )}
+    </DialogController>
   );
 }
