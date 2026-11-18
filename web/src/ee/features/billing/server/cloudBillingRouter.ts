@@ -5,6 +5,7 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
+  protectedOrganizationProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -429,7 +430,8 @@ export const cloudBillingRouter = createTRPCRouter({
 
       return result;
     }),
-  redeemEnterpriseTrial: protectedOrganizationProcedure
+  // Untraced: the input carries a coupon code that unlocks trials for any org.
+  redeemEnterpriseTrial: protectedOrganizationProcedureWithoutTracing
     .input(
       z.object({
         orgId: z.string(),

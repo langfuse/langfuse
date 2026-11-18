@@ -9,7 +9,10 @@ import {
   parseDbOrg,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { invalidateCachedOrgApiKeys } from "@langfuse/shared/src/server";
+import {
+  invalidateCachedOrgApiKeys,
+  logger,
+} from "@langfuse/shared/src/server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -54,6 +57,17 @@ export async function redeemEnterpriseTrial(params: {
     throw new LangfuseNotFoundError("Organization not found.");
   }
   const org = parseDbOrg(dbOrg);
+  if (dbOrg.cloudConfig !== null && org.cloudConfig === null) {
+    // parseDbOrg drops a config that fails the schema, which would hide any
+    // paid billing state in it from the paid check below.
+    logger.error(
+      "[Enterprise trial] stored cloudConfig does not parse, refusing to start a trial",
+      { orgId },
+    );
+    throw new LangfuseConflictError(
+      "This organization's billing settings need a manual check. Contact support to start the trial.",
+    );
+  }
   if (org.cloudConfig?.enterpriseTrial) {
     throw new LangfuseConflictError(
       "This organization has already used its enterprise trial.",
@@ -75,15 +89,30 @@ export async function redeemEnterpriseTrial(params: {
     throw new Error("Failed to build a valid enterprise trial");
   }
 
-  // Guarded on updatedAt so a billing webhook that rewrote cloudConfig since
-  // the read is not overwritten with the stale copy.
-  const { count } = await prisma.organization.updateMany({
-    where: { id: orgId, updatedAt: dbOrg.updatedAt },
-    data: { cloudConfig: { ...org.cloudConfig, enterpriseTrial } },
-  });
+  // Merges only the trial into the stored value inside Postgres, so a write
+  // that landed after the read is kept: a checkout claiming the CH
+  // organization id uses raw SQL and leaves updated_at untouched. The guard on
+  // an existing trial turns a concurrent second redemption into a no-op.
+  // Clearing a free-tier WARNING lets the trial's own warning fire once usage
+  // crosses its threshold; a block stays until the worker re-evaluates usage
+  // against the trial cap.
+  const count = await prisma.$executeRaw`
+    UPDATE organizations
+    SET cloud_config = jsonb_set(
+          COALESCE(NULLIF(cloud_config, 'null'::jsonb), '{}'::jsonb),
+          '{enterpriseTrial}',
+          ${JSON.stringify(enterpriseTrial)}::jsonb,
+          true
+        ),
+        cloud_free_tier_usage_threshold_state =
+          NULLIF(cloud_free_tier_usage_threshold_state, 'WARNING'),
+        updated_at = NOW()
+    WHERE id = ${orgId}
+      AND COALESCE(cloud_config -> 'enterpriseTrial', 'null'::jsonb) = 'null'::jsonb
+  `;
   if (count === 0) {
     throw new LangfuseConflictError(
-      "The organization changed while starting the trial. Try again.",
+      "This organization has already used its enterprise trial.",
     );
   }
 

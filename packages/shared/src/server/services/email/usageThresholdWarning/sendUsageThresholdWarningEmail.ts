@@ -47,7 +47,7 @@ export const sendUsageThresholdWarningEmail = async ({
   try {
     const mailer = createMailTransport(env.SMTP_CONNECTION_URL);
 
-    const emailSubject = `Langfuse ${usageThresholdPlanName[plan]}: ${organizationName} usage reached ${limit.toLocaleString()} events`;
+    const emailSubject = `Langfuse ${usageThresholdPlanName[plan]}: ${organizationName} usage reached ${currentUsage.toLocaleString()} events`;
     const emailHtml = await render(
       UsageThresholdWarningEmailTemplate({
         organizationName,

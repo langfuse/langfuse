@@ -1,4 +1,8 @@
-import { CloudConfigSchema, type ParsedOrganization } from "@langfuse/shared";
+import {
+  CloudConfigSchema,
+  type ParsedOrganization,
+  type Plan,
+} from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger, traceException } from "@langfuse/shared/src/server";
 
@@ -6,6 +10,15 @@ import { env } from "@/src/env.mjs";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { deriveLeadSourceFromMemberships } from "./leadSource";
 import { getSfdcService, toSfdcPlan, type SfdcService } from "./sfdcService";
+
+/**
+ * The org's plan as SFDC records it. SFDC has no trial tier, so an org on the
+ * enterprise trial counts as Hobby, the plan it returns to when the trial ends.
+ */
+export function getSfdcResolvedPlan(cloudConfig?: CloudConfigSchema): Plan {
+  const plan = getOrganizationPlanServerSide(cloudConfig);
+  return plan === "cloud:enterprise-trial" ? "cloud:hobby" : plan;
+}
 
 /**
  * Since the live sync went live on Cloud (late June 2026), every org has had
@@ -34,8 +47,7 @@ const SFDC_LIVE_SYNC_STARTED_AT = new Date("2026-07-01T00:00:00Z");
  * push: the override wins plan resolution on both sides of the comparison,
  * so their resolved plan cannot change here — sales owns those SFDC records.
  *
- * When an org created before the live sync leaves an unpaid plan (Hobby, or
- * the enterprise trial of an org that was on Hobby before), its current members
+ * When an org created before the live sync leaves Hobby, its current members
  * are linked as well, since neither the live sync nor the backfill may ever
  * have linked them. That re-link runs in the background once the account
  * push is acked, so the returned promise does not wait for it.
@@ -52,7 +64,7 @@ export async function syncOrgPlanChangeToSfdc(args: {
 }): Promise<void> {
   const { orgBeforeUpdate, updatedCloudConfig, billingCycleAnchor } = args;
 
-  const planBefore = getOrganizationPlanServerSide(
+  const planBefore = getSfdcResolvedPlan(
     orgBeforeUpdate.cloudConfig ?? undefined,
   );
   const parsedUpdated = CloudConfigSchema.safeParse(updatedCloudConfig);
@@ -65,7 +77,7 @@ export async function syncOrgPlanChangeToSfdc(args: {
     );
     return;
   }
-  const planAfter = getOrganizationPlanServerSide(parsedUpdated.data);
+  const planAfter = getSfdcResolvedPlan(parsedUpdated.data);
   if (planBefore === planAfter) return;
 
   const sfdcPlan = toSfdcPlan(planAfter);
@@ -87,7 +99,7 @@ export async function syncOrgPlanChangeToSfdc(args: {
   // the Stripe webhook must not wait on per-member Mulesoft calls.
   if (
     accountOk &&
-    (planBefore === "cloud:hobby" || planBefore === "cloud:enterprise-trial") &&
+    planBefore === "cloud:hobby" &&
     orgBeforeUpdate.createdAt < SFDC_LIVE_SYNC_STARTED_AT
   ) {
     const orgId = orgBeforeUpdate.id;
