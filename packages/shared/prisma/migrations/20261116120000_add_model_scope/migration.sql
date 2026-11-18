@@ -19,23 +19,3 @@ ALTER TABLE "models"
     );
 
 ALTER TABLE "models" ALTER COLUMN "scope" SET NOT NULL;
-
--- Compatibility for application versions that insert models without a scope
--- (during a rolling deploy or after a rollback). Fills only a missing scope;
--- current writers always set it explicitly. Drop once those versions are gone.
-CREATE FUNCTION "models_fill_legacy_scope"() RETURNS trigger AS $$
-BEGIN
-    IF NEW."scope" IS NULL THEN
-        NEW."scope" := CASE
-            WHEN NEW."project_id" IS NULL THEN 'LANGFUSE'::"ModelScope"
-            ELSE 'PROJECT'::"ModelScope"
-        END;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER "models_fill_legacy_scope"
-    BEFORE INSERT ON "models"
-    FOR EACH ROW
-    EXECUTE FUNCTION "models_fill_legacy_scope"();

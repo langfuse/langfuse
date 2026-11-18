@@ -1,2 +1,2 @@
 -- CreateIndex
-CREATE INDEX CONCURRENTLY "models_scope_idx" ON "models"("scope");
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "models_scope_idx" ON "models"("scope");
