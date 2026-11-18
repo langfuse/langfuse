@@ -159,29 +159,52 @@ describe("queryClickhouseWithProgress", () => {
     expect(mocks.recordOutcome.mock.calls[0][0]).toBe("client_closed");
   });
 
-  it("counts an abort with a timeout reason as a client timeout", async () => {
-    const controller = new AbortController();
-    mocks.query.mockResolvedValueOnce(
-      response([{ row: { id: 0 } }, { row: { id: 1 } }]),
-    );
-    const stream = queryClickhouseWithProgress({
-      query: "SELECT 1",
-      abortSignal: controller.signal,
-    });
-    await stream.next();
-    controller.abort(
-      new DOMException(
-        "The operation was aborted due to timeout",
-        "TimeoutError",
-      ),
-    );
-    await expect(stream.next()).rejects.toBeInstanceOf(
-      ClickHouseQueryAbortedError,
-    );
-    const [outcome, , , , , error] = mocks.recordOutcome.mock.calls[0];
-    expect(outcome).toBe("error");
-    expect(clickHouseQueryErrorCode(error)).toBe("client_timeout");
-  });
+  it.each([
+    ["the caller's deadline abort", "client_timeout"],
+    ["ClickHouse's max_execution_time", "timeout_exceeded"],
+  ])(
+    "counts a caller deadline enforced by %s as deadline",
+    async (_side, errorCode) => {
+      const controller = new AbortController();
+      const clickhouseFirst = errorCode === "timeout_exceeded";
+      mocks.query.mockResolvedValueOnce(
+        response(
+          clickhouseFirst
+            ? [
+                { row: { id: 0 } },
+                {
+                  exception:
+                    "Code: 159. DB::Exception: Timeout exceeded: elapsed 9.33 ms, maximum: 5 ms. (TIMEOUT_EXCEEDED) (version 26.6.1.2455 (official build))",
+                },
+              ]
+            : [{ row: { id: 0 } }, { row: { id: 1 } }],
+        ),
+      );
+      const stream = queryClickhouseWithProgress({
+        query: "SELECT 1",
+        abortSignal: controller.signal,
+        callerDeadline: true,
+      });
+      await stream.next();
+      if (clickhouseFirst) {
+        await stream.next();
+      } else {
+        controller.abort(
+          new DOMException(
+            "The operation was aborted due to timeout",
+            "TimeoutError",
+          ),
+        );
+        await expect(stream.next()).rejects.toBeInstanceOf(
+          ClickHouseQueryAbortedError,
+        );
+      }
+      expect(mocks.recordOutcome).toHaveBeenCalledOnce();
+      const [outcome, , , , , error] = mocks.recordOutcome.mock.calls[0];
+      expect(outcome).toBe("deadline");
+      expect(clickHouseQueryErrorCode(error)).toBe(errorCode);
+    },
+  );
 
   it("keeps a resource error that arrives together with an abort", async () => {
     const controller = new AbortController();
