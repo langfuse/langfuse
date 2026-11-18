@@ -9,8 +9,6 @@ import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 const optionalEnv = (name: string) => process.env[name] ?? "";
 const azureDeployment = () =>
   optionalEnv("LANGFUSE_LLM_CONNECTION_AZURE_MODEL");
-const bedrockGptModel = () =>
-  optionalEnv("LANGFUSE_LLM_CONNECTION_BEDROCK_GPT_MODEL");
 
 /**
  * Model combinations exercised by `topicsLlmProviders.test.ts`. Each one is a
@@ -89,16 +87,13 @@ export const TOPICS_LLM_COMBINATIONS: TopicsLlmCombination[] = [
   {
     // Cached summary prompts on Bedrock GPT-5.6+ use InvokeModel instead of Converse.
     name: "Bedrock GPT",
-    skip: bedrockGptModel()
-      ? undefined
-      : "Set LANGFUSE_LLM_CONNECTION_BEDROCK_GPT_MODEL to a Bedrock GPT-5.6+ model in the Bedrock region.",
-    summary: { connection: "bedrock", model: bedrockGptModel() },
+    summary: { connection: "bedrock", model: "global.openai.gpt-6-luna" },
     embedding: {
       connection: "bedrock",
       model: "eu.cohere.embed-v4:0",
       dimensions: 1024,
     },
-    clustering: { connection: "bedrock", model: bedrockGptModel() },
+    clustering: { connection: "bedrock", model: "global.openai.gpt-6-luna" },
   },
   {
     name: "Vertex AI",
