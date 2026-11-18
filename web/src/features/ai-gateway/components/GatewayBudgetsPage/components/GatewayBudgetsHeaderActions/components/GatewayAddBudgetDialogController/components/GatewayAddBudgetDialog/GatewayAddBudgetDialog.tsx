@@ -132,7 +132,6 @@ export function GatewayAddBudgetDialog({
               <MultiSelectTagInput
                 id={field.id}
                 value={field.value.map(({ value }) => value)}
-                selectedOptions={field.value}
                 onValueChange={(values) => {
                   const known = [...field.value, ...targetPicker.options];
                   field.onChange(
@@ -144,7 +143,7 @@ export function GatewayAddBudgetDialog({
                     })),
                   );
                 }}
-                options={targetPicker.options}
+                options={withSelectedOptions(field.value, targetPicker.options)}
                 placeholder={labels.placeholder}
                 searchPlaceholder="Search…"
                 search={{
@@ -176,4 +175,13 @@ export function GatewayAddBudgetDialog({
       </Dialog.Body>
     </Dialog>
   );
+}
+
+/** Server search narrows the options, so selected ones outside it are kept to label their tags. */
+function withSelectedOptions(
+  selected: { value: string; label: string }[],
+  options: ComponentProps<typeof MultiSelectTagInput<string>>["options"],
+) {
+  const listed = new Set(options.map(({ value }) => value));
+  return [...selected.filter(({ value }) => !listed.has(value)), ...options];
 }

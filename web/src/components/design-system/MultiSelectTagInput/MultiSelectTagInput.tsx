@@ -38,8 +38,6 @@ type MultiSelectTagInputProps<V> = {
   /** Searches on the server: options are not filtered locally. */
   search?: { value: string; onValueChange: (value: string) => void };
   loading?: { message: string };
-  /** Selected options missing from `options`, such as after a server search. */
-  selectedOptions?: MultiSelectTagOption<V>[];
 };
 
 export function MultiSelectTagInput<V extends string>({
@@ -58,7 +56,6 @@ export function MultiSelectTagInput<V extends string>({
   "aria-invalid": ariaInvalid,
   search,
   loading,
-  selectedOptions: knownSelectedOptions,
 }: MultiSelectTagInputProps<V>) {
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
@@ -72,11 +69,7 @@ export function MultiSelectTagInput<V extends string>({
   const selectedOptions = React.useMemo(
     () =>
       value.map((selectedValue) => {
-        const option =
-          options.find((option) => option.value === selectedValue) ??
-          knownSelectedOptions?.find(
-            (option) => option.value === selectedValue,
-          );
+        const option = options.find((option) => option.value === selectedValue);
         return {
           value: selectedValue,
           label: option?.label ?? selectedValue,
@@ -86,7 +79,7 @@ export function MultiSelectTagInput<V extends string>({
             : undefined,
         };
       }),
-    [knownSelectedOptions, options, value],
+    [options, value],
   );
   const enabledOptions = options.filter((option) => !option.disabled);
   const disabledValues = options
