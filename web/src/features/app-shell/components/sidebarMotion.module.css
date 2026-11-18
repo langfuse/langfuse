@@ -1,13 +1,13 @@
 .surface,
 .gutter {
-  --sidebar-expanded-width: 14rem;
+  --sidebar-expanded-width: 12.75rem;
   --sidebar-motion-duration: 360ms;
   --sidebar-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --sidebar-label-duration: 160ms;
   --sidebar-label-delay: 0ms;
   --sidebar-label-opacity: 0;
   --sidebar-label-offset: -6px;
-  inline-size: 3.5rem;
+  inline-size: 3rem;
   transition: inline-size var(--sidebar-motion-duration)
     var(--sidebar-motion-ease);
 }
@@ -105,12 +105,12 @@
   text-align: start;
 }
 
-.workspace,
 .account {
-  block-size: 2.75rem;
+  block-size: 3rem;
 }
 
 .workspace {
+  block-size: 2.75rem;
   box-shadow: inset 0 0 0 1px
     hsl(var(--sidebar-border) / var(--sidebar-label-opacity, 1));
   transition: box-shadow var(--sidebar-motion-duration, 0ms)
@@ -118,13 +118,13 @@
 }
 
 .version {
-  block-size: 2.25rem;
+  block-size: 2.75rem;
 }
 
 .iconLane {
   position: relative;
   display: flex;
-  flex: 0 0 2.5rem;
+  flex: 0 0 2rem;
   block-size: 100%;
   align-items: center;
   justify-content: center;
@@ -132,7 +132,7 @@
 
 .identity {
   display: flex;
-  inline-size: calc(var(--sidebar-expanded-width, 14rem) - 5rem);
+  inline-size: calc(var(--sidebar-expanded-width, 12.75rem) - 4.5rem);
   min-inline-size: 0;
   flex-shrink: 0;
   flex-direction: column;
@@ -161,6 +161,7 @@
 .groupHeading {
   position: relative;
   block-size: 1.75rem;
+  padding-block-start: 0.75rem;
   overflow: hidden;
 }
 
@@ -200,6 +201,12 @@
 .sectionContent {
   min-block-size: 0;
   overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .version {
+    block-size: 1.75rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -26,7 +26,7 @@ The shell is selected per browser through the user menu or `?shell=next` / `?she
 
 - `menuNode({ isCollapsed })` gives custom menu controls the same rail layout without duplicating their state, dialogs or switch IDs.
 - Collapsed tooltips use the navigation label by default. Controls can provide an explanatory description, visible on hover or focus in every mode. The original link or button owns focus and actions.
-- Shared navigation rows default to 44px on mobile, 36px on desktop, and a 40px leading lane. `NavMain` supplies `--sidebar-nav-row-height` and `--sidebar-nav-leading-width` tokens to match the classic sidebar's 32px geometry.
+- Desktop uses the classic sidebar's 204px expanded width and 32px navigation rows. The 48px collapsed rail retains the same icon positions; mobile stays full width with 44px touch targets. Row consumers can override `--sidebar-nav-row-height` and `--sidebar-nav-leading-width`.
 - The organization selector retains its classic placement and actions at the top of the sidebar. Page chrome owns the single desktop expansion control and the mobile hamburger; the mobile panel owns its close control.
 - All three modes retain the same panel and control DOM nodes. Mode changes alter layout and modality rather than mounting separate render trees.
 - The passive gutter owns the shared `data-sidebar="sidebar"` measurement marker: desktop peeks reserve its animated width, while mobile measures zero.

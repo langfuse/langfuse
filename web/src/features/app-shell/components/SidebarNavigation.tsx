@@ -72,7 +72,7 @@ function NavigationEntry({
       leading={item.icon ? <item.icon size="base" /> : null}
       label={item.title}
       external={item.external}
-      trailing={
+      labelBadge={
         item.label ? <NavigationItemLabel label={item.label} /> : undefined
       }
     />
@@ -87,7 +87,7 @@ function NavigationList({
   isCollapsed: boolean;
 }) {
   return (
-    <ul className="flex flex-col gap-0.5">
+    <ul className="flex flex-col gap-0.5 pt-1">
       {items.map((item) => (
         <li key={`${item.title}:${item.url}`}>
           <NavigationEntry item={item} isCollapsed={isCollapsed} />
@@ -108,7 +108,7 @@ function NavigationGroup({
 }) {
   const headingId = useId();
   return (
-    <div role="group" aria-labelledby={headingId}>
+    <div role="group" aria-labelledby={headingId} className="py-1">
       <div id={headingId} className={motion.groupHeading}>
         <span
           className={cn(
@@ -140,9 +140,11 @@ export function SidebarNavigation({
 }) {
   const isCollapsed = useSidebarSurface() === "collapsed";
   return (
-    <nav aria-label={label} className="flex min-w-14 flex-col px-2">
+    <nav aria-label={label} className="flex min-w-12 flex-col px-2">
       {items.ungrouped.length > 0 ? (
-        <NavigationList items={items.ungrouped} isCollapsed={isCollapsed} />
+        <div className="py-1">
+          <NavigationList items={items.ungrouped} isCollapsed={isCollapsed} />
+        </div>
       ) : null}
       {Object.entries(items.grouped ?? {}).map(([group, groupItems]) => (
         <NavigationGroup

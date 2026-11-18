@@ -11,7 +11,7 @@
   z-index: 1;
   display: flex;
   order: 1;
-  flex: 0 0 2.5rem;
+  flex: 0 0 2rem;
   align-items: center;
   justify-content: center;
 }
@@ -20,7 +20,8 @@
   display: flex;
   order: 2;
   min-inline-size: 0;
-  flex: 0 0 calc(var(--sidebar-expanded-width, 14rem) - 3.5rem);
+  flex: 0 0 calc(var(--sidebar-expanded-width, 12.75rem) - 3.125rem);
+  padding-inline-start: 0.125rem;
 }
 
 .mobileClose[data-surface="mobile"] {

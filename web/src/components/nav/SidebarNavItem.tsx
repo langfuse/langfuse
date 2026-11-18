@@ -7,7 +7,7 @@ import { cn } from "@/src/utils/tailwind";
 import styles from "./SidebarNavItem.module.css";
 
 const rowVariants = cva(
-  "text-sidebar-foreground flex w-full min-w-0 items-center rounded-md text-left text-sm whitespace-nowrap transition-colors",
+  "text-sidebar-foreground flex w-full min-w-0 items-center rounded-sm text-left text-sm whitespace-nowrap transition-colors",
   {
     variants: {
       interaction: {
@@ -24,6 +24,7 @@ type RowContentProps = {
   label: string;
   external?: boolean;
   isLabelBold?: boolean;
+  labelBadge?: ReactNode;
   trailing?: ReactNode;
 };
 
@@ -32,6 +33,7 @@ function RowContent({
   label,
   external,
   isLabelBold,
+  labelBadge,
   trailing,
   isCollapsed,
 }: RowContentProps & {
@@ -51,6 +53,9 @@ function RowContent({
             {label}
           </span>
           {external && <ArrowUpRight size="sm" color="tertiary" aria-hidden />}
+          {labelBadge ? (
+            <span className={styles.trailing}>{labelBadge}</span>
+          ) : null}
         </span>
         {trailing ? <span className={styles.trailing}>{trailing}</span> : null}
       </span>
@@ -152,6 +157,7 @@ function SidebarNavButton({
   label,
   external,
   isLabelBold,
+  labelBadge,
   trailing,
   description,
   isCollapsed = false,
@@ -183,6 +189,7 @@ function SidebarNavButton({
             label={label}
             external={external}
             isLabelBold={isLabelBold}
+            labelBadge={labelBadge}
             trailing={trailing}
             isCollapsed={isCollapsed}
           />

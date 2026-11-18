@@ -3,9 +3,29 @@ import { LifeBuoy } from "@langfuse/icons";
 import { expect, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { SidebarNavItem } from "./SidebarNavItem";
 
 const meta = preview.meta({ component: SidebarNavItem.Button });
+
+export const VariantMatrix = meta.story({
+  render: () => (
+    <div className="bg-sidebar flex w-51 flex-col gap-0.5 p-2">
+      <SidebarNavItem.Button leading={<LifeBuoy />} label="Support" />
+      <SidebarNavItem.Button
+        leading={<LifeBuoy />}
+        label="Support"
+        labelBadge={<FeatureReleaseStatus status="beta" />}
+      />
+      <SidebarNavItem.Button
+        leading={<LifeBuoy />}
+        label="Go to..."
+        trailing={<KeyboardShortcut keys={["Mod", "K"]} />}
+      />
+    </div>
+  ),
+});
 
 export const CollapsingAfterHover = meta.story({
   name: "(Test) Collapsing after hover keeps the preview closed",
