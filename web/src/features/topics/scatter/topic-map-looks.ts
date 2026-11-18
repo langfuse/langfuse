@@ -187,7 +187,7 @@ function fieldPresence(model: TopicMapModel) {
   return presence;
 }
 
-/** The last composited fields per map canvas. */
+/** The fields of the whole map, painted once at the fit zoom. */
 const fieldCache = new WeakMap<
   HTMLCanvasElement,
   {
@@ -195,12 +195,13 @@ const fieldCache = new WeakMap<
     model: TopicMapNodeFrame["model"];
     matchingTraceIds: TopicMapNodeFrame["matchingTraceIds"];
     image: HTMLCanvasElement;
+    margin: number;
   }
 >();
 
 /**
- * One blurred layer per topic. Shapes live in map space, so their size and
- * blur scale with zoom.
+ * One blurred layer per topic. Shapes and blur live in map space, so the
+ * fields are painted once and every frame only moves and scales that image.
  */
 export function drawLookFields(
   context: CanvasRenderingContext2D,
@@ -209,50 +210,69 @@ export function drawLookFields(
   rgbOf: (color: string) => Rgb,
   ratio: number,
 ) {
-  const { field } = TOPIC_MAP_LOOKS[name];
   const { model, camera, size, matchingTraceIds } = frame;
-  const dark = isDark();
-  // Hover and pointer moves repaint the dots only; the blurred fields are reused.
-  const key = [
-    name,
-    model.points.length,
-    camera.x,
-    camera.y,
-    camera.zoom,
-    size.width,
-    size.height,
-    ratio,
-    dark,
-  ].join(",");
-  const cached = fieldCache.get(context.canvas);
+  const key = [name, size.width, size.height, isDark()].join(",");
+  let cached = fieldCache.get(context.canvas);
   if (
-    cached &&
-    cached.key === key &&
-    cached.model === model &&
-    cached.matchingTraceIds === matchingTraceIds
+    !cached ||
+    cached.key !== key ||
+    cached.model !== model ||
+    cached.matchingTraceIds !== matchingTraceIds
   ) {
-    context.save();
-    context.setTransform(1, 0, 0, 1, 0, 0);
-    context.drawImage(cached.image, 0, 0);
-    context.restore();
-    return;
+    const painted = paintFields(frame, name, rgbOf);
+    if (!painted) return;
+    cached = { key, model, matchingTraceIds, ...painted };
+    fieldCache.set(context.canvas, cached);
   }
+  const origin = screenPoint(fitView(model), camera, model.bounds, size);
+  context.save();
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.translate(origin.x, origin.y);
+  context.scale(camera.zoom, camera.zoom);
+  context.drawImage(
+    cached.image,
+    -(cached.margin + size.width / 2),
+    -(cached.margin + size.height / 2),
+  );
+  context.restore();
+}
+
+/** The camera that fits the whole map. */
+function fitView(model: TopicMapModel) {
+  return {
+    x: (model.bounds.minX + model.bounds.maxX) / 2,
+    y: (model.bounds.minY + model.bounds.maxY) / 2,
+    zoom: 1,
+  };
+}
+
+/** Paints every topic's field at the fit zoom, with a margin for their reach. */
+function paintFields(
+  frame: TopicMapNodeFrame,
+  name: TopicMapLookName,
+  rgbOf: (color: string) => Rgb,
+) {
+  const { field } = TOPIC_MAP_LOOKS[name];
+  const { model, size, matchingTraceIds } = frame;
+  const dark = isDark();
+  const camera = fitView(model);
+  const scale = stageScale(size);
+  // The largest ring plus three blur radii, past which a field has faded out.
+  const margin = Math.ceil((field.base * 0.65 + field.blur * 3) * scale);
   const image = document.createElement("canvas");
-  image.width = context.canvas.width;
-  image.height = context.canvas.height;
-  const target = image.getContext("2d");
   const layer = document.createElement("canvas");
-  layer.width = context.canvas.width;
-  layer.height = context.canvas.height;
+  // CSS-pixel resolution is enough, since the blur hides finer detail.
+  image.width = layer.width = Math.ceil(size.width + margin * 2);
+  image.height = layer.height = Math.ceil(size.height + margin * 2);
+  const target = image.getContext("2d");
   const draw = layer.getContext("2d");
-  if (!draw || !target) return;
-  draw.setTransform(ratio, 0, 0, ratio, 0, 0);
-  const scale = camera.zoom * stageScale(size);
+  if (!draw || !target) return null;
+  draw.setTransform(1, 0, 0, 1, margin, margin);
   const presence = fieldPresence(model);
   for (const zone of frame.zones) {
     if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
     const [r, g, b] = rgbOf(lookFieldColor(name, zone.color));
-    draw.clearRect(0, 0, size.width, size.height);
+    draw.clearRect(-margin, -margin, layer.width, layer.height);
     zone.points.forEach((point, index) => {
       if (index % field.everyNth) return;
       const at = screenPoint(point, camera, model.bounds, size);
@@ -280,7 +300,7 @@ export function drawLookFields(
     const matches =
       !matchingTraceIds ||
       zone.points.some((point) => matchingTraceIds.has(point.traceId));
-    target.filter = `blur(${field.blur * scale * ratio}px)`;
+    target.filter = `blur(${field.blur * scale}px)`;
     // Each pixel keeps its strongest single tint, so stacked fields never turn muddy.
     target.globalCompositeOperation = dark ? "lighten" : "darken";
     target.globalAlpha =
@@ -290,11 +310,7 @@ export function drawLookFields(
       (matches ? 1 : 0.4);
     target.drawImage(layer, 0, 0);
   }
-  fieldCache.set(context.canvas, { key, model, matchingTraceIds, image });
-  context.save();
-  context.setTransform(1, 0, 0, 1, 0, 0);
-  context.drawImage(image, 0, 0);
-  context.restore();
+  return { image, margin };
 }
 
 /** The color a look paints a topic's dots in, before shading. */

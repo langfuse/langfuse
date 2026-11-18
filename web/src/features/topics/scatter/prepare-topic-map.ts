@@ -17,7 +17,7 @@ export type Camera = { x: number; y: number; zoom: number };
 
 /** Zoom limits, as multiples of the whole-map fit. */
 const MIN_ZOOM = 0.8;
-const MAX_ZOOM = 3;
+const MAX_ZOOM = 5;
 /** Pointer parallax for the deepest points, in pixels. */
 const PARALLAX_PX = 2.5;
 export type Size = { width: number; height: number };

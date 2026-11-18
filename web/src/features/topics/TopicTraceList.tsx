@@ -155,7 +155,8 @@ export function TopicTraceList({
       cell: ({ row }) => {
         const summary = row.original.summary || "No applicable summary.";
         return (
-          <p className={cn("truncate", CELL)} title={summary}>
+          // Up to three lines, so wide screens show it whole in one or two.
+          <p className="line-clamp-3 px-3 text-wrap" title={summary}>
             {summary}
           </p>
         );

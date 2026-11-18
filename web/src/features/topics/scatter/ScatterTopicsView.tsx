@@ -92,7 +92,13 @@ export function ScatterTopicsView({
     if (isSearching) return null;
     return selected ? selected.count : facet.counts.total;
   }
-  const maxCount = Math.max(1, ...topics.map((topic) => topic.count));
+  // Bars scale to the biggest real topic; Unassigned would flatten the rest.
+  const maxCount = Math.max(
+    1,
+    ...topics
+      .filter((topic) => topic.id !== UNASSIGNED_TOPIC_ID)
+      .map((topic) => topic.count),
+  );
   const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
   const mapTopics = useScatterMapTopics(facet);
   const mapData = mapResult.data;
@@ -311,7 +317,7 @@ function TopicRow({
         <span
           className="block h-full rounded-full"
           style={{
-            width: `${(topic.count / maxCount) * 100}%`,
+            width: `${Math.min(1, topic.count / maxCount) * 100}%`,
             backgroundColor: topic.color,
           }}
         />

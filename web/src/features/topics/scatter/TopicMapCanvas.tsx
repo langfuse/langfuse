@@ -217,11 +217,9 @@ function drawMap(
   }
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, size.width, size.height);
-  const theme = getComputedStyle(canvas);
-  const { mark, rgbOf } = canvasColors(theme);
+  const { mark, rgbOf, ring } = canvasColors(canvas);
   // Blurred topic fields under ringed dots; an active dot gets an outline.
   drawLookFields(context, frame, LOOK, rgbOf, ratio);
-  const ring = rgbOf(lookBackground(theme));
   const stage = stageScale(size);
   // Unassigned dots go down first so topic colors sit on top.
   const unassigned = frame.nodes.filter((node) => isUnassigned(node));
@@ -261,7 +259,7 @@ function drawMap(
  * Resolves `var(--token)` colors, which canvas cannot read, to RGB so that
  * fading a color keeps its hue instead of passing through grey.
  */
-function canvasColors(theme: CSSStyleDeclaration) {
+function resolveCanvasColors(theme: CSSStyleDeclaration) {
   const resolved = new Map<string, [number, number, number]>();
   const probe = document.createElement("canvas").getContext("2d", {
     willReadFrequently: true,
@@ -303,7 +301,24 @@ function canvasColors(theme: CSSStyleDeclaration) {
     );
     return `rgb(${r}, ${g}, ${b})`;
   };
-  return { paint, mark, rgbOf };
+  return { mark, rgbOf, ring: rgbOf(lookBackground(theme)) };
+}
+
+const colorCache = new WeakMap<
+  HTMLCanvasElement,
+  { key: string; colors: ReturnType<typeof resolveCanvasColors> }
+>();
+
+/** Colors resolve once per theme, not once per frame. */
+function canvasColors(canvas: HTMLCanvasElement) {
+  const root = document.documentElement;
+  const key = `${root.className}|${root.style.cssText}`;
+  let cached = colorCache.get(canvas);
+  if (cached?.key !== key) {
+    cached = { key, colors: resolveCanvasColors(getComputedStyle(canvas)) };
+    colorCache.set(canvas, cached);
+  }
+  return cached.colors;
 }
 
 type TopicMapCanvasProps = {
