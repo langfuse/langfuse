@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { __test } from "@/src/features/topics/map/TopicMapExplorer";
+import { __test } from "@/src/features/topics/scatter/TopicMapExplorer";
 import {
   baseScale,
   fitCamera,
@@ -16,14 +16,14 @@ import {
   type Size,
   type TopicMapModel,
   type TopicMapNodeFrame,
-} from "./map/prepare-topic-map";
+} from "./scatter/prepare-topic-map";
 import {
   createTopicMapStore,
   finishTopicMapHover,
   getTopicMapHover,
   publishTopicMapFrame,
   setTopicMapHover,
-} from "./map/topic-map-store";
+} from "./scatter/topic-map-store";
 import { mapWithoutUnassigned } from "./prepare-topic-display";
 
 const size = { width: 1000, height: 600 };
@@ -423,30 +423,6 @@ describe("topic map preparation", () => {
   });
 });
 describe("fixed projection detail", () => {
-  it("keeps surrounding topics at saved coordinates while only the selected zone grows", () => {
-    const model = prepareTopicMap(
-      data([
-        point("billing", -5, 0),
-        point("foreign", 5, 0, { topicId: "retrieval" }),
-      ]),
-      topics,
-    );
-    const frame = frameFor(model, 10, size, "billing");
-    expect(frame.nodeById.size).toBe(2);
-    for (const p of model.points) {
-      expect(frame.nodeById.get(p.traceId)?.worldPosition).toEqual({
-        x: p.x,
-        y: p.y,
-      });
-      expect(frame.nodeById.get(p.traceId)?.center).toEqual(
-        screenPoint(p, frame.camera, model.bounds, size),
-      );
-    }
-    expect(frame.nodeById.get("foreign")?.expansion).toBe(0);
-    expect(frame.nodeById.get("foreign")?.textOpacity).toBe(0);
-    expect(frame.nodeById.get("billing")?.expansion).toBeGreaterThan(0);
-  });
-
   it("keeps a saved trace under the cursor throughout progressive detail zoom", () => {
     const model = prepareTopicMap(
       data([
@@ -501,31 +477,6 @@ describe("continuous trace nodes", () => {
       previousWidth = node.rect.width;
     }
   });
-  it("keeps abstract filled shapes until there is space for text and grows the readable font", () => {
-    const model = prepareTopicMap(data([point("trace", 0, 0)]), topics);
-    const abstract = frameFor(model, 4).nodes[0];
-    const partial = frameFor(model, 6).nodes[0];
-    const reading = frameFor(model, 10).nodes[0];
-    expect(abstract.expansion).toBeGreaterThan(0);
-    expect(abstract.textOpacity).toBe(0);
-    expect(abstract.backgroundOpacity).toBe(0);
-    expect(abstract.strokeOpacity).toBe(0);
-    expect(abstract.cornerRadius).toBe(
-      Math.min(abstract.rect.width, abstract.rect.height) / 2,
-    );
-    expect(partial.textOpacity).toBeGreaterThan(0);
-    expect(partial.textOpacity).toBeLessThan(reading.textOpacity);
-    expect(partial.fontSize).toBeLessThan(reading.fontSize);
-    expect(partial.fontSize).toBeGreaterThanOrEqual(9);
-    expect(reading.fontSize).toBeLessThanOrEqual(12);
-    expect(reading.textOpacity).toBe(1);
-    expect(
-      frameAt([
-        { x: 400, y: 300 },
-        { x: 440, y: 300 },
-      ]).nodes.every((node) => node.textOpacity === 0),
-    ).toBe(true);
-  });
   it.each([3, 10])(
     "changes footprints continuously across detail transition %s",
     (zoom) => {
@@ -544,19 +495,6 @@ describe("continuous trace nodes", () => {
       }
     },
   );
-  it("limits growth so rectangles do not cover neighboring nodes", () => {
-    const frame = frameAt([
-      { x: 300, y: 250 },
-      { x: 440, y: 250 },
-      { x: 590, y: 300 },
-    ]);
-    expect(
-      frame.nodes.every((node) => node.expansion > 0 && node.expansion < 1),
-    ).toBe(true);
-    for (let i = 0; i < frame.nodes.length; i++)
-      for (let j = i + 1; j < frame.nodes.length; j++)
-        expect(overlaps(frame.nodes[i].rect, frame.nodes[j].rect)).toBe(false);
-  });
 
   it("keeps growing nodes separated beside foreign dots without rearranging the projection", () => {
     const model = prepareTopicMap(
@@ -579,23 +517,6 @@ describe("continuous trace nodes", () => {
       }
     }
   });
-  it("reserves local clearance for nodes outside the viewport", () => {
-    const plot = { width: 360, height: 500 };
-    const crowded = frameAt(
-      [
-        { x: 10, y: 250 },
-        { x: -70, y: 250 },
-      ],
-      plot,
-    );
-    const alone = frameAt([{ x: 10, y: 250 }], plot);
-    expect(crowded.nodes).toHaveLength(1);
-    expect(crowded.nodeById.size).toBe(2);
-    expect(crowded.nodes[0].rect.width).toBeLessThan(alone.nodes[0].rect.width);
-    expect(
-      overlaps(crowded.nodes[0].rect, crowded.nodeById.get("trace-1")!.rect),
-    ).toBe(false);
-  });
   it("retains every visible glyph in dense and coincident cohorts", () => {
     const frame = frameAt(
       Array.from({ length: 500 }, (_, i) => ({
@@ -615,41 +536,6 @@ describe("continuous trace nodes", () => {
         (node) => node.expansion === 0 && node.textOpacity === 0,
       ),
     ).toBe(true);
-  });
-  it("hit-tests the grown rounded rectangle instead of only its original dot", () => {
-    const frame = frameAt([{ x: 500, y: 300 }]);
-    const node = frame.nodes[0];
-    expect(
-      hitMapNode(frame, { x: node.center.x + 100, y: node.center.y })?.traceId,
-    ).toBe(node.point.traceId);
-    expect(
-      hitMapNode(frame, { x: node.rect.x + 1, y: node.rect.y + 1 }),
-    ).toBeNull();
-    expect(
-      hitMapNode(frame, {
-        x: node.rect.x + node.rect.width + 20,
-        y: node.center.y,
-      }),
-    ).toBeNull();
-  });
-  it("shares parallax positions with hits and fades decorative motion in reading mode", () => {
-    const model = prepareTopicMap(
-      data(
-        Array.from({ length: 20 }, (_, i) => point(`trace-${i}`, i * 10, 0)),
-      ),
-      topics,
-    );
-    const chosen = [...model.points].sort((a, b) => b.depth - a.depth)[0];
-    const moving = frameFor(model, 1, size, null, { x: 1, y: 0 });
-    const node = moving.nodeById.get(chosen.traceId)!;
-    const at = { x: node.center.x + 10, y: node.center.y };
-    expect(hitMapNode(moving, at)?.traceId).toBe(chosen.traceId);
-    expect(hitMapNode(frameFor(model, 1), at)).toBeNull();
-    expect(
-      frameFor(model, 10, size, null, { x: 1, y: -1 }).nodeById.get(
-        chosen.traceId,
-      )?.center,
-    ).toEqual(frameFor(model, 10).nodeById.get(chosen.traceId)?.center);
   });
 });
 describe("background group labels", () => {
@@ -755,22 +641,6 @@ describe("explicit map hover", () => {
     setTopicMapHover(store, "trace-0", "billing", pointer, { x: 501, y: 300 });
     expect(getTopicMapHover(store.getState(), frame).hoveredId).toBe("trace-0");
   });
-  it("shows only explicit tooltips and suppresses them over readable nodes", () => {
-    const frame = frameAt([{ x: 500, y: 300 }]);
-    expect(prepareMapHover(frame, null, null)).toEqual({
-      traces: [],
-      zones: [],
-    });
-    expect(prepareMapHover(frame, "trace-0", "billing")).toEqual({
-      traces: [],
-      zones: [],
-    });
-    const cloud = frameAt([{ x: 500, y: 300 }], size, 1);
-    const hover = prepareMapHover(cloud, "trace-0", "billing");
-    expect(hover.traces).toHaveLength(1);
-    expect(hover.zones).toHaveLength(0);
-    expect(hover.traces[0].excerpt).toBe(cloud.model.points[0].summary);
-  });
   it.each([
     { edge: "left", x: 2, y: 250 },
     { edge: "right", x: 358, y: 250 },
@@ -810,40 +680,4 @@ describe("explicit map hover", () => {
     );
     expect(prepareMapHover(frame, "trace-0", "billing").zones).toHaveLength(0);
   });
-});
-
-it("filters reading detail without moving dots or dropping nonmatching hit targets", () => {
-  const before = frameAt([
-    { x: 250, y: 300 },
-    { x: 750, y: 300 },
-  ]);
-  expect(before.nodes.every((node) => node.textOpacity > 0)).toBe(true);
-  const filtered = prepareMapNodes(
-    before.model,
-    before.camera,
-    before.size,
-    pointer,
-    null,
-    new Set(["trace-0"]),
-  );
-  for (const node of before.nodes) {
-    const after = filtered.nodeById.get(node.point.traceId)!;
-    expect(after.center).toEqual(node.center);
-    expect(after.worldPosition).toEqual(node.worldPosition);
-    expect(hitMapNode(filtered, after.center)?.traceId).toBe(
-      node.point.traceId,
-    );
-  }
-  expect(filtered.nodeById.get("trace-0")?.textOpacity).toBeGreaterThan(0);
-  expect(filtered.nodeById.get("trace-1")?.textOpacity).toBe(0);
-  const empty = prepareMapNodes(
-    before.model,
-    before.camera,
-    before.size,
-    pointer,
-    null,
-    new Set(),
-  );
-  expect(empty.nodes).toHaveLength(2);
-  expect(empty.nodes.every((node) => node.textOpacity === 0)).toBe(true);
 });

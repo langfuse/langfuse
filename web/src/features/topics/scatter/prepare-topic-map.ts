@@ -84,7 +84,31 @@ function pointBounds(points: { x: number; y: number }[]): Bounds {
   return { minX, maxX, minY, maxY };
 }
 
-function baseScale(bounds: Bounds, size: Size) {
+function rotatePoints<T extends { x: number; y: number }>(
+  points: T[],
+  cohort: T[],
+) {
+  const count = Math.max(cohort.length, 1);
+  const x = cohort.reduce((sum, p) => sum + p.x, 0) / count;
+  const y = cohort.reduce((sum, p) => sum + p.y, 0) / count;
+  let xx = 0,
+    yy = 0,
+    xy = 0;
+  for (const p of cohort) {
+    xx += (p.x - x) ** 2;
+    yy += (p.y - y) ** 2;
+    xy += (p.x - x) * (p.y - y);
+  }
+  // One rotation for the discovery cohort preserves distances and orientation.
+  const angle = Math.atan2(2 * xy, xx - yy) / 2;
+  return points.map((p) => ({
+    ...p,
+    x: (p.x - x) * Math.cos(angle) + (p.y - y) * Math.sin(angle),
+    y: -(p.x - x) * Math.sin(angle) + (p.y - y) * Math.cos(angle),
+  }));
+}
+
+export function baseScale(bounds: Bounds, size: Size) {
   return Math.min(
     Math.max(size.width - 100, 1) / Math.max(bounds.maxX - bounds.minX, 0.1),
     Math.max(size.height - 100, 1) / Math.max(bounds.maxY - bounds.minY, 0.1),
@@ -102,7 +126,7 @@ export function fitCamera(bounds: Bounds, whole: Bounds, size: Size): Camera {
   };
 }
 
-function screenPoint(
+export function screenPoint(
   point: { x: number; y: number },
   camera: Camera,
   bounds: Bounds,
@@ -702,4 +726,20 @@ export function prepareMapHover(
       ? [{ ...zone, position, label, detail: zone.description }]
       : [],
   };
+}
+
+export function fitMapPoints(
+  points: MapData["points"],
+  cohort: MapData["points"],
+  width: number,
+  height: number,
+) {
+  const rotated = rotatePoints(points, cohort);
+  const bounds = pointBounds(rotated);
+  const size = { width, height };
+  const camera = fitCamera(bounds, bounds, size);
+  return rotated.map((point) => ({
+    ...point,
+    ...screenPoint(point, camera, bounds, size),
+  }));
 }

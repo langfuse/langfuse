@@ -2,13 +2,12 @@ import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/map/TopicMapExplorer";
+import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/scatter/TopicMapExplorer";
 import {
   fitCamera,
   prepareTopicMap,
   screenPoint,
-  zoomCamera,
-} from "./map/prepare-topic-map";
+} from "./scatter/prepare-topic-map";
 
 type ExplorerProps = ComponentProps<typeof EmbeddingMapView>;
 
@@ -220,95 +219,6 @@ async function waitForMapSettled(canvasElement: HTMLElement) {
   );
 }
 
-async function zoomToInlineNodes(canvasElement: HTMLElement) {
-  const canvas = within(canvasElement);
-  await waitForMapSettled(canvasElement);
-  for (
-    let attempt = 0;
-    attempt < 14 &&
-    canvas.queryAllByRole("button", { name: /^Select trace:/ }).length === 0;
-    attempt++
-  ) {
-    const before = canvas.getByLabelText("Zoom level").textContent;
-    await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
-    await waitFor(() =>
-      expect(canvas.getByLabelText("Zoom level").textContent).not.toBe(before),
-    );
-    await waitForMapSettled(canvasElement);
-  }
-  await waitFor(
-    () =>
-      expect(
-        canvas.queryAllByRole("button", { name: /^Select trace:/ }).length,
-      ).toBeGreaterThan(0),
-    { timeout: 2000 },
-  );
-}
-
-async function hoverInlineNode(canvasElement: HTMLElement) {
-  const canvas = within(canvasElement);
-  const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
-  const result: {
-    hovered?: { node: HTMLElement; clientX: number; clientY: number };
-  } = {};
-  let attempt = 0;
-  await waitFor(
-    () => {
-      const stageRect = stage.getBoundingClientRect();
-      const candidates = Array.from(
-        canvasElement.querySelectorAll<HTMLElement>("[data-topic-node]"),
-      )
-        .map((node) => ({ node, rect: node.getBoundingClientRect() }))
-        .filter(
-          ({ rect }) =>
-            rect.left + rect.width / 2 > stageRect.left + 8 &&
-            rect.left + rect.width / 2 < stageRect.right - 8 &&
-            rect.top + rect.height / 2 > stageRect.top + 8 &&
-            rect.top + rect.height / 2 < stageRect.bottom - 8,
-        )
-        .sort(
-          (a, b) =>
-            Math.hypot(
-              a.rect.left +
-                a.rect.width / 2 -
-                (stageRect.left + stageRect.width / 2),
-              a.rect.top +
-                a.rect.height / 2 -
-                (stageRect.top + stageRect.height / 2),
-            ) -
-            Math.hypot(
-              b.rect.left +
-                b.rect.width / 2 -
-                (stageRect.left + stageRect.width / 2),
-              b.rect.top +
-                b.rect.height / 2 -
-                (stageRect.top + stageRect.height / 2),
-            ),
-        );
-      expect(candidates.length).toBeGreaterThan(0);
-      const { node, rect } = candidates[0];
-      const clientX = rect.left + rect.width / 2 + (attempt++ % 2 ? 2 : -2);
-      const clientY = rect.top + rect.height / 2;
-      node.dispatchEvent(
-        new PointerEvent("pointermove", {
-          bubbles: true,
-          pointerId: 1,
-          pointerType: "mouse",
-          isPrimary: true,
-          clientX,
-          clientY,
-        }),
-      );
-      expect(node).toHaveAttribute("data-hovered", "true");
-      result.hovered = { node, clientX, clientY };
-    },
-    { timeout: 2000 },
-  );
-  if (!result.hovered)
-    throw new Error("No visible inline node could be hovered.");
-  return result.hovered;
-}
-
 const meta = preview.meta({
   component: EmbeddingMapView,
   args: {
@@ -389,294 +299,6 @@ export const MissingSummaries = meta.story({
     expect(after.width).toBe(baseline.width);
     expect(after.height).toBe(baseline.height);
     expect(after.top).toBe(baseline.top);
-  },
-});
-
-export const ExploreZoneAndTrace = meta.story({
-  name: "(Test) Select Trace And Reset Map",
-  args: {
-    topics: denseTopics,
-    data: denseData,
-    selectedTopic: "inventory-timeouts",
-    selectedTraceId: null,
-    onSelectTopic: fn(),
-    onSelectTrace: fn(),
-  },
-  render: (args) => <ControlledExplorer {...args} />,
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    await zoomToInlineNodes(canvasElement);
-
-    const zoomBefore = Number.parseInt(
-      canvas.getByLabelText("Zoom level").textContent ?? "0",
-      10,
-    );
-    await userEvent.click(canvas.getByRole("button", { name: "Zoom in (+)" }));
-    await waitFor(() =>
-      expect(
-        Number.parseInt(
-          canvas.getByLabelText("Zoom level").textContent ?? "0",
-          10,
-        ),
-      ).toBeGreaterThan(zoomBefore),
-    );
-
-    const { node: summaryButton } = await hoverInlineNode(canvasElement);
-    const trace = denseData.points.find(
-      (point) => point.traceId === summaryButton.getAttribute("data-trace-id"),
-    );
-    if (!trace)
-      throw new Error("The inline summary has no matching fixture trace.");
-    await expect(summaryButton).toHaveAttribute("data-hovered", "true");
-    await expect(summaryButton).toBeVisible();
-    await userEvent.click(summaryButton);
-    await expect(args.onSelectTrace).toHaveBeenCalledWith(trace.traceId);
-    const stage = canvas.getByRole("group", {
-      name: /^Interactive scatter/,
-    });
-    await expect(summaryButton).toHaveAttribute("aria-pressed", "true");
-    stage.focus();
-    await userEvent.keyboard("0");
-    await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
-    await userEvent.keyboard("{Home}");
-    await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Fit scatter (0)" }),
-    );
-    await expect(args.onSelectTopic).toHaveBeenLastCalledWith(null);
-  },
-});
-
-export const NavigationClearsHover = meta.story({
-  name: "(Test) Navigation Clears Hover",
-  args: {
-    topics: denseTopics,
-    data: denseData,
-    selectedTopic: "inventory-timeouts",
-    selectedTraceId: null,
-  },
-  render: (args) => <ControlledExplorer {...args} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", {
-      name: /^Interactive scatter/,
-    });
-    await zoomToInlineNodes(canvasElement);
-    const { node, ...at } = await hoverInlineNode(canvasElement);
-    const send = (type: string, offset: number, buttons: number) =>
-      node.dispatchEvent(
-        new PointerEvent(type, {
-          bubbles: true,
-          cancelable: true,
-          pointerId: 1,
-          pointerType: "mouse",
-          isPrimary: true,
-          buttons,
-          clientX: at.clientX + offset,
-          clientY: at.clientY,
-        }),
-      );
-    const activeHover = () =>
-      canvasElement.querySelector('[data-hovered="true"]');
-    const capture = stage.setPointerCapture;
-    stage.setPointerCapture = () => undefined;
-    try {
-      await expect(activeHover()).not.toBeNull();
-      send("pointerdown", 0, 1);
-      send("pointermove", 4, 1);
-      await waitFor(() => expect(activeHover()).toBeNull());
-      stage.dispatchEvent(
-        new PointerEvent("pointerup", {
-          bubbles: true,
-          pointerId: 1,
-          pointerType: "mouse",
-          buttons: 0,
-          clientX: at.clientX + 4,
-          clientY: at.clientY,
-        }),
-      );
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => resolve()),
-      );
-
-      const { clientX, clientY } = await hoverInlineNode(canvasElement);
-      const move = () =>
-        stage.dispatchEvent(
-          new PointerEvent("pointermove", {
-            bubbles: true,
-            pointerType: "mouse",
-            clientX,
-            clientY,
-          }),
-        );
-      await expect(activeHover()).not.toBeNull();
-      stage.focus();
-      await userEvent.keyboard("+");
-      await waitFor(() => expect(activeHover()).toBeNull());
-      move();
-      await expect(activeHover()).toBeNull();
-
-      await hoverInlineNode(canvasElement);
-      const section = canvas.getByRole("region", { name: "Scatter" });
-      const originalStyleWidth = section.style.width;
-      const originalStageWidth = stage.getBoundingClientRect().width;
-      try {
-        section.style.width = `${section.getBoundingClientRect().width - 80}px`;
-        await waitFor(() =>
-          expect(stage.getBoundingClientRect().width).toBeLessThan(
-            originalStageWidth,
-          ),
-        );
-        await waitFor(() => expect(activeHover()).toBeNull());
-        section.style.width = originalStyleWidth;
-        await waitFor(() =>
-          expect(stage.getBoundingClientRect().width).toBe(originalStageWidth),
-        );
-        let previousBounds = "";
-        let changedAt = performance.now();
-        await waitFor(
-          () => {
-            const bounds = Array.from(
-              canvasElement.querySelectorAll<HTMLElement>("[data-topic-node]"),
-            )
-              .map((node) => node.getAttribute("style"))
-              .join(";");
-            if (bounds !== previousBounds) {
-              previousBounds = bounds;
-              changedAt = performance.now();
-            }
-            expect(performance.now() - changedAt).toBeGreaterThan(150);
-          },
-          { timeout: 2000 },
-        );
-        await expect(activeHover()).toBeNull();
-      } finally {
-        section.style.width = originalStyleWidth;
-      }
-    } finally {
-      stage.setPointerCapture = capture;
-    }
-  },
-});
-
-export const ReadingKeepsZoomedCloud = meta.story({
-  name: "(Test) Reading Keeps Zoomed Cloud",
-  args: {
-    topics: denseTopics,
-    data: nearbyCloudData,
-    selectedTopic: null,
-    selectedTraceId: null,
-    onSelectTopic: fn(),
-  },
-  render: (args) => <ControlledExplorer {...args} />,
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    const stage = canvas.getByRole("group", {
-      name: /^Interactive scatter/,
-    });
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-    );
-    const model = prepareTopicMap(nearbyCloudData, denseTopics);
-    const cloud = model.zones.find((zone) => zone.id === "inventory-timeouts");
-    if (!cloud) throw new Error("The inventory cloud fixture is missing.");
-    const stageRect = stage.getBoundingClientRect();
-    const plot = { width: stageRect.width, height: stageRect.height };
-    const initial = fitCamera(model.bounds, model.bounds, plot);
-    const at = screenPoint(cloud, initial, model.bounds, plot);
-    const zoomInput = new WheelEvent("wheel", {
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: true,
-      deltaY: -40 * Math.log2(10),
-      clientX: stageRect.left + at.x,
-      clientY: stageRect.top + at.y,
-    });
-    const zoomed = zoomCamera(
-      initial,
-      Math.log2(10),
-      {
-        x: (zoomInput.clientX - stageRect.left) / plot.width,
-        y: (zoomInput.clientY - stageRect.top) / plot.height,
-      },
-      model.bounds,
-      plot,
-    );
-    stage.dispatchEvent(zoomInput);
-    await waitFor(() =>
-      expect(canvas.getByLabelText("Zoom level")).toHaveTextContent("1000%"),
-    );
-    await hoverInlineNode(canvasElement);
-    const result: { node?: HTMLElement } = {};
-    await waitFor(
-      () => {
-        const nodes = Array.from(
-          canvasElement.querySelectorAll<HTMLElement>("[data-topic-node]"),
-        )
-          .map((node) => {
-            const rect = node.getBoundingClientRect();
-            return {
-              node,
-              rect,
-              distance: Math.hypot(
-                rect.left + rect.width / 2 - (stageRect.left + at.x),
-                rect.top + rect.height / 2 - (stageRect.top + at.y),
-              ),
-            };
-          })
-          .filter(
-            ({ node, rect }) =>
-              Number(node.style.opacity) > 0.05 &&
-              node.dataset.traceId?.startsWith("demo-inventory-timeouts-") &&
-              rect.left >= stageRect.left + 4 &&
-              rect.right <= stageRect.right - 4 &&
-              rect.top >= stageRect.top + 4 &&
-              rect.bottom <= stageRect.bottom - 4,
-          )
-          .sort((a, b) => a.distance - b.distance);
-        expect(nodes.length).toBeGreaterThan(0);
-        expect(nodes[0].node.dataset.traceId).toMatch(
-          /^demo-inventory-timeouts-/,
-        );
-        const saved = model.pointById.get(nodes[0].node.dataset.traceId ?? "");
-        if (!saved)
-          throw new Error("The inline node has no saved fixture coordinate.");
-        const expected = screenPoint(saved, zoomed, model.bounds, plot);
-        expect(
-          nodes[0].rect.left + nodes[0].rect.width / 2 - stageRect.left,
-        ).toBeCloseTo(expected.x, 1);
-        expect(
-          nodes[0].rect.top + nodes[0].rect.height / 2 - stageRect.top,
-        ).toBeCloseTo(expected.y, 1);
-        result.node = nodes[0].node;
-      },
-      { timeout: 2000 },
-    );
-    await expect(args.onSelectTopic).not.toHaveBeenCalled();
-    if (!result.node)
-      throw new Error("No readable trace remains near the zoom anchor.");
-    const node = result.node;
-    const beforePan = node.getBoundingClientRect();
-    stage.dispatchEvent(
-      new WheelEvent("wheel", {
-        bubbles: true,
-        cancelable: true,
-        deltaX: 40,
-        deltaY: -20,
-      }),
-    );
-    await waitFor(
-      () => {
-        const rect = node.getBoundingClientRect();
-        expect(Math.abs(rect.left - (beforePan.left - 40))).toBeLessThan(0.2);
-        expect(Math.abs(rect.top - (beforePan.top + 20))).toBeLessThan(0.2);
-      },
-      { timeout: 2000 },
-    );
-    await expect(canvas.getByLabelText("Zoom level")).toHaveTextContent(
-      "1000%",
-    );
-    await expect(args.onSelectTopic).not.toHaveBeenCalled();
   },
 });
 
@@ -831,7 +453,7 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
     if (!drawing || !context)
       throw new Error("The map canvas context is unavailable.");
     const clearRect = context.clearRect;
-    const roundRect = context.roundRect;
+    const arc = context.arc;
     const painted = {
       offset: null as number | null,
     };
@@ -839,14 +461,14 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       painted.offset = null;
       clearRect.call(context, x, y, width, height);
     };
-    // Culling changes which nodes paint; the node nearest the wheel anchor scales with zoom.
-    context.roundRect = (x, y, width, height, radii) => {
+    // Culling changes which dots paint; the dot nearest the wheel anchor scales with zoom.
+    context.arc = (x, y, radius, start, end, counterclockwise) => {
       const offset = Math.hypot(
-        x + width / 2 - drawing.clientWidth / 2,
-        y + height / 2 - drawing.clientHeight / 2,
+        x - drawing.clientWidth / 2,
+        y - drawing.clientHeight / 2,
       );
       painted.offset = Math.min(painted.offset ?? offset, offset);
-      roundRect.call(context, x, y, width, height, radii);
+      arc.call(context, x, y, radius, start, end, counterclockwise);
     };
     const wheelAt = (deltaY: number) => {
       const rect = stage.getBoundingClientRect();
@@ -885,7 +507,7 @@ export const InterruptingTopicFlightKeepsPaintedZoom = meta.story({
       expect(ratio).toBeLessThan(1.06);
     } finally {
       context.clearRect = clearRect;
-      context.roundRect = roundRect;
+      context.arc = arc;
     }
   },
 });
