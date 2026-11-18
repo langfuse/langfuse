@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useActivationConfirmation } from "./useActivationConfirmation";
+import { useActivationEstimate } from "./useActivationEstimate";
 
 const mocks = vi.hoisted(() => ({
   estimate: vi.fn().mockResolvedValue([
@@ -30,11 +30,10 @@ vi.mock("@/src/utils/trpcErrorToast", () => ({
   trpcErrorToast: vi.fn(),
 }));
 
-describe("useActivationConfirmation", () => {
-  it("owns estimate, sampling, and confirmation state with React state", async () => {
-    const onConfirm = vi.fn().mockResolvedValue(undefined);
+describe("useActivationEstimate", () => {
+  it("requests activation estimates for the selected evaluator", async () => {
     const { result } = renderHook(() =>
-      useActivationConfirmation({ projectId: "project-1" }),
+      useActivationEstimate({ projectId: "project-1" }),
     );
 
     await act(() =>
@@ -50,24 +49,23 @@ describe("useActivationConfirmation", () => {
         title: "Activate evaluation rule?",
         description: "Estimate details",
         confirmLabel: "Activate rule",
-        onConfirm,
+        onConfirm: async () => {},
       }),
     );
 
-    expect(result.current.confirmation).toMatchObject({ open: true });
     expect(result.current.estimate).toMatchObject({
       status: "idle",
       sampling: 1,
       estimates: [{ evaluatorId: "evaluator-1", estimatedCostUsd: 0.2 }],
     });
 
-    act(() => result.current.setSampling(0.5));
-    await act(() => result.current.confirmActivation());
-
-    expect(onConfirm).toHaveBeenCalledWith(0.5);
-    expect(result.current.confirmation).toMatchObject({
-      open: false,
-      isConfirming: false,
+    expect(mocks.estimate).toHaveBeenCalledWith({
+      projectId: "project-1",
+      evaluatorIds: ["evaluator-1"],
+      filter: [],
+      sampling: 1,
+      shouldRunMissingTest: undefined,
+      knownTestRunCostUsd: undefined,
     });
   });
 });

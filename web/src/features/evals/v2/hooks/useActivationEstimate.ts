@@ -7,15 +7,6 @@ import type { ActivationConfirmationRequest } from "@/src/features/evals/v2/type
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
-export type ActivationConfirmationState = {
-  open: boolean;
-  isConfirming: boolean;
-  title: string;
-  description: string;
-  confirmLabel: string;
-  pendingAction: ((sampling?: number) => Promise<void>) | null;
-};
-
 export type ActivationEstimateState = {
   status: "idle" | "estimating";
   sampling: number | null;
@@ -24,23 +15,8 @@ export type ActivationEstimateState = {
   matchingObservations: number;
 };
 
-export function useActivationConfirmation({
-  projectId,
-}: {
-  projectId: string;
-}) {
+export function useActivationEstimate({ projectId }: { projectId: string }) {
   const utils = api.useUtils();
-  const [confirmation, setConfirmation] = useState<ActivationConfirmationState>(
-    {
-      open: false,
-      isConfirming: false,
-      title: "Activate evaluation rule?",
-      description:
-        "Review the estimated cost before activating this evaluation rule.",
-      confirmLabel: "Activate rule",
-      pendingAction: null,
-    },
-  );
   const [estimate, setEstimate] = useState<ActivationEstimateState>({
     status: "idle",
     sampling: null,
@@ -80,14 +56,6 @@ export function useActivationConfirmation({
           unavailableEstimateCount: result.unavailableEstimateCount,
           matchingObservations: result.matchingObservations,
         });
-        setConfirmation({
-          open: true,
-          isConfirming: false,
-          title: request.title,
-          description: request.description,
-          confirmLabel: request.confirmLabel,
-          pendingAction: request.onConfirm,
-        });
         return result;
       } catch (error) {
         setEstimate((current) => ({ ...current, status: "idle" }));
@@ -98,35 +66,14 @@ export function useActivationConfirmation({
     [projectId, utils.client],
   );
 
-  const setOpen = useCallback(
-    (open: boolean) => setConfirmation((current) => ({ ...current, open })),
-    [],
-  );
   const setSampling = useCallback(
     (sampling: number) => setEstimate((current) => ({ ...current, sampling })),
     [],
   );
-  const pendingAction = confirmation.pendingAction;
-  const sampling = estimate.sampling;
-  const confirmActivation = useCallback(async () => {
-    if (!pendingAction) return;
-    setConfirmation((current) => ({ ...current, isConfirming: true }));
-    try {
-      await pendingAction(sampling ?? undefined);
-      setConfirmation((current) => ({ ...current, open: false }));
-    } catch {
-      // Mutation handlers surface their own errors.
-    } finally {
-      setConfirmation((current) => ({ ...current, isConfirming: false }));
-    }
-  }, [pendingAction, sampling]);
 
   return {
-    confirmation,
     estimate,
     requestActivation,
-    setOpen,
     setSampling,
-    confirmActivation,
   };
 }

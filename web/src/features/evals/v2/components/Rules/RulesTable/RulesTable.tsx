@@ -27,7 +27,7 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EditRuleDialog } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/EditRuleDialog";
@@ -120,6 +120,34 @@ export function RulesTable({
   projectId: string;
   hasWriteAccess: boolean;
 }) {
+  return (
+    <ConfirmationDialogController<() => Promise<void>>
+      title="Delete evaluation rules?"
+      text="This permanently deletes 1 rule and its evaluator assignments."
+      confirmLabel="Delete"
+      variant="destructive"
+      onConfirm={(confirm) => confirm()}
+    >
+      {({ openDialog }) => (
+        <RulesTableContent
+          projectId={projectId}
+          hasWriteAccess={hasWriteAccess}
+          openDeleteDialog={openDialog}
+        />
+      )}
+    </ConfirmationDialogController>
+  );
+}
+
+function RulesTableContent({
+  projectId,
+  hasWriteAccess,
+  openDeleteDialog,
+}: {
+  projectId: string;
+  hasWriteAccess: boolean;
+  openDeleteDialog: (confirm: () => Promise<void>) => void;
+}) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -184,7 +212,6 @@ export function RulesTable({
     },
   });
   const filterState = queryFilter.filterState;
-  const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [cloneRule, setCloneRule] = useState<RuleTableRow | null>(null);
   // Query param so other surfaces can deep-link straight to a rule.
   const [editRuleId, setEditRuleId] = useQueryParam(
@@ -226,7 +253,6 @@ export function RulesTable({
       capture("evaluation_rules:delete", {
         ruleCount: result.ruleIds.length,
       });
-      setDeleteIds([]);
       selectionStore.getState().actions.clearSelection();
       await Promise.all([
         utils.evalsV2.rules.list.invalidate({ projectId }),
@@ -431,7 +457,13 @@ export function RulesTable({
                     disabled: hasWriteAccess
                       ? undefined
                       : { reason: "Missing permission to delete rules" },
-                    onClick: () => setDeleteIds([row.original.id]),
+                    onClick: () =>
+                      openDeleteDialog(async () => {
+                        await deleteMany.mutateAsync({
+                          projectId,
+                          ruleIds: [row.original.id],
+                        });
+                      }),
                   },
                 ]}
               >
@@ -461,6 +493,8 @@ export function RulesTable({
       capture,
       selectActionColumn,
       setEditRuleId,
+      deleteMany,
+      openDeleteDialog,
     ],
   );
   const [columnVisibility, setColumnVisibility] =
@@ -674,17 +708,6 @@ export function RulesTable({
           totalCount={rules.data?.totalItems ?? null}
           selectionStore={selectionStore}
           filterState={filterState}
-        />
-        <ConfirmDialog
-          open={deleteIds.length > 0}
-          onOpenChange={(open) => {
-            if (!open) setDeleteIds([]);
-          }}
-          title="Delete evaluation rules?"
-          description={`This permanently deletes ${deleteIds.length} rule${deleteIds.length === 1 ? "" : "s"} and its evaluator assignments.`}
-          confirmLabel="Delete"
-          loading={deleteMany.isPending}
-          onConfirm={() => deleteMany.mutate({ projectId, ruleIds: deleteIds })}
         />
         {editRuleId ? (
           <EditRuleDialog
