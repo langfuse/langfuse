@@ -17,8 +17,9 @@ export function useGatewayBudgetsTab(
   if (!canManageGateway) return "apiKeys";
   switch (router.query.tab) {
     case "apiKeys":
+      return "apiKeys";
     case GATEWAY_ORGANIZATION_BUDGETS_TAB.value:
-      return router.query.tab;
+      return GATEWAY_ORGANIZATION_BUDGETS_TAB.value;
     default:
       return "users";
   }
