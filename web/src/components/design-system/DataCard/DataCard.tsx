@@ -309,7 +309,7 @@ function FilterTags({
     registerTag,
     isVisible,
     hiddenCount,
-    trailingHiddenWidth,
+    leadingHiddenWidth,
   } = useTagOverflow(filter.items.map(({ value }) => value));
 
   return (
@@ -318,9 +318,20 @@ function FilterTags({
       aria-label={filter.label}
       className="flex min-w-0 items-center gap-1"
     >
+      {hiddenCount > 0 && (
+        <span
+          className="relative z-1 flex shrink-0"
+          title={`${hiddenCount} more selected`}
+          // Relative offset keeps it on the pixel grid with the tags, unlike a transform.
+          style={{ left: leadingHiddenWidth }}
+        >
+          <Tag text={`+${hiddenCount}`} />
+        </span>
+      )}
+      {/* Right-aligned, so tags that do not fit overflow on the left, away from the controls. */}
       <div
         ref={containerRef}
-        className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden whitespace-nowrap"
+        className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden whitespace-nowrap"
       >
         {filter.items.map((item) => (
           <span
@@ -335,16 +346,6 @@ function FilterTags({
           </span>
         ))}
       </div>
-      {hiddenCount > 0 && (
-        <span
-          className="relative flex shrink-0"
-          title={`${hiddenCount} more selected`}
-          // Relative offset keeps it on the pixel grid with the tags, unlike a transform.
-          style={{ left: -Math.round(trailingHiddenWidth) }}
-        >
-          <Tag text={`+${hiddenCount}`} />
-        </span>
-      )}
     </div>
   );
 }

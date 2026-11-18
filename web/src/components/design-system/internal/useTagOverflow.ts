@@ -1,15 +1,15 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 /**
- * Which tags in a row fit fully, so the rest can collapse into "+N", as in
- * `MultiSelectTagInput`. `trailingHiddenWidth` is the empty space after the
- * last visible tag, which the "+N" tag shifts left over.
+ * Which tags in a right-aligned row fit fully, so the rest can collapse into
+ * "+N". `leadingHiddenWidth` is the empty space before the first visible tag,
+ * left by a tag that only partly fits, which the "+N" tag shifts over.
  */
 export function useTagOverflow(itemKeys: string[]) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tagRefs = useRef(new Map<string, HTMLElement>());
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
-  const [trailingHiddenWidth, setTrailingHiddenWidth] = useState(0);
+  const [leadingHiddenWidth, setLeadingHiddenWidth] = useState(0);
   const keysSignature = itemKeys.join("\u0000");
 
   useLayoutEffect(() => {
@@ -19,7 +19,7 @@ export function useTagOverflow(itemKeys: string[]) {
     const recompute = () => {
       const bounds = container.getBoundingClientRect();
       const next = new Set<string>();
-      let rightmostVisible = 0;
+      let leftmostVisible = Number.POSITIVE_INFINITY;
       tagRefs.current.forEach((tag, key) => {
         const tagBounds = tag.getBoundingClientRect();
         if (
@@ -27,11 +27,13 @@ export function useTagOverflow(itemKeys: string[]) {
           tagBounds.right <= bounds.right + 1
         ) {
           next.add(key);
-          rightmostVisible = Math.max(rightmostVisible, tagBounds.right);
+          leftmostVisible = Math.min(leftmostVisible, tagBounds.left);
         }
       });
-      setTrailingHiddenWidth(
-        rightmostVisible > 0 ? Math.max(0, bounds.right - rightmostVisible) : 0,
+      setLeadingHiddenWidth(
+        Number.isFinite(leftmostVisible)
+          ? Math.max(0, Math.round(leftmostVisible - bounds.left))
+          : 0,
       );
       setVisibleKeys((current) =>
         current.size === next.size && [...current].every((key) => next.has(key))
@@ -57,6 +59,6 @@ export function useTagOverflow(itemKeys: string[]) {
     registerTag,
     isVisible: (key: string) => visibleKeys.has(key),
     hiddenCount: itemKeys.filter((key) => !visibleKeys.has(key)).length,
-    trailingHiddenWidth,
+    leadingHiddenWidth,
   };
 }
