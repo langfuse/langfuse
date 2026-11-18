@@ -1,4 +1,7 @@
-import { BaseError, type ParsedOrganization } from "@langfuse/shared";
+import {
+  type ParsedOrganization,
+  TooManyRequestsError,
+} from "@langfuse/shared";
 
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -32,10 +35,7 @@ export async function assertCouponRedemptionRateLimit(
     1,
     Math.ceil((rateLimit.res?.msBeforeNext ?? 1_000) / 1_000),
   );
-  throw new BaseError(
-    "TooManyRequestsError",
-    429,
+  throw new TooManyRequestsError(
     `Too many coupon attempts. Please retry in ${retryAfterSeconds} seconds.`,
-    true,
   );
 }
