@@ -172,6 +172,7 @@ function CurrentFacet({
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
+          onOpenTrace={peekNavigation.openPeek}
         />
       );
     return (

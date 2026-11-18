@@ -42,6 +42,7 @@ export function ScatterTopicsView({
   peekView,
   tracePanelRef,
   useTraces,
+  onOpenTrace,
 }: ScatterTopicsViewProps) {
   // A dot click selects its trace and keeps its card open; the row opens the peek.
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
@@ -49,7 +50,8 @@ export function ScatterTopicsView({
   const topics = withScatterColors(
     prepareTopicDisplay(facet, "treemap").topics,
   );
-  const searchTopics = orderedFacetTopics(facet);
+  // A stable list keeps the highlight set, and so a pinned card, across selection re-renders.
+  const searchTopics = useMemo(() => orderedFacetTopics(facet), [facet]);
   // The search bar holds the selection: picking a topic writes its filter there.
   const selectedTopicId = pickedTopicId(
     traceFilters.filters,
@@ -145,6 +147,12 @@ export function ScatterTopicsView({
         .map((point) => point.traceId),
     );
   }, [mapData, selectedTopicId, isSearching, searchKey, searchTopics]);
+  // The map shows a selection only while it still matches, like the list.
+  const mapSelectedTraceId =
+    selectedTraceId &&
+    (!highlightedTraceIds || highlightedTraceIds.has(selectedTraceId))
+      ? selectedTraceId
+      : null;
   if (facet.topics.length === 0) {
     return <TopicsEmptyState />;
   }
@@ -185,9 +193,14 @@ export function ScatterTopicsView({
                 }
                 onSelectTrace={(traceId) => {
                   setSelectedTraceId(traceId);
-                  if (!traceId) clearPickedTopic();
+                  if (!traceId) return clearPickedTopic();
+                  // Fullscreen hides the list, so a click there leaves fullscreen and opens the trace.
+                  if (document.fullscreenElement) {
+                    document.exitFullscreen().catch(() => undefined);
+                    onOpenTrace(traceId);
+                  }
                 }}
-                selectedTraceId={selectedTraceId}
+                selectedTraceId={mapSelectedTraceId}
                 pinSelection
                 fillContainer
               />
@@ -247,6 +260,7 @@ type ScatterTopicsViewProps = {
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
+  onOpenTrace: (traceId: string) => void;
 };
 
 const MAP_AND_ROWS_PANEL_IDS = ["map", "rows"];

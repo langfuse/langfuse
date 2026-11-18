@@ -368,6 +368,7 @@ export function TopicMapExplorer({
       return;
     }
     if (selectedTraceId) {
+      clearTopicMapHover(store);
       onSelectTrace(null);
       return;
     }

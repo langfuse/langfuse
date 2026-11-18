@@ -85,8 +85,17 @@ export function mapColors(canvas: HTMLCanvasElement): MapColors {
     return value;
   };
   const background = `hsl(${theme.getPropertyValue(isDark() ? "--sidebar-background" : "--background").trim()})`;
+  // One fill per topic color and theme, so drawing a dot is a lookup.
+  const dots = new Map<string, string>();
   const colors: MapColors = {
-    dot: (color) => paint(dotColor(color), 1),
+    dot: (color) => {
+      let value = dots.get(color);
+      if (!value) {
+        value = paint(dotColor(color), 1);
+        dots.set(color, value);
+      }
+      return value;
+    },
     ring: isDark() ? DARK_RING : paint(background, 1),
     paint,
   };
