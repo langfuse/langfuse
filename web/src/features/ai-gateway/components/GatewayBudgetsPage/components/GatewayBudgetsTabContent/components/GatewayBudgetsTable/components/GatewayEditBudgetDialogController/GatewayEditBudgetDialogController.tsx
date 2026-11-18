@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { GatewayEditBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayEditBudgetDialogController/components/GatewayEditBudgetDialog/GatewayEditBudgetDialog";
+import { GatewayEditBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayEditBudgetDialog/GatewayEditBudgetDialog";
 import {
   type GatewayBudgetSubject,
   type GatewaySpendLimit,
