@@ -392,9 +392,11 @@ export function TopicMapExplorer({
       ref={sectionRef}
       aria-label="Scatter"
       className={cn(
-        "ph-no-capture bg-background flex min-w-0 flex-col overflow-hidden rounded-lg border",
+        "ph-no-capture bg-background flex min-w-0 flex-col overflow-hidden",
+        // Filling a panel, the panel draws the edges; a standalone map keeps its card.
+        !fillContainer && !fullscreen && "rounded-lg border",
         fillContainer && "h-full min-h-0",
-        fullscreen && "h-dvh rounded-none border-0",
+        fullscreen && "h-dvh",
       )}
     >
       {fullscreenError && (
