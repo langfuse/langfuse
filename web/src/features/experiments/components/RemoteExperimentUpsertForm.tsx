@@ -355,44 +355,51 @@ export const RemoteExperimentUpsertForm = ({
             <FormField
               control={form.control}
               name="signingEnabled"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel>Sign requests</FormLabel>
-                    <FormDescription>
-                      {!field.value &&
-                        "Requests will be sent without an x-langfuse-signature header."}
+              render={({ field }) => {
+                const signingRequestDescription = (() => {
+                  if (!field.value) {
+                    return "Requests will be sent without an x-langfuse-signature header.";
+                  }
+                  if (existingRemoteExperiment?.displaySecretKey) {
+                    return "Requests include an x-langfuse-signature header so your service can verify they come from Langfuse.";
+                  }
+                  return "A signing secret will be generated when you save and shown once.";
+                })();
+
+                return (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>Sign requests</FormLabel>
+                      <FormDescription>
+                        {signingRequestDescription}
+                      </FormDescription>
                       {field.value &&
-                        existingRemoteExperiment?.displaySecretKey &&
-                        "Requests include an x-langfuse-signature header so your service can verify they come from Langfuse."}
-                      {field.value &&
-                        !existingRemoteExperiment?.displaySecretKey &&
-                        "A signing secret will be generated when you save and shown once."}
-                    </FormDescription>
-                    {field.value &&
-                      existingRemoteExperiment?.displaySecretKey && (
-                        <div className="pt-2">
-                          <CodeSection
-                            variant="outline"
-                            isCollapsible
-                            defaultCollapsed
-                            content={existingRemoteExperiment.displaySecretKey}
-                          />
-                          <div className="text-muted-foreground mt-1 text-xs">
-                            Secret is encrypted and can only be viewed when
-                            generated
+                        existingRemoteExperiment?.displaySecretKey && (
+                          <div className="pt-2">
+                            <CodeSection
+                              variant="outline"
+                              isCollapsible
+                              defaultCollapsed
+                              content={
+                                existingRemoteExperiment.displaySecretKey
+                              }
+                            />
+                            <div className="text-muted-foreground mt-1 text-xs">
+                              Secret is encrypted and can only be viewed when
+                              generated
+                            </div>
                           </div>
-                        </div>
-                      )}
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
+                        )}
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                );
+              }}
             />
 
             <AccordionPrimitive.Root type="single" collapsible>
