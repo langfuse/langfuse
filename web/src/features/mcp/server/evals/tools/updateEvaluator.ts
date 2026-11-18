@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { createMcpEvaluatorService } from "../evaluator-service";
 import {
+  EVALUATOR_DEFINITION_FIELDS_DESCRIPTION,
   McpUpdateEvaluatorInput,
   McpUpdateEvaluatorInputBase,
   toEvaluatorServiceInput,
@@ -14,10 +15,15 @@ import {
 export const [updateEvaluatorTool, handleUpdateEvaluator] = defineTool({
   name: "updateEvaluator",
   description: [
-    "Update an evaluator by stable id. Definition changes append an immutable version; name and description changes do not.",
-    "For `LLM_AS_JUDGE`, provide prompt + outputDefinition and optionally modelConfig. For `CODE`, provide sourceCode + sourceCodeLanguage. For `DECISION_MODEL`, provide questions, a modelConfig with provider and model only, and variableMapping entries defining its state.",
+    "Replace an evaluator's name, description, and definition by stable id.",
+    "This is a full replacement, not a partial patch: every call must include evaluatorId, name, type, and the complete definition fields for that type, even to change only the name or description. Omitted optional fields, including description, are cleared.",
+    "Get evaluatorId from the `id` returned by listEvaluators or createEvaluator.",
+    "To change part of an evaluator, first call getEvaluator and resend its current values: name, description, type, and from the latest entry in `versions` the definition (`promptMessages` content as prompt, outputDefinition, variableMapping, and provider, model, and modelParams as modelConfig for `LLM_AS_JUDGE`; sourceCode and sourceCodeLanguage for `CODE`; questions, provider and model as modelConfig, and variableMapping for `DECISION_MODEL`).",
+    "Definition changes append an immutable version; name and description changes do not.",
+    EVALUATOR_DEFINITION_FIELDS_DESCRIPTION,
     `Use ${DECISION_MODEL_CONNECTIONS_HINT}.`,
     "Call listLlmConnections to find valid modelConfig provider names and models.",
+    'Example renaming a code evaluator: {"evaluatorId": "<id>", "name": "New name", "description": "<current description>", "type": "CODE", "sourceCode": "<current sourceCode>", "sourceCodeLanguage": "PYTHON"}.',
   ].join(" "),
   action: "evaluator:CUD",
   baseSchema: McpUpdateEvaluatorInputBase,
