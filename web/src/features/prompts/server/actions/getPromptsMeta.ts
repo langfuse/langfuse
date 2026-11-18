@@ -93,7 +93,6 @@ export const getPromptsMetaWithCursor = async (
   const rows = await queryPromptsMetaPage({
     params,
     limit: limit + 1,
-    offset: 0,
     afterName: cursor?.lastName,
   });
   const data = rows.slice(0, limit);
@@ -143,7 +142,9 @@ const queryPromptsMetaPage = async ({
 }: {
   params: PromptsListFilterParams & { projectId: string };
   limit: number;
-  offset: number;
+  /** Offset paging, used by v2 only. */
+  offset?: number;
+  /** Keyset paging: return names sorting after this one. */
   afterName?: string;
 }): Promise<PromptsMeta[]> => {
   const { projectId } = params;
@@ -157,7 +158,7 @@ const queryPromptsMetaPage = async ({
       GROUP BY p.name
       ORDER BY p.name
       LIMIT ${limit}
-      OFFSET ${offset}
+      ${offset !== undefined ? Prisma.sql`OFFSET ${offset}` : Prisma.empty}
     )
     SELECT
       n.name,
