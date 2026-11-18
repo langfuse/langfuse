@@ -2417,6 +2417,55 @@ describe("MCP Read Tools", () => {
       expect(result.meta.cursor).toEqual(expect.any(String));
     });
 
+    it("should page through every observation when an input projection lowers the limit", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const observations = Array.from({ length: 60 }, (_, i) =>
+        createObservationEvent({
+          projectId,
+          traceId,
+          input: `input-${i}`,
+          startTime: new Date(Date.UTC(2026, 0, 1, 0, i)),
+        }),
+      );
+      await createEventsCh(observations);
+
+      type Page = {
+        data: Array<{ id: string }>;
+        meta: { cursor?: string; notice?: string };
+      };
+      const request = {
+        traceId,
+        fields: ["id", "input"],
+        limit: 100,
+        fromStartTime: "2026-01-01T00:00:00.000Z",
+        toStartTime: "2026-01-02T00:00:00.000Z",
+      };
+
+      const firstPage = (await handleListObservations(
+        request,
+        context,
+      )) as Page;
+      expect(firstPage.data).toHaveLength(50);
+      expect(firstPage.meta.notice).toMatch(/lowered from 100 to 50/);
+      expect(firstPage.meta.cursor).toEqual(expect.any(String));
+
+      const secondPage = (await handleListObservations(
+        { ...request, cursor: firstPage.meta.cursor },
+        context,
+      )) as Page;
+      expect(secondPage.data).toHaveLength(10);
+      expect(secondPage.meta.cursor).toBeUndefined();
+
+      const returnedIds = [...firstPage.data, ...secondPage.data].map(
+        (observation) => observation.id,
+      );
+      expect(new Set(returnedIds).size).toBe(60);
+      expect(returnedIds.sort()).toEqual(
+        observations.map((observation) => observation.id).sort(),
+      );
+    });
+
     it("should reject invalid field projections", async () => {
       const { context } = await createMcpTestSetup();
 
