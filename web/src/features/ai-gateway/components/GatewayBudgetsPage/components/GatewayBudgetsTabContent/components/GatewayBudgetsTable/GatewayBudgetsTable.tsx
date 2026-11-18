@@ -56,6 +56,9 @@ const statusOptions: { value: GatewayBudgetStatus; label: string }[] = [
   { value: "exceeded", label: "Exceeded" },
 ];
 
+/** Fits "Default budget" next to its radio dot in the open menu, which is as wide as the trigger. */
+const STATUS_FILTER_MIN_WIDTH_PX = 160;
+
 const budgetSkeleton = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
 
 const intervalLabels = new Map(
@@ -208,6 +211,7 @@ export function GatewayBudgetsTable({
           value: status.value,
           onChange: (value) => status.onChange(toGatewayBudgetStatus(value)),
           muted: status.value === "all",
+          minWidth: STATUS_FILTER_MIN_WIDTH_PX,
         },
       ]}
       noResultsMessage={isFiltered ? copy.noMatches : copy.noBudgets}
