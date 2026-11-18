@@ -23,6 +23,24 @@ const GATEWAY_API_KEY_SELECT = {
   },
 } as const;
 
+/**
+ * List rows also carry the key's first spend limit, so the edit dialog can show
+ * it, and whether there are more, which the dialog cannot edit.
+ */
+const GATEWAY_API_KEY_LIST_SELECT = {
+  ...GATEWAY_API_KEY_SELECT,
+  apiKey: {
+    select: {
+      ...GATEWAY_API_KEY_SELECT.apiKey.select,
+      gatewaySpendLimits: {
+        select: { interval: true, limitUsd: true },
+        orderBy: { createdAt: "asc" },
+        take: 2,
+      },
+    },
+  },
+} as const;
+
 export class GatewayApiKeyRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -83,15 +101,28 @@ export class GatewayApiKeyRepository {
     };
     const findPage = this.prisma.gatewayApiKeyAssociation.findMany({
       where,
-      select: GATEWAY_API_KEY_SELECT,
-      orderBy: [gatewayApiKeyOrderBy(params.orderBy), { apiKeyId: "asc" }],
+      select: GATEWAY_API_KEY_LIST_SELECT,
+      orderBy: [gatewayApiKeyOrderBy(params.orderBy), { apiKeyId: "desc" }],
       take: params.limit,
       skip: params.page * params.limit,
     });
-    const [data, totalCount] = await Promise.all([
+    const [rows, totalCount] = await Promise.all([
       findPage,
       this.prisma.gatewayApiKeyAssociation.count({ where }),
     ]);
+    const data = rows.map(
+      ({ apiKey: { gatewaySpendLimits, ...apiKey }, ...row }) => ({
+        ...row,
+        apiKey,
+        spendLimit: gatewaySpendLimits[0]
+          ? {
+              interval: gatewaySpendLimits[0].interval,
+              limitUsd: gatewaySpendLimits[0].limitUsd.toNumber(),
+            }
+          : null,
+        hasSeveralSpendLimits: gatewaySpendLimits.length > 1,
+      }),
+    );
     return { data, totalCount };
   }
 
@@ -120,6 +151,22 @@ export class GatewayApiKeyRepository {
     return this.prisma.gatewayApiKeyAssociation.findFirst({
       where: { apiKeyId: params.apiKeyId, apiKey: gatewayApiKeyWhere(params) },
       select: GATEWAY_API_KEY_SELECT,
+    });
+  }
+
+  /** What a spend limit on the key needs: the hash its resolve cache is keyed by. */
+  getGatewayApiKeyForSpendLimits(params: {
+    organizationId: string;
+    ownerUserId?: string;
+    apiKeyId: string;
+  }) {
+    return this.prisma.apiKey.findFirst({
+      where: {
+        id: params.apiKeyId,
+        ...gatewayApiKeyWhere(params),
+        gatewayAssociation: { isNot: null },
+      },
+      select: { fastHashedSecretKey: true },
     });
   }
 
@@ -189,7 +236,7 @@ function gatewayApiKeySearch(searchQuery: string) {
 }
 
 /**
- * gatewayApiKeyOrderBy maps a gateway keys table sort to the key list order; other columns keep the default oldest-first order.
+ * gatewayApiKeyOrderBy maps a gateway keys table sort to the key list order; other columns keep the default newest-first order.
  * A key without expiration never expires, so it sorts after every expiration date ascending and before them descending.
  */
 function gatewayApiKeyOrderBy(
@@ -208,6 +255,6 @@ function gatewayApiKeyOrderBy(
         },
       };
     default:
-      return { apiKey: { createdAt: "asc" } };
+      return { apiKey: { createdAt: "desc" } };
   }
 }

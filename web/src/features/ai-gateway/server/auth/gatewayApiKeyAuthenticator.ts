@@ -175,6 +175,15 @@ export class GatewayApiKeyAuthenticator {
       keyAllowedModels: parseGatewayAllowedModels(
         row.gatewayAssociation?.allowedModels ?? null,
       ),
+      spendLimits: row.gatewaySpendLimits.map((limit) => ({
+        id: limit.id,
+        scope: limit.scope.toLowerCase() as Lowercase<typeof limit.scope>,
+        interval: limit.interval.toLowerCase() as Lowercase<
+          typeof limit.interval
+        >,
+        limit_usd: limit.limitUsd.toNumber(),
+        counting_started_at: limit.countingStartedAt.getTime(),
+      })),
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,

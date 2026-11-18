@@ -1,8 +1,7 @@
-import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import {
-  TestResultTraceActions,
+  TestResultTraceActionsDropdownMenu,
   TestResultTraceActionsTrigger,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
+} from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActionsDropdownMenu/TestResultTraceActionsDropdownMenu";
 
 export function TestResultActions({
   executionTraceId,
@@ -12,13 +11,13 @@ export function TestResultActions({
   onOpenExecutionTrace: (traceId: string) => void;
 }) {
   return (
-    <TestResultTraceActions
+    <TestResultTraceActionsDropdownMenu
       executionTraceId={executionTraceId}
       onOpenExecutionTrace={onOpenExecutionTrace}
     >
-      <DropdownMenuTrigger asChild>
-        <TestResultTraceActionsTrigger />
-      </DropdownMenuTrigger>
-    </TestResultTraceActions>
+      {({ getTriggerProps }) => (
+        <TestResultTraceActionsTrigger {...getTriggerProps()} />
+      )}
+    </TestResultTraceActionsDropdownMenu>
   );
 }

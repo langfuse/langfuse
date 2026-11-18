@@ -235,7 +235,7 @@ async function clusterFacet(
     exploratory,
     embeddingModel: scope.embeddingConfig.embeddingModel!,
     dimensions: scope.embeddingConfig.embeddingDimensions,
-    classifierVersion: "original-cosine-loo95-rival05-eps1e-12-v2",
+    classifierVersion: "original-cosine-loo95-eps1e-12-v3",
     timeRange: {
       from: scope.timeRange.from.toISOString(),
       to: scope.timeRange.to.toISOString(),

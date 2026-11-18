@@ -28,17 +28,14 @@ import {
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Columns3, Trash } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
-import Link from "next/link";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -124,34 +121,39 @@ const DatasetRunTableMultiSelectAction = ({
       }}
     >
       {({ openDialog }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <DropdownMenu
+          disabled={selectedRunIds.length < 1}
+          items={[
+            {
+              type: "item",
+              id: "compare",
+              title: "Compare",
+              icon: Columns3,
+              href: `/project/${projectId}/datasets/${datasetId}/compare?${new URLSearchParams(
+                selectedRunIds.map((id) => ["runs", id]),
+              ).toString()}`,
+            },
+            {
+              type: "item",
+              id: "delete",
+              title: "Delete",
+              icon: Trash,
+              variant: "destructive",
+              onClick: openDialog,
+            },
+          ]}
+        >
+          {({ getTriggerProps }) => (
             <Button
+              {...getTriggerProps({
+                onClick: () => capture("dataset_run:compare_view_click"),
+              })}
               disabled={selectedRunIds.length < 1}
-              onClick={() => capture("dataset_run:compare_view_click")}
             >
               Actions ({selectedRunIds.length} selected)
               <DropdownIndicator nudge />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent key="dropdown-menu-content">
-            <Link
-              key="compare"
-              href={{
-                pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
-                query: { runs: selectedRunIds },
-              }}
-            >
-              <DropdownMenuItem>
-                <Columns3 size="base" color="default" __rawClassName="mr-2" />
-                <span>Compare</span>
-              </DropdownMenuItem>
-            </Link>
-            <DropdownMenuItem key="delete" onClick={openDialog}>
-              <Trash size="base" color="default" __rawClassName="mr-2" />
-              <span>Delete</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
+          )}
         </DropdownMenu>
       )}
     </ConfirmationDialogController>

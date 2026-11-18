@@ -14,12 +14,6 @@ export type MapTopic = {
 };
 export type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
 export type Camera = { x: number; y: number; zoom: number };
-
-/** Zoom limits, as multiples of the whole-map fit. */
-const MIN_ZOOM = 0.8;
-const MAX_ZOOM = 3;
-/** Pointer parallax for the deepest points, in pixels. */
-const PARALLAX_PX = 2.5;
 export type Size = { width: number; height: number };
 export type MapPoint = MapData["points"][number] & {
   groupId: string;
@@ -54,13 +48,6 @@ type TopicMapNode = {
   center: MapPosition;
   worldPosition: MapPosition;
   rect: MapRectangle;
-  cornerRadius: number;
-  expansion: number;
-  backgroundOpacity: number;
-  strokeOpacity: number;
-  textOpacity: number;
-  fontSize: number;
-  excerpt: string;
 };
 export type TopicMapNodeFrame = {
   model: TopicMapModel;
@@ -90,13 +77,7 @@ function pointBounds(points: { x: number; y: number }[]): Bounds {
   return { minX, maxX, minY, maxY };
 }
 
-/** A larger stage, such as fullscreen, draws marks up to 1.4 times larger. */
-export function stageScale(size: { width: number; height: number }) {
-  const space = Math.sqrt((size.width * size.height) / (640 * 480));
-  return Math.min(1.4, Math.max(1, 1 + (space - 1) * 0.25));
-}
-
-function baseScale(bounds: Bounds, size: Size) {
+export function baseScale(bounds: Bounds, size: Size) {
   return Math.min(
     Math.max(size.width - 100, 1) / Math.max(bounds.maxX - bounds.minX, 0.1),
     Math.max(size.height - 100, 1) / Math.max(bounds.maxY - bounds.minY, 0.1),
@@ -108,8 +89,8 @@ export function fitCamera(bounds: Bounds, whole: Bounds, size: Size): Camera {
     x: (bounds.minX + bounds.maxX) / 2,
     y: (bounds.minY + bounds.maxY) / 2,
     zoom: Math.min(
-      MAX_ZOOM,
-      Math.max(MIN_ZOOM, baseScale(bounds, size) / baseScale(whole, size)),
+      32,
+      Math.max(0.4, baseScale(bounds, size) / baseScale(whole, size)),
     ),
   };
 }
@@ -134,22 +115,16 @@ export function zoomCamera(
   bounds: Bounds,
   size: Size,
 ): Camera {
-  const zoom = Math.min(
-    MAX_ZOOM,
-    Math.max(MIN_ZOOM, camera.zoom * 2 ** levels),
-  );
+  const zoom = Math.min(128, Math.max(0.4, camera.zoom * 2 ** levels));
   const before = baseScale(bounds, size) * camera.zoom;
   const after = baseScale(bounds, size) * zoom;
   const dx = (anchor.x - 0.5) * size.width;
   const dy = (anchor.y - 0.5) * size.height;
-  return clampCamera(
-    {
-      x: camera.x + dx / before - dx / after,
-      y: camera.y - dy / before + dy / after,
-      zoom,
-    },
-    bounds,
-  );
+  return {
+    x: camera.x + dx / before - dx / after,
+    y: camera.y - dy / before + dy / after,
+    zoom,
+  };
 }
 
 export function panCamera(
@@ -160,19 +135,7 @@ export function panCamera(
   size: Size,
 ): Camera {
   const scale = baseScale(bounds, size) * camera.zoom;
-  return clampCamera(
-    { ...camera, x: camera.x - dx / scale, y: camera.y + dy / scale },
-    bounds,
-  );
-}
-
-/** Keeps the view's center over the data, so the map never pans out of sight. */
-function clampCamera(camera: Camera, bounds: Bounds): Camera {
-  return {
-    ...camera,
-    x: Math.min(bounds.maxX, Math.max(bounds.minX, camera.x)),
-    y: Math.min(bounds.maxY, Math.max(bounds.minY, camera.y)),
-  };
+  return { ...camera, x: camera.x - dx / scale, y: camera.y + dy / scale };
 }
 
 function visualDepth(id: string) {
@@ -251,23 +214,6 @@ function smoothStep(from: number, to: number, value: number) {
   return progress * progress * (3 - 2 * progress);
 }
 
-/**
- * Zoom as the reader sees it: a bigger stage shows the same fit at a larger
- * scale, so points grow and labels and summaries appear sooner.
- */
-function detailZoom(zoom: number, size: Size) {
-  const space = Math.sqrt((size.width * size.height) / (640 * 480));
-  return zoom * Math.min(3, Math.max(1, space));
-}
-
-function nodeDetailBlend(zoom: number) {
-  return smoothStep(3, 10, zoom);
-}
-
-function readingNodeSize(size: Size) {
-  return { width: Math.max(6, Math.min(264, size.width - 48)), height: 144 };
-}
-
 export function prepareMapNodes(
   model: TopicMapModel,
   camera: Camera,
@@ -276,117 +222,37 @@ export function prepareMapNodes(
   readingTopic: string | null = null,
   matchingTraceIds?: ReadonlySet<string>,
 ): TopicMapNodeFrame {
-  const full = readingNodeSize(size);
-  const zoom = detailZoom(camera.zoom, size);
-  const blend = nodeDetailBlend(camera.zoom);
-  const cells = new Map<string, number[]>();
-  const cellWidth = full.width + 8;
-  const cellHeight = full.height + 8;
-  const prepared = model.points.map((point, index) => {
-    const worldPosition = { x: point.x, y: point.y };
-    const projected = screenPoint(worldPosition, camera, model.bounds, size);
-    const depth = point.depth * (1 - blend);
-    // A light parallax keeps the map alive without points wandering.
-    const center = {
-      x: projected.x + pointer.x * depth * PARALLAX_PX,
-      y: projected.y + pointer.y * depth * PARALLAX_PX,
-    };
-    const diameter = (5 + depth) * Math.sqrt(Math.min(zoom, 4));
-    const matchesFilters =
-      (!readingTopic || point.groupId === readingTopic) &&
-      (!matchingTraceIds || matchingTraceIds.has(point.traceId));
-    const growth = matchesFilters ? blend : 0;
-    const growWidth = (full.width - diameter) * growth;
-    const growHeight = (full.height - diameter) * growth;
-    const cellX = Math.floor(center.x / cellWidth);
-    const cellY = Math.floor(center.y / cellHeight);
-    const key = `${cellX},${cellY}`;
-    const cell = cells.get(key) ?? [];
-    cell.push(index);
-    cells.set(key, cell);
-    return {
-      point,
-      matchesFilters,
-      worldPosition,
-      center,
-      diameter,
-      growWidth,
-      growHeight,
-      growth,
-      cellX,
-      cellY,
-    };
-  });
-  const axisLimit = (distance: number, base: number, growth: number) => {
-    if (growth > 0) return (Math.abs(distance) - base - 8) / growth;
-    return Math.abs(distance) >= base + 8 ? Infinity : -Infinity;
-  };
+  // Dots stay dots at any zoom; summaries show in the hover card.
   const nodeById = new Map<string, TopicMapNode>();
   const nodes: TopicMapNode[] = [];
-  for (const item of prepared) {
-    let clearance = 1;
-    if (item.growth) {
-      neighbors: for (let x = item.cellX - 1; x <= item.cellX + 1; x++) {
-        for (let y = item.cellY - 1; y <= item.cellY + 1; y++) {
-          for (const index of cells.get(`${x},${y}`) ?? []) {
-            const other = prepared[index];
-            if (other === item) continue;
-            const base = (item.diameter + other.diameter) / 2;
-            const limit = Math.max(
-              0,
-              Math.min(
-                1,
-                Math.max(
-                  axisLimit(
-                    item.center.x - other.center.x,
-                    base,
-                    (item.growWidth + other.growWidth) / 2,
-                  ),
-                  axisLimit(
-                    item.center.y - other.center.y,
-                    base,
-                    (item.growHeight + other.growHeight) / 2,
-                  ),
-                ),
-              ),
-            );
-            clearance = Math.min(clearance, limit);
-            if (!clearance) break neighbors;
-          }
-        }
-      }
-    }
-    const width = item.diameter + item.growWidth * clearance;
-    const height = item.diameter + item.growHeight * clearance;
-    const expansion = item.growth * clearance;
-    const smaller = Math.min(width, height);
-    const textOpacity = smoothStep(76, 132, width) * smoothStep(30, 64, height);
-    const node: TopicMapNode = {
-      point: item.point,
-      matchesFilters: item.matchesFilters,
-      center: item.center,
-      worldPosition: item.worldPosition,
-      rect: {
-        x: item.center.x - width / 2,
-        y: item.center.y - height / 2,
-        width,
-        height,
-      },
-      cornerRadius:
-        smaller / 2 + (Math.min(8, smaller / 2) - smaller / 2) * textOpacity,
-      expansion,
-      backgroundOpacity: textOpacity,
-      strokeOpacity: textOpacity,
-      textOpacity,
-      fontSize: 9 + smoothStep(100, 264, width) * 3,
-      excerpt: item.point.summary,
+  for (const point of model.points) {
+    const worldPosition = { x: point.x, y: point.y };
+    const projected = screenPoint(worldPosition, camera, model.bounds, size);
+    const center = {
+      x: projected.x + pointer.x * point.depth * 6,
+      y: projected.y + pointer.y * point.depth * 6,
     };
-    nodeById.set(item.point.traceId, node);
+    const diameter = (5 + point.depth) * Math.sqrt(Math.min(camera.zoom, 4));
+    const node: TopicMapNode = {
+      point,
+      matchesFilters:
+        (!readingTopic || point.groupId === readingTopic) &&
+        (!matchingTraceIds || matchingTraceIds.has(point.traceId)),
+      center,
+      worldPosition,
+      rect: {
+        x: center.x - diameter / 2,
+        y: center.y - diameter / 2,
+        width: diameter,
+        height: diameter,
+      },
+    };
+    nodeById.set(point.traceId, node);
     if (
       node.rect.x <= size.width &&
-      node.rect.x + width >= 0 &&
+      node.rect.x + diameter >= 0 &&
       node.rect.y <= size.height &&
-      node.rect.y + height >= 0
+      node.rect.y + diameter >= 0
     )
       nodes.push(node);
   }
@@ -408,41 +274,20 @@ type MapTextLabel = {
   kind: "zone";
   title: string;
   color: string;
+  description: string;
   rect: MapRectangle;
   fontSize: number;
-  lineHeight?: number;
   opacity: number;
+  detailOpacity: number;
 };
 
-/** Up to two fixed-size lines above each cluster. */
-type LabelAbove = {
-  fontSize: number;
-  lineHeight: number;
-  /** Fullscreen has room for names at the whole-map fit. */
-  atFit?: boolean;
-};
-
-/** Topic names appear after the first zoom step, or at once in fullscreen. */
-function labelVisibility(
-  above: LabelAbove | undefined,
-  cameraZoom: number,
-  detail: number,
-) {
-  if (!above) return smoothStep(1.5, 3, detail);
-  if (above.atFit) return 1;
-  return smoothStep(1.05, 1.3, cameraZoom);
-}
-
-export function prepareMapTextLabels(
-  frame: TopicMapNodeFrame,
-  above?: LabelAbove,
-): MapTextLabel[] {
+export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
   const { camera, model, size, readingTopic, matchingTraceIds } = frame;
-  const zoom = detailZoom(camera.zoom, size);
-  const visibility = labelVisibility(above, camera.zoom, zoom);
+  const visibility = smoothStep(1.5, 3, camera.zoom);
   if (!visibility) return [];
+  const detailOpacity = smoothStep(3.5, 7, camera.zoom);
   const labels: MapTextLabel[] = [];
-  const fontSize = 15 + smoothStep(3, 8, zoom) * 3;
+  const fontSize = 15 + smoothStep(3, 8, camera.zoom) * 3;
   const visible = (rect: MapRectangle) =>
     rect.x + rect.width > 0 &&
     rect.y + rect.height > 0 &&
@@ -458,7 +303,7 @@ export function prepareMapTextLabels(
       Math.min(2, Math.ceil((zone.name.length * fontSize * 0.55) / width)) *
       fontSize *
       1.2;
-    const height = titleHeight;
+    const height = titleHeight + 40 * detailOpacity;
     const topLeft = screenPoint(
       { x: zone.bounds.minX, y: zone.bounds.maxY },
       camera,
@@ -478,50 +323,6 @@ export function prepareMapTextLabels(
     // A zone keeps one geographic label as its center moves beyond the viewport.
     // Clamping to the visible intersection is continuous through pan and zoom.
     if (right < left || bottom < top) continue;
-    if (above) {
-      if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
-      // A larger stage, such as fullscreen, reads at a larger size.
-      const scale = stageScale(size);
-      const fontSize = above.fontSize * scale;
-      const lineHeight = above.lineHeight * scale;
-      const textWidth = zone.name.length * fontSize * 0.62;
-      const labelWidth = Math.min(220 * scale, textWidth);
-      const labelHeight =
-        Math.min(2, Math.ceil(textWidth / labelWidth)) * lineHeight;
-      const x = Math.max(
-        12 + labelWidth / 2,
-        Math.min(size.width - 12 - labelWidth / 2, (left + right) / 2),
-      );
-      // The zoom toolbar holds the top-right corner.
-      const underToolbar = x + labelWidth / 2 > size.width - 220;
-      let y = topLeft.y - labelHeight - 10;
-      if (y < 12 || (underToolbar && y < 46)) y = bottomRight.y + 10;
-      y = Math.max(12, Math.min(size.height - labelHeight - 12, y));
-      const rect = {
-        x: x - labelWidth / 2,
-        y,
-        width: labelWidth,
-        height: labelHeight,
-      };
-      if (!visible(rect)) continue;
-      const matchesFilters =
-        !matchingTraceIds ||
-        zone.points.some((point) => matchingTraceIds.has(point.traceId));
-      labels.push({
-        id: zone.id,
-        kind: "zone",
-        title: zone.name,
-        color: zone.color,
-        rect,
-        fontSize,
-        lineHeight,
-        opacity:
-          visibility *
-          (readingTopic && readingTopic !== zone.id ? 0.4 : 1) *
-          (matchesFilters ? 1 : 0.4),
-      });
-      continue;
-    }
     const center = screenPoint(zone, camera, model.bounds, size);
     const xInset = Math.min(width / 2 + 12, (right - left) / 2);
     const yInset = Math.min(height / 2 + 12, (bottom - top) / 2);
@@ -550,22 +351,17 @@ export function prepareMapTextLabels(
       kind: "zone",
       title: zone.name,
       color: zone.color,
+      description: zone.description,
       rect,
       fontSize,
       opacity:
         visibility *
         (readingTopic && readingTopic !== zone.id ? 0.4 : 0.6) *
-        (matchesFilters ? 1 : 0.4),
+        (matchesFilters ? 1 : 0.15),
+      detailOpacity,
     });
   }
 
-  // Larger topics keep their label when labels collide.
-  if (above) {
-    const sizes = new Map(
-      frame.zones.map((zone) => [zone.id, zone.points.length]),
-    );
-    labels.sort((a, b) => (sizes.get(b.id) ?? 0) - (sizes.get(a.id) ?? 0));
-  }
   const shown: MapTextLabel[] = [];
   for (const label of labels) {
     let separation = 1;
@@ -594,17 +390,6 @@ export function prepareMapTextLabels(
   return labels;
 }
 
-function roundedDistance(node: TopicMapNode, at: MapPosition) {
-  const radius = node.cornerRadius;
-  const dx = Math.abs(at.x - node.center.x) - node.rect.width / 2 + radius;
-  const dy = Math.abs(at.y - node.center.y) - node.rect.height / 2 + radius;
-  return (
-    Math.min(Math.max(dx, dy), 0) +
-    Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) -
-    radius
-  );
-}
-
 export function hitMapNode(
   frame: TopicMapNodeFrame,
   at: MapPosition,
@@ -613,8 +398,8 @@ export function hitMapNode(
   let distance = Infinity;
   let inside = false;
   for (const node of frame.nodes) {
-    const contains = roundedDistance(node, at) <= 0;
     const proximity = Math.hypot(node.center.x - at.x, node.center.y - at.y);
+    const contains = proximity <= node.rect.width / 2;
     if (!contains && (inside || proximity > 12)) continue;
     if (
       (contains && !inside) ||
@@ -628,6 +413,25 @@ export function hitMapNode(
     }
   }
   return nearest?.point ?? null;
+}
+
+/** Topic halos fade out as you zoom in, so close clusters keep a clean background. */
+export function haloVisibility(zoom: number) {
+  return 1 - smoothStep(3, 10, zoom);
+}
+export function zoneHalo(
+  zone: TopicMapModel["zones"][number],
+  camera: Camera,
+  bounds: Bounds,
+  size: Size,
+) {
+  const center = screenPoint(zone, camera, bounds, size);
+  const scale = baseScale(bounds, size) * camera.zoom;
+  return {
+    ...center,
+    rx: Math.max(28, (zone.bounds.maxX - zone.bounds.minX) * scale * 0.62),
+    ry: Math.max(28, (zone.bounds.maxY - zone.bounds.minY) * scale * 0.62),
+  };
 }
 
 type MapHoverRectangle = MapRectangle & {
@@ -735,7 +539,6 @@ type TraceHover = {
   position: MapPosition;
   card: MapHoverRectangle;
   excerpt: string;
-  reading: boolean;
 };
 type ZoneHover = MapZone & {
   position: MapPosition;
@@ -746,15 +549,10 @@ export function prepareMapHover(
   frame: TopicMapNodeFrame,
   hoveredId: string | null,
   hoveredZoneId: string | null,
-  showInlineTrace = false,
 ): { traces: TraceHover[]; zones: ZoneHover[] } {
   const node = hoveredId ? frame.nodeById.get(hoveredId) : undefined;
   if (node) {
-    if (
-      (!showInlineTrace && node.textOpacity >= 0.9) ||
-      !frame.nodes.includes(node)
-    )
-      return { traces: [], zones: [] };
+    if (!frame.nodes.includes(node)) return { traces: [], zones: [] };
     const card = hoverRectangle(node.rect, frame.size, {
       width: 264,
       height: 184,
@@ -770,8 +568,7 @@ export function prepareMapHover(
               node,
               position: node.center,
               card,
-              excerpt: node.excerpt,
-              reading: true,
+              excerpt: node.point.summary,
             },
           ]
         : [],

@@ -63,6 +63,10 @@
       "import": "./dist/src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate.js",
       "require": "./dist/src/server/services/email/aiGatewayInvitation/GatewayInvitationEmailTemplate.js"
     },
+    "./src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate": {
+      "import": "./dist/src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate.js",
+      "require": "./dist/src/server/services/email/aiGatewaySpendLimit/GatewaySpendLimitEmailTemplate.js"
+    },
     "./src/server/clickhouse": {
       "import": "./dist/src/server/clickhouse/index.js",
       "require": "./dist/src/server/clickhouse/index.js"
@@ -273,9 +277,9 @@
     "@clickhouse/client": "1.23.1",
     "@google-cloud/storage": "^8.4.0",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
-    "@opentelemetry/otlp-transformer": "^0.220.0",
-    "@opentelemetry/resources": "^2.9.0",
-    "@opentelemetry/sdk-trace-base": "^2.9.0",
+    "@opentelemetry/otlp-transformer": "^0.222.0",
+    "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/sdk-trace-base": "^2.11.0",
     "@prisma/client": "^6.19.3",
     "@react-email/components": "^0.5.1",
     "@react-email/render": "^1.2.1",
@@ -312,7 +316,7 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@opentelemetry/context-async-hooks": "^2.9.0",
+    "@opentelemetry/context-async-hooks": "^2.11.0",
     "@repo/oxlint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/lodash": "^4.17.24",

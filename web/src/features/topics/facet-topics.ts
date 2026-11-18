@@ -122,7 +122,3 @@ function tracingHref(
 ) {
   return `/project/${projectId}/traces?filter=${encodeURIComponent(filter)}&dateRange=${encodeURIComponent(rangeToString(range))}`;
 }
-
-export function allTopicsLabel(facetName: string) {
-  return `${facetName} summaries`;
-}
