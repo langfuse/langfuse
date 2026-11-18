@@ -1223,6 +1223,55 @@ describe("InAppAgentBackgroundClient reconnect", () => {
     });
   });
 
+  it("closes an in-flight reasoning message before a terminal RUN_FINISHED", async () => {
+    const events = [
+      {
+        type: EventType.RUN_STARTED,
+        runId: "run-1",
+        threadId: "conversation-1",
+      },
+      {
+        type: EventType.REASONING_START,
+      },
+      {
+        role: "reasoning",
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "thought-1",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        delta: "Considering the cancellation.\n",
+        messageId: "thought-1",
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: "run-1",
+        threadId: "conversation-1",
+      },
+    ];
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        events
+          .map((event, sequenceNumber) =>
+            sseFrame({ type: "event", sequenceNumber, event }),
+          )
+          .join("") + sseFrame({ type: "done" }),
+      ),
+    );
+    const client = new InAppAgentBackgroundClient({
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      cursor: -1,
+      startRun: vi.fn(),
+    });
+    await client.connectAgent();
+    expect(
+      client.messages.find((message) => message.role === "reasoning"),
+    ).toMatchObject({
+      content: "Considering the cancellation.\n",
+    });
+  });
+
   it("preserves rejected-tool details through AG-UI event validation", async () => {
     const toolError = JSON.stringify({
       code: IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
