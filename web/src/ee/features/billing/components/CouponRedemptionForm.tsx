@@ -50,7 +50,9 @@ export function CouponRedemptionForm({
       <Alert variant="info">
         <Alert.Title>Coupon submitted</Alert.Title>
         <Alert.Description>
-          {`We received your coupon for ${orgName}. We'll email you at ${submitterEmail} once it has been reviewed.`}
+          <span className="ph-no-capture">
+            {`We received your coupon for ${orgName}. We'll email you at ${submitterEmail} once it has been reviewed.`}
+          </span>
         </Alert.Description>
       </Alert>
     );
@@ -58,7 +60,8 @@ export function CouponRedemptionForm({
 
   return (
     <div className="flex max-w-xl flex-col gap-6">
-      <div className="flex flex-col gap-3 text-sm">
+      {/* The org name and email are customer data, kept out of session replay. */}
+      <div className="ph-no-capture flex flex-col gap-3 text-sm">
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
           <dt className="text-muted-foreground">Organization</dt>
           <dd className="font-medium">{orgName}</dd>

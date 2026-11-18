@@ -22,6 +22,7 @@ import {
 import { isCloudBillingEnabled } from "../utils/isCloudBillingEnabled";
 import { env } from "@/src/env.mjs";
 import { CouponCodeSchema } from "../utils/coupons";
+import { assertCouponRedemptionRateLimit } from "./coupons/couponRateLimit";
 import { buildCouponRedemptionPayload } from "./coupons/couponRedemption";
 
 const PROVIDER_LABEL: Record<BillingProvider, string> = {
@@ -503,9 +504,13 @@ export const cloudBillingRouter = createTRPCRouter({
         where: { id: input.orgId },
       });
       if (!org) throw new LangfuseNotFoundError("Organization not found");
+      const parsedOrg = parseDbOrg(org);
+
+      // Every attempt counts, so a code cannot be found by trying many.
+      await assertCouponRedemptionRateLimit(parsedOrg);
 
       const payload = buildCouponRedemptionPayload({
-        org: parseDbOrg(org),
+        org: parsedOrg,
         submitterEmail: ctx.session.user.email,
         couponCode: input.couponCode,
         couponCodes: env.LANGFUSE_CLOUD_COUPON_CODES,

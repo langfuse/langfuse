@@ -409,6 +409,45 @@ describe("RateLimitService", () => {
     }
   });
 
+  it("should allow 5 coupon redemptions per minute on every cloud plan", async () => {
+    const plans = [
+      "cloud:hobby",
+      "cloud:core",
+      "cloud:pro",
+      "cloud:team",
+      "cloud:enterprise",
+    ] as const;
+
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+    for (const plan of plans) {
+      await redis.del(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:coupon-redemption:${orgId}`,
+      );
+      const scope = asScope({
+        orgId,
+        plan,
+        projectId: null,
+        accessLevel: "organization",
+        rateLimitOverrides: [],
+      });
+
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        const result = await rateLimitService.rateLimitRequest(
+          scope,
+          "coupon-redemption",
+        );
+        expect(result.isRateLimited()).toBe(false);
+      }
+      const sixth = await rateLimitService.rateLimitRequest(
+        scope,
+        "coupon-redemption",
+      );
+      expect(sixth.isRateLimited()).toBe(true);
+      expect(sixth.res?.msBeforeNext).toBeLessThanOrEqual(60_000);
+    }
+  });
+
   it("should apply public-api-legacy rate limits by cloud plan", async () => {
     // Hobby and Core round their nominal hourly equivalent down (120 and
     // 420, versus the previous release's 150 and 450); Pro/Team/Enterprise
