@@ -1,4 +1,4 @@
-/** Rendering values for the new scatter: blurred topic fields, ringed dots, grain and labels. */
+/** Rendering values for the new scatter: blurred topic fields, ringed dots and labels. */
 import { type CSSProperties } from "react";
 import {
   screenPoint,
@@ -24,7 +24,6 @@ type TopicMapLook = {
     /** A softer tone of each hue for the fields, so they read as a wash under the dots. */
     tone?: { lightness: number; chroma: number };
   };
-  grain: number;
   dot: {
     size: number;
     ring: number;
@@ -45,7 +44,6 @@ type TopicMapLook = {
 
 export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
   scatter1: {
-    // White under the grain, so the grained map averages out to the nav's sunken background.
     background: "hsl(var(--background))",
     field: {
       kind: "ring",
@@ -56,7 +54,6 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       opacity: 0.55,
       tone: { lightness: 0.82, chroma: 0.08 },
     },
-    grain: 0.6,
     dot: {
       size: 6,
       ring: 1,
@@ -77,10 +74,9 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
   },
 };
 
-/** Dark mode is a first pass: theme background, screen-blended fields, quieter grain. */
+/** Dark mode is a first pass: theme background and screen-blended fields. */
 const DARK = {
   fieldOpacity: 0.7,
-  grain: 0.5,
   fieldTone: { lightness: 0.5, chroma: 0.13 },
   ringAlpha: 0.9,
   ring: "oklch(0.3 0 0)",
@@ -100,11 +96,6 @@ export function lookStyle(name: TopicMapLookName): CSSProperties {
     "--look-label-color": look.label.color,
     "--look-label-shadow": look.label.shadow,
   } as CSSProperties;
-}
-
-export function lookGrainOpacity(name: TopicMapLookName) {
-  const { grain } = TOPIC_MAP_LOOKS[name];
-  return isDark() ? grain * DARK.grain : grain;
 }
 
 /** Stable 0–1 value per trace, so field sizes hold still between renders. */

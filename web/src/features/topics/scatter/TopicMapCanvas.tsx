@@ -156,7 +156,6 @@ export function TopicMapCanvas({
       if (
         next.camera !== previous.camera ||
         next.scope !== previous.scope ||
-        next.pointer !== previous.pointer ||
         next.hoveredId !== previous.hoveredId ||
         next.reducedMotion !== previous.reducedMotion
       )
@@ -195,9 +194,15 @@ export function TopicMapCanvas({
 
 /** Dots outside the highlight stay visible as context. */
 const DIMMED = 0.25;
+/** Unassigned dots recede so the topics read first; hover brings one back. */
+const UNASSIGNED_OPACITY = 0.35;
 
 const isUnassigned = (node: TopicMapNodeFrame["nodes"][number]) =>
   node.point.groupId === "outliers" || node.point.groupId === "awaiting_map";
+
+const fadedOpacity = (node: TopicMapNodeFrame["nodes"][number]) =>
+  (node.matchesFilters ? 1 : DIMMED) *
+  (isUnassigned(node) ? UNASSIGNED_OPACITY : 1);
 
 function drawMap(
   canvas: HTMLCanvasElement,
@@ -239,7 +244,7 @@ function drawMap(
       node.center,
       rgb,
       ring,
-      node.matchesFilters ? 1 : DIMMED + active * (1 - DIMMED),
+      fadedOpacity(node) + active * (1 - fadedOpacity(node)),
       camera.zoom,
       stage,
     );
