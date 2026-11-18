@@ -11,7 +11,8 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 /**
  * Publish menu items for a trace or session detail header: Make Public while
  * private, Copy share link + Unshare while public. Publishing copies the link
- * and toasts.
+ * and toasts. While sharing is disabled for the org or instance, a stored
+ * public flag grants no access, so only a disabled Make Public is shown.
  */
 export function useShareMenuItems({
   kind,
@@ -32,7 +33,9 @@ export function useShareMenuItems({
   const label = kind === "trace" ? "Trace" : "Session";
 
   let disabled: { reason: string } | undefined;
-  if (!publish.hasAccess) {
+  if (publish.sharingDisabledReason) {
+    disabled = { reason: publish.sharingDisabledReason };
+  } else if (!publish.hasAccess) {
     disabled = { reason: `You don't have permission to share this ${kind}.` };
   } else if (publish.isPending) {
     disabled = { reason: "Updating sharing status." };
@@ -55,7 +58,7 @@ export function useShareMenuItems({
       .catch(() => undefined);
   };
 
-  if (isPublic) {
+  if (isPublic && !publish.sharingDisabledReason) {
     return [
       {
         type: "item",

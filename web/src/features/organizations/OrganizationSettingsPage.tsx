@@ -20,6 +20,7 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { LlmConnectionEmptyState } from "@/src/features/public-api/components/LlmConnectionEmptyState/LlmConnectionEmptyState";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
+import { PublicSharingSettings } from "@/src/ee/features/public-sharing/components/PublicSharingSettings";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
@@ -133,7 +134,7 @@ const getOrganizationSettingsPages = ({
     title: "General",
     slug: "index",
     section: "Organization",
-    cmdKKeywords: ["name", "id", "delete"],
+    cmdKKeywords: ["name", "id", "delete", "sharing", "public"],
     content: (
       <div className="flex flex-col gap-6">
         <RenameOrganization />
@@ -159,6 +160,7 @@ const getOrganizationSettingsPages = ({
           </Card>
         </div>
         <AIFeatureSwitch />
+        <PublicSharingSettings orgId={organization.id} />
         <SettingsDangerZone
           items={[
             {

@@ -88,6 +88,13 @@ vi.mock("@/src/features/organizations/components/AIFeatureSwitch", () => ({
   default: () => null,
 }));
 
+vi.mock(
+  "@/src/ee/features/public-sharing/components/PublicSharingSettings",
+  () => ({
+    PublicSharingSettings: () => null,
+  }),
+);
+
 vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
   useIsCloudBillingAvailable: vi.fn(),
 }));
