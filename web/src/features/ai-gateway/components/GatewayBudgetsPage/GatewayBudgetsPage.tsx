@@ -6,10 +6,8 @@ import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-c
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useGatewayAnalyticsFetchQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFetchQuery";
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
-import { GatewaySpendChart } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewaySpendChart/GatewaySpendChart";
-import { ConnectedGatewayBudgetsTable } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTable/ConnectedGatewayBudgetsTable";
-import { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTableState";
 import type { GatewaySpendInterval } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendIntervals";
+import { GatewayBudgetsTabContent } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/GatewayBudgetsTabContent";
 import { useGatewayBudgetsTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTab";
 import { GATEWAY_ANALYTICS_TIME_RANGE_PRESETS } from "@/src/features/ai-gateway/constants/gatewayAnalyticsTimeRangePresets";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
@@ -35,7 +33,6 @@ export function GatewayBudgetsPage({
     useGatewaySettingsAccess(organizationId);
   const fetchQuery = useGatewayAnalyticsFetchQuery(organizationId);
   const tab = useGatewayBudgetsTab(canManageGateway);
-  const table = useGatewayBudgetsTableState(organizationId, tab);
   const [spendInterval, setSpendInterval] =
     useState<GatewaySpendInterval>("day");
   const [timeRange, setTimeRange] = useState<TimeRange>({
@@ -45,20 +42,6 @@ export function GatewayBudgetsPage({
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],
   );
-  const selectedSubjects = useMemo(
-    () =>
-      table.selectedRows.map((row) => ({
-        value: row.subjectId,
-        label: row.name,
-      })),
-    [table.selectedRows],
-  );
-
-  const handleRemoveSelected = (subjectId: string) => {
-    const row = table.selectedRows.find((row) => row.subjectId === subjectId);
-    if (row) table.toggleRow(row.id);
-  };
-
   if (!canManageGateway && isIngestionConfigured === false) {
     return <ConnectedGatewayNotSetUpNotice />;
   }
@@ -88,22 +71,20 @@ export function GatewayBudgetsPage({
           </Alert>
         )}
         {isRecording === undefined && <Skeleton className="h-80 rounded-lg" />}
-        {canQueryAnalytics && (
-          <GatewaySpendChart
-            fetchQuery={fetchQuery}
-            timeRange={absoluteTimeRange}
-            interval={spendInterval}
-            onIntervalChange={setSpendInterval}
-            tab={tab}
-            selected={selectedSubjects}
-            onRemoveSelected={handleRemoveSelected}
-          />
-        )}
-        <ConnectedGatewayBudgetsTable
+        <GatewayBudgetsTabContent
           key={tab}
           organizationId={organizationId}
           tab={tab}
-          table={table}
+          chart={
+            canQueryAnalytics
+              ? {
+                  fetchQuery,
+                  timeRange: absoluteTimeRange,
+                  interval: spendInterval,
+                  onIntervalChange: setSpendInterval,
+                }
+              : null
+          }
         />
       </div>
     </>

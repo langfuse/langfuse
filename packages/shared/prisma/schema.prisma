@@ -449,6 +449,7 @@ model GatewaySpendLimit {
   @@unique([apiKeyId, interval])
   @@unique([organizationId, userId, interval])
   @@index([organizationId])
+  @@index([userId])
   @@map("gateway_spend_limits")
 }
 

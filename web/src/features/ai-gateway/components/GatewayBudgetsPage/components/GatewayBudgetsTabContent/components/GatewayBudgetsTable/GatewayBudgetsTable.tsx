@@ -10,7 +10,10 @@ import { createTableColumn } from "@/src/components/design-system/table/columns/
 import type { TableProps } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
+import {
+  GATEWAY_BUDGET_STATUSES,
+  type GatewayBudgetStatus,
+} from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import {
@@ -148,6 +151,11 @@ const columnsByTab: Record<
   users: [userColumn, budgetColumn("user"), resetsColumn, nextResetColumn],
 };
 
+const notEditableReasons = {
+  users: "Only gateway admins can change user budgets.",
+  apiKeys: "A gateway admin set this budget, so only an admin can change it.",
+} as const satisfies Record<GatewaySpendTab, string>;
+
 const copyByTab = {
   apiKeys: {
     searchPlaceholder: "Search keys",
@@ -189,12 +197,7 @@ export function GatewayBudgetsTable({
           icon: Pencil,
           disabled: row.isEditable
             ? undefined
-            : {
-                reason:
-                  tab === "users"
-                    ? "Only gateway admins can change user budgets."
-                    : "A gateway admin set this budget, so only an admin can change it.",
-              },
+            : { reason: notEditableReasons[tab] },
           onClick: () => onEditBudget(row),
         },
       ]}
@@ -205,15 +208,18 @@ export function GatewayBudgetsTable({
           id: "status",
           type: "select",
           label: "Status",
-          placeholder: "All budgets",
+          placeholder: "All",
           options: statusOptions,
           value: status.value,
-          onChange: (value) =>
-            status.onChange(value === "exceeded" ? "exceeded" : "all"),
+          onChange: (value) => status.onChange(toGatewayBudgetStatus(value)),
           muted: status.value === "all",
         },
       ]}
       noResultsMessage={isFiltered ? copy.noMatches : copy.noBudgets}
     />
   );
+}
+
+function toGatewayBudgetStatus(value: string): GatewayBudgetStatus {
+  return GATEWAY_BUDGET_STATUSES.find((status) => status === value) ?? "all";
 }

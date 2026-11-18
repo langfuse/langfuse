@@ -24,24 +24,9 @@ const alertVariants = cva(
         "top-right": "pr-10",
       },
       hasIcon: {
-        true: "[&>[data-slot=alert-title]]:pl-6 [&>[data-slot=alert-description]]:pl-6",
+        true: "[&>[data-slot=alert-title]]:pl-6 [&>[data-slot=alert-description]]:pl-6 [&>[data-slot=alert-icon]+[data-slot=alert-description]]:translate-y-[-3px]",
       },
     },
-    // Without a title, the icon centres on the description's first line.
-    compoundVariants: [
-      {
-        size: "default",
-        hasIcon: true,
-        class:
-          "[&>[data-slot=alert-icon]+[data-slot=alert-description]]:translate-y-[-3px]",
-      },
-      {
-        size: "sm",
-        hasIcon: true,
-        class:
-          "[&>[data-slot=alert-icon]:has(+[data-slot=alert-description])]:top-[9px]",
-      },
-    ],
     defaultVariants: {
       variant: "default",
       size: "default",

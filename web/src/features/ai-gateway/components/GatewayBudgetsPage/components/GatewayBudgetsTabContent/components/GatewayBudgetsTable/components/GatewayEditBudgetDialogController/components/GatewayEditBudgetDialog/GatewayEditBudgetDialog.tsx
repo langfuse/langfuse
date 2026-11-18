@@ -82,6 +82,11 @@ export function GatewayEditBudgetDialog({
 
   const isBulk = subjectNames.length > 1;
   const noun = nouns[subject];
+  const applies = isBulk ? "Each budget applies" : "Applies";
+  const removeLabel = isBulk ? "Remove budgets" : "Remove budget";
+  const replaceWarning = isBulk
+    ? describeReplacedBudgets(existingBudgetCount, subjectNames.length, noun)
+    : null;
   const name = (
     <span className="text-foreground font-medium">
       {isBulk ? `${subjectNames.length} ${noun}s` : subjectNames[0]}
@@ -101,7 +106,7 @@ export function GatewayEditBudgetDialog({
         ...(isBulk || spendLimit
           ? [
               {
-                label: isBulk ? "Remove budgets" : "Remove budget",
+                label: removeLabel,
                 type: "button" as const,
                 variant: "destructive" as const,
                 disabled: isSubmitting,
@@ -132,25 +137,18 @@ export function GatewayEditBudgetDialog({
           <p className="text-muted-foreground text-sm">
             {subject === "user" ? (
               <>
-                {isBulk ? "Each budget applies" : "Applies"} to every gateway
-                key of {name}, in addition to each key&apos;s own budget.
+                {applies} to every gateway key of {name}, in addition to each
+                key&apos;s own budget.
               </>
             ) : (
               <>
-                {isBulk ? "Each budget applies" : "Applies"} to requests with{" "}
-                {name}.
+                {applies} to requests with {name}.
               </>
             )}
           </p>
-          {isBulk && existingBudgetCount > 0 ? (
+          {replaceWarning !== null ? (
             <Alert variant="warning" size="sm">
-              <Alert.Description>
-                {existingBudgetCount === subjectNames.length
-                  ? `All selected ${noun}s already have a budget.`
-                  : `${existingBudgetCount} of the selected ${noun}s already have a budget.`}{" "}
-                Saving replaces {existingBudgetCount === 1 ? "it" : "them"} with
-                this one.
-              </Alert.Description>
+              <Alert.Description>{replaceWarning}</Alert.Description>
             </Alert>
           ) : null}
           <GatewaySpendBudgetField.Inputs
@@ -168,4 +166,17 @@ export function GatewayEditBudgetDialog({
       </Dialog.Body>
     </Dialog>
   );
+}
+
+function describeReplacedBudgets(
+  existingCount: number,
+  selectedCount: number,
+  noun: string,
+) {
+  if (existingCount === 0) return null;
+  const pronoun = existingCount === 1 ? "it" : "them";
+  if (existingCount === selectedCount) {
+    return `All selected ${noun}s already have a budget. Saving replaces ${pronoun} with this one.`;
+  }
+  return `${existingCount} of the selected ${noun}s already have a budget. Saving replaces ${pronoun} with this one.`;
 }

@@ -21,3 +21,5 @@ ALTER TABLE "gateway_spend_limits"
   );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "gateway_spend_limits_organization_id_user_id_interval_key" ON "gateway_spend_limits"("organization_id", "user_id", "interval");
+
+CREATE INDEX IF NOT EXISTS "gateway_spend_limits_user_id_idx" ON "gateway_spend_limits"("user_id");

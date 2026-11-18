@@ -11,15 +11,14 @@ const PAGE_SIZE = 10;
 
 /**
  * The budgets table's query and selection, shared with the spend chart so its
- * filter is always the selected rows. Everything resets with the tab, and the
- * selection clears whenever the listed rows change, so it never outlives them.
+ * filter is always the selected rows. The selection clears whenever the listed
+ * rows change, so it never outlives them.
  */
 export function useGatewayBudgetsTableState(
   organizationId: string,
   tab: GatewaySpendTab,
 ) {
-  const [state, setState] = useState(() => initialState(tab));
-  if (state.tab !== tab) setState(initialState(tab));
+  const [state, setState] = useState(initialState);
   const { searchQuery, status, pagination, selectionStore } = state;
 
   const budgets = api.aiGateway.listBudgets.useQuery(
@@ -72,9 +71,8 @@ export function useGatewayBudgetsTableState(
   };
 }
 
-function initialState(tab: GatewaySpendTab) {
+function initialState() {
   return {
-    tab,
     searchQuery: "",
     status: "all" as GatewayBudgetStatus,
     pagination: { pageIndex: 0, pageSize: PAGE_SIZE },
