@@ -21,10 +21,7 @@ import {
   invalidateGatewayResolveCacheForApiKey,
   invalidateGatewayResolveCacheForOrganization,
 } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import {
-  GatewayApiKeyRepository,
-  gatewayApiKeyWhere,
-} from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
+import { GatewayApiKeyRepository } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 import {
   getKeyOwnerFilter,
   type GatewayUsageScope,
@@ -115,20 +112,12 @@ export class GatewaySpendLimitService {
     const withOwnLimit = new Set(ownLimits.map(({ apiKeyId }) => apiKeyId));
     const defaultLimits = fallback
       ? (
-          await this.prisma.apiKey.findMany({
-            where: {
-              ...gatewayApiKeyWhere({
-                organizationId: params.organizationId,
-                ownerUserId,
-              }),
-              gatewayAssociation: { isNot: null },
-              id: {
-                in: params.apiKeyIds.filter((id) => !withOwnLimit.has(id)),
-              },
-            },
-            select: { id: true },
+          await this.apiKeys.filterVisibleGatewayApiKeyIds({
+            organizationId: params.organizationId,
+            ownerUserId,
+            apiKeyIds: params.apiKeyIds.filter((id) => !withOwnLimit.has(id)),
           })
-        ).map(({ id }) => ({ ...fallback, apiKeyId: id }))
+        ).map((apiKeyId) => ({ ...fallback, apiKeyId }))
       : [];
     const budgeted = [...ownLimits, ...defaultLimits].flatMap((limit) =>
       limit.apiKeyId ? [{ subjectId: limit.apiKeyId, limit }] : [],
@@ -497,16 +486,33 @@ export class GatewaySpendLimitService {
 
     // One default per scope, so a replaced one goes first, in the same
     // transaction so that a failed write keeps it.
-    await this.prisma.$transaction(async (tx) => {
-      if (kept && limit) {
-        await update(tx, { before: kept, limitUsd: limit.limitUsd, session });
-        return;
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        if (kept && limit) {
+          await update(tx, {
+            before: kept,
+            limitUsd: limit.limitUsd,
+            session,
+          });
+          return;
+        }
+        if (existing) await remove(tx, { before: existing, session });
+        if (limit) {
+          await createDefault(tx, { organizationId, scope, ...limit, session });
+        }
+      });
+    } catch (error) {
+      // Another save of the same default won: one created it (P2002) or removed the replaced one (P2025).
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === "P2002" || error.code === "P2025")
+      ) {
+        throw new LangfuseConflictError(
+          "The default budget was changed at the same time. Reload and try again.",
+        );
       }
-      if (existing) await remove(tx, { before: existing, session });
-      if (limit) {
-        await createDefault(tx, { organizationId, scope, ...limit, session });
-      }
-    });
+      throw error;
+    }
     await invalidateGatewayResolveCacheForOrganization(organizationId);
   }
 
