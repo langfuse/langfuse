@@ -15,7 +15,6 @@ import {
   type GatewayBudgetStatus,
 } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
-import { isGatewayBudgetStatusShown } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/isGatewayBudgetStatusShown";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import {
   getGatewaySpendLimitWindowEnd,
@@ -64,8 +63,6 @@ type GatewayBudgetsTableProps = Pick<
   /** Selects rows for the spend chart and bulk changes. */
   selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
   onEditBudget: (row: GatewayBudgetRow) => void;
-  /** With a default, every key or user has a budget, so none is unlimited. */
-  hasDefault: boolean;
 };
 
 const statusOptions: { value: GatewayBudgetStatus; label: string }[] = [
@@ -190,12 +187,8 @@ export function GatewayBudgetsTable({
   status,
   selectColumn,
   onEditBudget,
-  hasDefault,
 }: GatewayBudgetsTableProps) {
   const copy = copyByTab[tab];
-  const shownStatusOptions = statusOptions.filter(({ value }) =>
-    isGatewayBudgetStatusShown(value, hasDefault),
-  );
   const isFiltered = search.value.trim().length > 0 || status.value !== "all";
 
   return (
@@ -224,7 +217,7 @@ export function GatewayBudgetsTable({
           type: "select",
           label: "Status",
           placeholder: "All",
-          options: shownStatusOptions,
+          options: statusOptions,
           value: status.value,
           onChange: (value) => status.onChange(toGatewayBudgetStatus(value)),
           muted: status.value === "all",

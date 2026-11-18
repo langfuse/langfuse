@@ -4,42 +4,34 @@ import { useStore } from "zustand";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
-import { isGatewayBudgetStatusShown } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/isGatewayBudgetStatusShown";
-import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
 import { api } from "@/src/utils/api";
 
 const PAGE_SIZE = 10;
 
 /**
  * The budgets table's query and selection, shared with the spend chart so its
- * filter is always the selected rows. The selection clears whenever the listed
- * rows change, so it never outlives them.
+ * filter is always the selected rows, or every matching row under select-all.
+ * The selection clears whenever the listed rows change, so it never outlives
+ * them.
  */
 export function useGatewayBudgetsTableState(
   organizationId: string,
   tab: GatewaySpendTab,
 ) {
   const [state, setState] = useState(initialState);
-  const { searchQuery, selectionStore } = state;
-  const hasDefault = Boolean(
-    useGatewayDefaultBudget(organizationId, tab === "apiKeys" ? "key" : "user"),
-  );
-  // Setting or removing a default can hide the chosen status; the table then lists all from the first page.
-  const isStatusShown = isGatewayBudgetStatusShown(state.status, hasDefault);
-  const status = isStatusShown ? state.status : "all";
-  const pagination = isStatusShown
-    ? state.pagination
-    : firstPage(state.pagination);
+  const { searchQuery, status, pagination, selectionStore } = state;
+  const trimmedSearch = searchQuery.trim() || undefined;
 
   const budgets = api.aiGateway.listBudgets.useQuery({
     orgId: organizationId,
     scope: tab === "apiKeys" ? "API_KEY" : "USER",
-    searchQuery: searchQuery.trim() || undefined,
+    searchQuery: trimmedSearch,
     status,
     page: pagination.pageIndex,
     limit: pagination.pageSize,
   });
   const rowSelection = useStore(selectionStore, (store) => store.rowSelection);
+  const selectAll = useStore(selectionStore, (store) => store.selectAll);
   const rows = budgets.data?.rows;
   // Stable while the rows and selection are, so the spend chart's query is too.
   const selectedRows = useMemo(
@@ -55,9 +47,15 @@ export function useGatewayBudgetsTableState(
 
   return {
     budgets,
-    hasDefault,
     selectionStore,
     selectedRows,
+    /** Every row matching the search and status, across all pages. */
+    selectAll,
+    matching: {
+      type: "matching" as const,
+      searchQuery: trimmedSearch,
+      status,
+    },
     clearSelection,
     toggleRow: (rowId: string) => toggleRow(rowId, !rowSelection[rowId]),
     search: {

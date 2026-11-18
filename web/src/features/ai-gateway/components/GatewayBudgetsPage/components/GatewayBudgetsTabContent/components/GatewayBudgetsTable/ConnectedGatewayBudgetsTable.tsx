@@ -5,10 +5,8 @@ import { GatewayBudgetsSelectionBar } from "@/src/features/ai-gateway/components
 import { GatewayEditBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayEditBudgetDialogController/GatewayEditBudgetDialogController";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import type { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTableState";
-import {
-  type GatewayBudgetSubject,
-  useSetGatewayBudgets,
-} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
+import { useSetGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
+import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
 import {
   type GatewayBudgetRow,
   GatewayBudgetsTable,
@@ -24,38 +22,6 @@ const notEditableReasons = {
   apiKeys: "Some selected key budgets were set by a gateway admin.",
   users: "Only gateway admins can change user budgets.",
 } as const satisfies Record<GatewaySpendTab, string>;
-
-/** Removing a budget falls back to the organization's default while one is set. */
-const removalCopy = {
-  unlimited: {
-    actionLabel: "Remove budget",
-    confirmLabel: "Remove",
-    title: (subject: GatewayBudgetSubject, count: number) =>
-      `Remove ${count} ${subject} ${count === 1 ? "budget" : "budgets"}?`,
-    text: {
-      key: "Requests with these keys are no longer capped by their own budget.",
-      user: "These users' keys are no longer capped by a user budget.",
-    },
-  },
-  default: {
-    actionLabel: "Use default budget",
-    confirmLabel: "Use default",
-    title: (subject: GatewayBudgetSubject, count: number) =>
-      `Use the default budget for ${count} ${count === 1 ? subject : `${subject}s`}?`,
-    text: {
-      key: "Their own budgets are removed, and the default key budget applies to these keys instead.",
-      user: "Their own budgets are removed, and the default user budget applies to these users instead.",
-    },
-  },
-} as const satisfies Record<
-  string,
-  {
-    actionLabel: string;
-    confirmLabel: string;
-    title: (subject: GatewayBudgetSubject, count: number) => string;
-    text: Record<GatewayBudgetSubject, string>;
-  }
->;
 
 /** Clicking a row selects it, like its checkbox; the selection also filters the spend chart. */
 export function ConnectedGatewayBudgetsTable({
@@ -74,8 +40,8 @@ export function ConnectedGatewayBudgetsTable({
   });
   const { setBudgets, mutation: removal } =
     useSetGatewayBudgets(organizationId);
-  const { hasDefault } = table;
-  const removalText = removalCopy[hasDefault ? "default" : "unlimited"];
+  // Removing a budget falls back to the organization's default while one is set.
+  const hasDefault = Boolean(useGatewayDefaultBudget(organizationId, subject));
   const bulkDisabledReason = selectedRows.every((row) => row.isEditable)
     ? undefined
     : notEditableReasons[tab];
@@ -103,7 +69,6 @@ export function ConnectedGatewayBudgetsTable({
                   row.spendLimit !== null && !row.isDefault ? 1 : 0,
               })
             }
-            hasDefault={hasDefault}
             search={table.search}
             status={table.status}
             pagination={{
@@ -113,9 +78,13 @@ export function ConnectedGatewayBudgetsTable({
             }}
           />
           <ConfirmationDialogController
-            title={removalText.title(subject, selectedRows.length)}
-            text={removalText.text[subject]}
-            confirmLabel={removalText.confirmLabel}
+            title={`Remove ${selectedRows.length} ${subject} ${selectedRows.length === 1 ? "budget" : "budgets"}?`}
+            text={
+              subject === "key"
+                ? "Requests with these keys are no longer capped by their own budget."
+                : "These users' keys are no longer capped by a user budget."
+            }
+            confirmLabel="Remove"
             variant="destructive"
             loading={removal.isPending}
             error={removal.error?.message}
@@ -152,7 +121,9 @@ export function ConnectedGatewayBudgetsTable({
                     onSaved: clearSelection,
                   });
                 }}
-                removeLabel={removalText.actionLabel}
+                removeLabel={
+                  hasDefault ? "Use default budget" : "Remove budget"
+                }
                 onRemove={openRemoveDialog}
               />
             )}
