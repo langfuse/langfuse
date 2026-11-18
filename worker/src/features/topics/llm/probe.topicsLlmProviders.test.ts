@@ -1,4 +1,25 @@
-import { test } from "vitest";
+import { test, vi } from "vitest";
+
+const raw = vi.hoisted(() => [] as string[]);
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/topics/server")>();
+  return {
+    ...actual,
+    generateTopicText: async (
+      params: Parameters<typeof actual.generateTopicText>[0],
+    ) => {
+      try {
+        return await actual.generateTopicText(params);
+      } catch (error: any) {
+        raw.push(
+          `text=${JSON.stringify(error?.text)} cause=${String(error?.cause?.message ?? error?.cause ?? "").slice(0, 800)}`,
+        );
+        throw error;
+      }
+    },
+  };
+});
 import { generateVertexAccessTokenForServiceAccount } from "@langfuse/shared/src/server";
 import { nameTopicGroup, prepareTopicNamingGroup } from "./models";
 import {
@@ -92,22 +113,22 @@ test("list live model ids", async () => {
   const haiku = TOPICS_LLM_COMBINATIONS.find(
     (c) => c.summary.model === "claude-haiku-5-5",
   );
+  const prepared = await prepareTopicNamingGroup(
+    {
+      members: [
+        "Export last month's orders to CSV after the full export timed out.",
+        "Export a quarter of invoices to CSV split into smaller files.",
+        "Download the customer list as a spreadsheet after a failed export.",
+        "Export order history to CSV grouped by region.",
+      ].map((summary) => ({ summary })),
+      contrasts: [
+        { id: "c1", summary: "Translate a product description into German." },
+      ],
+    },
+    "topics-llm-provider-test",
+  );
   if (haiku && anthropic) {
     const { models } = resolveTopicsLlmCombination(haiku);
-    const prepared = await prepareTopicNamingGroup(
-      {
-        members: [
-          "Export last month's orders to CSV after the full export timed out.",
-          "Export a quarter of invoices to CSV split into smaller files.",
-          "Download the customer list as a spreadsheet after a failed export.",
-          "Export order history to CSV grouped by region.",
-        ].map((summary) => ({ summary })),
-        contrasts: [
-          { id: "c1", summary: "Translate a product description into German." },
-        ],
-      },
-      "topics-llm-provider-test",
-    );
     for (let i = 0; i < 5; i++) {
       try {
         await nameTopicGroup(models, { ...prepared, facetName: "Intent" });
@@ -124,7 +145,36 @@ test("list live model ids", async () => {
           );
           current = current.cause;
         }
-        lines.push(`[probe] haiku naming ${i}: ${chain.join(" <- ")}`);
+        lines.push(
+          `[probe] haiku naming ${i}: ${chain.join(" <- ")} | ${raw.at(-1) ?? "no raw"}`,
+        );
+      }
+    }
+  }
+  if (vertexKey && prepared) {
+    for (const model of [
+      "gemini-4-argon",
+      "gemini-4-carbon",
+      "gemini-4-hydrogen",
+      "gemini-3.8-flash",
+    ]) {
+      const { models } = resolveTopicsLlmCombination({
+        name: `Vertex ${model}`,
+        summary: { connection: "vertex", model },
+        embedding: {
+          connection: "vertex",
+          model: "text-embedding-005",
+          dimensions: 768,
+        },
+        clustering: { connection: "vertex", model },
+      });
+      try {
+        await nameTopicGroup(models, { ...prepared, facetName: "Intent" });
+        lines.push(`[probe] vertex ${model} naming: ok`);
+      } catch (error: any) {
+        lines.push(
+          `[probe] vertex ${model} naming: ${String(error?.message).slice(0, 300)} | ${raw.at(-1) ?? ""}`,
+        );
       }
     }
   }
