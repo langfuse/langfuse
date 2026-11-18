@@ -12,6 +12,7 @@ import {
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
 import {
+  type CustomHeights,
   customRowHeightMenu,
   DataTableRowHeightSwitch,
   useRowHeightLocalStorage,
@@ -43,6 +44,8 @@ function capWords(text: string, cap: number) {
   const words = text.trim().split(/\s+/);
   return words.length > cap ? `${words.slice(0, cap).join(" ")}…` : text;
 }
+/** Summaries run up to about 230 characters, so medium fits two lines and large about four. */
+const TRACE_ROW_HEIGHTS: CustomHeights = { s: "h-7", m: "h-16", l: "h-24" };
 /** More rows load from the server as the list nears its end. */
 const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
@@ -193,7 +196,10 @@ export function TopicTraceList({
                   <span
                     className={cn(
                       "min-w-0 text-sm",
-                      wrapsSummary ? "break-words" : "truncate",
+                      // The cell itself does not wrap, so wrapping is set explicitly.
+                      wrapsSummary
+                        ? "break-words whitespace-normal"
+                        : "truncate",
                     )}
                     title={name}
                   >
@@ -323,6 +329,7 @@ export function TopicTraceList({
               peekView={peekView}
               rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
               rowHeight={capsWords ? undefined : rowHeight}
+              customRowHeights={TRACE_ROW_HEIGHTS}
               customRowHeightPx={capsWords ? null : rowHeights.activeHeightPx}
               onCustomRowHeightChange={rowHeights.setCustomPx}
               onSelectRowHeight={setRowHeight}
