@@ -551,6 +551,56 @@ describe("BatchDataRetentionCleaner", () => {
     });
   });
 
+  describe("processBatch - Topics results", () => {
+    it.each(["topic_facet_summaries", "topic_assignments"] as const)(
+      "should delete %s older than project retention by unit_start_time",
+      async (table) => {
+        const now = Date.now();
+        const { projectId } = await createOrgProjectAndApiKey();
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { retentionDays: 7 },
+        });
+        const oldTraceId = randomUUID();
+        const recentTraceId = randomUUID();
+        await clickhouseClient().insert({
+          table,
+          format: "JSONEachRow",
+          values: [
+            { traceId: oldTraceId, unitStartTime: now - 10 * 86_400_000 },
+            { traceId: recentTraceId, unitStartTime: now - 86_400_000 },
+          ].map(({ traceId, unitStartTime }) => ({
+            project_id: projectId,
+            facet_id: "intent",
+            facet_version: 1,
+            trace_id: traceId,
+            environment: "default",
+            unit_start_time: toClickhouseDateTime(unitStartTime),
+            ...(table === "topic_facet_summaries"
+              ? {
+                  processing_state: "complete",
+                  summary: "A trace summary.",
+                  processed_at: toClickhouseDateTime(now),
+                }
+              : {
+                  summary_processed_at: toClickhouseDateTime(now),
+                  origin: "online",
+                  assigned_at: toClickhouseDateTime(now),
+                }),
+          })),
+        });
+
+        await new BatchDataRetentionCleaner(table).processBatch();
+
+        const rows = await queryClickhouse<{ trace_id: string }>({
+          query: `SELECT trace_id FROM ${table} WHERE project_id = {projectId: String}`,
+          params: { projectId },
+        });
+        expect(rows.map((row) => row.trace_id)).toEqual([recentTraceId]);
+      },
+    );
+  });
+
   describe("candidate discovery and enrichment", () => {
     const timestampColumns = TIMESTAMP_COLUMN_MAP as Record<string, string>;
     let tableName: string;
