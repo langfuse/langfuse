@@ -1,15 +1,11 @@
 import { useState, type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import preview from "../../../.storybook/preview";
+import preview from "../../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/scatter/TopicMapExplorer";
-import {
-  fitCamera,
-  prepareTopicMap,
-  screenPoint,
-} from "./scatter/prepare-topic-map";
+import { TopicMapExplorer } from "./TopicMapExplorer";
+import { fitCamera, prepareTopicMap, screenPoint } from "./prepare-topic-map";
 
-type ExplorerProps = ComponentProps<typeof EmbeddingMapView>;
+type ExplorerProps = ComponentProps<typeof TopicMapExplorer>;
 
 const data = {
   points: [
@@ -34,7 +30,7 @@ const data = {
   ],
   missingSummaryCount: 0,
   unpositionedCount: 0,
-} satisfies ComponentProps<typeof EmbeddingMapView>["data"];
+} satisfies ComponentProps<typeof TopicMapExplorer>["data"];
 
 const issueClusters = [
   {
@@ -186,7 +182,7 @@ function ControlledExplorer(args: ExplorerProps) {
     args.onSelectTrace(id);
   };
   return (
-    <EmbeddingMapView
+    <TopicMapExplorer
       {...args}
       selectedTopic={selectedTopic}
       selectedTraceId={selectedTraceId}
@@ -220,7 +216,7 @@ async function waitForMapSettled(canvasElement: HTMLElement) {
 }
 
 const meta = preview.meta({
-  component: EmbeddingMapView,
+  component: TopicMapExplorer,
   args: {
     topics: [{ id: "billing", name: "Billing" }],
     data,
@@ -535,7 +531,7 @@ export const FilteringPreservesCamera = meta.story({
           onClick={handleNoMatches}
         />
         <Button text="Clear filter" variant="secondary" onClick={handleClear} />
-        <EmbeddingMapView {...args} matchingTraceIds={matchingTraceIds} />
+        <TopicMapExplorer {...args} matchingTraceIds={matchingTraceIds} />
       </>
     );
   },
