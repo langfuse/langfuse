@@ -663,6 +663,10 @@ jobs:
       - name: Load default env (for prisma generate)
         run: |
           cp .env.dev.example .env
+      - name: Build icons for package tests
+        run: pnpm --filter @langfuse/icons run build
+      - name: Run icons package tests
+        run: pnpm --filter @langfuse/icons run test
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
       - name: run shared tests
@@ -2014,6 +2018,7 @@ jobs:
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
             BUILD_ID=${{ github.sha }}
+            NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
@@ -2029,6 +2034,7 @@ jobs:
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
             BUILD_ID=${{ github.sha }}
+            NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Record pushed digests

@@ -17,8 +17,11 @@ export const SESSION_TRACE_FIELD_REGISTRY = fieldRegistryFromColumns(
       "name:=agent",
       "traceName:=chat",
       "type:=GENERATION",
+      "type:(AGENT OR TOOL)",
       "level:=ERROR",
+      "level:(ERROR OR WARNING)",
       "environment:=production",
+      "environment:(production OR staging)",
       "isRootObservation:true",
     ],
     fields: {
@@ -32,12 +35,18 @@ export const SESSION_TRACE_FIELD_REGISTRY = fieldRegistryFromColumns(
         negatedOperators: ["=", "exact", "~"],
       },
       type: {
-        operators: ["exact"],
+        operators: ["=", "exact"],
         negatedOperators: [],
         suggestObservedValues: true,
         exactSuggestions: true,
       },
-      level: { operators: ["=", "exact"], negatedOperators: [] },
+      level: {
+        operators: ["=", "exact"],
+        negatedOperators: [],
+        suggestObservedValues: true,
+        exactSuggestions: true,
+      },
+      environment: { operators: ["=", "exact"], negatedOperators: [] },
       isRootObservation: { operators: ["=", "exact"] },
     },
     filterStateErrors: (filters) =>

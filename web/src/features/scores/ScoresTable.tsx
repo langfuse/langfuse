@@ -1181,6 +1181,7 @@ export default function ScoresTable({
       projectId={projectId}
       filterConfig={scoresFilterConfig}
       filterState={queryFilter.searchBarFilterState}
+      managedEnvironmentPolicy={queryFilter.managedEnvironmentPolicyConfig}
       setFilterState={setFiltersWrapper}
       filterOptions={newFilterOptions}
       isLoading={isSidebarFilterLoading}

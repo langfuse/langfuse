@@ -74,7 +74,7 @@ describe("session trace search registry", () => {
       ["level:ERROR -type:GEN|", null],
       ["level:ERROR NOT type:GEN|", null],
       ["level:ERROR NOT (type:GEN|)", null],
-      ["level:ERROR type:(GEN| OR SPAN)", null],
+      ["level:ERROR type:(GEN| OR SPAN)", "GENERATION"],
     ] as const) {
       const caret = markedInput.indexOf("|");
       const input = markedInput.replaceAll("|", "");
@@ -148,7 +148,7 @@ describe("session trace search registry", () => {
 
   it.each([
     ["name:agent*", "does not support starts-with"],
-    ["type:GENERATION", "does not support ="],
+    ["type:GENERATION", "These filters are not supported"],
     ["-type:=GENERATION", "does not support negated exact"],
   ])("explains the unsupported operator in %s", (input, message) => {
     expect(
@@ -178,17 +178,17 @@ describe("session trace search registry", () => {
     },
   );
 
-  it.each(["type:(GEN OR SPAN)", "level:(ERR OR WARNING)"])(
-    "does not suggest edits inside unsupported groups: %s",
-    (input) => {
-      const caret = input.indexOf(" OR");
-      const plan = planInputCompletions(
-        { input, caret, currentQueryText: input, observed, recents: [] },
-        SESSION_TRACE_FIELD_REGISTRY,
-      );
-      expect(flattenOptions(plan)).toEqual([]);
-    },
-  );
+  it.each([
+    "level:(ERROR AND WARNING)",
+    "environment:(production AND staging)",
+  ])("does not suggest edits inside unsupported groups: %s", (input) => {
+    const caret = input.indexOf(" AND");
+    const plan = planInputCompletions(
+      { input, caret, currentQueryText: input, observed, recents: [] },
+      SESSION_TRACE_FIELD_REGISTRY,
+    );
+    expect(flattenOptions(plan)).toEqual([]);
+  });
 
   it("validates presets and preserves policy through registry enrichment", () => {
     const registry = withFieldOptions(
@@ -201,7 +201,7 @@ describe("session trace search registry", () => {
     expect(registry.resolveField("type")).toEqual(
       expect.objectContaining({
         field: expect.objectContaining({
-          operators: ["exact"],
+          operators: ["=", "exact"],
           negatedOperators: [],
           exactSuggestions: true,
         }),
@@ -300,4 +300,93 @@ describe("session trace search registry", () => {
     if (restored.status !== "committed") return;
     expect(restored.filters).toEqual(result.filters);
   });
+
+  it.each([
+    ["type:(AGENT OR TOOL)", "type", ["AGENT", "TOOL"]],
+    ["type:AGENT OR type:TOOL", "type", ["AGENT", "TOOL"]],
+    ["level:(ERROR OR WARNING)", "level", ["ERROR", "WARNING"]],
+    [
+      "environment:(production OR staging)",
+      "environment",
+      ["production", "staging"],
+    ],
+  ])("round-trips grouped categorical filters: %s", (input, column, values) => {
+    const result = planCommit(input, undefined, SESSION_TRACE_FIELD_REGISTRY);
+    expect(result.status).toBe("committed");
+    if (result.status !== "committed") return;
+    const filters = [
+      {
+        column,
+        type: "stringOptions",
+        operator: "any of",
+        value: values,
+      },
+    ];
+    expect(result.filters).toEqual(filters);
+    expect(sessionTraceFilterSchema.parse(result.filters)).toEqual(filters);
+    const query = filterStateToQueryText(
+      result.filters,
+      {},
+      SESSION_TRACE_FIELD_REGISTRY,
+    );
+    expect(query.skippedFilters).toEqual([]);
+    const restored = planCommit(
+      query.text,
+      undefined,
+      SESSION_TRACE_FIELD_REGISTRY,
+    );
+    expect(restored.status).toBe("committed");
+    if (restored.status !== "committed") return;
+    expect(restored.filters).toEqual(filters);
+  });
+
+  it.each([
+    "type:AGENT OR level:ERROR",
+    "level:ERROR OR environment:production",
+    "-level:(ERROR OR WARNING)",
+    "-environment:(production OR staging)",
+  ])("rejects unsupported OR queries: %s", (input) => {
+    expect(
+      planCommit(input, undefined, SESSION_TRACE_FIELD_REGISTRY).status,
+    ).toBe("invalid");
+  });
+
+  it.each([
+    ["type:(AGENT OR TOO)", "type", "TOOL", ["AGENT", "TOOL"]],
+    ["level:(WARNING OR ERR)", "level", "ERROR", ["WARNING", "ERROR"]],
+  ])(
+    "completes an OR group without replacing its other value: %s",
+    (input, column, value, values) => {
+      const plan = planInputCompletions(
+        {
+          input,
+          caret: input.indexOf(")"),
+          currentQueryText: input,
+          observed,
+          recents: [],
+        },
+        SESSION_TRACE_FIELD_REGISTRY,
+      );
+      const tool = flattenOptions(plan).find(
+        (option) => option.kind === "value" && option.value === value,
+      );
+      if (!plan || !tool || tool.kind !== "value")
+        throw new Error("Missing value completion");
+      const result = planCommit(
+        applyPick(tool, input, plan).next,
+        undefined,
+        SESSION_TRACE_FIELD_REGISTRY,
+      );
+      expect(result.status).toBe("committed");
+      if (result.status !== "committed") return;
+      expect(result.filters).toEqual([
+        {
+          column,
+          type: "stringOptions",
+          operator: "any of",
+          value: values,
+        },
+      ]);
+    },
+  );
 });

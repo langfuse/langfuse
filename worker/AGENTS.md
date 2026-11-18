@@ -129,6 +129,8 @@
 ## Package-Specific Rules
 
 - Keep tests independent; no ordering assumptions.
+- Before enabling `isolate: false`, make every file restore its timers, environment/global stubs, spies, listeners, mutable module state, and pending work in `afterAll`. Delete only its own database rows and Redis keys; close private clients while keeping reused singletons open. Module mocks need an explicit reset contract or file isolation.
+- Verify reused workers with at least two recorded shuffle seeds and one worker (`--sequence.shuffle.files --sequence.seed=<seed> --maxWorkers=1`). Order-dependent failures must stay red; fix the leak without retries or wider timeouts.
 - Avoid editing `dist/*` directly.
 - Coordinate shared changes with `../packages/shared`.
 - Changes to `src/features/blobstorage/` (export pipeline, enrichment logic,

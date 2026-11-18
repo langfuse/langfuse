@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unstable-nested-components */
 import {
   type PointerEvent,
+  type ComponentProps,
   useContext,
   type RefObject,
   type UIEvent,
@@ -21,6 +22,8 @@ import {
   topicTracesHref,
 } from "./facet-topics";
 import { FacetTraceSource } from "./useFacetTopicTraces";
+import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
+import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
@@ -67,6 +70,9 @@ export function TopicTraceList({
   tracePanelRef,
   headerRef,
   divider,
+  search,
+  topicColors,
+  emptyMessage = "No trace summaries.",
 }: TopicTraceListProps) {
   const { rows } = traces;
   const onScrollCapture = (event: UIEvent<HTMLElement>) => {
@@ -106,6 +112,40 @@ export function TopicTraceList({
         </span>
       ),
     },
+    ...(topicColors
+      ? [
+          {
+            accessorKey: "topicName",
+            header: () => <span className={CELL}>Topic</span>,
+            size: 200,
+            minSize: 120,
+            cell: ({ row }) => {
+              // Outliers read Unassigned, as in the topic rows and on the map.
+              const name =
+                row.original.topicName ??
+                (row.original.outcome === "outlier"
+                  ? "Unassigned"
+                  : row.original.outcome.replaceAll("_", " "));
+              return (
+                <span className={cn(CELL, "flex min-w-0 items-center gap-2")}>
+                  <span
+                    aria-hidden
+                    className="size-2.5 shrink-0 rounded-xs"
+                    style={{
+                      backgroundColor: topicColors.get(
+                        row.original.topicId ?? UNASSIGNED_TOPIC_ID,
+                      ),
+                    }}
+                  />
+                  <span className="min-w-0 truncate text-sm" title={name}>
+                    {name}
+                  </span>
+                </span>
+              );
+            },
+          } satisfies LangfuseColumnDef<FacetRow>,
+        ]
+      : []),
     {
       accessorKey: "summary",
       header: () => <span className={CELL}>Summary</span>,
@@ -133,6 +173,7 @@ export function TopicTraceList({
         !divider && "rounded-md border",
       )}
     >
+      {search && <TopicsTraceToolbar {...search} divider={false} />}
       <div ref={headerRef} className="flex shrink-0 flex-col gap-1 px-4 py-3">
         <div className="flex h-7 items-center justify-between gap-4">
           <p className="text-muted-foreground flex min-w-0 items-center gap-2">
@@ -188,7 +229,7 @@ export function TopicTraceList({
         }}
         className="min-h-0 overscroll-contain"
         cellPadding="relaxed"
-        noResultsMessage="No trace summaries."
+        noResultsMessage={emptyMessage}
         peekView={peekView}
       />
       {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
@@ -202,8 +243,8 @@ type TopicTraceListProps = {
   description?: string;
   swatchColor?: string;
   traces: TopicTracesResult;
-  /** Approximate count of the listed topic's traces. */
-  totalCount: number;
+  /** Count of the listed traces; null when only the loaded rows are known. */
+  totalCount: number | null;
   /** The listed topic, so Open in Tracing can filter by it instead of trace IDs. */
   tracingTopic?: { facet: Facet; name: string };
   peekView: DataTablePeekViewProps;
@@ -212,12 +253,15 @@ type TopicTraceListProps = {
   headerRef?: RefObject<HTMLDivElement | null>;
   /** `none` when the parent draws the divider, e.g. a resize handle. */
   divider?: "side" | "none";
+  /** Search and filters above the header. */
+  search?: Omit<ComponentProps<typeof TopicsTraceToolbar>, "divider">;
+  /** Shown when the list is empty, e.g. for a search that matches nothing. */
+  emptyMessage?: string;
+  /** Adds a Topic column, colored per topic ID. */
+  topicColors?: ReadonlyMap<string, string>;
 };
 
-const APPROXIMATE_COUNT_FROM = 1_000;
-
-/** Counts are distinct-trace estimates; only large ones read as approximate. */
-function traceCountLabel(count: number) {
-  const approximate = count >= APPROXIMATE_COUNT_FROM ? "~" : "";
-  return `${approximate}${count.toLocaleString()} traces`;
+function traceCountLabel(count: number | null) {
+  if (count === null) return "Traces";
+  return `${count.toLocaleString()} traces`;
 }

@@ -254,7 +254,7 @@ export const ROUTES: Route[] = [
     href: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
-    group: RouteGroup.ContextManagement,
+    group: RouteGroup.Evaluation,
     section: RouteSection.Main,
   },
   {
