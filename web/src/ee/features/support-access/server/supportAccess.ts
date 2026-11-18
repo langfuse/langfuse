@@ -7,8 +7,8 @@ import {
   revokeRolesForPrincipal,
 } from "@langfuse/shared/rbac/server";
 
-/** supportAccessTag marks the role assignments ConductorOne support grants create, so only support access replaces and revokes them. */
-export const supportAccessTag = "source:c1";
+/** supportAccessTag tags the role assignments support grants create. */
+const supportAccessTag = "source:c1";
 
 // users.support_access, e.g.
 // { "<orgId>": { "role": "VIEWER", "expiresAt": "2026-10-27T04:15:37.316Z" } }

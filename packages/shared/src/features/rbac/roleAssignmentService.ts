@@ -59,7 +59,7 @@ export async function assignRole(
   });
 }
 
-/** replaceRolesForPrincipal revokes a principal's roles on an owner that carry the new assignment's tags before assigning the principal a new role. */
+/** replaceRolesForPrincipal replaces a principal's roles on an owner that carry the new role's tags. */
 export async function replaceRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
@@ -75,7 +75,7 @@ export async function replaceRolesForPrincipal(
   });
 }
 
-/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner and to the assignments carrying every given tag. */
+/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to an owner and to the given tags. */
 export async function revokeRolesForPrincipal(
   prisma: Prisma.TransactionClient,
   {
@@ -95,7 +95,7 @@ export async function revokeRolesForPrincipal(
       orgId: untag(tenantId),
       principalId,
       ownerId,
-      tags: tags?.length ? { hasEvery: tags } : undefined,
+      tags: byTags(tags),
     },
   });
 }
@@ -232,4 +232,10 @@ function validateRole(roleId: RoleId) {
     throw new InvalidRequestError("Unknown system role");
   }
   return { roleId, systemRole };
+}
+
+/** byTags matches assignments carrying every tag, or every assignment when no tags are given. */
+function byTags(tags: string[] | undefined) {
+  if (!tags?.length) return undefined;
+  return { hasEvery: tags };
 }

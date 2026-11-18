@@ -22,7 +22,6 @@ import {
 } from "@langfuse/shared/rbac/server";
 import { env } from "@/src/env.mjs";
 import { C1_PROVISION_EVENT } from "@/src/ee/features/support-access/server/conductorOnePayload";
-import { supportAccessTag } from "@/src/ee/features/support-access/server/supportAccess";
 import { conductorOneWebhookHandler } from "@/src/ee/features/support-access/server/conductorOneWebhook";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -362,7 +361,7 @@ describe("support access in the product", () => {
         orgId,
         ownerId: OrganizationId(orgId),
         systemRole: "VIEWER",
-        tags: [supportAccessTag],
+        tags: ["source:c1"],
         expiresAt: expect.any(Date),
       }),
     );
@@ -399,7 +398,7 @@ describe("support access in the product", () => {
       expect.objectContaining({ orgId, systemRole: "MEMBER", tags: [] }),
     );
     expect(assignments).not.toContainEqual(
-      expect.objectContaining({ tags: [supportAccessTag] }),
+      expect.objectContaining({ tags: ["source:c1"] }),
     );
   });
 
