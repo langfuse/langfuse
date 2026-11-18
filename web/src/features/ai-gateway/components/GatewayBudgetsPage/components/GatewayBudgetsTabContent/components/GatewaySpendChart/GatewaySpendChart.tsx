@@ -25,7 +25,9 @@ type GatewaySpendChartProps = {
    * gateway spend, and a few are broken down one series each.
    */
   selected: { value: string; label: string }[];
-  onRemoveSelected: (value: string) => void;
+  /** What the filter shows: the selected rows, or one tag for all matching ones. */
+  tags: { value: string; label: string }[];
+  onRemoveTag: (value: string) => void;
 };
 
 const SPEND_WIDGET = {
@@ -46,7 +48,8 @@ export function GatewaySpendChart({
   onIntervalChange,
   tab,
   selected,
-  onRemoveSelected,
+  tags,
+  onRemoveTag,
 }: GatewaySpendChartProps) {
   const { widget, filters, labels } = useMemo(() => {
     if (selected.length === 0) {
@@ -90,8 +93,8 @@ export function GatewaySpendChart({
       dimensionLabelMap={labels}
       filter={{
         label: filterLabels[tab],
-        items: selected,
-        onRemove: onRemoveSelected,
+        items: tags,
+        onRemove: onRemoveTag,
       }}
       tabs={{
         value: interval,

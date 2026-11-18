@@ -149,10 +149,11 @@ export class GatewaySpendLimitRepository {
     ownerUserId?: string;
     searchQuery?: string;
     unlimitedOnly: boolean;
-    page: { page: number; limit: number };
+    /** Without a page, all of them. */
+    page?: { page: number; limit: number };
   }) {
-    const skip = params.page.page * params.page.limit;
-    const take = params.page.limit;
+    const skip = params.page ? params.page.page * params.page.limit : undefined;
+    const take = params.page?.limit;
     const limitWhere = {
       organizationId: params.organizationId,
       scope: params.scope,

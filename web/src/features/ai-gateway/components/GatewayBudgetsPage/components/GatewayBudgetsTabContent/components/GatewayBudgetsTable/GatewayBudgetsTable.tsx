@@ -1,13 +1,19 @@
-import { Pencil } from "@langfuse/icons";
+import type { ComponentProps } from "react";
 
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
-import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
-import type { TableProps } from "@/src/components/design-system/table/Table";
+import { DataTable } from "@/src/components/table/data-table";
+import {
+  DataTableToolbar,
+  type MultiSelect,
+} from "@/src/components/table/data-table-toolbar";
+import type { TableSelectionStoreLike } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   GATEWAY_BUDGET_STATUSES,
@@ -47,11 +53,10 @@ export type GatewayBudgetRow = {
 };
 
 type GatewayBudgetsTableProps = Pick<
-  TableProps<GatewayBudgetRow>,
-  "data" | "onRowClick"
+  ComponentProps<typeof DataTable<GatewayBudgetRow, unknown>>,
+  "data" | "onRowClick" | "pagination"
 > & {
   tab: GatewaySpendTab;
-  pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
   status: {
     value: GatewayBudgetStatus;
@@ -59,6 +64,8 @@ type GatewayBudgetsTableProps = Pick<
   };
   /** Selects rows for the spend chart and bulk changes. */
   selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
+  selectionStore: TableSelectionStoreLike;
+  multiSelect: MultiSelect;
   onEditBudget: (row: GatewayBudgetRow) => void;
 };
 
@@ -159,12 +166,12 @@ const notEditableReasons = {
 
 const copyByTab = {
   apiKeys: {
-    searchPlaceholder: "Search keys",
+    searchField: "Key or user",
     noBudgets: "No gateway keys yet.",
     noMatches: "No keys match the current filters.",
   },
   users: {
-    searchPlaceholder: "Search users",
+    searchField: "User",
     noBudgets: "No gateway users yet.",
     noMatches: "No users match the current filters.",
   },
@@ -179,46 +186,82 @@ export function GatewayBudgetsTable({
   search,
   status,
   selectColumn,
+  selectionStore,
+  multiSelect,
   onEditBudget,
 }: GatewayBudgetsTableProps) {
   const copy = copyByTab[tab];
   const isFiltered = search.value.trim().length > 0 || status.value !== "all";
+  const tableName =
+    tab === "apiKeys" ? "gatewayKeyBudgets" : "gatewayUserBudgets";
+  const columns = [
+    selectColumn,
+    ...columnsByTab[tab],
+    actionsColumn(tab, onEditBudget),
+  ];
+
+  const handleStatusChange = (value: string) =>
+    status.onChange(toGatewayBudgetStatus(value));
 
   return (
-    <SettingsTable
-      tableName={tab === "apiKeys" ? "gatewayKeyBudgets" : "gatewayUserBudgets"}
-      columns={[selectColumn, ...columnsByTab[tab]]}
-      data={data}
-      onRowClick={onRowClick}
-      actions={(row) => [
-        {
-          id: "editBudget",
-          type: "item",
-          title: "Edit budget",
-          icon: Pencil,
-          disabled: row.isEditable
-            ? undefined
-            : { reason: notEditableReasons[tab] },
-          onClick: () => onEditBudget(row),
-        },
-      ]}
-      pagination={pagination}
-      search={{ ...search, placeholder: copy.searchPlaceholder }}
-      filters={[
-        {
-          id: "status",
-          type: "select",
-          label: "Status",
-          placeholder: "All",
-          options: statusOptions,
-          value: status.value,
-          onChange: (value) => status.onChange(toGatewayBudgetStatus(value)),
-          muted: status.value === "all",
-        },
-      ]}
-      noResultsMessage={isFiltered ? copy.noMatches : copy.noBudgets}
-    />
+    <>
+      <DataTableToolbar
+        tableName={tableName}
+        columns={columns}
+        searchConfig={{
+          updateQuery: search.onChange,
+          currentQuery: search.value,
+          tableAllowsFullTextSearch: false,
+          metadataSearchFields: [copy.searchField],
+        }}
+        currentSearchQuery={search.value}
+        actionButtons={
+          <div className="w-36">
+            <SelectInput
+              aria-label="Status"
+              placeholder="All"
+              value={status.value}
+              onValueChange={handleStatusChange}
+              options={statusOptions}
+            />
+          </div>
+        }
+        multiSelect={multiSelect}
+      />
+      <DataTable
+        tableName={tableName}
+        columns={columns}
+        data={data}
+        onRowClick={onRowClick}
+        selectionStore={selectionStore}
+        highlightAllRows={multiSelect.selectAll}
+        pagination={pagination}
+        noResultsMessage={isFiltered ? copy.noMatches : copy.noBudgets}
+      />
+    </>
   );
+}
+
+function actionsColumn(
+  tab: GatewaySpendTab,
+  onEditBudget: (row: GatewayBudgetRow) => void,
+) {
+  return createDropdownTableColumn<GatewayBudgetRow, string>({
+    id: "actions",
+    accessorFn: (row) => row.id,
+    header: "",
+    size: 48,
+    enableResizing: false,
+    renderMenu: (_, { row }) => (
+      <DropdownMenuItem
+        disabled={!row.original.isEditable}
+        title={row.original.isEditable ? undefined : notEditableReasons[tab]}
+        onSelect={() => onEditBudget(row.original)}
+      >
+        Edit budget
+      </DropdownMenuItem>
+    ),
+  });
 }
 
 function toGatewayBudgetStatus(value: string): GatewayBudgetStatus {

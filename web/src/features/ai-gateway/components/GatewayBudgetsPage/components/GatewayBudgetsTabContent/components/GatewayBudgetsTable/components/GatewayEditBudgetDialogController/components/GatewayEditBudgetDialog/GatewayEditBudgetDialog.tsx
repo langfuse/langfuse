@@ -34,11 +34,13 @@ type GatewayEditBudgetDialogProps = {
   /** What each budget caps: one key, or all keys of a user. */
   subject: keyof typeof nouns;
   /** The keys or users whose budgets change together. */
-  subjectNames: string[];
+  subjectCount: number;
+  /** Shown when only one key or user changes. */
+  subjectName?: string;
   /** Prefills the form; null when the key or user has no budget yet. */
   spendLimit: GatewaySpendLimit | null;
   /** How many of them already have a budget that saving replaces. */
-  existingBudgetCount: number;
+  existingBudgetCount: number | null;
   /** Why the budget cannot be changed; undefined when it can. */
   unavailableReason?: string;
   errorMessage: string | null;
@@ -50,7 +52,8 @@ type GatewayEditBudgetDialogProps = {
 /** Changes or removes the budgets of keys or of all of users' keys. */
 export function GatewayEditBudgetDialog({
   subject,
-  subjectNames,
+  subjectCount,
+  subjectName,
   spendLimit,
   existingBudgetCount,
   unavailableReason,
@@ -80,25 +83,23 @@ export function GatewayEditBudgetDialog({
     });
   };
 
-  const isBulk = subjectNames.length > 1;
+  const isBulk = subjectCount > 1;
   const noun = nouns[subject];
   const applies = isBulk ? "Each budget applies" : "Applies";
   const removeLabel = isBulk ? "Remove budgets" : "Remove budget";
   const replaceWarning = isBulk
-    ? describeReplacedBudgets(existingBudgetCount, subjectNames.length, noun)
+    ? describeReplacedBudgets(existingBudgetCount, subjectCount, noun)
     : null;
   const name = (
     <span className="text-foreground font-medium">
-      {isBulk ? `${subjectNames.length} ${noun}s` : subjectNames[0]}
+      {isBulk ? `${subjectCount} ${noun}s` : subjectName}
     </span>
   );
 
   return (
     <Dialog
       title={
-        isBulk
-          ? `Edit ${subjectNames.length} ${noun} budgets`
-          : `Edit ${noun} budget`
+        isBulk ? `Edit ${subjectCount} ${noun} budgets` : `Edit ${noun} budget`
       }
       size="md"
       noCapture
@@ -169,10 +170,13 @@ export function GatewayEditBudgetDialog({
 }
 
 function describeReplacedBudgets(
-  existingCount: number,
+  existingCount: number | null,
   selectedCount: number,
   noun: string,
 ) {
+  if (existingCount === null) {
+    return `Selected ${noun}s that already have a budget get this one instead.`;
+  }
   if (existingCount === 0) return null;
   const pronoun = existingCount === 1 ? "it" : "them";
   if (existingCount === selectedCount) {

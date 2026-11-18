@@ -209,11 +209,8 @@ export class GatewaySpendLimitService {
    * ClickHouse has recorded against it in its current window; `spentUsd` is
    * absent while spend is not recorded. Members see only their own keys, and
    * may edit only budgets they set; only gateway managers list users.
-   *
-   * Whether a budget is exceeded is only known from ClickHouse, so for
-   * `exceeded` every budget is read and paged after filtering.
    */
-  async listBudgets(params: {
+  listBudgets(params: {
     organizationId: string;
     usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope["type"];
@@ -222,7 +219,27 @@ export class GatewaySpendLimitService {
     page: number;
     limit: number;
   }) {
-    const page = { page: params.page, limit: params.limit };
+    return this.listSubjects({
+      ...params,
+      page: { page: params.page, limit: params.limit },
+    });
+  }
+
+  /**
+   * The keys or users matching a search and status, as `listBudgets` lists
+   * them; without a page, all of them, for changes to everything matching.
+   * Whether a budget is exceeded is only known from ClickHouse, so for
+   * `exceeded` every budget is read and paged after filtering.
+   */
+  async listSubjects(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    scope: GatewaySpendLimitScope["type"];
+    searchQuery?: string;
+    status: GatewayBudgetStatus;
+    page?: { page: number; limit: number };
+  }) {
+    const { page } = params;
     const ownerUserId = getKeyOwnerFilter(params.usageScope);
     const listed =
       params.status === "all" || params.status === "unlimited"
@@ -253,10 +270,9 @@ export class GatewaySpendLimitService {
     );
     return {
       totalCount: exceeded.length,
-      rows: exceeded.slice(
-        page.page * page.limit,
-        (page.page + 1) * page.limit,
-      ),
+      rows: page
+        ? exceeded.slice(page.page * page.limit, (page.page + 1) * page.limit)
+        : exceeded,
     };
   }
 

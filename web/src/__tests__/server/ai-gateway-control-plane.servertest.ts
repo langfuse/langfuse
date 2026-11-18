@@ -2044,7 +2044,7 @@ describe("AI gateway control plane", () => {
       await owner.caller.aiGateway.setSpendLimits({
         orgId: owner.org.id,
         scope: "API_KEY",
-        subjectIds: keys.map(({ id }) => id),
+        subjects: { type: "ids", subjectIds: keys.map(({ id }) => id) },
         spendLimit: { interval: "TOTAL", limitUsd: 10 },
       });
       await SharedServer.createEventsCh([
@@ -2075,6 +2075,16 @@ describe("AI gateway control plane", () => {
         totalCount: 1,
         rows: [{ subjectId: keys[0].id }],
       });
+
+      // Select-all sends the table's query instead of ids.
+      await owner.caller.aiGateway.setSpendLimits({
+        orgId: owner.org.id,
+        scope: "API_KEY",
+        subjects: { type: "matching", status: "unlimited" },
+        spendLimit: { interval: "WEEKLY", limitUsd: 5 },
+      });
+      expect((await list("unlimited")).totalCount).toBe(0);
+      expect((await list("budgeted")).totalCount).toBe(3);
     },
   );
 
@@ -2436,7 +2446,7 @@ describe("AI gateway control plane", () => {
     const target = {
       orgId: owner.org.id,
       scope: "USER" as const,
-      subjectIds: [userId!],
+      subjects: { type: "ids" as const, subjectIds: [userId!] },
     };
     const resolvedScopes = async (secretKey: string) =>
       (

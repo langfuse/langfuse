@@ -3,9 +3,14 @@ import {
   api,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
+  type RouterInputs,
 } from "@/src/utils/api";
 
 export type GatewayBudgetSubject = "key" | "user";
+
+/** Explicit keys or users, or every one matching the table's search and status. */
+export type GatewayBudgetTarget =
+  RouterInputs["aiGateway"]["setSpendLimits"]["subjects"];
 
 export type GatewaySpendLimit = {
   interval: GatewaySpendBudgetInterval;
@@ -23,7 +28,7 @@ export function useSetGatewayBudgets(organizationId: string) {
   /** Resolves true once saved; the error stays on `mutation` otherwise. */
   const setBudgets = async (params: {
     subject: GatewayBudgetSubject;
-    subjectIds: string[];
+    subjects: GatewayBudgetTarget;
     spendLimit: GatewaySpendLimit | null;
   }) => {
     const orgId = organizationId;
@@ -31,7 +36,7 @@ export function useSetGatewayBudgets(organizationId: string) {
       await mutation.mutateAsync({
         orgId,
         scope: params.subject === "key" ? "API_KEY" : "USER",
-        subjectIds: params.subjectIds,
+        subjects: params.subjects,
         spendLimit: params.spendLimit,
       });
       return true;

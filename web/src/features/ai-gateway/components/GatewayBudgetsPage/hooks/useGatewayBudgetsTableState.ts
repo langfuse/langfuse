@@ -10,8 +10,9 @@ const PAGE_SIZE = 10;
 
 /**
  * The budgets table's query and selection, shared with the spend chart so its
- * filter is always the selected rows. The selection clears whenever the listed
- * rows change, so it never outlives them.
+ * filter is always the selected rows, or every matching row under select-all.
+ * The selection clears whenever the listed rows change, so it never outlives
+ * them.
  */
 export function useGatewayBudgetsTableState(
   organizationId: string,
@@ -19,16 +20,18 @@ export function useGatewayBudgetsTableState(
 ) {
   const [state, setState] = useState(initialState);
   const { searchQuery, status, pagination, selectionStore } = state;
+  const trimmedSearch = searchQuery.trim() || undefined;
 
   const budgets = api.aiGateway.listBudgets.useQuery({
     orgId: organizationId,
     scope: tab === "apiKeys" ? "API_KEY" : "USER",
-    searchQuery: searchQuery.trim() || undefined,
+    searchQuery: trimmedSearch,
     status,
     page: pagination.pageIndex,
     limit: pagination.pageSize,
   });
   const rowSelection = useStore(selectionStore, (store) => store.rowSelection);
+  const selectAll = useStore(selectionStore, (store) => store.selectAll);
   const rows = budgets.data?.rows;
   // Stable while the rows and selection are, so the spend chart's query is too.
   const selectedRows = useMemo(
@@ -46,6 +49,13 @@ export function useGatewayBudgetsTableState(
     budgets,
     selectionStore,
     selectedRows,
+    /** Every row matching the search and status, across all pages. */
+    selectAll,
+    matching: {
+      type: "matching" as const,
+      searchQuery: trimmedSearch,
+      status,
+    },
     clearSelection,
     toggleRow: (rowId: string) => toggleRow(rowId, !rowSelection[rowId]),
     search: {

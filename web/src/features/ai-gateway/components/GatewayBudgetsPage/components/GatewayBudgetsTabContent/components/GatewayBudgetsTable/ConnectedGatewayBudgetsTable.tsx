@@ -1,5 +1,4 @@
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { GatewayBudgetsSelectionBar } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayBudgetsSelectionBar/GatewayBudgetsSelectionBar";
 import { GatewayEditBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayEditBudgetDialogController/GatewayEditBudgetDialogController";
@@ -22,14 +21,19 @@ const notEditableReasons = {
   users: "Only gateway admins can change user budgets.",
 } as const satisfies Record<GatewaySpendTab, string>;
 
-/** Clicking a row selects it, like its checkbox; the selection also filters the spend chart. */
+/**
+ * Clicking a row selects it, like its checkbox; the selection also filters the
+ * spend chart. Selecting every row on the page offers selecting all matching
+ * rows across pages, as in the product's other multi-select tables.
+ */
 export function ConnectedGatewayBudgetsTable({
   organizationId,
   tab,
   table,
 }: ConnectedGatewayBudgetsTableProps) {
   const subject = tab === "apiKeys" ? "key" : "user";
-  const { budgets, selectionStore, selectedRows, clearSelection } = table;
+  const { budgets, selectionStore, selectedRows, selectAll, clearSelection } =
+    table;
   const { selectActionColumn } = TableSelectionManager<GatewayBudgetRow>({
     projectId: "",
     tableName: "gateway-budgets",
@@ -39,9 +43,22 @@ export function ConnectedGatewayBudgetsTable({
   });
   const { setBudgets, mutation: removal } =
     useSetGatewayBudgets(organizationId);
-  const bulkDisabledReason = selectedRows.every((row) => row.isEditable)
-    ? undefined
-    : notEditableReasons[tab];
+  const totalCount = budgets.data?.totalCount ?? null;
+  const pageRows = budgets.data?.rows ?? [];
+  const selectedCount = selectAll
+    ? (totalCount ?? selectedRows.length)
+    : selectedRows.length;
+  // Under select-all the server checks each matching row and refuses the whole change if one is not editable.
+  const bulkDisabledReason =
+    selectAll || selectedRows.every((row) => row.isEditable)
+      ? undefined
+      : notEditableReasons[tab];
+  const bulkTarget = selectAll
+    ? table.matching
+    : {
+        type: "ids" as const,
+        subjectIds: selectedRows.map((row) => row.subjectId),
+      };
 
   const handleRowClick = (row: GatewayBudgetRow) => table.toggleRow(row.id);
 
@@ -53,11 +70,24 @@ export function ConnectedGatewayBudgetsTable({
             tab={tab}
             data={toTableData(budgets)}
             onRowClick={handleRowClick}
-            selectColumn={{ ...selectActionColumn, enableResizing: false }}
+            selectColumn={selectActionColumn}
+            selectionStore={selectionStore}
+            multiSelect={{
+              selectAll,
+              setSelectAll: selectionStore.getState().actions.setSelectAll,
+              selectedRowIds: selectedRows.map((row) => row.id),
+              setRowSelection:
+                selectionStore.getState().actions.setRowSelection,
+              pageSize: table.pagination.state.pageSize,
+              pageIndex: table.pagination.state.pageIndex,
+              totalCount,
+            }}
             onEditBudget={(row) =>
               openDialog({
                 subject,
-                subjects: [{ id: row.subjectId, name: row.name }],
+                target: { type: "ids", subjectIds: [row.subjectId] },
+                count: 1,
+                name: row.name,
                 spendLimit: row.spendLimit,
                 existingBudgetCount: row.spendLimit ? 1 : 0,
               })
@@ -65,13 +95,18 @@ export function ConnectedGatewayBudgetsTable({
             search={table.search}
             status={table.status}
             pagination={{
-              mode: "offset",
-              totalCount: budgets.data?.totalCount ?? null,
-              ...table.pagination,
+              totalCount,
+              state: table.pagination.state,
+              onChange: (updater) =>
+                table.pagination.onChange(
+                  typeof updater === "function"
+                    ? updater(table.pagination.state)
+                    : updater,
+                ),
             }}
           />
           <ConfirmationDialogController
-            title={`Remove ${selectedRows.length} ${subject} ${selectedRows.length === 1 ? "budget" : "budgets"}?`}
+            title={`Remove ${selectedCount} ${subject} ${selectedCount === 1 ? "budget" : "budgets"}?`}
             text={
               subject === "key"
                 ? "Requests with these keys are no longer capped by their own budget."
@@ -85,7 +120,7 @@ export function ConnectedGatewayBudgetsTable({
             onConfirm={async () => {
               const removed = await setBudgets({
                 subject,
-                subjectIds: selectedRows.map((row) => row.subjectId),
+                subjects: bulkTarget,
                 spendLimit: null,
               });
               if (!removed) throw new Error("Budgets could not be removed.");
@@ -94,23 +129,23 @@ export function ConnectedGatewayBudgetsTable({
           >
             {({ openDialog: openRemoveDialog }) => (
               <GatewayBudgetsSelectionBar
-                selectedCount={selectedRows.length}
+                selectedCount={selectedCount}
                 isSaving={removal.isPending}
                 disabledReason={bulkDisabledReason}
                 onClear={clearSelection}
                 onEdit={() => {
-                  const [first] = selectedRows;
+                  const first = selectedRows[0] ?? pageRows[0];
                   if (!first) return;
                   openDialog({
                     subject,
-                    subjects: selectedRows.map((row) => ({
-                      id: row.subjectId,
-                      name: row.name,
-                    })),
+                    target: bulkTarget,
+                    count: selectedCount,
+                    name: first.name,
                     spendLimit: first.spendLimit,
-                    existingBudgetCount: selectedRows.filter(
-                      (row) => row.spendLimit !== null,
-                    ).length,
+                    existingBudgetCount: selectAll
+                      ? null
+                      : selectedRows.filter((row) => row.spendLimit !== null)
+                          .length,
                     onSaved: clearSelection,
                   });
                 }}
@@ -126,11 +161,16 @@ export function ConnectedGatewayBudgetsTable({
 
 function toTableData(query: {
   isError: boolean;
+  error?: { message: string } | null;
   data?: { rows: GatewayBudgetRow[] };
-}): AsyncTableData<GatewayBudgetRow[]> {
+}) {
   if (query.isError) {
-    return { status: "error", error: "Budgets could not be loaded." };
+    return {
+      isLoading: false,
+      isError: true,
+      error: query.error?.message ?? "Budgets could not be loaded.",
+    };
   }
-  if (!query.data) return { status: "loading" };
-  return { status: "success", data: query.data.rows };
+  if (!query.data) return { isLoading: true, isError: false };
+  return { isLoading: false, isError: false, data: query.data.rows };
 }

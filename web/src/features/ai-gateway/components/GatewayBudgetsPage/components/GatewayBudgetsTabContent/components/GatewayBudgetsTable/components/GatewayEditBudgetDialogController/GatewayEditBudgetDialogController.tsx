@@ -4,6 +4,7 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { GatewayEditBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayEditBudgetDialogController/components/GatewayEditBudgetDialog/GatewayEditBudgetDialog";
 import {
   type GatewayBudgetSubject,
+  type GatewayBudgetTarget,
   type GatewaySpendLimit,
   useSetGatewayBudgets,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
@@ -12,11 +13,14 @@ import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGat
 export type GatewayEditedBudgets = {
   subject: GatewayBudgetSubject;
   /** The keys or users whose budgets change together. */
-  subjects: { id: string; name: string }[];
+  target: GatewayBudgetTarget;
+  count: number;
+  /** Shown when only one key or user changes. */
+  name?: string;
   /** Prefills the form; null when the first of them has no budget yet. */
   spendLimit: GatewaySpendLimit | null;
-  /** How many of the subjects already have a budget that saving replaces. */
-  existingBudgetCount: number;
+  /** How many of them already have a budget that saving replaces; null when unknown. */
+  existingBudgetCount: number | null;
   onSaved?: () => void;
 };
 
@@ -42,7 +46,7 @@ export function GatewayEditBudgetDialogController({
   ) => {
     const saved = await setBudgets({
       subject: budgets.subject,
-      subjectIds: budgets.subjects.map(({ id }) => id),
+      subjects: budgets.target,
       spendLimit,
     });
     if (!saved) return;
@@ -58,7 +62,8 @@ export function GatewayEditBudgetDialogController({
       renderDialog={({ state, closeDialog }) => (
         <GatewayEditBudgetDialog
           subject={state.subject}
-          subjectNames={state.subjects.map(({ name }) => name)}
+          subjectCount={state.count}
+          subjectName={state.name}
           spendLimit={state.spendLimit}
           existingBudgetCount={state.existingBudgetCount}
           unavailableReason={
