@@ -194,7 +194,7 @@ export function TopicTraceList({
                       "min-w-0 text-sm",
                       wrapsSummary ? "break-words" : "truncate",
                     )}
-                    title={wrapsSummary ? undefined : name}
+                    title={name}
                   >
                     {name}
                   </span>
@@ -220,7 +220,7 @@ export function TopicTraceList({
                 : "truncate",
               CELL,
             )}
-            title={wrapsSummary ? undefined : summary}
+            title={summary}
           >
             {capsWords ? capWords(summary, SUMMARY_WORD_CAP) : summary}
           </p>
