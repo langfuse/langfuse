@@ -2134,6 +2134,9 @@ function planNextObservationsWindow(
       ),
     ),
   );
+  // A window predicted to outlast the budget would only hit its timeout; end
+  // the page at the last completed boundary instead.
+  if ((durationMs / windowMs) * costMs > remainingMs) return undefined;
   return {
     durationMs,
     estimatedMs:
