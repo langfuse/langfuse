@@ -138,7 +138,7 @@ export function AsyncSelectInput<V extends string>({
         >
           {OptionIcon && <OptionIcon size="base" aria-hidden />}
           <InputDropdown.OptionContent
-            type="checkmark"
+            type="radio"
             checked={value?.value === option.value}
             label={option.label}
             title={option.disabled ? option.disabledReason : option.label}
