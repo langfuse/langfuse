@@ -36,7 +36,6 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
-  Check,
   FoldVertical,
   MoreVertical,
   PanelLeftClose,
@@ -49,13 +48,7 @@ import {
   WandSparkles,
   InfoIcon,
 } from "@langfuse/icons";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   InputCommand,
   InputCommandGroup,
@@ -1095,53 +1088,30 @@ export function DataTableControls({
                   : "Collapse all filters"}
               </TooltipContent>
             </Tooltip>
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      aria-label="Filter options"
-                    >
-                      <MoreVertical size="base" color="default" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Filter options</TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  // Clear also resets unfinished drafts and selected views,
-                  // even when no filter values have been applied.
-                  onClick={() => {
-                    // Explicit adds are part of "everything" too: without
-                    // this, a value-less added facet stays pinned after
-                    // Clear all and the active-only empty state can never
-                    // render again this mount.
+            <DropdownMenu
+              placement="bottom-end"
+              items={[
+                {
+                  type: "item",
+                  id: "clear-filters",
+                  title: "Clear all filters",
+                  // Clear also resets unfinished drafts, selected views, and
+                  // explicitly revealed facets without applied values.
+                  onClick: () => {
                     noteSettleBoundary();
                     setRevealedColumns([]);
                     queryFilter.clearAll();
-                  }}
-                  className="cursor-pointer"
-                >
-                  Clear all filters
-                </DropdownMenuItem>
-                {/* Plain item with a TRAILING check instead of
-                    DropdownMenuCheckboxItem: its reserved leading indicator
-                    slot (pl-8) reads as broken indentation next to the
-                    non-checkbox items, and a trailing check keeps the label
-                    aligned in both states. */}
-                <DropdownMenuItem
-                  role="menuitemcheckbox"
-                  aria-checked={showOnlyActive}
-                  className="cursor-pointer"
-                  onClick={() => {
-                    const enabled = !showOnlyActive;
+                  },
+                },
+                {
+                  type: "checkbox",
+                  id: "active-only",
+                  title: "Show only active",
+                  checked: showOnlyActive,
+                  closeOnCheckedChange: true,
+                  onCheckedChange: (enabled) => {
                     setShowOnlyActive(enabled);
-                    // The mode swaps which surface owns the name search, so a
-                    // query left in the other one would read as a stale filter.
+                    // The mode swaps which surface owns the name search.
                     setFacetSearch("");
                     noteFacetSearch("facet_list", "");
                     capture("filters:active_only_toggled", {
@@ -1149,36 +1119,42 @@ export function DataTableControls({
                       enabled,
                       isV4: queryFilter.isV4 ?? false,
                     });
-                  }}
-                >
-                  Show only active
-                  {showOnlyActive && (
-                    <Check
-                      size="base"
-                      color="default"
-                      __rawClassName="ml-auto"
-                    />
-                  )}
-                </DropdownMenuItem>
-                {/* "Collapse sidebar" is desktop-rail chrome — there's no rail
-                    on mobile (either sheet), where the header X / sheet footer
-                    already close it. Covers both the other-tables mobile sheet
-                    and the events inline sheet (inline is always mobile). */}
-                {!isMobile && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setOpen(false);
-                        emitSidebarToggled(false, "menu");
-                      }}
-                      className="cursor-pointer"
+                  },
+                },
+              ]}
+              // Mobile sheets already provide their own close controls.
+              footerItems={
+                !isMobile
+                  ? [
+                      {
+                        type: "item",
+                        id: "collapse-sidebar",
+                        title: "Collapse sidebar",
+                        onClick: () => {
+                          setOpen(false);
+                          emitSidebarToggled(false, "menu");
+                        },
+                      },
+                    ]
+                  : undefined
+              }
+            >
+              {({ getTriggerProps }) => (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      {...getTriggerProps()}
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      aria-label="Filter options"
                     >
-                      Collapse sidebar
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
+                      <MoreVertical size="base" color="default" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Filter options</TooltipContent>
+                </Tooltip>
+              )}
             </DropdownMenu>
           </div>
         </div>
