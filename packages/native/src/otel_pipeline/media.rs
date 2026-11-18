@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::native_task::NativeResult;
 use crate::otel::value::{JsString, Value};
+use crate::otel::OwnedEvent;
 use crate::otel_input::ExtractedBatch;
 use crate::otel_media::{
     collect_media_references, extract_normalized_media, rewrite_known_references,
@@ -15,6 +16,36 @@ use crate::otel_media::{
 };
 
 use super::{failure, BatchRows, OtelMediaRequest, OtelMediaResolution, Pipeline};
+
+/// Lookup keys and identifiers must contain their original text before Node uses them.
+/// Input, output, and metadata keep temporary references until upload results arrive.
+pub(super) fn restore_lookup_fields(
+    events: &mut [OwnedEvent],
+    media: &[ExtractedMedia],
+) -> NativeResult<()> {
+    if media.is_empty() {
+        return Ok(());
+    }
+    for event in events {
+        for text in [&mut event.row.trace_id, &mut event.row.span_id] {
+            restore_text(text, media)?;
+        }
+        for text in [
+            &mut event.row.provided_model_name,
+            &mut event.row.prompt_name,
+            &mut event.row.parent_span_id,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            restore_text(text, media)?;
+        }
+        if let Some(value) = &mut event.model_parameters {
+            restore_value(value, media)?;
+        }
+    }
+    Ok(())
+}
 
 /// Return upload requests for media found before and after normalization.
 /// `EarlyOtelBatch::process` calls this alongside lookup collection in one native task.

@@ -17,7 +17,7 @@ use crate::otel_enrichment;
 use crate::PreparedEvent;
 
 use super::{
-    failure, BatchRows, EnrichedStorageRow, FinalizedOtelBatch, FinalizedOtelEvent,
+    failure, BatchRows, EnrichedStorageRow, FinalizedOtelBatch, FinalizedOtelEvent, OtelCompletion,
     OtelLookupRequest, OtelOverflowRequest, Pipeline,
 };
 
@@ -93,6 +93,32 @@ pub(super) fn enrich_inner(
     }
     state.rows = BatchRows::Ready(rows);
     Ok(())
+}
+
+pub(super) fn finalize_or_request_overflow(
+    state: &mut Pipeline,
+    overflow_limit_bytes: Option<f64>,
+    include_evaluation_rows: bool,
+    trace_activity_ids: Option<Vec<String>>,
+) -> NativeResult<OtelCompletion> {
+    let overflow_requests = overflow_limit_bytes
+        .map(|limit| overflow_requests_inner(state, limit))
+        .transpose()?
+        .unwrap_or_default();
+    let finalized = if overflow_requests.is_empty() {
+        Some(finalize_inner(
+            state,
+            Vec::new(),
+            include_evaluation_rows,
+            trace_activity_ids,
+        )?)
+    } else {
+        None
+    };
+    Ok(OtelCompletion {
+        finalized,
+        overflow_requests,
+    })
 }
 
 pub(super) fn overflow_requests_inner(

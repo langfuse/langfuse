@@ -74,10 +74,12 @@ describe("Native OTEL batch NAPI boundary", () => {
     }
   });
 
-  it("rejects the entire Rust batch when an event cannot fit the storage schema", async () => {
-    // A usage count of 1e30 exceeds ClickHouse's UInt64 maximum. Finalization must
-    // reject the whole batch so all its observations remain eligible for retry.
-    const spans = [1, 1e30].map((usage, index) => ({
+  it("drops invalid usage entries while preserving valid rows and pricing", async () => {
+    const spans = [
+      { input: 7, input_cached_tokens: 2 ** 64 },
+      { input: 2 ** 63, output: 2 ** 63 },
+      { input: 3 },
+    ].map((usageDetails, index) => ({
       traceId: "0123456789abcdef0123456789abcdef",
       spanId: `0123456789abcde${index}`,
       name: "storage-boundary",
@@ -85,8 +87,12 @@ describe("Native OTEL batch NAPI boundary", () => {
       endTimeUnixNano: "1750000001000000000",
       attributes: [
         {
+          key: "gen_ai.request.model",
+          value: { stringValue: "storage-boundary-model" },
+        },
+        {
           key: "langfuse.observation.usage_details",
-          value: { stringValue: JSON.stringify({ input: usage }) },
+          value: { stringValue: JSON.stringify(usageDetails) },
         },
       ],
     }));
@@ -109,10 +115,72 @@ describe("Native OTEL batch NAPI boundary", () => {
     });
     try {
       expect(mediaRequests).toEqual([]);
-      expect(lookupRequests).toEqual([]);
-      await expect(
-        processing.complete([], [], undefined, true),
-      ).rejects.toThrow("usage_details");
+      expect(lookupRequests).toHaveLength(spans.length);
+      const lookup = {
+        model: { id: "storage-boundary-model-id" },
+        pricingTiers: [
+          {
+            id: "usage-tier",
+            name: "usage-tier",
+            isDefault: false,
+            priority: 0,
+            conditions: [
+              {
+                usageDetailPattern: "^input_cached_tokens$",
+                operator: "eq",
+                value: 0,
+                caseSensitive: true,
+              },
+            ],
+            prices: [
+              { usageType: "input", price: "0.000000000000000001" },
+              { usageType: "output", price: "0.000000000000000001" },
+            ],
+          },
+        ],
+      };
+      const { finalized } = await processing.complete(
+        [],
+        lookupRequests.map(() => lookup),
+        undefined,
+        true,
+      );
+      expect(finalized).toBeDefined();
+      expect(finalized!.events).toHaveLength(spans.length);
+      const rows = new Map(
+        finalized!.evaluationRows.map((row) => {
+          const value = row as Record<string, unknown>;
+          return [value.span_id as string, value];
+        }),
+      );
+      expect(rows.get(spans[0].spanId)).toMatchObject({
+        usage_details: { input: 7, total: 7 },
+        usage_pricing_tier_name: "usage-tier",
+        cost_details: {
+          input: expect.closeTo(7e-18, 30),
+          total: expect.closeTo(7e-18, 30),
+        },
+      });
+      expect(rows.get(spans[0].spanId)?.usage_details).toEqual({
+        input: 7,
+        total: 7,
+      });
+      expect(rows.get(spans[1].spanId)).toMatchObject({
+        usage_pricing_tier_name: "usage-tier",
+        cost_details: {
+          input: expect.any(Number),
+          output: expect.any(Number),
+          total: expect.any(Number),
+        },
+      });
+      expect(rows.get(spans[1].spanId)?.usage_details).toEqual({
+        input: 2n ** 63n,
+        output: 2n ** 63n,
+      });
+      expect(rows.get(spans[2].spanId)).toMatchObject({
+        usage_details: { input: 3, total: 3 },
+        usage_pricing_tier_name: "usage-tier",
+      });
     } finally {
       await processing.dispose();
       await batch.dispose();

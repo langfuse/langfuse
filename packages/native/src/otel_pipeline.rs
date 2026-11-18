@@ -36,6 +36,27 @@ pub struct OtelProcessingContext {
     pub now: String,
     pub is_langfuse_internal: bool,
 }
+impl OtelProcessingContext {
+    fn into_configs(self) -> (EventBuildConfig, StorageContext) {
+        let build = EventBuildConfig {
+            project_id: self.project_id,
+            ingestion_api_key: self.ingestion_api_key,
+            ingestion_sdk_name: self.ingestion_sdk_name,
+            ingestion_sdk_version: self.ingestion_sdk_version,
+            fallback_time: self.now.clone(),
+            is_langfuse_internal: self.is_langfuse_internal,
+            ..EventBuildConfig::default()
+        };
+        let storage = StorageContext {
+            blob_storage_file_path: self.file_key,
+            created_at: self.now.clone(),
+            updated_at: self.now.clone(),
+            event_ts: self.now,
+        };
+        (build, storage)
+    }
+}
+
 struct Pipeline {
     source: Arc<ExtractedBatch>,
     rows: BatchRows,
@@ -43,6 +64,19 @@ struct Pipeline {
     media_requests: Vec<u32>,
     late_media: Vec<ExtractedMedia>,
     overflow_requests: Vec<OtelOverflowRequest>,
+}
+
+impl Pipeline {
+    fn new(source: Arc<ExtractedBatch>, events: Vec<OwnedEvent>, context: StorageContext) -> Self {
+        Self {
+            source,
+            rows: BatchRows::Prepared(events),
+            context,
+            media_requests: Vec::new(),
+            late_media: Vec::new(),
+            overflow_requests: Vec::new(),
+        }
+    }
 }
 
 enum BatchRows {
@@ -171,65 +205,11 @@ impl EarlyOtelBatch {
     ) -> napi::Result<AsyncTask<OwnedTask<PreparedOtelBatch>>> {
         let source = self.take_data().map_err(|error| to_js_error(env, error))?;
         Ok(AsyncTask::new(OwnedTask::new(move || {
-            // Decode one resource at a time, limiting temporary materialization to the current
-            // resource-span object. Normalize each resource with JavaScript number semantics
-            // before appending its events to the batch.
-            let mut events = source.consume_json(|json| {
-                process_to_events(
-                    json.as_bytes(),
-                    &EventBuildConfig {
-                        project_id: context.project_id,
-                        ingestion_api_key: context.ingestion_api_key,
-                        ingestion_sdk_name: context.ingestion_sdk_name,
-                        ingestion_sdk_version: context.ingestion_sdk_version,
-                        fallback_time: context.now.clone(),
-                        is_langfuse_internal: context.is_langfuse_internal,
-                        ..EventBuildConfig::default()
-                    },
-                )
-                .map_err(failure)
-            })?;
-            // Restore media in identifiers, model names, prompt names, parent IDs, and model
-            // parameters. Input, output, and metadata retain temporary references for completion.
-            if !source.media.is_empty() {
-                for event in &mut events {
-                    for text in [&mut event.row.trace_id, &mut event.row.span_id] {
-                        media::restore_text(text, &source.media)?;
-                    }
-                    for text in [
-                        &mut event.row.provided_model_name,
-                        &mut event.row.prompt_name,
-                        &mut event.row.parent_span_id,
-                    ]
-                    .into_iter()
-                    .flatten()
-                    {
-                        media::restore_text(text, &source.media)?;
-                    }
-                    if let Some(value) = &mut event.model_parameters {
-                        media::restore_value(value, &source.media)?;
-                    }
-                }
-            }
-            let trace_ids = events
-                .iter()
-                .map(|event| event.trace_id.clone())
-                .collect::<HashSet<_>>()
-                .into_iter()
-                .collect();
-            let mut pipeline = Pipeline {
-                source,
-                rows: BatchRows::Prepared(events),
-                context: StorageContext {
-                    blob_storage_file_path: context.file_key,
-                    created_at: context.now.clone(),
-                    updated_at: context.now.clone(),
-                    event_ts: context.now,
-                },
-                media_requests: Vec::new(),
-                late_media: Vec::new(),
-                overflow_requests: Vec::new(),
-            };
+            let (build_config, storage_context) = context.into_configs();
+            let mut events = parse_events(&source, &build_config)?;
+            media::restore_lookup_fields(&mut events, &source.media)?;
+            let trace_ids = unique_trace_ids(&events);
+            let mut pipeline = Pipeline::new(source, events, storage_context);
             let media_requests = media::collect_media_requests(&mut pipeline)?;
             let lookup_requests = rows::collect_lookup_requests(&pipeline);
             let batch = RustOtelBatch {
@@ -317,50 +297,15 @@ impl RustOtelBatch {
         trace_activity_ids: Option<Vec<String>>,
     ) -> AsyncTask<OwnedTask<OtelCompletion>> {
         self.run(move |state| {
-            let BatchRows::Prepared(events) = &state.rows else {
-                return Err(failure("OTEL batch already enriched"));
-            };
-            validate_results(
-                &media_results,
-                state.media_requests.len(),
-                "incomplete OTEL media results",
-            )?;
-            if lookups.len()
-                != events
-                    .iter()
-                    .filter(|event| rows::needs_lookup(event))
-                    .count()
-            {
-                return Err(failure("incomplete OTEL lookup results"));
-            }
-            if overflow_limit_bytes
-                .is_some_and(|limit| !limit.is_finite() || limit <= 0.0 || limit.fract() != 0.0)
-            {
-                return Err(failure("overflow limit must be a positive integer"));
-            }
+            validate_completion(state, &media_results, lookups.len(), overflow_limit_bytes)?;
             media::resolve_media_inner(state, media_results)?;
             rows::enrich_inner(state, lookups)?;
-            let overflow_requests = overflow_limit_bytes
-                .map(|limit| rows::overflow_requests_inner(state, limit))
-                .transpose()?
-                .unwrap_or_default();
-            if overflow_requests.is_empty() {
-                let finalized = rows::finalize_inner(
-                    state,
-                    Vec::new(),
-                    include_evaluation_rows,
-                    trace_activity_ids,
-                )?;
-                Ok(OtelCompletion {
-                    finalized: Some(finalized),
-                    overflow_requests,
-                })
-            } else {
-                Ok(OtelCompletion {
-                    finalized: None,
-                    overflow_requests,
-                })
-            }
+            rows::finalize_or_request_overflow(
+                state,
+                overflow_limit_bytes,
+                include_evaluation_rows,
+                trace_activity_ids,
+            )
         })
     }
 
@@ -389,6 +334,54 @@ impl RustOtelBatch {
             rows::finalize_inner(state, overflow, include_evaluation_rows, trace_activity_ids)
         })
     }
+}
+
+fn parse_events(
+    source: &ExtractedBatch,
+    config: &EventBuildConfig,
+) -> NativeResult<Vec<OwnedEvent>> {
+    // Decode and normalize one resource at a time so temporary objects do not grow
+    // with the full batch. The compact JSON can be released once its events are owned.
+    source.consume_json(|json| process_to_events(json.as_bytes(), config).map_err(failure))
+}
+
+fn unique_trace_ids(events: &[OwnedEvent]) -> Vec<String> {
+    events
+        .iter()
+        .map(|event| event.trace_id.clone())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn validate_completion(
+    state: &Pipeline,
+    media_results: &[OtelMediaResolution],
+    lookup_count: usize,
+    overflow_limit_bytes: Option<f64>,
+) -> NativeResult<()> {
+    let BatchRows::Prepared(events) = &state.rows else {
+        return Err(failure("OTEL batch already enriched"));
+    };
+    validate_results(
+        media_results,
+        state.media_requests.len(),
+        "incomplete OTEL media results",
+    )?;
+    if lookup_count
+        != events
+            .iter()
+            .filter(|event| rows::needs_lookup(event))
+            .count()
+    {
+        return Err(failure("incomplete OTEL lookup results"));
+    }
+    if overflow_limit_bytes
+        .is_some_and(|limit| !limit.is_finite() || limit <= 0.0 || limit.fract() != 0.0)
+    {
+        return Err(failure("overflow limit must be a positive integer"));
+    }
+    Ok(())
 }
 
 fn validate_results(
