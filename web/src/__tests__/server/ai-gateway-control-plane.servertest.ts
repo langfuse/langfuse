@@ -2744,6 +2744,7 @@ describe("AI gateway control plane", () => {
     });
     await prisma.model.create({
       data: {
+        scope: "PROJECT",
         projectId: project.id,
         modelName: "gpt-spend-limit",
         matchPattern: "(?i)^(gpt-spend-limit)$",
