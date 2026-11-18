@@ -41,6 +41,8 @@ const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
   organizationRoleAccessRights[role].includes(GATEWAY_USER_SCOPE),
 );
 
+const BULK_WRITE_TIMEOUT_MS = 30_000;
+
 const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
 
@@ -390,7 +392,7 @@ export class GatewaySpendLimitService {
     limit: SpendLimitInput;
     session: OrgAuthedContext["session"];
   }) {
-    const applies = [];
+    const changes = [];
     for (const subjectId of params.subjectIds) {
       const scope = toSpendLimitScope(params.scope, subjectId);
       const existing = await this.repository.list({
@@ -404,8 +406,8 @@ export class GatewaySpendLimitService {
             : "A selected user already has a spend budget",
         );
       }
-      applies.push(
-        await this.prepareSet({
+      changes.push(
+        await this.prepareChange({
           organizationId: params.organizationId,
           usageScope: { scope: "organization" },
           scope,
@@ -414,7 +416,7 @@ export class GatewaySpendLimitService {
         }),
       );
     }
-    for (const apply of applies) await apply();
+    await this.applyChanges(changes);
   }
 
   /**
@@ -430,16 +432,16 @@ export class GatewaySpendLimitService {
     limit: SpendLimitInput | null;
     session: OrgAuthedContext["session"];
   }) {
-    const applies = [];
+    const changes = [];
     for (const subjectId of params.subjectIds) {
-      applies.push(
-        await this.prepareSet({
+      changes.push(
+        await this.prepareChange({
           ...params,
           scope: toSpendLimitScope(params.scope, subjectId),
         }),
       );
     }
-    for (const apply of applies) await apply();
+    await this.applyChanges(changes);
   }
 
   /** Throws unless limits can be set, so a caller can check before writing anything else. */
@@ -449,9 +451,7 @@ export class GatewaySpendLimitService {
 
   /**
    * Makes `limit` the key's only spend limit, or removes all of them when it
-   * is null. An unchanged limit is left alone, so it keeps counting. The new
-   * limit is written before others are removed, so a refused write leaves the
-   * key's limits as they were.
+   * is null. An unchanged limit is left alone, so it keeps counting.
    */
   async setForApiKey(params: SetForApiKeyParams) {
     const apply = await this.prepareSetForApiKey(params);
@@ -462,26 +462,42 @@ export class GatewaySpendLimitService {
    * Runs the checks of `setForApiKey` and returns the write, so a caller can
    * refuse a request before changing anything else.
    */
-  prepareSetForApiKey(
+  async prepareSetForApiKey(
     params: SetForApiKeyParams,
   ): Promise<() => Promise<void>> {
-    return this.prepareSet({
+    const change = await this.prepareChange({
       ...params,
       scope: { type: "API_KEY", apiKeyId: params.apiKeyId },
     });
+    return () => this.applyChanges([change]);
+  }
+
+  /**
+   * Writes all changes in one transaction, so a refused write leaves every
+   * limit as it was, then drops the gateway's cached contexts they affect.
+   */
+  private async applyChanges(changes: SpendLimitChange[]) {
+    // A change to every matching key or user can write hundreds of limits and audit logs.
+    await this.prisma.$transaction(
+      async (tx) => {
+        for (const change of changes) await change.write(tx);
+      },
+      { timeout: BULK_WRITE_TIMEOUT_MS },
+    );
+    for (const change of changes) await change.invalidateResolveCache();
   }
 
   /**
    * Makes `limit` the scope's only spend limit, or removes all of them when it
    * is null, after checking the caller may.
    */
-  private async prepareSet(params: {
+  private async prepareChange(params: {
     organizationId: string;
     usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope;
     limit: SpendLimitInput | null;
     session: OrgAuthedContext["session"];
-  }): Promise<() => Promise<void>> {
+  }): Promise<SpendLimitChange> {
     const { limit, organizationId, session, scope } = params;
     const subject = await this.requireSubject(params);
     const existing = await this.repository.list({ organizationId, scope });
@@ -506,89 +522,24 @@ export class GatewaySpendLimitService {
       await this.requireRecordingProjectId(organizationId);
     }
 
-    return async () => {
-      if (limit && !kept) {
-        await this.create({ organizationId, scope, ...limit, session });
-      } else if (limit && kept && !isUnchanged) {
-        await this.update({ before: kept, limitUsd: limit.limitUsd, session });
-      }
-      for (const candidate of existing) {
-        if (candidate !== kept) {
-          await this.delete({ before: candidate, session });
+    const changesLimits = changed.length > 0 || (limit !== null && !kept);
+    return {
+      write: async (tx) => {
+        if (limit && !kept) {
+          await create(tx, { organizationId, scope, ...limit, session });
+        } else if (limit && kept && !isUnchanged) {
+          await update(tx, { before: kept, limitUsd: limit.limitUsd, session });
         }
-      }
-      if (changed.length > 0 || (limit && !kept)) {
-        await subject.invalidateResolveCache();
-      }
+        for (const candidate of existing) {
+          if (candidate !== kept) {
+            await remove(tx, { before: candidate, session });
+          }
+        }
+      },
+      invalidateResolveCache: async () => {
+        if (changesLimits) await subject.invalidateResolveCache();
+      },
     };
-  }
-
-  private async create(params: {
-    organizationId: string;
-    scope: GatewaySpendLimitScope;
-    interval: GatewaySpendLimitInterval;
-    limitUsd: number;
-    session: OrgAuthedContext["session"];
-  }) {
-    let limit: GatewaySpendLimitRecord;
-    try {
-      limit = await this.repository.create({
-        organizationId: params.organizationId,
-        scope: params.scope,
-        interval: params.interval,
-        limitUsd: params.limitUsd,
-        countingStartedAt: new Date(),
-        ownerUserId: params.session.user.id,
-      });
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        throw new LangfuseConflictError(
-          "A spend limit for this interval already exists",
-        );
-      }
-      throw error;
-    }
-    await this.audit({
-      session: params.session,
-      action: "create",
-      after: limit,
-    });
-  }
-
-  private async update(params: {
-    before: GatewaySpendLimitRecord;
-    limitUsd: number;
-    session: OrgAuthedContext["session"];
-  }) {
-    const after = await this.prisma.$transaction((tx) =>
-      new GatewaySpendLimitRepository(tx).updateLimit({
-        id: params.before.id,
-        limitUsd: params.limitUsd,
-        userId: params.session.user.id,
-      }),
-    );
-    await this.audit({
-      session: params.session,
-      action: "update",
-      before: params.before,
-      after,
-    });
-  }
-
-  /** Deleting stays possible without ingestion, so a limit can always be removed. */
-  private async delete(params: {
-    before: GatewaySpendLimitRecord;
-    session: OrgAuthedContext["session"];
-  }) {
-    await this.repository.delete({ id: params.before.id });
-    await this.audit({
-      session: params.session,
-      action: "delete",
-      before: params.before,
-    });
   }
 
   /** What the scope applies to, if the caller may see it. */
@@ -648,24 +599,104 @@ export class GatewaySpendLimitService {
     }
     return projectId;
   }
+}
 
-  private audit(params: {
+async function create(
+  tx: Prisma.TransactionClient,
+  params: {
+    organizationId: string;
+    scope: GatewaySpendLimitScope;
+    interval: GatewaySpendLimitInterval;
+    limitUsd: number;
+    session: OrgAuthedContext["session"];
+  },
+) {
+  let limit: GatewaySpendLimitRecord;
+  try {
+    limit = await new GatewaySpendLimitRepository(tx).create({
+      organizationId: params.organizationId,
+      scope: params.scope,
+      interval: params.interval,
+      limitUsd: params.limitUsd,
+      countingStartedAt: new Date(),
+      ownerUserId: params.session.user.id,
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new LangfuseConflictError(
+        "A spend limit for this interval already exists",
+      );
+    }
+    throw error;
+  }
+  await audit(tx, { session: params.session, action: "create", after: limit });
+}
+
+async function update(
+  tx: Prisma.TransactionClient,
+  params: {
+    before: GatewaySpendLimitRecord;
+    limitUsd: number;
+    session: OrgAuthedContext["session"];
+  },
+) {
+  const after = await new GatewaySpendLimitRepository(tx).updateLimit({
+    id: params.before.id,
+    limitUsd: params.limitUsd,
+    userId: params.session.user.id,
+  });
+  await audit(tx, {
+    session: params.session,
+    action: "update",
+    before: params.before,
+    after,
+  });
+}
+
+/** Deleting stays possible without ingestion, so a limit can always be removed. */
+async function remove(
+  tx: Prisma.TransactionClient,
+  params: {
+    before: GatewaySpendLimitRecord;
+    session: OrgAuthedContext["session"];
+  },
+) {
+  await new GatewaySpendLimitRepository(tx).delete({ id: params.before.id });
+  await audit(tx, {
+    session: params.session,
+    action: "delete",
+    before: params.before,
+  });
+}
+
+function audit(
+  tx: Prisma.TransactionClient,
+  params: {
     session: OrgAuthedContext["session"];
     action: "create" | "update" | "delete";
     before?: GatewaySpendLimitRecord;
     after?: GatewaySpendLimitRecord;
-  }) {
-    const limit = params.after ?? params.before!;
-    return auditLog(
-      {
-        session: params.session,
-        resourceType: "gatewaySpendLimit",
-        resourceId: limit.id,
-        action: params.action,
-        before: params.before,
-        after: params.after,
-      },
-      this.prisma,
-    );
-  }
+  },
+) {
+  const limit = params.after ?? params.before!;
+  return auditLog(
+    {
+      session: params.session,
+      resourceType: "gatewaySpendLimit",
+      resourceId: limit.id,
+      action: params.action,
+      before: params.before,
+      after: params.after,
+    },
+    tx,
+  );
 }
+
+/** A checked change to one scope's limits, written later together with others. */
+type SpendLimitChange = {
+  write: (tx: Prisma.TransactionClient) => Promise<void>;
+  invalidateResolveCache: () => Promise<void>;
+};

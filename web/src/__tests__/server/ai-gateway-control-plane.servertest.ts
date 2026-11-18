@@ -2543,6 +2543,45 @@ describe("AI gateway control plane", () => {
     expect(await resolvedScopes(memberKeys[0].secretKey)).toEqual([]);
   });
 
+  it("removes a user's budget when they leave the organization", async () => {
+    const owner = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Laptop",
+      metadata: {},
+    });
+    const { userId } = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: memberKey.id },
+      select: { userId: true },
+    });
+    await owner.caller.aiGateway.setSpendLimits({
+      orgId: owner.org.id,
+      scope: "USER",
+      subjects: { type: "ids", subjectIds: [userId!] },
+      spendLimit: { interval: "MONTHLY", limitUsd: 20 },
+    });
+    const membership = await prisma.organizationMembership.findUniqueOrThrow({
+      where: { orgId_userId: { orgId: owner.org.id, userId: userId! } },
+    });
+
+    await owner.caller.members.deleteMembership({
+      orgId: owner.org.id,
+      orgMembershipId: membership.id,
+    });
+
+    expect(
+      await prisma.gatewaySpendLimit.count({
+        where: { organizationId: owner.org.id, userId },
+      }),
+    ).toBe(0);
+  });
+
   it("rejects key edits from another organization and from members without gateway:invoke", async () => {
     const owner = await prepare();
     const other = await prepare();
