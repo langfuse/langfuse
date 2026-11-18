@@ -351,12 +351,34 @@ describe(
           fc.constantFrom("", String.raw`\ud800 `, String.raw`\udfff `),
           fc.boolean(),
           fc.integer({ min: 0, max: 2 }),
+          fc.constantFrom(
+            "",
+            "quoted @@@langfuseMedia:unfinished ",
+            "quoted @@@langfuseMedia:unknown@@@ and @@@langfuseMedia:unfinished ",
+          ),
+          fc.integer({ min: 0, max: 5 }),
+          fc.constantFrom(
+            "",
+            "@langfuseMedia:unknown@@@",
+            "@@langfuseMedia:unknown@@@",
+            "@@@langfuseMedia:unknown@@@",
+          ),
           fc.uint8Array({ minLength: 1, maxLength: 32 }),
-          async (header, prefix, withSibling, layers, bytes) => {
+          async (
+            header,
+            prefix,
+            withSibling,
+            layers,
+            surroundingMarker,
+            extraAts,
+            trailingUnknownMarker,
+            bytes,
+          ) => {
             const uri = `data:image/png${header};base64,${Buffer.from(bytes).toString("base64")}`;
             // Whitespace keeps the URI boundary valid even when surrounding quotes
             // acquire additional escapes in a containing JSON string.
-            let source = `{"value":"${prefix}${uri} "${withSibling ? `,"sibling":"${SMALL_MEDIA_URI} "` : ""}}`;
+            const markerOverlap = `${surroundingMarker}${"@".repeat(extraAts)}`;
+            let source = `{"value":"${prefix}${markerOverlap}${uri}${trailingUnknownMarker} tail "${withSibling ? `,"sibling":"${SMALL_MEDIA_URI} "` : ""}}`;
             for (let layer = 0; layer < layers; layer++) {
               source = JSON.stringify({ nested: source });
             }

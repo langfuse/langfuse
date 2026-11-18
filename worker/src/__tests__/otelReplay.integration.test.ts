@@ -2804,6 +2804,63 @@ describe(
       }
     });
 
+    it.each(
+      [16, 4096].flatMap((bytes) =>
+        [1, 2].flatMap((extraAts) =>
+          [false, true].map((uploadFails) => ({
+            bytes,
+            extraAts,
+            uploadFails,
+          })),
+        ),
+      ),
+    )(
+      "preserves overlapping media markers for $bytes bytes, $extraAts adjacent @ characters, upload failure=$uploadFails",
+      async ({ bytes, extraAts, uploadFails }) => {
+        const uri = `data:image/png;base64,${Buffer.alloc(bytes, 120).toString("base64")}`;
+        const source = `quoted @@@langfuseMedia:unfinished ${"@".repeat(extraAts)}${uri} tail`;
+        const reference =
+          "@@@langfuseMedia:type=image/png|id=image-media-id|source=base64_data_uri@@@";
+        const expectedInput = uploadFails
+          ? source
+          : source.replace(uri, reference);
+        let uploadCursor = 0;
+        if (uploadFails) {
+          otelReplayMocks.uploadMediaForTrace.mockRejectedValue(
+            new Error("simulated overlap media upload failure"),
+          );
+        }
+
+        const comparison = await runOtelReplayComparison({
+          bytes: focusedReplayBytes({
+            attributes: [stringAttribute("langfuse.observation.input", source)],
+          }),
+          projectId: `${PROJECT_ID}-media-overlap-${bytes}-${extraAts}-${uploadFails}`,
+          fileKey: `${FILE_KEY}.media-overlap-${bytes}-${extraAts}-${uploadFails}`,
+          mediaUploadEnabled: true,
+          captureSideEffects: () => {
+            const attempts =
+              otelReplayMocks.uploadMediaForTrace.mock.calls.length -
+              uploadCursor;
+            uploadCursor =
+              otelReplayMocks.uploadMediaForTrace.mock.calls.length;
+            return { attempts };
+          },
+        });
+
+        expectRawNativeParity(comparison);
+        for (const replay of [
+          comparison.originalTs,
+          comparison.earlyTs,
+          comparison.earlyRust,
+        ]) {
+          expect(replay.storedRows).toHaveLength(1);
+          expect(replay.storedRows[0]?.input).toBe(expectedInput);
+          expect(replay.sideEffects).toEqual({ attempts: 1 });
+        }
+      },
+    );
+
     it("dispatches native media and lookup I/O together and preserves request order", async () => {
       const mediaBodies = Array.from({ length: 6 }, (_, index) =>
         Buffer.alloc(2048, index + 65),
