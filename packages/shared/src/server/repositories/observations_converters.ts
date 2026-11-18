@@ -46,7 +46,7 @@ export const createModelCache = (projectId: string) => {
     const model = await prisma.model.findFirst({
       where: {
         id: internalModelId,
-        OR: [{ projectId }, { projectId: null }],
+        OR: [{ projectId }, { scope: "LANGFUSE" }],
       },
       include: {
         Price: {
