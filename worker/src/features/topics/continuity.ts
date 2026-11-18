@@ -39,7 +39,8 @@ function cosineDistance(left: number[], right: number[]) {
  * These conservative PoC thresholds are provisional: at least 80% of both common
  * populations must agree, with 10 anchors (3 exploratory) and half of the old
  * population still represented. Material branches need 5 anchors (3 exploratory)
- * and 20% of either common population; all split/merge children start new IDs.
+ * and 20% of either common population. After a split or merge, only the dominant
+ * successor keeps the old identity (inheritDominantSuccessors); other children start new IDs.
  */
 export function matchTopicContinuity<
   T extends Pick<
@@ -117,7 +118,7 @@ export function matchTopicContinuity<
     if (pair.material)
       increment(materialSuccessors, pair.previousTopic.topicVersionId);
 
-  return input.candidateTopics.map((current) => {
+  const matched = input.candidateTopics.map((current) => {
     const candidates = pairs
       .filter((pair) => pair.candidateId === current.topicVersionId)
       .sort(
@@ -158,7 +159,7 @@ export function matchTopicContinuity<
           .map((pair) => pair.previousTopic.topicId)
           .sort(),
         continuity: {
-          version: 1,
+          version: 2,
           status,
           sharedCount: best?.sharedCount ?? 0,
           previousCoverage: best?.previousCoverage ?? 0,
@@ -168,6 +169,86 @@ export function matchTopicContinuity<
           predecessorTopicVersionIds: predecessors
             .map((pair) => pair.previousTopic.topicVersionId)
             .sort(),
+        },
+      },
+    };
+  });
+  return inheritDominantSuccessors(matched, pairs, minimumShared);
+}
+
+type ContinuityPair = {
+  previousTopic: Pick<TopicDefinition, "topicVersionId" | "topicId">;
+  candidateId: string;
+  sharedCount: number;
+  previousCoverage: number;
+  commonAnchorCoverage: number;
+  centroidDistance: number | null;
+};
+
+/**
+ * A split or merge child keeps an old topic's identity when it holds more than half of that topic's common
+ * members, the old topic is clearly its largest source, no other child already continues it, and the anchor and
+ * centroid checks of a plain continuation hold. Refits re-cut
+ * boundaries; without this, a topic that shed a small branch loses its ID and name.
+ */
+function inheritDominantSuccessors<
+  T extends Pick<TopicDefinition, "topicVersionId" | "topicId" | "metadata">,
+>(matched: T[], pairs: ContinuityPair[], minimumShared: number): T[] {
+  const status = (topic: T) =>
+    (topic.metadata.continuity as { status: string }).status;
+  const taken = new Set(
+    matched
+      .filter((topic) => status(topic) === "continued")
+      .map((topic) => topic.topicId),
+  );
+  const largest = (key: (pair: ContinuityPair) => string) => {
+    const best = new Map<string, ContinuityPair[]>();
+    for (const pair of pairs) {
+      const ranked = [...(best.get(key(pair)) ?? []), pair].sort(
+        (a, b) => b.sharedCount - a.sharedCount,
+      );
+      best.set(key(pair), ranked.slice(0, 2));
+    }
+    return best;
+  };
+  const bySuccessor = largest((pair) => pair.candidateId);
+  const byPredecessor = largest((pair) => pair.previousTopic.topicVersionId);
+  const inherited = new Map<string, ContinuityPair>();
+  for (const [, [pair, runnerUp]] of byPredecessor) {
+    const [source, secondSource] = bySuccessor.get(pair.candidateId)!;
+    const child = matched.find(
+      (topic) => topic.topicVersionId === pair.candidateId,
+    );
+    if (
+      child &&
+      ["split", "merge"].includes(status(child)) &&
+      pair.previousCoverage > 0.5 &&
+      pair.commonAnchorCoverage >= 0.5 &&
+      (pair.centroidDistance === null || pair.centroidDistance <= 0.15) &&
+      pair.sharedCount >= minimumShared &&
+      (!runnerUp || pair.sharedCount > runnerUp.sharedCount) &&
+      source === pair &&
+      (!secondSource || pair.sharedCount > secondSource.sharedCount) &&
+      !taken.has(pair.previousTopic.topicId) &&
+      !inherited.has(pair.candidateId)
+    ) {
+      inherited.set(pair.candidateId, pair);
+      taken.add(pair.previousTopic.topicId);
+    }
+  }
+  return matched.map((topic) => {
+    const pair = inherited.get(topic.topicVersionId);
+    if (!pair) return topic;
+    const continuity = topic.metadata.continuity as Record<string, unknown>;
+    return {
+      ...topic,
+      topicId: pair.previousTopic.topicId,
+      metadata: {
+        ...topic.metadata,
+        continuity: {
+          ...continuity,
+          status: "continued",
+          inheritedFrom: continuity.status,
         },
       },
     };
