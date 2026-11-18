@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS "gateway_spend_limits" (
     "interval" "GatewaySpendLimitInterval" NOT NULL,
     "limit_usd" DECIMAL(65,30) NOT NULL,
     "counting_started_at" TIMESTAMP(3) NOT NULL,
-    "baseline_spend_usd" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "owner_user_id" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

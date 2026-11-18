@@ -218,25 +218,18 @@ fn priced_model(context: &ResolvedRequestContext) -> Option<ModelWithPrices> {
 struct LimitUsage<'a> {
     limit: &'a SpendLimit,
     window: Window,
-    baseline: f64,
     spent: f64,
     alerted: bool,
 }
 
 impl<'a> LimitUsage<'a> {
-    /// `counted` is what the gateway counted in the window; spend recorded before it
-    /// started counting is added while the window is the one counting started in.
+    /// `counted` is what the gateway counted in the window. Spend from before the
+    /// limit's counting start does not count.
     fn new(limit: &'a SpendLimit, window: Window, counted: Option<f64>, alerted: bool) -> Self {
-        let baseline = if window.holds_baseline {
-            limit.baseline_usd
-        } else {
-            0.0
-        };
         Self {
             limit,
             window,
-            baseline,
-            spent: counted.unwrap_or(0.0) + baseline,
+            spent: counted.unwrap_or(0.0),
             alerted,
         }
     }
@@ -252,7 +245,7 @@ impl<'a> LimitUsage<'a> {
             window_start: self.window.start.timestamp_millis(),
             alerted_flag: self.window.counter.alerted_flag(self.limit.limit_usd),
             counter: self.window.counter.clone(),
-            reached_at_usd: self.limit.limit_usd - self.baseline,
+            limit_usd: self.limit.limit_usd,
             alerted: self.alerted,
         }
     }
@@ -360,7 +353,7 @@ impl SpendRecording {
                 .limits
                 .into_iter()
                 .zip(totals)
-                .filter(|(limit, total)| *total >= limit.reached_at_usd)
+                .filter(|(limit, total)| *total >= limit.limit_usd)
                 .map(|(limit, _)| limit)
                 .collect::<Vec<_>>();
             alerts.report(self.store, reached).await;

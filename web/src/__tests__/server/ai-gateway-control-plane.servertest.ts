@@ -2790,7 +2790,6 @@ describe("AI gateway control plane", () => {
         interval: "daily",
         limit_usd: 10,
         counting_started_at: limit.countingStartedAt.getTime(),
-        baseline_usd: 0,
       },
     ]);
     expect(first.pricing).toEqual({
@@ -2853,7 +2852,6 @@ describe("AI gateway control plane", () => {
       interval: "MONTHLY",
       limitUsd: 100,
       countingStartedAt: new Date(),
-      baselineSpendUsd: 0,
       ownerUserId: daily.ownerUserId!,
     });
     const memberEmail = (

@@ -1544,7 +1544,7 @@ async fn spend_limited_resolution(edit: fn(&mut serde_json::Value)) -> Response<
     let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     body["spend_limits"] = serde_json::json!([{
         "id": "limit-1", "scope": "api_key", "interval": "daily", "limit_usd": 10,
-        "counting_started_at": 0, "baseline_usd": 0,
+        "counting_started_at": 0,
     }]);
     body["pricing"] = serde_json::json!({
         "model_id": "model-1",
@@ -1631,7 +1631,7 @@ async fn keys_with_spend_limits_still_count_tokens() {
         let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         body["spend_limits"] = serde_json::json!([{
             "id": "limit-1", "scope": "api_key", "interval": "daily", "limit_usd": 10,
-            "counting_started_at": 0, "baseline_usd": 0,
+            "counting_started_at": 0,
         }]);
         Response::new(Body::from(body.to_string()))
     })
