@@ -29,3 +29,6 @@
 /web/src/features/topics/ @LysanderKie
 /packages/shared/src/server/topics/ @LysanderKie
 /packages/shared/src/topics/ @LysanderKie
+
+# Query AST
+/packages/shared/src/server/query-ast/ @niklassemmler
