@@ -684,11 +684,12 @@ export function renderTranscript(
       event.message.role === "assistant" &&
       event.part.type === "text",
   );
+  let visibleReply = "none";
+  if (repliedWithText) visibleReply = "assistant text";
+  else if (rootOutputLine) visibleReply = "application output";
   header("<end_of_run>");
   header(`last action: ${lastAction}`);
-  header(
-    `visible reply: ${repliedWithText ? "assistant text" : rootOutputLine ? "application output" : "none"}`,
-  );
+  header(`visible reply: ${visibleReply}`);
   if (rootOutputLine) header("final output: application output");
   else if (outputMatchesMessage)
     header(
