@@ -9,10 +9,7 @@ import {
   type GatewaySpendLimitInterval,
   type PrismaClient,
 } from "@langfuse/shared/src/db";
-import {
-  getGatewayApiKeysSpendSinceFromEvents,
-  getGatewayUsersSpendSinceFromEvents,
-} from "@langfuse/shared/src/server";
+import { getGatewaySpendSinceFromEvents } from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
@@ -114,9 +111,13 @@ export class GatewaySpendLimitService {
     );
     const spend = new Map(
       (
-        await getGatewayApiKeysSpendSinceFromEvents({
+        await getGatewaySpendSinceFromEvents({
           projectId: recordingProjectId,
-          apiKeys: counted,
+          scope: "API_KEY",
+          subjects: counted.map(({ apiKeyId, since }) => ({
+            id: apiKeyId,
+            since,
+          })),
         })
       ).map(({ id, spendUsd }) => [id, spendUsd]),
     );
@@ -174,9 +175,13 @@ export class GatewaySpendLimitService {
     const spend = recordingProjectId
       ? new Map(
           (
-            await getGatewayUsersSpendSinceFromEvents({
+            await getGatewaySpendSinceFromEvents({
               projectId: recordingProjectId,
-              users: counted,
+              scope: "USER",
+              subjects: counted.map(({ userId, since }) => ({
+                id: userId,
+                since,
+              })),
             })
           ).map(({ id, spendUsd }) => [id, spendUsd]),
         )
@@ -278,10 +283,11 @@ export class GatewaySpendLimitService {
       const spend = recordingProjectId
         ? new Map(
             (
-              await getGatewayApiKeysSpendSinceFromEvents({
+              await getGatewaySpendSinceFromEvents({
                 projectId: recordingProjectId,
-                apiKeys: keyed.map(({ row, apiKeyId }) => ({
-                  apiKeyId,
+                scope: "API_KEY",
+                subjects: keyed.map(({ row, apiKeyId }) => ({
+                  id: apiKeyId,
                   since: sinceOf(row),
                 })),
               })
@@ -304,10 +310,11 @@ export class GatewaySpendLimitService {
     );
     const [spend, keyCounts] = await Promise.all([
       recordingProjectId
-        ? getGatewayUsersSpendSinceFromEvents({
+        ? getGatewaySpendSinceFromEvents({
             projectId: recordingProjectId,
-            users: owned.map(({ row, userId }) => ({
-              userId,
+            scope: "USER",
+            subjects: owned.map(({ row, userId }) => ({
+              id: userId,
               since: sinceOf(row),
             })),
           }).then(

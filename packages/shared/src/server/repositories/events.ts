@@ -4441,74 +4441,35 @@ export const getLatestEvaluatorRunCost = async (
   return rows[0] ? Number(rows[0].trace_total_cost) : null;
 };
 
-/**
- * USD each gateway key spent since its own `since`, in one scan from the
- * earliest. Keys without spend in their window are absent from the result.
- */
-export const getGatewayApiKeysSpendSinceFromEvents = async (params: {
-  projectId: string;
-  apiKeys: { apiKeyId: string; since: Date }[];
-}): Promise<{ id: string; spendUsd: number }[]> => {
-  if (params.apiKeys.length === 0) return [];
-
-  const earliest = new Date(
-    Math.min(...params.apiKeys.map(({ since }) => since.getTime())),
-  );
-  const { query, params: queryParams } = new EventsAggQueryBuilder({
-    projectId: params.projectId,
-    groupByColumn: "e.ingestion_api_key",
-    selectExpression:
-      "e.ingestion_api_key as api_key_id, toString(sum(e.total_cost)) as spend",
-  })
-    .whereRaw("e.start_time >= {earliest: DateTime64(3)}", {
-      earliest: convertDateToClickhouseDateTime(earliest),
-    })
-    .whereRaw("e.service_name = {gatewayServiceName: String}", {
-      gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
-    })
-    .whereRaw("e.ingestion_api_key IN {apiKeyIds: Array(String)}", {
-      apiKeyIds: params.apiKeys.map(({ apiKeyId }) => apiKeyId),
-    })
-    .whereRaw(
-      "toUnixTimestamp64Milli(e.start_time) >= arrayElement({sinceMs: Array(Int64)}, indexOf({apiKeyIds: Array(String)}, e.ingestion_api_key))",
-      { sinceMs: params.apiKeys.map(({ since }) => since.getTime()) },
-    )
-    .buildWithParams();
-
-  const rows = await queryClickhouse<{ api_key_id: string; spend: string }>({
-    query,
-    params: queryParams,
-    tags: { projectId: params.projectId },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  return rows.map((row) => ({
-    id: row.api_key_id,
-    spendUsd: Number(row.spend),
-  }));
-};
-
 /** Gateway ingestion stamps the calling key's owner on every generation. */
 const GATEWAY_KEY_OWNER_USER_ID_EXPRESSION = `e.metadata_values[indexOf(e.metadata_names, '${AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY}')]`;
 
-/**
- * USD each user's gateway keys spent since the user's own `since`, in one scan
- * from the earliest. Users without spend in their window are absent from the
- * result.
- */
-export const getGatewayUsersSpendSinceFromEvents = async (params: {
-  projectId: string;
-  users: { userId: string; since: Date }[];
-}): Promise<{ id: string; spendUsd: number }[]> => {
-  if (params.users.length === 0) return [];
+/** The column that identifies a spend limit's subject on gateway generations. */
+const GATEWAY_SPEND_SUBJECT_COLUMNS = {
+  API_KEY: "e.ingestion_api_key",
+  USER: GATEWAY_KEY_OWNER_USER_ID_EXPRESSION,
+} as const;
 
+/**
+ * USD each gateway key, or each user's gateway keys, spent since the subject's
+ * own `since`, in one scan from the earliest. Subjects without spend in their
+ * window are absent from the result.
+ */
+export const getGatewaySpendSinceFromEvents = async (params: {
+  projectId: string;
+  scope: keyof typeof GATEWAY_SPEND_SUBJECT_COLUMNS;
+  subjects: { id: string; since: Date }[];
+}): Promise<{ id: string; spendUsd: number }[]> => {
+  if (params.subjects.length === 0) return [];
+
+  const column = GATEWAY_SPEND_SUBJECT_COLUMNS[params.scope];
   const earliest = new Date(
-    Math.min(...params.users.map(({ since }) => since.getTime())),
+    Math.min(...params.subjects.map(({ since }) => since.getTime())),
   );
   const { query, params: queryParams } = new EventsAggQueryBuilder({
     projectId: params.projectId,
-    groupByColumn: GATEWAY_KEY_OWNER_USER_ID_EXPRESSION,
-    selectExpression: `${GATEWAY_KEY_OWNER_USER_ID_EXPRESSION} as user_id, toString(sum(e.total_cost)) as spend`,
+    groupByColumn: column,
+    selectExpression: `${column} as subject_id, toString(sum(e.total_cost)) as spend`,
   })
     .whereRaw("e.start_time >= {earliest: DateTime64(3)}", {
       earliest: convertDateToClickhouseDateTime(earliest),
@@ -4516,17 +4477,16 @@ export const getGatewayUsersSpendSinceFromEvents = async (params: {
     .whereRaw("e.service_name = {gatewayServiceName: String}", {
       gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
     })
+    .whereRaw(`${column} IN {subjectIds: Array(String)}`, {
+      subjectIds: params.subjects.map(({ id }) => id),
+    })
     .whereRaw(
-      `${GATEWAY_KEY_OWNER_USER_ID_EXPRESSION} IN {userIds: Array(String)}`,
-      { userIds: params.users.map(({ userId }) => userId) },
-    )
-    .whereRaw(
-      `toUnixTimestamp64Milli(e.start_time) >= arrayElement({sinceMs: Array(Int64)}, indexOf({userIds: Array(String)}, ${GATEWAY_KEY_OWNER_USER_ID_EXPRESSION}))`,
-      { sinceMs: params.users.map(({ since }) => since.getTime()) },
+      `toUnixTimestamp64Milli(e.start_time) >= arrayElement({sinceMs: Array(Int64)}, indexOf({subjectIds: Array(String)}, ${column}))`,
+      { sinceMs: params.subjects.map(({ since }) => since.getTime()) },
     )
     .buildWithParams();
 
-  const rows = await queryClickhouse<{ user_id: string; spend: string }>({
+  const rows = await queryClickhouse<{ subject_id: string; spend: string }>({
     query,
     params: queryParams,
     tags: { projectId: params.projectId },
@@ -4534,7 +4494,7 @@ export const getGatewayUsersSpendSinceFromEvents = async (params: {
   });
 
   return rows.map((row) => ({
-    id: row.user_id,
+    id: row.subject_id,
     spendUsd: Number(row.spend),
   }));
 };

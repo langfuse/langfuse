@@ -9,7 +9,7 @@ import { AI_GATEWAY_SERVICE_NAME } from "@langfuse/shared";
 import {
   createEvent,
   createEventsCh,
-  getGatewayApiKeysSpendSinceFromEvents,
+  getGatewaySpendSinceFromEvents,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import waitForExpect from "wait-for-expect";
@@ -20,7 +20,7 @@ describe("gateway spend events repository liveness", () => {
   it("does not hang when the events table is unavailable", () => {});
 });
 
-maybe("getGatewayApiKeysSpendSinceFromEvents", () => {
+maybe("getGatewaySpendSinceFromEvents", () => {
   it("sums each key's gateway spend from its own start", async () => {
     const projectId = randomUUID();
     const gatewayEvent = (apiKeyId: string, startTime: string, cost: number) =>
@@ -46,12 +46,13 @@ maybe("getGatewayApiKeysSpendSinceFromEvents", () => {
     ]);
 
     await waitForExpect(async () => {
-      const spend = await getGatewayApiKeysSpendSinceFromEvents({
+      const spend = await getGatewaySpendSinceFromEvents({
         projectId,
-        apiKeys: [
-          { apiKeyId: "daily", since: new Date("2026-11-17T00:00:00Z") },
-          { apiKeyId: "monthly", since: new Date("2026-11-01T00:00:00Z") },
-          { apiKeyId: "unused", since: new Date("2026-11-01T00:00:00Z") },
+        scope: "API_KEY",
+        subjects: [
+          { id: "daily", since: new Date("2026-11-17T00:00:00Z") },
+          { id: "monthly", since: new Date("2026-11-01T00:00:00Z") },
+          { id: "unused", since: new Date("2026-11-01T00:00:00Z") },
         ],
       });
       expect(spend.toSorted((a, b) => a.id.localeCompare(b.id))).toEqual([
