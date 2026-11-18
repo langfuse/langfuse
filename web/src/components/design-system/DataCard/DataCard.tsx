@@ -15,7 +15,6 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { useTagOverflow } from "@/src/components/design-system/internal/useTagOverflow";
-import { cn } from "@/src/utils/tailwind";
 import {
   VisualizationFrame,
   type Visualization,
@@ -32,6 +31,9 @@ export type DataCardActions = {
   }[];
   menu?: DropdownMenuItemDefinition[];
 };
+
+/** The `p-0.5` around the filter tags, on both sides. */
+const FILTER_TRACK_PADDING_PX = 4;
 
 export function DataCard({
   title,
@@ -305,51 +307,64 @@ function FilterTags({
   filter: NonNullable<ComponentProps<typeof DataCard>["filter"]>;
 }) {
   const {
-    containerRef,
-    registerTag,
-    isVisible,
+    availableRef,
+    measureRef,
+    overflowTagRef,
+    visibleCount,
     hiddenCount,
-    leadingHiddenWidth,
-  } = useTagOverflow(filter.items.map(({ value }) => value));
+  } = useTagOverflow(filter.items.length, FILTER_TRACK_PADDING_PX);
 
   return (
     <div
-      role="group"
-      aria-label={filter.label}
-      // Same track as the toggle beside it, so both share a height and tags sit like its options.
-      className="bg-control-track/60 dark:bg-muted flex h-6 min-w-0 items-center gap-1 rounded-md p-0.5"
+      ref={availableRef}
+      className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)]"
     >
-      {hiddenCount > 0 && (
-        <span
-          className="relative z-1 flex shrink-0"
-          title={`${hiddenCount} more selected`}
-          // Relative offset keeps it on the pixel grid with the tags, unlike a transform.
-          style={{ left: leadingHiddenWidth }}
-        >
-          <Tag text={`+${hiddenCount}`} />
-        </span>
-      )}
-      {/* Right-aligned, so tags that do not fit overflow on the left, away from the controls. */}
+      {/* Invisible copies give each tag's natural width without taking up the row. */}
       <div
-        ref={containerRef}
-        className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden whitespace-nowrap"
+        ref={measureRef}
+        aria-hidden
+        className="invisible col-start-1 row-start-1 flex h-0 gap-1 overflow-hidden"
       >
         {filter.items.map((item) => (
-          <span
-            key={item.value}
-            ref={registerTag(item.value)}
-            className={cn(
-              "flex max-w-48 min-w-10 shrink-0",
-              !isVisible(item.value) && "invisible",
-            )}
-          >
-            <FilterTag item={item} onRemove={filter.onRemove} />
+          <span key={item.value} className="flex max-w-48 min-w-10 shrink-0">
+            <FilterTag item={item} onRemove={ignoreRemove} />
           </span>
         ))}
+      </div>
+      <span
+        ref={overflowTagRef}
+        aria-hidden
+        className="invisible col-start-1 row-start-1 flex h-0 w-fit overflow-hidden"
+      >
+        <Tag text={`+${filter.items.length}`} />
+      </span>
+      <div className="col-start-1 row-start-1 flex min-w-0 justify-end">
+        <div
+          role="group"
+          aria-label={filter.label}
+          // Same track as the toggle beside it, so both share a height and tags sit like its options.
+          className="bg-control-track/60 dark:bg-muted flex h-6 min-w-0 items-center gap-1 rounded-md p-0.5"
+        >
+          {filter.items.slice(0, visibleCount).map((item) => (
+            <span key={item.value} className="flex max-w-48 min-w-10 shrink-0">
+              <FilterTag item={item} onRemove={filter.onRemove} />
+            </span>
+          ))}
+          {hiddenCount > 0 && (
+            <span
+              className="flex shrink-0"
+              title={`${hiddenCount} more selected`}
+            >
+              <Tag text={`+${hiddenCount}`} />
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
 }
+
+function ignoreRemove() {}
 
 function FilterTag({
   item,
