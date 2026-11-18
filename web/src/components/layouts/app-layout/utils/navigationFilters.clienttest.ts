@@ -1,4 +1,5 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { env } from "@/src/env.mjs";
 import type { Session } from "next-auth";
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { applyNavigationFilters } from "./navigationFilters";
@@ -161,6 +162,11 @@ it.each([
 );
 
 it("shows the AI Gateway pages among the organization routes", () => {
+  const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "DEV" });
+  onTestFinished(() => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion });
+  });
   const organization = {
     id: "org-1",
     role: "OWNER",

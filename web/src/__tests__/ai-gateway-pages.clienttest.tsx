@@ -69,7 +69,14 @@ const organization = {
 };
 
 describe("useGatewayPages", () => {
+  const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+  afterEach(() => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion });
+  });
+
   beforeEach(() => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
     window.sessionStorage.clear();
     vi.mocked(useQueryProjectOrOrganization).mockReturnValue({
       organization,
@@ -127,6 +134,17 @@ describe("useGatewayPages", () => {
       ["index", false],
       ["models", false],
       ["budgets", false],
+      ["api-keys", false],
+    ]);
+  });
+
+  it("hides Budgets outside PR previews and staging", () => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+    grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
+
+    expect(visiblePages()).toEqual([
+      ["index", false],
+      ["models", false],
       ["api-keys", false],
     ]);
   });
