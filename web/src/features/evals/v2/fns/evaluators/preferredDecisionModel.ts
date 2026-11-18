@@ -25,7 +25,9 @@ function defaultModelsFor(
       baseURL: connection.baseURL,
     });
   }
-  return TEXT_ADAPTER_DECISION_MODEL_IDS[connection.adapter as LLMAdapter] ?? [];
+  return (
+    TEXT_ADAPTER_DECISION_MODEL_IDS[connection.adapter as LLMAdapter] ?? []
+  );
 }
 
 /** Decision models each connection can run, keyed by provider. */
