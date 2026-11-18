@@ -568,7 +568,7 @@ describe("background group labels", () => {
     expect(details.every((label) => label.kind === "zone")).toBe(true);
   });
 
-  it("keeps one Outliers label within the viewport when the group center is offscreen", () => {
+  it("keeps one Unassigned label within the viewport when the group center is offscreen", () => {
     const model = prepareTopicMap(
       data([
         point("distant-outlier", -90, 0, { topicId: null, outcome: "outlier" }),
@@ -587,7 +587,7 @@ describe("background group labels", () => {
       const labels = prepareMapTextLabels(frame);
       expect(labels).toHaveLength(1);
       expect(labels[0].id).toBe("outliers");
-      expect(labels[0].title).toBe("Outliers");
+      expect(labels[0].title).toBe("Unassigned");
       expect(labels[0].opacity).toBeGreaterThan(0);
       expect(labels[0].rect.x).toBeGreaterThanOrEqual(0);
       expect(labels[0].rect.y).toBeGreaterThanOrEqual(0);
