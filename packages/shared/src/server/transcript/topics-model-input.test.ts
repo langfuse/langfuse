@@ -248,4 +248,21 @@ it("places an issue without a message at its moment across overlapping threads",
   const error = text.indexOf("[error SPAN fetch] timeout");
   expect(error).toBeGreaterThan(text.indexOf("Search"));
   expect(error).toBeLessThan(text.indexOf("Retry"));
+
+  // The root span starts first, but its error describes the whole run.
+  const withRoot = renderStoredTopicText(transcript, [
+    {
+      observationId: "root",
+      traceId: "trace",
+      type: "AGENT",
+      name: "agent",
+      level: "ERROR",
+      statusMessage: "run failed",
+      startTime: at(0),
+      parentObservationId: null,
+    },
+  ]);
+  expect(withRoot.indexOf("[error AGENT agent] run failed")).toBeGreaterThan(
+    withRoot.indexOf("Wrap up"),
+  );
 });

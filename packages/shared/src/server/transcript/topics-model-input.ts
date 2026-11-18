@@ -119,7 +119,8 @@ const UNCAPPED_TOPICS_CONFIG = {
 
 /**
  * Renders a stored transcript as Topics text. Stored inputs have no observations, so the renderer gets
- * stand-ins carrying each execution issue; issues outside the turns' observations are placed by start time.
+ * stand-ins carrying each execution issue; issues outside the turns' observations are placed by start time,
+ * except root-span issues, which describe the whole run and go at its end.
  */
 export function renderStoredTopicText(
   transcript: Transcript,
@@ -141,6 +142,11 @@ export function renderStoredTopicText(
   ];
   for (const issue of executionIssues) {
     if (ids.includes(issue.observationId)) continue;
+    // A root span starts before everything it wraps, so its start time would put a run-level error first.
+    if (issue.parentObservationId === null) {
+      ids.push(issue.observationId);
+      continue;
+    }
     const next = messages.find(
       (message) => message.startTime > issue.startTime,
     );
