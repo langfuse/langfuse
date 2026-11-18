@@ -2,7 +2,9 @@ import crypto from "crypto";
 
 import { NextRequest } from "next/server";
 import type * as SharedServer from "@langfuse/shared/src/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type * as SfdcService from "@/src/ee/features/sfdc-sync/server/sfdcService";
 
 const mocks = vi.hoisted(() => ({
   env: {
@@ -25,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   sendChbProjectEvent: vi.fn(),
   getChbApiClient: vi.fn(),
   getAttachedPlan: vi.fn(),
+  sfdcUpsertOrg: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
@@ -65,6 +68,16 @@ vi.mock("@/src/ee/features/billing/server/chb/chbProjectEvents", () => ({
 vi.mock("@/src/ee/features/billing/server/chb/chbApiClient", () => ({
   getChbApiClient: mocks.getChbApiClient,
 }));
+
+// Only the Mulesoft transport is replaced; the plan diff and the SFDC plan
+// mapping run for real.
+vi.mock(
+  "@/src/ee/features/sfdc-sync/server/sfdcService",
+  async (importOriginal) => ({
+    ...(await importOriginal<typeof SfdcService>()),
+    getSfdcService: () => ({ upsertOrg: mocks.sfdcUpsertOrg }),
+  }),
+);
 
 import {
   chbWebhookHandler,
@@ -283,6 +296,7 @@ describe("chbWebhookHandler", () => {
       getAttachedPlan: mocks.getAttachedPlan,
     });
     mocks.getAttachedPlan.mockResolvedValue(attachedPlan());
+    mocks.sfdcUpsertOrg.mockResolvedValue(true);
   });
 
   const orgColumnsOfUpdate = () =>
@@ -665,6 +679,77 @@ describe("chbWebhookHandler", () => {
       lastEventCreatedAt: "2026-08-01T00:00:00Z",
     });
     expect(orgColumnsOfUpdate()).toHaveProperty("cloudBillingCycleAnchor");
+  });
+
+  /**
+   * Salesforce learns an org's tier only from these pushes, so a CHB plan
+   * change that never reaches it leaves the org on the plan it was created on.
+   */
+  describe("SFDC plan sync", () => {
+    const anchor = new Date("2026-06-15T00:00:00Z");
+    const paidOrg = (planCode: string) => ({
+      ...orgRow({
+        organizationId: CHB_ORG_ID,
+        attachedPlanId: "plan_1",
+        planCode,
+        lastEventCreatedAt: "2026-06-15T00:00:00Z",
+      }),
+      cloudBillingCycleAnchor: anchor,
+    });
+
+    beforeEach(() => {
+      // Plan resolution reads the region from process.env, not the env module.
+      vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "EU");
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it.each([
+      {
+        label: "an upgrade from hobby on BILLING_ATTACHEDPLAN_CREATED",
+        org: orgRow({ organizationId: CHB_ORG_ID }),
+        type: "BILLING_ATTACHEDPLAN_CREATED",
+        reportedPlanCode: "LANGFUSE_CORE",
+        // The anchor the created event just persisted, not the stale one.
+        expected: {
+          plan: "Core",
+          convertedToPaidAt: new Date("2026-07-01T00:00:00Z"),
+        },
+      },
+      {
+        label: "a plan switch on BILLING_ATTACHEDPLAN_UPDATED",
+        org: paidOrg("LANGFUSE_CORE"),
+        type: "BILLING_ATTACHEDPLAN_UPDATED",
+        reportedPlanCode: "LANGFUSE_PRO",
+        expected: { plan: "Pro", convertedToPaidAt: anchor },
+      },
+      {
+        label: "a downgrade to hobby on BILLING_ATTACHEDPLAN_CANCELLED",
+        org: paidOrg("LANGFUSE_CORE"),
+        type: "BILLING_ATTACHEDPLAN_CANCELLED",
+        reportedPlanCode: null,
+        expected: { plan: "Hobby", convertedToPaidAt: undefined },
+      },
+    ])(
+      "pushes $label to SFDC",
+      async ({ org, type, reportedPlanCode, expected }) => {
+        mocks.findOrg.mockResolvedValue(org);
+        mocks.getAttachedPlan.mockResolvedValue(
+          attachedPlan({ plan: { code: reportedPlanCode } }),
+        );
+
+        const response = await chbWebhookHandler(
+          post(chbEvent(type, { occurredAt: "2026-07-01T00:00:00Z" })),
+        );
+
+        expect(response.status).toBe(200);
+        expect(mocks.sfdcUpsertOrg).toHaveBeenCalledTimes(1);
+        expect(mocks.sfdcUpsertOrg).toHaveBeenCalledWith(
+          expect.objectContaining({ orgId: ORG_ID, ...expected }),
+        );
+      },
+    );
   });
 
   /**

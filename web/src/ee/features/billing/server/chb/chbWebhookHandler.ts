@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { syncOrgPlanChangeToSfdc } from "@/src/ee/features/sfdc-sync/server/planChangeSync";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
@@ -399,7 +400,8 @@ export async function chbWebhookHandler(req: NextRequest) {
 /**
  * Persist a new clickhouse block + org columns, then propagate: the resolved
  * plan and suspension flag are baked into the Redis-cached API-key record, so
- * every write ends with a cache invalidation.
+ * every write ends with a cache invalidation, and a resolved plan that moved
+ * is pushed to SFDC like the Stripe webhook does.
  *
  * The organization update is the commit point. It persists this event's
  * occurredAt as lastEventCreatedAt, after which the ordering guard drops any
@@ -465,6 +467,26 @@ async function persistAndPropagate(params: {
   } catch (error) {
     logger.error(
       `[CHB Webhook] Failed to write the audit log for ${event.type} on org ${parsedOrg.id}`,
+      error,
+    );
+    traceException(error);
+  }
+
+  // Post-commit too. The sync compares the plan resolved before and after this
+  // write, so payment-status flaps and scheduled-change snapshots push nothing.
+  // The anchor is the one this write persisted, else the stored one; SFDC
+  // ignores it on a downgrade to hobby.
+  try {
+    await syncOrgPlanChangeToSfdc({
+      orgBeforeUpdate: parsedOrg,
+      updatedCloudConfig,
+      billingCycleAnchor:
+        params.orgColumns?.cloudBillingCycleAnchor ??
+        parsedOrg.cloudBillingCycleAnchor,
+    });
+  } catch (error) {
+    logger.error(
+      `[CHB Webhook] Failed to sync the plan change to SFDC for org ${parsedOrg.id} after applying ${event.type}`,
       error,
     );
     traceException(error);
