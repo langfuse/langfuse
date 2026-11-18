@@ -44,6 +44,7 @@ export function useSetGatewayBudgets(organizationId: string) {
         utils.aiGateway.listBudgets.invalidate({ orgId }),
         utils.aiGateway.listApiKeys.invalidate({ orgId }),
         utils.aiGateway.getApiKeysSpend.invalidate({ orgId }),
+        utils.aiGateway.getUsersSpend.invalidate({ orgId }),
       ]);
     }
   };

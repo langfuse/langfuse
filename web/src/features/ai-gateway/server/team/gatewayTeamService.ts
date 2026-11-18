@@ -22,6 +22,7 @@ import { OrganizationMembersService } from "@/src/features/rbac/server/organizat
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 const MEMBER_SUGGESTION_LIMIT = 4;
+const BUDGET_USER_OPTION_LIMIT = 50;
 export const GATEWAY_USER_SCOPE = "gateway:invoke";
 
 type GatewayInvitationEmail = Extract<
@@ -99,6 +100,16 @@ export class GatewayTeamService {
       excludeEmails: normalizeEmails(params.excludeEmails),
       search: params.search,
       limit: MEMBER_SUGGESTION_LIMIT,
+    });
+  }
+
+  /** Members who can use the gateway, the caller included, optionally narrowed by name or email. */
+  getBudgetUserOptions(params: { organizationId: string; search: string }) {
+    return this.members.findMembersWithScope({
+      organizationId: params.organizationId,
+      scope: GATEWAY_USER_SCOPE,
+      search: params.search,
+      limit: BUDGET_USER_OPTION_LIMIT,
     });
   }
 

@@ -251,6 +251,24 @@ export class GatewaySpendLimitRepository {
     };
   }
 
+  /** Each user's first user limit in the organization. */
+  async listFirstForUsers(params: {
+    organizationId: string;
+    userIds: string[];
+  }) {
+    if (params.userIds.length === 0) return [];
+    return this.prisma.gatewaySpendLimit.findMany({
+      where: {
+        organizationId: params.organizationId,
+        scope: "USER",
+        userId: { in: params.userIds },
+      },
+      select: GATEWAY_SPEND_LIMIT_SELECT,
+      orderBy: { createdAt: "asc" },
+      distinct: ["userId"],
+    });
+  }
+
   /** Each key's first limit, for keys in the organization and, with ownerUserId, owned by that user. */
   async listFirstForApiKeys(params: {
     organizationId: string;

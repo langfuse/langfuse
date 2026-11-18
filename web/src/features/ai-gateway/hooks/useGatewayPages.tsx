@@ -11,6 +11,7 @@ import { GatewayNotDeployedNotice } from "@/src/features/ai-gateway/components/G
 import { GatewayIngestionHeaderAction } from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewayIngestionHeaderAction/GatewayIngestionHeaderAction";
 import { GatewayOverviewPage } from "@/src/features/ai-gateway/components/GatewayOverviewPage/GatewayOverviewPage";
 import { GatewayBudgetsPage } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/GatewayBudgetsPage";
+import { GatewayBudgetsHeaderActions } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsHeaderActions/GatewayBudgetsHeaderActions";
 import { buildGatewayBudgetsTabs } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/buildGatewayBudgetsTabs";
 import { useGatewayBudgetsTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTab";
 import { buildGatewayModelsTabs } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/buildGatewayModelsTabs";
@@ -206,6 +207,15 @@ export function useGatewayPages(): GatewayPageEntry[] {
           : "Spend of your requests made through the AI Gateway, in total or per gateway key, and the budgets of your keys.",
         href: GATEWAY_ANALYTICS_DOCS_URL,
       },
+      actions:
+        access.canManageGateway &&
+        !access.showNotDeployedNotice &&
+        !showsNotSetUpNotice ? (
+          <GatewayBudgetsHeaderActions
+            organizationId={organization.id}
+            tab={budgetsTab}
+          />
+        ) : undefined,
       tabsProps:
         access.canManageGateway &&
         !access.showNotDeployedNotice &&

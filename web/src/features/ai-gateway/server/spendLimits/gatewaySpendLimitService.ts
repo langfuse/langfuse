@@ -139,6 +139,72 @@ export class GatewaySpendLimitService {
   }
 
   /**
+   * Each user's first user limit, with what ClickHouse has recorded against it
+   * in its current window; `spentUsd` is absent while spend is not recorded.
+   * Users without a limit are absent. Members see only their own.
+   */
+  async getUsersSpend(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    userIds: string[];
+  }) {
+    const ownUserId = getKeyOwnerFilter(params.usageScope);
+    const limits = await this.repository.listFirstForUsers({
+      organizationId: params.organizationId,
+      userIds:
+        ownUserId === undefined
+          ? params.userIds
+          : params.userIds.filter((userId) => userId === ownUserId),
+    });
+    const recordingProjectId =
+      limits.length > 0
+        ? await this.getRecordingProjectId(params.organizationId)
+        : null;
+    const now = new Date();
+    const counted = limits.flatMap((limit) =>
+      limit.userId
+        ? [
+            {
+              limit,
+              userId: limit.userId,
+              since: new Date(
+                Math.max(
+                  getGatewaySpendLimitWindowStart(
+                    limit.interval,
+                    now,
+                  ).getTime(),
+                  limit.countingStartedAt.getTime(),
+                ),
+              ),
+            },
+          ]
+        : [],
+    );
+    const spend = recordingProjectId
+      ? new Map(
+          (
+            await getGatewaySpendSinceFromEvents({
+              projectId: recordingProjectId,
+              scope: "USER",
+              subjects: counted.map(({ userId, since }) => ({
+                id: userId,
+                since,
+              })),
+            })
+          ).map(({ id, spendUsd }) => [id, spendUsd]),
+        )
+      : null;
+    return counted.map(({ limit, userId }) => ({
+      id: userId,
+      spendLimit: {
+        interval: limit.interval,
+        limitUsd: limit.limitUsd.toNumber(),
+      },
+      spentUsd: spend ? (spend.get(userId) ?? 0) : undefined,
+    }));
+  }
+
+  /**
    * One page of gateway keys or users, each with its budget, if any, and what
    * ClickHouse has recorded against it in its current window; `spentUsd` is
    * absent while spend is not recorded. Members see only their own keys, and
@@ -294,6 +360,45 @@ export class GatewaySpendLimitService {
         (params.scope === "API_KEY" &&
           (limit === null || limit.ownerUserId === ownUserId)),
     }));
+  }
+
+  /**
+   * Gives each key or user the same spend limit; callers must be gateway
+   * managers. Refuses all of them, before writing any, if one already has a
+   * limit.
+   */
+  async createForSubjects(params: {
+    organizationId: string;
+    scope: GatewaySpendLimitScope["type"];
+    subjectIds: string[];
+    limit: SpendLimitInput;
+    session: OrgAuthedContext["session"];
+  }) {
+    const applies = [];
+    for (const subjectId of params.subjectIds) {
+      const scope = toSpendLimitScope(params.scope, subjectId);
+      const existing = await this.repository.list({
+        organizationId: params.organizationId,
+        scope,
+      });
+      if (existing.length > 0) {
+        throw new LangfuseConflictError(
+          params.scope === "API_KEY"
+            ? "A selected key already has a spend budget"
+            : "A selected user already has a spend budget",
+        );
+      }
+      applies.push(
+        await this.prepareSet({
+          organizationId: params.organizationId,
+          usageScope: { scope: "organization" },
+          scope,
+          limit: params.limit,
+          session: params.session,
+        }),
+      );
+    }
+    for (const apply of applies) await apply();
   }
 
   /**

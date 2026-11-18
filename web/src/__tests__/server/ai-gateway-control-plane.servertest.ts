@@ -2370,6 +2370,37 @@ describe("AI gateway control plane", () => {
     expect((await listKeys()).data).toMatchObject([{ spendLimit: null }]);
   });
 
+  it("lets only gateway managers add a budget to a key without one", async () => {
+    const owner = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: {},
+    });
+    const add = (caller: typeof member, limitUsd: number) =>
+      caller.aiGateway.createSpendLimits({
+        orgId: owner.org.id,
+        scope: "API_KEY",
+        subjectIds: [memberKey.id],
+        spendLimit: { interval: "WEEKLY", limitUsd },
+      });
+
+    await expect(add(member, 10)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await add(owner.caller, 10);
+    await expect(add(owner.caller, 20)).rejects.toThrow(
+      "already has a spend budget",
+    );
+    expect(
+      (await member.aiGateway.listApiKeys({ orgId: owner.org.id })).data,
+    ).toMatchObject([{ spendLimit: { interval: "WEEKLY", limitUsd: 10 } }]);
+  });
+
   it("lets only gateway managers budget a user, and enforces it on every key of that user", async () => {
     configureGatewayJwtSigning();
     const owner = await prepare();

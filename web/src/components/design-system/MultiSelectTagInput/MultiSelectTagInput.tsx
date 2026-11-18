@@ -35,6 +35,11 @@ type MultiSelectTagInputProps<V> = {
   "aria-label"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
+  /** Searches on the server: options are not filtered locally. */
+  search?: { value: string; onValueChange: (value: string) => void };
+  loading?: { message: string };
+  /** Selected options missing from `options`, such as after a server search. */
+  selectedOptions?: MultiSelectTagOption<V>[];
 };
 
 export function MultiSelectTagInput<V extends string>({
@@ -51,6 +56,9 @@ export function MultiSelectTagInput<V extends string>({
   "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
+  search,
+  loading,
+  selectedOptions: knownSelectedOptions,
 }: MultiSelectTagInputProps<V>) {
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
@@ -64,7 +72,11 @@ export function MultiSelectTagInput<V extends string>({
   const selectedOptions = React.useMemo(
     () =>
       value.map((selectedValue) => {
-        const option = options.find((option) => option.value === selectedValue);
+        const option =
+          options.find((option) => option.value === selectedValue) ??
+          knownSelectedOptions?.find(
+            (option) => option.value === selectedValue,
+          );
         return {
           value: selectedValue,
           label: option?.label ?? selectedValue,
@@ -74,7 +86,7 @@ export function MultiSelectTagInput<V extends string>({
             : undefined,
         };
       }),
-    [options, value],
+    [knownSelectedOptions, options, value],
   );
   const enabledOptions = options.filter((option) => !option.disabled);
   const disabledValues = options
@@ -167,6 +179,7 @@ export function MultiSelectTagInput<V extends string>({
       onOpenChange={(newOpen) => {
         if (disabled) return;
         setOpen(newOpen);
+        if (!newOpen) search?.onValueChange("");
       }}
     >
       <InputControl contentLayout="none" error={error} disabled={disabled}>
@@ -301,17 +314,26 @@ export function MultiSelectTagInput<V extends string>({
             onTouchMove={stopScrollPropagation()}
           >
             <InputDropdown.Root>
-              <CommandPrimitive>
+              <CommandPrimitive shouldFilter={!search}>
                 <InputDropdown.Search>
-                  <CommandPrimitive.Input placeholder={searchPlaceholder} />
+                  <CommandPrimitive.Input
+                    placeholder={searchPlaceholder}
+                    value={search?.value}
+                    onValueChange={search?.onValueChange}
+                  />
                 </InputDropdown.Search>
-                <InputDropdown.Empty>
-                  <CommandPrimitive.Empty>
-                    {emptyMessage}
-                  </CommandPrimitive.Empty>
-                </InputDropdown.Empty>
+                {!loading && (
+                  <InputDropdown.Empty>
+                    <CommandPrimitive.Empty>
+                      {emptyMessage}
+                    </CommandPrimitive.Empty>
+                  </InputDropdown.Empty>
+                )}
                 <InputDropdown.List>
-                  <CommandPrimitive.List id={listId}>
+                  <CommandPrimitive.List
+                    id={listId}
+                    aria-busy={Boolean(loading)}
+                  >
                     <CommandPrimitive.Group className="text-foreground overflow-hidden">
                       {selectAllLabel && options.length > 0 && (
                         <InputDropdown.Option
@@ -384,6 +406,9 @@ export function MultiSelectTagInput<V extends string>({
                         );
                       })}
                     </CommandPrimitive.Group>
+                    {loading && (
+                      <InputDropdown.Loading message={loading.message} />
+                    )}
                   </CommandPrimitive.List>
                 </InputDropdown.List>
               </CommandPrimitive>
