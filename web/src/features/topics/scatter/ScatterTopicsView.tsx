@@ -1,4 +1,4 @@
-import { useMemo, type ComponentProps, type ReactNode } from "react";
+import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useMediaQuery } from "react-responsive";
 import {
@@ -15,6 +15,7 @@ import {
   orderedFacetTopics,
   type TopicTraceQuery,
   type UseTopicTraces,
+  useTracesWithSelection,
 } from "../facet-topics";
 import {
   prepareTopicDisplay,
@@ -36,18 +37,21 @@ export function ScatterTopicsView({
   projectId,
   facet,
   mapResult,
-  onOpenTrace,
   traceFilters,
   showUnassigned,
   peekView,
   tracePanelRef,
   useTraces,
+  onOpenTrace,
 }: ScatterTopicsViewProps) {
+  // A dot click selects its trace and keeps its card open; the row opens the peek.
+  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   // The rows are the map's legend, so they take the scatter's colors.
   const topics = withScatterColors(
     prepareTopicDisplay(facet, "treemap").topics,
   );
-  const searchTopics = orderedFacetTopics(facet);
+  // A stable list keeps the highlight set, and so a pinned card, across selection re-renders.
+  const searchTopics = useMemo(() => orderedFacetTopics(facet), [facet]);
   // The search bar holds the selection: picking a topic writes its filter there.
   const selectedTopicId = pickedTopicId(
     traceFilters.filters,
@@ -58,7 +62,11 @@ export function ScatterTopicsView({
     !selected &&
     (traceFilters.filters.length > 0 ||
       Boolean(traceFilters.searchQuery?.trim()));
-  const traces = useTraces(listQuery());
+  const traces = useTracesWithSelection(
+    useTraces,
+    listQuery(),
+    selectedTraceId,
+  );
   function listQuery(): TopicTraceQuery | null {
     if (isSearching)
       return topicTraceQuery(
@@ -139,6 +147,12 @@ export function ScatterTopicsView({
         .map((point) => point.traceId),
     );
   }, [mapData, selectedTopicId, isSearching, searchKey, searchTopics]);
+  // The map shows a selection only while it still matches, like the list.
+  const mapSelectedTraceId =
+    selectedTraceId &&
+    (!highlightedTraceIds || highlightedTraceIds.has(selectedTraceId))
+      ? selectedTraceId
+      : null;
   if (facet.topics.length === 0) {
     return <TopicsEmptyState />;
   }
@@ -178,13 +192,16 @@ export function ScatterTopicsView({
                   topicId === null ? clearPickedTopic() : selectTopic(topicId)
                 }
                 onSelectTrace={(traceId) => {
+                  setSelectedTraceId(traceId);
                   if (!traceId) return clearPickedTopic();
-                  // The trace peek opens outside the fullscreen map.
-                  if (document.fullscreenElement)
+                  // Fullscreen hides the list, so a click there leaves fullscreen and opens the trace.
+                  if (document.fullscreenElement) {
                     document.exitFullscreen().catch(() => undefined);
-                  onOpenTrace(traceId);
+                    onOpenTrace(traceId);
+                  }
                 }}
-                selectedTraceId={null}
+                selectedTraceId={mapSelectedTraceId}
+                pinSelection
                 fillContainer
               />
             }
@@ -215,6 +232,7 @@ export function ScatterTopicsView({
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           divider="none"
+          selectedTraceId={selectedTraceId}
           emptyMessage={isSearching ? "No matches." : undefined}
           topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
           search={{
@@ -235,7 +253,6 @@ type ScatterTopicsViewProps = {
   projectId: string;
   facet: Facet;
   mapResult: ComponentProps<typeof ScatterMap>["query"];
-  onOpenTrace: (traceId: string) => void;
   /** The page's trace search and filters, shown above the trace list. */
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
   /** Off hides unassigned traces from the search results too. */
@@ -243,6 +260,7 @@ type ScatterTopicsViewProps = {
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
+  onOpenTrace: (traceId: string) => void;
 };
 
 const MAP_AND_ROWS_PANEL_IDS = ["map", "rows"];
