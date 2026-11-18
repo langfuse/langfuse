@@ -14,6 +14,8 @@ import {
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
+import { useTagOverflow } from "./useTagOverflow";
+import { cn } from "@/src/utils/tailwind";
 import {
   VisualizationFrame,
   type Visualization,
@@ -30,8 +32,6 @@ export type DataCardActions = {
   }[];
   menu?: DropdownMenuItemDefinition[];
 };
-
-const FILTER_VISIBLE_ITEMS = 3;
 
 export function DataCard({
   title,
@@ -175,28 +175,7 @@ export function DataCard({
           </div>
         </div>
         <div className="flex max-w-2/3 min-w-0 items-center justify-end gap-2">
-          {filter && filter.items.length > 0 && (
-            <div
-              role="group"
-              aria-label={filter.label}
-              className="flex min-w-0 items-center gap-1 overflow-hidden"
-            >
-              {filter.items.slice(0, FILTER_VISIBLE_ITEMS).map((item) => (
-                <FilterTag
-                  key={item.value}
-                  item={item}
-                  onRemove={filter.onRemove}
-                />
-              ))}
-              {filter.items.length > FILTER_VISIBLE_ITEMS && (
-                <div className="shrink-0">
-                  <Tag
-                    text={`+${filter.items.length - FILTER_VISIBLE_ITEMS}`}
-                  />
-                </div>
-              )}
-            </div>
-          )}
+          {filter && filter.items.length > 0 && <FilterTags filter={filter} />}
           {tabs && isToggle && (
             <div className="shrink-0">
               <Tabs.List
@@ -320,6 +299,55 @@ export function DataCard({
   );
 }
 
+function FilterTags({
+  filter,
+}: {
+  filter: NonNullable<ComponentProps<typeof DataCard>["filter"]>;
+}) {
+  const {
+    containerRef,
+    registerTag,
+    isVisible,
+    hiddenCount,
+    trailingHiddenWidth,
+  } = useTagOverflow(filter.items.map(({ value }) => value));
+
+  return (
+    <div
+      role="group"
+      aria-label={filter.label}
+      className="flex min-w-0 items-center gap-1"
+    >
+      <div
+        ref={containerRef}
+        className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden whitespace-nowrap"
+      >
+        {filter.items.map((item) => (
+          <span
+            key={item.value}
+            ref={registerTag(item.value)}
+            className={cn(
+              "flex max-w-48 min-w-10 shrink-0",
+              !isVisible(item.value) && "invisible",
+            )}
+          >
+            <FilterTag item={item} onRemove={filter.onRemove} />
+          </span>
+        ))}
+      </div>
+      {hiddenCount > 0 && (
+        <span
+          className="flex shrink-0"
+          title={`${hiddenCount} more selected`}
+          style={{ transform: `translateX(-${trailingHiddenWidth}px)` }}
+        >
+          <Tag text={`+${hiddenCount}`} />
+        </span>
+      )}
+    </div>
+  );
+}
+
 function FilterTag({
   item,
   onRemove,
@@ -328,10 +356,5 @@ function FilterTag({
   onRemove: (value: string) => void;
 }) {
   const handleRemove = () => onRemove(item.value);
-  // Long names truncate inside the tag instead of pushing into the controls beside it.
-  return (
-    <div className="flex max-w-40 min-w-0">
-      <Tag text={item.label} remove={{ onRemove: handleRemove }} />
-    </div>
-  );
+  return <Tag text={item.label} remove={{ onRemove: handleRemove }} />;
 }
