@@ -27,8 +27,6 @@ import {
   createScrubbedError,
   getTRPCErrorCodeFromHTTPStatusCode,
 } from "@/src/server/utils/trpc-utils";
-import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
-
 type CreateContextOptions = {
   session: Session | null;
   headers: IncomingHttpHeaders;
@@ -381,14 +379,6 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     });
   }
 
-  if (sessionProject.organization.supportAccess === true) {
-    await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
-      projectId,
-      orgId: sessionProject.organization.id,
-    });
-  }
-
   trackPosthogActivity({
     userId: ctx.session.user.id,
     organizationId: sessionProject.organization.id,
@@ -461,13 +451,6 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this organization",
-    });
-  }
-
-  if (sessionOrg.supportAccess === true) {
-    await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
-      orgId,
     });
   }
 
@@ -637,13 +620,6 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       });
     }
 
-    if (sessionProject?.organization.supportAccess === true) {
-      await sendAdminAccessWebhook({
-        email: ctx.session?.user?.email,
-        projectId,
-        orgId: sessionProject.organization.id,
-      });
-    }
     addUserToSpan({ projectId }, ctx.requestSpan);
 
     return next({
@@ -724,13 +700,6 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     });
   }
 
-  if (userSessionProject?.organization.supportAccess === true) {
-    await sendAdminAccessWebhook({
-      email: ctx.session?.user?.email,
-      projectId,
-      orgId: userSessionProject.organization.id,
-    });
-  }
   addUserToSpan({ projectId }, ctx.requestSpan);
 
   return next({
