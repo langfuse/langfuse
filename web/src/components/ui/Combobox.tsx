@@ -163,6 +163,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        align="start"
         className="w-(--radix-popover-trigger-width) p-0"
         onCloseAutoFocus={(event) => {
           if (disabled) event.preventDefault();
