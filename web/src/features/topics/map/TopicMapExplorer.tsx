@@ -81,6 +81,9 @@ export function TopicMapExplorer({
   const [stageRef, stageSize] = useElementSize<HTMLDivElement>();
   const sectionRef = useRef<HTMLElement>(null);
   const animationRef = useRef(0);
+  // Stays non-zero for the whole gesture, including while a frame is applying.
+  const flightRef = useRef(0);
+  const nextFlightRef = useRef(0);
   const size = {
     width: stageSize?.width || 960,
     height: stageSize?.height || 560,
@@ -104,21 +107,20 @@ export function TopicMapExplorer({
     store.setState({ camera, scope });
   };
   const cancelFlight = () => {
-    const manualFlight = animationRef.current !== 0;
+    const manualFlight = flightRef.current !== 0;
+    flightRef.current = 0;
     cancelAnimationFrame(animationRef.current);
     animationRef.current = 0;
     const state = store.getState();
     const frame = state.frame;
-    if (
+    // The painted camera is world-space, so a subpixel stage resize still
+    // describes the frame the user is looking at.
+    const frameMatches =
+      frame?.model === model && frame.readingTopic === selectedTopic;
+    const canvasFlight =
       state.isMoving &&
-      (manualFlight ||
-        state.scope !== selectedTopic ||
-        state.camera === null) &&
-      frame?.model === model &&
-      frame.readingTopic === selectedTopic &&
-      frame.size.width === size.width &&
-      frame.size.height === size.height
-    )
+      (state.scope !== selectedTopic || state.camera === null);
+    if (frame && frameMatches && (manualFlight || canvasFlight))
       setCamera(frame.camera);
   };
   const flyTo = (target: Camera, scope: string | null, fit = false) => {
@@ -129,10 +131,14 @@ export function TopicMapExplorer({
       setCamera(fit ? null : target, scope);
       return;
     }
+    const flightId = ++nextFlightRef.current;
+    flightRef.current = flightId;
     const started = performance.now();
     const step = (now: number) => {
+      if (flightRef.current !== flightId) return;
       animationRef.current = 0;
       const progress = Math.min(1, (now - started) / 1050);
+      if (flightRef.current !== flightId) return;
       const t = progress ** 3 * (progress * (progress * 6 - 15) + 10);
       setCamera(
         {
@@ -144,10 +150,15 @@ export function TopicMapExplorer({
         },
         scope,
       );
+      if (flightRef.current !== flightId) return;
       if (progress < 1) animationRef.current = requestAnimationFrame(step);
-      else if (fit) setCamera(null, scope);
+      else {
+        flightRef.current = 0;
+        if (fit) setCamera(null, scope);
+      }
     };
     setCamera(start, scope);
+    if (flightRef.current !== flightId) return;
     animationRef.current = requestAnimationFrame(step);
   };
   const chooseZone = (id: string | null) => {
@@ -203,6 +214,7 @@ export function TopicMapExplorer({
     return () => {
       motion.removeEventListener("change", updateMotion);
       document.removeEventListener("fullscreenchange", updateFullscreen);
+      flightRef.current = 0;
       cancelAnimationFrame(animationRef.current);
     };
   }, [store]);
@@ -374,7 +386,7 @@ export function TopicMapExplorer({
   return (
     <section
       ref={sectionRef}
-      aria-label="Embedding map"
+      aria-label="Scatter"
       className={cn(
         "ph-no-capture bg-background flex min-w-0 flex-col overflow-hidden rounded-lg border",
         fillContainer && "h-full min-h-0",
@@ -391,9 +403,9 @@ export function TopicMapExplorer({
         ref={stageRef}
         tabIndex={0}
         role="group"
-        aria-label="Interactive topic map. Drag or scroll to pan, pinch or control scroll to zoom. Arrow keys pan, plus and minus zoom, zero fits the map."
+        aria-label="Interactive scatter. Drag or scroll to pan, pinch or control scroll to zoom. Arrow keys pan, plus and minus zoom, zero fits the scatter."
         className={cn(
-          "bg-muted/10 focus-visible:ring-ring relative w-full overflow-hidden overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset",
+          "bg-muted/10 focus-visible:ring-ring relative w-full overflow-hidden overscroll-contain outline-none select-none focus-visible:ring-2 focus-visible:ring-inset",
           fullscreen || fillContainer
             ? "min-h-0 flex-1"
             : "h-[clamp(380px,64vh,820px)] min-h-[340px]",
@@ -409,7 +421,7 @@ export function TopicMapExplorer({
       >
         <div
           role="toolbar"
-          aria-label="Map controls"
+          aria-label="Scatter controls"
           className="bg-background/85 absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md border p-0.5 shadow-sm backdrop-blur-sm"
           onPointerDown={stopPointerPropagation}
           onPointerMove={stopPointerPropagation}
@@ -417,7 +429,7 @@ export function TopicMapExplorer({
         >
           <IconButton
             icon={LocateFixed}
-            label="Fit map (0)"
+            label="Fit scatter (0)"
             onClick={handleFitMap}
           />
           <IconButton

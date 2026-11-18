@@ -381,6 +381,8 @@ export const openAIModels = [
   "gpt-4.1-2025-04-14",
   "gpt-4.1-mini",
   "gpt-4.1-mini-2025-04-14",
+  "gpt-6.2-astra",
+  "gpt-6.2-sol",
   "gpt-6-astra",
   "gpt-6-sol",
   "gpt-6.1-sol",

@@ -17,7 +17,7 @@ const CREDENTIAL_SOURCES = {
   OPENROUTER: "API key from openrouter.ai",
   XAI: "API key from console.x.ai",
   VERCEL: "API key from vercel.com",
-  AZURE: "Resource name and API key from ai.azure.com",
+  AZURE: "Resource name and API key",
   GOOGLE_AI_STUDIO: "API key from aistudio.google.com",
   VERTEX: "Service account key and location",
 } satisfies Record<GatewayProvider, string>;

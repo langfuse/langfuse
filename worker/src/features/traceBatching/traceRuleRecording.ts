@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import calculateSlot from "cluster-key-slot";
 import { recordIncrement, redis } from "@langfuse/shared/src/server";
-import { env } from "../../env";
 import {
   getTraceBatchFirstMember,
   getTraceBatchShard,
   resolveTraceIdleMs,
 } from "./traceBatchReadiness";
+import { traceDispatchConfig } from "../eventsDispatch/config";
 
 const REDIS_BATCH_SIZE = 50;
 const CLEANUP_SIZE = 100;
@@ -15,7 +15,7 @@ const shardTags = new Map<string, string>();
 
 /** Tag whose slot sits mid-range in this shard's share of the slot space, so shards spread evenly over masters. */
 export function getRecordingTag(shard: number): string {
-  const count = env.LANGFUSE_TRACE_BATCH_SHARD_COUNT;
+  const count = traceDispatchConfig.shardCount;
   const cached = shardTags.get(`${count}:${shard}`);
   if (cached !== undefined) return cached;
   const width = SLOT_COUNT / count;
@@ -429,8 +429,8 @@ export async function recordTraceActivity(
       ];
       const args = [
         idleMs,
-        env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
-        env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+        traceDispatchConfig.boundsTtlMs,
+        traceDispatchConfig.pendingTtlMs,
         ...chunk.flatMap(
           ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
             member,
@@ -496,8 +496,8 @@ export async function seedTraceDispatch(
           ...chunk.map(({ member }) => getRecordingBoundsKey(shard, member)),
         ],
         [
-          env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
-          env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+          traceDispatchConfig.boundsTtlMs,
+          traceDispatchConfig.pendingTtlMs,
           JSON.stringify(ruleIds),
           ...chunk.flatMap((trace) => [
             trace.member,

@@ -160,12 +160,18 @@ import {
   REFRESH_INTERVALS,
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
+import { useEffectiveRefreshInterval } from "@/src/components/table/hooks/useEffectiveRefreshInterval";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/AddObservationsToDatasetDialog";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import {
+  markTraceQueryPendingDeletion,
+  markTracesPendingDeletion,
+} from "@/src/features/traces/pendingTraceDeletions";
+import { usePendingTraceDeletions } from "@/src/features/traces/usePendingTraceDeletions";
+import { traceDeleteCandidateFromEventsRow } from "@/src/features/traces/pendingTraceDeletionMatch";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
@@ -178,6 +184,7 @@ import {
   chartSearchFieldReason,
   CHART_SEARCH_QUERY_REASON,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
+import type { CompareOp } from "@/src/features/search-bar/lib/ast";
 import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
 import {
   useFacetOptionsWithObservedMetadata,
@@ -470,6 +477,7 @@ export default function ObservationsEventsTable({
     },
     [allowedValues, setRawRefreshInterval],
   );
+  const effectiveRefreshInterval = useEffectiveRefreshInterval(refreshInterval);
 
   // When the chart/outlier-strip window (below) last advanced. Truncated to the
   // minute: a to-the-millisecond bound re-keyed the chart query on every tick,
@@ -494,10 +502,10 @@ export default function ObservationsEventsTable({
   }, [utils]);
 
   useEffect(() => {
-    if (!refreshInterval) return;
-    const id = setInterval(handleRefresh, refreshInterval);
+    if (!effectiveRefreshInterval) return;
+    const id = setInterval(handleRefresh, effectiveRefreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval, handleRefresh]);
+  }, [effectiveRefreshInterval, handleRefresh]);
 
   const { range: tableDateRange, anchoredTo } =
     useLiveTableDateRange(timeRange);
@@ -1134,14 +1142,6 @@ export default function ObservationsEventsTable({
   });
 
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        operation: "trace.bulk_delete",
-        title: "Traces deleted",
-        description:
-          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
-      });
-    },
     onSettled: () => {
       utils.events.all.invalidate();
       utils.events.countAll.invalidate();
@@ -1177,7 +1177,7 @@ export default function ObservationsEventsTable({
     // delete with nothing resolvable is a no-op.
     if (!selectAll && selectedTraceIds.length === 0) return;
 
-    await traceDeleteMutation.mutateAsync({
+    const { cutoffCreatedAt } = await traceDeleteMutation.mutateAsync({
       projectId,
       traceIds: selectedTraceIds,
       query: {
@@ -1192,6 +1192,28 @@ export default function ObservationsEventsTable({
       },
       isBatchAction: selectAll,
     });
+    if (selectAll && cutoffCreatedAt) {
+      markTraceQueryPendingDeletion(projectId, {
+        source: "events",
+        filter: filterState,
+        searchQuery: searchQuery || undefined,
+        searchType,
+        cutoffCreatedAt,
+      });
+    }
+    // The loaded page is hidden by id too, which covers queries that cannot
+    // be evaluated in the browser.
+    const pageTraceIds = [
+      ...new Set(
+        (observations.rows ?? []).flatMap((observation) =>
+          observation.traceId ? [observation.traceId] : [],
+        ),
+      ),
+    ];
+    markTracesPendingDeletion(
+      projectId,
+      selectAll ? pageTraceIds : selectedTraceIds,
+    );
     setSelectedRows({});
   };
 
@@ -1858,6 +1880,19 @@ export default function ObservationsEventsTable({
     };
   }, [peekNavigationProps, showPeekPanel]);
 
+  const pendingTraceDeletions = usePendingTraceDeletions(projectId);
+  const pendingTraceIds = useMemo(
+    () =>
+      pendingTraceDeletions.hiddenTraceIds(
+        "events",
+        (observations.rows ?? []).flatMap((observation) => {
+          const candidate = traceDeleteCandidateFromEventsRow(observation);
+          return candidate ? [candidate] : [];
+        }),
+      ),
+    [pendingTraceDeletions, observations.rows],
+  );
+
   const rows: EventsTableRow[] = useMemo(() => {
     const result =
       observations.status === "success" && observations.rows
@@ -1928,6 +1963,12 @@ export default function ObservationsEventsTable({
 
     return result;
   }, [observations]);
+
+  const visibleRows = useMemo(
+    () =>
+      rows.filter((row) => !row.traceId || !pendingTraceIds.has(row.traceId)),
+    [rows, pendingTraceIds],
+  );
 
   const selectedObservationIds = useMemo(() => {
     const rowIds = new Set(observations.rows?.map((o) => o.id));
@@ -2003,6 +2044,9 @@ export default function ObservationsEventsTable({
                       size={showControlsInPageHeader ? "large" : "default"}
                       key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                       registry={searchRegistry}
+                      managedEnvironmentPolicy={
+                        queryFilter.managedEnvironmentPolicyConfig
+                      }
                       projectId={projectId}
                       tableName={eventsFilterConfig.tableName}
                       isV4={true}
@@ -2012,8 +2056,8 @@ export default function ObservationsEventsTable({
                       erroredColumns={erroredColumns}
                       fieldReason={
                         chartActive
-                          ? (name: string) =>
-                              chartSearchFieldReason(name, searchRegistry)
+                          ? (name: string, op?: CompareOp) =>
+                              chartSearchFieldReason(name, searchRegistry, op)
                           : undefined
                       }
                       freeTextReason={
@@ -2144,6 +2188,9 @@ export default function ObservationsEventsTable({
                     size={showControlsInPageHeader ? "large" : "default"}
                     key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                     registry={searchRegistry}
+                    managedEnvironmentPolicy={
+                      queryFilter.managedEnvironmentPolicyConfig
+                    }
                     projectId={projectId}
                     tableName={eventsFilterConfig.tableName}
                     isV4={true}
@@ -2153,8 +2200,8 @@ export default function ObservationsEventsTable({
                     erroredColumns={erroredColumns}
                     fieldReason={
                       chartActive
-                        ? (name: string) =>
-                            chartSearchFieldReason(name, searchRegistry)
+                        ? (name: string, op?: CompareOp) =>
+                            chartSearchFieldReason(name, searchRegistry, op)
                         : undefined
                     }
                     freeTextReason={
@@ -2166,7 +2213,7 @@ export default function ObservationsEventsTable({
                     onRequestColumns={requestColumns}
                     aiDataContext={aiDataContext}
                     aiScoreNames={aiScoreNames}
-                    className="px-3 pt-3"
+                    spacing="page"
                   />
                 </div>
               </div>
@@ -2435,7 +2482,7 @@ export default function ObservationsEventsTable({
                       : {
                           isLoading: false,
                           isError: false,
-                          data: rows,
+                          data: visibleRows,
                         }
                 }
                 noResultsMessage={

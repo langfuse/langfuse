@@ -3057,6 +3057,24 @@ paths:
         observation
 
 
+        **Trace dimensions** (`traceName`, `tags`, `userId`, `traceRelease`,
+        `traceVersion`) describe the score's whole trace, across all of its
+        observations in the query time range:
+
+        - `tags` is the union of the tags on every observation of the trace.
+        `traceName`, `userId`, `traceRelease` and `traceVersion` take the most
+        recent non-empty value.
+
+        - A `tags` filter matches if any observation of the trace carries the
+        tag; `none of` matches only when no observation does.
+
+        - Filters on the other trace dimensions compare the trace-level value;
+        `is null` matches when no observation has a value.
+
+        - Filters and groupings read the same trace-level values, so they agree
+        within one query.
+
+
         **Measures:**
 
         - `count` - Total number of scores
@@ -11020,11 +11038,13 @@ components:
         value:
           type: string
           const: ''
-          nullable: true
-          description: Optional. Defaults to an empty string.
+          description: >-
+            Empty-string placeholder. Can be omitted on servers newer than
+            v4.78.0.
       required:
         - column
         - operator
+        - value
     PromptVariableMappingInput:
       title: PromptVariableMappingInput
       type: object
@@ -15086,7 +15106,8 @@ components:
 
         | `boolean` | boolean | `=`, `<>` |
 
-        | `null` | omit, or `""` | `is null`, `is not null` |
+        | `null` | `""` (can be omitted on servers newer than v4.78.0) | `is
+        null`, `is not null` |
 
         | `stringOptions` | list of strings | `any of`, `none of` |
 

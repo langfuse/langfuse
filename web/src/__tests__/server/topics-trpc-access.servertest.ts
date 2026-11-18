@@ -8,7 +8,6 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   DEFAULT_TOPIC_FACETS,
   topicEmbeddingConfigSchema,
-  topicProcessingConfigSchema,
 } from "@langfuse/shared/topics";
 import {
   createTopicExecution,
@@ -129,11 +128,13 @@ async function topicsProject(userId: string) {
     {
       projectId,
       requestId: randomUUID(),
-      operation: "process",
+      operation: "update",
       facets: [{ facetId: facet.id, version: 1 }],
-      traceIds: [randomUUID()],
-      reuseExistingSummaries: false,
-      processingConfig: topicProcessingConfigSchema.parse({}),
+      timeRange: {
+        from: new Date(Date.now() - 86_400_000),
+        to: new Date(),
+      },
+      exploratory: false,
       embeddingConfig: topicEmbeddingConfigSchema.parse({}),
     },
     undefined,
@@ -191,20 +192,26 @@ describe("Topics tRPC access", () => {
     });
 
     await expect(viewer.facets({ projectId })).resolves.toHaveLength(before);
-    // Inputs carry only projectId: the topics:CUD check must run before any handler work.
-    for (const write of [
-      viewer.saveFacet,
-      viewer.saveRule,
-      viewer.testModelSettings,
-      viewer.saveSetup,
-      viewer.setAutomaticProcessing,
-      viewer.startSetup,
-      viewer.trigger,
-      viewer.retry,
-    ])
-      await expect(write({ projectId } as never)).rejects.toMatchObject({
-        code: "FORBIDDEN",
-      });
+    // Every Topics mutation, so a new one cannot skip topics:CUD. Inputs carry
+    // only projectId: the check must run before any handler work.
+    const procedures = appRouter._def.procedures as unknown as Record<
+      string,
+      { _def: { type: string } }
+    >;
+    const mutations = Object.entries(procedures).flatMap(([path, procedure]) =>
+      path.startsWith("topics.") && procedure._def.type === "mutation"
+        ? [path.slice("topics.".length)]
+        : [],
+    );
+    expect(mutations).toEqual(
+      expect.arrayContaining(["saveRule", "startAnalysis", "startRuleSetup"]),
+    );
+    for (const name of mutations)
+      await expect(
+        (viewer as unknown as Record<string, (input: unknown) => unknown>)[
+          name
+        ]!({ projectId }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     expect(
       await prisma.evaluator.count({ where: { projectId, type: "FACET" } }),
@@ -272,25 +279,17 @@ describe("Topics tRPC access", () => {
         facetIds: [b.facetId],
       }),
     ).rejects.toThrow("Select facets from this project.");
+    const foreignSlice = {
+      projectId,
+      filter: [],
+      timeRange: { from: new Date(Date.now() - 86_400_000), to: new Date() },
+      facets: [{ facetId: b.facetId, version: 1 }],
+    };
+    await expect(admin.previewAnalysis(foreignSlice)).rejects.toThrow(
+      "Facet version not found in this project.",
+    );
     await expect(
-      admin.trigger({
-        projectId,
-        requestId: randomUUID(),
-        operation: "process",
-        facets: [{ facetId: b.facetId, version: 1 }],
-        traceIds: [randomUUID()],
-        reuseExistingSummaries: false,
-        processingConfig: topicProcessingConfigSchema.parse({}),
-        embeddingConfig: topicEmbeddingConfigSchema.parse({}),
-      }),
-    ).rejects.toThrow("Facet version not found in this project.");
-    await expect(
-      admin.startSetup({
-        projectId,
-        requestId: randomUUID(),
-        sampling: 1,
-        facets: [{ facetId: b.facetId, version: 1 }],
-      }),
+      admin.startAnalysis({ ...foreignSlice, label: "Foreign facet" }),
     ).rejects.toThrow("Facet version not found in this project.");
 
     // Project B is untouched.
@@ -338,11 +337,9 @@ describe("Topics tRPC access", () => {
       memberOfA.setupTraceCounts({ projectId: b.projectId }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
-      memberOfA.startSetup({
+      memberOfA.startRuleSetup({
         projectId: b.projectId,
-        requestId: randomUUID(),
-        sampling: 1,
-        facets: [{ facetId: b.facetId, version: 1 }],
+        ruleId: randomUUID(),
       }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });

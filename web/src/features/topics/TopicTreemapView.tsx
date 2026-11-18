@@ -50,14 +50,12 @@ export function TopicTreemapView({
       orientation={horizontal ? "horizontal" : "vertical"}
       defaultTopicsSize={horizontal ? "60%" : "50%"}
       topics={
-        <div className="flex min-h-0 flex-1 p-4">
-          <TopicTreemap
-            total={total}
-            topics={topics}
-            selectedTopicId={selected.id}
-            onSelectTopic={setSelectedTopicId}
-          />
-        </div>
+        <TopicTreemap
+          total={total}
+          topics={topics}
+          selectedTopicId={selected.id}
+          onSelectTopic={setSelectedTopicId}
+        />
       }
       traces={
         <TopicTraceList

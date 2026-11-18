@@ -9,14 +9,6 @@ const CREATE_SKILL_PROMPT = [
   CONFIRM_BEFORE_SAVING,
 ].join(" ");
 
-function getEditSkillPrompt(skillName: string, version: number) {
-  return [
-    `I want to change the "${skillName}" skill in this project, starting from version ${version}.`,
-    "Ask me what to change before you edit anything, then make the smallest edit that does it.",
-    CONFIRM_BEFORE_SAVING,
-  ].join(" ");
-}
-
 function getImproveSkillPrompt(skillName: string, version: number) {
   return [
     `Review the "${skillName}" skill in this project at version ${version}.`,
@@ -40,8 +32,6 @@ export function useSkillHaloActions() {
   return {
     isRunning,
     createSkill: () => start(CREATE_SKILL_PROMPT),
-    editSkill: (skillName: string, version: number) =>
-      start(getEditSkillPrompt(skillName, version)),
     improveSkill: (skillName: string, version: number) =>
       start(getImproveSkillPrompt(skillName, version)),
   };

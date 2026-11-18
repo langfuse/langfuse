@@ -3,6 +3,9 @@ import { expect } from "storybook/test";
 import preview from "@/.storybook/preview";
 import { GatewaySetupHero } from "./GatewaySetupHero";
 import { GatewaySetupSwitchboard } from "./GatewaySetupSwitchboard";
+import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
+
+const HERO_PROVIDERS = getGatewaySetupHeroProviders(new Set());
 
 const meta = preview.meta({
   component: GatewaySetupHero,
@@ -47,21 +50,12 @@ export const WithAllProviders = meta.story({
 
 /** Every provider plus "More soon", as in the Models empty state. */
 export const SwitchboardWithAllRows = meta.story({
-  name: "(Test) Nine switchboard rows stay inside the diagram",
+  name: "(Test) All switchboard rows stay inside the diagram",
   args: { providers: [] },
   render: () => (
     <div className="mx-auto aspect-[440/200] w-full max-w-xl">
       <GatewaySetupSwitchboard
-        providers={[
-          { provider: "ANTHROPIC", isConnected: false },
-          { provider: "OPENAI", isConnected: false },
-          { provider: "BEDROCK", isConnected: false },
-          { provider: "OPENROUTER", isConnected: false },
-          { provider: "XAI", isConnected: false },
-          { provider: "VERCEL", isConnected: false },
-          { provider: "AZURE", isConnected: false },
-          { provider: "VERTEX", isConnected: false },
-        ]}
+        providers={HERO_PROVIDERS}
         unconnectedVariant="placeholder"
         comingSoonLabel="More soon"
       />
@@ -69,7 +63,7 @@ export const SwitchboardWithAllRows = meta.story({
   ),
   play: async ({ canvasElement }) => {
     const pills = [...canvasElement.querySelectorAll('rect[rx="4"]')];
-    await expect(pills).toHaveLength(9);
+    await expect(pills).toHaveLength(HERO_PROVIDERS.length + 1);
     for (const pill of pills) {
       const top = Number(pill.getAttribute("y"));
       const bottom = top + Number(pill.getAttribute("height"));

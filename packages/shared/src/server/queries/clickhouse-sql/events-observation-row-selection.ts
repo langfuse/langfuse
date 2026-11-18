@@ -261,25 +261,6 @@ const predicateConditions = (predicate: PredicateAnd): PredicateCondition[] =>
   );
 
 /**
- * Throws `InvalidRequestError` for a `numberObject` filter on metadata: the
- * metadata filter column is typed `stringObject`, and numeric metadata
- * conditions are not offered to users yet.
- */
-const rejectNumericMetadata = (leaves: FilterCondition[]): void => {
-  const numeric = leaves.find(
-    (leaf) =>
-      leaf.type === "numberObject" &&
-      resolvePredicateSourceField(eventsPredicateSource, leaf.column)?.id ===
-        "metadata",
-  );
-  if (numeric) {
-    throw new InvalidRequestError(
-      `Invalid filter type 'numberObject' for column '${numeric.column}'. Expected filter type 'stringObject'.`,
-    );
-  }
-};
-
-/**
  * The latest `startTime >=` / `>` bound among the top-level conditions, as
  * ClickHouse text. Every row matches all of them, so the latest one is the
  * tightest sound lower bound for the score CTEs.
@@ -319,9 +300,8 @@ export const withoutPositionInTrace = (
 /**
  * {@link EventsRowConditions} for the events filters and the search. Both read
  * soft-deleted rows like the rest of the host query; the streams filter
- * `is_deleted` themselves. Throws `InvalidRequestError` for a numeric
- * metadata filter, which this path does not offer, and `QueryCompileError`
- * for a `positionInTrace` leaf the caller did not strip
+ * `is_deleted` themselves. Throws `QueryCompileError` for a
+ * `positionInTrace` leaf the caller did not strip
  * ({@link withoutPositionInTrace}).
  */
 const compileEventsRowConditions = ({
@@ -335,7 +315,6 @@ const compileEventsRowConditions = ({
   searchQuery?: string;
   searchType?: TracingSearchType[];
 }): EventsRowConditions => {
-  rejectNumericMetadata(filter);
   const { predicate, search } = fromFilterState({
     filter,
     searchQuery,
@@ -425,9 +404,9 @@ const compileScoreRowConditions = ({
  * filters and the search through the events predicate, and adds the
  * observation and trace score CTEs and joins only when a score filter, a score
  * sort or the blob-export score projection needs them. Throws
- * `InvalidRequestError` for an unresolved comment filter, a search without a
- * search type, or a numeric metadata filter, and `QueryCompileError` for a
- * leftover `positionInTrace` filter.
+ * `InvalidRequestError` for an unresolved comment filter or a search without
+ * a search type, and `QueryCompileError` for a leftover `positionInTrace`
+ * filter.
  */
 const buildEventsObservationRowSelectionInternal = (
   {

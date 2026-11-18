@@ -374,10 +374,9 @@ export const LOGICAL_EVENTS_TABLES: ReadonlySet<string> = new Set([
 
 /** Derived Kysely row types, without the physical events tables. */
 export type ClickHouseDatabase = {
-  [T in Exclude<
-    keyof typeof TABLE_REGISTRY,
-    "events_core" | "events_full"
-  >]: RowOf<(typeof TABLE_REGISTRY)[T]["columns"]>;
+  [
+    T in Exclude<keyof typeof TABLE_REGISTRY, "events_core" | "events_full">
+  ]: RowOf<(typeof TABLE_REGISTRY)[T]["columns"]>;
 };
 
 /**

@@ -16,6 +16,7 @@ import { cn } from "@/src/utils/tailwind";
 const MIN_ROW_PX = 14;
 const CHARACTER_WIDTH = 7;
 const MAX_GRIDLINE_TO_VALUE_GAP = 24;
+const SCROLL_FADE_SIZE = "calc(var(--spacing) * 8)";
 
 export function HorizontalBarChart({
   data,
@@ -29,6 +30,7 @@ export function HorizontalBarChart({
   const {
     register,
     recompute,
+    top: hasHiddenRowsAbove,
     bottom: hasHiddenRowsBelow,
   } = useScrollGradients<HTMLDivElement>(true);
   const maxMagnitude = Math.max(
@@ -101,9 +103,12 @@ export function HorizontalBarChart({
                 onScroll={recompute}
                 className={cn(
                   "size-full overflow-x-hidden overflow-y-auto",
-                  // Padding matches the fade, and both clear together at the end.
-                  hasHiddenRowsBelow && "scroll-fade-b scroll-pb-8",
+                  hasHiddenRowsAbove && "scroll-pt-8",
+                  hasHiddenRowsBelow && "scroll-pb-8",
                 )}
+                style={{
+                  maskImage: `linear-gradient(to bottom, transparent, black ${hasHiddenRowsAbove ? SCROLL_FADE_SIZE : "0px"}, black calc(100% - ${hasHiddenRowsBelow ? SCROLL_FADE_SIZE : "0px"}), transparent)`,
+                }}
                 data-testid="top-list-chart"
               >
                 <svg

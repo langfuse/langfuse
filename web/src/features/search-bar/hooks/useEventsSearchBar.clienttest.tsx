@@ -74,6 +74,82 @@ function setupSplitEcho() {
 }
 
 describe("useEventsSearchBar.commit", () => {
+  it("keeps real recent searches across facet edits while retaining deliberate submissions", ({
+    onTestFinished,
+  }) => {
+    const projectId = crypto.randomUUID();
+    const storageKeys = new Set(Object.keys(localStorage));
+    onTestFinished(() => {
+      for (const key of Object.keys(localStorage)) {
+        if (!storageKeys.has(key)) localStorage.removeItem(key);
+      }
+    });
+    let saved: string[] = [];
+    for (let index = 0; ; index++) {
+      recentSearches.recordRecentSearch(projectId, `name:=prior-${index}`);
+      const next = recentSearches.getRecentSearches(projectId);
+      const atCapacity = next.length === saved.length;
+      saved = next;
+      if (atCapacity) break;
+    }
+    expect(saved.length).toBeGreaterThan(0);
+    const facetEdits = saved.length + 1;
+    const lastSelected = `selected-${facetEdits - 1}`;
+    const { result } = renderHook(() => {
+      const [filters, setFilters] = useState<FilterState>([]);
+      return {
+        ...useEventsSearchBar({
+          projectId,
+          tableName: "observations",
+          enabled: true,
+          filterState: filters,
+          searchQuery: null,
+          searchType: DEFAULT_SEARCH_TYPE,
+          observed: undefined,
+          setFilterState: setFilters,
+          setSearchQuery: () => {},
+          setSearchType: () => {},
+        }),
+        filters,
+      };
+    });
+    for (let index = 0; index < facetEdits; index++) {
+      act(() =>
+        result.current.store
+          .getState()
+          .actions.setDraft(`name:(selected-${index} OR stable OR other)`),
+      );
+      act(() => result.current.commit("facet"));
+    }
+    expect(result.current.filters).toEqual([
+      {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: [lastSelected, "stable", "other"],
+      },
+    ]);
+    expect(recentSearches.getRecentSearches(projectId)).toEqual(saved);
+    act(() => result.current.commit("blur"));
+    expect(recentSearches.getRecentSearches(projectId)).toEqual(saved);
+    expect(
+      capture.mock.calls.filter(
+        ([event, metadata]) =>
+          event === "filters:search_submitted" && metadata.trigger === "facet",
+      ),
+    ).toHaveLength(facetEdits);
+    expect(JSON.stringify(capture.mock.calls)).not.toContain("selected-");
+
+    act(() => result.current.commit("enter"));
+    expect(recentSearches.getRecentSearches(projectId)).toEqual([
+      `name:(${lastSelected} OR stable OR other)`,
+      ...saved.slice(0, -1),
+    ]);
+    act(() => result.current.store.getState().actions.setDraft("name:changed"));
+    act(() => result.current.commit("blur"));
+    expect(recentSearches.getRecentSearches(projectId)[0]).toBe("name:changed");
+  });
+
   it("keeps a mixed commit intact while the filter echoes before the search URL", () => {
     const { result, rerender, setSearchQuery } = setupSplitEcho();
 
@@ -250,6 +326,42 @@ describe("useEventsSearchBar.commit", () => {
     ]);
   });
 
+  it("keeps a hidden numeric metadata equality when its key's visible comparison is unchanged", () => {
+    const equality: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "attempt",
+      operator: "=",
+      value: 3,
+    };
+    const { result, setFilterState } = setup({
+      filterState: [
+        equality,
+        {
+          column: "metadata",
+          type: "numberObject",
+          key: "attempt",
+          operator: ">",
+          value: 2,
+        },
+      ],
+      searchQuery: null,
+    });
+
+    act(() =>
+      result.current.store
+        .getState()
+        .actions.setDraft("metadata.attempt:>2 level:ERROR"),
+    );
+    act(() => {
+      result.current.commit("enter");
+    });
+
+    expect(setFilterState).toHaveBeenCalledWith(
+      expect.arrayContaining([equality]),
+    );
+  });
+
   it("fully replaces hidden filters when a query preset is picked", () => {
     const hiddenFilter: FilterState = [
       {
@@ -287,6 +399,22 @@ describe("useEventsSearchBar.applyFilters", () => {
     act(() => result.current.applyFilters(NEW_FILTERS));
     expect(setFilterState).toHaveBeenCalledWith(NEW_FILTERS);
     expect(setSearchQuery).toHaveBeenCalledWith(null);
+  });
+
+  it("keeps a numeric metadata comparison the AI result cannot carry", () => {
+    const comparison: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "latency_ms",
+      operator: ">",
+      value: 200,
+    };
+    const { result, setFilterState } = setup({
+      filterState: [comparison],
+      searchQuery: null,
+    });
+    act(() => result.current.applyFilters(NEW_FILTERS));
+    expect(setFilterState).toHaveBeenCalledWith([...NEW_FILTERS, comparison]);
   });
 
   it("resets a non-default searchType to the default on apply", () => {
