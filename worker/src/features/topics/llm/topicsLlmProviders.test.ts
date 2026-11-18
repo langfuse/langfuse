@@ -57,7 +57,7 @@ const summaries = [
 
 describe("Topics LLM provider tests", () => {
   for (const combination of TOPICS_LLM_COMBINATIONS) {
-    (combination.skip ? describe.skip : describe)(combination.name, () => {
+    describe(combination.name, () => {
       test(
         `facet summarization (${combination.summary.model})`,
         async () => {

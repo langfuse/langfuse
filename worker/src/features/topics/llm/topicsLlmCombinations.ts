@@ -6,10 +6,6 @@ import {
 } from "@langfuse/shared/topics";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
-const optionalEnv = (name: string) => process.env[name] ?? "";
-const azureDeployment = () =>
-  optionalEnv("LANGFUSE_LLM_CONNECTION_AZURE_MODEL");
-
 /**
  * Model combinations exercised by `topicsLlmProviders.test.ts`. Each one is a
  * Topics configuration a project could save: one connection and model per
@@ -40,17 +36,6 @@ export const TOPICS_LLM_COMBINATIONS: TopicsLlmCombination[] = [
       dimensions: 1024,
     },
     clustering: { connection: "anthropic", model: "claude-haiku-5-5" },
-  },
-  {
-    name: "Azure",
-    skip: "CI's Azure OpenAI key is rejected, as in llmConnections.test.ts.",
-    summary: { connection: "azure", model: azureDeployment() },
-    embedding: {
-      connection: "openai",
-      model: "text-embedding-3-small",
-      dimensions: 1024,
-    },
-    clustering: { connection: "azure", model: azureDeployment() },
   },
   {
     name: "Bedrock",
@@ -126,8 +111,6 @@ type SlotModel = { connection: ConnectionName; model: string };
 
 export type TopicsLlmCombination = {
   name: string;
-  /** Why the combination does not run; it still documents a supported setup. */
-  skip?: string;
   summary: SlotModel;
   embedding: SlotModel & { dimensions: number };
   clustering: SlotModel;
@@ -162,21 +145,6 @@ const CONNECTIONS = {
       adapter: LLMAdapter.Anthropic,
       connection: {
         secretKey: encrypt(env("LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY")),
-      },
-    }),
-  },
-  azure: {
-    requiredEnv: [
-      "LANGFUSE_LLM_CONNECTION_AZURE_KEY",
-      "LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL",
-      "LANGFUSE_LLM_CONNECTION_AZURE_MODEL",
-    ],
-    connect: () => ({
-      provider: "azure",
-      adapter: LLMAdapter.Azure,
-      connection: {
-        secretKey: encrypt(env("LANGFUSE_LLM_CONNECTION_AZURE_KEY")),
-        baseURL: env("LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL"),
       },
     }),
   },
@@ -270,7 +238,7 @@ export function resolveTopicsLlmCombination(
       ),
     ),
   ];
-  if (missing.length)
+  if (missing.length > 0)
     throw new Error(
       `${missing.join(", ")} not set. The "${combination.name}" combination calls real providers. Set the environment variables to run it.`,
     );
