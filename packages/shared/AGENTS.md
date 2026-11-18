@@ -132,6 +132,7 @@
   `projectId`: Cloud Bedrock runtime auth checks it against
   `LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS`. Raw credential
   tests omit this identity; only operator-provisioned stored secrets qualify.
+  Bedrock IAM role connections (`{ roleArn }` secret, kept out of `BedrockCredentialSchema`) assume the role with the encrypted external ID stored on their row (`LLMConnection.externalId`); see `@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials`.
 - `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
   ClickHouse clients and helpers without loading the full server barrel. Use this
   entry point for test cleanup so built and source-aliased clients retain the same
