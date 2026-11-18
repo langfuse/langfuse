@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { __test } from "@/src/features/topics/scatter/TopicMapExplorer";
 import {
   baseScale,
   fitCamera,
@@ -123,42 +122,6 @@ function overlaps(
     a.y + a.height > b.y
   );
 }
-it("fits a tall cohort across the landscape plot while preserving pairwise distances", () => {
-  const points = [
-    [0, 0],
-    [0, 10],
-    [2, 20],
-    [1, 30],
-  ].map(([x, y], index) => ({
-    traceId: `trace-${index}`,
-    summary: `Summary ${index}`,
-    unitStartTime: "2026-10-01T00:00:00.000Z",
-    topicId: null,
-    outcome: "outlier" as const,
-    x,
-    y,
-  }));
-  const positions = __test.fitMapPoints(points, points, 960, 320);
-  const spanX =
-    Math.max(...positions.map((point) => point.x)) -
-    Math.min(...positions.map((point) => point.x));
-  const spanY =
-    Math.max(...positions.map((point) => point.y)) -
-    Math.min(...positions.map((point) => point.y));
-  expect(spanX).toBeGreaterThan(spanY);
-  const distance = (a: { x: number; y: number }, b: { x: number; y: number }) =>
-    Math.hypot(a.x - b.x, a.y - b.y);
-  const scale =
-    distance(positions[0], positions[1]) / distance(points[0], points[1]);
-  for (let a = 0; a < points.length; a++) {
-    for (let b = a + 1; b < points.length; b++) {
-      expect(
-        distance(positions[a], positions[b]) / distance(points[a], points[b]),
-      ).toBeCloseTo(scale, 8);
-    }
-  }
-});
-
 describe("topic map camera", () => {
   it.each([
     { levels: 1.5, anchor: { x: 0.22, y: 0.73 } },

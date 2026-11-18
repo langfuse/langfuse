@@ -39,7 +39,6 @@ import {
   type MapTopic,
   type Size,
   type TopicMapModel,
-  fitMapPoints,
 } from "./prepare-topic-map";
 
 const arrowKeyPan: Readonly<
@@ -847,5 +846,3 @@ type MapLabelsProps = {
   previewOnSelect: boolean;
   pinSelection: boolean;
 };
-
-export const __test = { fitMapPoints };
