@@ -59,11 +59,13 @@ function PageNumberInput({
     setValue(nextPage);
   };
 
+  const pageNumberMinWidthCh = 3 + Math.max(1, pageCount.toString().length);
+
   return (
     <div
-      className="w-fit"
+      className="w-fit shrink-0"
       style={{
-        width: `${3 + Math.max(1, pageCount.toString().length)}ch`,
+        minWidth: `max(3.5rem, ${pageNumberMinWidthCh}ch)`,
       }}
     >
       <Input
