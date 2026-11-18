@@ -91,7 +91,7 @@ describe("transcript fixtures", () => {
       ],
     });
     const root = {
-      ...failed("6", "AGENT", "ERROR", "run failed"),
+      ...failed("6", "SPAN", "ERROR", "run failed"),
       parentObservationId: "",
     };
     expect(
