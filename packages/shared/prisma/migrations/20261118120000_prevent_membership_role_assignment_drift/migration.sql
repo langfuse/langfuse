@@ -4,6 +4,13 @@
 -- that rule and then enforces it at commit time.
 BEGIN;
 
+-- Drop project memberships whose organization membership is in another organization than the project.
+DELETE FROM "project_memberships" pm
+USING "projects" p, "organization_memberships" om
+WHERE p."id" = pm."project_id"
+  AND om."id" = pm."org_membership_id"
+  AND om."org_id" <> p."org_id";
+
 -- Drop membership role assignments that disagree with the membership or outlive it.
 DELETE FROM "role_assignments" ra
 WHERE ra."user_id" IS NOT NULL

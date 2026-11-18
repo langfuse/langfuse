@@ -429,6 +429,63 @@ describe("membership role assignments", () => {
       },
     );
 
+    it.each([
+      ["saveProjectMembership", saveProjectMembership],
+      ["createProjectMembership", createProjectMembership],
+      ["findOrCreateProjectMembership", findOrCreateProjectMembership],
+    ])(
+      "%s rejects an organization membership in another organization",
+      async (_, writeProjectMembership) => {
+        const user = await createUser();
+        const otherOrg = await prisma.organization.create({
+          data: { name: randomUUID() },
+        });
+        const otherMembership = await createOrgMembership(prisma, {
+          orgId: otherOrg.id,
+          userId: user.id,
+          role: Role.VIEWER,
+        });
+
+        await expect(
+          writeProjectMembership(prisma, {
+            orgId,
+            orgMembershipId: otherMembership.id,
+            projectId,
+            userId: user.id,
+            role: Role.ADMIN,
+          }),
+        ).rejects.toBeInstanceOf(LangfuseNotFoundError);
+        expect(
+          await prisma.projectMembership.count({ where: { userId: user.id } }),
+        ).toBe(0);
+        expect(await rolesOf(user.id)).toEqual([org(otherOrg.id, "VIEWER")]);
+      },
+    );
+
+    it("rejects a membership role change that skips its role assignment", async () => {
+      const user = await createUser();
+      await createOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.VIEWER,
+      });
+
+      await expect(
+        prisma.$executeRaw`
+          UPDATE organization_memberships SET role = 'ADMIN'
+          WHERE org_id = ${orgId} AND user_id = ${user.id}
+        `,
+      ).rejects.toThrow(/do not match membership role ADMIN/);
+      expect(await rolesOf(user.id)).toEqual([org(orgId, "VIEWER")]);
+
+      await updateOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.ADMIN,
+      });
+      expect(await rolesOf(user.id)).toEqual([org(orgId, "ADMIN")]);
+    });
+
     it("saveProjectMembership waits for a concurrent project transfer", async () => {
       const user = await createUser();
       const orgMembership = await saveOrgMembership(prisma, {
