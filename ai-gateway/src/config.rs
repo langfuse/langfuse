@@ -582,8 +582,9 @@ fn node_with_password(node: &str, password: &str) -> Option<String> {
     let mut url = url::Url::parse(node)
         .ok()
         .filter(|url| matches!(url.scheme(), "redis" | "rediss"))?;
-    // Percent-encodes the password; the redis crate decodes it again.
-    url.set_password(Some(password)).ok()?;
+    // `set_password` encodes everything but `%`, so escape it first; the redis crate
+    // decodes the password again.
+    url.set_password(Some(&password.replace('%', "%25"))).ok()?;
     Some(url.into())
 }
 
@@ -901,7 +902,7 @@ mod tests {
     #[test]
     fn redis_auth_is_the_password_of_every_node() {
         use redis::IntoConnectionInfo;
-        let auth = "tok#en@/:%!";
+        let auth = "tok#en@/:%40%!";
         let credentials = |node: &str| {
             let info = node.into_connection_info().unwrap();
             let settings = info.redis_settings();
