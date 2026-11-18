@@ -100,7 +100,6 @@ describe("classifyTrpcToastError", () => {
 
   it("classifies a typed non-JSON gateway response as transient and keeps the status", () => {
     const cause = new TrpcNonJsonResponseError(504);
-    cause.procedurePath = "prompts.allVersions";
 
     expect(
       classifyTrpcToastError(

@@ -27,7 +27,10 @@ import {
   shouldSendQueryAsPost,
 } from "@/src/utils/api";
 import { TrpcNonJsonResponseError } from "@/src/utils/trpcResponseParseError";
-import { getTrpcToastOperation } from "@/src/utils/trpcToastOperation";
+import {
+  getTrpcToastOperation,
+  rememberTrpcToastOperation,
+} from "@/src/utils/trpcToastOperation";
 
 const {
   captureExceptionMock,
@@ -100,7 +103,7 @@ const ZOD4_TOO_SMALL_MESSAGE = JSON.stringify([
 ]);
 
 describe("buildIdLink toast operation context", () => {
-  it("stamps the procedure path onto a non-JSON response error", async () => {
+  it("remembers the procedure path for a non-JSON response error", async () => {
     const cause = new TrpcNonJsonResponseError(504);
     const requestError = TRPCClientError.from(cause);
     const execute = buildIdLink()({} as never);
@@ -124,7 +127,6 @@ describe("buildIdLink toast operation context", () => {
         next: () => reject(new Error("expected request to fail")),
         error: (error) => {
           expect(error).toBe(requestError);
-          expect(cause.procedurePath).toBe("prompts.allVersions");
           expect(getTrpcErrorPath(error)).toBe("prompts.allVersions");
           resolve();
         },
@@ -944,9 +946,8 @@ describe("getTrpcErrorFingerprint", () => {
   });
 
   it("fingerprints a gateway non-JSON response apart from an app tRPC error", () => {
-    const cause = new TrpcNonJsonResponseError(504);
-    cause.procedurePath = "prompts.allVersions";
-    const gateway = TRPCClientError.from(cause);
+    const gateway = TRPCClientError.from(new TrpcNonJsonResponseError(504));
+    rememberTrpcToastOperation(gateway, "prompts.allVersions");
     const app = trpcServerError({
       code: "INTERNAL_SERVER_ERROR",
       httpStatus: 500,
@@ -1136,11 +1137,10 @@ describe("reportTrpcErrorWithoutToast", () => {
         "Failed to execute 'json' on 'Response': Unexpected token '<'",
       ),
     );
-    chromeCause.procedurePath = "prompts.allVersions";
     const chrome = TRPCClientError.from(chromeCause);
-    const htmlCause = new TrpcNonJsonResponseError(504);
-    htmlCause.procedurePath = "prompts.allVersions";
-    const html = TRPCClientError.from(htmlCause);
+    rememberTrpcToastOperation(chrome, "prompts.allVersions");
+    const html = TRPCClientError.from(new TrpcNonJsonResponseError(504));
+    rememberTrpcToastOperation(html, "prompts.allVersions");
 
     reportTrpcErrorWithoutToast(safari, "prompts");
     reportTrpcErrorWithoutToast(chrome, "prompts");
@@ -1159,10 +1159,10 @@ describe("reportTrpcErrorWithoutToast", () => {
   });
 
   it("reports an oversized non-JSON response with http status and procedure path", () => {
-    const cause = new TrpcNonJsonResponseError(431);
-    cause.procedurePath = "traces.all";
+    const oversized = TRPCClientError.from(new TrpcNonJsonResponseError(431));
+    rememberTrpcToastOperation(oversized, "traces.all");
 
-    reportTrpcErrorWithoutToast(TRPCClientError.from(cause), "traces");
+    reportTrpcErrorWithoutToast(oversized, "traces");
 
     expect(captureExceptionMock).toHaveBeenCalledTimes(1);
     const [, options] = captureExceptionMock.mock.calls[0]!;

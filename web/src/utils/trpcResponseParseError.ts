@@ -11,12 +11,12 @@ import { TRPCClientError } from "@trpc/client";
  * object is not `instanceof SyntaxError`, so engine checks on the constructor
  * miss it. Callers classify this type instead of the engine error.
  *
- * `responseStatus` is the HTTP status. `procedurePath` is the tRPC procedure,
- * stamped by the client link: a non-JSON body has no envelope to carry it.
+ * `responseStatus` is the HTTP status. The procedure path stays on the
+ * existing toast WeakMap (`rememberTrpcToastOperation`); a non-JSON body
+ * has no envelope to carry it.
  */
 export class TrpcNonJsonResponseError extends Error {
   readonly responseStatus: number;
-  procedurePath?: string;
 
   constructor(responseStatus: number, cause?: unknown) {
     super(
@@ -94,15 +94,4 @@ export function isTrpcNonJsonBodyError(
     cause instanceof TrpcNonJsonResponseError ||
     isResponseJsonParseFailure(cause)
   );
-}
-
-/** Procedure path stamped onto a non-JSON response, when the link recorded one. */
-export function readTrpcProcedurePath(error: unknown): string | undefined {
-  if (!(error instanceof TRPCClientError)) return undefined;
-  const cause = error.cause;
-  if (!(cause instanceof TrpcNonJsonResponseError)) return undefined;
-  return typeof cause.procedurePath === "string" &&
-    cause.procedurePath.length > 0
-    ? cause.procedurePath
-    : undefined;
 }

@@ -42,7 +42,6 @@ import {
   isResponseJsonParseFailure,
   isTrpcNonJsonBodyError,
   readAnnotatedResponseStatus,
-  readTrpcProcedurePath,
   shouldParseResponseAsJson,
   TrpcNonJsonResponseError,
 } from "@/src/utils/trpcResponseParseError";
@@ -197,13 +196,13 @@ export const getTrpcErrorCode = (error: unknown): string | undefined => {
 /**
  * The tRPC procedure path when available — used as a Sentry tag.
  * Prefers the JSON envelope (`data.path`). A non-JSON body has no envelope;
- * the client link stamps the path onto {@link TrpcNonJsonResponseError}, and
- * `buildIdLink` also remembers it for the toast.
+ * `buildIdLink` records the procedure on the error for the toast, and this
+ * reads that same association.
  */
 export const getTrpcErrorPath = (error: unknown): string | undefined => {
   const path = getTrpcErrorData(error)?.path;
   if (typeof path === "string") return path;
-  return readTrpcProcedurePath(error) ?? getTrpcToastOperation(error);
+  return getTrpcToastOperation(error);
 };
 
 /**
@@ -628,12 +627,6 @@ export const buildIdLink = (): TRPCLink<AppRouter> => () => {
           // response body. Record it before React Query and local handlers see
           // the error so transport and pathless failures retain their origin.
           rememberTrpcToastOperation(err, op.path as TrpcToastOperation);
-          if (
-            err.cause instanceof TrpcNonJsonResponseError &&
-            err.cause.procedurePath === undefined
-          ) {
-            err.cause.procedurePath = op.path;
-          }
           observer.error(err);
         },
         complete() {
