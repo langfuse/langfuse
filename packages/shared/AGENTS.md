@@ -36,9 +36,11 @@
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Audit snapshots and replay: `src/server/repositories/auditLogs.ts`; `getAuditLogResourceRefs` derives bulk trace refs from the persisted snapshot for live staging and backfill.
-- Billing ledger: the append-only `billable_events` table (created by
-  `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
-  migration-managed) read via `src/server/repositories/billable-events.ts`.
+- Billing ledger: the append-only `billable_events` table (ClickHouse
+  migration `0057_create_billable_events`, with its materialized views) read
+  via `src/server/repositories/billable-events.ts`. Change its views with a
+  new migration; Cloud regions get the same DDL by hand first, so the
+  migration's `IF NOT EXISTS` is a no-op there.
   Keep it out of every delete, retention and cleaner path.
   `src/server/billing/billingLedgerShadow.ts` compares legacy billing counts
   with the ledger and only reports (metrics plus one log line); it never

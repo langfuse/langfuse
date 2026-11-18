@@ -560,8 +560,7 @@ export const env = createEnv({
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
     // Compares each GET /api/billing/metrics poll with the billable_events
-    // ledger and reports the gap. Requires the ledger table, which only
-    // Langfuse Cloud has; keep in sync with worker/src/env.ts.
+    // ledger and reports the gap. Keep in sync with worker/src/env.ts.
     LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
       .enum(["true", "false"])
       .default("false"),
