@@ -136,7 +136,8 @@ pub(crate) fn extract_media_at_depth(
     input: &[u8],
     embedded_depth: usize,
     min_candidate_bytes: usize,
-) -> Result<EarlyMediaResult, EarlyMediaError> {
+    ids: &mut payload::MediaOccurrenceIds,
+) -> Result<Option<EarlyMediaResult>, EarlyMediaError> {
     let text = std::str::from_utf8(input).map_err(|error| EarlyMediaError::InvalidJson {
         offset: error.valid_up_to(),
         message: "invalid UTF-8",
@@ -152,7 +153,7 @@ pub(crate) fn extract_media_at_depth(
             .json_decode_layers
             .saturating_sub(embedded_depth as u8);
     }
-    payload::compact_manifest(text, manifest)
+    payload::compact_manifest(text, manifest, ids)
 }
 
 /// Collect temporary-reference markers found in the supplied text.

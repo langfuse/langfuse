@@ -102,7 +102,12 @@ struct NormalizedExtractor<'a, F> {
 
 impl<F> NormalizedExtractor<'_, F>
 where
-    F: FnMut(&[u8], usize, usize) -> Result<super::EarlyMediaResult, EarlyMediaError>,
+    F: FnMut(
+        &[u8],
+        usize,
+        usize,
+        &mut MediaOccurrenceIds,
+    ) -> Result<Option<super::EarlyMediaResult>, EarlyMediaError>,
 {
     fn visit(
         &mut self,
@@ -204,13 +209,12 @@ where
                 || source.as_str().contains("\\u")
                 || may_contain_serialized_media(source.as_str()))
         {
-            match (self.extract_embedded)(source.as_bytes(), embedded_depth + 1, 0) {
-                Ok(extracted) => {
-                    if !extracted.media.is_empty() {
-                        replacement = Some(extracted.compact_json.into());
-                        self.registry.extend(extracted.media);
-                    }
+            match (self.extract_embedded)(source.as_bytes(), embedded_depth + 1, 0, &mut self.ids) {
+                Ok(Some(extracted)) => {
+                    replacement = Some(extracted.compact_json.into());
+                    self.registry.extend(extracted.media);
                 }
+                Ok(None) => {}
                 Err(
                     EarlyMediaError::InvalidJson { .. } | EarlyMediaError::TrailingBytes { .. },
                 ) => {
@@ -400,15 +404,20 @@ mod tests {
     }
 
     #[test]
-    fn repeated_media_keeps_distinct_occurrences_across_strings() {
+    fn repeated_media_keeps_distinct_occurrences_across_raw_and_embedded_strings() {
         let uri = data_uri(b"same content");
-        let mut value = json!([format!("{uri} {uri}"), uri]);
+        let escaped = uri.replacen("data:", r"\u0064ata:", 1);
+        let mut value = json!([
+            format!("{uri} {uri}"),
+            format!(r#"["{escaped}","{escaped}"]"#),
+            uri
+        ]);
         let mut registry = Vec::new();
         extract_normalized_media(&mut value, &mut registry).unwrap();
-        assert_eq!(registry.len(), 3);
+        assert_eq!(registry.len(), 5);
         super::super::validate_media_registry(&[], &registry).unwrap();
         let mut collector = MediaReferenceCollector::new(&registry);
-        assert_eq!(collector.collect([&value]), &[0, 1, 2]);
+        assert_eq!(collector.collect([&value]), &[0, 1, 2, 3, 4]);
     }
 
     #[test]
@@ -504,6 +513,27 @@ mod tests {
     }
 
     #[test]
+    fn empty_embedded_documents_do_not_allocate_media_ids() {
+        for original in [
+            r#"{"prompt":"\u3053\u3093\u306b\u3061\u306f"}"#,
+            r#"{"value":"data:application/x-not-supported;base64,aGk="}"#,
+            r#"{"type":"file","mediaType":"image/png","data":"not base64!"}"#,
+        ] {
+            let mut registry = Vec::new();
+            let mut value = Value::from(original);
+            let mut extractor = NormalizedExtractor {
+                registry: &mut registry,
+                ids: MediaOccurrenceIds::default(),
+                extract_embedded: extract_media_at_depth,
+            };
+            extractor.visit(&mut value, 0, 0).unwrap();
+            assert_eq!(extractor.ids, MediaOccurrenceIds::default(), "{original}");
+            assert!(registry.is_empty());
+            assert_eq!(value, Value::from(original));
+        }
+    }
+
+    #[test]
     fn reports_internal_embedded_failures_without_changing_the_string() {
         use crate::otel::metadata::tests::CapturingRecorder;
         use std::sync::atomic::Ordering;
@@ -521,7 +551,9 @@ mod tests {
                 let mut extractor = NormalizedExtractor {
                     registry: &mut registry,
                     ids: MediaOccurrenceIds::default(),
-                    extract_embedded: |_: &[u8], _, _| Err(error.clone()),
+                    extract_embedded: |_: &[u8], _, _, _: &mut MediaOccurrenceIds| {
+                        Err(error.clone())
+                    },
                 };
                 extractor.visit(&mut value, 0, 0).unwrap();
             });

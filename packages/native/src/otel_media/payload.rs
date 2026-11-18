@@ -151,12 +151,13 @@ pub(super) enum MediaStorage {
 }
 
 #[derive(Default)]
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 pub(crate) struct MediaOccurrenceIds {
     next: Option<u128>,
 }
 
 impl MediaOccurrenceIds {
-    fn take(&mut self) -> Result<u128, EarlyMediaError> {
+    fn reserve(&mut self, count: usize) -> Result<u128, EarlyMediaError> {
         let id = match self.next {
             Some(id) => id,
             None => {
@@ -165,7 +166,7 @@ impl MediaOccurrenceIds {
                 u128::from_le_bytes(nonce)
             }
         };
-        self.next = Some(id.wrapping_add(1));
+        self.next = Some(id.wrapping_add(count as u128));
         Ok(id)
     }
 }
@@ -186,7 +187,7 @@ impl ExtractedMedia {
         else {
             return Ok(None);
         };
-        let occurrence_id = ids.take()?;
+        let occurrence_id = ids.reserve(1)?;
         Ok(Some(Self {
             metadata: Arc::new(MediaMetadata {
                 source,
@@ -383,7 +384,12 @@ impl ValidatedPayload {
                 media: Vec::new(),
             });
         }
-        apply_edit_plan(Arc::new(source), manifest, false)
+        apply_edit_plan(
+            Arc::new(source),
+            manifest,
+            false,
+            &mut MediaOccurrenceIds::default(),
+        )
     }
 
     /// Return the validated source allocation directly; media discovery is skipped.
@@ -516,13 +522,12 @@ fn apply_edit_plan(
     source: Arc<String>,
     manifest: MediaManifest,
     restore_verbatim: bool,
+    ids: &mut MediaOccurrenceIds,
 ) -> Result<EarlyMediaResult, EarlyMediaError> {
     let entries = manifest.entries;
     let input = source.as_str();
     validate_edit_plan(input, &entries)?;
-    let mut nonce = [0; 16];
-    getrandom::fill(&mut nonce).map_err(|_| EarlyMediaError::RandomnessUnavailable)?;
-    let first_id = u128::from_le_bytes(nonce);
+    let first_id = ids.reserve(entries.len())?;
     let replacement_bytes = entries
         .iter()
         .map(|entry| {
@@ -586,11 +591,16 @@ fn apply_edit_plan(
 }
 
 /// Replace recorded media ranges in nested JSON text and retain their original values.
+/// Without media, leave the caller's string in place without copying it or allocating IDs.
 pub(super) fn compact_manifest(
     input: &str,
     manifest: MediaManifest,
-) -> Result<EarlyMediaResult, EarlyMediaError> {
-    apply_edit_plan(Arc::new(input.to_owned()), manifest, true)
+    ids: &mut MediaOccurrenceIds,
+) -> Result<Option<EarlyMediaResult>, EarlyMediaError> {
+    if manifest.entries.is_empty() {
+        return Ok(None);
+    }
+    apply_edit_plan(Arc::new(input.to_owned()), manifest, true, ids).map(Some)
 }
 
 const MAX_JSON_LAYER_ADJUSTMENT: u32 = 16;
