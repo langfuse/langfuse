@@ -1,4 +1,4 @@
-//! Spend limits of a key and of its owner. Before forwarding, the counters
+//! Spend limits of a key, of its owner and of its organization. Before forwarding, the counters
 //! for the current windows are checked against every limit; after the
 //! response, the request's cost is added to them. Requests are not reserved,
 //! so concurrent requests can overshoot a limit by what they cost. A request
@@ -55,6 +55,9 @@ pub(crate) enum SpendLimitScope {
     /// Caps the key owner's spend across all their keys in the organization.
     /// Its counter is keyed by the limit, so every key of the user adds to it.
     User,
+    /// Caps the organization's spend across all its keys, so every key adds to
+    /// the one counter of the limit.
+    Organization,
 }
 
 impl SpendLimitScope {
@@ -62,6 +65,7 @@ impl SpendLimitScope {
         match self {
             Self::ApiKey => "This API key",
             Self::User => "This key's user",
+            Self::Organization => "This organization",
         }
     }
 }

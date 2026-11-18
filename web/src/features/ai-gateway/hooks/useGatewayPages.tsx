@@ -203,7 +203,7 @@ export function useGatewayPages(): GatewayPageEntry[] {
       ),
       help: {
         description: access.canManageGateway
-          ? "Spend of requests made through the AI Gateway, in total or per gateway key or user, and the budgets of gateway keys."
+          ? "Spend of requests made through the AI Gateway, in total or per gateway key or user, and the budgets of gateway keys, users and the organization."
           : "Spend of your requests made through the AI Gateway, in total or per gateway key, and the budgets of your keys.",
         href: GATEWAY_ANALYTICS_DOCS_URL,
       },

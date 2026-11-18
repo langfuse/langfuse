@@ -814,6 +814,34 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  /** The organization's own budgets, capping all of its gateway spend, with their spend. */
+  listOrganizationSpendLimits: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).listOrganizationBudgets(
+        input.orgId,
+      );
+    }),
+
+  /** Adds an organization budget, or with `id` replaces that one; a null spendLimit removes it. */
+  setOrganizationSpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        id: z.string().nullable(),
+        spendLimit: gatewaySpendLimitInput.nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).setOrganizationBudget({
+        organizationId: input.orgId,
+        id: input.id,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
   // Returns the plaintext secret key once, so the procedure must not be traced.
   createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(

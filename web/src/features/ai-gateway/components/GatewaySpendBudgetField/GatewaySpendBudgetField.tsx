@@ -16,11 +16,12 @@ type GatewaySpendBudgetFormValues = {
 const requestsBySubject = {
   key: "requests with this key",
   user: "requests with this user's keys",
+  organization: "requests in this organization",
 } as const;
 
 type GatewaySpendBudgetFieldProps<T extends GatewaySpendBudgetFormValues> = {
   control: Control<T>;
-  /** What the budget caps: one key, or all keys of a user. */
+  /** What the budget caps: one key, all keys of a user, or the whole organization. */
   subject: keyof typeof requestsBySubject;
   /** Locks the budget and explains why, e.g. while spend is not recorded. */
   disabledReason?: string;

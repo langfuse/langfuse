@@ -28,7 +28,7 @@ import { countRows, escapeLike } from "./verify";
  * --days with a growth trend, quiet weekends and a few heavy users, so daily,
  * weekly and monthly spend all differ. A handful of the busiest keys and
  * users get spend limits sized from their seeded spend, from barely used to
- * over the limit.
+ * over the limit, and the organization gets limits sized from all of it.
  */
 
 const DAY_MS = 86_400_000;
@@ -116,6 +116,15 @@ const USER_BUDGETS: ReadonlyArray<{
   { rank: 3, interval: "MONTHLY", usage: 1.25 },
   { rank: 5, interval: "WEEKLY", usage: 0.6 },
   { rank: 8, interval: "TOTAL", usage: 0.2 },
+];
+
+/** The organization's own limits, one per interval, sized from all seeded spend in their window. */
+const ORGANIZATION_BUDGETS: ReadonlyArray<{
+  interval: GatewaySpendLimitInterval;
+  usage: number;
+}> = [
+  { interval: "MONTHLY", usage: 0.77 },
+  { interval: "DAILY", usage: 0.85 },
 ];
 
 /** Limit for a key whose window has no spend yet, e.g. on the first day of a month. */
@@ -339,7 +348,8 @@ const run = async (
     counts: {
       users: userCount,
       keys: userCount + 1,
-      spendLimits: BUDGETS.length + USER_BUDGETS.length,
+      spendLimits:
+        BUDGETS.length + USER_BUDGETS.length + ORGANIZATION_BUDGETS.length,
       events,
     },
     links: [`${ctx.baseUrl}/organization/${project.orgId}/ai-gateway/budgets`],
@@ -416,11 +426,12 @@ const run = async (
   const now = new Date();
   const limitUsdFor = (
     budget: { interval: GatewaySpendLimitInterval; usage: number },
-    keyId: string,
+    /** Undefined sizes the limit from every key's spend. */
+    keyId: string | undefined,
   ) => {
     const since = windowStartMs(budget.interval, now);
     const spendUsd = spendRecords
-      .filter((record) => record.keyId === keyId)
+      .filter((record) => keyId === undefined || record.keyId === keyId)
       .filter((record) => record.startTime >= since)
       .reduce((sum, record) => sum + record.costUsd, 0);
     return spendUsd > 0
@@ -487,6 +498,20 @@ const run = async (
     });
   }
 
+  // One per interval by a partial unique index, which Prisma cannot upsert on.
+  await prisma.gatewaySpendLimit.deleteMany({
+    where: { organizationId: project.orgId, scope: "ORGANIZATION" },
+  });
+  await prisma.gatewaySpendLimit.createMany({
+    data: ORGANIZATION_BUDGETS.map((budget) => ({
+      organizationId: project.orgId,
+      scope: "ORGANIZATION" as const,
+      interval: budget.interval,
+      limitUsd: limitUsdFor(budget, undefined),
+      countingStartedAt,
+    })),
+  });
+
   const verified = {
     events: await countRows(
       "events_core",
@@ -513,6 +538,7 @@ const run = async (
               ),
             },
           },
+          { organizationId: project.orgId, scope: "ORGANIZATION" },
         ],
       },
     }),

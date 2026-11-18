@@ -13,6 +13,7 @@ import {
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { toGatewaySpendFilters } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/toGatewaySpendFilters";
+import { toGatewaySpendInterval } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/toGatewaySpendInterval";
 import type { GatewaySpendSelection } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewaySpendSelection";
 
 type GatewaySpendChartProps = {
@@ -79,10 +80,8 @@ export function GatewaySpendChart({
   }, [selection, tab]);
 
   const handleIntervalChange = (value: string) => {
-    const option = GATEWAY_SPEND_INTERVALS.find(
-      (candidate) => candidate.value === value,
-    );
-    if (option) onIntervalChange(option.value);
+    const option = toGatewaySpendInterval(value);
+    if (option) onIntervalChange(option);
   };
 
   return (

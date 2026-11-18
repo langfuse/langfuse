@@ -65,7 +65,8 @@ type SetForApiKeyParams = {
 /**
  * Gateway spend limits, each capping one scope: an API key, set together with
  * the key or later by a gateway manager, or a user, capping all of the user's keys in the organization and
- * set only by gateway managers. Spend is read from the gateway ingestion project, so
+ * set only by gateway managers, or the whole organization, also set only by
+ * gateway managers. Spend is read from the gateway ingestion project, so
  * limits can only be set while gateway requests are recorded. Every write
  * drops the cached /resolve context of the keys the scope covers, so the
  * gateway sees the change on their next request.
@@ -516,6 +517,86 @@ export class GatewaySpendLimitService {
     await invalidateGatewayResolveCacheForOrganization(organizationId);
   }
 
+  /**
+   * The organization's own budgets, at most one per interval, each with what
+   * ClickHouse has recorded against it in its current window; `spentUsd` is
+   * absent while spend is not recorded. They cap all of the organization's
+   * gateway spend, on top of key and user budgets.
+   */
+  async listOrganizationBudgets(organizationId: string) {
+    const limits = await this.repository.listForOrganization(organizationId);
+    const recordingProjectId =
+      limits.length > 0
+        ? await this.getRecordingProjectId(organizationId)
+        : null;
+    // One read per budget: each counts from its own window start.
+    const spend = recordingProjectId
+      ? await Promise.all(
+          limits.map(async (limit) =>
+            (
+              await readSpend(recordingProjectId, "ORGANIZATION", [
+                { subjectId: recordingProjectId, limit },
+              ])
+            ).get(recordingProjectId),
+          ),
+        )
+      : null;
+    return limits.map((limit, index) => ({
+      id: limit.id,
+      spendLimit: {
+        interval: limit.interval,
+        limitUsd: limit.limitUsd.toNumber(),
+      },
+      spentUsd: spend ? (spend[index] ?? 0) : undefined,
+    }));
+  }
+
+  /**
+   * Adds an organization budget, or with `id` replaces that one, or removes
+   * it when `limit` is null. Like other budgets, a new amount keeps counting
+   * and a new interval starts afresh. Every key of the organization resolves
+   * them, so all are dropped from the resolve cache.
+   */
+  async setOrganizationBudget(params: {
+    organizationId: string;
+    id: string | null;
+    limit: SpendLimitInput | null;
+    session: OrgAuthedContext["session"];
+  }) {
+    const { organizationId, limit, session } = params;
+    const existing = params.id
+      ? await this.repository.findForOrganization({
+          organizationId,
+          id: params.id,
+        })
+      : null;
+    if (params.id && !existing) {
+      throw new LangfuseNotFoundError("Budget not found");
+    }
+    const isSameInterval = existing?.interval === limit?.interval;
+    if (isSameInterval && existing?.limitUsd.toNumber() === limit?.limitUsd) {
+      return;
+    }
+    if (limit) await this.requireRecordingProjectId(organizationId);
+
+    // A replaced budget goes first, in the same transaction so that a failed write keeps it.
+    await this.prisma.$transaction(async (tx) => {
+      if (existing && limit && isSameInterval) {
+        await update(tx, {
+          before: existing,
+          limitUsd: limit.limitUsd,
+          session,
+        });
+        return;
+      }
+      if (existing) await remove(tx, { before: existing, session });
+      if (limit) {
+        await createForOrganization(tx, { organizationId, ...limit, session });
+      }
+    });
+    await invalidateGatewayResolveCacheForOrganization(organizationId);
+  }
+
   /** What the scope applies to, if the caller may see it. */
   private async requireSubject(params: {
     organizationId: string;
@@ -581,7 +662,7 @@ export class GatewaySpendLimitService {
  */
 async function readSpend(
   projectId: string,
-  scope: GatewaySpendLimitScope["type"],
+  scope: Parameters<typeof getGatewaySpendSinceFromEvents>[0]["scope"],
   budgeted: {
     subjectId: string;
     limit: Pick<GatewaySpendLimitRecord, "interval" | "countingStartedAt">;
@@ -614,16 +695,46 @@ async function create(
     session: OrgAuthedContext["session"];
   },
 ) {
-  let limit: GatewaySpendLimitRecord;
-  try {
-    limit = await new GatewaySpendLimitRepository(tx).create({
+  const limit = await withIntervalConflict(() =>
+    new GatewaySpendLimitRepository(tx).create({
       organizationId: params.organizationId,
       scope: params.scope,
       interval: params.interval,
       limitUsd: params.limitUsd,
       countingStartedAt: new Date(),
       ownerUserId: params.session.user.id,
-    });
+    }),
+  );
+  await audit(tx, { session: params.session, action: "create", after: limit });
+}
+
+async function createForOrganization(
+  tx: Prisma.TransactionClient,
+  params: {
+    organizationId: string;
+    interval: GatewaySpendLimitInterval;
+    limitUsd: number;
+    session: OrgAuthedContext["session"];
+  },
+) {
+  const limit = await withIntervalConflict(() =>
+    new GatewaySpendLimitRepository(tx).createForOrganization({
+      organizationId: params.organizationId,
+      interval: params.interval,
+      limitUsd: params.limitUsd,
+      countingStartedAt: new Date(),
+      ownerUserId: params.session.user.id,
+    }),
+  );
+  await audit(tx, { session: params.session, action: "create", after: limit });
+}
+
+/** A scope has at most one limit per interval, which the database enforces. */
+async function withIntervalConflict(
+  write: () => Promise<GatewaySpendLimitRecord>,
+) {
+  try {
+    return await write();
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -635,7 +746,6 @@ async function create(
     }
     throw error;
   }
-  await audit(tx, { session: params.session, action: "create", after: limit });
 }
 
 async function createDefault(

@@ -4448,10 +4448,13 @@ const GATEWAY_KEY_OWNER_USER_ID_EXPRESSION = `e.metadata_values[indexOf(e.metada
 const GATEWAY_SPEND_SUBJECT_COLUMNS = {
   API_KEY: "e.ingestion_api_key",
   USER: GATEWAY_KEY_OWNER_USER_ID_EXPRESSION,
+  // The gateway records all of an organization's requests in its one ingestion project.
+  ORGANIZATION: "e.project_id",
 } as const;
 
 /**
- * USD each gateway key, or each user's gateway keys, spent since the subject's
+ * USD each gateway key, each user's gateway keys, or the organization (by its
+ * ingestion project's id) spent since the subject's
  * own `since`, in one scan from the earliest. Subjects without spend in their
  * window are absent from the result.
  */

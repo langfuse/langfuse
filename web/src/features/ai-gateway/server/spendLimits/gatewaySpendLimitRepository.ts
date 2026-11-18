@@ -10,6 +10,7 @@ import {
   gatewayApiKeyWhere,
 } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "./gatewayDefaultSpendLimits";
+import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
 import {
   type GatewaySpendLimitScope,
   toScopeColumns,
@@ -28,7 +29,7 @@ const GATEWAY_SPEND_LIMIT_SELECT = {
   updatedAt: true,
 } as const;
 
-/** Defaults have no subject; filtering on it lets Postgres use their partial unique index. */
+/** Defaults have no subject. */
 const DEFAULT_SPEND_LIMIT_SUBJECT = { apiKeyId: null, userId: null } as const;
 
 const BUDGET_USER_SELECT = {
@@ -84,6 +85,26 @@ export class GatewaySpendLimitRepository {
         organizationId,
         scope: { in: Object.values(GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES) },
         ...DEFAULT_SPEND_LIMIT_SUBJECT,
+      },
+      select: GATEWAY_SPEND_LIMIT_SELECT,
+    });
+  }
+
+  /** The organization's own limits, which cap all of its gateway spend, oldest first. */
+  listForOrganization(organizationId: string) {
+    return this.prisma.gatewaySpendLimit.findMany({
+      where: { organizationId, scope: GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE },
+      select: GATEWAY_SPEND_LIMIT_SELECT,
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  findForOrganization(params: { organizationId: string; id: string }) {
+    return this.prisma.gatewaySpendLimit.findFirst({
+      where: {
+        id: params.id,
+        organizationId: params.organizationId,
+        scope: GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
       },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
@@ -263,6 +284,19 @@ export class GatewaySpendLimitRepository {
   }) {
     return this.prisma.gatewaySpendLimit.create({
       data: { ...params, scope: GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[scope] },
+      select: GATEWAY_SPEND_LIMIT_SELECT,
+    });
+  }
+
+  createForOrganization(params: {
+    organizationId: string;
+    interval: GatewaySpendLimitInterval;
+    limitUsd: number;
+    countingStartedAt: Date;
+    ownerUserId: string;
+  }) {
+    return this.prisma.gatewaySpendLimit.create({
+      data: { ...params, scope: GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }

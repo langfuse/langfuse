@@ -4,6 +4,11 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { Button } from "@/src/components/ui/button";
 import { GatewayAddBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsHeaderActions/components/GatewayAddBudgetDialogController/GatewayAddBudgetDialogController";
 import { GatewayDefaultBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayDefaultBudgetDialogController/GatewayDefaultBudgetDialogController";
+import { GatewayOrganizationBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayOrganizationBudgetDialogController/GatewayOrganizationBudgetDialogController";
+import {
+  GATEWAY_ORGANIZATION_BUDGETS_TAB,
+  type GatewayBudgetsTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewayBudgetsTabs";
 import { formatGatewayDefaultBudgetLabel } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/formatGatewayDefaultBudgetLabel";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
@@ -17,15 +22,32 @@ const defaultBudgetTooltips = {
 type GatewayBudgetsHeaderActionsProps = {
   organizationId: string;
   /** The dialog starts on the target type of the open tab. */
-  tab: GatewaySpendTab;
+  tab: GatewayBudgetsTab;
 };
 
-/** "Set default budget" (managers only) and "Add budget" in the page header of the Budgets page. */
+/**
+ * "Set default budget" (managers only) and "Add budget" in the page header of
+ * the Budgets page; on the organization tab, only "Add budget" for an
+ * organization budget.
+ */
 export function GatewayBudgetsHeaderActions({
   organizationId,
   tab,
 }: GatewayBudgetsHeaderActionsProps) {
   const { canManageGateway } = useGatewaySettingsAccess(organizationId);
+
+  if (tab === GATEWAY_ORGANIZATION_BUDGETS_TAB.value) {
+    return (
+      <GatewayOrganizationBudgetDialogController
+        organizationId={organizationId}
+      >
+        {({ openDialog }) => {
+          const handleAddBudget = () => openDialog(null);
+          return <AddBudgetButton onClick={handleAddBudget} />;
+        }}
+      </GatewayOrganizationBudgetDialogController>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2">
@@ -54,12 +76,18 @@ export function GatewayBudgetsHeaderActions({
       )}
       <GatewayAddBudgetDialogController organizationId={organizationId}>
         {({ openDialog }) => (
-          <Button onClick={() => openDialog(tab)}>
-            <Plus size="base" __rawClassName="mr-1.5" />
-            Add budget
-          </Button>
+          <AddBudgetButton onClick={() => openDialog(tab)} />
         )}
       </GatewayAddBudgetDialogController>
     </div>
+  );
+}
+
+function AddBudgetButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button onClick={onClick}>
+      <Plus size="base" __rawClassName="mr-1.5" />
+      Add budget
+    </Button>
   );
 }

@@ -8,6 +8,8 @@ import { useGatewayAnalyticsFetchQuery } from "@/src/features/ai-gateway/compone
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import type { GatewaySpendInterval } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendIntervals";
 import { GatewayBudgetsTabContent } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/GatewayBudgetsTabContent";
+import { GatewayOrganizationBudgetsTabContent } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayOrganizationBudgetsTabContent/GatewayOrganizationBudgetsTabContent";
+import { GATEWAY_ORGANIZATION_BUDGETS_TAB } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewayBudgetsTabs";
 import { useGatewayBudgetsTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTab";
 import { GATEWAY_ANALYTICS_TIME_RANGE_PRESETS } from "@/src/features/ai-gateway/constants/gatewayAnalyticsTimeRangePresets";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
@@ -22,7 +24,8 @@ type GatewayBudgetsPageProps = {
 
 /**
  * Spend over time for the whole gateway, or broken down by the keys or users
- * selected in the table. Managers see all usage; everyone else
+ * selected in the table, and the organization's own budgets on their own tab.
+ * Managers see all usage; everyone else
  * only their own, which the server enforces. Managers are redirected to Setup
  * until ingestion is configured.
  */
@@ -47,6 +50,14 @@ export function GatewayBudgetsPage({
   }
 
   const canQueryAnalytics = isRecording === true && absoluteTimeRange !== null;
+  const chart = canQueryAnalytics
+    ? {
+        fetchQuery,
+        timeRange: absoluteTimeRange,
+        interval: spendInterval,
+        onIntervalChange: setSpendInterval,
+      }
+    : null;
 
   return (
     <>
@@ -71,21 +82,19 @@ export function GatewayBudgetsPage({
           </Alert>
         )}
         {isRecording === undefined && <Skeleton className="h-80 rounded-lg" />}
-        <GatewayBudgetsTabContent
-          key={tab}
-          organizationId={organizationId}
-          tab={tab}
-          chart={
-            canQueryAnalytics
-              ? {
-                  fetchQuery,
-                  timeRange: absoluteTimeRange,
-                  interval: spendInterval,
-                  onIntervalChange: setSpendInterval,
-                }
-              : null
-          }
-        />
+        {tab === GATEWAY_ORGANIZATION_BUDGETS_TAB.value ? (
+          <GatewayOrganizationBudgetsTabContent
+            organizationId={organizationId}
+            chart={chart}
+          />
+        ) : (
+          <GatewayBudgetsTabContent
+            key={tab}
+            organizationId={organizationId}
+            tab={tab}
+            chart={chart}
+          />
+        )}
       </div>
     </>
   );

@@ -27,10 +27,11 @@ const intervalLabels: Record<GatewaySpendBudgetInterval, string> = {
 const requestsBySubject = {
   key: "Requests with this key",
   user: "Requests with this user's keys",
+  organization: "Requests in this organization",
 } as const;
 
 type GatewaySpendBudgetBadgeProps = {
-  /** What the budget caps: one key, or all keys of a user. */
+  /** What the budget caps: one key, all keys of a user, or the whole organization. */
   subject: keyof typeof requestsBySubject;
   spendLimit: GatewaySpendLimit;
   /** Undefined while spend is not recorded, so only the limit is shown. */

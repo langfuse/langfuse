@@ -36,6 +36,7 @@ import {
   GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR,
   GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES,
 } from "@/src/features/ai-gateway/server/spendLimits/gatewayDefaultSpendLimits";
+import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "@/src/features/ai-gateway/server/spendLimits/gatewayOrganizationSpendLimitScope";
 
 export type GatewayApiKeyAuthContext = Omit<
   CachedResolveContext,
@@ -184,6 +185,7 @@ export class GatewayApiKeyAuthenticator {
       ),
       // The key's limits, then its owner's limits in the key's organization;
       // either falls back to the organization's default when there are none.
+      // The organization's own limits apply to every key, whichever is reached first.
       spendLimits: [
         ...toResolveSpendLimits({
           own: row.gatewaySpendLimits,
@@ -204,6 +206,11 @@ export class GatewayApiKeyAuthenticator {
               subjectId: row.userId,
             })
           : []),
+        ...organization.gatewaySpendLimits
+          .filter(
+            (limit) => limit.scope === GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
+          )
+          .map((limit) => toResolveSpendLimit(limit, "organization")),
       ],
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
@@ -309,13 +316,20 @@ function toResolveSpendLimits(params: {
           },
         ];
   const scope = params.scope === "API_KEY" ? "api_key" : "user";
-  return limits.map((limit) => ({
+  return limits.map((limit) => toResolveSpendLimit(limit, scope));
+}
+
+function toResolveSpendLimit(
+  limit: ResolvedSpendLimit,
+  scope: CachedResolveContext["spendLimits"][number]["scope"],
+) {
+  return {
     id: limit.id,
     scope,
     interval: limit.interval.toLowerCase() as Lowercase<typeof limit.interval>,
     limit_usd: limit.limitUsd.toNumber(),
     counting_started_at: limit.countingStartedAt.getTime(),
-  }));
+  };
 }
 
 function supportedProviders(apiFormat: GatewayApiFormat): GatewayProvider[] {

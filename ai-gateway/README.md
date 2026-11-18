@@ -462,6 +462,8 @@ headers, hop-by-hop headers and upstream framing are excluded.
 
 A key with spend limits is checked before its request reaches the provider: when a limit's counted spend has reached its limit, the request fails with 429. A request for a model without a Langfuse price fails with 400, unless its provider reports billed cost, and a key whose counters cannot be read fails with 503. After the response, its cost is added to the counter of every limit of the key. The cost is the provider's billed cost when it reports one, else the usage priced as Langfuse prices the generation.
 
+Web sends the limits of the key, of its user and of its organization. A limit's counter is keyed by its id, so a user limit counts across the user's keys and an organization limit across every key of the organization.
+
 A limit counts spend from when it is set; earlier spend does not count. Daily, weekly and monthly limits start over at 00:00 UTC each day, each Monday and on the 1st of each month; `total` limits never do.
 
 Limits are soft. Spend is added only once a response completes, so requests already in flight when a limit is reached still complete and can carry spend past the limit. A response that ends before its usage is reported, such as a stream the client disconnects from, adds nothing. A successful response that adds nothing counts in `gateway.spend.uncharged` with `reason=zero_cost` (usage priced at $0) or `reason=no_usage` (no usage reported), and logs a warning; `reason=backlog` counts costs dropped because too many counter writes were pending.
