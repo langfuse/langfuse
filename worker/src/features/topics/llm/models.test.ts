@@ -977,8 +977,25 @@ describe("Topics naming boundary", () => {
     await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
   });
 
-  it.each([["contrast"], ["m1", "m2", "m1", "m2"]])(
-    "rejects contrast or excess evidence: %j",
+  it("keeps the first three citations when the model cites more", async () => {
+    state.call.mockResolvedValueOnce({
+      output: {
+        name: "Invoice assistance",
+        description: "Invoice requests.",
+        evidenceSummaryIds: ["m1", "m2", "m1", "contrast"],
+      },
+      usage: {},
+      usageDetails: {},
+      providedCostDetails: {},
+    });
+    expect(
+      (await nameTopicGroup(topicsModels(), evidence)).output
+        .evidenceSummaryIds,
+    ).toEqual(["m1", "m2", "m1"]);
+  });
+
+  it.each([["contrast"], ["m1", "contrast"]])(
+    "rejects contrast evidence: %j",
     async (...evidenceSummaryIds) => {
       state.call.mockResolvedValue({
         output: {

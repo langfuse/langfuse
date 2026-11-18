@@ -616,17 +616,22 @@ export async function nameTopicGroup(
   const memberIds = new Set(group.members.map((member) => member.id));
   const schema = namingSchema.extend({
     // Keep the provider schema bounded; validate submitted citations locally.
-    evidenceSummaryIds: z
-      .array(
-        z
-          .string()
-          .refine(
-            (id) => memberIds.has(id),
-            "Evidence must cite a submitted cluster member.",
-          ),
-      )
-      .min(1)
-      .max(3),
+    // Anthropic and Bedrock do not enforce maxItems, so extra citations are
+    // dropped rather than failing an otherwise usable name.
+    evidenceSummaryIds: z.preprocess(
+      (ids) => (Array.isArray(ids) ? ids.slice(0, 3) : ids),
+      z
+        .array(
+          z
+            .string()
+            .refine(
+              (id) => memberIds.has(id),
+              "Evidence must cite a submitted cluster member.",
+            ),
+        )
+        .min(1)
+        .max(3),
+    ),
   });
   const conflictingTopic = conflict
     ? await prepareNamingConflict(conflict)
