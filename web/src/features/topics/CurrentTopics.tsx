@@ -167,12 +167,12 @@ function CurrentFacet({
           projectId={projectId}
           facet={facet}
           mapResult={mapResult}
-          onOpenTrace={peekNavigation.openPeek}
           traceFilters={traceFilters}
           showUnassigned={showUnassigned}
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
+          onOpenTrace={peekNavigation.openPeek}
         />
       );
     return (
@@ -182,6 +182,7 @@ function CurrentFacet({
         facet={facet}
         peekView={peekView}
         useTraces={useFacetTopicTraces}
+        showUnassigned={showUnassigned}
       />
     );
   }

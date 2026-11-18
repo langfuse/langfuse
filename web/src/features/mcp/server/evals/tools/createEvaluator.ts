@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { createMcpEvaluatorService } from "../evaluator-service";
 import {
+  EVALUATOR_DEFINITION_FIELDS_DESCRIPTION,
   McpEvaluatorInput,
   McpEvaluatorInputBase,
   toEvaluatorServiceInput,
@@ -15,10 +16,12 @@ export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
   name: "createEvaluator",
   description: [
     "Create a new evaluator with a stable id. Names do not act as identity and may be reused.",
-    "For `LLM_AS_JUDGE`, provide prompt + outputDefinition and optionally modelConfig. For `CODE`, provide sourceCode + sourceCodeLanguage. For `DECISION_MODEL`, provide questions, a modelConfig with provider and model only, and variableMapping entries defining its state.",
+    "Every call must include name, type, and the definition fields for that type.",
+    EVALUATOR_DEFINITION_FIELDS_DESCRIPTION,
     `Use ${DECISION_MODEL_CONNECTIONS_HINT}.`,
     "Call listLlmConnections to find valid modelConfig provider names and models.",
-    "Use updateEvaluator with the returned evaluatorId to update it or append a new immutable definition version.",
+    "The returned `id` is the evaluatorId for getEvaluator, updateEvaluator, and deleteEvaluator.",
+    'Example: {"name": "Helpfulness", "type": "LLM_AS_JUDGE", "prompt": "Rate how helpful {{output}} is for {{input}}.", "outputDefinition": {"dataType": "NUMERIC", "reasoning": {"description": "Why the score was assigned"}, "score": {"description": "Helpfulness from 0 to 1"}}, "variableMapping": [{"templateVariable": "input", "selectedColumnId": "input"}, {"templateVariable": "output", "selectedColumnId": "output"}]}.',
   ].join(" "),
   action: "evaluator:CUD",
   baseSchema: McpEvaluatorInputBase,

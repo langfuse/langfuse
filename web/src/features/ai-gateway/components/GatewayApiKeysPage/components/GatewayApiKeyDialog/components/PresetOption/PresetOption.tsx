@@ -1,25 +1,23 @@
 import type { ChangeEvent } from "react";
 
-import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
-
-type ExpirationPresetOptionProps = {
+type PresetOptionProps<TValue extends string> = {
   name: string;
-  value: GatewayApiKeyExpirationPreset;
+  value: TValue;
   label: string;
   checked: boolean;
   disabled?: boolean;
-  onSelect: (value: GatewayApiKeyExpirationPreset) => void;
+  onSelect: (value: TValue) => void;
 };
 
 /** A native radio drawn as an outline button, so the checked preset is announced. */
-export function ExpirationPresetOption({
+export function PresetOption<TValue extends string>({
   name,
   value,
   label,
   checked,
   disabled,
   onSelect,
-}: ExpirationPresetOptionProps) {
+}: PresetOptionProps<TValue>) {
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.checked) onSelect(value);
   };

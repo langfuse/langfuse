@@ -68,6 +68,7 @@ type AuditableResource =
   | "ssoConfig"
   | "gatewayConfig"
   | "gatewayAiConnection"
+  | "gatewaySpendLimit"
   | "topicConfig"
   | "supportAccess"
   // legacy resources

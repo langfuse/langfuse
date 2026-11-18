@@ -1,17 +1,13 @@
 import { cn } from "@/src/utils/tailwind";
-import { lookStyle } from "./topic-map-looks";
-import styles from "./topic-map.module.css";
 
 export function ScatterMapLoading({ fillContainer }: ScatterMapLoadingProps) {
   return (
     <div
       role="status"
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden text-sm",
-        styles.look,
+        "bg-background flex min-w-0 flex-col overflow-hidden text-sm",
         fillContainer && "h-full min-h-0",
       )}
-      style={lookStyle("scatter1")}
     >
       <div
         className={cn(
