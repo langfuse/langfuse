@@ -3,11 +3,8 @@ import type { ComponentProps, ReactNode } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConnectedGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/ConnectedGatewayApiKeyDialog/ConnectedGatewayApiKeyDialog";
 import { getLoadedGatewayApiKeySections } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/fns/getLoadedGatewayApiKeySections";
-import {
-  emptyGatewaySpendBudget,
-  type GatewayApiKeyFormValues,
-} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
-import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import type { GatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
+import { toGatewaySpendBudgetFormValue } from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
 import { restoreGatewayApiKeyMetadataTypes } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/restoreGatewayApiKeyMetadataTypes";
 import { toGatewayApiKeyMetadataRows } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadataRows";
 import { toGatewaySpendLimitUpdate } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewaySpendLimitUpdate";
@@ -20,11 +17,12 @@ import {
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 type EditableGatewayApiKey = {
   metadata: unknown;
   allowedModels: unknown;
-  spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number } | null;
+  spendLimit: GatewaySpendLimit | null;
   hasSeveralSpendLimits: boolean;
   apiKey: {
     id: string;
@@ -146,12 +144,7 @@ function toEditableGatewayApiKeyFields(
     customExpiry: expiresAt === null ? "" : localDateInputValue(expiresAt),
     metadata: toGatewayApiKeyMetadataRows(apiKey.metadata),
     modelPatterns: parseGatewayAllowedModels(apiKey.allowedModels) ?? [],
-    spendBudget: apiKey.spendLimit
-      ? {
-          interval: apiKey.spendLimit.interval,
-          limitUsd: String(apiKey.spendLimit.limitUsd),
-        }
-      : emptyGatewaySpendBudget,
+    spendBudget: toGatewaySpendBudgetFormValue(apiKey.spendLimit),
   } satisfies Omit<GatewayApiKeyFormValues, "sections">;
   return { ...values, sections: getLoadedGatewayApiKeySections(values) };
 }

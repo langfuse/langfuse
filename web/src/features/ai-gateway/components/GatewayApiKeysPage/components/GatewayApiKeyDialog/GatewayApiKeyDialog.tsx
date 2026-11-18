@@ -13,7 +13,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { AddSectionButton } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/AddSectionButton/AddSectionButton";
-import { GatewayApiKeySpendBudgetField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/GatewayApiKeySpendBudgetField/GatewayApiKeySpendBudgetField";
+import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
 import { OptionalSection } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/OptionalSection/OptionalSection";
 import { GatewayApiKeyExpirationField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/GatewayApiKeyExpirationField/GatewayApiKeyExpirationField";
 import { GatewayApiKeyMetadataField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyMetadataField/GatewayApiKeyMetadataField";
@@ -21,13 +21,14 @@ import { GatewayApiKeyModelsField } from "@/src/features/ai-gateway/components/G
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import { resolveGatewayApiKeyExpiration } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/fns/resolveGatewayApiKeyExpiration";
 import {
-  emptyGatewaySpendBudget,
   gatewayApiKeyFormFieldsSchema,
   gatewayApiKeyFormSchema,
   gatewayApiKeySections,
   type GatewayApiKeyFormValues,
   type GatewayApiKeySection,
 } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
+import { toGatewaySpendLimit } from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
+import { emptyGatewaySpendBudget } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import { toGatewayApiKeyMetadata } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadata";
 import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 import type { RouterInputs } from "@/src/utils/api";
@@ -151,10 +152,7 @@ export function GatewayApiKeyDialog({
       expiryPreset: values.expiryPreset,
       issuedAs: canIssueServiceAccountKeys ? values.issuedAs : "user",
       spendLimit: values.sections.includes("spendBudget")
-        ? {
-            interval: values.spendBudget.interval,
-            limitUsd: Number(values.spendBudget.limitUsd.trim()),
-          }
+        ? toGatewaySpendLimit(values.spendBudget)
         : null,
     });
   };
@@ -340,7 +338,8 @@ function OptionalSections({
         );
       case "spendBudget":
         return (
-          <GatewayApiKeySpendBudgetField
+          <GatewaySpendBudgetField
+            subject="key"
             control={form.control}
             disabledReason={
               isSpendBudgetDisabled

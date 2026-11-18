@@ -44,6 +44,7 @@ import {
   TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/DataTableSelectAllBanner";
+import { isSelectAllBannerVisible } from "@/src/components/table/data-table-multi-select-actions/isSelectAllBannerVisible";
 import {
   findSelectAllBannerSlot,
   subscribeSelectAllBannerSlots,
@@ -426,15 +427,7 @@ export function DataTableToolbar<TData, TValue>({
     searchConfig?.setSearchType && searchConfig.tableAllowsFullTextSearch,
   );
   const allVisibleRowsSelected = Boolean(
-    multiSelect &&
-    multiSelect.pageIndex === 0 &&
-    multiSelect.selectedRowIds.length > 0 &&
-    (multiSelect.totalCount !== null
-      ? multiSelect.totalCount > multiSelect.pageSize &&
-        multiSelect.selectedRowIds.length ===
-          Math.min(multiSelect.pageSize, multiSelect.totalCount)
-      : multiSelect.hasNextPage === true &&
-        multiSelect.selectedRowIds.length === multiSelect.pageSize),
+    multiSelect && isSelectAllBannerVisible(multiSelect),
   );
   const toolbarRootRef = useRef<HTMLDivElement>(null);
   const [selectAllBannerSlot, setSelectAllBannerSlot] =

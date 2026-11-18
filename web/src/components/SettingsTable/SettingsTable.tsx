@@ -16,6 +16,9 @@ import { SearchInput } from "@/src/components/design-system/SearchInput/SearchIn
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { SettingsTableCard } from "@/src/components/layouts/SettingsTableCard";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/DataTableColumnVisibilityFilter";
+import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/DataTableSelectAllBanner";
+import { isSelectAllBannerVisible } from "@/src/components/table/data-table-multi-select-actions/isSelectAllBannerVisible";
+import { type MultiSelect } from "@/src/components/table/data-table-toolbar";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
@@ -78,6 +81,8 @@ export type SettingsTableProps<TData extends object> = Omit<
     onRowHeightChange: (height: RowHeight) => void;
   };
   pagination?: PaginationBarProps;
+  /** Offers selecting every matching row across pages once the whole first page is selected. */
+  multiSelect?: MultiSelect;
 };
 
 export function SettingsTable<TData extends object>({
@@ -91,6 +96,7 @@ export function SettingsTable<TData extends object>({
   toolbarActions,
   rowHeightControl,
   pagination,
+  multiSelect,
   ...tableProps
 }: SettingsTableProps<TData>) {
   const capture = usePostHogClientCapture();
@@ -233,6 +239,10 @@ export function SettingsTable<TData extends object>({
             })}
           </div>
         </div>
+      )}
+
+      {multiSelect && isSelectAllBannerVisible(multiSelect) && (
+        <DataTableSelectAllBanner {...multiSelect} />
       )}
 
       {showEmptyState ? (

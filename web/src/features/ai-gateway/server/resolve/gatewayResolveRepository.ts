@@ -29,6 +29,18 @@ export class GatewayResolveRepository {
             name: true,
             email: true,
             organizationMemberships: { select: { orgId: true, role: true } },
+            // Across the user's organizations; the caller keeps the key's.
+            gatewaySpendLimits: {
+              orderBy: { interval: "asc" },
+              select: {
+                id: true,
+                organizationId: true,
+                scope: true,
+                interval: true,
+                limitUsd: true,
+                countingStartedAt: true,
+              },
+            },
           },
         },
         gatewayAssociation: { select: { metadata: true, allowedModels: true } },

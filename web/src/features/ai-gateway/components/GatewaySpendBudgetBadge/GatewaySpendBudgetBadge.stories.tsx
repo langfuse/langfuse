@@ -2,9 +2,12 @@ import { Fragment } from "react";
 import { expect, screen, userEvent } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { GatewayApiKeyBudgetBadge } from "./GatewayApiKeyBudgetBadge";
+import { GatewaySpendBudgetBadge } from "./GatewaySpendBudgetBadge";
 
-const meta = preview.meta({ component: GatewayApiKeyBudgetBadge });
+const meta = preview.meta({
+  component: GatewaySpendBudgetBadge,
+  args: { subject: "key" as const },
+});
 
 const states = [
   {
@@ -29,8 +32,13 @@ const states = [
   },
 ] as const;
 
+const underLimitArgs = {
+  spendLimit: states[0].spendLimit,
+  spentUsd: states[0].spentUsd,
+};
+
 export const VariantMatrix = meta.story({
-  args: states[0],
+  args: underLimitArgs,
   parameters: { controls: { disable: true } },
   render: () => (
     <div className="grid w-fit grid-cols-[auto_auto] items-center gap-x-6 gap-y-2 text-sm">
@@ -38,7 +46,8 @@ export const VariantMatrix = meta.story({
         <Fragment key={label}>
           <span className="text-muted-foreground text-xs">{label}</span>
           <span>
-            <GatewayApiKeyBudgetBadge
+            <GatewaySpendBudgetBadge
+              subject="key"
               spendLimit={spendLimit}
               spentUsd={spentUsd}
             />
@@ -50,7 +59,7 @@ export const VariantMatrix = meta.story({
 });
 
 export const UnderLimit = meta.story({
-  args: states[0],
+  args: underLimitArgs,
 });
 
 export const UnderLimitExplainsUsage = meta.story({
@@ -67,11 +76,29 @@ export const UnderLimitExplainsUsage = meta.story({
 });
 
 export const Reached = meta.story({
-  args: { spendLimit: { interval: "DAILY", limitUsd: 20 }, spentUsd: 23.75 },
+  args: {
+    spendLimit: { interval: "DAILY" as const, limitUsd: 20 },
+    spentUsd: 23.75,
+  },
+});
+
+export const UserReachedExplainsItsKeys = meta.story({
+  name: "(Test) Reached user budget explains that all the user's keys are rejected",
+  args: { ...Reached.input.args, subject: "user" },
+  play: async ({ canvas }) => {
+    await userEvent.hover(canvas.getByText("$23.75 / $20 daily"));
+    const tooltip = await screen.findByRole("tooltip");
+    await expect(tooltip).toHaveTextContent(
+      /Requests with this user's keys are rejected until the budget resets/,
+    );
+  },
 });
 
 export const TotalReached = meta.story({
-  args: { spendLimit: { interval: "TOTAL", limitUsd: 20 }, spentUsd: 20 },
+  args: {
+    spendLimit: { interval: "TOTAL" as const, limitUsd: 20 },
+    spentUsd: 20,
+  },
 });
 
 export const ReachedExplainsReset = meta.story({

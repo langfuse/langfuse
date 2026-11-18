@@ -15,11 +15,17 @@ import {
 } from "@react-email/components";
 
 /** What the limit applies to; one variant per spend limit scope. */
-export type GatewaySpendLimitEmailScope = {
-  type: "API_KEY";
-  name: string;
-  displaySecretKey: string;
-};
+export type GatewaySpendLimitEmailScope =
+  | {
+      type: "API_KEY";
+      name: string;
+      displaySecretKey: string;
+    }
+  | {
+      type: "USER";
+      name: string;
+      email: string;
+    };
 
 type GatewaySpendLimitEmailLimit = {
   /** Lowercase interval, e.g. "daily"; "total" for a limit that never resets. */
@@ -30,7 +36,7 @@ type GatewaySpendLimitEmailLimit = {
 };
 
 type GatewaySpendLimitEmailTemplateProps = {
-  /** The key's owner reads "your key"; an organization owner reads "the key". */
+  /** The person the limit belongs to reads "your key"; an organization owner reads "the key". */
   audience: "keyOwner" | "orgOwner";
   orgName: string;
   scope: GatewaySpendLimitEmailScope;
@@ -124,7 +130,7 @@ export const GatewaySpendLimitEmailTemplate = ({
                 className="rounded bg-black px-5 py-3 text-center text-xs font-semibold text-white no-underline"
                 href={link}
               >
-                View gateway keys
+                {subject.linkLabel}
               </Button>
             </Section>
             <Text className="text-sm leading-6 text-black">
@@ -139,7 +145,7 @@ export const GatewaySpendLimitEmailTemplate = ({
               <span className="text-black">{receiverEmail}</span>. It was sent
               from <span className="text-black">{emailFromAddress}</span>
               {audience === "keyOwner"
-                ? ` because you own this ${subject.noun}.`
+                ? ` because ${subject.ownerReason}.`
                 : " because you are an owner of this organization."}
             </Text>
           </Container>
@@ -176,6 +182,18 @@ function describeScope(
         name: scope.name,
         identifier: scope.displaySecretKey,
         requests: "Requests with this key",
+        ownerReason: "you own this gateway key",
+        linkLabel: "View gateway keys",
+      };
+    case "USER":
+      return {
+        noun: "gateway user",
+        label: audience === "keyOwner" ? "Your gateway usage as" : "The user",
+        name: scope.name,
+        identifier: scope.email,
+        requests: "Requests with this user's gateway keys",
+        ownerReason: "this spend limit applies to you",
+        linkLabel: "View gateway budgets",
       };
   }
 }

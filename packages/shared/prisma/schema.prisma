@@ -98,6 +98,7 @@ model User {
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
   gatewaySpendLimitsOwned   GatewaySpendLimit[]         @relation("GatewaySpendLimitOwner")
+  gatewaySpendLimits        GatewaySpendLimit[]         @relation("GatewaySpendLimitUser")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentUser") @ignore
 
@@ -411,6 +412,7 @@ model GatewayApiKeyAssociation {
 
 enum GatewaySpendLimitScope {
   API_KEY
+  USER
 }
 
 enum GatewaySpendLimitInterval {
@@ -430,6 +432,9 @@ model GatewaySpendLimit {
   scope             GatewaySpendLimitScope
   apiKeyId          String?                   @map("api_key_id")
   apiKey            ApiKey?                   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  // Caps the spend of all the user's gateway keys in the organization.
+  userId            String?                   @map("user_id")
+  user              User?                     @relation("GatewaySpendLimitUser", fields: [userId], references: [id], onDelete: Cascade)
   interval          GatewaySpendLimitInterval
   limitUsd          Decimal                   @map("limit_usd")
   // When the limit starts counting spend, set when it is created; earlier spend does not count. The gateway's usage counters and the alert rows are keyed by it, so moving it starts counting afresh.
@@ -442,7 +447,9 @@ model GatewaySpendLimit {
   alerts            GatewaySpendLimitAlert[]
 
   @@unique([apiKeyId, interval])
+  @@unique([organizationId, userId, interval])
   @@index([organizationId])
+  @@index([userId])
   @@map("gateway_spend_limits")
 }
 

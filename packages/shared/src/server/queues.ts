@@ -329,6 +329,7 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
     orgName: z.string(),
     to: z.string(),
     receiverName: z.string().optional(),
+    /** `keyOwner` is the person the limit belongs to: the key's owner, or the user of a user limit. */
     audience: z.enum(["keyOwner", "orgOwner"]),
     /** What the limit applies to, mirroring the limit's scope. */
     scope: z.discriminatedUnion("type", [
@@ -338,6 +339,12 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
         name: z.string(),
         /** Masked secret key, as the gateway keys table shows it. */
         displaySecretKey: z.string(),
+      }),
+      z.object({
+        type: z.literal("USER"),
+        userId: z.string(),
+        name: z.string(),
+        email: z.string(),
       }),
     ]),
     limits: z

@@ -24,8 +24,9 @@ type GatewaySpendLimitEmail = Extract<
 >;
 
 /**
- * Emails the key's owner and the organization's owners when the gateway
- * reports that a key reached spend limits. The gateway may report a limit any
+ * Emails whom a limit applies to (the key's owner, or the user of a user
+ * limit) and the organization's owners when the gateway reports that a key
+ * reached spend limits. The gateway may report a limit any
  * number of times; the stored alert lets only the first report of a limit's
  * counting start and window send emails. Limits one report claims share one
  * email per recipient. The gateway names each window, so a report that arrives
@@ -91,11 +92,13 @@ export class GatewaySpendLimitAlertService {
         };
         if (await this.claimAlert(alert)) claimed.push({ limit, alert });
       }
-      if (claimed.length === 0) return;
-      const recipients = await this.getRecipients(claimed[0]!.limit);
-      await queue.addBulk(
-        recipients.map((recipient) => toNotificationJob(claimed, recipient)),
-      );
+      // A request can reach its key's and its user's limits; each scope gets its own email.
+      for (const group of groupByScope(claimed)) {
+        const recipients = await this.getRecipients(group[0]!.limit);
+        await queue.addBulk(
+          recipients.map((recipient) => toNotificationJob(group, recipient)),
+        );
+      }
     } catch (error) {
       // Without the alerts, the gateway's next report sends the emails again.
       await this.prisma.gatewaySpendLimitAlert.deleteMany({
@@ -114,14 +117,17 @@ export class GatewaySpendLimitAlertService {
     return count > 0;
   }
 
-  /** The key's owner and the organization's owners, one entry per email address. */
+  /** Whom the limit applies to and the organization's owners, one entry per email address. */
   private async getRecipients(limit: ReportedLimit): Promise<Recipient[]> {
     const orgOwners = await this.prisma.organizationMembership.findMany({
       where: { orgId: limit.organization.id, role: Role.OWNER },
       select: { user: { select: { email: true, name: true } } },
     });
     const candidates = [
-      { user: limit.apiKey.user, audience: "keyOwner" as const },
+      {
+        user: limit.apiKey ? limit.apiKey.user : limit.user,
+        audience: "keyOwner" as const,
+      },
       ...orgOwners.map(({ user }) => ({ user, audience: "orgOwner" as const })),
     ];
 
@@ -136,7 +142,10 @@ export class GatewaySpendLimitAlertService {
   }
 }
 
-/** The reported limits that still belong to the calling key at the reported counting start. */
+/**
+ * The reported limits that still apply to the calling key at the reported
+ * counting start: the key's own, and its owner's in the key's organization.
+ */
 async function findReportedLimits(
   prisma: PrismaClient,
   params: {
@@ -144,10 +153,25 @@ async function findReportedLimits(
     limits: { limitId: string; countingStartedAt: Date; windowStart: Date }[];
   },
 ) {
+  const callingKey = await prisma.apiKey.findUnique({
+    where: { fastHashedSecretKey: params.fastHashedSecretKey },
+    select: { orgId: true, userId: true },
+  });
   const limits = await prisma.gatewaySpendLimit.findMany({
     where: {
       id: { in: params.limits.map(({ limitId }) => limitId) },
-      apiKey: { fastHashedSecretKey: params.fastHashedSecretKey },
+      OR: [
+        { apiKey: { fastHashedSecretKey: params.fastHashedSecretKey } },
+        ...(callingKey?.orgId && callingKey.userId
+          ? [
+              {
+                scope: "USER" as const,
+                organizationId: callingKey.orgId,
+                userId: callingKey.userId,
+              },
+            ]
+          : []),
+      ],
     },
     select: {
       id: true,
@@ -163,6 +187,7 @@ async function findReportedLimits(
           user: { select: { email: true, name: true } },
         },
       },
+      user: { select: { id: true, email: true, name: true } },
     },
   });
   return params.limits.flatMap(
@@ -171,11 +196,41 @@ async function findReportedLimits(
         ({ id, countingStartedAt: started }) =>
           id === limitId && started.getTime() === countingStartedAt.getTime(),
       );
-      return limit?.apiKey
-        ? [{ limit: { ...limit, apiKey: limit.apiKey }, windowStart }]
+      return limit && (limit.apiKey || limit.user)
+        ? [{ limit, windowStart }]
         : [];
     },
   );
+}
+
+/** The claimed alerts per limit subject, keys before users. */
+function groupByScope(claimed: ClaimedAlert[]): ClaimedAlert[][] {
+  const groups = new Map<string, ClaimedAlert[]>();
+  for (const entry of claimed) {
+    const subject = entry.limit.apiKey
+      ? `key:${entry.limit.apiKey.id}`
+      : `user:${entry.limit.user?.id}`;
+    groups.set(subject, [...(groups.get(subject) ?? []), entry]);
+  }
+  return [...groups.values()];
+}
+
+function toEmailScope(limit: ReportedLimit): GatewaySpendLimitEmail["scope"] {
+  if (limit.apiKey) {
+    return {
+      type: "API_KEY",
+      apiKeyId: limit.apiKey.id,
+      name: limit.apiKey.note ?? "Unnamed key",
+      displaySecretKey: limit.apiKey.displaySecretKey,
+    };
+  }
+  const email = limit.user?.email ?? "";
+  return {
+    type: "USER",
+    userId: limit.user?.id ?? "",
+    name: limit.user?.name || email,
+    email,
+  };
 }
 
 function toNotificationJob(claimed: ClaimedAlert[], recipient: Recipient) {
@@ -187,12 +242,7 @@ function toNotificationJob(claimed: ClaimedAlert[], recipient: Recipient) {
     to: recipient.to,
     receiverName: recipient.name ?? undefined,
     audience: recipient.audience,
-    scope: {
-      type: "API_KEY",
-      apiKeyId: limit.apiKey.id,
-      name: limit.apiKey.note ?? "Unnamed key",
-      displaySecretKey: limit.apiKey.displaySecretKey,
-    },
+    scope: toEmailScope(limit),
     limits: claimed.map(({ limit, alert }) => ({
       interval: limit.interval,
       limitUsd: limit.limitUsd.toNumber(),
