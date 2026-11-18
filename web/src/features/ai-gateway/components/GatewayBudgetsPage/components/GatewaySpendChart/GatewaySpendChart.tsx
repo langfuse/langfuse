@@ -1,4 +1,4 @@
-import type { FilterState } from "@langfuse/shared";
+import { useMemo } from "react";
 
 import { GatewayAnalyticsWidgetCard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsWidgetCard/GatewayAnalyticsWidgetCard";
 import { GATEWAY_COST_OVER_TIME_WIDGET } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
@@ -7,38 +7,63 @@ import {
   GATEWAY_SPEND_INTERVALS,
   type GatewaySpendInterval,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendIntervals";
+import {
+  GATEWAY_SPEND_TABS,
+  type GatewaySpendTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { toGatewaySpendFilters } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/toGatewaySpendFilters";
 
 type GatewaySpendChartProps = {
   fetchQuery: GatewayAnalyticsFetchQuery;
   timeRange: { from: Date; to: Date };
   interval: GatewaySpendInterval;
   onIntervalChange: (interval: GatewaySpendInterval) => void;
-  /** Keys or users the spend is limited to; none shows the total of all gateway spend. */
-  subjectFilter: {
-    label: string;
-    placeholder: string;
-    searchPlaceholder: string;
-    emptyMessage: string;
-    value: string[];
-    options: { value: string; label: string }[];
-    onValueChange: (value: string[]) => void;
-    filters: FilterState;
-  };
+  tab: GatewaySpendTab;
+  /** The selected table rows by key or user id; none shows the total of all gateway spend. */
+  selected: { value: string; label: string }[];
+  onRemoveSelected: (value: string) => void;
 };
 
 const SPEND_WIDGET = {
   ...GATEWAY_COST_OVER_TIME_WIDGET,
   name: "Spend",
-  description: "Click rows below, or pick them here, to see only their spend.",
+  description: "Select rows below to see their spend.",
 };
+
+const filterLabels = {
+  users: "Selected users",
+  apiKeys: "Selected keys",
+} as const satisfies Record<GatewaySpendTab, string>;
 
 export function GatewaySpendChart({
   fetchQuery,
   timeRange,
   interval,
   onIntervalChange,
-  subjectFilter,
+  tab,
+  selected,
+  onRemoveSelected,
 }: GatewaySpendChartProps) {
+  const { widget, filters, labels } = useMemo(() => {
+    if (selected.length === 0) {
+      return { widget: SPEND_WIDGET, filters: [], labels: undefined };
+    }
+    const column = GATEWAY_SPEND_TABS[tab].column;
+    return {
+      // One series per selected key or user, named like its row.
+      widget: {
+        ...SPEND_WIDGET,
+        id: `${SPEND_WIDGET.id}-by-${tab}`,
+        dimensions: [{ field: column }],
+      },
+      filters: toGatewaySpendFilters(
+        tab,
+        selected.map(({ value }) => value),
+      ),
+      labels: new Map(selected.map(({ value, label }) => [value, label])),
+    };
+  }, [selected, tab]);
+
   const handleIntervalChange = (value: string) => {
     const option = GATEWAY_SPEND_INTERVALS.find(
       (candidate) => candidate.value === value,
@@ -49,23 +74,16 @@ export function GatewaySpendChart({
   return (
     <GatewayAnalyticsWidgetCard
       fetchQuery={fetchQuery}
-      widget={SPEND_WIDGET}
+      widget={widget}
       timeRange={timeRange}
-      filters={subjectFilter.filters}
+      filters={filters}
       granularity={interval}
-      controls={[
-        {
-          type: "multiselect",
-          id: "subjects",
-          label: subjectFilter.label,
-          placeholder: subjectFilter.placeholder,
-          searchPlaceholder: subjectFilter.searchPlaceholder,
-          emptyMessage: subjectFilter.emptyMessage,
-          value: subjectFilter.value,
-          options: subjectFilter.options,
-          onValueChange: subjectFilter.onValueChange,
-        },
-      ]}
+      dimensionLabelMap={labels}
+      filter={{
+        label: filterLabels[tab],
+        items: selected,
+        onRemove: onRemoveSelected,
+      }}
       tabs={{
         value: interval,
         options: [...GATEWAY_SPEND_INTERVALS],

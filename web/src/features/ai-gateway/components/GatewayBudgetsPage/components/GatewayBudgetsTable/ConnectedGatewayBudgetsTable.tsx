@@ -1,55 +1,35 @@
-import { useState } from "react";
-import { useStore } from "zustand";
-
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
-import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { GatewayBudgetsSelectionBar } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTable/components/GatewayBudgetsSelectionBar/GatewayBudgetsSelectionBar";
 import { GatewayEditBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTable/components/GatewayEditBudgetDialogController/GatewayEditBudgetDialogController";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import type { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTableState";
 import { useSetGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
-import { api } from "@/src/utils/api";
 import {
   type GatewayBudgetRow,
-  type GatewayBudgetStatusFilter,
   GatewayBudgetsTable,
 } from "./GatewayBudgetsTable";
 
 type ConnectedGatewayBudgetsTableProps = {
   organizationId: string;
   tab: GatewaySpendTab;
-  onRowClick: (row: GatewayBudgetRow) => void;
+  table: ReturnType<typeof useGatewayBudgetsTableState>;
 };
 
-/**
- * Paging, search, filter and selection state stay local and reset with the
- * tab, which remounts the table. Selection covers the current page only.
- */
+const notEditableReasons = {
+  apiKeys: "Some selected key budgets were set by a gateway admin.",
+  users: "Only gateway admins can change user budgets.",
+} as const satisfies Record<GatewaySpendTab, string>;
+
+/** Clicking a row selects it, like its checkbox; the selection also filters the spend chart. */
 export function ConnectedGatewayBudgetsTable({
   organizationId,
   tab,
-  onRowClick,
+  table,
 }: ConnectedGatewayBudgetsTableProps) {
   const subject = tab === "apiKeys" ? "key" : "user";
-  const [searchQuery, setSearchQuery] = useState("");
-  const [status, setStatus] = useState<GatewayBudgetStatusFilter>("all");
-  const [paginationState, setPaginationState] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
-  const budgets = api.aiGateway.listBudgets.useQuery({
-    orgId: organizationId,
-    scope: tab === "apiKeys" ? "API_KEY" : "USER",
-    searchQuery: searchQuery.trim() || undefined,
-    exceededOnly: status === "exceeded" || undefined,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-  });
-  const data = toTableData(budgets);
-
-  const [selectionStore] = useState(() => createTableSelectionStore());
-  const clearSelection = selectionStore.getState().actions.clearSelection;
+  const { budgets, selectionStore, selectedRows, clearSelection } = table;
   const { selectActionColumn } = TableSelectionManager<GatewayBudgetRow>({
     projectId: "",
     tableName: "gateway-budgets",
@@ -57,24 +37,13 @@ export function ConnectedGatewayBudgetsTable({
     setSelectAll: selectionStore.getState().actions.setSelectAll,
     selectionStore,
   });
-  const rowSelection = useStore(selectionStore, (state) => state.rowSelection);
-  const editableRows = (budgets.data?.rows ?? []).filter(
-    (row) => row.isEditable,
-  );
-  const selectedRows = editableRows.filter((row) => rowSelection[row.id]);
   const { setBudgets, mutation: removal } =
     useSetGatewayBudgets(organizationId);
+  const bulkDisabledReason = selectedRows.every((row) => row.isEditable)
+    ? undefined
+    : notEditableReasons[tab];
 
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
-    setPaginationState((current) => ({ ...current, pageIndex: 0 }));
-    clearSelection();
-  };
-  const handleStatusChange = (value: GatewayBudgetStatusFilter) => {
-    setStatus(value);
-    setPaginationState((current) => ({ ...current, pageIndex: 0 }));
-    clearSelection();
-  };
+  const handleRowClick = (row: GatewayBudgetRow) => table.toggleRow(row.id);
 
   return (
     <GatewayEditBudgetDialogController organizationId={organizationId}>
@@ -82,20 +51,9 @@ export function ConnectedGatewayBudgetsTable({
         <>
           <GatewayBudgetsTable
             tab={tab}
-            data={data}
-            onRowClick={onRowClick}
-            selectColumn={
-              editableRows.length > 0
-                ? {
-                    ...selectActionColumn,
-                    enableResizing: false,
-                    cell: (context) =>
-                      context.row.original.isEditable
-                        ? selectActionColumn.cell(context)
-                        : null,
-                  }
-                : undefined
-            }
+            data={toTableData(budgets)}
+            onRowClick={handleRowClick}
+            selectColumn={{ ...selectActionColumn, enableResizing: false }}
             onEditBudget={(row) =>
               openDialog({
                 subject,
@@ -103,16 +61,12 @@ export function ConnectedGatewayBudgetsTable({
                 spendLimit: row.spendLimit,
               })
             }
-            search={{ value: searchQuery, onChange: handleSearchChange }}
-            status={{ value: status, onChange: handleStatusChange }}
+            search={table.search}
+            status={table.status}
             pagination={{
               mode: "offset",
               totalCount: budgets.data?.totalCount ?? null,
-              state: paginationState,
-              onChange: (state) => {
-                setPaginationState(state);
-                clearSelection();
-              },
+              ...table.pagination,
             }}
           />
           <ConfirmationDialogController
@@ -141,6 +95,7 @@ export function ConnectedGatewayBudgetsTable({
               <GatewayBudgetsSelectionBar
                 selectedCount={selectedRows.length}
                 isSaving={removal.isPending}
+                disabledReason={bulkDisabledReason}
                 onClear={clearSelection}
                 onEdit={() => {
                   const [first] = selectedRows;

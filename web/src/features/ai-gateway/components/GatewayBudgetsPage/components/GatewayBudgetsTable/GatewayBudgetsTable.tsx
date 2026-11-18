@@ -40,7 +40,7 @@ export type GatewayBudgetRow = {
 
 type GatewayBudgetsTableProps = Pick<
   TableProps<GatewayBudgetRow>,
-  "data" | "onRowClick" | "selectedRowId"
+  "data" | "onRowClick"
 > & {
   tab: GatewaySpendTab;
   pagination: PaginationBarProps;
@@ -49,8 +49,8 @@ type GatewayBudgetsTableProps = Pick<
     value: GatewayBudgetStatusFilter;
     onChange: (value: GatewayBudgetStatusFilter) => void;
   };
-  /** Prepended when rows can be selected for bulk changes. */
-  selectColumn?: LangfuseColumnDef<GatewayBudgetRow>;
+  /** Selects rows for the spend chart and bulk changes. */
+  selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
   onEditBudget: (row: GatewayBudgetRow) => void;
 };
 
@@ -150,12 +150,11 @@ const copyByTab = {
   },
 } as const satisfies Record<GatewaySpendTab, Record<string, string>>;
 
-/** The key or user budgets on the Budgets page; selecting a row filters the spend chart. */
+/** The key or user budgets on the Budgets page; selected rows filter the spend chart. */
 export function GatewayBudgetsTable({
   tab,
   data,
   onRowClick,
-  selectedRowId,
   pagination,
   search,
   status,
@@ -168,12 +167,9 @@ export function GatewayBudgetsTable({
   return (
     <SettingsTable
       tableName={tab === "apiKeys" ? "gatewayKeyBudgets" : "gatewayUserBudgets"}
-      columns={
-        selectColumn ? [selectColumn, ...columnsByTab[tab]] : columnsByTab[tab]
-      }
+      columns={[selectColumn, ...columnsByTab[tab]]}
       data={data}
       onRowClick={onRowClick}
-      selectedRowId={selectedRowId}
       actions={(row) => [
         {
           id: "editBudget",

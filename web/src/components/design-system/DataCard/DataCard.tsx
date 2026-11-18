@@ -13,6 +13,7 @@ import {
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 import {
   VisualizationFrame,
   type Visualization,
@@ -30,10 +31,13 @@ export type DataCardActions = {
   menu?: DropdownMenuItemDefinition[];
 };
 
+const FILTER_VISIBLE_ITEMS = 3;
+
 export function DataCard({
   title,
   description,
   badge,
+  filter,
   controls = [],
   tabs,
   actions,
@@ -43,6 +47,15 @@ export function DataCard({
   title: string;
   description?: string | null;
   badge?: { text: string; description: string };
+  /**
+   * What the card is filtered by, chosen elsewhere on the page (e.g. selected
+   * table rows); each item can be removed, but nothing is picked here.
+   */
+  filter?: {
+    label: string;
+    items: { value: string; label: string }[];
+    onRemove: (value: string) => void;
+  };
   controls?: ({
     id: string;
     label: string;
@@ -162,6 +175,24 @@ export function DataCard({
           </div>
         </div>
         <div className="flex max-w-2/3 min-w-0 items-center justify-end gap-2">
+          {filter && filter.items.length > 0 && (
+            <div
+              role="group"
+              aria-label={filter.label}
+              className="flex min-w-0 items-center gap-1"
+            >
+              {filter.items.slice(0, FILTER_VISIBLE_ITEMS).map((item) => (
+                <FilterTag
+                  key={item.value}
+                  item={item}
+                  onRemove={filter.onRemove}
+                />
+              ))}
+              {filter.items.length > FILTER_VISIBLE_ITEMS && (
+                <Tag text={`+${filter.items.length - FILTER_VISIBLE_ITEMS}`} />
+              )}
+            </div>
+          )}
           {tabs && isToggle && (
             <Tabs.List
               variant="inset"
@@ -281,4 +312,15 @@ export function DataCard({
       )}
     </div>
   );
+}
+
+function FilterTag({
+  item,
+  onRemove,
+}: {
+  item: { value: string; label: string };
+  onRemove: (value: string) => void;
+}) {
+  const handleRemove = () => onRemove(item.value);
+  return <Tag text={item.label} remove={{ onRemove: handleRemove }} />;
 }
