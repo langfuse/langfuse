@@ -48,13 +48,6 @@ type TopicMapNode = {
   center: MapPosition;
   worldPosition: MapPosition;
   rect: MapRectangle;
-  cornerRadius: number;
-  expansion: number;
-  backgroundOpacity: number;
-  strokeOpacity: number;
-  textOpacity: number;
-  fontSize: number;
-  excerpt: string;
 };
 export type TopicMapNodeFrame = {
   model: TopicMapModel;
@@ -84,7 +77,7 @@ function pointBounds(points: { x: number; y: number }[]): Bounds {
   return { minX, maxX, minY, maxY };
 }
 
-function baseScale(bounds: Bounds, size: Size) {
+export function baseScale(bounds: Bounds, size: Size) {
   return Math.min(
     Math.max(size.width - 100, 1) / Math.max(bounds.maxX - bounds.minX, 0.1),
     Math.max(size.height - 100, 1) / Math.max(bounds.maxY - bounds.minY, 0.1),
@@ -102,7 +95,7 @@ export function fitCamera(bounds: Bounds, whole: Bounds, size: Size): Camera {
   };
 }
 
-function screenPoint(
+export function screenPoint(
   point: { x: number; y: number },
   camera: Camera,
   bounds: Bounds,
@@ -221,10 +214,6 @@ function smoothStep(from: number, to: number, value: number) {
   return progress * progress * (3 - 2 * progress);
 }
 
-function readingNodeSize(size: Size) {
-  return { width: Math.max(6, Math.min(264, size.width - 48)), height: 144 };
-}
-
 export function prepareMapNodes(
   model: TopicMapModel,
   camera: Camera,
@@ -233,116 +222,37 @@ export function prepareMapNodes(
   readingTopic: string | null = null,
   matchingTraceIds?: ReadonlySet<string>,
 ): TopicMapNodeFrame {
-  const full = readingNodeSize(size);
-  // Dots stay dots at any zoom; summaries show in the hover card instead of cards.
-  const blend = 0;
-  const cells = new Map<string, number[]>();
-  const cellWidth = full.width + 8;
-  const cellHeight = full.height + 8;
-  const prepared = model.points.map((point, index) => {
-    const worldPosition = { x: point.x, y: point.y };
-    const projected = screenPoint(worldPosition, camera, model.bounds, size);
-    const depth = point.depth * (1 - blend);
-    const center = {
-      x: projected.x + pointer.x * depth * 6,
-      y: projected.y + pointer.y * depth * 6,
-    };
-    const diameter = (5 + depth) * Math.sqrt(Math.min(camera.zoom, 4));
-    const matchesFilters =
-      (!readingTopic || point.groupId === readingTopic) &&
-      (!matchingTraceIds || matchingTraceIds.has(point.traceId));
-    const growth = matchesFilters ? blend : 0;
-    const growWidth = (full.width - diameter) * growth;
-    const growHeight = (full.height - diameter) * growth;
-    const cellX = Math.floor(center.x / cellWidth);
-    const cellY = Math.floor(center.y / cellHeight);
-    const key = `${cellX},${cellY}`;
-    const cell = cells.get(key) ?? [];
-    cell.push(index);
-    cells.set(key, cell);
-    return {
-      point,
-      matchesFilters,
-      worldPosition,
-      center,
-      diameter,
-      growWidth,
-      growHeight,
-      growth,
-      cellX,
-      cellY,
-    };
-  });
-  const axisLimit = (distance: number, base: number, growth: number) => {
-    if (growth > 0) return (Math.abs(distance) - base - 8) / growth;
-    return Math.abs(distance) >= base + 8 ? Infinity : -Infinity;
-  };
+  // Dots stay dots at any zoom; summaries show in the hover card.
   const nodeById = new Map<string, TopicMapNode>();
   const nodes: TopicMapNode[] = [];
-  for (const item of prepared) {
-    let clearance = 1;
-    if (item.growth) {
-      neighbors: for (let x = item.cellX - 1; x <= item.cellX + 1; x++) {
-        for (let y = item.cellY - 1; y <= item.cellY + 1; y++) {
-          for (const index of cells.get(`${x},${y}`) ?? []) {
-            const other = prepared[index];
-            if (other === item) continue;
-            const base = (item.diameter + other.diameter) / 2;
-            const limit = Math.max(
-              0,
-              Math.min(
-                1,
-                Math.max(
-                  axisLimit(
-                    item.center.x - other.center.x,
-                    base,
-                    (item.growWidth + other.growWidth) / 2,
-                  ),
-                  axisLimit(
-                    item.center.y - other.center.y,
-                    base,
-                    (item.growHeight + other.growHeight) / 2,
-                  ),
-                ),
-              ),
-            );
-            clearance = Math.min(clearance, limit);
-            if (!clearance) break neighbors;
-          }
-        }
-      }
-    }
-    const width = item.diameter + item.growWidth * clearance;
-    const height = item.diameter + item.growHeight * clearance;
-    const expansion = item.growth * clearance;
-    const smaller = Math.min(width, height);
-    const textOpacity = smoothStep(76, 132, width) * smoothStep(30, 64, height);
-    const node: TopicMapNode = {
-      point: item.point,
-      matchesFilters: item.matchesFilters,
-      center: item.center,
-      worldPosition: item.worldPosition,
-      rect: {
-        x: item.center.x - width / 2,
-        y: item.center.y - height / 2,
-        width,
-        height,
-      },
-      cornerRadius:
-        smaller / 2 + (Math.min(8, smaller / 2) - smaller / 2) * textOpacity,
-      expansion,
-      backgroundOpacity: textOpacity,
-      strokeOpacity: textOpacity,
-      textOpacity,
-      fontSize: 9 + smoothStep(100, 264, width) * 3,
-      excerpt: item.point.summary,
+  for (const point of model.points) {
+    const worldPosition = { x: point.x, y: point.y };
+    const projected = screenPoint(worldPosition, camera, model.bounds, size);
+    const center = {
+      x: projected.x + pointer.x * point.depth * 6,
+      y: projected.y + pointer.y * point.depth * 6,
     };
-    nodeById.set(item.point.traceId, node);
+    const diameter = (5 + point.depth) * Math.sqrt(Math.min(camera.zoom, 4));
+    const node: TopicMapNode = {
+      point,
+      matchesFilters:
+        (!readingTopic || point.groupId === readingTopic) &&
+        (!matchingTraceIds || matchingTraceIds.has(point.traceId)),
+      center,
+      worldPosition,
+      rect: {
+        x: center.x - diameter / 2,
+        y: center.y - diameter / 2,
+        width: diameter,
+        height: diameter,
+      },
+    };
+    nodeById.set(point.traceId, node);
     if (
       node.rect.x <= size.width &&
-      node.rect.x + width >= 0 &&
+      node.rect.x + diameter >= 0 &&
       node.rect.y <= size.height &&
-      node.rect.y + height >= 0
+      node.rect.y + diameter >= 0
     )
       nodes.push(node);
   }
@@ -480,17 +390,6 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
   return labels;
 }
 
-function roundedDistance(node: TopicMapNode, at: MapPosition) {
-  const radius = node.cornerRadius;
-  const dx = Math.abs(at.x - node.center.x) - node.rect.width / 2 + radius;
-  const dy = Math.abs(at.y - node.center.y) - node.rect.height / 2 + radius;
-  return (
-    Math.min(Math.max(dx, dy), 0) +
-    Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) -
-    radius
-  );
-}
-
 export function hitMapNode(
   frame: TopicMapNodeFrame,
   at: MapPosition,
@@ -499,8 +398,8 @@ export function hitMapNode(
   let distance = Infinity;
   let inside = false;
   for (const node of frame.nodes) {
-    const contains = roundedDistance(node, at) <= 0;
     const proximity = Math.hypot(node.center.x - at.x, node.center.y - at.y);
+    const contains = proximity <= node.rect.width / 2;
     if (!contains && (inside || proximity > 12)) continue;
     if (
       (contains && !inside) ||
@@ -640,7 +539,6 @@ type TraceHover = {
   position: MapPosition;
   card: MapHoverRectangle;
   excerpt: string;
-  reading: boolean;
 };
 type ZoneHover = MapZone & {
   position: MapPosition;
@@ -651,15 +549,10 @@ export function prepareMapHover(
   frame: TopicMapNodeFrame,
   hoveredId: string | null,
   hoveredZoneId: string | null,
-  showInlineTrace = false,
 ): { traces: TraceHover[]; zones: ZoneHover[] } {
   const node = hoveredId ? frame.nodeById.get(hoveredId) : undefined;
   if (node) {
-    if (
-      (!showInlineTrace && node.textOpacity >= 0.9) ||
-      !frame.nodes.includes(node)
-    )
-      return { traces: [], zones: [] };
+    if (!frame.nodes.includes(node)) return { traces: [], zones: [] };
     const card = hoverRectangle(node.rect, frame.size, {
       width: 264,
       height: 184,
@@ -675,8 +568,7 @@ export function prepareMapHover(
               node,
               position: node.center,
               card,
-              excerpt: node.excerpt,
-              reading: true,
+              excerpt: node.point.summary,
             },
           ]
         : [],

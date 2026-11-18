@@ -361,21 +361,22 @@ export const FitFilteredMap = meta.story({
     await expect(
       canvas.getByRole("tab", { name: "Visualize" }),
     ).toHaveAttribute("data-state", "active");
-    for (
-      let attempt = 0;
-      attempt < 12 &&
-      canvas.queryAllByRole("button", { name: /^Select trace:/ }).length === 0;
-      attempt++
-    ) {
-      await userEvent.click(
-        canvas.getByRole("button", { name: "Zoom in (+)" }),
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+    // Dots stay dots, so a tap on the centered dot previews its trace.
+    const stage = canvas.getByRole("group", { name: /^Interactive scatter/ });
+    const tapCenter = () => {
+      const rect = stage.getBoundingClientRect();
+      stage.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        }),
       );
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      );
-    }
-    const trace = await canvas.findByRole("button", { name: /^Select trace:/ });
-    await userEvent.click(trace);
+    };
+    tapCenter();
     await expect(
       canvas.getByRole("tab", { name: "Visualize" }),
     ).toHaveAttribute("data-state", "active");
@@ -394,9 +395,9 @@ export const FitFilteredMap = meta.story({
     await expect(
       canvas.getByRole("tooltip", { name: /^Trace summary:/ }),
     ).toBeVisible();
-    await userEvent.click(trace);
+    tapCenter();
     await expect(
-      canvas.getByRole("button", { name: "Open trace unassigned" }),
+      await canvas.findByRole("button", { name: "Open trace unassigned" }),
     ).toBeVisible();
     await expect(
       canvas.queryByRole("button", { name: "Open trace billing-0" }),

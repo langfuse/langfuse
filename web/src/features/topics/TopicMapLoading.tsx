@@ -5,8 +5,9 @@ export function TopicMapLoading({ fillContainer }: TopicMapLoadingProps) {
     <div
       role="status"
       className={cn(
-        "bg-muted/20 flex min-w-0 flex-col overflow-hidden rounded-lg border text-sm",
-        fillContainer && "h-full min-h-0",
+        "bg-muted/20 flex min-w-0 flex-col overflow-hidden text-sm",
+        // A filling map draws no edge, so its loading state doesn't either.
+        fillContainer ? "h-full min-h-0" : "rounded-lg border",
       )}
     >
       <div
