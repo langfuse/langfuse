@@ -143,28 +143,6 @@ export class GatewayApiKeyRepository {
     return rows.map((row) => row.apiKeyId);
   }
 
-  /** How many gateway keys each of the users has in the organization; users without keys are absent. */
-  async countGatewayApiKeysByUser(params: {
-    organizationId: string;
-    userIds: string[];
-  }) {
-    if (params.userIds.length === 0) return new Map<string, number>();
-    const counts = await this.prisma.apiKey.groupBy({
-      by: ["userId"],
-      where: {
-        ...gatewayApiKeyWhere(params),
-        userId: { in: params.userIds },
-        gatewayAssociation: { isNot: null },
-      },
-      _count: { _all: true },
-    });
-    return new Map(
-      counts.flatMap(({ userId, _count }) =>
-        userId ? [[userId, _count._all] as const] : [],
-      ),
-    );
-  }
-
   getGatewayApiKey(params: {
     organizationId: string;
     ownerUserId?: string;
@@ -231,7 +209,7 @@ export class GatewayApiKeyRepository {
 }
 
 /** gatewayApiKeyWhere scopes gateway keys to the organization and, when set, to the user the keys are bound to. */
-function gatewayApiKeyWhere(params: {
+export function gatewayApiKeyWhere(params: {
   organizationId: string;
   ownerUserId?: string;
 }) {
@@ -243,7 +221,7 @@ function gatewayApiKeyWhere(params: {
 }
 
 /** gatewayApiKeySearch matches the key name or the name or email of the user the key is bound to. */
-function gatewayApiKeySearch(searchQuery: string) {
+export function gatewayApiKeySearch(searchQuery: string) {
   const contains = {
     contains: escapeSqlLikePattern(searchQuery),
     mode: "insensitive",

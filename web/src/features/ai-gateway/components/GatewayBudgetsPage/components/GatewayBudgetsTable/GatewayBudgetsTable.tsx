@@ -8,6 +8,7 @@ import { createTableColumn } from "@/src/components/design-system/table/columns/
 import type { TableProps } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import {
@@ -23,16 +24,15 @@ type GatewayBudgetUser = {
 };
 
 export type GatewayBudgetRow = {
-  /** The budget id; rows are selected by it. */
+  /** The key or user id; rows are selected by it. */
   id: string;
   /** The key or user the budget caps. */
   subjectId: string;
   name: string;
   /** The key's user, or the budgeted user; null for service account keys. */
   user: GatewayBudgetUser | null;
-  /** Only set on user budgets. */
-  keyCount?: number;
-  spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number };
+  /** Null when the key or user has no budget. */
+  spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number } | null;
   /** Spend in the current window; absent while spend is not recorded. */
   spentUsd?: number;
   isEditable: boolean;
@@ -46,18 +46,18 @@ type GatewayBudgetsTableProps = Pick<
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
   status: {
-    value: GatewayBudgetStatusFilter;
-    onChange: (value: GatewayBudgetStatusFilter) => void;
+    value: GatewayBudgetStatus;
+    onChange: (value: GatewayBudgetStatus) => void;
   };
   /** Selects rows for the spend chart and bulk changes. */
   selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
   onEditBudget: (row: GatewayBudgetRow) => void;
 };
 
-export type GatewayBudgetStatusFilter = "all" | "exceeded";
-
-const statusOptions: { value: GatewayBudgetStatusFilter; label: string }[] = [
-  { value: "all", label: "All budgets" },
+const statusOptions: { value: GatewayBudgetStatus; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "budgeted", label: "With budget" },
+  { value: "unlimited", label: "Unlimited" },
   { value: "exceeded", label: "Exceeded" },
 ];
 
@@ -83,11 +83,14 @@ const budgetColumn = (subject: "key" | "user") =>
           spentUsd={row.original.spentUsd}
           format="amounts"
         />
-      ) : null,
+      ) : (
+        <span className="text-muted-foreground text-sm">Unlimited</span>
+      ),
   });
 
 const resetsColumn = createTextTableColumn<GatewayBudgetRow>({
-  accessorFn: (row) => intervalLabels.get(row.spendLimit.interval),
+  accessorFn: (row) =>
+    row.spendLimit ? intervalLabels.get(row.spendLimit.interval) : undefined,
   id: "resets",
   header: "Resets",
   hideBelowMd: true,
@@ -120,37 +123,23 @@ const columnsByTab: Record<
     budgetColumn("key"),
     resetsColumn,
   ],
-  users: [
-    userColumn,
-    createTextTableColumn<GatewayBudgetRow>({
-      accessorFn: (row) =>
-        row.keyCount === undefined
-          ? undefined
-          : `${row.keyCount} ${row.keyCount === 1 ? "key" : "keys"}`,
-      id: "keys",
-      header: "Keys",
-      hideBelowMd: true,
-      enableResizing: false,
-    }),
-    budgetColumn("user"),
-    resetsColumn,
-  ],
+  users: [userColumn, budgetColumn("user"), resetsColumn],
 };
 
 const copyByTab = {
   apiKeys: {
     searchPlaceholder: "Search keys",
-    noBudgets: "No key budgets yet.",
-    noMatches: "No key budgets match the current filters.",
+    noBudgets: "No gateway keys yet.",
+    noMatches: "No keys match the current filters.",
   },
   users: {
     searchPlaceholder: "Search users",
-    noBudgets: "No user budgets yet.",
-    noMatches: "No user budgets match the current filters.",
+    noBudgets: "No gateway users yet.",
+    noMatches: "No users match the current filters.",
   },
 } as const satisfies Record<GatewaySpendTab, Record<string, string>>;
 
-/** The key or user budgets on the Budgets page; selected rows filter the spend chart. */
+/** Gateway keys or users with their budgets; selected rows filter the spend chart. */
 export function GatewayBudgetsTable({
   tab,
   data,

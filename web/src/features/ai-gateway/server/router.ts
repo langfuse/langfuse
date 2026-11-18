@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { z as zodV3 } from "zod";
 import type { Session } from "next-auth";
 
+import { GATEWAY_BUDGET_STATUSES } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
@@ -288,20 +289,6 @@ export const aiGatewayRouter = createTRPCRouter({
         currentUserId: ctx.session.user.id,
         search: input.search,
         excludeEmails: input.excludeEmails,
-      });
-    }),
-
-  getBudgetUserOptions: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        search: z.string().max(MAX_MEMBER_SEARCH_LENGTH),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayTeamService(ctx.prisma).getBudgetUserOptions({
-        organizationId: input.orgId,
-        search: input.search,
       });
     }),
 
@@ -650,34 +637,21 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
-  getUsersSpend: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        userIds: z.array(z.string()).max(100),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
-      return new GatewaySpendLimitService(ctx.prisma).getUsersSpend({
-        organizationId: input.orgId,
-        usageScope: getGatewayUsageScope({
-          session: ctx.session,
-          orgId: input.orgId,
-        }),
-        userIds: input.userIds,
-      });
-    }),
-
   listBudgets: protectedOrganizationProcedure
     .input(
       offsetPaginatedOrganizationInput.extend({
         scope: gatewaySpendLimitScopeInput,
         searchQuery: z.string().trim().optional(),
-        exceededOnly: z.boolean().optional(),
+        status: z.enum(GATEWAY_BUDGET_STATUSES).default("all"),
       }),
     )
     .query(async ({ input, ctx }) => {
-      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      // User budgets are for gateway managers only; members see their keys.
+      if (input.scope === "USER") {
+        requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      } else {
+        requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      }
       return new GatewaySpendLimitService(ctx.prisma).listBudgets({
         organizationId: input.orgId,
         usageScope: getGatewayUsageScope({
@@ -686,29 +660,9 @@ export const aiGatewayRouter = createTRPCRouter({
         }),
         scope: input.scope,
         searchQuery: input.searchQuery,
-        exceededOnly: input.exceededOnly,
+        status: input.status,
         page: input.page,
         limit: input.limit,
-      });
-    }),
-
-  /** Gives each key or user without one the same budget; only gateway managers may. */
-  createSpendLimits: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        scope: gatewaySpendLimitScopeInput,
-        subjectIds: gatewaySpendLimitSubjectIdsInput,
-        spendLimit: gatewaySpendLimitInput,
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      await new GatewaySpendLimitService(ctx.prisma).createForSubjects({
-        organizationId: input.orgId,
-        scope: input.scope,
-        subjectIds: input.subjectIds,
-        limit: input.spendLimit,
-        session: ctx.session,
       });
     }),
 

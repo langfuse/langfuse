@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useStore } from "zustand";
 
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
-import type { GatewayBudgetStatusFilter } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTable/GatewayBudgetsTable";
+import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { api } from "@/src/utils/api";
 
@@ -25,7 +25,7 @@ export function useGatewayBudgetsTableState(
     orgId: organizationId,
     scope: tab === "apiKeys" ? "API_KEY" : "USER",
     searchQuery: searchQuery.trim() || undefined,
-    exceededOnly: status === "exceeded" || undefined,
+    status,
     page: pagination.pageIndex,
     limit: pagination.pageSize,
   });
@@ -52,7 +52,7 @@ export function useGatewayBudgetsTableState(
     },
     status: {
       value: status,
-      onChange: (value: GatewayBudgetStatusFilter) =>
+      onChange: (value: GatewayBudgetStatus) =>
         update({ status: value, pagination: firstPage(pagination) }),
     },
     pagination: {
@@ -66,7 +66,7 @@ function initialState(tab: GatewaySpendTab) {
   return {
     tab,
     searchQuery: "",
-    status: "all" as GatewayBudgetStatusFilter,
+    status: "all" as GatewayBudgetStatus,
     pagination: { pageIndex: 0, pageSize: PAGE_SIZE },
     selectionStore: createTableSelectionStore(),
   };

@@ -2016,7 +2016,7 @@ describe("AI gateway control plane", () => {
   );
 
   itWithEventsTable(
-    "lists only exceeded budgets when asked, paging after the filter",
+    "lists keys with and without budgets by status, paging after the exceeded filter",
     async () => {
       const owner = await prepare();
       await owner.caller.aiGateway.updateConfig({
@@ -2036,7 +2036,12 @@ describe("AI gateway control plane", () => {
           metadata: {},
         }),
       ];
-      await owner.caller.aiGateway.createSpendLimits({
+      const unlimited = await owner.caller.aiGateway.createApiKey({
+        orgId: owner.org.id,
+        name: "Unlimited",
+        metadata: {},
+      });
+      await owner.caller.aiGateway.setSpendLimits({
         orgId: owner.org.id,
         scope: "API_KEY",
         subjectIds: keys.map(({ id }) => id),
@@ -2052,16 +2057,21 @@ describe("AI gateway control plane", () => {
         }),
       ]);
 
-      const list = (exceededOnly: boolean) =>
+      const list = (status: "all" | "budgeted" | "unlimited" | "exceeded") =>
         owner.caller.aiGateway.listBudgets({
           orgId: owner.org.id,
           scope: "API_KEY",
-          exceededOnly,
+          status,
           page: 0,
           limit: 1,
         });
-      expect((await list(false)).totalCount).toBe(2);
-      expect(await list(true)).toMatchObject({
+      expect((await list("all")).totalCount).toBe(3);
+      expect((await list("budgeted")).totalCount).toBe(2);
+      expect(await list("unlimited")).toMatchObject({
+        totalCount: 1,
+        rows: [{ subjectId: unlimited.id, spendLimit: null }],
+      });
+      expect(await list("exceeded")).toMatchObject({
         totalCount: 1,
         rows: [{ subjectId: keys[0].id }],
       });
@@ -2360,37 +2370,6 @@ describe("AI gateway control plane", () => {
     expect((await listKeys()).data).toMatchObject([{ spendLimit: null }]);
   });
 
-  it("lets only gateway managers add a budget to a key without one", async () => {
-    const owner = await prepare();
-    await owner.caller.aiGateway.updateConfig({
-      orgId: owner.org.id,
-      defaultIngestionProjectId: owner.project.id,
-      ingestionMode: "USAGE",
-    });
-    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
-    const memberKey = await member.aiGateway.createApiKey({
-      orgId: owner.org.id,
-      name: "Member key",
-      metadata: {},
-    });
-    const add = (caller: typeof member, limitUsd: number) =>
-      caller.aiGateway.createSpendLimits({
-        orgId: owner.org.id,
-        scope: "API_KEY",
-        subjectIds: [memberKey.id],
-        spendLimit: { interval: "WEEKLY", limitUsd },
-      });
-
-    await expect(add(member, 10)).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await add(owner.caller, 10);
-    await expect(add(owner.caller, 20)).rejects.toThrow(
-      "already has a spend budget",
-    );
-    expect(
-      (await member.aiGateway.listApiKeys({ orgId: owner.org.id })).data,
-    ).toMatchObject([{ spendLimit: { interval: "WEEKLY", limitUsd: 10 } }]);
-  });
-
   it("lets only gateway managers budget a user, and enforces it on every key of that user", async () => {
     configureGatewayJwtSigning();
     const owner = await prepare();
@@ -2428,13 +2407,6 @@ describe("AI gateway control plane", () => {
       scope: "USER" as const,
       subjectIds: [userId!],
     };
-    const userBudget = async (caller: typeof member) =>
-      (
-        await caller.aiGateway.getUsersSpend({
-          orgId: owner.org.id,
-          userIds: [userId!, owner.user.id],
-        })
-      ).map(({ id, spendLimit }) => ({ id, spendLimit }));
     const resolvedScopes = async (secretKey: string) =>
       (
         await authenticateRequest({
@@ -2445,57 +2417,63 @@ describe("AI gateway control plane", () => {
       ).spend_limits.map(({ scope, limit_usd }) => ({ scope, limit_usd }));
 
     await expect(
-      member.aiGateway.createSpendLimits({
+      member.aiGateway.setSpendLimits({
         ...target,
         spendLimit: { interval: "MONTHLY", limitUsd: 1000 },
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await owner.caller.aiGateway.createSpendLimits({
+    await owner.caller.aiGateway.setSpendLimits({
       ...target,
       spendLimit: { interval: "MONTHLY", limitUsd: 50 },
     });
-    await expect(
-      owner.caller.aiGateway.createSpendLimits({
-        ...target,
-        spendLimit: { interval: "DAILY", limitUsd: 1 },
-      }),
-    ).rejects.toThrow("already has a spend budget");
     await owner.caller.aiGateway.setSpendLimits({
       ...target,
       spendLimit: { interval: "MONTHLY", limitUsd: 20 },
     });
 
-    expect(await userBudget(member)).toEqual([
-      { id: userId, spendLimit: { interval: "MONTHLY", limitUsd: 20 } },
-    ]);
     const budgets = async (caller: typeof member, scope: "API_KEY" | "USER") =>
       (
-        await caller.aiGateway.listBudgets({ orgId: owner.org.id, scope })
-      ).rows.map(({ subjectId, keyCount, spendLimit, isEditable }) => ({
+        await caller.aiGateway.listBudgets({
+          orgId: owner.org.id,
+          scope,
+          status: "budgeted",
+        })
+      ).rows.map(({ subjectId, spendLimit, isEditable }) => ({
         subjectId,
-        keyCount,
         spendLimit,
         isEditable,
       }));
-    const userBudgetRow = {
-      subjectId: userId,
-      keyCount: 2,
-      spendLimit: { interval: "MONTHLY", limitUsd: 20 },
-    };
     expect(await budgets(owner.caller, "USER")).toEqual([
-      { ...userBudgetRow, isEditable: true },
-    ]);
-    expect(await budgets(member, "USER")).toEqual([
-      { ...userBudgetRow, isEditable: false },
-    ]);
-    expect(await budgets(member, "API_KEY")).toEqual([
       {
-        subjectId: memberKeys[1].id,
-        keyCount: undefined,
-        spendLimit: { interval: "DAILY", limitUsd: 5 },
+        subjectId: userId,
+        spendLimit: { interval: "MONTHLY", limitUsd: 20 },
         isEditable: true,
       },
     ]);
+    await expect(budgets(member, "USER")).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(
+      (
+        await member.aiGateway.listBudgets({
+          orgId: owner.org.id,
+          scope: "API_KEY",
+        })
+      ).rows.map(({ subjectId, spendLimit, isEditable }) => ({
+        subjectId,
+        spendLimit,
+        isEditable,
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        { subjectId: memberKeys[0].id, spendLimit: null, isEditable: true },
+        {
+          subjectId: memberKeys[1].id,
+          spendLimit: { interval: "DAILY", limitUsd: 5 },
+          isEditable: true,
+        },
+      ]),
+    );
     expect(await resolvedScopes(memberKeys[0].secretKey)).toEqual([
       { scope: "user", limit_usd: 20 },
     ]);
@@ -2520,7 +2498,7 @@ describe("AI gateway control plane", () => {
       ...target,
       spendLimit: null,
     });
-    expect(await userBudget(owner.caller)).toEqual([]);
+    expect(await budgets(owner.caller, "USER")).toEqual([]);
     expect(await resolvedScopes(memberKeys[0].secretKey)).toEqual([]);
   });
 

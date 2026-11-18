@@ -9,6 +9,7 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetLimitError";
+import { emptyGatewaySpendBudget } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
 
 const gatewayEditBudgetFormSchema = z.object({
   spendBudget: z.object({
@@ -34,7 +35,8 @@ type GatewayEditBudgetDialogProps = {
   subject: keyof typeof nouns;
   /** The keys or users whose budgets change together. */
   subjectNames: string[];
-  spendLimit: GatewaySpendLimit;
+  /** Prefills the form; null when the key or user has no budget yet. */
+  spendLimit: GatewaySpendLimit | null;
   /** Why the budget cannot be changed; undefined when it can. */
   unavailableReason?: string;
   errorMessage: string | null;
@@ -58,10 +60,12 @@ export function GatewayEditBudgetDialog({
   const form = useForm<GatewayEditBudgetFormValues>({
     resolver: zodResolver(gatewayEditBudgetFormSchema),
     defaultValues: {
-      spendBudget: {
-        interval: spendLimit.interval,
-        limitUsd: String(spendLimit.limitUsd),
-      },
+      spendBudget: spendLimit
+        ? {
+            interval: spendLimit.interval,
+            limitUsd: String(spendLimit.limitUsd),
+          }
+        : emptyGatewaySpendBudget,
     },
     mode: "onChange",
   });
@@ -91,13 +95,17 @@ export function GatewayEditBudgetDialog({
       size="md"
       noCapture
       actions={[
-        {
-          label: isBulk ? "Remove budgets" : "Remove budget",
-          type: "button",
-          variant: "destructive",
-          disabled: isSubmitting,
-          onClick: onRemove,
-        },
+        ...(isBulk || spendLimit
+          ? [
+              {
+                label: isBulk ? "Remove budgets" : "Remove budget",
+                type: "button" as const,
+                variant: "destructive" as const,
+                disabled: isSubmitting,
+                onClick: onRemove,
+              },
+            ]
+          : []),
         {
           label: "Save changes",
           type: "submit",

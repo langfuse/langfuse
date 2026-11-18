@@ -13,8 +13,8 @@ export type GatewayEditedBudgets = {
   subject: GatewayBudgetSubject;
   /** The keys or users whose budgets change together. */
   subjects: { id: string; name: string }[];
-  /** Prefills the form. */
-  spendLimit: GatewaySpendLimit;
+  /** Prefills the form; null when the first of them has no budget yet. */
+  spendLimit: GatewaySpendLimit | null;
   onSaved?: () => void;
 };
 

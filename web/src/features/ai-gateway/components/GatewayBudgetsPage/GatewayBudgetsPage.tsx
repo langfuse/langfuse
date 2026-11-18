@@ -34,7 +34,7 @@ export function GatewayBudgetsPage({
   const { canManageGateway, isIngestionConfigured, isRecording } =
     useGatewaySettingsAccess(organizationId);
   const fetchQuery = useGatewayAnalyticsFetchQuery(organizationId);
-  const tab = useGatewayBudgetsTab();
+  const tab = useGatewayBudgetsTab(canManageGateway);
   const table = useGatewayBudgetsTableState(organizationId, tab);
   const [spendInterval, setSpendInterval] =
     useState<GatewaySpendInterval>("day");

@@ -6,9 +6,11 @@ import {
 } from "@langfuse/shared";
 import {
   Prisma,
+  Role,
   type GatewaySpendLimitInterval,
   type PrismaClient,
 } from "@langfuse/shared/src/db";
+import { organizationRoleAccessRights } from "@langfuse/shared/rbac";
 import { getGatewaySpendSinceFromEvents } from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -24,6 +26,8 @@ import {
   getKeyOwnerFilter,
   type GatewayUsageScope,
 } from "@/src/features/ai-gateway/server/gatewayUsageScope";
+import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
+import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
 import {
   GatewaySpendLimitRepository,
   type GatewaySpendLimitRecord,
@@ -32,6 +36,10 @@ import {
   type GatewaySpendLimitScope,
   toSpendLimitScope,
 } from "./gatewaySpendLimitScope";
+
+const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
+  organizationRoleAccessRights[role].includes(GATEWAY_USER_SCOPE),
+);
 
 const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
@@ -131,103 +139,51 @@ export class GatewaySpendLimitService {
   }
 
   /**
-   * Each user's first user limit, with what ClickHouse has recorded against it
-   * in its current window; `spentUsd` is absent while spend is not recorded.
-   * Users without a limit are absent. Members see only their own.
-   */
-  async getUsersSpend(params: {
-    organizationId: string;
-    usageScope: GatewayUsageScope;
-    userIds: string[];
-  }) {
-    const ownUserId = getKeyOwnerFilter(params.usageScope);
-    const limits = await this.repository.listFirstForUsers({
-      organizationId: params.organizationId,
-      userIds:
-        ownUserId === undefined
-          ? params.userIds
-          : params.userIds.filter((userId) => userId === ownUserId),
-    });
-    const recordingProjectId =
-      limits.length > 0
-        ? await this.getRecordingProjectId(params.organizationId)
-        : null;
-    const now = new Date();
-    const counted = limits.flatMap((limit) =>
-      limit.userId
-        ? [
-            {
-              limit,
-              userId: limit.userId,
-              since: new Date(
-                Math.max(
-                  getGatewaySpendLimitWindowStart(
-                    limit.interval,
-                    now,
-                  ).getTime(),
-                  limit.countingStartedAt.getTime(),
-                ),
-              ),
-            },
-          ]
-        : [],
-    );
-    const spend = recordingProjectId
-      ? new Map(
-          (
-            await getGatewaySpendSinceFromEvents({
-              projectId: recordingProjectId,
-              scope: "USER",
-              subjects: counted.map(({ userId, since }) => ({
-                id: userId,
-                since,
-              })),
-            })
-          ).map(({ id, spendUsd }) => [id, spendUsd]),
-        )
-      : null;
-    return counted.map(({ limit, userId }) => ({
-      id: userId,
-      spendLimit: {
-        interval: limit.interval,
-        limitUsd: limit.limitUsd.toNumber(),
-      },
-      spentUsd: spend ? (spend.get(userId) ?? 0) : undefined,
-    }));
-  }
-
-  /**
-   * One page of key or user budgets, with what ClickHouse has recorded against
-   * each in its current window; `spentUsd` is absent while spend is not
-   * recorded. Members see only their own keys' budgets and their own user
-   * budget, and may edit only key budgets they set.
+   * One page of gateway keys or users, each with its budget, if any, and what
+   * ClickHouse has recorded against it in its current window; `spentUsd` is
+   * absent while spend is not recorded. Members see only their own keys, and
+   * may edit only budgets they set; only gateway managers list users.
    *
-   * Whether a budget is exceeded is only known from ClickHouse, so with
-   * `exceededOnly` every matching budget is read and paged after filtering.
+   * Whether a budget is exceeded is only known from ClickHouse, so for
+   * `exceeded` every budget is read and paged after filtering.
    */
   async listBudgets(params: {
     organizationId: string;
     usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope["type"];
     searchQuery?: string;
-    exceededOnly?: boolean;
+    status: GatewayBudgetStatus;
     page: number;
     limit: number;
   }) {
     const page = { page: params.page, limit: params.limit };
-    const { rows, totalCount } = await this.repository.listPage({
-      organizationId: params.organizationId,
-      scope: params.scope,
-      ownerUserId: getKeyOwnerFilter(params.usageScope),
-      searchQuery: params.searchQuery,
-      page: params.exceededOnly ? undefined : page,
-    });
-    const budgets = await this.toBudgets({ ...params, rows });
-    if (!params.exceededOnly) return { totalCount, rows: budgets };
+    const ownerUserId = getKeyOwnerFilter(params.usageScope);
+    const listed =
+      params.status === "all" || params.status === "unlimited"
+        ? await this.repository.listSubjectsPage({
+            organizationId: params.organizationId,
+            scope: params.scope,
+            memberRoles: GATEWAY_MEMBER_ROLES,
+            ownerUserId,
+            searchQuery: params.searchQuery,
+            unlimitedOnly: params.status === "unlimited",
+            page,
+          })
+        : await this.listBudgetedSubjects({
+            ...params,
+            ownerUserId,
+            page: params.status === "exceeded" ? undefined : page,
+          });
+    const rows = await this.withSpend({ ...params, rows: listed.rows });
+    if (params.status !== "exceeded") {
+      return { totalCount: listed.totalCount, rows };
+    }
 
-    const exceeded = budgets.filter(
+    const exceeded = rows.filter(
       ({ spentUsd, spendLimit }) =>
-        spentUsd !== undefined && spentUsd >= spendLimit.limitUsd,
+        spendLimit !== null &&
+        spentUsd !== undefined &&
+        spentUsd >= spendLimit.limitUsd,
     );
     return {
       totalCount: exceeded.length,
@@ -238,140 +194,106 @@ export class GatewaySpendLimitService {
     };
   }
 
-  private async toBudgets(params: {
+  private async listBudgetedSubjects(params: {
+    organizationId: string;
+    scope: GatewaySpendLimitScope["type"];
+    ownerUserId?: string;
+    searchQuery?: string;
+    page?: { page: number; limit: number };
+  }) {
+    const { rows, totalCount } = await this.repository.listPage(params);
+    return {
+      totalCount,
+      rows: rows.flatMap((row) => {
+        if (params.scope === "API_KEY") {
+          return row.apiKeyId && row.apiKey
+            ? [
+                {
+                  subjectId: row.apiKeyId,
+                  name: row.apiKey.note ?? row.apiKey.displaySecretKey,
+                  user: row.apiKey.user,
+                  limit: row,
+                },
+              ]
+            : [];
+        }
+        return row.userId && row.user
+          ? [
+              {
+                subjectId: row.userId,
+                name: row.user.name || (row.user.email ?? row.userId),
+                user: row.user,
+                limit: row,
+              },
+            ]
+          : [];
+      }),
+    };
+  }
+
+  private async withSpend(params: {
     organizationId: string;
     usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope["type"];
-    rows: Awaited<ReturnType<GatewaySpendLimitRepository["listPage"]>>["rows"];
+    rows: {
+      subjectId: string;
+      name: string;
+      user: {
+        id: string;
+        name: string | null;
+        email: string | null;
+        image: string | null;
+      } | null;
+      limit: GatewaySpendLimitRecord | null;
+    }[];
   }) {
-    const { rows } = params;
     const ownUserId = getKeyOwnerFilter(params.usageScope);
+    const budgeted = params.rows.flatMap(({ subjectId, limit }) =>
+      limit ? [{ subjectId, limit }] : [],
+    );
     const recordingProjectId =
-      rows.length > 0
+      budgeted.length > 0
         ? await this.getRecordingProjectId(params.organizationId)
         : null;
     const now = new Date();
-    const sinceOf = (limit: GatewaySpendLimitRecord) =>
-      new Date(
-        Math.max(
-          getGatewaySpendLimitWindowStart(limit.interval, now).getTime(),
-          limit.countingStartedAt.getTime(),
-        ),
-      );
-    const isEditable = (limit: GatewaySpendLimitRecord) =>
-      ownUserId === undefined ||
-      (params.scope === "API_KEY" && limit.ownerUserId === ownUserId);
-    const toBudget = (
-      limit: GatewaySpendLimitRecord,
-      spend: number | null,
-    ) => ({
-      id: limit.id,
-      spendLimit: {
-        interval: limit.interval,
-        limitUsd: limit.limitUsd.toNumber(),
-      },
-      spentUsd: spend ?? undefined,
-      isEditable: isEditable(limit),
-    });
+    const spend = recordingProjectId
+      ? new Map(
+          (
+            await getGatewaySpendSinceFromEvents({
+              projectId: recordingProjectId,
+              scope: params.scope,
+              subjects: budgeted.map(({ subjectId, limit }) => ({
+                id: subjectId,
+                since: new Date(
+                  Math.max(
+                    getGatewaySpendLimitWindowStart(
+                      limit.interval,
+                      now,
+                    ).getTime(),
+                    limit.countingStartedAt.getTime(),
+                  ),
+                ),
+              })),
+            })
+          ).map(({ id, spendUsd }) => [id, spendUsd]),
+        )
+      : null;
 
-    if (params.scope === "API_KEY") {
-      const keyed = rows.flatMap((row) =>
-        row.apiKeyId && row.apiKey
-          ? [{ row, apiKeyId: row.apiKeyId, apiKey: row.apiKey }]
-          : [],
-      );
-      const spend = recordingProjectId
-        ? new Map(
-            (
-              await getGatewaySpendSinceFromEvents({
-                projectId: recordingProjectId,
-                scope: "API_KEY",
-                subjects: keyed.map(({ row, apiKeyId }) => ({
-                  id: apiKeyId,
-                  since: sinceOf(row),
-                })),
-              })
-            ).map(({ id, spendUsd }) => [id, spendUsd]),
-          )
-        : null;
-      return keyed.map(({ row, apiKeyId, apiKey }) => ({
-        ...toBudget(row, spend ? (spend.get(apiKeyId) ?? 0) : null),
-        subjectId: apiKeyId,
-        name: apiKey.note ?? apiKey.displaySecretKey,
-        user: apiKey.user,
-        keyCount: undefined,
-      }));
-    }
-
-    const owned = rows.flatMap((row) =>
-      row.userId && row.user
-        ? [{ row, userId: row.userId, user: row.user }]
-        : [],
-    );
-    const [spend, keyCounts] = await Promise.all([
-      recordingProjectId
-        ? getGatewaySpendSinceFromEvents({
-            projectId: recordingProjectId,
-            scope: "USER",
-            subjects: owned.map(({ row, userId }) => ({
-              id: userId,
-              since: sinceOf(row),
-            })),
-          }).then(
-            (spent) => new Map(spent.map(({ id, spendUsd }) => [id, spendUsd])),
-          )
-        : null,
-      this.apiKeys.countGatewayApiKeysByUser({
-        organizationId: params.organizationId,
-        userIds: owned.map(({ userId }) => userId),
-      }),
-    ]);
-    return owned.map(({ row, userId, user }) => ({
-      ...toBudget(row, spend ? (spend.get(userId) ?? 0) : null),
-      subjectId: userId,
-      name: user.name || (user.email ?? userId),
+    return params.rows.map(({ subjectId, name, user, limit }) => ({
+      id: subjectId,
+      subjectId,
+      name,
       user,
-      keyCount: keyCounts.get(userId) ?? 0,
+      spendLimit: limit
+        ? { interval: limit.interval, limitUsd: limit.limitUsd.toNumber() }
+        : null,
+      spentUsd: limit && spend ? (spend.get(subjectId) ?? 0) : undefined,
+      // Members may add a budget to their own keys, and change only budgets they set.
+      isEditable:
+        ownUserId === undefined ||
+        (params.scope === "API_KEY" &&
+          (limit === null || limit.ownerUserId === ownUserId)),
     }));
-  }
-
-  /**
-   * Gives each key or user the same spend limit; callers must be gateway
-   * managers. Refuses all of them, before writing any, if one already has a
-   * limit.
-   */
-  async createForSubjects(params: {
-    organizationId: string;
-    scope: GatewaySpendLimitScope["type"];
-    subjectIds: string[];
-    limit: SpendLimitInput;
-    session: OrgAuthedContext["session"];
-  }) {
-    const applies = [];
-    for (const subjectId of params.subjectIds) {
-      const scope = toSpendLimitScope(params.scope, subjectId);
-      const existing = await this.repository.list({
-        organizationId: params.organizationId,
-        scope,
-      });
-      if (existing.length > 0) {
-        throw new LangfuseConflictError(
-          params.scope === "API_KEY"
-            ? "A selected key already has a spend budget"
-            : "A selected user already has a spend budget",
-        );
-      }
-      applies.push(
-        await this.prepareSet({
-          organizationId: params.organizationId,
-          usageScope: { scope: "organization" },
-          scope,
-          limit: params.limit,
-          session: params.session,
-        }),
-      );
-    }
-    for (const apply of applies) await apply();
   }
 
   /**
