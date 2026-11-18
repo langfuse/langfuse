@@ -21,13 +21,14 @@ import { GatewayApiKeyModelsField } from "@/src/features/ai-gateway/components/G
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import { resolveGatewayApiKeyExpiration } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/fns/resolveGatewayApiKeyExpiration";
 import {
-  emptyGatewaySpendBudget,
   gatewayApiKeyFormFieldsSchema,
   gatewayApiKeyFormSchema,
   gatewayApiKeySections,
   type GatewayApiKeyFormValues,
   type GatewayApiKeySection,
 } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
+import { toGatewaySpendLimit } from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
+import { emptyGatewaySpendBudget } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import { toGatewayApiKeyMetadata } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadata";
 import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 import type { RouterInputs } from "@/src/utils/api";
@@ -151,10 +152,7 @@ export function GatewayApiKeyDialog({
       expiryPreset: values.expiryPreset,
       issuedAs: canIssueServiceAccountKeys ? values.issuedAs : "user",
       spendLimit: values.sections.includes("spendBudget")
-        ? {
-            interval: values.spendBudget.interval,
-            limitUsd: Number(values.spendBudget.limitUsd.trim()),
-          }
+        ? toGatewaySpendLimit(values.spendBudget)
         : null,
     });
   };

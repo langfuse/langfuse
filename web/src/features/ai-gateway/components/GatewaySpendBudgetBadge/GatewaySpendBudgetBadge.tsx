@@ -6,6 +6,7 @@ import {
 } from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
 import { usdFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 /** Share of the limit from which a budget shows as nearly used up. */
 const NEAR_LIMIT_SHARE = 0.8;
@@ -30,7 +31,7 @@ const requestsBySubject = {
 type GatewaySpendBudgetBadgeProps = {
   /** What the budget caps: one key, or all keys of a user. */
   subject: keyof typeof requestsBySubject;
-  spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number };
+  spendLimit: GatewaySpendLimit;
   /** Undefined while spend is not recorded, so only the limit is shown. */
   spentUsd: number | undefined;
   /** "amounts" leaves out the interval, for tables that show it in a column of its own. */

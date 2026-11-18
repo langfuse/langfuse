@@ -5,14 +5,12 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
-import {
-  gatewaySpendBudgetIntervalOptions,
-  type GatewaySpendBudgetInterval,
-} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import { gatewaySpendBudgetIntervalOptions } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import type { GatewaySpendBudgetFormValue } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import { PresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/PresetOption/PresetOption";
 
 type GatewaySpendBudgetFormValues = {
-  spendBudget: { interval: GatewaySpendBudgetInterval; limitUsd: string };
+  spendBudget: GatewaySpendBudgetFormValue;
 };
 
 const requestsBySubject = {

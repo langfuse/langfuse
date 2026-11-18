@@ -3,7 +3,10 @@ import type { AsyncTableData } from "@/src/components/design-system/table/Table"
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { GatewayBudgetsSelectionBar } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayBudgetsSelectionBar/GatewayBudgetsSelectionBar";
 import { GatewayEditBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayEditBudgetDialogController/GatewayEditBudgetDialogController";
-import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import {
+  GATEWAY_SPEND_TABS,
+  type GatewaySpendTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import type { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTableState";
 import { useSetGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
 import {
@@ -32,7 +35,7 @@ export function ConnectedGatewayBudgetsTable({
   tab,
   table,
 }: ConnectedGatewayBudgetsTableProps) {
-  const subject = tab === "apiKeys" ? "key" : "user";
+  const { subject } = GATEWAY_SPEND_TABS[tab];
   const { budgets, selectionStore, selectedRows, selectAll, clearSelection } =
     table;
   const { selectActionColumn } = TableSelectionManager<GatewayBudgetRow>({
@@ -84,7 +87,7 @@ export function ConnectedGatewayBudgetsTable({
             }}
             onEditBudget={(row) =>
               openDialog({
-                subject,
+                tab,
                 target: { type: "ids", subjectIds: [row.subjectId] },
                 count: 1,
                 name: row.name,
@@ -114,7 +117,7 @@ export function ConnectedGatewayBudgetsTable({
             onAfterDismiss={() => removal.reset()}
             onConfirm={async () => {
               const removed = await setBudgets({
-                subject,
+                tab,
                 subjects: bulkTarget,
                 spendLimit: null,
               });
@@ -132,7 +135,7 @@ export function ConnectedGatewayBudgetsTable({
                   const first = selectedRows[0] ?? pageRows[0];
                   if (!first) return;
                   openDialog({
-                    subject,
+                    tab,
                     target: bulkTarget,
                     count: selectedCount,
                     name: first.name,

@@ -21,12 +21,12 @@ import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/G
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import { GatewayApiKeyModelsCell } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyModelsCell/GatewayApiKeyModelsCell";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
-import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 type GatewayApiKey = {
   metadata: unknown;
   allowedModels: unknown;
-  spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number } | null;
+  spendLimit: GatewaySpendLimit | null;
   hasSeveralSpendLimits: boolean;
   apiKey: {
     id: string;

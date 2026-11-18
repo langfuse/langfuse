@@ -3,15 +3,18 @@ import type { ReactNode } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { GatewayEditBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayEditBudgetDialogController/components/GatewayEditBudgetDialog/GatewayEditBudgetDialog";
 import {
-  type GatewayBudgetSubject,
+  GATEWAY_SPEND_TABS,
+  type GatewaySpendTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import {
   type GatewayBudgetTarget,
-  type GatewaySpendLimit,
   useSetGatewayBudgets,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 export type GatewayEditedBudgets = {
-  subject: GatewayBudgetSubject;
+  tab: GatewaySpendTab;
   /** The keys or users whose budgets change together. */
   target: GatewayBudgetTarget;
   count: number;
@@ -36,7 +39,8 @@ export function GatewayEditBudgetDialogController({
   organizationId,
   children,
 }: GatewayEditBudgetDialogControllerProps) {
-  const { isRecording } = useGatewaySettingsAccess(organizationId);
+  const { spendBudgetUnavailableReason } =
+    useGatewaySettingsAccess(organizationId);
   const { setBudgets, mutation } = useSetGatewayBudgets(organizationId);
 
   const save = async (
@@ -45,7 +49,7 @@ export function GatewayEditBudgetDialogController({
     closeDialog: () => void,
   ) => {
     const saved = await setBudgets({
-      subject: budgets.subject,
+      tab: budgets.tab,
       subjects: budgets.target,
       spendLimit,
     });
@@ -61,16 +65,12 @@ export function GatewayEditBudgetDialogController({
       onDismiss={() => mutation.reset()}
       renderDialog={({ state, closeDialog }) => (
         <GatewayEditBudgetDialog
-          subject={state.subject}
+          subject={GATEWAY_SPEND_TABS[state.tab].subject}
           subjectCount={state.count}
           subjectName={state.name}
           spendLimit={state.spendLimit}
           existingBudgetCount={state.existingBudgetCount}
-          unavailableReason={
-            isRecording === false
-              ? "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to change one."
-              : undefined
-          }
+          unavailableReason={spendBudgetUnavailableReason}
           errorMessage={
             mutation.isError ? (mutation.error?.message ?? "Try again.") : null
           }

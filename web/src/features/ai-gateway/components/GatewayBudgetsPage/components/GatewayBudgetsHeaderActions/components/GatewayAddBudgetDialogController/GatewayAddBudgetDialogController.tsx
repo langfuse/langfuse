@@ -4,13 +4,10 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { GatewayAddBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsHeaderActions/components/GatewayAddBudgetDialogController/components/GatewayAddBudgetDialog/GatewayAddBudgetDialog";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { useAddGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useAddGatewayBudgets";
 import { MAX_MEMBER_SEARCH_LENGTH } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import {
-  api,
-  reportNonTrpcError,
-  reportTrpcErrorWithoutToast,
-} from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 
 const TARGET_OPTION_LIMIT = 50;
 const ALREADY_BUDGETED = {
@@ -18,9 +15,9 @@ const ALREADY_BUDGETED = {
   secondaryLabel: "Has a budget",
 } as const;
 
-type TargetOptions = ComponentProps<
+type GatewayAddBudgetDialogProps = ComponentProps<
   typeof GatewayAddBudgetDialog
->["targetPicker"]["options"];
+>;
 
 type GatewayAddBudgetDialogControllerProps = {
   organizationId: string;
@@ -34,17 +31,33 @@ export function GatewayAddBudgetDialogController({
   organizationId,
   children,
 }: GatewayAddBudgetDialogControllerProps) {
-  const [isPending, setIsPending] = useState(false);
+  const { spendBudgetUnavailableReason } =
+    useGatewaySettingsAccess(organizationId);
+  const { addBudgets, mutation } = useAddGatewayBudgets(organizationId);
 
   return (
     <DialogController<GatewaySpendTab>
-      onBeforeClose={() => !isPending}
+      onBeforeClose={() => !mutation.isPending}
+      onDismiss={() => mutation.reset()}
       renderDialog={({ state, closeDialog }) => (
         <ConnectedGatewayAddBudgetDialog
           organizationId={organizationId}
           targetType={state}
-          onPendingChange={setIsPending}
-          onAdded={closeDialog}
+          unavailableReason={spendBudgetUnavailableReason}
+          errorMessage={
+            mutation.isError ? (mutation.error?.message ?? "Try again.") : null
+          }
+          isSubmitting={mutation.isPending}
+          onSubmit={async ({ targetIds, spendLimit }) => {
+            const added = await addBudgets({
+              tab: state,
+              subjectIds: targetIds,
+              spendLimit,
+            });
+            if (!added) return;
+            closeDialog();
+            mutation.reset();
+          }}
         />
       )}
     >
@@ -53,19 +66,14 @@ export function GatewayAddBudgetDialogController({
   );
 }
 
+/** Searches the keys or users the budget can be added to while the dialog is open. */
 function ConnectedGatewayAddBudgetDialog({
   organizationId,
-  targetType,
-  onPendingChange,
-  onAdded,
-}: {
+  ...props
+}: Omit<GatewayAddBudgetDialogProps, "targetPicker"> & {
   organizationId: string;
-  targetType: GatewaySpendTab;
-  onPendingChange: (isPending: boolean) => void;
-  onAdded: () => void;
 }) {
-  const { isRecording } = useGatewaySettingsAccess(organizationId);
-  const utils = api.useUtils();
+  const { targetType } = props;
   const [search, setSearch] = useState("");
 
   const apiKeysQuery = api.aiGateway.listApiKeys.useQuery(
@@ -93,7 +101,7 @@ function ConnectedGatewayAddBudgetDialog({
     userBudgetsQuery.data?.map(({ id }) => id) ?? [],
   );
 
-  const options: TargetOptions =
+  const options: GatewayAddBudgetDialogProps["targetPicker"]["options"] =
     targetType === "apiKeys"
       ? (apiKeysQuery.data?.data ?? []).map(({ apiKey, spendLimit }) => ({
           value: apiKey.id,
@@ -112,56 +120,15 @@ function ConnectedGatewayAddBudgetDialog({
       ? apiKeysQuery.isLoading
       : usersQuery.isLoading || userBudgetsQuery.isLoading;
 
-  const mutation = api.aiGateway.createSpendLimits.useMutation({
-    onError: (error) =>
-      reportTrpcErrorWithoutToast(error, "ai-gateway-budgets"),
-  });
-
-  const handleSubmit: ComponentProps<
-    typeof GatewayAddBudgetDialog
-  >["onSubmit"] = async ({ targetIds, spendLimit }) => {
-    onPendingChange(true);
-    try {
-      await mutation.mutateAsync({
-        orgId: organizationId,
-        scope: targetType === "apiKeys" ? "API_KEY" : "USER",
-        subjectIds: targetIds,
-        spendLimit,
-      });
-      onAdded();
-    } catch (error) {
-      reportNonTrpcError(error, "ai-gateway-budgets");
-    } finally {
-      onPendingChange(false);
-      await Promise.all([
-        utils.aiGateway.listBudgets.invalidate({ orgId: organizationId }),
-        utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId }),
-        utils.aiGateway.getApiKeysSpend.invalidate({ orgId: organizationId }),
-        utils.aiGateway.getUsersSpend.invalidate({ orgId: organizationId }),
-        utils.aiGateway.getConfig.invalidate({ orgId: organizationId }),
-      ]);
-    }
-  };
-
   return (
     <GatewayAddBudgetDialog
-      targetType={targetType}
+      {...props}
       targetPicker={{
         options,
         search,
         onSearchChange: setSearch,
         isLoading,
       }}
-      unavailableReason={
-        isRecording === false
-          ? "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to set one."
-          : undefined
-      }
-      errorMessage={
-        mutation.isError ? (mutation.error?.message ?? "Try again.") : null
-      }
-      isSubmitting={mutation.isPending}
-      onSubmit={handleSubmit}
     />
   );
 }

@@ -7,26 +7,18 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
-import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
-import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetLimitError";
-import { emptyGatewaySpendBudget } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
+import {
+  toGatewaySpendBudgetFormValue,
+  toGatewaySpendLimit,
+} from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
+import { requiredGatewaySpendBudgetFormSchema } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 const gatewayEditBudgetFormSchema = z.object({
-  spendBudget: z.object({
-    interval: z.custom<GatewaySpendBudgetInterval>(),
-    limitUsd: z.string().superRefine((value, context) => {
-      const message = getGatewaySpendBudgetLimitError(value);
-      if (message) context.addIssue({ code: "custom", message });
-    }),
-  }),
+  spendBudget: requiredGatewaySpendBudgetFormSchema,
 });
 
 type GatewayEditBudgetFormValues = z.infer<typeof gatewayEditBudgetFormSchema>;
-
-type GatewaySpendLimit = {
-  interval: GatewaySpendBudgetInterval;
-  limitUsd: number;
-};
 
 const nouns = { key: "key", user: "user" } as const;
 
@@ -66,21 +58,13 @@ export function GatewayEditBudgetDialog({
   const form = useForm<GatewayEditBudgetFormValues>({
     resolver: zodResolver(gatewayEditBudgetFormSchema),
     defaultValues: {
-      spendBudget: spendLimit
-        ? {
-            interval: spendLimit.interval,
-            limitUsd: String(spendLimit.limitUsd),
-          }
-        : emptyGatewaySpendBudget,
+      spendBudget: toGatewaySpendBudgetFormValue(spendLimit),
     },
     mode: "onChange",
   });
 
   const handleValidSubmit = (values: GatewayEditBudgetFormValues) => {
-    onSubmit({
-      interval: values.spendBudget.interval,
-      limitUsd: Number(values.spendBudget.limitUsd.trim()),
-    });
+    onSubmit(toGatewaySpendLimit(values.spendBudget));
   };
 
   const isBulk = subjectCount > 1;

@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 
-import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import {
+  GATEWAY_SPEND_TABS,
+  type GatewaySpendTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import type { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTableState";
 import { api } from "@/src/utils/api";
 
@@ -24,7 +27,7 @@ export function useGatewaySpendSelection(
   const matching = api.aiGateway.listMatchingBudgetSubjects.useQuery(
     {
       orgId: organizationId,
-      scope: tab === "apiKeys" ? "API_KEY" : "USER",
+      scope: GATEWAY_SPEND_TABS[tab].scope,
       searchQuery: table.matching.searchQuery,
       status: table.matching.status,
     },
