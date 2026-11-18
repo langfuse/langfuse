@@ -3,6 +3,8 @@ import {
   type PointerEvent,
   type ComponentProps,
   useContext,
+  useEffect,
+  useRef,
   type RefObject,
   type UIEvent,
   useState,
@@ -64,6 +66,7 @@ export function TopicTraceList({
   description,
   swatchColor,
   traces,
+  selectedTraceId = null,
   totalCount,
   tracingTopic,
   peekView,
@@ -75,6 +78,14 @@ export function TopicTraceList({
   emptyMessage = "No trace summaries.",
 }: TopicTraceListProps) {
   const { rows } = traces;
+  const tableRef = useRef<HTMLDivElement>(null);
+  const selectedRowLoaded = rows.some((row) => row.traceId === selectedTraceId);
+  // A trace picked on the map scrolls into view once its row is loaded.
+  useEffect(() => {
+    tableRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [selectedTraceId, selectedRowLoaded]);
   const onScrollCapture = (event: UIEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     if (
@@ -218,20 +229,23 @@ export function TopicTraceList({
           </p>
         )}
       </div>
-      <DataTable
-        tableName="topics-topic-traces"
-        columns={columns}
-        data={{
-          isLoading: traces.isLoading,
-          isError: traces.error !== null,
-          error: traces.error ?? undefined,
-          data: rows.map((row) => ({ ...row, id: row.traceId })),
-        }}
-        className="min-h-0 overscroll-contain"
-        cellPadding="relaxed"
-        noResultsMessage={emptyMessage}
-        peekView={peekView}
-      />
+      <div ref={tableRef} className="contents">
+        <DataTable
+          tableName="topics-topic-traces"
+          columns={columns}
+          data={{
+            isLoading: traces.isLoading,
+            isError: traces.error !== null,
+            error: traces.error ?? undefined,
+            data: rows.map((row) => ({ ...row, id: row.traceId })),
+          }}
+          className="min-h-0 overscroll-contain"
+          cellPadding="relaxed"
+          noResultsMessage={emptyMessage}
+          peekView={peekView}
+          rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
+        />
+      </div>
       {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
     </section>
   );
@@ -243,6 +257,8 @@ type TopicTraceListProps = {
   description?: string;
   swatchColor?: string;
   traces: TopicTracesResult;
+  /** Highlighted and scrolled into view, e.g. a trace picked on the map. */
+  selectedTraceId?: string | null;
   /** Count of the listed traces; null when only the loaded rows are known. */
   totalCount: number | null;
   /** The listed topic, so Open in Tracing can filter by it instead of trace IDs. */

@@ -1,14 +1,9 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-  DropdownMenuPortal,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuCheckboxItem,
-} from "@/src/components/ui/dropdown-menu";
+  type DropdownMenuItemDefinition,
+} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Rows3, Rows2, Rows4 } from "@langfuse/icons";
@@ -478,45 +473,36 @@ export const DataTableRowHeightSwitch = ({
   const capture = usePostHogClientCapture();
   const customActive = customRowHeight?.active === true;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          title={customActive ? "Row height: Custom" : "Row height"}
-        >
-          <Rows3 size="base" color="default" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuPortal>
-        <DropdownMenuContent>
-          <DropdownMenuLabel>Row height</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {ROW_HEIGHT_OPTIONS.map(({ id, label }) => (
-            <DropdownMenuCheckboxItem
-              key={id}
-              checked={!customActive && rowHeight === id}
-              onClick={(e) => {
-                // Prevent closing the dropdown menu to allow the user to adjust their selection
-                e.preventDefault();
-                capture("table:row_height_switch_select", {
-                  rowHeight: id,
-                  tableName,
-                  isV4,
-                });
-                setRowHeight(id);
-              }}
-            >
-              {label}
-            </DropdownMenuCheckboxItem>
-          ))}
-          {customRowHeight?.rememberedPx != null && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={customActive}
-                onClick={(e) => {
-                  e.preventDefault();
+    <DropdownMenu
+      title="Row height"
+      items={[
+        ...ROW_HEIGHT_OPTIONS.map(
+          ({ id, label }): DropdownMenuItemDefinition => ({
+            type: "checkbox",
+            id,
+            title: label,
+            checked: !customActive && rowHeight === id,
+            closeOnCheckedChange: false,
+            onCheckedChange: () => {
+              capture("table:row_height_switch_select", {
+                rowHeight: id,
+                tableName,
+                isV4,
+              });
+              setRowHeight(id);
+            },
+          }),
+        ),
+        ...(customRowHeight?.rememberedPx != null
+          ? ([
+              { type: "separator", id: "custom-separator" },
+              {
+                type: "checkbox",
+                id: "custom",
+                title: `Custom (${customRowHeight.rememberedPx}px)`,
+                checked: customActive,
+                closeOnCheckedChange: false,
+                onCheckedChange: () => {
                   if (customActive) return;
                   capture("table:row_height_switch_select", {
                     rowHeight: "custom",
@@ -524,14 +510,22 @@ export const DataTableRowHeightSwitch = ({
                     isV4,
                   });
                   customRowHeight.onSelect();
-                }}
-              >
-                {`Custom (${customRowHeight.rememberedPx}px)`}
-              </DropdownMenuCheckboxItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenuPortal>
+                },
+              },
+            ] satisfies DropdownMenuItemDefinition[])
+          : []),
+      ]}
+    >
+      {({ getTriggerProps }) => (
+        <Button
+          {...getTriggerProps()}
+          variant="ghost"
+          size="icon"
+          title={customActive ? "Row height: Custom" : "Row height"}
+        >
+          <Rows3 size="base" color="default" />
+        </Button>
+      )}
     </DropdownMenu>
   );
 };
