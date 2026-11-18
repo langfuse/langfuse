@@ -46,6 +46,8 @@ const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
   organizationRoleAccessRights[role].includes(GATEWAY_USER_SCOPE),
 );
 
+const BULK_WRITE_TIMEOUT_MS = 30_000;
+
 const NO_SUBJECTS = { totalCount: 0, rows: [] };
 
 const INTERVAL_LABELS = new Map(
@@ -133,110 +135,17 @@ export class GatewaySpendLimitService {
           })
         ).map(({ id }) => ({ ...fallback, apiKeyId: id }))
       : [];
-    const now = new Date();
-    const counted = [...ownLimits, ...defaultLimits].flatMap((limit) =>
-      limit.apiKeyId
-        ? [
-            {
-              apiKeyId: limit.apiKeyId,
-              since: new Date(
-                Math.max(
-                  getGatewaySpendLimitWindowStart(
-                    limit.interval,
-                    now,
-                  ).getTime(),
-                  limit.countingStartedAt.getTime(),
-                ),
-              ),
-            },
-          ]
-        : [],
+    const budgeted = [...ownLimits, ...defaultLimits].flatMap((limit) =>
+      limit.apiKeyId ? [{ subjectId: limit.apiKeyId, limit }] : [],
     );
-    const spend = new Map(
-      (
-        await getGatewaySpendSinceFromEvents({
-          projectId: recordingProjectId,
-          scope: "API_KEY",
-          subjects: counted.map(({ apiKeyId, since }) => ({
-            id: apiKeyId,
-            since,
-          })),
-        })
-      ).map(({ id, spendUsd }) => [id, spendUsd]),
-    );
+    const spend = await readSpend(recordingProjectId, "API_KEY", budgeted);
     return {
       available: true,
-      apiKeys: counted.map(({ apiKeyId }) => ({
-        id: apiKeyId,
-        spentUsd: spend.get(apiKeyId) ?? 0,
+      apiKeys: budgeted.map(({ subjectId }) => ({
+        id: subjectId,
+        spentUsd: spend.get(subjectId) ?? 0,
       })),
     };
-  }
-
-  /**
-   * Each user's first user limit, with what ClickHouse has recorded against it
-   * in its current window; `spentUsd` is absent while spend is not recorded.
-   * Users without a limit are absent. Members see only their own.
-   */
-  async getUsersSpend(params: {
-    organizationId: string;
-    usageScope: GatewayUsageScope;
-    userIds: string[];
-  }) {
-    const ownUserId = getKeyOwnerFilter(params.usageScope);
-    const limits = await this.repository.listFirstForUsers({
-      organizationId: params.organizationId,
-      userIds:
-        ownUserId === undefined
-          ? params.userIds
-          : params.userIds.filter((userId) => userId === ownUserId),
-    });
-    const recordingProjectId =
-      limits.length > 0
-        ? await this.getRecordingProjectId(params.organizationId)
-        : null;
-    const now = new Date();
-    const counted = limits.flatMap((limit) =>
-      limit.userId
-        ? [
-            {
-              limit,
-              userId: limit.userId,
-              since: new Date(
-                Math.max(
-                  getGatewaySpendLimitWindowStart(
-                    limit.interval,
-                    now,
-                  ).getTime(),
-                  limit.countingStartedAt.getTime(),
-                ),
-              ),
-            },
-          ]
-        : [],
-    );
-    const spend = recordingProjectId
-      ? new Map(
-          (
-            await getGatewaySpendSinceFromEvents({
-              projectId: recordingProjectId,
-              scope: "USER",
-              subjects: counted.map(({ userId, since }) => ({
-                id: userId,
-                since,
-              })),
-            })
-          ).map(({ id, spendUsd }) => [id, spendUsd]),
-        )
-      : null;
-    return counted.map(({ limit, userId }) => ({
-      id: userId,
-      spendLimit: {
-        interval: limit.interval,
-        limitUsd: limit.limitUsd.toNumber(),
-      },
-      spentUsd: spend ? (spend.get(userId) ?? 0) : undefined,
-    }));
   }
 
   /**
@@ -246,11 +155,8 @@ export class GatewaySpendLimitService {
    * own has the organization's default, if one is set. Members see only their
    * own keys, and may edit only budgets they set; only gateway managers list
    * users.
-   *
-   * Whether a budget is exceeded is only known from ClickHouse, so for
-   * `exceeded` every budget is read and paged after filtering.
    */
-  async listBudgets(params: {
+  listBudgets(params: {
     organizationId: string;
     usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope["type"];
@@ -259,13 +165,69 @@ export class GatewaySpendLimitService {
     page: number;
     limit: number;
   }) {
-    const page = { page: params.page, limit: params.limit };
-    const ownerUserId = getKeyOwnerFilter(params.usageScope);
-    const fallback = await this.repository.findDefault(params);
-    const listed = await this.listSubjects({
+    return this.listSubjects({
       ...params,
-      ownerUserId,
-      hasDefault: fallback !== null,
+      page: { page: params.page, limit: params.limit },
+    });
+  }
+
+  /**
+   * Every key or user matching a search and status, as `listBudgets` lists
+   * them, for changes to everything matching. Spend is read only when the
+   * status needs it.
+   */
+  async listMatchingSubjects(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    scope: GatewaySpendLimitScope["type"];
+    searchQuery?: string;
+    status: GatewayBudgetStatus;
+  }) {
+    if (params.status === "exceeded") {
+      const { rows } = await this.listSubjects(params);
+      return rows.map(({ subjectId, name }) => ({ subjectId, name }));
+    }
+    const budget = toBudgetFilter(
+      params.status,
+      (await this.repository.findDefault(params)) !== null,
+    );
+    if (budget === null) return [];
+    const { rows } = await this.repository.listSubjectsPage({
+      organizationId: params.organizationId,
+      scope: params.scope,
+      memberRoles: GATEWAY_MEMBER_ROLES,
+      ownerUserId: getKeyOwnerFilter(params.usageScope),
+      searchQuery: params.searchQuery,
+      budget,
+    });
+    return rows.map(({ subjectId, name }) => ({ subjectId, name }));
+  }
+
+  /**
+   * The keys or users matching a search and status, with their budgets and
+   * spend; without a page, all of them. Whether a budget is exceeded is only
+   * known from ClickHouse, so for `exceeded` every budget is read and paged
+   * after filtering.
+   */
+  private async listSubjects(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    scope: GatewaySpendLimitScope["type"];
+    searchQuery?: string;
+    status: GatewayBudgetStatus;
+    page?: { page: number; limit: number };
+  }) {
+    const { page } = params;
+    const fallback = await this.repository.findDefault(params);
+    const budget = toBudgetFilter(params.status, fallback !== null);
+    if (budget === null) return NO_SUBJECTS;
+    const listed = await this.repository.listSubjectsPage({
+      organizationId: params.organizationId,
+      scope: params.scope,
+      memberRoles: GATEWAY_MEMBER_ROLES,
+      ownerUserId: getKeyOwnerFilter(params.usageScope),
+      searchQuery: params.searchQuery,
+      budget,
       page: params.status === "exceeded" ? undefined : page,
     });
     const rows = await this.withSpend({
@@ -285,79 +247,9 @@ export class GatewaySpendLimitService {
     );
     return {
       totalCount: exceeded.length,
-      rows: exceeded.slice(
-        page.page * page.limit,
-        (page.page + 1) * page.limit,
-      ),
-    };
-  }
-
-  private async listSubjects(params: {
-    organizationId: string;
-    scope: GatewaySpendLimitScope["type"];
-    status: GatewayBudgetStatus;
-    hasDefault: boolean;
-    ownerUserId?: string;
-    searchQuery?: string;
-    page?: { page: number; limit: number };
-  }) {
-    const listSubjectsPage = (withoutLimitOnly: boolean) =>
-      this.repository.listSubjectsPage({
-        ...params,
-        memberRoles: GATEWAY_MEMBER_ROLES,
-        withoutLimitOnly,
-      });
-    switch (params.status) {
-      case "all":
-        return listSubjectsPage(false);
-      case "budgeted":
-        return this.listBudgetedSubjects(params);
-      case "default":
-        return params.hasDefault ? listSubjectsPage(true) : NO_SUBJECTS;
-      // With a default, every key or user has a budget.
-      case "unlimited":
-        return params.hasDefault ? NO_SUBJECTS : listSubjectsPage(true);
-      case "exceeded":
-        return params.hasDefault
-          ? listSubjectsPage(false)
-          : this.listBudgetedSubjects(params);
-    }
-  }
-
-  private async listBudgetedSubjects(params: {
-    organizationId: string;
-    scope: GatewaySpendLimitScope["type"];
-    ownerUserId?: string;
-    searchQuery?: string;
-    page?: { page: number; limit: number };
-  }) {
-    const { rows, totalCount } = await this.repository.listPage(params);
-    return {
-      totalCount,
-      rows: rows.flatMap((row) => {
-        if (params.scope === "API_KEY") {
-          return row.apiKeyId && row.apiKey
-            ? [
-                {
-                  subjectId: row.apiKeyId,
-                  name: row.apiKey.note ?? row.apiKey.displaySecretKey,
-                  user: row.apiKey.user,
-                  limit: row,
-                },
-              ]
-            : [];
-        }
-        return row.userId && row.user
-          ? [
-              {
-                subjectId: row.userId,
-                name: row.user.name || (row.user.email ?? row.userId),
-                user: row.user,
-                limit: row,
-              },
-            ]
-          : [];
-      }),
+      rows: page
+        ? exceeded.slice(page.page * page.limit, (page.page + 1) * page.limit)
+        : exceeded,
     };
   }
 
@@ -365,17 +257,9 @@ export class GatewaySpendLimitService {
     organizationId: string;
     usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope["type"];
-    rows: {
-      subjectId: string;
-      name: string;
-      user: {
-        id: string;
-        name: string | null;
-        email: string | null;
-        image: string | null;
-      } | null;
-      limit: GatewaySpendLimitRecord | null;
-    }[];
+    rows: Awaited<
+      ReturnType<GatewaySpendLimitRepository["listSubjectsPage"]>
+    >["rows"];
     fallback: GatewaySpendLimitRecord | null;
   }) {
     const ownUserId = getKeyOwnerFilter(params.usageScope);
@@ -387,28 +271,8 @@ export class GatewaySpendLimitService {
       budgeted.length > 0
         ? await this.getRecordingProjectId(params.organizationId)
         : null;
-    const now = new Date();
     const spend = recordingProjectId
-      ? new Map(
-          (
-            await getGatewaySpendSinceFromEvents({
-              projectId: recordingProjectId,
-              scope: params.scope,
-              subjects: budgeted.map(({ subjectId, limit }) => ({
-                id: subjectId,
-                since: new Date(
-                  Math.max(
-                    getGatewaySpendLimitWindowStart(
-                      limit.interval,
-                      now,
-                    ).getTime(),
-                    limit.countingStartedAt.getTime(),
-                  ),
-                ),
-              })),
-            })
-          ).map(({ id, spendUsd }) => [id, spendUsd]),
-        )
+      ? await readSpend(recordingProjectId, params.scope, budgeted)
       : null;
 
     return params.rows.map(({ subjectId, name, user, limit }) => {
@@ -447,7 +311,7 @@ export class GatewaySpendLimitService {
     limit: SpendLimitInput;
     session: OrgAuthedContext["session"];
   }) {
-    const applies = [];
+    const changes = [];
     for (const subjectId of params.subjectIds) {
       const scope = toSpendLimitScope(params.scope, subjectId);
       const existing = await this.repository.list({
@@ -461,8 +325,8 @@ export class GatewaySpendLimitService {
             : "A selected user already has a spend budget",
         );
       }
-      applies.push(
-        await this.prepareSet({
+      changes.push(
+        await this.prepareChange({
           organizationId: params.organizationId,
           usageScope: { scope: "organization" },
           scope,
@@ -471,7 +335,7 @@ export class GatewaySpendLimitService {
         }),
       );
     }
-    for (const apply of applies) await apply();
+    await this.applyChanges(changes);
   }
 
   /**
@@ -487,16 +351,16 @@ export class GatewaySpendLimitService {
     limit: SpendLimitInput | null;
     session: OrgAuthedContext["session"];
   }) {
-    const applies = [];
+    const changes = [];
     for (const subjectId of params.subjectIds) {
-      applies.push(
-        await this.prepareSet({
+      changes.push(
+        await this.prepareChange({
           ...params,
           scope: toSpendLimitScope(params.scope, subjectId),
         }),
       );
     }
-    for (const apply of applies) await apply();
+    await this.applyChanges(changes);
   }
 
   /** Throws unless limits can be set, so a caller can check before writing anything else. */
@@ -506,9 +370,7 @@ export class GatewaySpendLimitService {
 
   /**
    * Makes `limit` the key's only spend limit, or removes all of them when it
-   * is null. An unchanged limit is left alone, so it keeps counting. The new
-   * limit is written before others are removed, so a refused write leaves the
-   * key's limits as they were.
+   * is null. An unchanged limit is left alone, so it keeps counting.
    */
   async setForApiKey(params: SetForApiKeyParams) {
     const apply = await this.prepareSetForApiKey(params);
@@ -519,26 +381,42 @@ export class GatewaySpendLimitService {
    * Runs the checks of `setForApiKey` and returns the write, so a caller can
    * refuse a request before changing anything else.
    */
-  prepareSetForApiKey(
+  async prepareSetForApiKey(
     params: SetForApiKeyParams,
   ): Promise<() => Promise<void>> {
-    return this.prepareSet({
+    const change = await this.prepareChange({
       ...params,
       scope: { type: "API_KEY", apiKeyId: params.apiKeyId },
     });
+    return () => this.applyChanges([change]);
+  }
+
+  /**
+   * Writes all changes in one transaction, so a refused write leaves every
+   * limit as it was, then drops the gateway's cached contexts they affect.
+   */
+  private async applyChanges(changes: SpendLimitChange[]) {
+    // A change to every matching key or user can write hundreds of limits and audit logs.
+    await this.prisma.$transaction(
+      async (tx) => {
+        for (const change of changes) await change.write(tx);
+      },
+      { timeout: BULK_WRITE_TIMEOUT_MS },
+    );
+    for (const change of changes) await change.invalidateResolveCache();
   }
 
   /**
    * Makes `limit` the scope's only spend limit, or removes all of them when it
    * is null, after checking the caller may.
    */
-  private async prepareSet(params: {
+  private async prepareChange(params: {
     organizationId: string;
     usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope;
     limit: SpendLimitInput | null;
     session: OrgAuthedContext["session"];
-  }): Promise<() => Promise<void>> {
+  }): Promise<SpendLimitChange> {
     const { limit, organizationId, session, scope } = params;
     const subject = await this.requireSubject(params);
     const existing = await this.repository.list({ organizationId, scope });
@@ -570,30 +448,23 @@ export class GatewaySpendLimitService {
       await this.requireRecordingProjectId(organizationId);
     }
 
-    return async () => {
-      if (limit && !kept) {
-        await this.create({
-          session,
-          write: () =>
-            this.repository.create({
-              organizationId,
-              scope,
-              ...limit,
-              countingStartedAt: new Date(),
-              ownerUserId: session.user.id,
-            }),
-        });
-      } else if (limit && kept && !isUnchanged) {
-        await this.update({ before: kept, limitUsd: limit.limitUsd, session });
-      }
-      for (const candidate of existing) {
-        if (candidate !== kept) {
-          await this.delete({ before: candidate, session });
+    const changesLimits = changed.length > 0 || (limit !== null && !kept);
+    return {
+      write: async (tx) => {
+        if (limit && !kept) {
+          await create(tx, { organizationId, scope, ...limit, session });
+        } else if (limit && kept && !isUnchanged) {
+          await update(tx, { before: kept, limitUsd: limit.limitUsd, session });
         }
-      }
-      if (changed.length > 0 || (limit && !kept)) {
-        await subject.invalidateResolveCache();
-      }
+        for (const candidate of existing) {
+          if (candidate !== kept) {
+            await remove(tx, { before: candidate, session });
+          }
+        }
+      },
+      invalidateResolveCache: async () => {
+        if (changesLimits) await subject.invalidateResolveCache();
+      },
     };
   }
 
@@ -635,32 +506,18 @@ export class GatewaySpendLimitService {
     if (!limit && !existing) return;
     if (limit) await this.requireRecordingProjectId(organizationId);
 
-    if (kept && limit) {
-      await this.update({ before: kept, limitUsd: limit.limitUsd, session });
-    } else if (!limit) {
-      if (existing) await this.delete({ before: existing, session });
-    } else {
-      // One default per scope, so the old one goes first, in the same
-      // transaction so that a failed write keeps it.
-      await this.create({
-        session,
-        write: () =>
-          this.prisma.$transaction(async (tx) => {
-            const repository = new GatewaySpendLimitRepository(tx);
-            if (existing) await repository.delete({ id: existing.id });
-            return repository.createDefault({
-              organizationId,
-              scope,
-              ...limit,
-              countingStartedAt: new Date(),
-              ownerUserId: session.user.id,
-            });
-          }),
-      });
-      if (existing) {
-        await this.audit({ session, action: "delete", before: existing });
+    // One default per scope, so a replaced one goes first, in the same
+    // transaction so that a failed write keeps it.
+    await this.prisma.$transaction(async (tx) => {
+      if (kept && limit) {
+        await update(tx, { before: kept, limitUsd: limit.limitUsd, session });
+        return;
       }
-    }
+      if (existing) await remove(tx, { before: existing, session });
+      if (limit) {
+        await createDefault(tx, { organizationId, scope, ...limit, session });
+      }
+    });
     await invalidateGatewayResolveCacheForOrganization(organizationId);
   }
 
@@ -699,64 +556,6 @@ export class GatewaySpendLimitService {
         "While a default key budget is set, only a gateway admin can remove a key's budget.",
       );
     }
-  }
-
-  private async create(params: {
-    write: () => Promise<GatewaySpendLimitRecord>;
-    session: OrgAuthedContext["session"];
-  }) {
-    let limit: GatewaySpendLimitRecord;
-    try {
-      limit = await params.write();
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        throw new LangfuseConflictError(
-          "A spend limit for this interval already exists",
-        );
-      }
-      throw error;
-    }
-    await this.audit({
-      session: params.session,
-      action: "create",
-      after: limit,
-    });
-  }
-
-  private async update(params: {
-    before: GatewaySpendLimitRecord;
-    limitUsd: number;
-    session: OrgAuthedContext["session"];
-  }) {
-    const after = await this.prisma.$transaction((tx) =>
-      new GatewaySpendLimitRepository(tx).updateLimit({
-        id: params.before.id,
-        limitUsd: params.limitUsd,
-        userId: params.session.user.id,
-      }),
-    );
-    await this.audit({
-      session: params.session,
-      action: "update",
-      before: params.before,
-      after,
-    });
-  }
-
-  /** Deleting stays possible without ingestion, so a limit can always be removed. */
-  private async delete(params: {
-    before: GatewaySpendLimitRecord;
-    session: OrgAuthedContext["session"];
-  }) {
-    await this.repository.delete({ id: params.before.id });
-    await this.audit({
-      session: params.session,
-      action: "delete",
-      before: params.before,
-    });
   }
 
   /** What the scope applies to, if the caller may see it. */
@@ -816,24 +615,174 @@ export class GatewaySpendLimitService {
     }
     return projectId;
   }
+}
 
-  private audit(params: {
+/**
+ * What ClickHouse has recorded against each budget in its current window,
+ * counted from when the budget was set if that is later.
+ */
+async function readSpend(
+  projectId: string,
+  scope: GatewaySpendLimitScope["type"],
+  budgeted: {
+    subjectId: string;
+    limit: Pick<GatewaySpendLimitRecord, "interval" | "countingStartedAt">;
+  }[],
+) {
+  const now = new Date();
+  const spend = await getGatewaySpendSinceFromEvents({
+    projectId,
+    scope,
+    subjects: budgeted.map(({ subjectId, limit }) => ({
+      id: subjectId,
+      since: new Date(
+        Math.max(
+          getGatewaySpendLimitWindowStart(limit.interval, now).getTime(),
+          limit.countingStartedAt.getTime(),
+        ),
+      ),
+    })),
+  });
+  return new Map(spend.map(({ id, spendUsd }) => [id, spendUsd]));
+}
+
+async function create(
+  tx: Prisma.TransactionClient,
+  params: {
+    organizationId: string;
+    scope: GatewaySpendLimitScope;
+    interval: GatewaySpendLimitInterval;
+    limitUsd: number;
+    session: OrgAuthedContext["session"];
+  },
+) {
+  let limit: GatewaySpendLimitRecord;
+  try {
+    limit = await new GatewaySpendLimitRepository(tx).create({
+      organizationId: params.organizationId,
+      scope: params.scope,
+      interval: params.interval,
+      limitUsd: params.limitUsd,
+      countingStartedAt: new Date(),
+      ownerUserId: params.session.user.id,
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new LangfuseConflictError(
+        "A spend limit for this interval already exists",
+      );
+    }
+    throw error;
+  }
+  await audit(tx, { session: params.session, action: "create", after: limit });
+}
+
+async function createDefault(
+  tx: Prisma.TransactionClient,
+  params: {
+    organizationId: string;
+    scope: GatewaySpendLimitScope["type"];
+    interval: GatewaySpendLimitInterval;
+    limitUsd: number;
+    session: OrgAuthedContext["session"];
+  },
+) {
+  const limit = await new GatewaySpendLimitRepository(tx).createDefault({
+    organizationId: params.organizationId,
+    scope: params.scope,
+    interval: params.interval,
+    limitUsd: params.limitUsd,
+    countingStartedAt: new Date(),
+    ownerUserId: params.session.user.id,
+  });
+  await audit(tx, { session: params.session, action: "create", after: limit });
+}
+
+async function update(
+  tx: Prisma.TransactionClient,
+  params: {
+    before: GatewaySpendLimitRecord;
+    limitUsd: number;
+    session: OrgAuthedContext["session"];
+  },
+) {
+  const after = await new GatewaySpendLimitRepository(tx).updateLimit({
+    id: params.before.id,
+    limitUsd: params.limitUsd,
+    userId: params.session.user.id,
+  });
+  await audit(tx, {
+    session: params.session,
+    action: "update",
+    before: params.before,
+    after,
+  });
+}
+
+/** Deleting stays possible without ingestion, so a limit can always be removed. */
+async function remove(
+  tx: Prisma.TransactionClient,
+  params: {
+    before: GatewaySpendLimitRecord;
+    session: OrgAuthedContext["session"];
+  },
+) {
+  await new GatewaySpendLimitRepository(tx).delete({ id: params.before.id });
+  await audit(tx, {
+    session: params.session,
+    action: "delete",
+    before: params.before,
+  });
+}
+
+function audit(
+  tx: Prisma.TransactionClient,
+  params: {
     session: OrgAuthedContext["session"];
     action: "create" | "update" | "delete";
     before?: GatewaySpendLimitRecord;
     after?: GatewaySpendLimitRecord;
-  }) {
-    const limit = params.after ?? params.before!;
-    return auditLog(
-      {
-        session: params.session,
-        resourceType: "gatewaySpendLimit",
-        resourceId: limit.id,
-        action: params.action,
-        before: params.before,
-        after: params.after,
-      },
-      this.prisma,
-    );
+  },
+) {
+  const limit = params.after ?? params.before!;
+  return auditLog(
+    {
+      session: params.session,
+      resourceType: "gatewaySpendLimit",
+      resourceId: limit.id,
+      action: params.action,
+      before: params.before,
+      after: params.after,
+    },
+    tx,
+  );
+}
+
+/** A checked change to one scope's limits, written later together with others. */
+type SpendLimitChange = {
+  write: (tx: Prisma.TransactionClient) => Promise<void>;
+  invalidateResolveCache: () => Promise<void>;
+};
+
+/**
+ * Which keys or users a status lists, by whether they have a budget of their
+ * own; null when it lists none. With a default, every key or user has a
+ * budget, so none is unlimited and every one may be exceeded.
+ */
+function toBudgetFilter(status: GatewayBudgetStatus, hasDefault: boolean) {
+  switch (status) {
+    case "all":
+      return "any";
+    case "budgeted":
+      return "with";
+    case "default":
+      return hasDefault ? "without" : null;
+    case "unlimited":
+      return hasDefault ? null : "without";
+    case "exceeded":
+      return hasDefault ? "any" : "with";
   }
 }

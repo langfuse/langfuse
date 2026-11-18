@@ -1,8 +1,9 @@
-import { type ComponentProps, useMemo } from "react";
+import type { ComponentProps } from "react";
 
 import { ConnectedGatewayBudgetsTable } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/ConnectedGatewayBudgetsTable";
 import { GatewaySpendChart } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewaySpendChart/GatewaySpendChart";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { useGatewaySpendSelection } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewaySpendSelection";
 import { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTableState";
 
 type GatewayBudgetsTabContentProps = {
@@ -11,7 +12,7 @@ type GatewayBudgetsTabContentProps = {
   /** Null while spend cannot be queried; the chart is then left out. */
   chart: Omit<
     ComponentProps<typeof GatewaySpendChart>,
-    "tab" | "selected" | "onRemoveSelected"
+    "tab" | "selection" | "tags" | "onRemoveTag"
   > | null;
 };
 
@@ -25,19 +26,7 @@ export function GatewayBudgetsTabContent({
   chart,
 }: GatewayBudgetsTabContentProps) {
   const table = useGatewayBudgetsTableState(organizationId, tab);
-  const selectedSubjects = useMemo(
-    () =>
-      table.selectedRows.map((row) => ({
-        value: row.subjectId,
-        label: row.name,
-      })),
-    [table.selectedRows],
-  );
-
-  const handleRemoveSelected = (subjectId: string) => {
-    const row = table.selectedRows.find((row) => row.subjectId === subjectId);
-    if (row) table.toggleRow(row.id);
-  };
+  const spendSelection = useGatewaySpendSelection(organizationId, tab, table);
 
   return (
     <>
@@ -45,8 +34,9 @@ export function GatewayBudgetsTabContent({
         <GatewaySpendChart
           {...chart}
           tab={tab}
-          selected={selectedSubjects}
-          onRemoveSelected={handleRemoveSelected}
+          selection={spendSelection.selection}
+          tags={spendSelection.tags}
+          onRemoveTag={spendSelection.removeTag}
         />
       )}
       <ConnectedGatewayBudgetsTable

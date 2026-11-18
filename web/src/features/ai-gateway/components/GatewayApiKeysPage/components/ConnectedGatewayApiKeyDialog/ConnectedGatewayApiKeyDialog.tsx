@@ -23,7 +23,8 @@ export function ConnectedGatewayApiKeyDialog({
   isOpen,
   ...props
 }: ConnectedGatewayApiKeyDialogProps) {
-  const { showModels, isRecording } = useGatewaySettingsAccess(organizationId);
+  const { showModels, spendBudgetUnavailableReason } =
+    useGatewaySettingsAccess(organizationId);
   const enabledModels = useGatewayEnabledModels(organizationId, {
     enabled: showModels && isOpen,
   });
@@ -32,11 +33,7 @@ export function ConnectedGatewayApiKeyDialog({
     <GatewayApiKeyDialog
       {...props}
       enabledModels={showModels ? enabledModels : undefined}
-      spendBudgetUnavailableReason={
-        isRecording === false
-          ? "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to set one."
-          : undefined
-      }
+      spendBudgetUnavailableReason={spendBudgetUnavailableReason}
     />
   );
 }

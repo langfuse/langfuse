@@ -8,46 +8,28 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
 import type { TableProps } from "@/src/components/design-system/table/Table";
+import type { MultiSelect } from "@/src/components/table/data-table-toolbar";
+import type { RouterOutputs } from "@/src/utils/api";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   GATEWAY_BUDGET_STATUSES,
   type GatewayBudgetStatus,
 } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
-import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import {
+  GATEWAY_SPEND_TABS,
+  type GatewaySpendTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import {
   getGatewaySpendLimitWindowEnd,
   getGatewaySpendLimitWindowStart,
 } from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
-import {
-  type GatewaySpendBudgetInterval,
-  gatewaySpendBudgetIntervalOptions,
-} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import { gatewaySpendBudgetIntervalOptions } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 
-type GatewayBudgetUser = {
-  id: string;
-  name: string | null;
-  email: string | null;
-  image: string | null;
-};
-
-export type GatewayBudgetRow = {
-  /** The key or user id; rows are selected by it. */
-  id: string;
-  /** The key or user the budget caps. */
-  subjectId: string;
-  name: string;
-  /** The key's user, or the budgeted user; null for service account keys. */
-  user: GatewayBudgetUser | null;
-  /** Its own budget, or else the organization's default; null when it has neither. */
-  spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number } | null;
-  /** Whether `spendLimit` is the organization's default. */
-  isDefault: boolean;
-  /** Spend in the current window; absent while spend is not recorded. */
-  spentUsd?: number;
-  isEditable: boolean;
-};
+/** One key or user with its budget, if any, as the server lists them. */
+export type GatewayBudgetRow =
+  RouterOutputs["aiGateway"]["listBudgets"]["rows"][number];
 
 type GatewayBudgetsTableProps = Pick<
   TableProps<GatewayBudgetRow>,
@@ -62,6 +44,7 @@ type GatewayBudgetsTableProps = Pick<
   };
   /** Selects rows for the spend chart and bulk changes. */
   selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
+  multiSelect: MultiSelect;
   onEditBudget: (row: GatewayBudgetRow) => void;
 };
 
@@ -186,6 +169,7 @@ export function GatewayBudgetsTable({
   search,
   status,
   selectColumn,
+  multiSelect,
   onEditBudget,
 }: GatewayBudgetsTableProps) {
   const copy = copyByTab[tab];
@@ -193,7 +177,7 @@ export function GatewayBudgetsTable({
 
   return (
     <SettingsTable
-      tableName={tab === "apiKeys" ? "gatewayKeyBudgets" : "gatewayUserBudgets"}
+      tableName={GATEWAY_SPEND_TABS[tab].tableName}
       columns={[selectColumn, ...columnsByTab[tab]]}
       data={data}
       onRowClick={onRowClick}
@@ -210,6 +194,7 @@ export function GatewayBudgetsTable({
         },
       ]}
       pagination={pagination}
+      multiSelect={multiSelect}
       search={{ ...search, placeholder: copy.searchPlaceholder }}
       filters={[
         {

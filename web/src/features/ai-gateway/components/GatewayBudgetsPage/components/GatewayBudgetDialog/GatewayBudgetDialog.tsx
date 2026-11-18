@@ -1,22 +1,24 @@
 import { type ReactNode, useId } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
-import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
-import { emptyGatewaySpendBudget } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
 import {
-  type GatewayBudgetFormValues,
-  gatewayBudgetFormSchema,
-} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/types/gatewayBudgetFormSchema";
+  toGatewaySpendBudgetFormValue,
+  toGatewaySpendLimit,
+} from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
+import { requiredGatewaySpendBudgetFormSchema } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
-type GatewaySpendLimit = {
-  interval: GatewaySpendBudgetInterval;
-  limitUsd: number;
-};
+const gatewayBudgetFormSchema = z.object({
+  spendBudget: requiredGatewaySpendBudgetFormSchema,
+});
+
+type GatewayBudgetFormValues = z.infer<typeof gatewayBudgetFormSchema>;
 
 type GatewayBudgetDialogProps = {
   title: string;
@@ -61,21 +63,13 @@ export function GatewayBudgetDialog({
   const form = useForm<GatewayBudgetFormValues>({
     resolver: zodResolver(gatewayBudgetFormSchema),
     defaultValues: {
-      spendBudget: spendLimit
-        ? {
-            interval: spendLimit.interval,
-            limitUsd: String(spendLimit.limitUsd),
-          }
-        : emptyGatewaySpendBudget,
+      spendBudget: toGatewaySpendBudgetFormValue(spendLimit),
     },
     mode: "onChange",
   });
 
   const handleValidSubmit = (values: GatewayBudgetFormValues) => {
-    onSubmit({
-      interval: values.spendBudget.interval,
-      limitUsd: Number(values.spendBudget.limitUsd.trim()),
-    });
+    onSubmit(toGatewaySpendLimit(values.spendBudget));
   };
 
   return (

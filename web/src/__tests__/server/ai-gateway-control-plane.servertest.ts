@@ -2044,7 +2044,7 @@ describe("AI gateway control plane", () => {
       await owner.caller.aiGateway.setSpendLimits({
         orgId: owner.org.id,
         scope: "API_KEY",
-        subjectIds: keys.map(({ id }) => id),
+        subjects: { type: "ids", subjectIds: keys.map(({ id }) => id) },
         spendLimit: { interval: "TOTAL", limitUsd: 10 },
       });
       await SharedServer.createEventsCh([
@@ -2075,6 +2075,16 @@ describe("AI gateway control plane", () => {
         totalCount: 1,
         rows: [{ subjectId: keys[0].id }],
       });
+
+      // Select-all sends the table's query instead of ids.
+      await owner.caller.aiGateway.setSpendLimits({
+        orgId: owner.org.id,
+        scope: "API_KEY",
+        subjects: { type: "matching", status: "unlimited" },
+        spendLimit: { interval: "WEEKLY", limitUsd: 5 },
+      });
+      expect((await list("unlimited")).totalCount).toBe(0);
+      expect((await list("budgeted")).totalCount).toBe(3);
     },
   );
 
@@ -2436,7 +2446,7 @@ describe("AI gateway control plane", () => {
     const target = {
       orgId: owner.org.id,
       scope: "USER" as const,
-      subjectIds: [userId!],
+      subjects: { type: "ids" as const, subjectIds: [userId!] },
     };
     const resolvedScopes = async (secretKey: string) =>
       (
@@ -2531,6 +2541,45 @@ describe("AI gateway control plane", () => {
     });
     expect(await budgets(owner.caller, "USER")).toEqual([]);
     expect(await resolvedScopes(memberKeys[0].secretKey)).toEqual([]);
+  });
+
+  it("removes a user's budget when they leave the organization", async () => {
+    const owner = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Laptop",
+      metadata: {},
+    });
+    const { userId } = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: memberKey.id },
+      select: { userId: true },
+    });
+    await owner.caller.aiGateway.setSpendLimits({
+      orgId: owner.org.id,
+      scope: "USER",
+      subjects: { type: "ids", subjectIds: [userId!] },
+      spendLimit: { interval: "MONTHLY", limitUsd: 20 },
+    });
+    const membership = await prisma.organizationMembership.findUniqueOrThrow({
+      where: { orgId_userId: { orgId: owner.org.id, userId: userId! } },
+    });
+
+    await owner.caller.members.deleteMembership({
+      orgId: owner.org.id,
+      orgMembershipId: membership.id,
+    });
+
+    expect(
+      await prisma.gatewaySpendLimit.count({
+        where: { organizationId: owner.org.id, userId },
+      }),
+    ).toBe(0);
   });
 
   it("applies the default key and user budgets to keys and users without their own, counted per key or user", async () => {
@@ -2650,7 +2699,7 @@ describe("AI gateway control plane", () => {
       member.aiGateway.setSpendLimits({
         orgId: owner.org.id,
         scope: "API_KEY",
-        subjectIds: [laptop.id],
+        subjects: { type: "ids", subjectIds: [laptop.id] },
         spendLimit,
       });
     await expect(
@@ -2665,7 +2714,7 @@ describe("AI gateway control plane", () => {
       member.aiGateway.setSpendLimits({
         orgId: owner.org.id,
         scope: "API_KEY",
-        subjectIds: [laptop.id],
+        subjects: { type: "ids", subjectIds: [laptop.id] },
         spendLimit: null,
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -3396,7 +3445,7 @@ describe("AI gateway control plane", () => {
     await member.aiGateway.setSpendLimits({
       orgId: owner.org.id,
       scope: "API_KEY",
-      subjectIds: [keys[1].id],
+      subjects: { type: "ids", subjectIds: [keys[1].id] },
       spendLimit: { interval: "MONTHLY", limitUsd: 5 },
     });
     await prisma.gatewaySpendLimitAlert.deleteMany({

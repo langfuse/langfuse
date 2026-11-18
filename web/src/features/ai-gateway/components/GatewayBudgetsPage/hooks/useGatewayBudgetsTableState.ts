@@ -3,7 +3,10 @@ import { useStore } from "zustand";
 
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
-import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import {
+  GATEWAY_SPEND_TABS,
+  type GatewaySpendTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { api } from "@/src/utils/api";
 
 const PAGE_SIZE = 10;
@@ -24,7 +27,7 @@ export function useGatewayBudgetsTableState(
 
   const budgets = api.aiGateway.listBudgets.useQuery({
     orgId: organizationId,
-    scope: tab === "apiKeys" ? "API_KEY" : "USER",
+    scope: GATEWAY_SPEND_TABS[tab].scope,
     searchQuery: trimmedSearch,
     status,
     page: pagination.pageIndex,

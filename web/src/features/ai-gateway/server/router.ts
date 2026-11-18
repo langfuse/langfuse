@@ -23,7 +23,7 @@ import {
   GatewaySpendLimitInterval,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
-import { orderBy } from "@langfuse/shared";
+import { InvalidRequestError, orderBy } from "@langfuse/shared";
 import { query as analyticsQuery } from "@langfuse/shared/query";
 
 import {
@@ -46,6 +46,7 @@ import {
   requireGatewayInvoke,
 } from "./gatewayAccess";
 import {
+  GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_USD,
 } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
@@ -97,6 +98,20 @@ const gatewaySpendLimitSubjectIdsInput = z
   .min(1)
   .max(GATEWAY_SPEND_BUDGET_MAX_SUBJECTS)
   .transform((ids) => [...new Set(ids)]);
+
+/** The Budgets table's search and status filter. */
+const gatewayBudgetFilterInput = z.object({
+  searchQuery: z.string().trim().optional(),
+  status: z.enum(GATEWAY_BUDGET_STATUSES).default("all"),
+});
+/** Explicit keys or users, or every one matching a search and status, as the Budgets table lists them. */
+const gatewayBudgetSubjectsInput = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("ids"),
+    subjectIds: gatewaySpendLimitSubjectIdsInput,
+  }),
+  gatewayBudgetFilterInput.extend({ type: z.literal("matching") }),
+]);
 /** A key without patterns, or with an empty list, may call every enabled model. */
 const gatewayKeyAllowedModelsSchema = z
   .array(z.string().trim().min(1).max(500))
@@ -105,6 +120,19 @@ const gatewayKeyAllowedModelsSchema = z
   .transform((patterns) =>
     patterns && patterns.length > 0 ? [...new Set(patterns)] : null,
   );
+
+/** User budgets are for gateway managers only; members work with their own keys' budgets. */
+function requireBudgetScopeAccess(
+  session: Session,
+  orgId: string,
+  scope: "API_KEY" | "USER",
+) {
+  if (scope === "USER") {
+    requireGatewayAdmin({ session, orgId });
+    return;
+  }
+  requireGatewayInvoke({ session, orgId });
+}
 
 function requireGatewayRead(params: { session: Session; orgId: string }) {
   requireGatewayEnabledForOrganization(params.orgId);
@@ -289,20 +317,6 @@ export const aiGatewayRouter = createTRPCRouter({
         currentUserId: ctx.session.user.id,
         search: input.search,
         excludeEmails: input.excludeEmails,
-      });
-    }),
-
-  getBudgetUserOptions: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        search: z.string().max(MAX_MEMBER_SEARCH_LENGTH),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayTeamService(ctx.prisma).getBudgetUserOptions({
-        organizationId: input.orgId,
-        search: input.search,
       });
     }),
 
@@ -651,39 +665,15 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
-  getUsersSpend: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        userIds: z.array(z.string()).max(100),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewaySpendLimitService(ctx.prisma).getUsersSpend({
-        organizationId: input.orgId,
-        usageScope: getGatewayUsageScope({
-          session: ctx.session,
-          orgId: input.orgId,
-        }),
-        userIds: input.userIds,
-      });
-    }),
-
   listBudgets: protectedOrganizationProcedure
     .input(
       offsetPaginatedOrganizationInput.extend({
         scope: gatewaySpendLimitScopeInput,
-        searchQuery: z.string().trim().optional(),
-        status: z.enum(GATEWAY_BUDGET_STATUSES).default("all"),
+        ...gatewayBudgetFilterInput.shape,
       }),
     )
     .query(async ({ input, ctx }) => {
-      // User budgets are for gateway managers only; members see their keys.
-      if (input.scope === "USER") {
-        requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      } else {
-        requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
-      }
+      requireBudgetScopeAccess(ctx.session, input.orgId, input.scope);
       return new GatewaySpendLimitService(ctx.prisma).listBudgets({
         organizationId: input.orgId,
         usageScope: getGatewayUsageScope({
@@ -727,27 +717,67 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(
       organizationInput.extend({
         scope: gatewaySpendLimitScopeInput,
-        subjectIds: gatewaySpendLimitSubjectIdsInput,
+        subjects: gatewayBudgetSubjectsInput,
         spendLimit: gatewaySpendLimitInput.nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      if (input.scope === "USER") {
-        requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      } else {
-        requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      requireBudgetScopeAccess(ctx.session, input.orgId, input.scope);
+      const service = new GatewaySpendLimitService(ctx.prisma);
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      const subjectIds =
+        input.subjects.type === "ids"
+          ? input.subjects.subjectIds
+          : (
+              await service.listMatchingSubjects({
+                organizationId: input.orgId,
+                usageScope,
+                scope: input.scope,
+                searchQuery: input.subjects.searchQuery,
+                status: input.subjects.status,
+              })
+            ).map(({ subjectId }) => subjectId);
+      if (subjectIds.length > GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS) {
+        throw new InvalidRequestError(
+          `Budgets can change for at most ${GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS} keys or users at once. Narrow the search or status filter.`,
+        );
       }
-      await new GatewaySpendLimitService(ctx.prisma).setForSubjects({
+      await service.setForSubjects({
+        organizationId: input.orgId,
+        usageScope,
+        scope: input.scope,
+        subjectIds,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
+  /** Every key or user matching a search and status, for the spend chart when all of them are selected. */
+  listMatchingBudgetSubjects: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        scope: gatewaySpendLimitScopeInput,
+        ...gatewayBudgetFilterInput.shape,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireBudgetScopeAccess(ctx.session, input.orgId, input.scope);
+      const subjects = await new GatewaySpendLimitService(
+        ctx.prisma,
+      ).listMatchingSubjects({
         organizationId: input.orgId,
         usageScope: getGatewayUsageScope({
           session: ctx.session,
           orgId: input.orgId,
         }),
         scope: input.scope,
-        subjectIds: input.subjectIds,
-        limit: input.spendLimit,
-        session: ctx.session,
+        searchQuery: input.searchQuery,
+        status: input.status,
       });
+      return subjects.map(({ subjectId, name }) => ({ id: subjectId, name }));
     }),
 
   getDefaultSpendLimits: protectedOrganizationProcedure

@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
-import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetLimitError";
+import { gatewaySpendBudgetFormSchema } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import { editableGatewayApiKeyFieldsSchema } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/types/editableGatewayApiKeyFieldsSchema";
 import { resolveGatewayApiKeyExpiration } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/fns/resolveGatewayApiKeyExpiration";
 
@@ -16,12 +16,6 @@ export const gatewayApiKeySections = [
 
 export type GatewayApiKeySection = (typeof gatewayApiKeySections)[number];
 
-/** The spend budget of a key without one, and of a newly added section. */
-export const emptyGatewaySpendBudget = {
-  interval: "DAILY",
-  limitUsd: "",
-} as const satisfies { interval: GatewaySpendBudgetInterval; limitUsd: string };
-
 const baseSchema = editableGatewayApiKeyFieldsSchema.extend({
   issuedAs: z.enum(["user", "serviceAccount"]),
   name: z
@@ -30,10 +24,7 @@ const baseSchema = editableGatewayApiKeyFieldsSchema.extend({
     .refine((name) => name.trim().length > 0, "Enter a name."),
   expiryPreset: z.custom<GatewayApiKeyExpirationPreset>(),
   customExpiry: z.string(),
-  spendBudget: z.object({
-    interval: z.custom<GatewaySpendBudgetInterval>(),
-    limitUsd: z.string(),
-  }),
+  spendBudget: gatewaySpendBudgetFormSchema,
   /** The optional sections shown, top to bottom. */
   sections: z.array(z.enum(gatewayApiKeySections)),
 });

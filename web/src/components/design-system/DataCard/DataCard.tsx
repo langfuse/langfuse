@@ -14,8 +14,7 @@ import {
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
-import { useTagOverflow } from "@/src/components/design-system/internal/useTagOverflow";
-import { cn } from "@/src/utils/tailwind";
+import { useFittingCount } from "@/src/components/design-system/internal/useFittingCount";
 import {
   VisualizationFrame,
   type Visualization,
@@ -177,7 +176,7 @@ export function DataCard({
         <div className="flex max-w-2/3 min-w-0 items-center justify-end gap-2">
           {filter && filter.items.length > 0 && <FilterTags filter={filter} />}
           {tabs && isToggle && (
-            <div className="shrink-0">
+            <div className="flex shrink-0">
               <Tabs.List
                 variant="inset"
                 size="sm"
@@ -304,47 +303,56 @@ function FilterTags({
 }: {
   filter: NonNullable<ComponentProps<typeof DataCard>["filter"]>;
 }) {
-  const {
-    containerRef,
-    registerTag,
-    isVisible,
-    hiddenCount,
-    leadingHiddenWidth,
-  } = useTagOverflow(filter.items.map(({ value }) => value));
+  const { listRef, probeRef, fittingCount } = useFittingCount({
+    itemCount: filter.items.length,
+    itemsKey: filter.items
+      .map(({ value, label }) => `${value}:${label}`)
+      .join("\u0000"),
+  });
+  const hiddenCount = filter.items.length - fittingCount;
 
   return (
     <div
-      role="group"
-      aria-label={filter.label}
-      className="flex min-w-0 items-center gap-1"
+      ref={listRef}
+      className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)]"
     >
-      {hiddenCount > 0 && (
-        <span
-          className="relative z-1 flex shrink-0"
-          title={`${hiddenCount} more selected`}
-          // Relative offset keeps it on the pixel grid with the tags, unlike a transform.
-          style={{ left: leadingHiddenWidth }}
-        >
-          <Tag text={`+${hiddenCount}`} />
-        </span>
-      )}
-      {/* Right-aligned, so tags that do not fit overflow on the left, away from the controls. */}
+      {/* Invisible copies give the row its natural width and each tag's width to measure. */}
       <div
-        ref={containerRef}
-        className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden whitespace-nowrap"
+        ref={probeRef}
+        aria-hidden
+        inert
+        className="invisible col-start-1 row-start-1 flex h-0 gap-1 overflow-hidden"
       >
         {filter.items.map((item) => (
-          <span
-            key={item.value}
-            ref={registerTag(item.value)}
-            className={cn(
-              "flex max-w-48 min-w-10 shrink-0",
-              !isVisible(item.value) && "invisible",
-            )}
-          >
+          <span key={item.value} className="flex max-w-48 min-w-10 shrink-0">
             <FilterTag item={item} onRemove={filter.onRemove} />
           </span>
         ))}
+        <span className="flex shrink-0">
+          <Tag text={`+${filter.items.length}`} />
+        </span>
+      </div>
+      <div className="col-start-1 row-start-1 flex min-w-0 justify-end">
+        <div
+          role="group"
+          aria-label={filter.label}
+          // Same height as the toggle beside it so both center on one line.
+          className="flex h-6 min-w-0 items-center gap-1"
+        >
+          {filter.items.slice(0, fittingCount).map((item) => (
+            <span key={item.value} className="flex max-w-48 min-w-10 shrink">
+              <FilterTag item={item} onRemove={filter.onRemove} />
+            </span>
+          ))}
+          {hiddenCount > 0 && (
+            <span
+              className="flex shrink-0"
+              title={`${hiddenCount} more selected`}
+            >
+              <Tag text={`+${hiddenCount}`} />
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

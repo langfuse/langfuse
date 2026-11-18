@@ -3,27 +3,34 @@ import type { ReactNode } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { GatewayBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetDialog/GatewayBudgetDialog";
 import {
-  type GatewayBudgetSubject,
-  type GatewaySpendLimit,
+  GATEWAY_SPEND_TABS,
+  type GatewaySpendTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import {
+  type GatewayBudgetTarget,
   useSetGatewayBudgets,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
 import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 export type GatewayEditedBudgets = {
-  subject: GatewayBudgetSubject;
+  tab: GatewaySpendTab;
   /** The keys or users whose budgets change together. */
-  subjects: { id: string; name: string }[];
+  target: GatewayBudgetTarget;
+  count: number;
+  /** Shown when only one key or user changes. */
+  name?: string;
   /** Prefills the form; null when the first of them has no budget yet. */
   spendLimit: GatewaySpendLimit | null;
-  /** How many of the subjects already have a budget that saving replaces. */
-  existingBudgetCount: number;
-  onSaved?: () => void;
+  /** How many of them already have a budget that saving replaces; null when unknown. */
+  existingBudgetCount: number | null;
+  onAfterSave?: () => void;
 };
 
 type GatewayEditBudgetDialogControllerProps = {
   organizationId: string;
-  subject: GatewayBudgetSubject;
+  subject: "key" | "user";
   children: (control: {
     openDialog: (budgets: GatewayEditedBudgets) => void;
   }) => ReactNode;
@@ -35,7 +42,8 @@ export function GatewayEditBudgetDialogController({
   subject,
   children,
 }: GatewayEditBudgetDialogControllerProps) {
-  const { isRecording } = useGatewaySettingsAccess(organizationId);
+  const { spendBudgetUnavailableReason } =
+    useGatewaySettingsAccess(organizationId);
   const { setBudgets, mutation } = useSetGatewayBudgets(organizationId);
   const defaultBudget = useGatewayDefaultBudget(organizationId, subject);
 
@@ -45,12 +53,12 @@ export function GatewayEditBudgetDialogController({
     closeDialog: () => void,
   ) => {
     const saved = await setBudgets({
-      subject: budgets.subject,
-      subjectIds: budgets.subjects.map(({ id }) => id),
+      tab: budgets.tab,
+      subjects: budgets.target,
       spendLimit,
     });
     if (!saved) return;
-    budgets.onSaved?.();
+    budgets.onAfterSave?.();
     closeDialog();
     mutation.reset();
   };
@@ -64,19 +72,15 @@ export function GatewayEditBudgetDialogController({
           title={getTitle(state)}
           description={<EditedBudgetsDescription budgets={state} />}
           warning={getReplaceWarning(state)}
-          subject={state.subject}
+          subject={GATEWAY_SPEND_TABS[state.tab].subject}
           spendLimit={state.spendLimit}
           saveLabel="Save changes"
           // Selected budgets may differ, and a key or user on the default gets a budget of its own, so saving the prefilled one changes them.
           requiresChange={
-            state.subjects.length === 1 && state.existingBudgetCount > 0
+            state.count === 1 && (state.existingBudgetCount ?? 0) > 0
           }
           removeLabel={getRemoveLabel(state, Boolean(defaultBudget))}
-          unavailableReason={
-            isRecording === false
-              ? "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to change one."
-              : undefined
-          }
+          unavailableReason={spendBudgetUnavailableReason}
           errorMessage={
             mutation.isError ? (mutation.error?.message ?? "Try again.") : null
           }
@@ -91,29 +95,20 @@ export function GatewayEditBudgetDialogController({
   );
 }
 
-/** Removing a budget falls back to the default, so the action says so while one is set. */
-function getRemoveLabel(budgets: GatewayEditedBudgets, hasDefault: boolean) {
-  const isBulk = budgets.subjects.length > 1;
-  if (!isBulk && budgets.existingBudgetCount === 0) return undefined;
-  if (hasDefault) return isBulk ? "Use default budgets" : "Use default budget";
-  return isBulk ? "Remove budgets" : "Remove budget";
-}
-
 function EditedBudgetsDescription({
   budgets,
 }: {
   budgets: GatewayEditedBudgets;
 }) {
-  const isBulk = budgets.subjects.length > 1;
+  const { subject } = GATEWAY_SPEND_TABS[budgets.tab];
+  const isBulk = budgets.count > 1;
   const applies = isBulk ? "Each budget applies" : "Applies";
   const name = (
     <span className="text-foreground font-medium">
-      {isBulk
-        ? `${budgets.subjects.length} ${budgets.subject}s`
-        : budgets.subjects[0]?.name}
+      {isBulk ? `${budgets.count} ${subject}s` : budgets.name}
     </span>
   );
-  if (budgets.subject === "user") {
+  if (subject === "user") {
     return (
       <>
         {applies} to every gateway key of {name}, in addition to each key&apos;s
@@ -129,20 +124,34 @@ function EditedBudgetsDescription({
 }
 
 function getTitle(budgets: GatewayEditedBudgets) {
-  return budgets.subjects.length > 1
-    ? `Edit ${budgets.subjects.length} ${budgets.subject} budgets`
-    : `Edit ${budgets.subject} budget`;
+  const { subject } = GATEWAY_SPEND_TABS[budgets.tab];
+  return budgets.count > 1
+    ? `Edit ${budgets.count} ${subject} budgets`
+    : `Edit ${subject} budget`;
 }
 
 function getReplaceWarning({
-  subject,
-  subjects,
+  tab,
+  count,
   existingBudgetCount,
 }: GatewayEditedBudgets) {
-  if (subjects.length === 1 || existingBudgetCount === 0) return undefined;
+  const { subject } = GATEWAY_SPEND_TABS[tab];
+  if (count === 1) return undefined;
+  if (existingBudgetCount === null) {
+    return `Selected ${subject}s that already have a budget get this one instead.`;
+  }
+  if (existingBudgetCount === 0) return undefined;
   const pronoun = existingBudgetCount === 1 ? "it" : "them";
-  if (existingBudgetCount === subjects.length) {
+  if (existingBudgetCount === count) {
     return `All selected ${subject}s already have a budget. Saving replaces ${pronoun} with this one.`;
   }
   return `${existingBudgetCount} of the selected ${subject}s already have a budget. Saving replaces ${pronoun} with this one.`;
+}
+
+/** Removing a budget falls back to the default, so the action says so while one is set. */
+function getRemoveLabel(budgets: GatewayEditedBudgets, hasDefault: boolean) {
+  const isBulk = budgets.count > 1;
+  if (!isBulk && budgets.existingBudgetCount === 0) return undefined;
+  if (hasDefault) return isBulk ? "Use default budgets" : "Use default budget";
+  return isBulk ? "Remove budgets" : "Remove budget";
 }

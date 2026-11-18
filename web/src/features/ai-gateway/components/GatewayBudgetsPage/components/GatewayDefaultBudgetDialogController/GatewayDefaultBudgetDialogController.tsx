@@ -3,10 +3,7 @@ import type { ReactNode } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
 import { useSetGatewayDefaultBudget } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayDefaultBudget";
-import type {
-  GatewayBudgetSubject,
-  GatewaySpendLimit,
-} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { GatewayBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetDialog/GatewayBudgetDialog";
 
@@ -21,11 +18,11 @@ const copyBySubject = {
     description:
       "Every user without their own budget gets this budget. It caps all of their gateway keys, in addition to each key's own budget.",
   },
-} as const satisfies Record<GatewayBudgetSubject, Record<string, string>>;
+} as const satisfies Record<"key" | "user", Record<string, string>>;
 
 type GatewayDefaultBudgetDialogControllerProps = {
   organizationId: string;
-  subject: GatewayBudgetSubject;
+  subject: "key" | "user";
   children: (control: {
     openDialog: () => void;
     /** The current default: undefined while loading, null when none is set. */
@@ -39,7 +36,8 @@ export function GatewayDefaultBudgetDialogController({
   subject,
   children,
 }: GatewayDefaultBudgetDialogControllerProps) {
-  const { isRecording } = useGatewaySettingsAccess(organizationId);
+  const { spendBudgetUnavailableReason } =
+    useGatewaySettingsAccess(organizationId);
   const defaultBudget = useGatewayDefaultBudget(organizationId, subject);
   const { setDefaultBudget, mutation } =
     useSetGatewayDefaultBudget(organizationId);
@@ -67,11 +65,7 @@ export function GatewayDefaultBudgetDialogController({
           saveLabel="Save default"
           requiresChange
           removeLabel={defaultBudget ? "Remove default" : undefined}
-          unavailableReason={
-            isRecording === false
-              ? "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to set one."
-              : undefined
-          }
+          unavailableReason={spendBudgetUnavailableReason}
           errorMessage={
             mutation.isError ? (mutation.error?.message ?? "Try again.") : null
           }

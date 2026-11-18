@@ -3,7 +3,10 @@ import type { AsyncTableData } from "@/src/components/design-system/table/Table"
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { GatewayBudgetsSelectionBar } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayBudgetsSelectionBar/GatewayBudgetsSelectionBar";
 import { GatewayEditBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayEditBudgetDialogController/GatewayEditBudgetDialogController";
-import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import {
+  GATEWAY_SPEND_TABS,
+  type GatewaySpendTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import type { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTableState";
 import { useSetGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
 import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
@@ -23,14 +26,19 @@ const notEditableReasons = {
   users: "Only gateway admins can change user budgets.",
 } as const satisfies Record<GatewaySpendTab, string>;
 
-/** Clicking a row selects it, like its checkbox; the selection also filters the spend chart. */
+/**
+ * Clicking a row selects it, like its checkbox; the selection also filters the
+ * spend chart. Selecting every row on the page offers selecting all matching
+ * rows across pages, as in the product's other multi-select tables.
+ */
 export function ConnectedGatewayBudgetsTable({
   organizationId,
   tab,
   table,
 }: ConnectedGatewayBudgetsTableProps) {
-  const subject = tab === "apiKeys" ? "key" : "user";
-  const { budgets, selectionStore, selectedRows, clearSelection } = table;
+  const { subject } = GATEWAY_SPEND_TABS[tab];
+  const { budgets, selectionStore, selectedRows, selectAll, clearSelection } =
+    table;
   const { selectActionColumn } = TableSelectionManager<GatewayBudgetRow>({
     projectId: "",
     tableName: "gateway-budgets",
@@ -42,9 +50,22 @@ export function ConnectedGatewayBudgetsTable({
     useSetGatewayBudgets(organizationId);
   // Removing a budget falls back to the organization's default while one is set.
   const hasDefault = Boolean(useGatewayDefaultBudget(organizationId, subject));
-  const bulkDisabledReason = selectedRows.every((row) => row.isEditable)
-    ? undefined
-    : notEditableReasons[tab];
+  const totalCount = budgets.data?.totalCount ?? null;
+  const pageRows = budgets.data?.rows ?? [];
+  const selectedCount = selectAll
+    ? (totalCount ?? selectedRows.length)
+    : selectedRows.length;
+  // Under select-all the server checks each matching row and refuses the whole change if one is not editable.
+  const bulkDisabledReason =
+    selectAll || selectedRows.every((row) => row.isEditable)
+      ? undefined
+      : notEditableReasons[tab];
+  const bulkTarget = selectAll
+    ? table.matching
+    : {
+        type: "ids" as const,
+        subjectIds: selectedRows.map((row) => row.subjectId),
+      };
 
   const handleRowClick = (row: GatewayBudgetRow) => table.toggleRow(row.id);
 
@@ -60,10 +81,22 @@ export function ConnectedGatewayBudgetsTable({
             data={toTableData(budgets)}
             onRowClick={handleRowClick}
             selectColumn={{ ...selectActionColumn, enableResizing: false }}
+            multiSelect={{
+              selectAll,
+              setSelectAll: selectionStore.getState().actions.setSelectAll,
+              selectedRowIds: selectedRows.map((row) => row.id),
+              setRowSelection:
+                selectionStore.getState().actions.setRowSelection,
+              pageSize: table.pagination.state.pageSize,
+              pageIndex: table.pagination.state.pageIndex,
+              totalCount,
+            }}
             onEditBudget={(row) =>
               openDialog({
-                subject,
-                subjects: [{ id: row.subjectId, name: row.name }],
+                tab,
+                target: { type: "ids", subjectIds: [row.subjectId] },
+                count: 1,
+                name: row.name,
                 spendLimit: row.spendLimit,
                 existingBudgetCount:
                   row.spendLimit !== null && !row.isDefault ? 1 : 0,
@@ -73,12 +106,12 @@ export function ConnectedGatewayBudgetsTable({
             status={table.status}
             pagination={{
               mode: "offset",
-              totalCount: budgets.data?.totalCount ?? null,
+              totalCount,
               ...table.pagination,
             }}
           />
           <ConfirmationDialogController
-            title={`Remove ${selectedRows.length} ${subject} ${selectedRows.length === 1 ? "budget" : "budgets"}?`}
+            title={`Remove ${selectedCount} ${subject} ${selectedCount === 1 ? "budget" : "budgets"}?`}
             text={
               subject === "key"
                 ? "Requests with these keys are no longer capped by their own budget."
@@ -91,8 +124,8 @@ export function ConnectedGatewayBudgetsTable({
             onAfterDismiss={() => removal.reset()}
             onConfirm={async () => {
               const removed = await setBudgets({
-                subject,
-                subjectIds: selectedRows.map((row) => row.subjectId),
+                tab,
+                subjects: bulkTarget,
                 spendLimit: null,
               });
               if (!removed) throw new Error("Budgets could not be removed.");
@@ -101,24 +134,25 @@ export function ConnectedGatewayBudgetsTable({
           >
             {({ openDialog: openRemoveDialog }) => (
               <GatewayBudgetsSelectionBar
-                selectedCount={selectedRows.length}
+                selectedCount={selectedCount}
                 isSaving={removal.isPending}
                 disabledReason={bulkDisabledReason}
                 onClear={clearSelection}
                 onEdit={() => {
-                  const [first] = selectedRows;
+                  const first = selectedRows[0] ?? pageRows[0];
                   if (!first) return;
                   openDialog({
-                    subject,
-                    subjects: selectedRows.map((row) => ({
-                      id: row.subjectId,
-                      name: row.name,
-                    })),
+                    tab,
+                    target: bulkTarget,
+                    count: selectedCount,
+                    name: first.name,
                     spendLimit: first.spendLimit,
-                    existingBudgetCount: selectedRows.filter(
-                      (row) => row.spendLimit !== null && !row.isDefault,
-                    ).length,
-                    onSaved: clearSelection,
+                    existingBudgetCount: selectAll
+                      ? null
+                      : selectedRows.filter(
+                          (row) => row.spendLimit !== null && !row.isDefault,
+                        ).length,
+                    onAfterSave: clearSelection,
                   });
                 }}
                 removeLabel={

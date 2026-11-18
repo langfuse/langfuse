@@ -6,14 +6,16 @@ import { z } from "zod";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
-import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
+import { AsyncMultiSelectTagInput } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
 import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
-import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import {
-  GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
-  type GatewaySpendBudgetInterval,
-} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
-import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetLimitError";
+  GATEWAY_SPEND_TABS,
+  type GatewaySpendTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { GATEWAY_SPEND_BUDGET_MAX_SUBJECTS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import { toGatewaySpendLimit } from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
+import { requiredGatewaySpendBudgetFormSchema } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 const targetLabels = {
   apiKeys: {
@@ -39,21 +41,15 @@ const gatewayAddBudgetFormSchema = z.object({
       GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
       `Select at most ${GATEWAY_SPEND_BUDGET_MAX_SUBJECTS} at once`,
     ),
-  spendBudget: z.object({
-    interval: z.custom<GatewaySpendBudgetInterval>(),
-    limitUsd: z.string().superRefine((value, context) => {
-      const message = getGatewaySpendBudgetLimitError(value);
-      if (message) context.addIssue({ code: "custom", message });
-    }),
-  }),
+  spendBudget: requiredGatewaySpendBudgetFormSchema,
 });
 
 type GatewayAddBudgetFormValues = z.infer<typeof gatewayAddBudgetFormSchema>;
 
 type TargetPicker = {
-  options: ComponentProps<typeof MultiSelectTagInput<string>>["options"];
+  options: ComponentProps<typeof AsyncMultiSelectTagInput<string>>["options"];
   search: string;
-  onSearchChange: (value: string) => void;
+  onSearchChange: (query: string) => void;
   isLoading: boolean;
 };
 
@@ -66,7 +62,7 @@ type GatewayAddBudgetDialogProps = {
   isSubmitting: boolean;
   onSubmit: (budget: {
     targetIds: string[];
-    spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number };
+    spendLimit: GatewaySpendLimit;
   }) => void;
 };
 
@@ -93,10 +89,7 @@ export function GatewayAddBudgetDialog({
   const handleValidSubmit = (values: GatewayAddBudgetFormValues) => {
     onSubmit({
       targetIds: values.targets.map(({ value }) => value),
-      spendLimit: {
-        interval: values.spendBudget.interval,
-        limitUsd: Number(values.spendBudget.limitUsd.trim()),
-      },
+      spendLimit: toGatewaySpendLimit(values.spendBudget),
     });
   };
 
@@ -129,25 +122,14 @@ export function GatewayAddBudgetDialog({
             description={labels.description}
           >
             {(field) => (
-              <MultiSelectTagInput
+              <AsyncMultiSelectTagInput
                 id={field.id}
-                value={field.value.map(({ value }) => value)}
-                selectedOptions={field.value}
-                onValueChange={(values) => {
-                  const known = [...field.value, ...targetPicker.options];
-                  field.onChange(
-                    values.map((value) => ({
-                      value,
-                      label:
-                        known.find((option) => option.value === value)?.label ??
-                        value,
-                    })),
-                  );
-                }}
+                value={field.value}
+                onValueChange={field.onChange}
                 options={targetPicker.options}
                 placeholder={labels.placeholder}
-                searchPlaceholder="Search…"
                 search={{
+                  placeholder: "Search…",
                   value: targetPicker.search,
                   onValueChange: targetPicker.onSearchChange,
                 }}
@@ -162,7 +144,7 @@ export function GatewayAddBudgetDialog({
             )}
           </Form.Field>
           <GatewaySpendBudgetField.Inputs
-            subject={targetType === "users" ? "user" : "key"}
+            subject={GATEWAY_SPEND_TABS[targetType].subject}
             control={form.control}
             disabledReason={unavailableReason}
           />
