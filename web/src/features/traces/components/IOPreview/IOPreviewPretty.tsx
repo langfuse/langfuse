@@ -358,6 +358,7 @@ export function IOPreviewPretty({
     parsedOutput,
     parsedMetadata,
     chatMLParserResult,
+    observationType,
   );
 
   const shouldRenderMessages = hasRenderableChatMessages(parserResult);

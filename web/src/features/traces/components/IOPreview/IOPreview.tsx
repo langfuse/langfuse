@@ -313,6 +313,7 @@ export function IOPreview({
       ) : (
         <IOPreviewPretty
           {...sharedProps}
+          observationType={observationType}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}
         />
