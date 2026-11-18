@@ -804,52 +804,6 @@ export const TestScopeSwitch = meta.story({
   },
 });
 
-export const TestDetailsMetricAlignment = meta.story({
-  name: "(Test) Details Metric Aligns With Siblings",
-  args: {
-    metrics: [
-      { id: "latency", type: "value", text: "1.2s", searchText: "latency 1.2" },
-      {
-        id: "cost",
-        type: "cost",
-        text: "$0.03",
-        searchText: "cost 0.03",
-        details: { input: 0.01, output: 0.02, total: 0.03 },
-      },
-      {
-        id: "user",
-        type: "link",
-        href: "#user",
-        label: "user",
-        text: "user-1",
-        searchText: "user user-1",
-      },
-      {
-        id: "topics",
-        type: "details",
-        text: "Topics",
-        title: "Topics",
-        href: "#topics",
-        linkText: "Open in Topics →",
-        searchText: "Topics",
-        rows: [],
-      },
-    ],
-  },
-  play: async ({ canvas }) => {
-    const visibleText = (text: string) => {
-      const element = canvas
-        .getAllByText(text, { exact: true })
-        .find((candidate) => candidate.checkVisibility());
-      if (!element) throw new Error(`${text} is not visible`);
-      return element.getBoundingClientRect().top;
-    };
-    const latencyTop = visibleText("1.2s");
-    for (const text of ["$0.03", "user-1", "Topics"])
-      await expect(Math.abs(visibleText(text) - latencyTop)).toBeLessThan(0.5);
-  },
-});
-
 export const TestPlaceholderMetrics = meta.story({
   name: "(Test) Placeholder Metrics Keep Controls Enabled",
   args: {

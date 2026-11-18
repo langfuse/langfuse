@@ -731,12 +731,7 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
         }
       >
         {({ getTriggerProps }) => (
-          <span
-            {...getTriggerProps()}
-            className="inline-flex max-w-full min-w-0"
-          >
-            <Metric interactive value={metric.text} />
-          </span>
+          <Metric {...getTriggerProps()} interactive value={metric.text} />
         )}
       </HoverCard>
     );
