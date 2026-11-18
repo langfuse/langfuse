@@ -577,11 +577,15 @@ fn spend_counters(
 }
 
 /// The username stays as given: an empty one sends `AUTH <password>`, which
-/// AWS auth tokens and the `default` user both accept.
+/// AWS auth tokens and the `default` user both accept. A password already in
+/// the URL wins, since Compose always passes a default AUTH value.
 fn node_with_password(node: &str, password: &str) -> Option<String> {
     let mut url = url::Url::parse(node)
         .ok()
         .filter(|url| matches!(url.scheme(), "redis" | "rediss"))?;
+    if url.password().is_some() {
+        return Some(node.to_owned());
+    }
     // `set_password` encodes everything but `%`, so escape it first; the redis crate
     // decodes the password again.
     url.set_password(Some(&password.replace('%', "%25"))).ok()?;
@@ -900,7 +904,7 @@ mod tests {
     }
 
     #[test]
-    fn redis_auth_is_the_password_of_every_node() {
+    fn redis_auth_is_the_password_of_every_node_without_its_own() {
         use redis::IntoConnectionInfo;
         let auth = "tok#en@/:%40%!";
         let credentials = |node: &str| {
@@ -913,7 +917,9 @@ mod tests {
         };
 
         let config = spend_counters(
-            Some("rediss://a.cache:6379, rediss://default@b.cache:6379"),
+            Some(
+                "rediss://a.cache:6379, rediss://default@b.cache:6379, rediss://:own@c.cache:6379",
+            ),
             Some("true"),
             Some(auth),
         )
@@ -929,6 +935,7 @@ mod tests {
             [
                 (None, Some(auth.to_owned())),
                 (Some("default".to_owned()), Some(auth.to_owned())),
+                (None, Some("own".to_owned())),
             ]
         );
 
