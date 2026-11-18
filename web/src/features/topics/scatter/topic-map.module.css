@@ -49,10 +49,12 @@
 /* Stage, chrome and label styles for the new scatter look. */
 .look {
   background-color: var(--look-bg);
+  --look-label-halo: hsl(var(--background));
 }
 
 :global(.dark) .look {
   background-color: hsl(var(--sidebar-background));
+  --look-label-halo: hsl(var(--sidebar-background));
 }
 
 .lookChrome {
@@ -72,7 +74,7 @@
   text-shadow: var(--look-label-shadow);
 }
 
+/* Brighter than the dots, so labels do not sink into the grey ones. */
 :global(.dark) .lookLabel {
-  color: hsl(var(--foreground-secondary));
-  text-shadow: var(--look-label-shadow);
+  color: hsl(var(--primary));
 }

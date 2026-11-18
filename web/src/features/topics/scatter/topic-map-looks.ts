@@ -69,7 +69,10 @@ export const TOPIC_MAP_LOOKS: Record<TopicMapLookName, TopicMapLook> = {
       lineHeight: 16,
       tracking: "0",
       color: "#27272a",
-      shadow: "0 0 8px hsl(var(--sidebar-background) / 0.7)",
+      // Stacked halos in the stage colour keep labels readable over dense dots.
+      shadow: [1, 2, 3, 4, 6, 8]
+        .map((blur) => `0 0 ${blur}px var(--look-label-halo)`)
+        .join(", "),
     },
   },
 };
