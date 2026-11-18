@@ -72,6 +72,7 @@ export function TopicMapExplorer({
   matchingTraceIds,
   fillContainer = false,
   previewOnSelect = false,
+  pinSelection = false,
 }: TopicMapExplorerProps) {
   // Projection preparation is independent of the high-frequency camera store.
   const model = useMemo(() => prepareTopicMap(data, topics), [data, topics]);
@@ -228,6 +229,12 @@ export function TopicMapExplorer({
       store.setState({ fullscreenError: true });
     }
   };
+  // With a pinned selection, the selected trace's card shows whenever nothing else is hovered.
+  const pinnedId = pinSelection ? selectedTraceId : null;
+  // When the pinned trace goes away (its peek closed), its card closes too.
+  useEffect(() => {
+    if (pinSelection && !selectedTraceId) clearTopicMapHover(store);
+  }, [pinSelection, selectedTraceId, store]);
   const selectTrace = (id: string | null) => {
     if (id !== null && matchingTraceIds && !matchingTraceIds.has(id)) return;
     if (previewOnSelect) {
@@ -245,7 +252,9 @@ export function TopicMapExplorer({
         return;
       }
     }
-    clearTopicMapHover(store);
+    // A pinned selection keeps its summary card open after the click.
+    if (pinSelection && id !== null) setTopicMapHover(store, id, null);
+    else clearTopicMapHover(store);
     if (previewOnSelect && id === null) return;
     onSelectTrace(id);
   };
@@ -290,7 +299,7 @@ export function TopicMapExplorer({
       frame.camera.x !== intended.x ||
       frame.camera.y !== intended.y
     ) {
-      setTopicMapHover(store, null, null, pointer, pointerAt);
+      setTopicMapHover(store, pinnedId, null, pointer, pointerAt);
       return;
     }
     const hovered = hitMapNode(frame, at);
@@ -302,7 +311,7 @@ export function TopicMapExplorer({
         : null;
     setTopicMapHover(
       store,
-      traceLabel?.dataset.topicTrace ?? hovered?.traceId ?? null,
+      traceLabel?.dataset.topicTrace ?? hovered?.traceId ?? pinnedId,
       null,
       pointer,
       pointerAt,
@@ -335,7 +344,7 @@ export function TopicMapExplorer({
   };
   const handlePointerLeave = () => {
     if (previewOnSelect) return;
-    setTopicMapHover(store, null, null, { x: 0, y: 0 });
+    setTopicMapHover(store, pinnedId, null, { x: 0, y: 0 });
   };
   const handleStageKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget || !mapKeys.has(event.key)) return;
@@ -799,6 +808,8 @@ export type TopicMapExplorerProps = {
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
   previewOnSelect?: boolean;
+  /** Keeps the selected trace's summary card open, e.g. while its peek shows. */
+  pinSelection?: boolean;
 };
 
 type LayoutReadoutProps = {

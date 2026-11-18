@@ -1,4 +1,5 @@
-import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
+import { useMemo, type ComponentProps, type ReactNode } from "react";
+import { useRouter } from "next/router";
 import { type FilterState } from "@langfuse/shared";
 import { useMediaQuery } from "react-responsive";
 import {
@@ -15,7 +16,6 @@ import {
   orderedFacetTopics,
   type TopicTraceQuery,
   type UseTopicTraces,
-  useTracesWithSelection,
 } from "../facet-topics";
 import {
   prepareTopicDisplay,
@@ -44,8 +44,10 @@ export function ScatterTopicsView({
   useTraces,
   onOpenTrace,
 }: ScatterTopicsViewProps) {
-  // A dot click opens its trace and highlights its row.
-  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
+  // A dot click opens its trace in the peek; the map keeps that dot's card open while the peek shows it.
+  const router = useRouter();
+  const peekTraceId =
+    typeof router.query.peek === "string" ? router.query.peek : null;
   // The rows are the map's legend, so they take the scatter's colors.
   const topics = withScatterColors(
     prepareTopicDisplay(facet, "treemap").topics,
@@ -62,11 +64,7 @@ export function ScatterTopicsView({
     !selected &&
     (traceFilters.filters.length > 0 ||
       Boolean(traceFilters.searchQuery?.trim()));
-  const traces = useTracesWithSelection(
-    useTraces,
-    listQuery(),
-    selectedTraceId,
-  );
+  const traces = useTraces(listQuery());
   function listQuery(): TopicTraceQuery | null {
     if (isSearching)
       return topicTraceQuery(
@@ -149,9 +147,9 @@ export function ScatterTopicsView({
   }, [mapData, selectedTopicId, isSearching, searchKey, searchTopics]);
   // The map shows a selection only while it still matches, like the list.
   const mapSelectedTraceId =
-    selectedTraceId &&
-    (!highlightedTraceIds || highlightedTraceIds.has(selectedTraceId))
-      ? selectedTraceId
+    peekTraceId &&
+    (!highlightedTraceIds || highlightedTraceIds.has(peekTraceId))
+      ? peekTraceId
       : null;
   if (facet.topics.length === 0) {
     return <TopicsEmptyState />;
@@ -192,14 +190,13 @@ export function ScatterTopicsView({
                   topicId === null ? clearPickedTopic() : selectTopic(topicId)
                 }
                 onSelectTrace={(traceId) => {
-                  setSelectedTraceId(traceId);
                   if (!traceId) return clearPickedTopic();
-                  // The map already shows the summary, so a dot click opens the trace; its row stays highlighted.
                   if (document.fullscreenElement)
                     document.exitFullscreen().catch(() => undefined);
                   onOpenTrace(traceId);
                 }}
                 selectedTraceId={mapSelectedTraceId}
+                pinSelection
                 fillContainer
               />
             }
@@ -230,7 +227,6 @@ export function ScatterTopicsView({
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           divider="none"
-          selectedTraceId={selectedTraceId}
           emptyMessage={isSearching ? "No matches." : undefined}
           topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
           search={{

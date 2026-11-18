@@ -95,8 +95,8 @@ export function TopicTraceList({
   const tableRef = useRef<HTMLDivElement>(null);
   const [sizeRef, tableSize] = useElementSize<HTMLDivElement>();
   // Default widths: 20% trace ID, 30% topic, the rest for the summary.
-  const widthShare = (share: number, fallback: number) =>
-    tableSize ? Math.round(tableSize.width * share) : fallback;
+  const widthShare = (share: number) =>
+    Math.round((tableSize?.width ?? 0) * share);
   // Taller rows wrap the summary and topic, since the list is the only place to read them.
   const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "topicTraces",
@@ -140,7 +140,7 @@ export function TopicTraceList({
     {
       accessorKey: "traceId",
       header: () => <span className={FIRST_CELL}>Trace ID</span>,
-      size: widthShare(0.2, 208),
+      size: widthShare(0.2),
       minSize: 96,
       cell: ({ row }) => (
         <span
@@ -159,7 +159,7 @@ export function TopicTraceList({
           {
             accessorKey: "topicName",
             header: () => <span className={CELL}>Topic</span>,
-            size: widthShare(0.3, 200),
+            size: widthShare(0.3),
             minSize: 120,
             cell: ({ row }) => {
               // Outliers read Unassigned, as in the topic rows and on the map.
@@ -277,7 +277,7 @@ export function TopicTraceList({
               <DataTableRowHeightSwitch
                 rowHeight={rowHeight}
                 setRowHeight={setRowHeight}
-                tableName="topics-topic-traces"
+                tableName="topics-trace-list"
                 customRowHeight={customRowHeightMenu(rowHeights)}
               />
             )}
@@ -304,26 +304,30 @@ export function TopicTraceList({
       </div>
       <div ref={sizeRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div ref={tableRef} className="contents">
-          <DataTable
-            tableName="topics-topic-traces"
-            columns={columns}
-            data={{
-              isLoading: traces.isLoading,
-              isError: traces.error !== null,
-              error: traces.error ?? undefined,
-              data: rows.map((row) => ({ ...row, id: row.traceId })),
-            }}
-            className="min-h-0 overscroll-contain"
-            cellPadding="relaxed"
-            noResultsMessage={emptyMessage}
-            peekView={peekView}
-            rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
-            rowHeight={capsWords ? undefined : rowHeight}
-            customRowHeightPx={capsWords ? null : rowHeights.activeHeightPx}
-            onCustomRowHeightChange={rowHeights.setCustomPx}
-            onSelectRowHeight={setRowHeight}
-            topAlignCells={wrapsSummary || capsWords}
-          />
+          {/* The table reads column sizes once, so it waits for the measured width. */}
+          {tableSize && (
+            <DataTable
+              // v2 drops column widths saved before the 20/30/50 defaults.
+              tableName="topics-trace-list"
+              columns={columns}
+              data={{
+                isLoading: traces.isLoading,
+                isError: traces.error !== null,
+                error: traces.error ?? undefined,
+                data: rows.map((row) => ({ ...row, id: row.traceId })),
+              }}
+              className="min-h-0 overscroll-contain"
+              cellPadding="relaxed"
+              noResultsMessage={emptyMessage}
+              peekView={peekView}
+              rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
+              rowHeight={capsWords ? undefined : rowHeight}
+              customRowHeightPx={capsWords ? null : rowHeights.activeHeightPx}
+              onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
+              topAlignCells={wrapsSummary || capsWords}
+            />
+          )}
         </div>
       </div>
       {traces.hasMore && <TopicTraceLoadMore traces={traces} />}

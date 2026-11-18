@@ -14,6 +14,7 @@ export function ScatterMap({
   matchingTraceIds,
   fillContainer = false,
   previewOnSelect = false,
+  pinSelection = false,
 }: ScatterMapProps) {
   if (query.error)
     return (
@@ -43,6 +44,7 @@ export function ScatterMap({
       matchingTraceIds={matchingTraceIds}
       fillContainer={fillContainer}
       previewOnSelect={previewOnSelect}
+      pinSelection={pinSelection}
     />
   );
 }
@@ -60,6 +62,8 @@ type ScatterMapProps = {
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
   previewOnSelect?: boolean;
+  /** Keeps the selected trace's summary card open, e.g. while its peek shows. */
+  pinSelection?: boolean;
 };
 
 type Topic = Pick<
