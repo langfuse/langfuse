@@ -342,8 +342,8 @@ function FilterTags({
         <div
           role="group"
           aria-label={filter.label}
-          // Same track as the toggle beside it, so both share a height and tags sit like its options.
-          className="bg-control-track/60 dark:bg-muted flex h-6 min-w-0 items-center gap-1 rounded-md p-0.5"
+          // Same height as the toggle beside it so both center on one line.
+          className="flex h-6 min-w-0 items-center gap-1"
         >
           {filter.items.slice(0, visibleCount).map((item) => (
             <span key={item.value} className="flex max-w-48 min-w-10 shrink-0">
