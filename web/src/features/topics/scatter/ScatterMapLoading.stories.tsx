@@ -1,17 +1,17 @@
 import { expect, fn, waitFor, within } from "storybook/test";
-import preview from "../../../.storybook/preview";
-import { TopicMapExplorer as EmbeddingMapView } from "@/src/features/topics/scatter/TopicMapExplorer";
-import { TopicMapLoading } from "./TopicMapLoading";
+import preview from "../../../../.storybook/preview";
+import { ScatterMapLoading } from "./ScatterMapLoading";
+import { TopicMapExplorer } from "./TopicMapExplorer";
 
 const meta = preview.meta({
-  component: TopicMapLoading,
+  component: ScatterMapLoading,
   render: (args) => (
     <div className="grid grid-cols-2 gap-2">
       <div className="flex h-[680px] min-h-0 flex-col">
-        <TopicMapLoading {...args} />
+        <ScatterMapLoading {...args} />
       </div>
       <div className="flex h-[680px] min-h-0 flex-col">
-        <EmbeddingMapView
+        <TopicMapExplorer
           data={{ points: [], missingSummaryCount: 0, unpositionedCount: 0 }}
           topics={[]}
           selectedTopic={null}
@@ -39,9 +39,4 @@ const meta = preview.meta({
 export const FillContainer = meta.story({
   name: "(Test) Loading matches loaded container size",
   args: { fillContainer: true },
-});
-
-export const Standalone = meta.story({
-  name: "(Test) Loading matches loaded standalone size",
-  args: { fillContainer: false },
 });
