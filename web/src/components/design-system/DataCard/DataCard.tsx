@@ -179,7 +179,7 @@ export function DataCard({
             <div
               role="group"
               aria-label={filter.label}
-              className="flex min-w-0 items-center gap-1"
+              className="flex min-w-0 items-center gap-1 overflow-hidden"
             >
               {filter.items.slice(0, FILTER_VISIBLE_ITEMS).map((item) => (
                 <FilterTag
@@ -189,18 +189,24 @@ export function DataCard({
                 />
               ))}
               {filter.items.length > FILTER_VISIBLE_ITEMS && (
-                <Tag text={`+${filter.items.length - FILTER_VISIBLE_ITEMS}`} />
+                <div className="shrink-0">
+                  <Tag
+                    text={`+${filter.items.length - FILTER_VISIBLE_ITEMS}`}
+                  />
+                </div>
               )}
             </div>
           )}
           {tabs && isToggle && (
-            <Tabs.List
-              variant="inset"
-              size="sm"
-              aria-label={`${title} options`}
-            >
-              {tabTriggers}
-            </Tabs.List>
+            <div className="shrink-0">
+              <Tabs.List
+                variant="inset"
+                size="sm"
+                aria-label={`${title} options`}
+              >
+                {tabTriggers}
+              </Tabs.List>
+            </div>
           )}
           {controls.map((control) => (
             <div key={control.id} className="w-80 min-w-0">
@@ -322,5 +328,10 @@ function FilterTag({
   onRemove: (value: string) => void;
 }) {
   const handleRemove = () => onRemove(item.value);
-  return <Tag text={item.label} remove={{ onRemove: handleRemove }} />;
+  // Long names truncate inside the tag instead of pushing into the controls beside it.
+  return (
+    <div className="flex max-w-40 min-w-0">
+      <Tag text={item.label} remove={{ onRemove: handleRemove }} />
+    </div>
+  );
 }
