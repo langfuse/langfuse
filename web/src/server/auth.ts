@@ -99,6 +99,7 @@ import {
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,
 } from "@/src/features/entitlements/server/getPlan";
+import { isPublicSharingDisabledByInstance } from "@/src/ee/features/public-sharing/server/publicSharing";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import {
   type EmailCodeRequest,
@@ -1005,6 +1006,8 @@ export async function getAuthOptions(
                 env.API_AUTH_MIGRATION === "enforce" &&
                 env.API_KEY_ORG_ROLES_ENABLE === "true",
               accessAuditLogMode: env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS,
+              publicSharingDisabledByInstance:
+                isPublicSharingDisabledByInstance(),
             },
             user:
               dbUser !== null
@@ -1062,6 +1065,8 @@ export async function getAuthOptions(
                             orgMembership.organization.aiTelemetryEnabled,
                           accessAuditLogEnabled:
                             orgMembership.organization.accessAuditLogEnabled,
+                          publicSharingDisabled:
+                            orgMembership.organization.publicSharingDisabled,
                           featureFlags: parseFlagsWithOrganizationDefaults(
                             dbUser.featureFlags,
                             orgMembership.organization.featureFlagOrgDefaults,
