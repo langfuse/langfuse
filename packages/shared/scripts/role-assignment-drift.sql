@@ -2,10 +2,12 @@
 -- Read-only. Run with: psql "$DATABASE_URL" -f packages/shared/scripts/role-assignment-drift.sql
 -- An empty result means role assignments and memberships agree.
 --
+-- Membership role assignments are a user's untagged, permanent assignments.
+--
 -- drift:
---   role_mismatch       a permanent assignment on the membership's owner names another role
---   missing_assignment  no permanent assignment on the owner, and the user holds a live assignment, so the read path will not backfill one
---   orphan_assignment   a permanent assignment on an org or project the user has no membership in
+--   role_mismatch       a membership role assignment on the membership's owner names another role
+--   missing_assignment  no membership role assignment on the owner, and the user holds a live assignment, so the read path will not backfill one
+--   orphan_assignment   a membership role assignment on an org or project the user has no membership in
 WITH memberships AS (
   SELECT
     om.user_id,
@@ -27,7 +29,9 @@ WITH memberships AS (
 permanent AS (
   SELECT principal_id, user_id, org_id, project_id, owner_id, role_id
   FROM role_assignments
-  WHERE principal_id LIKE 'user/%' AND expires_at IS NULL
+  WHERE principal_id LIKE 'user/%'
+    AND expires_at IS NULL
+    AND cardinality(coalesce(tags, '{}')) = 0
 ),
 live_principals AS (
   SELECT DISTINCT principal_id
