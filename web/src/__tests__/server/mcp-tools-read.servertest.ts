@@ -1504,8 +1504,8 @@ describe("MCP Read Tools", () => {
       },
     );
 
-    it.each(["2026-01-15T00:00:00.001Z", "2026-01-15T23:59:59.000Z"])(
-      "should reject list periods exceeding 336 hours: %s",
+    it.each(["2026-01-16T00:00:00.001Z", "2026-01-16T23:59:59.000Z"])(
+      "should reject list periods exceeding the 360-hour validation limit: %s",
       async (toStartTime) => {
         await expect(
           handleListObservations(
@@ -2082,7 +2082,7 @@ describe("MCP Read Tools", () => {
           {
             fields: ["input"],
             fromStartTime: "2026-01-01T00:00:00.000Z",
-            toStartTime: "2026-01-16T00:00:00.000Z",
+            toStartTime: "2026-01-17T00:00:00.000Z",
             limit: 50,
           },
           context,
@@ -2094,7 +2094,7 @@ describe("MCP Read Tools", () => {
           {
             fields: ["id"],
             fromStartTime: "2026-01-01T00:00:00.000Z",
-            toStartTime: "2026-01-16T00:00:00.000Z",
+            toStartTime: "2026-01-17T00:00:00.000Z",
             filter: [
               {
                 type: "string",
@@ -2119,14 +2119,17 @@ describe("MCP Read Tools", () => {
           },
           context,
         ),
-      ).rejects.toThrow(/maximum limit of 50/i);
+      ).resolves.toMatchObject({
+        data: [],
+        meta: { notice: expect.stringMatching(/lowered from 51 to 50/) },
+      });
 
       await expect(
         handleListObservations(
           {
             fields: ["input"],
             fromStartTime: "2026-01-01T00:00:00.000Z",
-            toStartTime: "2026-01-15T00:00:00.000Z",
+            toStartTime: "2026-01-15T23:00:00.000Z",
             limit: 50,
           },
           context,
@@ -2164,7 +2167,7 @@ describe("MCP Read Tools", () => {
             ...scope,
             fields: ["metadata"],
             fromStartTime: "2026-01-01T00:00:00.000Z",
-            toStartTime: "2026-01-16T00:00:00.000Z",
+            toStartTime: "2026-01-17T00:00:00.000Z",
             limit: 50,
           },
           context,

@@ -269,6 +269,14 @@ describe("MCP observation search cooldown", () => {
       await expect(handleListObservations(input, context)).rejects.toThrow(
         /retry in 30s/i,
       );
+      expect(fakeSpan.setAttribute).toHaveBeenCalledWith(
+        "mcp.outcome",
+        "throttled",
+      );
+      expect(fakeSpan.setAttribute).toHaveBeenCalledWith(
+        "mcp.retry_after_seconds",
+        30,
+      );
       expect(queryMock).toHaveBeenCalledTimes(2);
       expect(redis.set).toHaveBeenCalledWith(
         "rate-limit:mcp-query-cooldown:project-id",
