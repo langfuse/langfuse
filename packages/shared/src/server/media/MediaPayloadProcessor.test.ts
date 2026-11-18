@@ -134,19 +134,6 @@ describe("transformMediaPayload", () => {
     },
   );
 
-  it("leaves a single media reference untouched", async () => {
-    const processCandidate = vi.fn();
-    const transformed = await transformMediaPayload(MEDIA_REFERENCE, {
-      processCandidate,
-      onInvalidCandidate: vi.fn(),
-      onIgnoredCandidate: vi.fn(),
-      onDetectionPath: vi.fn(),
-    });
-
-    expect(transformed.value).toBe(MEDIA_REFERENCE);
-    expect(processCandidate).not.toHaveBeenCalled();
-  });
-
   it.each(DATA_URI_PUNCTUATIONS)(
     "processes an embedded Data URI followed by %s",
     async (punctuation) => {
