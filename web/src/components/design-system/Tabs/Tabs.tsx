@@ -303,7 +303,8 @@ function TabsList({
 }
 
 type TabsTriggerProps = {
-  disabled?: boolean;
+  /** With a reason, hovering the disabled tab explains why it can't be selected. */
+  disabled?: boolean | { disabledReason: string };
   icon?: IconComponent;
   /** Marks an internal-only feature with the Internal badge, in the row and in the overflow menu. */
   internal?: boolean;
@@ -313,7 +314,7 @@ type TabsTriggerProps = {
       label: string;
       /** Shown after the label in regular weight, e.g. "Called 6". */
       count?: number;
-      /** Rich tooltip on the label; replaces the native title. On a disabled tab, it explains why the tab can't be selected. */
+      /** Rich tooltip on the label; replaces the native title. */
       tooltip?: string;
       children?: never;
       title?: never;
@@ -352,8 +353,7 @@ function TabsTrigger(props: TabsTriggerProps) {
     tabsTriggerVariants({ look: list.look, size: list.size }),
   );
   const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
-  // A disabled trigger gets no pointer events, so its reason sits on a wrapper.
-  const disabledReason = disabled && props.href === undefined ? tooltip : null;
+  const disabledReason = getDisabledReason(disabled);
   const content = (
     <TabsTriggerContent
       icon={icon}
@@ -366,13 +366,13 @@ function TabsTrigger(props: TabsTriggerProps) {
     </TabsTriggerContent>
   );
 
-  if (props.href !== undefined) {
-    return (
+  const trigger =
+    props.href !== undefined ? (
       <Link
         href={props.href}
         onClick={props.onClick}
         aria-current={props.active ? "page" : undefined}
-        aria-disabled={disabled || undefined}
+        aria-disabled={Boolean(disabled) || undefined}
         tabIndex={disabled ? -1 : undefined}
         data-state={props.active ? "active" : "inactive"}
         title={nativeTitle}
@@ -380,24 +380,22 @@ function TabsTrigger(props: TabsTriggerProps) {
       >
         {content}
       </Link>
+    ) : (
+      <TabsPrimitive.Trigger
+        value={props.value}
+        disabled={Boolean(disabled)}
+        title={nativeTitle}
+        className={className}
+      >
+        {content}
+      </TabsPrimitive.Trigger>
     );
-  }
-
-  const trigger = (
-    <TabsPrimitive.Trigger
-      value={props.value}
-      disabled={disabled}
-      title={nativeTitle}
-      className={className}
-    >
-      {content}
-    </TabsPrimitive.Trigger>
-  );
 
   if (!disabledReason) {
     return trigger;
   }
 
+  // A disabled trigger gets no pointer events, so its reason sits on a wrapper.
   return (
     <Tooltip label={disabledReason}>
       {({ getTriggerProps }) => (
@@ -407,6 +405,10 @@ function TabsTrigger(props: TabsTriggerProps) {
       )}
     </Tooltip>
   );
+}
+
+function getDisabledReason(disabled: TabsTriggerProps["disabled"]) {
+  return typeof disabled === "object" ? disabled.disabledReason : undefined;
 }
 
 function TabsTriggerContent({
@@ -544,7 +546,10 @@ function TabsOverflowList({
               ...(props.disabled
                 ? {
                     disabled: true as const,
-                    disabledReason: props.tooltip ?? "Not available",
+                    disabledReason:
+                      getDisabledReason(props.disabled) ??
+                      props.tooltip ??
+                      "Not available",
                   }
                 : { disabled: false as const }),
             }))}
@@ -599,7 +604,12 @@ function TabsOverflowList({
                       <TabsInternalBadge />
                     ) : undefined,
                     disabled: trigger.props.disabled
-                      ? { reason: trigger.props.tooltip ?? "Not available" }
+                      ? {
+                          reason:
+                            getDisabledReason(trigger.props.disabled) ??
+                            trigger.props.tooltip ??
+                            "Not available",
+                        }
                       : undefined,
                     id: trigger.props.value,
                     onClick: () => selectFromMenu(trigger.props.value),

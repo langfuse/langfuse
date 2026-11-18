@@ -1101,9 +1101,14 @@ export function CreateLLMApiKeyForm({
                                 <Tabs.Trigger
                                   value={AuthMethod.IamRole}
                                   label="IAM role"
-                                  disabled={isIamRoleDisabled}
+                                  disabled={
+                                    iamRoleDisabledReason
+                                      ? {
+                                          disabledReason: iamRoleDisabledReason,
+                                        }
+                                      : isIamRoleDisabled
+                                  }
                                   icon={isIamRoleDisabled ? Lock : undefined}
-                                  tooltip={iamRoleDisabledReason ?? undefined}
                                 />
                               </Tabs.List>
                             </Tabs>

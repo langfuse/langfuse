@@ -210,10 +210,11 @@ const disabledChildren = (
       <Tabs.Trigger value="password" disabled label="Password" />
       <Tabs.Trigger
         value="sso"
-        disabled
+        disabled={{
+          disabledReason: "SSO is available on the Enterprise plan.",
+        }}
         icon={Lock}
         label="SSO"
-        tooltip="SSO is available on the Enterprise plan."
       />
     </Tabs.List>
     <Tabs.Content value="account">Account settings</Tabs.Content>
