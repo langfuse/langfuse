@@ -2,6 +2,7 @@ import { test } from "vitest";
 import { generateVertexAccessTokenForServiceAccount } from "@langfuse/shared/src/server";
 
 const env = (name: string) => process.env[name];
+const lines: string[] = [];
 
 async function list(
   label: string,
@@ -14,7 +15,7 @@ async function list(
     const response = await fetch(url, { headers });
     const text = await response.text();
     if (!response.ok) {
-      console.log(
+      lines.push(
         `[probe] ${label}: HTTP ${response.status} ${text.slice(0, 300)}`,
       );
       return;
@@ -22,9 +23,9 @@ async function list(
     const ids = pick(JSON.parse(text))
       .filter((id) => match.test(id))
       .sort();
-    console.log(`[probe] ${label}: ${JSON.stringify(ids)}`);
+    lines.push(`[probe] ${label}: ${JSON.stringify(ids)}`);
   } catch (error) {
-    console.log(`[probe] ${label}: ${String(error)}`);
+    lines.push(`[probe] ${label}: ${String(error)}`);
   }
 }
 
@@ -52,7 +53,7 @@ test("list live model ids", async () => {
   const bedrockKey = env("LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY");
   const region = env("LANGFUSE_LLM_CONNECTION_BEDROCK_REGION");
   if (bedrockKey && region) {
-    console.log(`[probe] bedrock region: ${region}`);
+    lines.push(`[probe] bedrock region: ${region}`);
     await list(
       "bedrock inference profiles",
       `https://bedrock.${region}.amazonaws.com/inference-profiles?typeEquals=SYSTEM_DEFINED&maxResults=1000`,
@@ -83,4 +84,5 @@ test("list live model ids", async () => {
       /gemini-[3-9]/,
     );
   }
+  throw new Error(`[probe results]\n${lines.join("\n")}`);
 }, 60_000);
