@@ -5057,15 +5057,186 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/v3/prompts:
+    get:
+      description: Get a list of prompt names with versions and labels
+      operationId: prompts_listV3
+      tags:
+        - Prompts
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: label
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: cursor
+          in: query
+          description: >-
+            cursor from the previous response's meta.cursor, omit for the first
+            page
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: includeTotal
+          in: query
+          description: >-
+            Set to `true` to return `meta.totalItems`, the number of prompts
+            matching the filters. Defaults to `false`; counting adds latency on
+            large projects.
+          required: false
+          schema:
+            type: boolean
+            nullable: true
+        - name: fromUpdatedAt
+          in: query
+          description: >-
+            Optional filter to only include prompt versions created/updated on
+            or after a certain datetime (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toUpdatedAt
+          in: query
+          description: >-
+            Optional filter to only include prompt versions created/updated
+            before a certain datetime (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: filter
+          in: query
+          description: >-
+            JSON string containing an array of filter conditions, combined with
+            AND.
+
+            When provided, this takes precedence over name, version,
+
+            label, tag, fromUpdatedAt, and toUpdatedAt. An empty array applies
+            no
+
+            filters. Project scoping and pagination always apply.
+
+
+            Each condition requires `type`, `column`, `operator`, and `value`.
+
+            Supported types and columns:
+
+            - `string`: `id`, `name`, `type`. Operators: `=`, `contains`, `does
+            not contain`, `starts with`, `ends with`, `is not empty`.
+
+            - `stringOptions`: `id`, `name`, `type`. Operators: `any of`, `none
+            of`. Value: non-empty string array.
+
+            - `number`: `version`. Operators: `=`, `>`, `<`, `>=`, `<=`. Value:
+            number.
+
+            - `datetime`: `createdAt`, `updatedAt`. Operators: `>`, `<`, `>=`,
+            `<=`. Value: ISO 8601 timestamp.
+
+            - `arrayOptions`: `labels`, `tags`. Operators: `any of`, `all of`,
+            `none of`. Value: non-empty string array.
+
+            - `stringObject`: `config`. Requires an additional `key` field.
+            Operators: `=`, `contains`, `does not contain`, `starts with`, `ends
+            with`, `is set`, `is not set`. Value: string (use an empty string
+            for key-presence operators).
+
+
+            String equality is case-sensitive. String search operators use
+
+            case-insensitive SQL pattern matching: `%` matches any sequence and
+
+            `_` matches a single character. A backslash escapes these
+            characters;
+
+            JSON-escape the backslash in the filter value. Asterisks are
+            literal.
+
+            For config, an empty search value is treated as `is set`.
+
+
+            Filters apply to prompt versions before aggregation: returned
+            versions,
+
+            labels, and lastConfig reflect only matching versions.
+
+
+            Example: [{"type":"string","column":"name","operator":"starts
+            with","value":"tools/"},{"type":"string","column":"name","operator":"ends
+            with","value":"/description"}]
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptMetaListV3Response'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/v2/prompts:
     get:
       description: >-
         Get a list of prompt names with versions and labels.
 
 
-        Prefer `GET /api/public/v3/prompts` for new integrations. It returns the
-        same items with cursor-based pagination, which stays fast on large
-        projects. This endpoint will be deprecated in the future.
+        Prefer [`GET
+        /api/public/v3/prompts`](https://api.reference.langfuse.com/#tag/prompts/GET/api/public/v3/prompts)
+        for new integrations. It returns the same items with cursor-based
+        pagination, which stays fast on large projects. This endpoint will be
+        deprecated in the future.
       operationId: prompts_list
       tags:
         - Prompts
@@ -5265,175 +5436,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreatePromptRequest'
-  /api/public/v3/prompts:
-    get:
-      description: Get a list of prompt names with versions and labels
-      operationId: prompts_listV3
-      tags:
-        - Prompts
-      parameters:
-        - name: name
-          in: query
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: label
-          in: query
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: tag
-          in: query
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: cursor
-          in: query
-          description: >-
-            cursor from the previous response's meta.cursor, omit for the first
-            page
-          required: false
-          schema:
-            type: string
-            nullable: true
-        - name: limit
-          in: query
-          description: limit of items per page
-          required: false
-          schema:
-            type: integer
-            nullable: true
-        - name: includeTotal
-          in: query
-          description: >-
-            Set to `true` to return `meta.totalItems`, the number of prompts
-            matching the filters. Defaults to `false`; counting adds latency on
-            large projects.
-          required: false
-          schema:
-            type: boolean
-            nullable: true
-        - name: fromUpdatedAt
-          in: query
-          description: >-
-            Optional filter to only include prompt versions created/updated on
-            or after a certain datetime (ISO 8601)
-          required: false
-          schema:
-            type: string
-            format: date-time
-            nullable: true
-        - name: toUpdatedAt
-          in: query
-          description: >-
-            Optional filter to only include prompt versions created/updated
-            before a certain datetime (ISO 8601)
-          required: false
-          schema:
-            type: string
-            format: date-time
-            nullable: true
-        - name: filter
-          in: query
-          description: >-
-            JSON string containing an array of filter conditions, combined with
-            AND.
-
-            When provided, this takes precedence over name, version,
-
-            label, tag, fromUpdatedAt, and toUpdatedAt. An empty array applies
-            no
-
-            filters. Project scoping and pagination always apply.
-
-
-            Each condition requires `type`, `column`, `operator`, and `value`.
-
-            Supported types and columns:
-
-            - `string`: `id`, `name`, `type`. Operators: `=`, `contains`, `does
-            not contain`, `starts with`, `ends with`, `is not empty`.
-
-            - `stringOptions`: `id`, `name`, `type`. Operators: `any of`, `none
-            of`. Value: non-empty string array.
-
-            - `number`: `version`. Operators: `=`, `>`, `<`, `>=`, `<=`. Value:
-            number.
-
-            - `datetime`: `createdAt`, `updatedAt`. Operators: `>`, `<`, `>=`,
-            `<=`. Value: ISO 8601 timestamp.
-
-            - `arrayOptions`: `labels`, `tags`. Operators: `any of`, `all of`,
-            `none of`. Value: non-empty string array.
-
-            - `stringObject`: `config`. Requires an additional `key` field.
-            Operators: `=`, `contains`, `does not contain`, `starts with`, `ends
-            with`, `is set`, `is not set`. Value: string (use an empty string
-            for key-presence operators).
-
-
-            String equality is case-sensitive. String search operators use
-
-            case-insensitive SQL pattern matching: `%` matches any sequence and
-
-            `_` matches a single character. A backslash escapes these
-            characters;
-
-            JSON-escape the backslash in the filter value. Asterisks are
-            literal.
-
-            For config, an empty search value is treated as `is set`.
-
-
-            Filters apply to prompt versions before aggregation: returned
-            versions,
-
-            labels, and lastConfig reflect only matching versions.
-
-
-            Example: [{"type":"string","column":"name","operator":"starts
-            with","value":"tools/"},{"type":"string","column":"name","operator":"ends
-            with","value":"/description"}]
-          required: false
-          schema:
-            type: string
-            nullable: true
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PromptMetaListV3Response'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security: *ref_0
   /api/public/scim/ServiceProviderConfig:
     get:
       description: >-
