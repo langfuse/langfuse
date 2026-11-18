@@ -96,9 +96,7 @@ function CurrentFacet({
   // Only the Map view needs the run's projection.
   const mapQuery = useCurrentTopicMap(
     projectId,
-    ["map", "scatter", "scatter2"].includes(
-      isHandheld ? mobileVisualization.view : view,
-    )
+    ["map", "scatter"].includes(isHandheld ? mobileVisualization.view : view)
       ? resultFacet.map?.runId
       : undefined,
   );
@@ -162,20 +160,18 @@ function CurrentFacet({
           showUnassigned={showUnassigned}
         />
       );
-    if (view === "scatter" || view === "scatter2")
+    if (view === "scatter")
       return (
         <ScatterTopicsView
           key={facet.facetId}
           projectId={projectId}
           facet={facet}
           mapResult={mapResult}
-          onOpenTrace={peekNavigation.openPeek}
           traceFilters={traceFilters}
           showUnassigned={showUnassigned}
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
-          variant={view === "scatter2" ? "new2" : "new"}
         />
       );
     return (

@@ -14,16 +14,6 @@ export type MapTopic = {
 };
 export type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
 export type Camera = { x: number; y: number; zoom: number };
-
-/** Zoom limits, as multiples of the whole-map fit. */
-const MIN_ZOOM = 0.8;
-const MAX_ZOOM = 8;
-/**
- * Dots grow into readable cards only while the viewport holds few of them;
- * past this many visible dots the cards fade back, since laying out and
- * labelling thousands of cards per frame is what stalls a zoomed-in dense map.
- */
-const DETAIL_MAX_VISIBLE = 300;
 export type Size = { width: number; height: number };
 export type MapPoint = MapData["points"][number] & {
   groupId: string;
@@ -94,12 +84,6 @@ function pointBounds(points: { x: number; y: number }[]): Bounds {
   return { minX, maxX, minY, maxY };
 }
 
-/** A larger stage, such as fullscreen, draws marks up to 1.4 times larger. */
-export function stageScale(size: { width: number; height: number }) {
-  const space = Math.sqrt((size.width * size.height) / (640 * 480));
-  return Math.min(1.4, Math.max(1, 1 + (space - 1) * 0.25));
-}
-
 function baseScale(bounds: Bounds, size: Size) {
   return Math.min(
     Math.max(size.width - 100, 1) / Math.max(bounds.maxX - bounds.minX, 0.1),
@@ -112,13 +96,13 @@ export function fitCamera(bounds: Bounds, whole: Bounds, size: Size): Camera {
     x: (bounds.minX + bounds.maxX) / 2,
     y: (bounds.minY + bounds.maxY) / 2,
     zoom: Math.min(
-      MAX_ZOOM,
-      Math.max(MIN_ZOOM, baseScale(bounds, size) / baseScale(whole, size)),
+      32,
+      Math.max(0.4, baseScale(bounds, size) / baseScale(whole, size)),
     ),
   };
 }
 
-export function screenPoint(
+function screenPoint(
   point: { x: number; y: number },
   camera: Camera,
   bounds: Bounds,
@@ -138,22 +122,16 @@ export function zoomCamera(
   bounds: Bounds,
   size: Size,
 ): Camera {
-  const zoom = Math.min(
-    MAX_ZOOM,
-    Math.max(MIN_ZOOM, camera.zoom * 2 ** levels),
-  );
+  const zoom = Math.min(128, Math.max(0.4, camera.zoom * 2 ** levels));
   const before = baseScale(bounds, size) * camera.zoom;
   const after = baseScale(bounds, size) * zoom;
   const dx = (anchor.x - 0.5) * size.width;
   const dy = (anchor.y - 0.5) * size.height;
-  return clampCamera(
-    {
-      x: camera.x + dx / before - dx / after,
-      y: camera.y - dy / before + dy / after,
-      zoom,
-    },
-    bounds,
-  );
+  return {
+    x: camera.x + dx / before - dx / after,
+    y: camera.y - dy / before + dy / after,
+    zoom,
+  };
 }
 
 export function panCamera(
@@ -164,19 +142,7 @@ export function panCamera(
   size: Size,
 ): Camera {
   const scale = baseScale(bounds, size) * camera.zoom;
-  return clampCamera(
-    { ...camera, x: camera.x - dx / scale, y: camera.y + dy / scale },
-    bounds,
-  );
-}
-
-/** Keeps the view's center over the data, so the map never pans out of sight. */
-function clampCamera(camera: Camera, bounds: Bounds): Camera {
-  return {
-    ...camera,
-    x: Math.min(bounds.maxX, Math.max(bounds.minX, camera.x)),
-    y: Math.min(bounds.maxY, Math.max(bounds.minY, camera.y)),
-  };
+  return { ...camera, x: camera.x - dx / scale, y: camera.y + dy / scale };
 }
 
 function visualDepth(id: string) {
@@ -231,7 +197,7 @@ export function prepareTopicMap(
       id,
       name:
         topic?.name ??
-        (id === "awaiting_map" ? "Assignment unavailable" : "Unassigned"),
+        (id === "awaiting_map" ? "Assignment unavailable" : "Outliers"),
       description,
       color: topic?.color ?? UNASSIGNED_SWATCH_COLOR,
       points: members,
@@ -255,19 +221,6 @@ function smoothStep(from: number, to: number, value: number) {
   return progress * progress * (3 - 2 * progress);
 }
 
-/**
- * Zoom as the reader sees it: a bigger stage shows the same fit at a larger
- * scale, so points grow and labels and summaries appear sooner.
- */
-function detailZoom(zoom: number, size: Size) {
-  const space = Math.sqrt((size.width * size.height) / (640 * 480));
-  return zoom * Math.min(3, Math.max(1, space));
-}
-
-function nodeDetailBlend(zoom: number) {
-  return smoothStep(3, 10, zoom);
-}
-
 function readingNodeSize(size: Size) {
   return { width: Math.max(6, Math.min(264, size.width - 48)), height: 144 };
 }
@@ -281,19 +234,8 @@ export function prepareMapNodes(
   matchingTraceIds?: ReadonlySet<string>,
 ): TopicMapNodeFrame {
   const full = readingNodeSize(size);
-  const zoom = detailZoom(camera.zoom, size);
-  let visible = 0;
-  for (const point of model.points) {
-    // Dimmed dots never grow into cards, so only highlighted ones count.
-    if (readingTopic && point.groupId !== readingTopic) continue;
-    if (matchingTraceIds && !matchingTraceIds.has(point.traceId)) continue;
-    const at = screenPoint(point, camera, model.bounds, size);
-    if (at.x >= 0 && at.x <= size.width && at.y >= 0 && at.y <= size.height)
-      visible++;
-  }
-  const blend =
-    nodeDetailBlend(camera.zoom) *
-    (1 - smoothStep(DETAIL_MAX_VISIBLE, DETAIL_MAX_VISIBLE * 2, visible));
+  // Dots stay dots at any zoom; summaries show in the hover card instead of cards.
+  const blend = 0;
   const cells = new Map<string, number[]>();
   const cellWidth = full.width + 8;
   const cellHeight = full.height + 8;
@@ -301,8 +243,11 @@ export function prepareMapNodes(
     const worldPosition = { x: point.x, y: point.y };
     const projected = screenPoint(worldPosition, camera, model.bounds, size);
     const depth = point.depth * (1 - blend);
-    const center = projected;
-    const diameter = (5 + depth) * Math.sqrt(Math.min(zoom, 4));
+    const center = {
+      x: projected.x + pointer.x * depth * 6,
+      y: projected.y + pointer.y * depth * 6,
+    };
+    const diameter = (5 + depth) * Math.sqrt(Math.min(camera.zoom, 4));
     const matchesFilters =
       (!readingTopic || point.groupId === readingTopic) &&
       (!matchingTraceIds || matchingTraceIds.has(point.traceId));
@@ -419,41 +364,20 @@ type MapTextLabel = {
   kind: "zone";
   title: string;
   color: string;
+  description: string;
   rect: MapRectangle;
   fontSize: number;
-  lineHeight?: number;
   opacity: number;
+  detailOpacity: number;
 };
 
-/** Up to two fixed-size lines above each cluster. */
-type LabelAbove = {
-  fontSize: number;
-  lineHeight: number;
-  /** Fullscreen has room for names at the whole-map fit. */
-  atFit?: boolean;
-};
-
-/** Topic names appear after the first zoom step, or at once in fullscreen. */
-function labelVisibility(
-  above: LabelAbove | undefined,
-  cameraZoom: number,
-  detail: number,
-) {
-  if (!above) return smoothStep(1.5, 3, detail);
-  if (above.atFit) return 1;
-  return smoothStep(1.05, 1.3, cameraZoom);
-}
-
-export function prepareMapTextLabels(
-  frame: TopicMapNodeFrame,
-  above?: LabelAbove,
-): MapTextLabel[] {
+export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
   const { camera, model, size, readingTopic, matchingTraceIds } = frame;
-  const zoom = detailZoom(camera.zoom, size);
-  const visibility = labelVisibility(above, camera.zoom, zoom);
+  const visibility = smoothStep(1.5, 3, camera.zoom);
   if (!visibility) return [];
+  const detailOpacity = smoothStep(3.5, 7, camera.zoom);
   const labels: MapTextLabel[] = [];
-  const fontSize = 15 + smoothStep(3, 8, zoom) * 3;
+  const fontSize = 15 + smoothStep(3, 8, camera.zoom) * 3;
   const visible = (rect: MapRectangle) =>
     rect.x + rect.width > 0 &&
     rect.y + rect.height > 0 &&
@@ -469,7 +393,7 @@ export function prepareMapTextLabels(
       Math.min(2, Math.ceil((zone.name.length * fontSize * 0.55) / width)) *
       fontSize *
       1.2;
-    const height = titleHeight;
+    const height = titleHeight + 40 * detailOpacity;
     const topLeft = screenPoint(
       { x: zone.bounds.minX, y: zone.bounds.maxY },
       camera,
@@ -489,50 +413,6 @@ export function prepareMapTextLabels(
     // A zone keeps one geographic label as its center moves beyond the viewport.
     // Clamping to the visible intersection is continuous through pan and zoom.
     if (right < left || bottom < top) continue;
-    if (above) {
-      if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
-      // A larger stage, such as fullscreen, reads at a larger size.
-      const scale = stageScale(size);
-      const fontSize = above.fontSize * scale;
-      const lineHeight = above.lineHeight * scale;
-      const textWidth = zone.name.length * fontSize * 0.62;
-      const labelWidth = Math.min(220 * scale, textWidth);
-      const labelHeight =
-        Math.min(2, Math.ceil(textWidth / labelWidth)) * lineHeight;
-      const x = Math.max(
-        12 + labelWidth / 2,
-        Math.min(size.width - 12 - labelWidth / 2, (left + right) / 2),
-      );
-      // The zoom toolbar holds the top-right corner.
-      const underToolbar = x + labelWidth / 2 > size.width - 220;
-      let y = topLeft.y - labelHeight - 10;
-      if (y < 12 || (underToolbar && y < 46)) y = bottomRight.y + 10;
-      y = Math.max(12, Math.min(size.height - labelHeight - 12, y));
-      const rect = {
-        x: x - labelWidth / 2,
-        y,
-        width: labelWidth,
-        height: labelHeight,
-      };
-      if (!visible(rect)) continue;
-      const matchesFilters =
-        !matchingTraceIds ||
-        zone.points.some((point) => matchingTraceIds.has(point.traceId));
-      labels.push({
-        id: zone.id,
-        kind: "zone",
-        title: zone.name,
-        color: zone.color,
-        rect,
-        fontSize,
-        lineHeight,
-        opacity:
-          visibility *
-          (readingTopic && readingTopic !== zone.id ? 0.4 : 1) *
-          (matchesFilters ? 1 : 0.4),
-      });
-      continue;
-    }
     const center = screenPoint(zone, camera, model.bounds, size);
     const xInset = Math.min(width / 2 + 12, (right - left) / 2);
     const yInset = Math.min(height / 2 + 12, (bottom - top) / 2);
@@ -561,22 +441,17 @@ export function prepareMapTextLabels(
       kind: "zone",
       title: zone.name,
       color: zone.color,
+      description: zone.description,
       rect,
       fontSize,
       opacity:
         visibility *
         (readingTopic && readingTopic !== zone.id ? 0.4 : 0.6) *
-        (matchesFilters ? 1 : 0.4),
+        (matchesFilters ? 1 : 0.15),
+      detailOpacity,
     });
   }
 
-  // Larger topics keep their label when labels collide.
-  if (above) {
-    const sizes = new Map(
-      frame.zones.map((zone) => [zone.id, zone.points.length]),
-    );
-    labels.sort((a, b) => (sizes.get(b.id) ?? 0) - (sizes.get(a.id) ?? 0));
-  }
   const shown: MapTextLabel[] = [];
   for (const label of labels) {
     let separation = 1;
@@ -639,6 +514,25 @@ export function hitMapNode(
     }
   }
   return nearest?.point ?? null;
+}
+
+/** Topic halos fade out as you zoom in, so close clusters keep a clean background, as in the original map. */
+export function haloVisibility(zoom: number) {
+  return 1 - smoothStep(3, 10, zoom);
+}
+export function zoneHalo(
+  zone: TopicMapModel["zones"][number],
+  camera: Camera,
+  bounds: Bounds,
+  size: Size,
+) {
+  const center = screenPoint(zone, camera, bounds, size);
+  const scale = baseScale(bounds, size) * camera.zoom;
+  return {
+    ...center,
+    rx: Math.max(28, (zone.bounds.maxX - zone.bounds.minX) * scale * 0.62),
+    ry: Math.max(28, (zone.bounds.maxY - zone.bounds.minY) * scale * 0.62),
+  };
 }
 
 type MapHoverRectangle = MapRectangle & {

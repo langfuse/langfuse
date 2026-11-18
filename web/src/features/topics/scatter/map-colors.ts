@@ -1,4 +1,4 @@
-/** Scatter (new 2) colors: the original map's drawing in Scatter (new)'s palette and dot tones. */
+/** Scatter (new) colors: the original map's drawing in the category palette with lighter dot tones. */
 
 type Rgb = [number, number, number];
 
