@@ -17,6 +17,12 @@ import {
   getGatewaySpendLimitWindowEnd,
   getGatewaySpendLimitWindowStart,
 } from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
+import {
+  GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR,
+  GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES,
+} from "./gatewayDefaultSpendLimits";
+
+const REPORTED_USER_SELECT = { id: true, email: true, name: true } as const;
 
 type GatewaySpendLimitEmail = Extract<
   NotificationEventType,
@@ -35,8 +41,12 @@ type GatewaySpendLimitEmail = Extract<
 type ReportedLimit = Awaited<
   ReturnType<typeof findReportedLimits>
 >[number]["limit"];
+type GatewayDefaultSpendLimitScope =
+  (typeof GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES)[keyof typeof GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES];
 type AlertKey = {
   spendLimitId: string;
+  /** The key or user a default limit was reached for; empty for their own limits. */
+  subjectId: string;
   type: GatewaySpendLimitAlertType;
   countingStartedAt: Date;
   windowStart: Date;
@@ -83,9 +93,10 @@ export class GatewaySpendLimitAlertService {
 
     const claimed: ClaimedAlert[] = [];
     try {
-      for (const { limit, windowStart } of reported) {
+      for (const { limit, subjectId, windowStart } of reported) {
         const alert: AlertKey = {
           spendLimitId: limit.id,
+          subjectId,
           type: GatewaySpendLimitAlertType.EXCEEDED,
           countingStartedAt: limit.countingStartedAt,
           windowStart,
@@ -145,6 +156,8 @@ export class GatewaySpendLimitAlertService {
 /**
  * The reported limits that still apply to the calling key at the reported
  * counting start: the key's own, and its owner's in the key's organization.
+ * A default is reported under an id naming the key or user it applied to, and
+ * still applies only while that key or user has no limit of its own.
  */
 async function findReportedLimits(
   prisma: PrismaClient,
@@ -155,26 +168,66 @@ async function findReportedLimits(
 ) {
   const callingKey = await prisma.apiKey.findUnique({
     where: { fastHashedSecretKey: params.fastHashedSecretKey },
-    select: { orgId: true, userId: true },
+    select: {
+      id: true,
+      note: true,
+      displaySecretKey: true,
+      orgId: true,
+      userId: true,
+      user: {
+        select: {
+          ...REPORTED_USER_SELECT,
+          gatewaySpendLimits: {
+            where: { scope: "USER" },
+            select: { organizationId: true },
+          },
+        },
+      },
+      gatewayAssociation: { select: { apiKeyId: true } },
+      _count: { select: { gatewaySpendLimits: true } },
+    },
+  });
+  if (!callingKey?.orgId) return [];
+  const { orgId, userId, user } = callingKey;
+
+  const defaultSubjects = new Map<GatewayDefaultSpendLimitScope, string>();
+  if (
+    callingKey.gatewayAssociation &&
+    callingKey._count.gatewaySpendLimits === 0
+  ) {
+    defaultSubjects.set(
+      GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.API_KEY,
+      callingKey.id,
+    );
+  }
+  if (
+    userId &&
+    !user?.gatewaySpendLimits.some(
+      ({ organizationId }) => organizationId === orgId,
+    )
+  ) {
+    defaultSubjects.set(GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.USER, userId);
+  }
+
+  const reported = params.limits.map((limit) => {
+    const [spendLimitId = "", subjectId = ""] = limit.limitId.split(
+      GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR,
+    );
+    return { ...limit, spendLimitId, subjectId };
   });
   const limits = await prisma.gatewaySpendLimit.findMany({
     where: {
-      id: { in: params.limits.map(({ limitId }) => limitId) },
+      id: { in: reported.map(({ spendLimitId }) => spendLimitId) },
+      organizationId: orgId,
       OR: [
-        { apiKey: { fastHashedSecretKey: params.fastHashedSecretKey } },
-        ...(callingKey?.orgId && callingKey.userId
-          ? [
-              {
-                scope: "USER" as const,
-                organizationId: callingKey.orgId,
-                userId: callingKey.userId,
-              },
-            ]
-          : []),
+        { apiKeyId: callingKey.id },
+        ...(userId ? [{ scope: "USER" as const, userId }] : []),
+        { scope: { in: [...defaultSubjects.keys()] } },
       ],
     },
     select: {
       id: true,
+      scope: true,
       interval: true,
       limitUsd: true,
       countingStartedAt: true,
@@ -184,21 +237,52 @@ async function findReportedLimits(
           id: true,
           note: true,
           displaySecretKey: true,
-          user: { select: { email: true, name: true } },
+          user: { select: REPORTED_USER_SELECT },
         },
       },
-      user: { select: { id: true, email: true, name: true } },
+      user: { select: REPORTED_USER_SELECT },
     },
   });
-  return params.limits.flatMap(
-    ({ limitId, countingStartedAt, windowStart }) => {
-      const limit = limits.find(
+  const keyUser = user && {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+  };
+
+  return reported.flatMap(
+    ({ spendLimitId, subjectId, countingStartedAt, windowStart }) => {
+      const found = limits.find(
         ({ id, countingStartedAt: started }) =>
-          id === limitId && started.getTime() === countingStartedAt.getTime(),
+          id === spendLimitId &&
+          started.getTime() === countingStartedAt.getTime(),
       );
-      return limit && (limit.apiKey || limit.user)
-        ? [{ limit, windowStart }]
-        : [];
+      if (!found) return [];
+      const { scope, ...limit } = found;
+      if (scope === "API_KEY" || scope === "USER") {
+        return subjectId === "" && (limit.apiKey || limit.user)
+          ? [{ limit, subjectId, windowStart }]
+          : [];
+      }
+      if (defaultSubjects.get(scope) !== subjectId) return [];
+      const appliesToKey = scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.API_KEY;
+      return [
+        {
+          subjectId,
+          windowStart,
+          limit: {
+            ...limit,
+            apiKey: appliesToKey
+              ? {
+                  id: callingKey.id,
+                  note: callingKey.note,
+                  displaySecretKey: callingKey.displaySecretKey,
+                  user: keyUser,
+                }
+              : null,
+            user: appliesToKey ? null : keyUser,
+          },
+        },
+      ];
     },
   );
 }
@@ -257,7 +341,7 @@ function toNotificationJob(claimed: ClaimedAlert[], recipient: Recipient) {
       claimed
         .map(
           ({ alert }) =>
-            `${alert.spendLimitId}-${alert.type}-${alert.countingStartedAt.getTime()}-${alert.windowStart.getTime()}`,
+            `${alert.spendLimitId}-${alert.subjectId}-${alert.type}-${alert.countingStartedAt.getTime()}-${alert.windowStart.getTime()}`,
         )
         .toSorted()
         .join(","),

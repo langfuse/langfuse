@@ -192,6 +192,70 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
     COMPLETION_TIMEOUT_MS,
   );
 
+  it(
+    "caps each key without a budget of its own by the default key budget, counted per key",
+    async () => {
+      const { apiFormat, model, path, body } = SPEND_LIMITED_COMPLETION;
+      const { caller } = suite.admin;
+      const { API_KEY: previousDefault } =
+        await caller.aiGateway.getDefaultSpendLimits({
+          orgId: ORGANIZATION_ID,
+        });
+      const setKeyDefault = (
+        spendLimit: Parameters<
+          typeof caller.aiGateway.setDefaultSpendLimit
+        >[0]["spendLimit"],
+      ) =>
+        caller.aiGateway.setDefaultSpendLimit({
+          orgId: ORGANIZATION_ID,
+          scope: "API_KEY",
+          spendLimit,
+        });
+      await setKeyDefault({
+        interval: GatewaySpendLimitInterval.TOTAL,
+        limitUsd: 0.000001,
+      });
+      try {
+        await withGatewayApiKey(apiFormat, async (first) => {
+          await withGatewayApiKey(apiFormat, async (second) => {
+            await completeAndExpectIngested({
+              secretKey: first.secretKey,
+              apiFormat,
+              path,
+              body,
+              providerModel: model,
+            });
+            const rejected = await fetch(`${suite.gatewayBaseUrl}${path}`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${first.secretKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(body),
+            });
+            await expectGatewayError(rejected, 429, {
+              error: expect.objectContaining({
+                code: "spend_limit_exceeded",
+              }),
+            });
+
+            // The first key spent the default, but the second has its own count.
+            await completeAndExpectIngested({
+              secretKey: second.secretKey,
+              apiFormat,
+              path,
+              body,
+              providerModel: model,
+            });
+          });
+        });
+      } finally {
+        await setKeyDefault(previousDefault);
+      }
+    },
+    COMPLETION_TIMEOUT_MS,
+  );
+
   it("rejects an unknown model", async () => {
     await withGatewayApiKey("openai.responses", async ({ secretKey }) => {
       const response = await fetch(
