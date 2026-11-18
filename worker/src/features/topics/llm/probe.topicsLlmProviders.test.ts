@@ -1,5 +1,10 @@
 import { test } from "vitest";
 import { generateVertexAccessTokenForServiceAccount } from "@langfuse/shared/src/server";
+import { nameTopicGroup, prepareTopicNamingGroup } from "./models";
+import {
+  resolveTopicsLlmCombination,
+  TOPICS_LLM_COMBINATIONS,
+} from "./topicsLlmCombinations";
 
 const env = (name: string) => process.env[name];
 const lines: string[] = [];
@@ -72,7 +77,7 @@ test("list live model ids", async () => {
     const token = await generateVertexAccessTokenForServiceAccount(key);
     await list(
       "vertex publisher models",
-      "https://aiplatform.googleapis.com/v1beta1/publishers/google/models?pageSize=1000&listAllVersions=true",
+      "https://aiplatform.googleapis.com/v1beta1/publishers/google/models?pageSize=300&listAllVersions=true",
       {
         Authorization: `Bearer ${token}`,
         "x-goog-user-project": key.project_id,
@@ -83,6 +88,45 @@ test("list live model ids", async () => {
         ),
       /gemini-[3-9]/,
     );
+  }
+  const haiku = TOPICS_LLM_COMBINATIONS.find(
+    (c) => c.summary.model === "claude-haiku-5-5",
+  );
+  if (haiku && anthropic) {
+    const { models } = resolveTopicsLlmCombination(haiku);
+    const prepared = await prepareTopicNamingGroup(
+      {
+        members: [
+          "Export last month's orders to CSV after the full export timed out.",
+          "Export a quarter of invoices to CSV split into smaller files.",
+          "Download the customer list as a spreadsheet after a failed export.",
+          "Export order history to CSV grouped by region.",
+        ].map((summary) => ({ summary })),
+        contrasts: [
+          { id: "c1", summary: "Translate a product description into German." },
+        ],
+      },
+      "topics-llm-provider-test",
+    );
+    for (let i = 0; i < 5; i++) {
+      try {
+        await nameTopicGroup(models, { ...prepared, facetName: "Intent" });
+        lines.push(`[probe] haiku naming ${i}: ok`);
+      } catch (error) {
+        const chain: string[] = [];
+        let current: any = error;
+        while (current) {
+          chain.push(
+            `${current.name}: ${current.text ?? current.message ?? ""}`.slice(
+              0,
+              600,
+            ),
+          );
+          current = current.cause;
+        }
+        lines.push(`[probe] haiku naming ${i}: ${chain.join(" <- ")}`);
+      }
+    }
   }
   throw new Error(`[probe results]\n${lines.join("\n")}`);
 }, 60_000);
