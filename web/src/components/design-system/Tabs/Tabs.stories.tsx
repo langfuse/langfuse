@@ -203,26 +203,50 @@ export const MobileOverflow = meta.story({
   },
 });
 
+const disabledChildren = (
+  <>
+    <Tabs.List variant="inset" size="md">
+      <Tabs.Trigger value="account" label="Account" />
+      <Tabs.Trigger value="password" disabled label="Password" />
+      <Tabs.Trigger
+        value="sso"
+        disabled
+        icon={Lock}
+        label="SSO"
+        tooltip="SSO is available on the Enterprise plan."
+      />
+    </Tabs.List>
+    <Tabs.Content value="account">Account settings</Tabs.Content>
+    <Tabs.Content value="password">Password settings</Tabs.Content>
+  </>
+);
+
 export const Disabled = meta.story({
   args: {
     defaultValue: "account",
-    children: (
-      <>
-        <Tabs.List variant="inset" size="md">
-          <Tabs.Trigger value="account" label="Account" />
-          <Tabs.Trigger value="password" disabled label="Password" />
-          <Tabs.Trigger
-            value="sso"
-            disabled
-            icon={Lock}
-            label="SSO"
-            tooltip="SSO is available on the Enterprise plan."
-          />
-        </Tabs.List>
-        <Tabs.Content value="account">Account settings</Tabs.Content>
-        <Tabs.Content value="password">Password settings</Tabs.Content>
-      </>
-    ),
+    children: disabledChildren,
+  },
+});
+
+export const ExplainsDisabledTab = meta.story({
+  name: "(Test) Explains Disabled Tab",
+  args: {
+    defaultValue: "account",
+    children: disabledChildren,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const ssoTab = canvas.getByRole("tab", { name: "SSO" });
+    await expect(ssoTab).toBeDisabled();
+
+    // A disabled button ignores the pointer, so its wrapper shows the reason.
+    const wrapper = ssoTab.parentElement;
+    if (!wrapper) throw new Error("Disabled tab has no tooltip wrapper");
+    await userEvent.hover(wrapper);
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(await page.findByRole("tooltip")).toHaveTextContent(
+      "SSO is available on the Enterprise plan.",
+    );
   },
 });
 

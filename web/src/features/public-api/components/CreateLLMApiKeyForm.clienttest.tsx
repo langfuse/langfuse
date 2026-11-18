@@ -103,41 +103,6 @@ describe("CreateLLMApiKeyForm", () => {
     ).toHaveValue("https://gateway.example.com/v1");
   });
 
-  it("shows IAM role auth disabled with the reason when the plan does not include it", async () => {
-    const existingKey = {
-      id: "key",
-      organizationId: "org",
-      provider: "bedrock",
-      adapter: "bedrock",
-      authMethod: "access-keys",
-      displaySecretKey: "...test",
-      config: { region: "us-east-1" },
-      customModels: [],
-      withDefaultModels: true,
-      extraHeaderKeys: [],
-    } as unknown as RouterOutputs["llmApiKey"]["all"]["data"][number];
-
-    render(
-      <CreateLLMApiKeyForm
-        owner={{ scope: "organization", organizationId: "org" }}
-        onSuccess={vi.fn()}
-        customization={null}
-        mode="update"
-        existingKey={existingKey}
-      />,
-      { wrapper: LayerProvider },
-    );
-
-    const reason =
-      "IAM role auth is available on the Enterprise plan. Upgrade to use it.";
-    const iamRoleTab = screen.getByRole("tab", { name: "IAM role" });
-    expect(iamRoleTab).toBeDisabled();
-    expect(screen.getByText(reason)).toBeInTheDocument();
-
-    fireEvent.mouseEnter(iamRoleTab.parentElement!);
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(reason);
-  });
-
   it("shows save errors in the form instead of reporting a toast", async () => {
     const error = new Error(
       "Project and organization connections with the same provider name must use the same adapter.",

@@ -12,6 +12,12 @@ import { type BedrockIamRoleAccess } from "./llmConnectionService";
 
 type SessionUser = NonNullable<Session["user"]>;
 
+function ownerFilter(owner: BedrockConnectionOwner) {
+  return owner.type === "project"
+    ? { projectId: owner.projectId }
+    : { organizationId: owner.organizationId };
+}
+
 // Only the organization's plan grants IAM role auth; Langfuse admins get no bypass.
 function canUseBedrockIamRole(params: {
   sessionUser: SessionUser;
@@ -64,18 +70,12 @@ export async function getBedrockExternalId(params: {
       message: "IAM role auth for Bedrock is not available here.",
     });
   }
-  const stored = params.connectionId
-    ? await params.prisma.llmApiKeys.findFirst({
-        where: {
-          id: params.connectionId,
-          ...(params.owner.type === "project"
-            ? { projectId: params.owner.projectId }
-            : { organizationId: params.owner.organizationId }),
-        },
-        select: { externalId: true },
-      })
-    : null;
-  return stored?.externalId
-    ? decrypt(stored.externalId)
-    : deriveBedrockExternalId({ owner: params.owner, nonce: params.nonce });
+  const derived = () =>
+    deriveBedrockExternalId({ owner: params.owner, nonce: params.nonce });
+  if (!params.connectionId) return derived();
+  const stored = await params.prisma.llmApiKeys.findFirst({
+    where: { id: params.connectionId, ...ownerFilter(params.owner) },
+    select: { externalId: true },
+  });
+  return stored?.externalId ? decrypt(stored.externalId) : derived();
 }

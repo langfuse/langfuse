@@ -658,7 +658,7 @@ async function testTopicsModelSlots(
         return;
       }
       try {
-        const resolved = resolveSlot(name, llmApiKey, slot.model);
+        const resolved = resolveSlot(name, llmApiKey, slot.model, projectId);
         if (!resolved) {
           errors[name] = "LLM connection not found in this project.";
           return;
