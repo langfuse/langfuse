@@ -153,6 +153,11 @@ type UseEventsFilterOptionsParams = {
    * if that flag were passed through unchanged.
    */
   enabled?: boolean;
+  /**
+   * The caller holds `enabled` off until its primary query settles. Reports
+   * the facets and approximate count as loading instead of settled-empty.
+   */
+  deferred?: boolean;
 };
 
 export function useEventsFilterOptions({
@@ -164,6 +169,7 @@ export function useEventsFilterOptions({
   columns,
   lazy = false,
   enabled = true,
+  deferred = false,
 }: UseEventsFilterOptionsParams) {
   // User-authored start-time conditions (search-bar `startTime:>…`) merge into
   // the authoritative startTimeFilter channel — the server ignores them in
@@ -427,23 +433,41 @@ export function useEventsFilterOptions({
   // "no data". On a terminal error the column is dropped (no auto-retry, so the
   // facet renders its empty state instead of skeletoning forever).
   // A disabled query never leaves `pending`, so report it as settled-empty
-  // rather than letting consumers skeleton forever.
-  const isEagerPending = enabled && eagerQuery.isPending;
+  // rather than letting consumers skeleton forever, unless it is deferred and
+  // has nothing loaded yet.
+  const isEagerPending =
+    (deferred && eagerQuery.data === undefined) ||
+    (enabled && eagerQuery.isPending);
   const isEagerFetching = eagerQuery.isFetching;
   const bulkColumns = plan.bulk.columns;
   const loadingColumns = useMemo<ReadonlySet<string> | undefined>(() => {
     if (!lazy) return undefined;
     const pending = new Set<string>(lazyResult.pendingColumns);
-    if (isEagerFetching) {
-      const data = rawData as Record<string, unknown>;
-      // Only the columns actually in the bulk query — the self-excluded ones
-      // report through lazyResult.pendingColumns instead.
+    const data = rawData as Record<string, unknown>;
+    // Only the columns actually in the bulk query — the self-excluded ones
+    // report through lazyResult.pendingColumns instead.
+    if (isEagerFetching || deferred) {
       for (const column of bulkColumns ?? []) {
         if (data[column] === undefined) pending.add(column);
       }
     }
+    // Deferred queries are not fetching yet, so the requested on-demand
+    // columns are reported as loading explicitly.
+    if (deferred) {
+      for (const { column } of perColumnPlan) {
+        if (data[column] === undefined) pending.add(column);
+      }
+    }
     return pending;
-  }, [lazy, lazyResult.pendingColumns, isEagerFetching, rawData, bulkColumns]);
+  }, [
+    lazy,
+    lazyResult.pendingColumns,
+    isEagerFetching,
+    deferred,
+    rawData,
+    bulkColumns,
+    perColumnPlan,
+  ]);
 
   // Columns whose fetch terminally errored, per column. Consumers settle these to
   // the empty state (no skeleton, no perpetual loading row — there is no
@@ -466,7 +490,9 @@ export function useEventsFilterOptions({
   // it. `null` until the first bulk response resolves.
   const approxTotalCount = eagerQuery.data?.approxTotalCount ?? null;
   const isApproxTotalCountLoading =
-    includeApproxCount && approxTotalCount === null && eagerQuery.isFetching;
+    includeApproxCount &&
+    approxTotalCount === null &&
+    (deferred || eagerQuery.isFetching);
   // The bulk scan honours the refining filter (incl. scores) but the server
   // omits input/output/comment filters, so the count over-counts when one is
   // active. Full-text search isn't part of this query — callers OR in their
