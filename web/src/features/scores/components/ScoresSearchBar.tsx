@@ -18,6 +18,7 @@ export function ScoresSearchBar({
   isLoading,
   inset = false,
   size = "default",
+  spacing,
 }: {
   projectId: string;
   isV4: boolean;
@@ -29,6 +30,7 @@ export function ScoresSearchBar({
   isLoading: boolean;
   inset?: boolean;
   size?: ComponentProps<typeof TableSearchBar>["size"];
+  spacing?: ComponentProps<typeof TableSearchBar>["spacing"];
 }) {
   const registry = useMemo(
     () => scoresFieldRegistry(filterConfig),
@@ -47,6 +49,7 @@ export function ScoresSearchBar({
       registry={registry}
       inset={inset}
       size={size}
+      spacing={spacing}
     />
   );
 }

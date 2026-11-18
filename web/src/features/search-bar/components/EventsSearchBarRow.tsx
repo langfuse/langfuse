@@ -88,7 +88,7 @@ function EventsSearchBarRowContent({
 }: {
   aiFeaturesEnabled: boolean;
   inputId?: string;
-  spacing?: "table" | "flush";
+  spacing?: "table" | "page" | "flush";
   projectId?: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
   tableName: string;
@@ -170,6 +170,7 @@ function EventsSearchBarRowContent({
       className={cn(
         "min-w-0",
         spacing === "table" && "px-2 pt-2 pb-1",
+        spacing === "page" && "px-3 pt-3 pb-1",
         className,
       )}
     >

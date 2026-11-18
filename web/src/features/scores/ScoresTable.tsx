@@ -1186,6 +1186,7 @@ export default function ScoresTable({
       filterOptions={newFilterOptions}
       isLoading={isSidebarFilterLoading}
       inset={insetToolbar}
+      spacing="page"
     />
   );
 
@@ -1206,7 +1207,8 @@ export default function ScoresTable({
           search={insetToolbar ? null : scoresSearchBar}
           toolbar={
             <DataTableToolbar
-              className={insetToolbar ? "px-4 py-2" : undefined}
+              className={insetToolbar ? "px-4 py-2" : "px-3"}
+              rowClassName={insetToolbar ? undefined : "my-1"}
               tableName={TableViewPresetTableName.Scores}
               leadingControls={
                 insetToolbar ? (
