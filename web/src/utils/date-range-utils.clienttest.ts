@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
+  rangeFromString,
   rangeToString,
   resolveTimeRange,
 } from "@/src/utils/date-range-utils";
@@ -92,5 +93,35 @@ describe("resolveTimeRange (presence-XOR)", () => {
         fallback,
       ),
     ).toEqual({ from, to });
+  });
+});
+
+describe("rangeFromString (named ranges)", () => {
+  const allowed = DASHBOARD_AGGREGATION_OPTIONS;
+  const fallback = DEFAULT_DASHBOARD_AGGREGATION_SELECTION;
+
+  it("parses a full preset name as well as its abbreviation", () => {
+    expect(rangeFromString("last7Days", allowed, fallback)).toEqual({
+      range: "last7Days",
+    });
+    expect(rangeFromString("7d", allowed, fallback)).toEqual({
+      range: "last7Days",
+    });
+  });
+
+  it("falls back when a full preset name is not allowed in the view", () => {
+    expect(rangeFromString("last6Hours", allowed, fallback)).toEqual({
+      range: fallback,
+    });
+  });
+
+  it("resolves a full preset name from the URL", () => {
+    expect(
+      resolveTimeRange(
+        { urlValue: "last7Days", storedValue: null },
+        allowed,
+        fallback,
+      ),
+    ).toEqual({ range: "last7Days" });
   });
 });
