@@ -2861,6 +2861,65 @@ describe(
       },
     );
 
+    it.each(
+      [false, true].flatMap((wrapped) =>
+        [false, true].map((uploadFails) => ({ wrapped, uploadFails })),
+      ),
+    )(
+      "preserves all mixed-size media in one string with JSON wrapper=$wrapped, upload failure=$uploadFails",
+      async ({ wrapped, uploadFails }) => {
+        const sizes = [2048, 200, 2048];
+        const uris = sizes.map(
+          (size, index) =>
+            `data:image/png;base64,${Buffer.alloc(size, 97 + index).toString("base64")}`,
+        );
+        const raw = `${uris[0]} caption ${uris[1]} ${uris[2]}`;
+        const source = wrapped ? JSON.stringify({ text: raw }) : raw;
+        const reference =
+          "@@@langfuseMedia:type=image/png|id=image-media-id|source=base64_data_uri@@@";
+        const expectedRaw = uploadFails
+          ? raw
+          : uris.reduce((value, uri) => value.replace(uri, reference), raw);
+        const expectedInput = wrapped
+          ? JSON.stringify({ text: expectedRaw })
+          : expectedRaw;
+        let uploadCursor = 0;
+        if (uploadFails) {
+          otelReplayMocks.uploadMediaForTrace.mockRejectedValue(
+            new Error("simulated mixed-size media upload failure"),
+          );
+        }
+
+        const comparison = await runOtelReplayComparison({
+          bytes: focusedReplayBytes({
+            attributes: [stringAttribute("langfuse.observation.input", source)],
+          }),
+          projectId: `${PROJECT_ID}-media-sandwich-${wrapped}-${uploadFails}`,
+          fileKey: `${FILE_KEY}.media-sandwich-${wrapped}-${uploadFails}`,
+          mediaUploadEnabled: true,
+          captureSideEffects: () => {
+            const attempts =
+              otelReplayMocks.uploadMediaForTrace.mock.calls.length -
+              uploadCursor;
+            uploadCursor =
+              otelReplayMocks.uploadMediaForTrace.mock.calls.length;
+            return { attempts };
+          },
+        });
+
+        expectRawNativeParity(comparison);
+        for (const replay of [
+          comparison.originalTs,
+          comparison.earlyTs,
+          comparison.earlyRust,
+        ]) {
+          expect(replay.storedRows).toHaveLength(1);
+          expect(replay.storedRows[0]?.input).toBe(expectedInput);
+          expect(replay.sideEffects).toEqual({ attempts: 3 });
+        }
+      },
+    );
+
     it("dispatches native media and lookup I/O together and preserves request order", async () => {
       const mediaBodies = Array.from({ length: 6 }, (_, index) =>
         Buffer.alloc(2048, index + 65),

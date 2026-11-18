@@ -391,6 +391,30 @@ describe(
       );
     });
 
+    it("matches TypeScript when one string mixes early and late media", async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          fc.integer({ min: 1024, max: 4096 }),
+          fc.uint8Array({ minLength: 1, maxLength: 512 }),
+          fc.constantFrom(" ", " caption ", "\n"),
+          async (outerSize, middleBytes, separator) => {
+            const bodies = [
+              Buffer.alloc(outerSize, 97),
+              Buffer.from(middleBytes),
+              Buffer.alloc(outerSize, 98),
+            ];
+            const source = bodies
+              .map((body) => `data:image/png;base64,${body.toString("base64")}`)
+              .join(separator);
+            for (const uploadSucceeds of [true, false]) {
+              await expectNativeMediaLifecycleParity(source, uploadSucceeds);
+            }
+          },
+        ),
+        { numRuns: 64, seed: 19965 },
+      );
+    });
+
     it("extracts media from SDK JSON-string-wrapped OTLP metadata", async () => {
       const providerBody = Buffer.from("provider attachment ".repeat(256));
       const uriMetadata = JSON.stringify({ image: MEDIA_URI });
