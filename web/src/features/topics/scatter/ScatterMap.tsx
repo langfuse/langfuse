@@ -62,7 +62,7 @@ type ScatterMapProps = {
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
   previewOnSelect?: boolean;
-  /** Keeps the selected trace's summary card open after a click. */
+  /** Keeps the selected trace's summary card open, e.g. while its peek shows. */
   pinSelection?: boolean;
 };
 

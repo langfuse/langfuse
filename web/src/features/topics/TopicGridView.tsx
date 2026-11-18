@@ -102,6 +102,7 @@ function TopicGridContent({
         )}
       </section>
       <TopicTraceList
+        rowHeightKey="topicTracesGrid"
         projectId={projectId}
         title={selectedTopic?.name ?? allTopicsLabel(facet.name)}
         description={selectedTopic?.description}

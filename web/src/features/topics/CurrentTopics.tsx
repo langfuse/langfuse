@@ -182,6 +182,7 @@ function CurrentFacet({
         facet={facet}
         peekView={peekView}
         useTraces={useFacetTopicTraces}
+        showUnassigned={showUnassigned}
       />
     );
   }
