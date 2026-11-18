@@ -1,7 +1,16 @@
-/* eslint-disable boundaries/dependencies */
-import { type CellContext, type RowData } from "@tanstack/react-table";
+import {
+  type CellContext,
+  type ColumnDef,
+  type RowData,
+} from "@tanstack/react-table";
 
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+type LangfuseColumnDef<TData extends RowData, TValue = unknown> = ColumnDef<
+  TData,
+  TValue
+> & {
+  accessorKey: string;
+  columns?: LangfuseColumnDef<TData, TValue>[];
+};
 
 type NullableTableColumnValue<TValue> = TValue | null | undefined;
 
