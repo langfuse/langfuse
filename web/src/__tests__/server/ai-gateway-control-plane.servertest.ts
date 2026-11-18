@@ -80,6 +80,8 @@ import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gatewa
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayModelsResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
+import { GatewaySpendLimitAlertService } from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitAlertService";
+import { GatewaySpendLimitRepository } from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitRepository";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
@@ -2185,6 +2187,126 @@ describe("AI gateway control plane", () => {
     });
   });
 
+  it("lets members budget their own keys and change only the budgets they set", async () => {
+    const owner = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: {},
+    });
+    const setBudget = (
+      caller: typeof member,
+      apiKeyId: string,
+      limitUsd: number | null,
+    ) =>
+      caller.aiGateway.updateApiKey({
+        orgId: owner.org.id,
+        id: apiKeyId,
+        name: "Key",
+        metadata: {},
+        allowedModels: null,
+        previousAllowedModels: null,
+        spendLimit: limitUsd === null ? null : { interval: "DAILY", limitUsd },
+      });
+    const memberKeyBudget = async () =>
+      (await member.aiGateway.listApiKeys({ orgId: owner.org.id })).data.find(
+        (key) => key.apiKey.id === memberKey.id,
+      )?.spendLimit;
+
+    await expect(setBudget(member, ownerKey.id, 10)).rejects.toThrow(
+      "Gateway key not found",
+    );
+    await setBudget(member, memberKey.id, 10);
+    await setBudget(member, memberKey.id, 20);
+    await setBudget(owner.caller, memberKey.id, 5);
+    for (const limitUsd of [1000, null]) {
+      await expect(setBudget(member, memberKey.id, limitUsd)).rejects.toThrow(
+        "only an admin can change it",
+      );
+    }
+    expect(await memberKeyBudget()).toEqual({ interval: "DAILY", limitUsd: 5 });
+
+    await setBudget(owner.caller, memberKey.id, null);
+    expect(await memberKeyBudget()).toBeNull();
+  });
+
+  it("sets a key's spend budget together with the key", async () => {
+    const { caller, org, project } = await prepare();
+    const spendLimit = { interval: "MONTHLY" as const, limitUsd: 50 };
+
+    await expect(
+      caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "Unrecorded",
+        metadata: {},
+        spendLimit,
+      }),
+    ).rejects.toThrow("Please switch to ingestion mode usage");
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "USAGE",
+    });
+    const key = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Budgeted",
+      metadata: {},
+      spendLimit,
+    });
+    const listKeys = () => caller.aiGateway.listApiKeys({ orgId: org.id });
+    const listLimits = async () =>
+      (
+        await prisma.gatewaySpendLimit.findMany({
+          where: { apiKeyId: key.id },
+        })
+      ).map((limit) => ({ ...limit, limitUsd: limit.limitUsd.toNumber() }));
+    const update = (
+      budget:
+        | typeof spendLimit
+        | { interval: "WEEKLY"; limitUsd: number }
+        | null,
+    ) =>
+      caller.aiGateway.updateApiKey({
+        orgId: org.id,
+        id: key.id,
+        name: "Budgeted",
+        metadata: {},
+        allowedModels: null,
+        previousAllowedModels: null,
+        spendLimit: budget,
+      });
+
+    expect((await listKeys()).data).toMatchObject([
+      { apiKey: { id: key.id }, spendLimit },
+    ]);
+    const [created] = await listLimits();
+
+    await update(spendLimit);
+    expect(await listLimits()).toMatchObject([
+      { id: created!.id, countingStartedAt: created!.countingStartedAt },
+    ]);
+
+    await update({ interval: "WEEKLY", limitUsd: 50 });
+    expect(await listLimits()).toMatchObject([
+      { interval: "WEEKLY", limitUsd: 50 },
+    ]);
+
+    await update(null);
+    expect(await listLimits()).toEqual([]);
+    expect((await listKeys()).data).toMatchObject([{ spendLimit: null }]);
+  });
+
   it("rejects key edits from another organization and from members without gateway:invoke", async () => {
     const owner = await prepare();
     const other = await prepare();
@@ -2472,22 +2594,20 @@ describe("AI gateway control plane", () => {
       orgId: org.id,
       limit: 2,
     });
-    expect(firstKeys.data).toHaveLength(2);
+    expect(firstKeys.data.map(({ apiKey }) => apiKey.note)).toEqual([
+      "Third",
+      "Second",
+    ]);
     expect(firstKeys.totalCount).toBe(3);
     const remainingKeys = await caller.aiGateway.listApiKeys({
       orgId: org.id,
       page: 1,
       limit: 2,
     });
-    expect(remainingKeys.data).toHaveLength(1);
+    expect(remainingKeys.data.map(({ apiKey }) => apiKey.note)).toEqual([
+      "First",
+    ]);
     expect(remainingKeys.totalCount).toBe(3);
-    expect(
-      new Set(
-        [...firstKeys.data, ...remainingKeys.data].map(
-          ({ apiKey }) => apiKey.note,
-        ),
-      ),
-    ).toEqual(new Set(["First", "Second", "Third"]));
   });
 
   it("sorts gateway keys by expiration with never-expiring keys as the latest", async () => {
@@ -2600,6 +2720,221 @@ describe("AI gateway control plane", () => {
     expect(result.ingestion_mode).toBe(rawClaims.ingestion_mode);
     expect(result.ingestion_mode).toBe("full");
     expect(result.ingestion?.expires_at).toBe(ingestionClaims.exp);
+  });
+
+  it("resolves a key's spend limits with prices", async () => {
+    configureGatewayJwtSigning();
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "USAGE",
+    });
+    await caller.aiGateway.createConnection({
+      orgId: org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    const gatewayKey = await caller.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Limited key",
+      metadata: {},
+      spendLimit: { interval: "DAILY", limitUsd: 10 },
+    });
+    await prisma.model.create({
+      data: {
+        scope: "PROJECT",
+        projectId: project.id,
+        modelName: "gpt-spend-limit",
+        matchPattern: "(?i)^(gpt-spend-limit)$",
+        unit: "TOKENS",
+        pricingTiers: {
+          create: {
+            name: "Standard",
+            isDefault: true,
+            priority: 0,
+            conditions: [],
+          },
+        },
+      },
+    });
+    const model = await prisma.model.findFirstOrThrow({
+      where: { projectId: project.id, modelName: "gpt-spend-limit" },
+      include: { pricingTiers: true },
+    });
+    await prisma.price.create({
+      data: {
+        modelId: model.id,
+        projectId: project.id,
+        pricingTierId: model.pricingTiers[0].id,
+        usageType: "input",
+        price: 0.000005,
+      },
+    });
+    const limit = await prisma.gatewaySpendLimit.findFirstOrThrow({
+      where: { apiKeyId: gatewayKey.id },
+    });
+    const resolve = () =>
+      authenticateRequest({
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.chat-completions",
+        model: "OpenAI:gpt-spend-limit",
+      });
+    const first = await resolve();
+    expect(first.spend_limits).toEqual([
+      {
+        id: limit.id,
+        scope: "api_key",
+        interval: "daily",
+        limit_usd: 10,
+        counting_started_at: limit.countingStartedAt.getTime(),
+      },
+    ]);
+    expect(first.pricing).toEqual({
+      model_id: model.id,
+      tiers: [
+        {
+          id: model.pricingTiers[0].id,
+          name: "Standard",
+          is_default: true,
+          priority: 0,
+          conditions: [],
+          prices: { input: 0.000005 },
+        },
+      ],
+    });
+
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: null,
+        ingestionMode: "NONE",
+      });
+      const inNoneMode = await resolve();
+      expect(inNoneMode.spend_limits).toEqual([]);
+      expect(inNoneMode.pricing).toBeNull();
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
+  });
+
+  it("emails the key owner and organization owners once per limit window, listing limits reached together", async () => {
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    const owner = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: {},
+      spendLimit: { interval: "DAILY", limitUsd: 10 },
+    });
+    const daily = await prisma.gatewaySpendLimit.findFirstOrThrow({
+      where: { apiKeyId: memberKey.id },
+    });
+    // A key carries one budget; a second limit stands in for limits of several scopes reached together.
+    const monthly = await new GatewaySpendLimitRepository(prisma).create({
+      organizationId: owner.org.id,
+      scope: { type: "API_KEY", apiKeyId: memberKey.id },
+      interval: "MONTHLY",
+      limitUsd: 100,
+      countingStartedAt: new Date(),
+      ownerUserId: daily.ownerUserId!,
+    });
+    const memberEmail = (
+      await prisma.apiKey.findUniqueOrThrow({
+        where: { id: memberKey.id },
+        select: { user: { select: { email: true } } },
+      })
+    ).user!.email!;
+    const alerts = new GatewaySpendLimitAlertService(prisma);
+    const report = (
+      limits: {
+        limit: { id: string };
+        countingStartedAt: Date;
+        windowStart: string;
+      }[],
+    ) =>
+      alerts.reportReached({
+        fastHashedSecretKey: createShaHash(memberKey.secretKey, env.SALT),
+        limits: limits.map(({ limit, countingStartedAt, windowStart }) => ({
+          limitId: limit.id,
+          countingStartedAt,
+          windowStart: new Date(windowStart),
+        })),
+      });
+    const dailyReached = {
+      limit: daily,
+      countingStartedAt: daily.countingStartedAt,
+      windowStart: "2026-11-16T00:00:00Z",
+    };
+    const monthlyReached = {
+      limit: monthly,
+      countingStartedAt: monthly.countingStartedAt,
+      windowStart: "2026-11-01T00:00:00Z",
+    };
+
+    await report([dailyReached, monthlyReached]);
+    await report([dailyReached, monthlyReached]);
+    await report([{ ...dailyReached, countingStartedAt: new Date(0) }]);
+    await expect(
+      report([{ ...dailyReached, windowStart: "2026-11-16T15:00:00Z" }]),
+    ).rejects.toMatchObject({ status: 400 });
+
+    expect(addNotificationJobs).toHaveBeenCalledOnce();
+    expect(queuedNotifications()).toEqual([
+      expect.objectContaining({
+        to: memberEmail,
+        audience: "keyOwner",
+        scope: expect.objectContaining({
+          type: "API_KEY",
+          name: "Member key",
+        }),
+        limits: [
+          {
+            interval: "DAILY",
+            limitUsd: 10,
+            resetsAt: "2026-11-17T00:00:00.000Z",
+          },
+          {
+            interval: "MONTHLY",
+            limitUsd: 100,
+            resetsAt: "2026-12-01T00:00:00.000Z",
+          },
+        ],
+      }),
+      expect.objectContaining({
+        to: owner.user.email,
+        audience: "orgOwner",
+      }),
+    ]);
+
+    await member.aiGateway.updateApiKey({
+      orgId: owner.org.id,
+      id: memberKey.id,
+      name: "Member key",
+      metadata: {},
+      allowedModels: null,
+      previousAllowedModels: null,
+      spendLimit: { interval: "DAILY", limitUsd: 20 },
+    });
+    await report([dailyReached, monthlyReached]);
+    expect(addNotificationJobs).toHaveBeenCalledTimes(2);
+    expect(queuedNotifications().at(-1)).toMatchObject({
+      limits: [{ interval: "DAILY", limitUsd: 20 }],
+    });
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {

@@ -1,4 +1,5 @@
-/* eslint-disable boundaries/dependencies */
+"use client";
+
 import {
   ChevronLeft,
   ChevronRight,
@@ -8,14 +9,8 @@ import {
 import { useState } from "react";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { Input } from "@/src/components/design-system/Input/Input";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 
 export type PaginationBarState = {
   pageIndex: number;
@@ -64,25 +59,31 @@ function PageNumberInput({
     setValue(nextPage);
   };
 
+  const pageNumberMinWidthCh = 3 + Math.max(1, pageCount.toString().length);
+
   return (
-    <Input
-      aria-label="Page number"
-      type="number"
-      min={1}
-      max={pageCount}
-      value={value}
-      onChange={(event) => setValue(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key !== "Enter") return;
-        event.preventDefault();
-        submit(event.currentTarget.value);
-      }}
-      onBlur={(event) => submit(event.target.value)}
-      className="h-8 appearance-none"
+    <div
+      className="w-fit shrink-0"
       style={{
-        width: `${3 + Math.max(1, pageCount.toString().length)}ch`,
+        minWidth: `max(3.5rem, ${pageNumberMinWidthCh}ch)`,
       }}
-    />
+    >
+      <Input
+        aria-label="Page number"
+        type="number"
+        min={1}
+        max={pageCount}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          submit(event.currentTarget.value);
+        }}
+        onBlur={(event) => submit(event.target.value)}
+        layout="inline"
+      />
+    </div>
   );
 }
 
@@ -109,28 +110,25 @@ export function PaginationBar(props: PaginationBarProps) {
             <span className="hidden text-sm whitespace-nowrap @min-[440px]/pagination:block">
               Rows per page
             </span>
-            <Select
-              value={`${state.pageSize}`}
-              onValueChange={(value) => {
-                const pageSize = Number(value);
-                const firstVisibleRow = state.pageIndex * state.pageSize;
-                onChange({
-                  pageIndex: Math.floor(firstVisibleRow / pageSize),
-                  pageSize,
-                });
-              }}
-            >
-              <SelectTrigger className="h-8 w-[70px]">
-                <SelectValue placeholder={state.pageSize} />
-              </SelectTrigger>
-              <SelectContent side="top">
-                {pageSizeOptions.map((pageSize) => (
-                  <SelectItem key={pageSize} value={`${pageSize}`}>
-                    {pageSize}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="w-[5.5rem]">
+              <SelectInput
+                value={`${state.pageSize}`}
+                options={pageSizeOptions.map((pageSize) => ({
+                  value: `${pageSize}`,
+                  label: `${pageSize}`,
+                }))}
+                onValueChange={(value) => {
+                  const pageSize = Number(value);
+                  const firstVisibleRow = state.pageIndex * state.pageSize;
+                  onChange({
+                    pageIndex: Math.floor(firstVisibleRow / pageSize),
+                    pageSize,
+                  });
+                }}
+                placeholder={`${state.pageSize}`}
+                aria-label="Rows per page"
+              />
+            </div>
           </div>
         )}
 

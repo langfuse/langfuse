@@ -37,6 +37,7 @@ import {
 } from "../queries/clickhouse-sql/query-options";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
+import { traceDeleteCutoffFilter } from "../../features/batchAction/traceDeletePredicate";
 import {
   planScoreFilterPushdown,
   resolveScoreDataRequirement,
@@ -681,12 +682,7 @@ export const getTraceDeleteCursorPageFromTraces = async (props: {
     projectId: props.projectId,
     filter: [
       ...props.filter,
-      {
-        column: "timestamp",
-        operator: "<" as const,
-        value: props.cutoffCreatedAt,
-        type: "datetime" as const,
-      },
+      traceDeleteCutoffFilter("traces", props.cutoffCreatedAt),
     ],
     searchQuery: props.searchQuery,
     searchType: props.searchType,

@@ -1,7 +1,8 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import {
   prepareMapNodes,
-  stageScale,
+  haloVisibility,
+  zoneHalo,
   type Camera,
   type MapPosition,
   type Size,
@@ -13,14 +14,7 @@ import {
   publishTopicMapFrame,
   type TopicMapStore,
 } from "./topic-map-store";
-import {
-  drawLookDot,
-  drawLookFields,
-  lookBackground,
-  lookDotColor,
-  type Rgb,
-  LOOK,
-} from "./topic-map-looks";
+import { mapColors } from "./map-colors";
 
 export function TopicMapCanvas({
   model,
@@ -206,7 +200,7 @@ function drawMap(
 ) {
   const context = canvas.getContext("2d");
   if (!context) return;
-  const { camera, size } = frame;
+  const { model, camera, size, matchingTraceIds } = frame;
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   if (
     canvas.width !== Math.round(size.width * ratio) ||
@@ -217,93 +211,66 @@ function drawMap(
   }
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, size.width, size.height);
-  const theme = getComputedStyle(canvas);
-  const { mark, rgbOf } = canvasColors(theme);
-  // Blurred topic fields under ringed dots; an active dot gets an outline.
-  drawLookFields(context, frame, LOOK, rgbOf, ratio);
-  const ring = rgbOf(lookBackground(theme));
-  const stage = stageScale(size);
-  // Unassigned dots go down first so topic colors sit on top.
-  const unassigned = frame.nodes.filter((node) => isUnassigned(node));
-  const assigned = frame.nodes.filter((node) => !isUnassigned(node));
-  // One resolved color per topic, not per dot.
-  const dotColors = new Map<string, Rgb>();
-  for (const node of [...unassigned, ...assigned]) {
-    const active = emphasis.get(node.point.traceId) ?? 0;
-    let rgb = dotColors.get(node.point.color);
-    if (!rgb) {
-      rgb = rgbOf(lookDotColor(LOOK, node.point.color));
-      dotColors.set(node.point.color, rgb);
-    }
-    drawLookDot(
-      context,
-      LOOK,
-      node.center,
-      rgb,
-      ring,
-      node.matchesFilters ? 1 : DIMMED + active * (1 - DIMMED),
-      camera.zoom,
-      stage,
-    );
+  const colors = mapColors(canvas);
+  // One soft halo per topic, fading out when zoomed in, as in the original map.
+  const halos = haloVisibility(camera.zoom);
+  for (const zone of halos > 0 ? frame.zones : []) {
+    if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
+    const { x, y, rx, ry } = zoneHalo(zone, camera, model.bounds, size);
+    if (x + rx < 0 || x - rx > size.width || y + ry < 0 || y - ry > size.height)
+      continue;
+    // The fade goes through globalAlpha, so the gradient colors stay cached.
+    context.globalAlpha =
+      halos *
+      (!matchingTraceIds ||
+      zone.points.some((point) => matchingTraceIds.has(point.traceId))
+        ? 1
+        : 0.15);
+    context.save();
+    context.translate(x, y);
+    context.scale(rx, ry);
+    const gradient = context.createRadialGradient(0, 0, 0, 0, 0, 1);
+    gradient.addColorStop(0, colors.paint(zone.color, 0.3));
+    gradient.addColorStop(0.7, colors.paint(zone.color, 0.1));
+    gradient.addColorStop(1, colors.paint(zone.color, 0));
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.arc(0, 0, 1, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+  }
+  // Ringed dots in lighter topic tones; unassigned dots go down first.
+  const ordered = [
+    ...frame.nodes.filter(isUnassigned),
+    ...frame.nodes.filter((node) => !isUnassigned(node)),
+  ];
+  for (const node of ordered) {
+    const { point, rect } = node;
+    const active = emphasis.get(point.traceId) ?? 0;
+    const opacity = node.matchesFilters ? 1 : DIMMED + active * (1 - DIMMED);
+    const x = rect.x + rect.width / 2;
+    const y = rect.y + rect.height / 2;
+    const radius = Math.min(rect.width, rect.height) / 2;
+    context.globalAlpha = opacity * 0.9;
+    context.beginPath();
+    context.arc(x, y, radius + 1, 0, 2 * Math.PI);
+    context.fillStyle = colors.ring;
+    context.fill();
+    context.globalAlpha = opacity;
+    context.beginPath();
+    context.arc(x, y, radius, 0, 2 * Math.PI);
+    context.fillStyle = colors.dot(point.color);
+    context.fill();
     if (active > 0.001) {
       context.globalAlpha = active * 0.7;
       context.lineWidth = 1.5;
-      context.strokeStyle = mark(node.point.color);
+      context.strokeStyle = colors.dot(point.color);
       context.beginPath();
-      context.arc(node.center.x, node.center.y, 7, 0, 2 * Math.PI);
+      context.arc(x, y, radius + 4, 0, 2 * Math.PI);
       context.stroke();
     }
   }
   context.globalAlpha = 1;
-}
-
-/**
- * Resolves `var(--token)` colors, which canvas cannot read, to RGB so that
- * fading a color keeps its hue instead of passing through grey.
- */
-function canvasColors(theme: CSSStyleDeclaration) {
-  const resolved = new Map<string, [number, number, number]>();
-  const probe = document.createElement("canvas").getContext("2d", {
-    willReadFrequently: true,
-  });
-  const toRgb = (color: string): [number, number, number] => {
-    const token = /^var\((--[\w-]+)\)$/.exec(color)?.[1];
-    const value = token ? theme.getPropertyValue(token).trim() || color : color;
-    if (!probe) return [148, 163, 184];
-    probe.clearRect(0, 0, 1, 1);
-    probe.fillStyle = value;
-    probe.fillRect(0, 0, 1, 1);
-    const [r = 0, g = 0, b = 0] = probe.getImageData(0, 0, 1, 1).data;
-    return [r, g, b];
-  };
-  const rgbOf = (color: string) => {
-    let rgb = resolved.get(color);
-    if (!rgb) {
-      rgb = toRgb(color);
-      resolved.set(color, rgb);
-    }
-    return rgb;
-  };
-  const paint = (color: string, alpha = 1) => {
-    const [r, g, b] = rgbOf(color);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  };
-  /** Small marks read lighter than bars, so they lean 30% towards the hue's foreground shade. */
-  const mark = (color: string) => {
-    const foreground = color.replace(/-highlight\)$/, "-foreground)");
-    if (
-      foreground === color ||
-      !theme.getPropertyValue(foreground.slice(4, -1))
-    )
-      return paint(color);
-    const base = rgbOf(color);
-    const shade = rgbOf(foreground);
-    const [r, g, b] = base.map((value, i) =>
-      Math.round(value + (shade[i]! - value) * 0.3),
-    );
-    return `rgb(${r}, ${g}, ${b})`;
-  };
-  return { paint, mark, rgbOf };
 }
 
 type TopicMapCanvasProps = {

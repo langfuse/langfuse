@@ -19,6 +19,7 @@ Components are useful because they act as an encapsulated unit and therefore pro
   - **Presentation:** A component should own one concrete presentation. When an action needs different presentations across contexts (e.g. sometimes a button, sometimes an icon), keep them separate rather than selecting between them with mode props or flags.
   - **Behavior:** A component should own one cohesive workflow. When a prop selects fundamentally different workflows, split them into separate behavior-owning components. For example, prefer dedicated create, update, and delete dialog controllers over one action component whose `mode` changes the entire interaction.
 - Extract only what is shared across call sites. Reuse a presentational component when the presentation is shared; when only state or behavior is shared, encapsulate it in a wrapper/render-prop component and let each call site provide its own presentation.
+- Keep variants of one component close. A variant that changes the layout, the actions, or the interaction is a different component. Duplicate that small piece of markup, or share the chrome through a slot that styles the caller's element (`InputControl` with Radix `Slot`).
 
 ## Explicit States
 
@@ -46,7 +47,7 @@ Components are useful because they act as an encapsulated unit and therefore pro
 
 ## Overlays
 
-- Compose overlays with `DropdownMenuController`, `PopoverController`, or `DialogController`. Trigger presentation should remain in the caller and not be abstracted. If additional behavior is needed, add a feature-specific wrapper that handles things such as permissions, analytics, mutations, or other workflow behavior that should be shared.
+- Compose reusable overlays with `DropdownMenuController`, `PopoverController`, or `DialogController`, and leave their trigger presentation in the caller. If a prop can be connected to behavior the component does not own, do not expose it. Own that behavior so the type cannot be wired to something else: a tab owns its menu, rather than taking an open flag a caller could attach to an external menu. If additional behavior is needed on a reusable overlay, add a feature-specific wrapper that handles things such as permissions, analytics, mutations, or other workflow behavior that should be shared.
 - When overlay content depends on the action that opened it, let the controller own that transient state. Pass the complete payload to `openDialog(payload)` or `openDrawer(payload)` and render content from the controller state instead of hoisting selection and open state into the parent.
 - Keep the controller components outside transient overlays that can trigger it. A popover or dialog opened from a dropdown item must not be owned by `DropdownMenuContent`, which unmounts when the dropdown closes.
 - Consume the controller's render-prop controls instead of duplicating their shape. Do not move the passed `Trigger` into components. Abstract trigger presentation through a ref-forwarding component with explicit variants, while keeping `<Trigger asChild>` at each call site.

@@ -205,6 +205,7 @@ import {
 } from "../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "./constants";
 import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
+import { traceDeleteCutoffFilter } from "../../features/batchAction/traceDeletePredicate";
 import {
   findUiColumnMapping,
   type UiColumnMappings,
@@ -382,7 +383,7 @@ async function enrichObservationsWithModelData(
                 id: {
                   in: uniqueModels,
                 },
-                OR: [{ projectId: projectId }, { projectId: null }],
+                OR: [{ projectId: projectId }, { scope: "LANGFUSE" }],
               },
               include: {
                 Price: {
@@ -888,12 +889,7 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
     projectId: props.projectId,
     filter: [
       ...props.filter,
-      {
-        column: "startTime",
-        operator: "<" as const,
-        value: props.cutoffCreatedAt,
-        type: "datetime" as const,
-      },
+      traceDeleteCutoffFilter("events", props.cutoffCreatedAt),
     ],
     searchQuery: props.searchQuery,
     searchType: props.searchType,
@@ -4440,6 +4436,53 @@ export const getLatestEvaluatorRunCost = async (
   });
 
   return rows[0] ? Number(rows[0].trace_total_cost) : null;
+};
+
+/**
+ * USD each gateway key spent since its own `since`, in one scan from the
+ * earliest. Keys without spend in their window are absent from the result.
+ */
+export const getGatewayApiKeysSpendSinceFromEvents = async (params: {
+  projectId: string;
+  apiKeys: { apiKeyId: string; since: Date }[];
+}): Promise<{ id: string; spendUsd: number }[]> => {
+  if (params.apiKeys.length === 0) return [];
+
+  const earliest = new Date(
+    Math.min(...params.apiKeys.map(({ since }) => since.getTime())),
+  );
+  const { query, params: queryParams } = new EventsAggQueryBuilder({
+    projectId: params.projectId,
+    groupByColumn: "e.ingestion_api_key",
+    selectExpression:
+      "e.ingestion_api_key as api_key_id, toString(sum(e.total_cost)) as spend",
+  })
+    .whereRaw("e.start_time >= {earliest: DateTime64(3)}", {
+      earliest: convertDateToClickhouseDateTime(earliest),
+    })
+    .whereRaw("e.service_name = {gatewayServiceName: String}", {
+      gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
+    })
+    .whereRaw("e.ingestion_api_key IN {apiKeyIds: Array(String)}", {
+      apiKeyIds: params.apiKeys.map(({ apiKeyId }) => apiKeyId),
+    })
+    .whereRaw(
+      "toUnixTimestamp64Milli(e.start_time) >= arrayElement({sinceMs: Array(Int64)}, indexOf({apiKeyIds: Array(String)}, e.ingestion_api_key))",
+      { sinceMs: params.apiKeys.map(({ since }) => since.getTime()) },
+    )
+    .buildWithParams();
+
+  const rows = await queryClickhouse<{ api_key_id: string; spend: string }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    id: row.api_key_id,
+    spendUsd: Number(row.spend),
+  }));
 };
 
 const EVALUATOR_HEALTH_RECENT_EXECUTIONS = 50;
