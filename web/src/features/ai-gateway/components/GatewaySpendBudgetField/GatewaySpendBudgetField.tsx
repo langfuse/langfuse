@@ -106,15 +106,13 @@ function useSpendBudget<T extends GatewaySpendBudgetFormValues>(
 
   return {
     control,
-    subject,
-    interval,
     description,
     disabled: disabledReason !== undefined,
   };
 }
 
 function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
-  const { control, subject, interval, disabled } = budget;
+  const { control, disabled } = budget;
   const radioName = useId();
 
   return (
@@ -166,16 +164,14 @@ function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
           </div>
         )}
       </Form.Field>
-      {subject === "user" && interval === "TOTAL" ? (
-        <div className="w-full">
-          <Alert icon={Info} variant="info" size="sm">
-            <Alert.Description>
-              Spend counts from when the budget is set. Earlier spend is not
-              included.
-            </Alert.Description>
-          </Alert>
-        </div>
-      ) : null}
+      <div className="w-full">
+        <Alert icon={Info} variant="info" size="sm">
+          <Alert.Description>
+            Spend counts from when the budget is set. Earlier spend is not
+            included.
+          </Alert.Description>
+        </Alert>
+      </div>
     </div>
   );
 }

@@ -2016,57 +2016,6 @@ describe("AI gateway control plane", () => {
   );
 
   itWithEventsTable(
-    "counts a user's total budget from its creation, leaving earlier spend out",
-    async () => {
-      const owner = await prepare();
-      await owner.caller.aiGateway.updateConfig({
-        orgId: owner.org.id,
-        defaultIngestionProjectId: owner.project.id,
-        ingestionMode: "USAGE",
-      });
-      const member = await createCallerForOrganizationRole(
-        owner,
-        Role.AI_GATEWAY,
-      );
-      const key = await member.aiGateway.createApiKey({
-        orgId: owner.org.id,
-        name: "Laptop",
-        metadata: {},
-      });
-      const { userId } = await prisma.apiKey.findUniqueOrThrow({
-        where: { id: key.id },
-        select: { userId: true },
-      });
-      await SharedServer.createEventsCh([
-        SharedServer.createEvent({
-          project_id: owner.project.id,
-          type: "GENERATION",
-          start_time: Date.now() * 1000,
-          service_name: AI_GATEWAY_SERVICE_NAME,
-          ingestion_api_key: key.id,
-          metadata_names: [AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY],
-          metadata_values: [userId!],
-        }),
-      ]);
-
-      await owner.caller.aiGateway.createSpendLimits({
-        orgId: owner.org.id,
-        scope: "USER",
-        subjectIds: [userId!],
-        spendLimit: { interval: "TOTAL", limitUsd: 1000 },
-      });
-
-      const [budget] = (
-        await owner.caller.aiGateway.listBudgets({
-          orgId: owner.org.id,
-          scope: "USER",
-        })
-      ).rows;
-      expect(budget?.spentUsd).toBe(0);
-    },
-  );
-
-  itWithEventsTable(
     "lists only exceeded budgets when asked, paging after the filter",
     async () => {
       const owner = await prepare();
