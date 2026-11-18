@@ -27,6 +27,13 @@ import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
+/** About one line on wide screens, two on narrow ones. */
+const SUMMARY_WORD_CAP = 20;
+
+function capWords(text: string, cap: number) {
+  const words = text.trim().split(/\s+/);
+  return words.length > cap ? `${words.slice(0, cap).join(" ")}…` : text;
+}
 /** More rows load from the server as the list nears its end. */
 const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
@@ -155,9 +162,8 @@ export function TopicTraceList({
       cell: ({ row }) => {
         const summary = row.original.summary || "No applicable summary.";
         return (
-          // Up to three lines, so wide screens show it whole in one or two.
-          <p className="line-clamp-3 px-3 text-wrap" title={summary}>
-            {summary}
+          <p className="px-3 text-wrap" title={summary}>
+            {capWords(summary, SUMMARY_WORD_CAP)}
           </p>
         );
       },
