@@ -3,6 +3,7 @@ import { Pencil } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
@@ -12,6 +13,10 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
+import {
+  getGatewaySpendLimitWindowEnd,
+  getGatewaySpendLimitWindowStart,
+} from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
 import {
   type GatewaySpendBudgetInterval,
   gatewaySpendBudgetIntervalOptions,
@@ -98,6 +103,21 @@ const resetsColumn = createTextTableColumn<GatewayBudgetRow>({
   enableResizing: false,
 });
 
+const nextResetColumn = createDateTableColumn<GatewayBudgetRow>({
+  accessorFn: (row) =>
+    row.spendLimit
+      ? (getGatewaySpendLimitWindowEnd(
+          row.spendLimit.interval,
+          getGatewaySpendLimitWindowStart(row.spendLimit.interval),
+        ) ?? undefined)
+      : undefined,
+  id: "nextReset",
+  header: "Next reset",
+  mode: "relative",
+  hideBelowMd: true,
+  enableResizing: false,
+});
+
 const userColumn = createUserTableColumn<GatewayBudgetRow>({
   accessorFn: (row) => row.user,
   id: "user",
@@ -123,8 +143,9 @@ const columnsByTab: Record<
     userColumn,
     budgetColumn("key"),
     resetsColumn,
+    nextResetColumn,
   ],
-  users: [userColumn, budgetColumn("user"), resetsColumn],
+  users: [userColumn, budgetColumn("user"), resetsColumn, nextResetColumn],
 };
 
 const copyByTab = {
