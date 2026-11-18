@@ -170,7 +170,7 @@ function EventsSearchBarRowContent({
       className={cn(
         "min-w-0",
         spacing === "table" && "px-2 pt-2 pb-1",
-        spacing === "page" && "px-3 pt-3 pb-1",
+        spacing === "page" && "px-3 pt-2 pb-1",
         className,
       )}
     >

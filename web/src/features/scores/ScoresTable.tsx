@@ -1208,7 +1208,7 @@ export default function ScoresTable({
           toolbar={
             <DataTableToolbar
               className={insetToolbar ? "px-4 py-2" : "px-3"}
-              rowClassName={insetToolbar ? undefined : "my-1"}
+              rowClassName={insetToolbar ? undefined : "mt-1 mb-4"}
               tableName={TableViewPresetTableName.Scores}
               leadingControls={
                 insetToolbar ? (
