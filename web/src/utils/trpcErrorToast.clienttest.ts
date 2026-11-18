@@ -2,6 +2,7 @@
 
 import { TRPCClientError } from "@trpc/client";
 import { vi } from "vitest";
+import { TrpcNonJsonResponseError } from "@/src/utils/trpcResponseParseError";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
 
@@ -126,6 +127,36 @@ describe("trpcErrorToast", () => {
         errorOrigin: "network",
         errorCategory: "transient",
       },
+      "WARNING",
+      undefined,
+      undefined,
+      "trpc",
+    );
+  });
+
+  it.each([
+    [
+      "Safari DOMException",
+      new DOMException(
+        "The string did not match the expected pattern.",
+        "SyntaxError",
+      ),
+    ],
+    ["typed non-JSON gateway response", new TrpcNonJsonResponseError(504)],
+  ] as const)("shows the transport toast for a %s", (_label, cause) => {
+    trpcErrorToast(
+      new TRPCClientError(cause.message, { cause }),
+      "prompts.allVersions",
+    );
+
+    expect(showErrorToastMock).toHaveBeenCalledWith(
+      "Unexpected Response",
+      "The request could not be completed. Please try again or contact support if this persists.",
+      expect.objectContaining({
+        operation: "prompts.allVersions",
+        errorOrigin: "network",
+        errorCategory: "transient",
+      }),
       "WARNING",
       undefined,
       undefined,
