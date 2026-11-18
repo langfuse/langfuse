@@ -9,6 +9,7 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import { CreatePromptSchema, GetPromptsMetaSchema } from "@langfuse/shared";
 
 export const promptsHandler = withMiddlewares({
+  // Offset-paginated list; GET /api/public/v3/prompts is the cursor-paginated successor.
   GET: createAuthedProjectAPIRoute({
     name: "Get Prompts",
     action: "prompts:read",

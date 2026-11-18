@@ -5059,7 +5059,13 @@ paths:
       security: *ref_0
   /api/public/v2/prompts:
     get:
-      description: Get a list of prompt names with versions and labels
+      description: >-
+        Get a list of prompt names with versions and labels.
+
+
+        Prefer `GET /api/public/v3/prompts` for new integrations. It returns the
+        same items with cursor-based pagination, which stays fast on large
+        projects. This endpoint will be deprecated in the future.
       operationId: prompts_list
       tags:
         - Prompts

@@ -32,7 +32,10 @@ service:
       response: Prompt
 
     list:
-      docs: Get a list of prompt names with versions and labels
+      docs: |
+        Get a list of prompt names with versions and labels.
+
+        Prefer `GET /api/public/v3/prompts` for new integrations. It returns the same items with cursor-based pagination, which stays fast on large projects. This endpoint will be deprecated in the future.
       method: GET
       path: /v2/prompts
       request:
