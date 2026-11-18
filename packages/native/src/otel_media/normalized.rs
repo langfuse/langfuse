@@ -5,14 +5,14 @@
 //! indices for upload requests.
 
 use std::collections::HashMap;
-use std::mem;
 
 use crate::otel::value::{JsString, Object, Value};
 
 use super::encoding::{is_python_bytes_literal, is_valid_base64_syntax};
 use super::normalized_shapes::{structured_target, StructuredTarget};
 use super::payload::{
-    EarlyMediaError, ExtractedMedia, MediaEncoding, MediaPayloadKind, MediaSource,
+    EarlyMediaError, ExtractedMedia, MediaEncoding, MediaOccurrenceIds, MediaPayloadKind,
+    MediaSource,
 };
 use super::rules::{
     is_media_reference, is_supported_content_type, may_be_serialized_json,
@@ -86,15 +86,24 @@ pub fn extract_normalized_media(
     value: &mut Value,
     registry: &mut Vec<ExtractedMedia>,
 ) -> Result<(), EarlyMediaError> {
-    let mut extractor = NormalizedExtractor { registry };
+    let mut extractor = NormalizedExtractor {
+        registry,
+        ids: MediaOccurrenceIds::default(),
+        extract_embedded: extract_media_at_depth,
+    };
     extractor.visit(value, 0, 0)
 }
 
-struct NormalizedExtractor<'a> {
+struct NormalizedExtractor<'a, F> {
     registry: &'a mut Vec<ExtractedMedia>,
+    ids: MediaOccurrenceIds,
+    extract_embedded: F,
 }
 
-impl NormalizedExtractor<'_> {
+impl<F> NormalizedExtractor<'_, F>
+where
+    F: FnMut(&[u8], usize, usize) -> Result<super::EarlyMediaResult, EarlyMediaError>,
+{
     fn visit(
         &mut self,
         value: &mut Value,
@@ -165,36 +174,55 @@ impl NormalizedExtractor<'_> {
         text: &mut JsString,
         embedded_depth: usize,
     ) -> Result<(), EarlyMediaError> {
+        let checkpoint = self.registry.len();
+        if let Err(error) = self.scan_string(text, embedded_depth) {
+            // Keep this string and discard its pending uploads if extraction fails.
+            // Other fields can still be processed without retrying the ingestion batch.
+            self.registry.truncate(checkpoint);
+            report_extraction_error(&error);
+        }
+        Ok(())
+    }
+
+    fn scan_string(
+        &mut self,
+        text: &mut JsString,
+        embedded_depth: usize,
+    ) -> Result<(), EarlyMediaError> {
         if is_media_reference(text.as_str()) {
             return Ok(());
         }
 
-        if may_be_serialized_json(text.as_str())
-            && text.as_utf8().is_some()
+        // Match the TS detector's order: retain literal URI spelling before JSON
+        // parsing can decode its escapes or hide it in a key/provider sibling.
+        let mut replacement = self.extract_data_uris(text)?;
+        let source = replacement.as_ref().unwrap_or(text);
+        if may_be_serialized_json(source.as_str())
+            && source.as_utf8().is_some()
             && embedded_depth < MAX_EMBEDDED_JSON_DEPTH
-            && (text.as_str().contains(DATA_URI_PREFIX)
-                || text.as_str().contains("\\u")
-                || may_contain_serialized_media(text.as_str()))
+            && (source.as_str().contains(DATA_URI_PREFIX)
+                || source.as_str().contains("\\u")
+                || may_contain_serialized_media(source.as_str()))
         {
-            match extract_media_at_depth(text.as_bytes(), embedded_depth + 1, 0) {
+            match (self.extract_embedded)(source.as_bytes(), embedded_depth + 1, 0) {
                 Ok(extracted) => {
                     if !extracted.media.is_empty() {
-                        *text = extracted.compact_json.into();
+                        replacement = Some(extracted.compact_json.into());
                         self.registry.extend(extracted.media);
-                        return Ok(());
                     }
                 }
-                Err(error @ EarlyMediaError::UnsupportedMediaReferenceAmbiguity { .. }) => {
-                    return Err(error);
+                Err(
+                    EarlyMediaError::InvalidJson { .. } | EarlyMediaError::TrailingBytes { .. },
+                ) => {
+                    // Malformed JSON can still contain a usable URI in ordinary text.
                 }
-                Err(_) => {
-                    // Treat invalid or unsupported embedded JSON as text; the Data URI scan below
-                    // still handles recognizable URIs in that text.
-                }
+                Err(error) => return Err(error),
             }
         }
-
-        self.extract_data_uris(text)
+        if let Some(replacement) = replacement {
+            *text = replacement;
+        }
+        Ok(())
     }
 
     fn extract_provider_text(
@@ -234,27 +262,31 @@ impl NormalizedExtractor<'_> {
             (content_type.to_owned(), kind, MediaSource::Bytes, encoding)
         };
 
-        let original = mem::take(text);
-        let Some(media) = ExtractedMedia::from_owned(
-            original.as_bytes().to_vec(),
+        let media = ExtractedMedia::from_owned(
+            text.as_bytes().to_vec(),
             &content_type,
             kind,
             source,
             encoding,
-        )?
-        else {
-            *text = original;
-            return Ok(());
+            &mut self.ids,
+        );
+        let media = match media {
+            Ok(Some(media)) => media,
+            Ok(None) => return Ok(()),
+            Err(error) => {
+                report_extraction_error(&error);
+                return Ok(());
+            }
         };
         *text = media.reference().into();
         self.registry.push(media);
         Ok(())
     }
 
-    fn extract_data_uris(&mut self, text: &mut JsString) -> Result<(), EarlyMediaError> {
+    fn extract_data_uris(&mut self, text: &JsString) -> Result<Option<JsString>, EarlyMediaError> {
         let candidates = find_data_uri_candidates(text.as_str());
         if candidates.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
 
         let mut replacements = Vec::with_capacity(candidates.len());
@@ -270,6 +302,7 @@ impl NormalizedExtractor<'_> {
                 MediaPayloadKind::DataUri,
                 MediaSource::Base64DataUri,
                 MediaEncoding::Base64DataUri,
+                &mut self.ids,
             )?
             else {
                 continue;
@@ -280,7 +313,7 @@ impl NormalizedExtractor<'_> {
         }
 
         if replacements.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
         let mut output = JsString::with_capacity(text.len());
         let mut end = 0;
@@ -290,9 +323,14 @@ impl NormalizedExtractor<'_> {
             end = range.end;
         }
         output.push_slice(text, end..text.len());
-        *text = output;
-        Ok(())
+        Ok(Some(output))
     }
+}
+
+fn report_extraction_error(error: &EarlyMediaError) {
+    metrics::counter!("langfuse.native.otel_media.extraction_errors", "stage" => "normalized")
+        .increment(1);
+    tracing::warn!(%error, "media extraction failed; retaining original field text");
 }
 
 fn provider_encoding(value: &str) -> (MediaEncoding, bool) {
@@ -359,6 +397,18 @@ mod tests {
             .contains("@@@langfuseMedia:type=image/png|id="));
         assert_eq!(registry[0].decode().unwrap(), direct_body);
         assert_eq!(registry[1].decode().unwrap(), nested_body);
+    }
+
+    #[test]
+    fn repeated_media_keeps_distinct_occurrences_across_strings() {
+        let uri = data_uri(b"same content");
+        let mut value = json!([format!("{uri} {uri}"), uri]);
+        let mut registry = Vec::new();
+        extract_normalized_media(&mut value, &mut registry).unwrap();
+        assert_eq!(registry.len(), 3);
+        super::super::validate_media_registry(&[], &registry).unwrap();
+        let mut collector = MediaReferenceCollector::new(&registry);
+        assert_eq!(collector.collect([&value]), &[0, 1, 2]);
     }
 
     #[test]
@@ -451,6 +501,82 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("@@@langfuseMedia:type=image/png|id="));
+    }
+
+    #[test]
+    fn reports_internal_embedded_failures_without_changing_the_string() {
+        use crate::otel::metadata::tests::CapturingRecorder;
+        use std::sync::atomic::Ordering;
+
+        for error in [
+            EarlyMediaError::RandomnessUnavailable,
+            EarlyMediaError::InvalidEditPlan { entry: 0 },
+        ] {
+            let original = r#"{"image":"data:image/png;base64,aGk=","type":"file","mediaType":"image/png","data":"b2s="}"#;
+            let uri = "data:image/png;base64,aGk=";
+            let mut value = json!([uri, original, uri]);
+            let mut registry = Vec::new();
+            let recorder = CapturingRecorder::default();
+            metrics::with_local_recorder(&recorder, || {
+                let mut extractor = NormalizedExtractor {
+                    registry: &mut registry,
+                    ids: MediaOccurrenceIds::default(),
+                    extract_embedded: |_: &[u8], _, _| Err(error.clone()),
+                };
+                extractor.visit(&mut value, 0, 0).unwrap();
+            });
+            assert_eq!(value[1], Value::from(original));
+            assert_eq!(registry.len(), 2);
+            assert_eq!(value[0], Value::from(registry[0].reference()));
+            assert_eq!(value[2], Value::from(registry[1].reference()));
+            let recorded = recorder.0.into_inner().unwrap();
+            assert_eq!(recorded.len(), 1);
+            assert_eq!(
+                recorded[0].0.name(),
+                "langfuse.native.otel_media.extraction_errors"
+            );
+            assert_eq!(recorded[0].1.load(Ordering::Relaxed), 1);
+        }
+    }
+
+    #[test]
+    fn residual_data_uris_restore_verbatim_with_other_media_and_json_layers() {
+        for header in [r"name=\u00e9", r"name=\\path", r"name=\ud800"] {
+            for sibling in ["", r#", "other":"data:image/png;base64,b2s= ""#] {
+                let mut original = format!(
+                    r#"{{"value":"\ud800 data:image/png;{header};base64,aGk= "{sibling}}}"#
+                );
+                for _ in 0..3 {
+                    let mut value = Value::from(original.clone());
+                    let mut registry = Vec::new();
+                    extract_normalized_media(&mut value, &mut registry).unwrap();
+                    assert_eq!(
+                        registry.len(),
+                        if sibling.is_empty() { 1 } else { 2 },
+                        "{original}"
+                    );
+                    let Value::String(text) = &mut value else {
+                        unreachable!()
+                    };
+                    super::super::source_text::rewrite_known_references(
+                        text,
+                        |reference| registry.iter().any(|media| media.reference() == reference),
+                        |_| true,
+                        |reference, depth| {
+                            registry
+                                .iter()
+                                .find(|media| media.reference() == reference)
+                                .unwrap()
+                                .original_value_for_layers(Some(depth))
+                        },
+                    )
+                    .unwrap();
+                    assert_eq!(text.as_str(), original);
+                    assert_eq!(registry[0].decode().unwrap().len(), 2);
+                    original = serde_json::to_string(&original).unwrap();
+                }
+            }
+        }
     }
 
     #[test]

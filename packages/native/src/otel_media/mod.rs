@@ -143,8 +143,9 @@ pub(crate) fn extract_media_at_depth(
     })?;
     json::validate_json(text)?;
     let mut manifest = scanner::discover_at_depth(text, embedded_depth, min_candidate_bytes)?;
-    // Discovery receives the parent depth. Compaction removes this document's outer
-    // escape layer, so restoration and upload counts refer to its remaining layers.
+    // Discovery uses cumulative depth; upload decoding is relative to this held
+    // string. Compaction retains its source spelling and counts the outer escape
+    // layer separately so failed uploads can restore the exact text.
     for entry in &mut manifest.entries {
         entry.original_json_depth -= embedded_depth as u8;
         entry.json_decode_layers = entry
