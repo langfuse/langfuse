@@ -10,6 +10,7 @@ import {
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces,
   traceException,
 } from "@langfuse/shared/src/server";
+import { topicDeleteClickhouseSettings } from "@langfuse/shared/topics/server";
 import { env, v4WritesToEventsTable } from "../../env";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
@@ -55,11 +56,7 @@ const deleteTopicResultsForTraces = async (
           maxTimestamp: bounds.max_timestamp,
         },
         clickhouseConfigs,
-        // Patch parts disable the summary projection until they are materialized.
-        clickhouseSettings:
-          table === "topic_facet_summaries"
-            ? { lightweight_delete_mode: "alter_update" }
-            : undefined,
+        clickhouseSettings: topicDeleteClickhouseSettings(table),
         tags: { projectId },
       });
     }),
