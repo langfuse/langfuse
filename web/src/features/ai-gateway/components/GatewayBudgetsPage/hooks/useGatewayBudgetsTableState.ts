@@ -5,7 +5,7 @@ import { createTableSelectionStore } from "@/src/components/table/table-selectio
 import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { isGatewayBudgetStatusShown } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/isGatewayBudgetStatusShown";
-import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayDefaultBudget";
+import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
 import { api } from "@/src/utils/api";
 
 const PAGE_SIZE = 10;

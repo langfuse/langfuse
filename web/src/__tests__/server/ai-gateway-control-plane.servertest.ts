@@ -2626,6 +2626,14 @@ describe("AI gateway control plane", () => {
     expect(await resolved(service.secretKey)).toEqual([
       { id: `${keyDefaultId}:${service.id}`, scope: "api_key", limit_usd: 10 },
     ]);
+    expect(
+      (
+        await owner.caller.aiGateway.getApiKeysSpend({
+          orgId: owner.org.id,
+          apiKeyIds: [service.id, ci.id],
+        })
+      ).apiKeys.map(({ id }) => id),
+    ).toEqual(expect.arrayContaining([service.id, ci.id]));
 
     const setLaptopBudget = (spendLimit: {
       interval: "DAILY" | "MONTHLY";

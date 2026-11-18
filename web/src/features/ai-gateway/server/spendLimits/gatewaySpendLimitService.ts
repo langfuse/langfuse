@@ -21,7 +21,10 @@ import {
   invalidateGatewayResolveCacheForApiKey,
   invalidateGatewayResolveCacheForOrganization,
 } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import { GatewayApiKeyRepository } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
+import {
+  GatewayApiKeyRepository,
+  gatewayApiKeyWhere,
+} from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 import {
   getKeyOwnerFilter,
   type GatewayUsageScope,
@@ -88,7 +91,8 @@ export class GatewaySpendLimitService {
 
   /**
    * What ClickHouse has recorded against each key's first limit in its current
-   * window, the limit the key list shows. Keys without a limit are absent. The
+   * window, the limit the key list shows, or else against the organization's
+   * default key budget. Keys with neither are absent. The
    * gateway enforces against its own counters, which run ahead of ClickHouse
    * by the ingestion delay.
    */
@@ -101,13 +105,35 @@ export class GatewaySpendLimitService {
       params.organizationId,
     );
     if (!recordingProjectId) return { available: false, apiKeys: [] };
-    const limits = await this.repository.listFirstForApiKeys({
+    const ownerUserId = getKeyOwnerFilter(params.usageScope);
+    const ownLimits = await this.repository.listFirstForApiKeys({
       organizationId: params.organizationId,
-      ownerUserId: getKeyOwnerFilter(params.usageScope),
+      ownerUserId,
       apiKeyIds: params.apiKeyIds,
     });
+    const fallback = await this.repository.findDefault({
+      organizationId: params.organizationId,
+      scope: "API_KEY",
+    });
+    const withOwnLimit = new Set(ownLimits.map(({ apiKeyId }) => apiKeyId));
+    const defaultLimits = fallback
+      ? (
+          await this.prisma.apiKey.findMany({
+            where: {
+              ...gatewayApiKeyWhere({
+                organizationId: params.organizationId,
+                ownerUserId,
+              }),
+              id: {
+                in: params.apiKeyIds.filter((id) => !withOwnLimit.has(id)),
+              },
+            },
+            select: { id: true },
+          })
+        ).map(({ id }) => ({ ...fallback, apiKeyId: id }))
+      : [];
     const now = new Date();
-    const counted = limits.flatMap((limit) =>
+    const counted = [...ownLimits, ...defaultLimits].flatMap((limit) =>
       limit.apiKeyId
         ? [
             {
