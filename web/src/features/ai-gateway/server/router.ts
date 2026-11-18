@@ -732,14 +732,14 @@ export const aiGatewayRouter = createTRPCRouter({
         input.subjects.type === "ids"
           ? input.subjects.subjectIds
           : (
-              await service.listSubjects({
+              await service.listMatchingSubjects({
                 organizationId: input.orgId,
                 usageScope,
                 scope: input.scope,
                 searchQuery: input.subjects.searchQuery,
                 status: input.subjects.status,
               })
-            ).rows.map(({ subjectId }) => subjectId);
+            ).map(({ subjectId }) => subjectId);
       if (subjectIds.length > GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS) {
         throw new InvalidRequestError(
           `Budgets can change for at most ${GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS} keys or users at once. Narrow the search or status filter.`,
@@ -765,9 +765,9 @@ export const aiGatewayRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       requireBudgetScopeAccess(ctx.session, input.orgId, input.scope);
-      const { rows } = await new GatewaySpendLimitService(
+      const subjects = await new GatewaySpendLimitService(
         ctx.prisma,
-      ).listSubjects({
+      ).listMatchingSubjects({
         organizationId: input.orgId,
         usageScope: getGatewayUsageScope({
           session: ctx.session,
@@ -777,7 +777,7 @@ export const aiGatewayRouter = createTRPCRouter({
         searchQuery: input.searchQuery,
         status: input.status,
       });
-      return rows.map(({ subjectId, name }) => ({ id: subjectId, name }));
+      return subjects.map(({ subjectId, name }) => ({ id: subjectId, name }));
     }),
 
   // Returns the plaintext secret key once, so the procedure must not be traced.

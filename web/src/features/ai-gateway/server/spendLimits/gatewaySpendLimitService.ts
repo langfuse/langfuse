@@ -142,12 +142,38 @@ export class GatewaySpendLimitService {
   }
 
   /**
-   * The keys or users matching a search and status, as `listBudgets` lists
-   * them; without a page, all of them, for changes to everything matching.
-   * Whether a budget is exceeded is only known from ClickHouse, so for
-   * `exceeded` every budget is read and paged after filtering.
+   * Every key or user matching a search and status, as `listBudgets` lists
+   * them, for changes to everything matching. Spend is read only when the
+   * status needs it.
    */
-  async listSubjects(params: {
+  async listMatchingSubjects(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    scope: GatewaySpendLimitScope["type"];
+    searchQuery?: string;
+    status: GatewayBudgetStatus;
+  }) {
+    const { rows } =
+      params.status === "exceeded"
+        ? await this.listSubjects(params)
+        : await this.repository.listSubjectsPage({
+            organizationId: params.organizationId,
+            scope: params.scope,
+            memberRoles: GATEWAY_MEMBER_ROLES,
+            ownerUserId: getKeyOwnerFilter(params.usageScope),
+            searchQuery: params.searchQuery,
+            budget: BUDGET_FILTER_BY_STATUS[params.status],
+          });
+    return rows.map(({ subjectId, name }) => ({ subjectId, name }));
+  }
+
+  /**
+   * The keys or users matching a search and status, with their budgets and
+   * spend; without a page, all of them. Whether a budget is exceeded is only
+   * known from ClickHouse, so for `exceeded` every budget is read and paged
+   * after filtering.
+   */
+  private async listSubjects(params: {
     organizationId: string;
     usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope["type"];

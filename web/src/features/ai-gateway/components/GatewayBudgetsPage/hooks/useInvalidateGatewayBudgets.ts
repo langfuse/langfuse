@@ -6,6 +6,9 @@ export function useInvalidateGatewayBudgets(organizationId: string) {
   return () =>
     Promise.all([
       utils.aiGateway.listBudgets.invalidate({ orgId: organizationId }),
+      utils.aiGateway.listMatchingBudgetSubjects.invalidate({
+        orgId: organizationId,
+      }),
       utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId }),
       utils.aiGateway.getApiKeysSpend.invalidate({ orgId: organizationId }),
     ]);
