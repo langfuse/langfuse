@@ -206,6 +206,29 @@ describe("queryClickhouseWithProgress", () => {
     },
   );
 
+  it("keeps a socket timeout under a caller deadline a timeout", async () => {
+    mocks.query.mockResolvedValueOnce(
+      response([
+        { row: { id: 0 } },
+        {
+          exception:
+            "Code: 209. DB::NetException: Timeout exceeded while reading from socket (10.0.0.1:9000, 300000 ms). (SOCKET_TIMEOUT) (version 26.6.1.2455 (official build))",
+        },
+      ]),
+    );
+    const stream = queryClickhouseWithProgress({
+      query: "SELECT 1",
+      abortSignal: new AbortController().signal,
+      callerDeadline: true,
+    });
+    await stream.next();
+    await stream.next();
+    expect(mocks.recordOutcome).toHaveBeenCalledOnce();
+    const [outcome, , , , , error] = mocks.recordOutcome.mock.calls[0];
+    expect(outcome).toBe("timeout");
+    expect(clickHouseQueryErrorCode(error)).toBe("socket_timeout");
+  });
+
   it("keeps a resource error that arrives together with an abort", async () => {
     const controller = new AbortController();
     mocks.query.mockResolvedValueOnce(

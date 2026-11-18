@@ -41,6 +41,7 @@ import {
   CLICKHOUSE_NETWORK_ERROR_PATTERNS,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
   type ClickHouseQueryOutcome,
+  clickHouseQueryErrorCode,
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
@@ -841,7 +842,8 @@ type ClickHouseProgressQueryOpts = ClickhouseQueryOpts & {
   abortSignal?: AbortSignal;
   /**
    * `max_execution_time` is the caller's remaining time budget, so a ClickHouse
-   * timeout is that budget running out and is recorded as `deadline`.
+   * `TIMEOUT_EXCEEDED` is that budget running out and is recorded as
+   * `deadline`. Other timeouts, such as a socket timeout, stay `timeout`.
    */
   callerDeadline?: boolean;
 };
@@ -1114,7 +1116,12 @@ function clickHouseProgressFailureOutcome(
     return error.isClientTimeout ? "deadline" : "client_closed";
   }
   if (!(wrapped instanceof ClickHouseResourceError)) return "error";
-  if (callerDeadline && wrapped.errorType === "TIMEOUT") return "deadline";
+  if (
+    callerDeadline &&
+    clickHouseQueryErrorCode(error) === "timeout_exceeded"
+  ) {
+    return "deadline";
+  }
   return CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType];
 }
 
