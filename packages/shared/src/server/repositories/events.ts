@@ -383,7 +383,7 @@ async function enrichObservationsWithModelData(
                 id: {
                   in: uniqueModels,
                 },
-                OR: [{ projectId: projectId }, { projectId: null }],
+                OR: [{ projectId: projectId }, { scope: "LANGFUSE" }],
               },
               include: {
                 Price: {
