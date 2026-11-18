@@ -32,9 +32,6 @@ export type DataCardActions = {
   menu?: DropdownMenuItemDefinition[];
 };
 
-/** The `p-0.5` around the filter tags, on both sides. */
-const FILTER_TRACK_PADDING_PX = 4;
-
 export function DataCard({
   title,
   description,
@@ -312,7 +309,7 @@ function FilterTags({
     overflowTagRef,
     visibleCount,
     hiddenCount,
-  } = useTagOverflow(filter.items.length, FILTER_TRACK_PADDING_PX);
+  } = useTagOverflow(filter.items.length);
 
   return (
     <div

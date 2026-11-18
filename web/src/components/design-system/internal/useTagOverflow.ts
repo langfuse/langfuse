@@ -6,9 +6,8 @@ const TAG_GAP_PX = 4;
  * How many tags of a row fit in the space it may take, with a "+N" tag for
  * the rest. Every tag is rendered once in an invisible measuring layer, so
  * the visible row only holds what fits and never reserves space for the rest.
- * `reservedPx` is space the row needs besides its tags, such as padding.
  */
-export function useTagOverflow(itemCount: number, reservedPx: number) {
+export function useTagOverflow(itemCount: number) {
   const availableRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const overflowTagRef = useRef<HTMLSpanElement>(null);
@@ -25,7 +24,7 @@ export function useTagOverflow(itemCount: number, reservedPx: number) {
         (tag) => (tag as HTMLElement).offsetWidth,
       );
       const overflowWidth = overflowTagRef.current?.offsetWidth ?? 0;
-      const space = available.clientWidth - reservedPx;
+      const space = available.clientWidth;
       let used = 0;
       let count = 0;
       for (const [index, width] of widths.entries()) {
@@ -44,7 +43,7 @@ export function useTagOverflow(itemCount: number, reservedPx: number) {
     observer.observe(available);
     observer.observe(measure);
     return () => observer.disconnect();
-  }, [itemCount, reservedPx]);
+  }, [itemCount]);
 
   return {
     availableRef,

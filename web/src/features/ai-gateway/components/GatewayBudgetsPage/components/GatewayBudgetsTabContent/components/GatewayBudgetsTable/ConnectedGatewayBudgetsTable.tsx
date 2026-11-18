@@ -1,4 +1,5 @@
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { GatewayBudgetsSelectionBar } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayBudgetsSelectionBar/GatewayBudgetsSelectionBar";
 import { GatewayEditBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTabContent/components/GatewayBudgetsTable/components/GatewayEditBudgetDialogController/GatewayEditBudgetDialogController";
@@ -70,8 +71,7 @@ export function ConnectedGatewayBudgetsTable({
             tab={tab}
             data={toTableData(budgets)}
             onRowClick={handleRowClick}
-            selectColumn={selectActionColumn}
-            selectionStore={selectionStore}
+            selectColumn={{ ...selectActionColumn, enableResizing: false }}
             multiSelect={{
               selectAll,
               setSelectAll: selectionStore.getState().actions.setSelectAll,
@@ -95,14 +95,9 @@ export function ConnectedGatewayBudgetsTable({
             search={table.search}
             status={table.status}
             pagination={{
+              mode: "offset",
               totalCount,
-              state: table.pagination.state,
-              onChange: (updater) =>
-                table.pagination.onChange(
-                  typeof updater === "function"
-                    ? updater(table.pagination.state)
-                    : updater,
-                ),
+              ...table.pagination,
             }}
           />
           <ConfirmationDialogController
@@ -161,16 +156,11 @@ export function ConnectedGatewayBudgetsTable({
 
 function toTableData(query: {
   isError: boolean;
-  error?: { message: string } | null;
   data?: { rows: GatewayBudgetRow[] };
-}) {
+}): AsyncTableData<GatewayBudgetRow[]> {
   if (query.isError) {
-    return {
-      isLoading: false,
-      isError: true,
-      error: query.error?.message ?? "Budgets could not be loaded.",
-    };
+    return { status: "error", error: "Budgets could not be loaded." };
   }
-  if (!query.data) return { isLoading: true, isError: false };
-  return { isLoading: false, isError: false, data: query.data.rows };
+  if (!query.data) return { status: "loading" };
+  return { status: "success", data: query.data.rows };
 }
