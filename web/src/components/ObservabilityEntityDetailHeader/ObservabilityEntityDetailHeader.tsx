@@ -745,9 +745,7 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
         }
       >
         {({ getTriggerProps }) => (
-          <span {...getTriggerProps()}>
-            <Metric interactive value={metric.text} />
-          </span>
+          <Metric {...getTriggerProps()} interactive value={metric.text} />
         )}
       </HoverCard>
     );
