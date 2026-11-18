@@ -2,14 +2,14 @@ import { type ComponentProps } from "react";
 import { type Facet } from "./facet-topics";
 import { type TopicDisplay } from "./prepare-topic-display";
 import { type MobileTopicsVisualization } from "./TopicsResultsViewSelect";
-import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
+import { ScatterMap } from "./scatter/ScatterMap";
 import { TopicTreemap } from "./TopicTreemap";
 
 type MobileTopicVisualizationProps = {
   view: MobileTopicsVisualization;
   facet: Facet;
   treemapTopics: TopicDisplay[];
-  mapResult: ComponentProps<typeof TopicEmbeddingMap>["query"];
+  mapResult: ComponentProps<typeof ScatterMap>["query"];
   selectedTopicId: string | null;
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
@@ -57,7 +57,7 @@ export function MobileTopicVisualization({
   }
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
-      <TopicEmbeddingMap
+      <ScatterMap
         key={facet.map.runId}
         query={mapResult}
         topics={facet.map.topics}
