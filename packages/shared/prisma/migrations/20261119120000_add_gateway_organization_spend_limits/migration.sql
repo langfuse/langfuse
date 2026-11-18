@@ -14,3 +14,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS "gateway_spend_limits_organization_id_interval
   WHERE "api_key_id" IS NULL
     AND "user_id" IS NULL
     AND "scope" NOT IN ('API_KEY_DEFAULT', 'USER_DEFAULT');
+
+-- Resolve reads the defaults and organization limits together; neither index above
+-- covers both scopes, so this one keeps that read to the rows without a subject.
+CREATE INDEX IF NOT EXISTS "gateway_spend_limits_organization_id_subjectless_idx"
+  ON "gateway_spend_limits"("organization_id")
+  WHERE "api_key_id" IS NULL AND "user_id" IS NULL;
