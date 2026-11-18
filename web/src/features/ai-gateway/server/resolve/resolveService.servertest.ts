@@ -83,6 +83,7 @@ const row = (overrides: {
         },
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
+  gatewaySpendLimits: [],
   organization: {
     gatewayConfig: {
       defaultIngestionProjectId: overrides.withoutProject ? null : "project-1",
@@ -151,6 +152,8 @@ describe("GatewayResolveService", () => {
         token_type: "Bearer",
         expires_at: expect.any(Number),
       },
+      spend_limits: [],
+      pricing: null,
     });
   });
 
@@ -352,6 +355,7 @@ describe("GatewayResolveService", () => {
           orgId: "org-not-allowed",
           expiresAt: null,
           gatewayAssociation: null,
+          gatewaySpendLimits: [],
           organization: { gatewayConfig: null, gatewayAiConnections: [] },
         }),
       "org-not-allowed",

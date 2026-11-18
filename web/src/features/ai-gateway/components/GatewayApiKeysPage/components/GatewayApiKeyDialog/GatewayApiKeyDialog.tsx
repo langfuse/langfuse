@@ -1,22 +1,32 @@
-import { useId, useState } from "react";
+import { useId } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useWatch, type Control } from "react-hook-form";
+import {
+  useForm,
+  useWatch,
+  type Control,
+  type UseFormReturn,
+} from "react-hook-form";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { AddSectionButton } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/AddSectionButton/AddSectionButton";
+import { GatewayApiKeySpendBudgetField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/GatewayApiKeySpendBudgetField/GatewayApiKeySpendBudgetField";
+import { OptionalSection } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/OptionalSection/OptionalSection";
 import { GatewayApiKeyExpirationField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/GatewayApiKeyExpirationField/GatewayApiKeyExpirationField";
 import { GatewayApiKeyMetadataField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyMetadataField/GatewayApiKeyMetadataField";
 import { GatewayApiKeyModelsField } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/GatewayApiKeyModelsField";
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import { resolveGatewayApiKeyExpiration } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/fns/resolveGatewayApiKeyExpiration";
 import {
+  emptyGatewaySpendBudget,
   gatewayApiKeyFormFieldsSchema,
   gatewayApiKeyFormSchema,
+  gatewayApiKeySections,
   type GatewayApiKeyFormValues,
+  type GatewayApiKeySection,
 } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
 import { toGatewayApiKeyMetadata } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadata";
 import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
@@ -29,6 +39,19 @@ const emptyValues: GatewayApiKeyFormValues = {
   customExpiry: "",
   metadata: [],
   modelPatterns: [],
+  spendBudget: emptyGatewaySpendBudget,
+  sections: [],
+};
+
+// Metadata has no section remove button: removing its last row removes it.
+const sectionLabels: Record<
+  GatewayApiKeySection,
+  { add: string; remove?: string }
+> = {
+  expiration: { add: "Expiration", remove: "Remove expiration" },
+  spendBudget: { add: "Spend budget", remove: "Remove spend budget" },
+  models: { add: "Restrict models", remove: "Remove model restriction" },
+  metadata: { add: "Additional metadata" },
 };
 
 const issuedAsDescriptions: Record<
@@ -57,7 +80,10 @@ type GatewayApiKeySubmission = Omit<
 };
 
 /** Fields shown but locked, e.g. the ones a key cannot change after creation. */
-type GatewayApiKeyDisabledField = "issuedAs" | "expiration";
+type GatewayApiKeyDisabledField = "issuedAs" | "expiration" | "spendBudget";
+
+const LOCKED_SPEND_BUDGET_REASON =
+  "This key has more than one spend limit, so it can't be changed here. Its limits stay as they are.";
 
 type GatewayApiKeyDialogProps = {
   title: string;
@@ -68,6 +94,8 @@ type GatewayApiKeyDialogProps = {
   canIssueServiceAccountKeys: boolean;
   /** Previews which models the patterns allow; undefined hides the preview. */
   enabledModels: GatewayEnabledModels | undefined;
+  /** Why a spend budget cannot be set or changed; undefined when it can. */
+  spendBudgetUnavailableReason?: string;
   errorMessage: string | null;
   isSubmitting: boolean;
   onSubmit: (submission: GatewayApiKeySubmission) => void;
@@ -80,6 +108,7 @@ export function GatewayApiKeyDialog({
   disabledFields = [],
   canIssueServiceAccountKeys,
   enabledModels,
+  spendBudgetUnavailableReason,
   errorMessage,
   isSubmitting,
   onSubmit,
@@ -121,6 +150,12 @@ export function GatewayApiKeyDialog({
       expiresAt: expiresAt ?? null,
       expiryPreset: values.expiryPreset,
       issuedAs: canIssueServiceAccountKeys ? values.issuedAs : "user",
+      spendLimit: values.sections.includes("spendBudget")
+        ? {
+            interval: values.spendBudget.interval,
+            limitUsd: Number(values.spendBudget.limitUsd.trim()),
+          }
+        : null,
     });
   };
 
@@ -135,7 +170,6 @@ export function GatewayApiKeyDialog({
           form: formId,
           loading: isSubmitting,
           disabled: !form.formState.isValid || !form.formState.isDirty,
-          // The date input is hidden while "More options" is collapsed.
           disabledReason: customExpiryError,
         },
       ]}
@@ -143,6 +177,7 @@ export function GatewayApiKeyDialog({
       <Dialog.Body>
         <Form
           id={formId}
+          density="compact"
           actions={[]}
           onSubmit={form.handleSubmit(handleValidSubmit)}
         >
@@ -171,11 +206,12 @@ export function GatewayApiKeyDialog({
               />
             )}
           </CustomTooltip>
-          <MoreOptions
-            control={form.control}
+          <OptionalSections
+            form={form}
             enabledModels={enabledModels}
             isExpirationDisabled={isExpirationDisabled}
-            defaultExpanded={hasOptionsSet(defaultValues)}
+            isSpendBudgetDisabled={disabledFields.includes("spendBudget")}
+            spendBudgetUnavailableReason={spendBudgetUnavailableReason}
           />
           {errorMessage !== null ? (
             <Alert variant="destructive">
@@ -233,55 +269,136 @@ function IssuedAsField({
   );
 }
 
-function MoreOptions({
-  control,
+/**
+ * Optional settings, each in its own box. A loaded key shows its sections in
+ * the default order; a section added here goes to the bottom, below the others.
+ */
+function OptionalSections({
+  form,
   enabledModels,
   isExpirationDisabled,
-  defaultExpanded,
+  isSpendBudgetDisabled,
+  spendBudgetUnavailableReason,
 }: {
-  control: Control<GatewayApiKeyFormValues>;
+  form: UseFormReturn<GatewayApiKeyFormValues>;
   enabledModels: GatewayEnabledModels | undefined;
   isExpirationDisabled: boolean;
-  defaultExpanded: boolean;
+  isSpendBudgetDisabled: boolean;
+  spendBudgetUnavailableReason: string | undefined;
 }) {
-  const contentId = useId();
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const isLocked = (section: GatewayApiKeySection) =>
+    (section === "expiration" && isExpirationDisabled) ||
+    (section === "spendBudget" && isSpendBudgetDisabled);
+  const sections = useWatch({ control: form.control, name: "sections" });
+  const update = { shouldDirty: true, shouldValidate: true } as const;
+  const addableSections = gatewayApiKeySections.filter(
+    (section) => !sections.includes(section) && !isLocked(section),
+  );
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <ExpandToggle
-          expanded={isExpanded}
-          onExpandedChange={setIsExpanded}
-          label="More options"
-          expandedLabel="Fewer options"
-          variant="icon"
-          iconPosition="left"
-          size="sm"
-          controls={contentId}
-        />
-      </div>
-      {isExpanded ? (
-        <div id={contentId} className="flex flex-col gap-5 pl-5">
+  const handleAdd = (section: GatewayApiKeySection) => {
+    if (section === "expiration") {
+      form.setValue("expiryPreset", "1d", update);
+    }
+    if (section === "metadata") {
+      form.setValue("metadata", [{ key: "", value: "" }], update);
+    }
+    form.setValue("sections", [...sections, section], update);
+  };
+
+  // A removed section no longer applies, so its value is cleared.
+  const handleRemove = (section: GatewayApiKeySection) => {
+    switch (section) {
+      case "expiration":
+        form.setValue("expiryPreset", "never", update);
+        form.setValue("customExpiry", "", update);
+        break;
+      case "spendBudget":
+        form.setValue("spendBudget", emptyGatewaySpendBudget, update);
+        break;
+      case "models":
+        form.setValue("modelPatterns", [], update);
+        break;
+      case "metadata":
+        form.setValue("metadata", [], update);
+        break;
+    }
+    form.setValue(
+      "sections",
+      sections.filter((shown) => shown !== section),
+      update,
+    );
+  };
+
+  const renderSection = (section: GatewayApiKeySection) => {
+    switch (section) {
+      case "expiration":
+        return (
           <GatewayApiKeyExpirationField
-            control={control}
+            control={form.control}
             disabled={isExpirationDisabled}
           />
-          <GatewayApiKeyMetadataField control={control} />
+        );
+      case "spendBudget":
+        return (
+          <GatewayApiKeySpendBudgetField
+            control={form.control}
+            disabledReason={
+              isSpendBudgetDisabled
+                ? LOCKED_SPEND_BUDGET_REASON
+                : spendBudgetUnavailableReason
+            }
+          />
+        );
+      case "models":
+        return (
           <GatewayApiKeyModelsField
-            control={control}
+            control={form.control}
             enabledModels={enabledModels}
           />
+        );
+      case "metadata":
+        return (
+          <GatewayApiKeyMetadataField
+            control={form.control}
+            onRemoveLast={() => handleRemove("metadata")}
+          />
+        );
+    }
+  };
+
+  return (
+    <>
+      {sections.map((section) => {
+        const removeLabel = sectionLabels[section].remove;
+        return (
+          <OptionalSection
+            key={section}
+            remove={
+              removeLabel && !isLocked(section)
+                ? { label: removeLabel, onRemove: () => handleRemove(section) }
+                : undefined
+            }
+          >
+            {renderSection(section)}
+          </OptionalSection>
+        );
+      })}
+      {addableSections.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {addableSections.map((section) => (
+            <AddSectionButton
+              key={section}
+              label={sectionLabels[section].add}
+              disabledReason={
+                section === "spendBudget"
+                  ? spendBudgetUnavailableReason
+                  : undefined
+              }
+              onAdd={() => handleAdd(section)}
+            />
+          ))}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function hasOptionsSet(values: GatewayApiKeyFormValues) {
-  return (
-    values.expiryPreset !== "never" ||
-    values.metadata.length > 0 ||
-    values.modelPatterns.length > 0
+    </>
   );
 }

@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
 import { LANGFUSE_SKILLS } from "@repo/langfuse-skills";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import {
+  Client,
+  InMemoryTransport,
+  ProtocolError,
+  ProtocolErrorCode,
+} from "@modelcontextprotocol/client";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { ClickHouseResourceError } from "@langfuse/shared/src/server";
 import { describe, expect, it, vi } from "vitest";
@@ -54,7 +57,7 @@ describe("MCP tool results", () => {
     },
     ...[
       new Error("internal secret"),
-      new McpError(ErrorCode.InternalError, "internal secret"),
+      new ProtocolError(ProtocolErrorCode.InternalError, "internal secret"),
     ].map((error) => ({
       name: error.constructor.name,
       error,
@@ -95,7 +98,7 @@ describe("MCP tool results", () => {
         expect(result.isError).toBe(message === "ok" ? undefined : true);
         await expect(
           client.callTool({ name: "unknown", arguments: {} }),
-        ).rejects.toMatchObject({ code: ErrorCode.InvalidParams });
+        ).rejects.toMatchObject({ code: ProtocolErrorCode.InvalidParams });
       } finally {
         await client.close();
         await server.close();

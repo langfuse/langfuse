@@ -6,10 +6,26 @@ import {
   DataTableToolbar,
   type MultiSelect,
 } from "@/src/components/table/data-table-toolbar";
+import { registerSelectAllBannerSlot } from "@/src/components/table/selectAllBannerSlot";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { useStore } from "zustand";
 
 const captureSpy = vi.fn();
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 vi.mock("posthog-js/react", () => ({
   usePostHog: () => ({ capture: captureSpy }),
 }));
@@ -223,6 +239,62 @@ describe("DataTableToolbar select-all banner gate", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  it("renders the banner in a following table slot above the header", () => {
+    render(
+      <div>
+        <DataTableToolbar
+          columns={[]}
+          tableName="test-table"
+          multiSelect={baseMultiSelect({
+            totalCount: 500,
+            selectedRowIds: selectedIds(50),
+          })}
+        />
+        <div data-select-all-banner-slot />
+      </div>,
+    );
+
+    const slot = document.querySelector("[data-select-all-banner-slot]");
+    act(() => {
+      registerSelectAllBannerSlot(slot as HTMLElement);
+    });
+
+    const banner = screen.getByRole("button", {
+      name: "Select all 500 items across 10 pages",
+    });
+    expect(slot).toContainElement(banner);
+  });
+
+  it("returns the banner inline when its table slot unregisters", () => {
+    render(
+      <div>
+        <DataTableToolbar
+          columns={[]}
+          tableName="test-table"
+          multiSelect={baseMultiSelect({
+            totalCount: 500,
+            selectedRowIds: selectedIds(50),
+          })}
+        />
+        <div data-select-all-banner-slot />
+      </div>,
+    );
+
+    const slot = document.querySelector("[data-select-all-banner-slot]");
+    let unregister: () => void = () => undefined;
+    act(() => {
+      unregister = registerSelectAllBannerSlot(slot as HTMLElement);
+    });
+    act(() => {
+      unregister();
+    });
+
+    const banner = screen.getByRole("button", {
+      name: "Select all 500 items across 10 pages",
+    });
+    expect(slot).not.toContainElement(banner);
+  });
 });
 
 describe("DataTableToolbar presentation controls", () => {
@@ -283,20 +355,7 @@ describe("DataTableToolbar presentation controls", () => {
   });
 
   function openRowHeightMenu() {
-    const button = screen.getByRole("button", { name: /Row height/ });
-    act(() => {
-      // Radix opens the menu on pointerdown. jsdom has no PointerEvent, so
-      // this is a MouseEvent that still carries button and coordinates.
-      button.dispatchEvent(
-        new MouseEvent("pointerdown", {
-          bubbles: true,
-          cancelable: true,
-          button: 0,
-          clientX: 1,
-          clientY: 1,
-        }),
-      );
-    });
+    fireEvent.click(screen.getByRole("button", { name: /Row height/ }));
   }
 
   it("keeps the row-height menu to the presets unless a free height is enabled", () => {

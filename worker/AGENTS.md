@@ -88,7 +88,7 @@
    `../packages/shared/src/server/redis/*` when needed.
 3. Implement/update processor in `src/queues/*`.
 4. Register/gate worker in `src/app.ts` (env flags, concurrency, limiter).
-5. Add/adjust tests in `src/__tests__/*` or `src/queues/__tests__/*`.
+5. Whether to add a test follows root [`AGENTS.md`](../AGENTS.md). Place a warranted test in `src/__tests__/*` or `src/queues/__tests__/*`.
 
 - If a queue is sharded, also update shard-aware resolution in
   `src/queues/workerManager.ts`,

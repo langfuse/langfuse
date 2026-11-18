@@ -1,11 +1,17 @@
 import { useState, type ReactNode } from "react";
 import {
   CalendarRange,
+  Camera,
   Check,
+  Layers,
   Plus,
+  Radio,
+  RefreshCw,
   Search,
+  Sparkles,
   type IconComponent,
 } from "@langfuse/icons";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -13,6 +19,7 @@ import { FloatingController } from "@/src/components/design-system/FloatingContr
 import { cn } from "@/src/utils/tailwind";
 import { TopicFilterChip } from "./TopicFilterChip";
 import { treemapSwatchColor } from "./topic-map-colors";
+import { TOPIC_SETUP_BACKFILL_LIMIT } from "./topic-setup-flow";
 import {
   filterCountLabel,
   samplingLabel,
@@ -26,6 +33,10 @@ import {
 } from "./topic-maps";
 
 const TOP_TOPICS = 3;
+
+type CreateKind = "map" | "snapshot";
+/** What the preview pane shows: a map, or what a footer entry would create. */
+type Previewed = TopicMapSelection | { kind: "create"; entry: CreateKind };
 
 /** Switches between maps and snapshots, previewing the hovered one. */
 export function TopicsMapPicker({
@@ -52,7 +63,7 @@ export function TopicsMapPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [previewed, setPreviewed] = useState<TopicMapSelection | null>(null);
+  const [previewed, setPreviewed] = useState<Previewed | null>(null);
   const selectedRule =
     selection.kind === "rule"
       ? overview.rules.find((rule) => rule.id === selection.id)
@@ -70,7 +81,7 @@ export function TopicsMapPicker({
   const analyses = overview.analyses.filter((analysis) =>
     analysis.label.toLowerCase().includes(query),
   );
-  const shown = previewed ?? selection;
+  const shown: Previewed = previewed ?? selection;
   const shownRule =
     shown.kind === "rule"
       ? overview.rules.find((rule) => rule.id === shown.id)
@@ -170,6 +181,9 @@ export function TopicsMapPicker({
                     entry={create.map}
                     icon={Plus}
                     label="New live map"
+                    onPreview={() =>
+                      setPreviewed({ kind: "create", entry: "map" })
+                    }
                     onChosen={() => changeOpen(false)}
                   />
                 )}
@@ -178,6 +192,9 @@ export function TopicsMapPicker({
                     entry={create.snapshot}
                     icon={CalendarRange}
                     label="New snapshot"
+                    onPreview={() =>
+                      setPreviewed({ kind: "create", entry: "snapshot" })
+                    }
                     onChosen={() => changeOpen(false)}
                   />
                 )}
@@ -203,6 +220,13 @@ export function TopicsMapPicker({
                 usePreviewTopics={usePreviewTopics}
                 analysis={shownAnalysis}
                 facetId={facetId}
+              />
+            )}
+            {shown.kind === "create" && (
+              <CreatePreview
+                entry={shown.entry}
+                disabledReason={create?.[shown.entry]?.disabledReason}
+                processingOn={processingOn}
               />
             )}
           </div>
@@ -242,17 +266,21 @@ function CreateButton({
   entry,
   icon: Icon,
   label,
+  onPreview,
   onChosen,
 }: {
   entry: CreateEntry;
   icon: IconComponent;
   label: string;
+  onPreview: () => void;
   onChosen: () => void;
 }) {
   const button = (
     <button
       type="button"
       disabled={Boolean(entry.disabledReason)}
+      onMouseEnter={onPreview}
+      onFocus={onPreview}
       onClick={() => {
         onChosen();
         entry.onSelect();
@@ -269,7 +297,7 @@ function CreateButton({
     <Tooltip label={entry.disabledReason}>
       {({ getTriggerProps }) => (
         <span
-          {...getTriggerProps()}
+          {...getTriggerProps({ onMouseEnter: onPreview })}
           className="flex w-full cursor-not-allowed [&>button]:pointer-events-none"
         >
           {button}
@@ -468,6 +496,109 @@ function AnalysisPreview({
         ]}
       />
       {top && <TopTopics {...top} />}
+    </div>
+  );
+}
+
+const CREATE_EXPLANATIONS: Record<
+  CreateKind,
+  {
+    title: string;
+    summary: string;
+    points: { icon: IconComponent; text: string }[];
+    bestFor: string;
+  }
+> = {
+  map: {
+    title: "New live map",
+    summary:
+      "Groups the traces that match a filter into topics, and keeps sorting new traces into them as they arrive.",
+    points: [
+      {
+        icon: Layers,
+        text: `Builds the first map from existing summaries, plus up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} newly summarized recent traces.`,
+      },
+      {
+        icon: Radio,
+        text: "Analyzes new matching traces as they arrive, at the sampling rate you choose.",
+      },
+      {
+        icon: RefreshCw,
+        text: "Refits nightly, so new topics show up over time.",
+      },
+    ],
+    bestFor: "Watching production traffic over time.",
+  },
+  snapshot: {
+    title: "New snapshot",
+    summary:
+      "Groups the traces that match a filter in a past time window into topics, once.",
+    points: [
+      {
+        icon: CalendarRange,
+        text: "Covers the time window you pick.",
+      },
+      {
+        icon: Sparkles,
+        text: "Can summarize more traces first for a fuller picture.",
+      },
+      {
+        icon: Camera,
+        text: "Runs once. A snapshot doesn’t change afterwards.",
+      },
+    ],
+    bestFor: "One-off investigations, such as after a release or an incident.",
+  },
+};
+
+/** What a footer entry creates, shown while it is hovered or focused. */
+function CreatePreview({
+  entry,
+  disabledReason,
+  processingOn,
+}: {
+  entry: CreateKind;
+  disabledReason?: string;
+  processingOn: boolean;
+}) {
+  const explanation = CREATE_EXPLANATIONS[entry];
+  const notice =
+    disabledReason ??
+    (entry === "map" && !processingOn
+      ? "Automatic analysis is off, so a new map stays paused until it’s turned on."
+      : undefined);
+  return (
+    <div className="flex flex-col gap-4">
+      <PreviewHeader
+        name={explanation.title}
+        badge={
+          entry === "map" ? (
+            <LiveBadge paused={!processingOn} />
+          ) : (
+            <SnapshotBadge />
+          )
+        }
+      />
+      <p className="text-muted-foreground text-sm">{explanation.summary}</p>
+      <ul className="flex flex-col gap-2.5 text-sm">
+        {explanation.points.map(({ icon: Icon, text }) => (
+          <li key={text} className="flex items-start gap-2">
+            <span className="flex h-5 shrink-0 items-center">
+              <Icon size="base" color="tertiary" aria-hidden />
+            </span>
+            {text}
+          </li>
+        ))}
+      </ul>
+      <p className="text-sm">
+        <span className="text-muted-foreground">Best for: </span>
+        {explanation.bestFor}
+      </p>
+      {notice ? (
+        <Alert variant="warning">
+          <Alert.Description>{notice}</Alert.Description>
+        </Alert>
+      ) : null}
     </div>
   );
 }
