@@ -215,6 +215,22 @@ const evalFilterFieldsById = new Map<string, ObservationEvalColumnDef>(
 );
 
 /**
+ * Columns whose events storage is non-nullable, so a missing value is `''` or
+ * `[]`. Null filters on them must treat empty as null to match ClickHouse.
+ */
+export const evalFilterEmptyEqualsNullColumns: ReadonlySet<string> = new Set(
+  Object.values(evalFilterFields)
+    .filter(
+      (column) =>
+        column.type === "string" ||
+        column.type === "stringOptions" ||
+        column.type === "arrayOptions" ||
+        column.id === "parentObservationId",
+    )
+    .map((column) => column.id),
+);
+
+/**
  * Field mapper for observation eval filters.
  * Maps camelCase filter column IDs to snake_case observation fields.
  * Uses the shared field definitions independently of each target's filter list.

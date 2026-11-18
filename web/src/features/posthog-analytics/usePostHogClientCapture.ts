@@ -517,7 +517,8 @@ const events = {
     "update_required_badge_clicked",
     "migrate_evals_with_agent_clicked",
     // Legacy v3 strip in the top-banner stack. Both carry
-    // { severity, actionNeededCount }; cta_clicked also carries `cta`.
+    // { severity, actionNeededCount, variant }; cta_clicked also carries `cta`.
+    // `variant` is deadline, delayed (November 23), or december (December 31).
     "top_banner_shown",
     "top_banner_cta_clicked",
     // Opt-out users on the legacy-UI top strip → migration status page.

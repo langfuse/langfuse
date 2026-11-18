@@ -12,9 +12,14 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded PR runs; keep other events independent with a unique group per run.
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
+
 jobs:
   license_check:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       checks: write # Needed to create a check run for the license compliance check results
@@ -73,7 +78,7 @@ jobs:
     # Same policy as license_check, applied to the Rust crates in the
     # ai-gateway binary and in the native addon shipped in the worker image;
     # the shared allow-list lives in the repository-root deny.toml.
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
     steps:
@@ -105,7 +110,7 @@ jobs:
   notify_failure:
     needs: [license_check, rust_license_check]
     if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
       actions: read # notify-slack-failure reads the failed jobs' logs

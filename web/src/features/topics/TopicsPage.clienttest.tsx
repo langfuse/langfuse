@@ -186,14 +186,6 @@ vi.mock("@/src/utils/api", () => ({
           mutateAsync: vi.fn(),
         }),
       },
-      rules: {
-        useQuery: () => ({
-          data: state.rulesPending ? undefined : state.rules,
-          isPending: state.rulesPending,
-          isSuccess: !state.rulesPending && !state.rulesError,
-          error: state.rulesError,
-        }),
-      },
       execution: {
         useQuery: () => ({
           data: {
@@ -203,7 +195,7 @@ vi.mock("@/src/utils/api", () => ({
             createdAt: "2026-09-23T12:00:00Z",
             updatedAt: state.updatedAt,
             input: {
-              operation: "process",
+              operation: "update",
               embeddingConfig: { embeddingDimensions: 1024 },
             },
             facets: [],
@@ -213,8 +205,29 @@ vi.mock("@/src/utils/api", () => ({
           refetch: state.refetchExecution,
         }),
       },
-      traceErrors: { useQuery: () => ({}) },
-      maps: { useQuery: () => ({ data: state.maps }) },
+      // Settings read the rules from the maps overview.
+      maps: {
+        useQuery: () => ({
+          data: state.rulesPending
+            ? undefined
+            : (state.maps ?? {
+                // A settled live map per rule, so the page shows its results.
+                rules: state.rules.map((rule, index) => ({
+                  id: `rule-${index}`,
+                  projectId: "project",
+                  name: "Rule",
+                  filter: [],
+                  sampling: 1,
+                  enabled: true,
+                  updatedAt: "2026-11-01T00:00:00Z",
+                  lastRefitAt: "2026-11-01T00:00:00Z",
+                  refresh: { running: false, availableAt: null },
+                  ...rule,
+                })),
+                analyses: [],
+              }),
+        }),
+      },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
       startRuleSetup: {
         useMutation: () => ({
@@ -252,7 +265,7 @@ vi.mock("@/src/utils/api", () => ({
     useUtils: () => ({
       topics: {
         modelSettings: { invalidate: vi.fn() },
-        rules: { invalidate: vi.fn() },
+        maps: { invalidate: vi.fn() },
         executions: { invalidate: vi.fn() },
       },
     }),
@@ -334,7 +347,7 @@ it("keeps the question picker reachable with the mobile header", () => {
 it("refreshes current results through retry and completion for a selected run outside history", () => {
   state.executionId = "execution";
   const view = render(<TopicsPage />, { wrapper: LayerProvider });
-  const status = screen.getByRole("dialog", { name: "Analyze traces" });
+  const status = screen.getByRole("dialog", { name: "Regenerate topics" });
   fireEvent.click(within(status).getByRole("button", { name: "Resume run" }));
   expect(state.retry).toHaveBeenCalledWith({
     projectId: "project",
@@ -423,9 +436,11 @@ it("puts New live map and New snapshot first in the menu", async () => {
   render(<TopicsPage />, { wrapper: LayerProvider });
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
+  // The selected live map adds Refresh map after the create entries.
   expect(items.map((item) => item.textContent)).toEqual([
     "New live map",
     "New snapshot",
+    expect.stringMatching(/^Refresh map/),
     "History",
     "Settings",
   ]);

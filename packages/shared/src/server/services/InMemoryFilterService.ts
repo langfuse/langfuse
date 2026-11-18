@@ -467,7 +467,9 @@ export class InMemoryFilterService {
     const isNull =
       fieldValue === null ||
       fieldValue === undefined ||
-      (emptyEqualsNull && fieldValue === "");
+      (emptyEqualsNull &&
+        (fieldValue === "" ||
+          (Array.isArray(fieldValue) && fieldValue.length === 0)));
 
     switch (operator) {
       case "is null":

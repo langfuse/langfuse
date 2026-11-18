@@ -13,6 +13,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 export type IngestionDialogControllerProps = {
   organizationId: string;
   config: GatewayConfig | null;
+  hasSpendLimits: boolean;
   projects: GatewayProject[];
   children: (control: { openDialog: () => void }) => ReactNode;
 };
@@ -20,6 +21,7 @@ export type IngestionDialogControllerProps = {
 export function IngestionDialogController({
   organizationId,
   config,
+  hasSpendLimits,
   projects,
   children,
 }: IngestionDialogControllerProps) {
@@ -45,6 +47,7 @@ export function IngestionDialogController({
       renderDialog={({ closeDialog }) => (
         <IngestionDialog
           config={config}
+          hasSpendLimits={hasSpendLimits}
           projects={projects}
           isSaving={isSaving}
           onSave={handleSave}

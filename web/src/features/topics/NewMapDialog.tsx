@@ -53,11 +53,7 @@ export function NewMapDialog({
     { enabled: !filterError, retry: false },
   );
   const createRule = api.topics.saveRule.useMutation({
-    onSuccess: () =>
-      Promise.all([
-        utils.topics.maps.invalidate({ projectId }),
-        utils.topics.rules.invalidate({ projectId }),
-      ]),
+    onSuccess: () => Promise.all([utils.topics.maps.invalidate({ projectId })]),
   });
   const startRuleSetup = api.topics.startRuleSetup.useMutation({
     onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),

@@ -58,7 +58,10 @@ export const useAllModels = (
     },
   );
 
-  return allModels.data ? extractAllModels(allModels.data) : [];
+  return {
+    data: allModels.data ? extractAllModels(allModels.data) : [],
+    isPending: allModels.isPending,
+  };
 };
 
 const extractAllModels = (

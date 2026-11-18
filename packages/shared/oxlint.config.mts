@@ -61,10 +61,7 @@ const config: OxlintConfig = {
     {
       files: ["**/*.test.ts"],
       rules: {
-        "no-restricted-imports": [
-          "error",
-          { patterns: [nextAuthValueImport] },
-        ],
+        "no-restricted-imports": ["error", { patterns: [nextAuthValueImport] }],
       },
     },
   ],

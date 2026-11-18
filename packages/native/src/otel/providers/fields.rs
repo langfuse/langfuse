@@ -8,10 +8,11 @@ use std::borrow::Cow;
 
 use super::{is_meaningful, parse_javascript_number, select_first, trim_javascript};
 
+use crate::native_codec::parse_datetime_text;
 use crate::otel::attributes::{
     is_js_truthy, javascript_string, value_as_f64, value_as_string, JsonParseCache,
 };
-use crate::otel::types::JsonObject;
+use crate::otel::types::{to_clickhouse_datetime, JsonObject};
 use crate::otel::value::{JsString, Value};
 
 mod rules;
@@ -416,9 +417,9 @@ fn valid_date_string_with_cache(value: &Value, parse_cache: &mut JsonParseCache)
 }
 
 fn is_valid_date_string(value: &str) -> bool {
-    chrono::DateTime::parse_from_rfc3339(value).is_ok()
-        || chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S%.f").is_ok()
-        || chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").is_ok()
+    // Only keep dates the native row codec can store, so a malformed optional timestamp
+    // cannot fail preparation of the entire batch.
+    parse_datetime_text(&to_clickhouse_datetime(value), "completion_start_time").is_ok()
 }
 
 fn genkit_model_parameters(
@@ -548,6 +549,115 @@ fn extend_ai_model_parameters(parameters: &mut JsonObject, value: Value) {
 mod tests {
     use super::*;
     use crate::otel::value::json;
+    use proptest::prelude::*;
+
+    fn completion_date_candidates() -> impl Strategy<Value = String> {
+        prop_oneof![
+            6 => (
+                1900_u16..2200,
+                0_u8..14,
+                0_u8..33,
+                r"[\sTt_]{0,4}",
+                0_u8..25,
+                0_u8..61,
+                0_u8..62,
+                r"(\.[0-9]{0,12})?",
+                prop::sample::select(vec!["", "Z", "+02:00", "-07:30", " invalid"]),
+            ).prop_map(|(year, month, day, separator, hour, minute, second, fraction, offset)| {
+                format!("{year:04}-{month:02}-{day:02}{separator}{hour:02}:{minute:02}:{second:02}{fraction}{offset}")
+            }),
+            1 => prop::collection::vec(any::<char>(), 0..96)
+                .prop_map(|chars| chars.into_iter().collect()),
+        ]
+    }
+
+    #[test]
+    fn unsupported_completion_date_separators_allow_latency_fallback() {
+        for date in [
+            "2025-10-01\t08:45:26",
+            "2025-10-01\n08:45:26",
+            "2025-10-0108:45:26",
+        ] {
+            for json_wrapped in [false, true] {
+                let value = if json_wrapped {
+                    serde_json::to_string(date).unwrap()
+                } else {
+                    date.to_owned()
+                };
+                let mut attributes = json!({"langfuse.observation.completion_start_time": value});
+                let attributes = attributes.as_object_mut().unwrap();
+                assert_eq!(
+                    extract_completion_start_time(
+                        attributes,
+                        "2024-01-01T00:00:00.000Z",
+                        &mut JsonParseCache::default(),
+                    ),
+                    None,
+                    "unsupported separator: {date:?}, JSON-wrapped: {json_wrapped}",
+                );
+                attributes.insert("ai.response.msToFirstChunk".into(), json!(125));
+                assert_eq!(
+                    extract_completion_start_time(
+                        attributes,
+                        "2024-01-01T00:00:00.000Z",
+                        &mut JsonParseCache::default(),
+                    ),
+                    Some("2024-01-01T00:00:00.125Z".to_owned()),
+                );
+            }
+        }
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn accepted_completion_start_times_prepare_for_native_storage(
+            candidate in completion_date_candidates(),
+            json_wrapped in any::<bool>(),
+        ) {
+            let value = if json_wrapped {
+                serde_json::to_string(&candidate).unwrap()
+            } else {
+                candidate.clone()
+            };
+            let attributes = json!({"langfuse.observation.completion_start_time": value});
+            let extracted = extract_completion_start_time(
+                attributes.as_object().unwrap(), "2024-01-01T00:00:00.000Z",
+                &mut JsonParseCache::default(),
+            );
+            let stored = extracted.map(|value| crate::otel::types::to_clickhouse_datetime(&value));
+            let prepared: Result<Option<crate::native_codec::DateTime64Micros>, String> =
+                crate::native_owned::IntoPrepared::into_prepared(stored);
+            prop_assert!(prepared.is_ok(), "accepted completion date {:?} failed preparation: {:?}", candidate, prepared);
+        }
+
+        #[test]
+        fn completion_start_dates_prepare_for_native_storage(
+            millis in 946_684_800_000_i64..1_893_456_000_000_i64,
+            json_wrapped in proptest::bool::ANY,
+        ) {
+            let instant = chrono::DateTime::from_timestamp_millis(millis).unwrap();
+            let midnight = instant.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
+            for (format, expected_micros) in [
+                ("%Y-%m-%d", midnight.timestamp_micros()),
+                ("%Y-%m-%d %H:%M:%S", instant.timestamp() * 1_000_000),
+                ("%Y-%m-%d %H:%M:%S%.3f", instant.timestamp_micros()),
+                ("%Y-%m-%dT%H:%M:%S%.3f", instant.timestamp_micros()),
+                ("%Y-%m-%dT%H:%M:%S%.3fZ", instant.timestamp_micros()),
+            ] {
+                let date = instant.format(format).to_string();
+                let value = if json_wrapped { serde_json::to_string(&date).unwrap() } else { date };
+                let attributes = json!({"langfuse.observation.completion_start_time": value});
+                let extracted = extract_completion_start_time(
+                    attributes.as_object().unwrap(), "2024-01-01T00:00:00.000Z",
+                    &mut JsonParseCache::default(),
+                );
+                proptest::prop_assert!(extracted.is_some(), "completion date was dropped: {:?}", attributes);
+                let stored = crate::otel::types::to_clickhouse_datetime(&extracted.unwrap());
+                let prepared = crate::native_codec::parse_datetime_text(&stored, "completion_start_time");
+                proptest::prop_assert_eq!(prepared, Ok(expected_micros));
+            }
+        }
+    }
 
     #[test]
     fn completion_start_time_accepts_gen_ai_time_to_first_chunk_seconds() {

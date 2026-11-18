@@ -319,11 +319,6 @@ describe("Clickhouse Events Repository Test", () => {
     );
   }, 120_000);
 
-  it("should kill redis connection", () => {
-    // we need at least one test case to avoid hanging
-    // redis connection when everything else is skipped.
-  });
-
   maybe("evaluator execution metrics", () => {
     it("returns evaluator costs from the last seven days excluding test runs", async () => {
       const evaluatorId = randomUUID();

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { TopicProcessBatchState } from "../topics";
 import { eventTypes } from "./ingestion/types";
 import {
   ActionId,
@@ -323,6 +322,35 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
     inviterName: z.string(),
     inviterEmail: z.string(),
   }),
+  /** One "spend limit reached" email to a gateway key's owner or an organization owner, listing the limits one request reached. */
+  z.object({
+    type: z.literal("AI_GATEWAY_SPEND_LIMIT_REACHED"),
+    orgId: z.string(),
+    orgName: z.string(),
+    to: z.string(),
+    receiverName: z.string().optional(),
+    audience: z.enum(["keyOwner", "orgOwner"]),
+    /** What the limit applies to, mirroring the limit's scope. */
+    scope: z.discriminatedUnion("type", [
+      z.object({
+        type: z.literal("API_KEY"),
+        apiKeyId: z.string(),
+        name: z.string(),
+        /** Masked secret key, as the gateway keys table shows it. */
+        displaySecretKey: z.string(),
+      }),
+    ]),
+    limits: z
+      .array(
+        z.object({
+          interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
+          limitUsd: z.number(),
+          /** ISO timestamp of the next window; absent for total limits. */
+          resetsAt: z.string().optional(),
+        }),
+      )
+      .min(1),
+  }),
   // Future notification types can be added here
 ]);
 
@@ -437,12 +465,8 @@ export const RetryBaggage = z.object({
 export type RetryBaggage = z.infer<typeof RetryBaggage>;
 
 export enum QueueName {
-  Topics = "topics",
   TopicsUpdate = "topics-update",
-  TopicsEmbedding = "topics-embedding",
-  TopicsAutomation = "topics-automation",
   TopicsSetup = "topics-setup",
-  TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -489,10 +513,7 @@ export enum QueueName {
 export enum QueueJobs {
   Topics = "topics",
   TopicsRuleRefit = "topics-rule-refit",
-  TopicsEmbedding = "topics-embedding",
-  TopicsAutomation = "topics-automation",
   TopicsSetup = "topics-setup",
-  TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -540,7 +561,7 @@ export const TraceBatchTraceSchema = z.object({
   minStart: z.number(),
   maxStart: z.number(),
   revision: z.string(),
-  // Rule IDs recorded at ingestion and prior per-trace failures; absent in legacy mode.
+  // Rule IDs recorded at ingestion and prior per-trace failures.
   ruleIds: z.array(z.string()).optional(),
   failedCount: z.number().int().nonnegative().optional(),
   // Dispatcher estimate of the trace's retained serialized event bytes; describes the read on its span.
@@ -573,98 +594,21 @@ export const EventsDispatchEventSchema = z.object({
   }),
 });
 
-export const TopicEmbeddingBatchSchema = z.object({
-  projectId: z.string().min(1),
-  executionId: z.string().min(1),
-  batchId: z.string().min(1),
-  summaries: z
-    .array(
-      z.object({
-        facetId: z.string().min(1),
-        facetVersion: z.number().int().positive(),
-        traceId: z.string().min(1),
-      }),
-    )
-    .min(1),
-});
-
-// Summaries one trace batch stored for a project, with the facets and vector space they used.
-export const TopicAutomationBatchSchema = z.object({
-  projectId: z.string().min(1),
-  traceIds: z.array(z.string().min(1)).min(1).max(100),
-  facets: z
-    .array(
-      z.object({
-        facetId: z.string().min(1),
-        version: z.number().int().positive(),
-      }),
-    )
-    .min(1),
-  embeddingConfig: z.object({
-    embeddingModel: z.string().min(1),
-    embeddingDimensions: z.number().int().positive(),
-  }),
-  timeRange: z.object({ from: z.coerce.date(), to: z.coerce.date() }),
-});
-
-export const TraceBatchEventSchema = z.object({
-  timestamp: z.coerce.date(),
-  id: z.string(),
-  name: z.literal(QueueJobs.TraceBatch),
-  payload: z.union([
-    z
-      .object({
-        traces: z.array(TraceBatchTraceSchema).min(1),
-      })
-      .strict(),
-    // Persisted single-project jobs must remain readable while consumers drain.
-    z
-      .object({
-        projectId: z.string(),
-        traces: z
-          .array(TraceBatchTraceSchema.omit({ projectId: true }).strict())
-          .min(1),
-      })
-      .strict()
-      .transform(({ projectId, traces }) => ({
-        traces: traces.map((trace) => ({ ...trace, projectId })),
-      })),
-  ]),
-});
-
 export type TQueueJobTypes = {
-  [QueueName.Topics]: {
-    timestamp: Date;
-    id: string;
-    name: QueueJobs.Topics;
-    payload: {
-      projectId: string;
-      executionId: string;
-      traceIds?: string[];
-      batchId?: string;
-    };
-    batchState?: TopicProcessBatchState;
-  };
+  // A snapshot's fit (job name `topics`) or a rule's refit.
   [QueueName.TopicsUpdate]:
-    | TQueueJobTypes[QueueName.Topics]
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.Topics;
+        payload: { projectId: string; executionId: string };
+      }
     | {
         timestamp: Date;
         id: string;
         name: QueueJobs.TopicsRuleRefit;
         payload: { projectId: string; runId: string };
       };
-  [QueueName.TopicsEmbedding]: {
-    timestamp: Date;
-    id: string;
-    name: QueueJobs.TopicsEmbedding;
-    payload: z.infer<typeof TopicEmbeddingBatchSchema>;
-  };
-  [QueueName.TopicsAutomation]: {
-    timestamp: Date;
-    id: string;
-    name: QueueJobs.TopicsAutomation;
-    payload: z.infer<typeof TopicAutomationBatchSchema>;
-  };
   [QueueName.TopicsSetup]: {
     timestamp: Date;
     id: string;
@@ -674,7 +618,6 @@ export type TQueueJobTypes = {
       | { projectId: string; ruleId: string }
       | { projectId: string; executionId: string };
   };
-  [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {
     timestamp: Date;
     id: string;

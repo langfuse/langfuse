@@ -5,6 +5,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
+import { PAGE_SIZE } from "./TopicMobileTraceList";
 import { TopicsMobileControls } from "./TopicsMobileControls";
 import { prepareTopicsActions } from "./prepare-topics-actions";
 import { staticTopicTraces, storyFacet } from "./topic-story-traces";
@@ -79,7 +80,7 @@ const mapResult = {
 };
 
 function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
-  const view = args.view;
+  const [view, setView] = useState(args.view);
   const [facetId, setFacetId] = useState(args.facet.facetId);
   const facets = [
     args.facet,
@@ -109,6 +110,10 @@ function MobileExample(args: ComponentProps<typeof MobileTopicsView>) {
         {...args}
         facet={facet}
         view={view}
+        onViewChange={(nextView) => {
+          args.onViewChange(nextView);
+          setView(nextView);
+        }}
         filters={filters}
         searchQuery={searchQuery}
         onFiltersChange={setFilters}
@@ -132,7 +137,6 @@ const mapActions = prepareTopicsActions({
   automaticProcessing: { state: { status: "on" }, saving: false },
   canWrite: true,
   configureAvailable: true,
-  menuOnly: false,
   onConfigure: fn(),
   onHistory: fn(),
   ...mapActionHandlers,
@@ -144,6 +148,7 @@ const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   projectId: "storybook-topics",
   facet,
   view: "treemap",
+  onViewChange: fn(),
   mapResult,
   filters: [],
   searchQuery: null,
@@ -166,6 +171,28 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+export const SwitchVisualization = meta.story({
+  name: "(Test) Switch visualization within its panel",
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(
+      canvas.queryByRole("combobox", { name: "Visualization" }),
+    ).not.toBeInTheDocument();
+    const tab = canvas.getByRole("tab", { name: "Visualize" });
+    await userEvent.click(tab);
+    await expect(tab).not.toHaveAttribute("aria-haspopup");
+    const selector = canvas.getByRole("combobox", { name: "Visualization" });
+    await expect(selector).toHaveTextContent("Treemap");
+    await userEvent.click(selector);
+    await userEvent.click(await body.findByRole("option", { name: "Scatter" }));
+    await expect(args.onViewChange).toHaveBeenCalledWith("map");
+    await userEvent.click(canvas.getByRole("tab", { name: "Topics" }));
+    await expect(
+      canvas.queryByRole("combobox", { name: "Visualization" }),
+    ).not.toBeInTheDocument();
+  },
+});
 export const AwaitingTopics = meta.story({
   args: {
     facet: storyFacet(
@@ -247,6 +274,21 @@ export const BrowseAndOpenTrace = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all traces" }),
     );
+    await expect(
+      canvas.getByRole("button", { name: "Open trace access-0" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Open trace billing-20" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Go to previous page" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Open trace billing-0" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Open trace access-0" }),
+    ).not.toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Go to next page" }),
     );
@@ -530,5 +572,56 @@ export const SwitchPublishedMap = meta.story({
     await expect(
       canvas.getByRole("tab", { name: "Visualize" }),
     ).toHaveAttribute("data-state", "active");
+  },
+});
+
+export const KeepPageAfterRefresh = meta.story({
+  name: "(Test) Keep the page when a refresh moves the selected trace",
+  render: function KeepPageAfterRefresh(args) {
+    const [shifted, setShifted] = useState(false);
+    const source = shifted
+      ? [
+          {
+            traceId: "newer-0",
+            topicId: "billing",
+            topicName: topics[0].name,
+            summary: "A newer invoice question sorted ahead of the selection.",
+            outcome: "assigned" as const,
+            facetVersion: 1,
+            unitStartTime: "2026-10-21T12:00:00.000Z",
+          },
+          ...rows,
+        ]
+      : rows;
+    return (
+      <>
+        <Button text="Refresh traces" onClick={() => setShifted(true)} />
+        <MobileExample
+          {...args}
+          selectedTraceId={rows[PAGE_SIZE - 1]!.traceId}
+          useTraces={staticTopicTraces(source)}
+        />
+      </>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const selectedName = `Open trace ${rows[PAGE_SIZE - 1]!.traceId}`;
+    await userEvent.click(canvas.getByRole("tab", { name: "Traces" }));
+    await expect(
+      canvas.getByRole("button", { name: `Open trace ${rows[0].traceId}` }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: selectedName }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Refresh traces" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: `Open trace ${rows[0].traceId}` }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: selectedName }),
+    ).not.toBeInTheDocument();
   },
 });

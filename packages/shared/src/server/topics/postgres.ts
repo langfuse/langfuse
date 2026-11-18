@@ -6,12 +6,10 @@ import {
   topicTimeRangeSchema,
   sameTopicGeometry,
   type TopicFacet,
-  type TopicFacetRef,
   type TopicFacetVersion,
   type TopicRun,
   type TopicRule,
   type TopicDefinition,
-  type TopicEmbeddingConfig,
 } from "../../topics";
 import { isEqual } from "lodash";
 import {
@@ -551,32 +549,6 @@ export async function getPublishedTopicMaps(
       topics: run.topicVersionIds.flatMap((id) => names.get(id) ?? []),
     })),
   };
-}
-
-/** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */
-export async function getTopicProcessingMapIds(
-  projectId: string,
-  facets: TopicFacetRef[],
-  embeddingConfig: TopicEmbeddingConfig,
-): Promise<{ facetId: string; facetVersion: number; runId: string | null }[]> {
-  if (!facets.length) return [];
-  const runs = await findServingRuns(projectId, [
-    ...new Set(facets.map((facet) => facet.facetId)),
-  ]);
-  return facets.map(({ facetId, version }) => {
-    const run = runs.find((run) => run.facetId === facetId);
-    const config = run?.config as Record<string, unknown> | undefined;
-    return {
-      facetId,
-      facetVersion: version,
-      runId:
-        run?.facetVersion === version &&
-        config?.embeddingModel === embeddingConfig.embeddingModel &&
-        config?.dimensions === embeddingConfig.embeddingDimensions
-          ? run.id
-          : null,
-    };
-  });
 }
 
 export async function createTopicRun(input: {

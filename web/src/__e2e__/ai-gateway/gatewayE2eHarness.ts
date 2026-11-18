@@ -18,6 +18,7 @@ import type {
   GatewayProviderName,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import type { ModelDiscoveryError } from "@/src/features/ai-gateway/server/provider/models/types";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -51,6 +52,14 @@ export const COMPLETION_TIMEOUT_MS = 180_000;
 // responses catalog.
 const OPENAI_MODELS_PATH = "/openai/v1/models";
 const ANTHROPIC_MODELS_PATH = "/anthropic/v1/models";
+
+// Live provider model listings intermittently stall or fail; retry those
+// outcomes so one slow listing does not fail a whole provider suite.
+const TRANSIENT_RETRY_DELAYS_MS = [2_000, 5_000];
+const TRANSIENT_DISCOVERY_ERRORS = new Set<ModelDiscoveryError>([
+  "provider_error",
+  "timeout",
+]);
 
 const openAiModelListSchema = z
   .object({
@@ -90,10 +99,22 @@ const anthropicModelListSchema = z
   })
   .strict();
 
+// The Anthropic route reports the gateway's `gateway_unavailable` 503 as
+// Anthropic's `overloaded_error` type, without a code.
+const gatewayUnavailableSchema = z.object({
+  error: z.union([
+    z.object({ code: z.literal("gateway_unavailable") }),
+    z.object({ type: z.literal("overloaded_error") }),
+  ]),
+});
+
 type Admin = Awaited<ReturnType<typeof createGatewayAdmin>>;
 type CreateConnectionInput = Parameters<
   Admin["caller"]["aiGateway"]["createConnection"]
 >[0];
+type GatewayKeySpendLimit = Parameters<
+  Admin["caller"]["aiGateway"]["createApiKey"]
+>[0]["spendLimit"];
 
 type ConnectionSpec = Omit<CreateConnectionInput, "orgId" | "name"> & {
   /** Provider model ids the suite calls. Connections whose key may not list models get them as custom models. */
@@ -229,7 +250,7 @@ export function setUpGatewayE2e(
     const gateway = await startGatewayProcess();
     suite.gatewayBaseUrl = gateway.url;
     stopGateway = gateway.stop;
-  }, 60_000);
+  }, TEST_TIMEOUT_MS);
 
   afterAll(async () => {
     try {
@@ -274,6 +295,7 @@ export function requiredEnv(name: string) {
 export async function withGatewayApiKey(
   apiFormat: GatewayApiFormat,
   run: (key: { secretKey: string; id: string }) => Promise<void>,
+  options: { spendLimit?: GatewayKeySpendLimit } = {},
 ) {
   const { provider } = suite.connection;
   const gatewayKey = await suite.admin.caller.aiGateway.createApiKey({
@@ -284,6 +306,7 @@ export async function withGatewayApiKey(
       provider,
       apiFormat,
     },
+    spendLimit: options.spendLimit,
   });
   apiKeyIds.add(gatewayKey.id);
 
@@ -314,9 +337,13 @@ export async function listGatewayModelIds(
     apiFormat === "anthropic.messages"
       ? ANTHROPIC_MODELS_PATH
       : OPENAI_MODELS_PATH;
-  const response = await fetch(`${suite.gatewayBaseUrl}${requestPath}`, {
-    headers: { Authorization: `Bearer ${secretKey}` },
-  });
+  const response = await retryTransient(
+    () =>
+      fetch(`${suite.gatewayBaseUrl}${requestPath}`, {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      }),
+    isGatewayUnavailable,
+  );
   const body = await readJsonResponse(response, 200, requestPath);
   if (requestPath === OPENAI_MODELS_PATH) {
     return openAiModelListSchema.parse(body).data.map(({ id }) => id);
@@ -596,10 +623,14 @@ async function addProviderConnection({ models, ...spec }: ConnectionSpec) {
 
   // Azure validates the key on a route it may list, then discovers
   // deployments on one it may not, so check the catalog as well.
-  const catalog = await suite.admin.caller.aiGateway.getConnectionModels({
-    orgId: ORGANIZATION_ID,
-    id: created.id,
-  });
+  const catalog = await retryTransient(
+    () =>
+      suite.admin.caller.aiGateway.getConnectionModels({
+        orgId: ORGANIZATION_ID,
+        id: created.id,
+      }),
+    (result) => !result.success && TRANSIENT_DISCOVERY_ERRORS.has(result.error),
+  );
   expect(catalog.success, JSON.stringify(catalog)).toBe(true);
   let { updatedAt } = created;
   if (
@@ -773,6 +804,28 @@ function gatewayIngestionAuthorization(token: string) {
   )}`;
 }
 
+/** Repeats `attempt` while `isTransient` holds, then returns the last result for the caller to assert on. */
+async function retryTransient<T>(
+  attempt: () => Promise<T>,
+  isTransient: (result: T) => boolean | Promise<boolean>,
+) {
+  for (const delayMs of TRANSIENT_RETRY_DELAYS_MS) {
+    const result = await attempt();
+    if (!(await isTransient(result))) return result;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return attempt();
+}
+
+async function isGatewayUnavailable(response: Response) {
+  if (response.status !== 503) return false;
+  const body: unknown = await response
+    .clone()
+    .json()
+    .catch(() => null);
+  return gatewayUnavailableSchema.safeParse(body).success;
+}
+
 async function readJsonResponse<T = unknown>(
   response: Response,
   expectedStatus: number,
@@ -922,6 +975,18 @@ function resolveGatewayBinary() {
   );
 }
 
+/** The gateway keeps spend counters in the stack's Redis unless told otherwise. */
+function gatewayRedisUrl() {
+  const configured =
+    process.env.LANGFUSE_AI_GATEWAY_REDIS_URL ??
+    process.env.REDIS_CONNECTION_STRING;
+  if (configured) return configured;
+  const auth = process.env.REDIS_AUTH
+    ? `:${encodeURIComponent(process.env.REDIS_AUTH)}@`
+    : "";
+  return `redis://${auth}${process.env.REDIS_HOST ?? "127.0.0.1"}:${process.env.REDIS_PORT ?? "6379"}`;
+}
+
 function reserveLoopbackPort() {
   return new Promise<number>((resolve, reject) => {
     const server = createServer();
@@ -966,6 +1031,7 @@ async function startGatewayProcess() {
       LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: `127.0.0.1:${port}`,
       LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT: "false",
       LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS: "5",
+      LANGFUSE_AI_GATEWAY_REDIS_URL: gatewayRedisUrl(),
       LANGFUSE_LOG_FORMAT: "json",
       LANGFUSE_LOG_LEVEL: "info",
     },
