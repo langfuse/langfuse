@@ -28,6 +28,9 @@ const GATEWAY_SPEND_LIMIT_SELECT = {
   updatedAt: true,
 } as const;
 
+/** Defaults have no subject; filtering on it lets Postgres use their partial unique index. */
+const DEFAULT_SPEND_LIMIT_SUBJECT = { apiKeyId: null, userId: null } as const;
+
 const BUDGET_USER_SELECT = {
   select: { id: true, name: true, email: true, image: true },
 } as const;
@@ -69,6 +72,7 @@ export class GatewaySpendLimitRepository {
       where: {
         organizationId: params.organizationId,
         scope: GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[params.scope],
+        ...DEFAULT_SPEND_LIMIT_SUBJECT,
       },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
@@ -79,6 +83,7 @@ export class GatewaySpendLimitRepository {
       where: {
         organizationId,
         scope: { in: Object.values(GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES) },
+        ...DEFAULT_SPEND_LIMIT_SUBJECT,
       },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });

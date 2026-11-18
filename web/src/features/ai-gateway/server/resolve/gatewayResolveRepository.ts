@@ -60,11 +60,15 @@ export class GatewayResolveRepository {
           select: {
             cloudConfig: true,
             // Apply to the key or its user when they have no limit of their own.
+            // The null subjects match the partial index of the defaults, so
+            // this reads at most two rows however many limits the org has.
             gatewaySpendLimits: {
               where: {
                 scope: {
                   in: Object.values(GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES),
                 },
+                apiKeyId: null,
+                userId: null,
               },
               select: {
                 id: true,
