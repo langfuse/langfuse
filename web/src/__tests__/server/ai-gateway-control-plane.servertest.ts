@@ -2626,6 +2626,14 @@ describe("AI gateway control plane", () => {
     expect(await resolved(service.secretKey)).toEqual([
       { id: `${keyDefaultId}:${service.id}`, scope: "api_key", limit_usd: 10 },
     ]);
+    const organizationKey = await createApiKey(prisma, {
+      tenant: OrganizationId(owner.org.id),
+      scope: OrganizationId(owner.org.id),
+      role: SystemRoleId("ADMIN"),
+      createdBy: UserId(owner.user.id),
+    });
+    // Not a gateway key, so the key default does not cap it.
+    expect(await resolved(organizationKey.secretKey)).toEqual([]);
     expect(
       (
         await owner.caller.aiGateway.getApiKeysSpend({
@@ -2652,6 +2660,15 @@ describe("AI gateway control plane", () => {
       setLaptopBudget({ interval: "DAILY", limitUsd: 5 }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await setLaptopBudget({ interval: "MONTHLY", limitUsd: 4 });
+    // Returning to the default and setting a budget again would restart its count.
+    await expect(
+      member.aiGateway.setSpendLimits({
+        orgId: owner.org.id,
+        scope: "API_KEY",
+        subjectIds: [laptop.id],
+        spendLimit: null,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(await resolved(laptop.secretKey)).toEqual([
       expect.objectContaining({ scope: "api_key", limit_usd: 4 }),
       { id: `${userDefaultId}:${userId}`, scope: "user", limit_usd: 30 },

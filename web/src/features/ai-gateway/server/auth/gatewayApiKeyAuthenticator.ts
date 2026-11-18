@@ -187,7 +187,10 @@ export class GatewayApiKeyAuthenticator {
       spendLimits: [
         ...toResolveSpendLimits({
           own: row.gatewaySpendLimits,
-          defaults: organization.gatewaySpendLimits,
+          // Organization keys without a gateway association aren't listed as gateway keys, so no key default applies to them.
+          defaults: row.gatewayAssociation
+            ? organization.gatewaySpendLimits
+            : [],
           scope: "API_KEY",
           subjectId: row.id,
         }),

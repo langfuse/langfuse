@@ -183,6 +183,7 @@ async function findReportedLimits(
           },
         },
       },
+      gatewayAssociation: { select: { apiKeyId: true } },
       _count: { select: { gatewaySpendLimits: true } },
     },
   });
@@ -190,7 +191,10 @@ async function findReportedLimits(
   const { orgId, userId, user } = callingKey;
 
   const defaultSubjects = new Map<GatewayDefaultSpendLimitScope, string>();
-  if (callingKey._count.gatewaySpendLimits === 0) {
+  if (
+    callingKey.gatewayAssociation &&
+    callingKey._count.gatewaySpendLimits === 0
+  ) {
     defaultSubjects.set(
       GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.API_KEY,
       callingKey.id,

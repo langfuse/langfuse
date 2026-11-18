@@ -36,6 +36,7 @@ export function useSetGatewayDefaultBudget(organizationId: string) {
       await Promise.all([
         utils.aiGateway.getDefaultSpendLimits.invalidate({ orgId }),
         utils.aiGateway.listBudgets.invalidate({ orgId }),
+        utils.aiGateway.getApiKeysSpend.invalidate({ orgId }),
       ]);
     }
   };

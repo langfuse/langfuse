@@ -114,8 +114,8 @@ export function GatewayEditBudgetDialog({
           disabled:
             unavailableReason !== undefined ||
             !form.formState.isValid ||
-            // Selected budgets may differ, so saving the prefilled one changes them.
-            (!isBulk && !form.formState.isDirty),
+            // Selected budgets may differ, and a key or user on the default gets a budget of its own, so saving the prefilled one changes them.
+            (!isBulk && existingBudgetCount > 0 && !form.formState.isDirty),
         },
       ]}
     >

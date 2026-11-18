@@ -124,6 +124,7 @@ export class GatewaySpendLimitService {
                 organizationId: params.organizationId,
                 ownerUserId,
               }),
+              gatewayAssociation: { isNot: null },
               id: {
                 in: params.apiKeyIds.filter((id) => !withOwnLimit.has(id)),
               },
@@ -558,10 +559,14 @@ export class GatewaySpendLimitService {
         "A gateway admin set this key's spend budget, so only an admin can change it.",
       );
     }
-    if (limit && !isUnchanged) {
-      if (ownerUserId !== undefined && scope.type === "API_KEY") {
+    if (ownerUserId !== undefined && scope.type === "API_KEY") {
+      if (limit && !isUnchanged) {
         await this.requireWithinKeyDefault({ organizationId, limit });
+      } else if (!limit && existing.length > 0) {
+        await this.requireNoKeyDefault(organizationId);
       }
+    }
+    if (limit && !isUnchanged) {
       await this.requireRecordingProjectId(organizationId);
     }
 
@@ -675,6 +680,23 @@ export class GatewaySpendLimitService {
     ) {
       throw new ForbiddenError(
         `Your key budget can't be higher than the default key budget of $${fallback.limitUsd.toNumber()} (resets: ${INTERVAL_LABELS.get(fallback.interval)}) or reset on another interval.`,
+      );
+    }
+  }
+
+  /**
+   * A budget counts afresh from when it is set, so a member who could switch
+   * their key back to the default and set a budget again would reset its spend
+   * each time; only admins may return a key to the default.
+   */
+  private async requireNoKeyDefault(organizationId: string) {
+    const fallback = await this.repository.findDefault({
+      organizationId,
+      scope: "API_KEY",
+    });
+    if (fallback) {
+      throw new ForbiddenError(
+        "While a default key budget is set, only a gateway admin can remove a key's budget.",
       );
     }
   }
