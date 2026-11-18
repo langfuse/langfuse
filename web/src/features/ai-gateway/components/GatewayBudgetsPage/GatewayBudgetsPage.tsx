@@ -9,6 +9,8 @@ import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/compon
 import { GatewaySpendChart } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewaySpendChart/GatewaySpendChart";
 import { ConnectedGatewayBudgetsTable } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTable/ConnectedGatewayBudgetsTable";
 import type { GatewayBudgetRow } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsTable/GatewayBudgetsTable";
+import { useGatewaySpendFilterOptions } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewaySpendFilterOptions";
+import { GATEWAY_SPEND_TABS } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import type { GatewaySpendInterval } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendIntervals";
 import { useGatewayBudgetsTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTab";
 import { toGatewaySpendFilters } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/toGatewaySpendFilters";
@@ -19,15 +21,30 @@ import {
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 
+const SUBJECT_FILTER_COPY = {
+  users: {
+    placeholder: "All users",
+    searchPlaceholder: "Search users...",
+    emptyMessage: "No user found.",
+  },
+  apiKeys: {
+    placeholder: "All keys",
+    searchPlaceholder: "Search keys...",
+    emptyMessage: "No key found.",
+  },
+} as const;
+
+const NO_SUBJECTS: GatewaySpendSubject[] = [];
+
 type GatewayBudgetsPageProps = {
   organizationId: string;
 };
 
 /**
- * Spend over time for the whole gateway, or for one key or user once its row
- * is selected. Managers see all usage; everyone else only their own, which
- * the server enforces. Managers are redirected to Setup until ingestion is
- * configured.
+ * Spend over time for the whole gateway, or for the keys or users picked in
+ * the chart or by clicking their rows. Managers see all usage; everyone else
+ * only their own, which the server enforces. Managers are redirected to Setup
+ * until ingestion is configured.
  */
 export function GatewayBudgetsPage({
   organizationId,
@@ -39,9 +56,11 @@ export function GatewayBudgetsPage({
   // A selection belongs to the tab it was made on, so switching tabs shows the total.
   const [selected, setSelected] = useState<{
     tab: typeof tab;
-    row: GatewayBudgetRow;
+    subjects: GatewaySpendSubject[];
   } | null>(null);
-  const selectedRow = selected?.tab === tab ? selected.row : null;
+  const selectedSubjects =
+    selected?.tab === tab ? selected.subjects : NO_SUBJECTS;
+  const listedOptions = useGatewaySpendFilterOptions(organizationId, tab);
   const [spendInterval, setSpendInterval] =
     useState<GatewaySpendInterval>("day");
   const [timeRange, setTimeRange] = useState<TimeRange>({
@@ -51,23 +70,36 @@ export function GatewayBudgetsPage({
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],
   );
-  const selection = useMemo(
-    () =>
-      selectedRow
-        ? {
-            label: selectedRow.name,
-            filters: toGatewaySpendFilters(tab, selectedRow.subjectId),
-          }
-        : null,
-    [tab, selectedRow],
+  const selectedIds = useMemo(
+    () => selectedSubjects.map(({ value }) => value),
+    [selectedSubjects],
   );
+  const filters = useMemo(
+    () => toGatewaySpendFilters(tab, selectedIds),
+    [tab, selectedIds],
+  );
+  // Selected subjects stay pickable even when they are outside the listed options.
+  const options = mergeOptions(selectedSubjects, listedOptions);
 
   const handleRowClick = (row: GatewayBudgetRow) => {
-    setSelected(selectedRow?.id === row.id ? null : { tab, row });
+    const isSelected = selectedIds.includes(row.subjectId);
+    setSelected({
+      tab,
+      subjects: isSelected
+        ? selectedSubjects.filter(({ value }) => value !== row.subjectId)
+        : [...selectedSubjects, { value: row.subjectId, label: row.name }],
+    });
   };
 
-  const handleClearSelection = () => {
-    setSelected(null);
+  const handleSubjectsChange = (ids: string[]) => {
+    const byId = new Map(options.map((option) => [option.value, option]));
+    setSelected({
+      tab,
+      subjects: ids.flatMap((id) => {
+        const option = byId.get(id);
+        return option ? [option] : [];
+      }),
+    });
   };
 
   if (!canManageGateway && isIngestionConfigured === false) {
@@ -105,18 +137,36 @@ export function GatewayBudgetsPage({
             timeRange={absoluteTimeRange}
             interval={spendInterval}
             onIntervalChange={setSpendInterval}
-            selection={selection}
-            onClearSelection={handleClearSelection}
+            subjectFilter={{
+              ...SUBJECT_FILTER_COPY[tab],
+              label: GATEWAY_SPEND_TABS[tab].label,
+              value: selectedIds,
+              options,
+              onValueChange: handleSubjectsChange,
+              filters,
+            }}
           />
         )}
         <ConnectedGatewayBudgetsTable
           key={tab}
           organizationId={organizationId}
           tab={tab}
-          selectedRowId={selectedRow?.id ?? null}
           onRowClick={handleRowClick}
         />
       </div>
     </>
   );
 }
+
+function mergeOptions(
+  selected: GatewaySpendSubject[],
+  listed: GatewaySpendSubject[],
+) {
+  const selectedIds = new Set(selected.map(({ value }) => value));
+  return [
+    ...selected,
+    ...listed.filter(({ value }) => !selectedIds.has(value)),
+  ];
+}
+
+type GatewaySpendSubject = { value: string; label: string };

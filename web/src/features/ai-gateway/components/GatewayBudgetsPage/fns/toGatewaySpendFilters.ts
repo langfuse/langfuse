@@ -8,14 +8,14 @@ import {
 /** No selection means the total of all gateway spend, not a breakdown. */
 export function toGatewaySpendFilters(
   tab: GatewaySpendTab,
-  selectedId: string | null,
+  selectedIds: string[],
 ): FilterState {
-  if (selectedId === null) return [];
+  if (selectedIds.length === 0) return [];
   return [
     {
       column: GATEWAY_SPEND_TABS[tab].column,
       operator: "any of",
-      value: [selectedId],
+      value: selectedIds,
       type: "stringOptions",
     },
   ];

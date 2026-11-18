@@ -13,7 +13,6 @@ import {
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Tag } from "@/src/components/design-system/Tag/Tag";
 import {
   VisualizationFrame,
   type Visualization,
@@ -35,7 +34,6 @@ export function DataCard({
   title,
   description,
   badge,
-  filter,
   controls = [],
   tabs,
   actions,
@@ -45,8 +43,6 @@ export function DataCard({
   title: string;
   description?: string | null;
   badge?: { text: string; description: string };
-  /** An active filter, shown next to the title; removing it clears the filter. */
-  filter?: { text: string; onRemove: () => void };
   controls?: ({
     id: string;
     label: string;
@@ -162,9 +158,6 @@ export function DataCard({
                 text={badge.text}
                 title={badge.description}
               />
-            )}
-            {filter && (
-              <Tag text={filter.text} remove={{ onRemove: filter.onRemove }} />
             )}
           </div>
         </div>

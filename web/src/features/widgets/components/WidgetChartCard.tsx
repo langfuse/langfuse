@@ -10,7 +10,7 @@ const EMPTY_DATA: ChartProps["data"] = [];
 
 type WidgetChartCardProps = Pick<
   ComponentProps<typeof DataCard>,
-  "title" | "description" | "badge" | "filter" | "controls" | "tabs" | "actions"
+  "title" | "description" | "badge" | "controls" | "tabs" | "actions"
 > &
   Pick<
     ChartProps,
@@ -62,7 +62,6 @@ export function WidgetChartCard(props: WidgetChartCardProps) {
     title,
     description,
     badge,
-    filter,
     controls,
     tabs,
     actions,
@@ -97,7 +96,6 @@ export function WidgetChartCard(props: WidgetChartCardProps) {
     title,
     description,
     badge,
-    filter,
     controls,
     tabs,
     actions,

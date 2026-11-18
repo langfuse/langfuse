@@ -13,17 +13,23 @@ type GatewaySpendChartProps = {
   timeRange: { from: Date; to: Date };
   interval: GatewaySpendInterval;
   onIntervalChange: (interval: GatewaySpendInterval) => void;
-  /** Null shows the total of all gateway spend. */
-  selection: { label: string; filters: FilterState } | null;
-  onClearSelection: () => void;
+  /** Keys or users the spend is limited to; none shows the total of all gateway spend. */
+  subjectFilter: {
+    label: string;
+    placeholder: string;
+    searchPlaceholder: string;
+    emptyMessage: string;
+    value: string[];
+    options: { value: string; label: string }[];
+    onValueChange: (value: string[]) => void;
+    filters: FilterState;
+  };
 };
-
-const NO_FILTERS: FilterState = [];
 
 const SPEND_WIDGET = {
   ...GATEWAY_COST_OVER_TIME_WIDGET,
   name: "Spend",
-  description: "Select a row below to see only its spend.",
+  description: "Click rows below, or pick them here, to see only their spend.",
 };
 
 export function GatewaySpendChart({
@@ -31,8 +37,7 @@ export function GatewaySpendChart({
   timeRange,
   interval,
   onIntervalChange,
-  selection,
-  onClearSelection,
+  subjectFilter,
 }: GatewaySpendChartProps) {
   const handleIntervalChange = (value: string) => {
     const option = GATEWAY_SPEND_INTERVALS.find(
@@ -46,13 +51,21 @@ export function GatewaySpendChart({
       fetchQuery={fetchQuery}
       widget={SPEND_WIDGET}
       timeRange={timeRange}
-      filters={selection?.filters ?? NO_FILTERS}
+      filters={subjectFilter.filters}
       granularity={interval}
-      filter={
-        selection
-          ? { text: selection.label, onRemove: onClearSelection }
-          : undefined
-      }
+      controls={[
+        {
+          type: "multiselect",
+          id: "subjects",
+          label: subjectFilter.label,
+          placeholder: subjectFilter.placeholder,
+          searchPlaceholder: subjectFilter.searchPlaceholder,
+          emptyMessage: subjectFilter.emptyMessage,
+          value: subjectFilter.value,
+          options: subjectFilter.options,
+          onValueChange: subjectFilter.onValueChange,
+        },
+      ]}
       tabs={{
         value: interval,
         options: [...GATEWAY_SPEND_INTERVALS],

@@ -436,11 +436,10 @@ export const SelectControl = meta.story({
   },
 });
 
-export const ToggleTabsAndFilter = meta.story({
+export const ToggleTabs = meta.story({
   args: {
     title: "Spend",
     metric: undefined,
-    filter: { text: "Support bot", onRemove: fn() },
     tabs: {
       value: "day",
       variant: "toggle",

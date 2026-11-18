@@ -19,7 +19,6 @@ import {
 type ConnectedGatewayBudgetsTableProps = {
   organizationId: string;
   tab: GatewaySpendTab;
-  selectedRowId: string | null;
   onRowClick: (row: GatewayBudgetRow) => void;
 };
 
@@ -30,7 +29,6 @@ type ConnectedGatewayBudgetsTableProps = {
 export function ConnectedGatewayBudgetsTable({
   organizationId,
   tab,
-  selectedRowId,
   onRowClick,
 }: ConnectedGatewayBudgetsTableProps) {
   const subject = tab === "apiKeys" ? "key" : "user";
@@ -86,7 +84,6 @@ export function ConnectedGatewayBudgetsTable({
             tab={tab}
             data={data}
             onRowClick={onRowClick}
-            selectedRowId={selectedRowId}
             selectColumn={
               editableRows.length > 0
                 ? {
