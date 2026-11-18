@@ -138,7 +138,8 @@ CREATE TABLE IF NOT EXISTS billable_events (
     event_type LowCardinality(String),
     event_id String,
     event_time DateTime64(3),
-    event_bytes UInt64
+    event_bytes UInt64,
+    environment LowCardinality(String) DEFAULT ''
 ) ENGINE = MergeTree
 PARTITION BY toMonday(ingested_at)
 PRIMARY KEY (project_id, toStartOfFifteenMinutes(ingested_at))
@@ -211,7 +212,9 @@ WHERE is_deleted = 0
 -- A summary belongs to a trace or a session for one facet version, so
 -- event_id is '<length(facet_id)>:<facet_id>:<facet_version>:<length(trace_id)>:<trace_id>:<session_id>'.
 -- Summaries carry processed_at instead of created_at; a re-insert of an older
--- summary keeps it and is not new usage.
+-- summary keeps it and is not new usage. insufficient_input rows never reach
+-- the model, so they are not usage. event_bytes stays 0 until summaries
+-- record their transcript size.
 CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_facet_summaries_mv
 TO billable_events AS
 SELECT
@@ -223,9 +226,11 @@ SELECT
         toString(length(trace_id)), ':', trace_id, ':', session_id
     ) AS event_id,
     unit_start_time AS event_time,
-    byteSize(*) AS event_bytes
+    toUInt64(0) AS event_bytes,
+    environment
 FROM topic_facet_summaries
-WHERE processed_at >= now() - INTERVAL 48 HOUR;
+WHERE processing_state != 'insufficient_input'
+  AND processed_at >= now() - INTERVAL 48 HOUR;
 
 -- PROD ROLLOUT: unlike analytics_scores (managed via numbered migrations),
 -- this view is NOT migration-managed because it is a Cloud-only diagnostic

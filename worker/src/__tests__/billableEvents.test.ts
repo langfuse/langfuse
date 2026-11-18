@@ -323,7 +323,7 @@ describe("billable_events materialized views", () => {
       traceId,
       sessionId: null,
       triggerType: "automatic",
-      environment: "default",
+      environment: "production",
       traceName: "trace",
       unitStartTime: new Date(Date.now() - HOUR).toISOString(),
       state: "complete",
@@ -353,11 +353,31 @@ describe("billable_events materialized views", () => {
         facetId: "backfilled",
         processedAt: new Date(THREE_DAYS_AGO).toISOString(),
       },
+      // No model call happens for insufficient input, so it is not usage
+      {
+        ...summary,
+        facetId: "insufficient",
+        state: "insufficient_input",
+        summary: "",
+        embedding: [],
+      },
     ]);
 
     expect(await billedUnitsAroundNow(projectId)).toEqual({
       facet_summary: 3,
     });
+    const ledgerRows = await queryClickhouse<{
+      environment: string;
+      event_bytes: string;
+    }>({
+      query: `SELECT DISTINCT environment, toString(event_bytes) AS event_bytes
+              FROM billable_events
+              WHERE project_id = {projectId: String}`,
+      params: { projectId },
+    });
+    expect(ledgerRows).toEqual([
+      { environment: "production", event_bytes: "0" },
+    ]);
   });
 });
 
