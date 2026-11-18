@@ -23,7 +23,9 @@ use crate::{
 };
 use anthropic_messages::AnthropicMessagesCapture;
 pub(crate) use facts::ProviderFacts;
-pub(crate) use facts::{InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome};
+pub(crate) use facts::{
+    GatewayRejection, InferenceFacts, InputOmission, InputOmissionReason, RelayOutcome,
+};
 use openai_chat_completions::OpenAiChatCompletionsCapture;
 use openai_decisions::OpenAiDecisionsCapture;
 use openai_embeddings::OpenAiEmbeddingsCapture;
@@ -31,6 +33,18 @@ use openai_responses::OpenAiResponsesCapture;
 
 pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
+/// Largest JSON body or single SSE event read for usage of a request charged to
+/// spend limits. Usage can sit next to a large output, such as a base64 image in a
+/// completed Responses event, so this is larger than the output kept for telemetry.
+/// Other requests read up to `MAX_OUTPUT_CAPTURE_BYTES`, which the fixed request
+/// overhead reservation covers; a charged one reserves the rest only once a body
+/// or event outgrows it.
+pub(crate) const MAX_RESPONSE_PARSE_BYTES: usize = 8 * 1024 * 1024;
+
+/// Reserves the memory for a response parse past `MAX_OUTPUT_CAPTURE_BYTES`, held
+/// until the execution ends; `None` when the shared budget cannot cover it.
+pub(crate) type ResponseParseGrowth =
+    Box<dyn FnOnce() -> Option<Box<dyn Send + Sync>> + Send + Sync>;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
 const MAX_PROJECTED_BYTES: usize = 64 * 1024;
@@ -97,13 +111,24 @@ impl ProtocolCapture {
         }
     }
 
-    fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
         match self {
-            Self::OpenAiResponses(capture) => capture.push_bytes(bytes),
-            Self::OpenAiChatCompletions(capture) => capture.push_bytes(bytes),
-            Self::OpenAiDecisions(capture) => capture.push_bytes(bytes),
+            Self::OpenAiResponses(capture) => capture.push_bytes(bytes, parse_limit),
+            Self::OpenAiChatCompletions(capture) => capture.push_bytes(bytes, parse_limit),
+            Self::OpenAiDecisions(capture) => capture.push_bytes(bytes, parse_limit),
             Self::OpenAiEmbeddings(capture) => capture.push_bytes(bytes),
-            Self::AnthropicMessages(capture) => capture.push_bytes(bytes),
+            Self::AnthropicMessages(capture) => capture.push_bytes(bytes, parse_limit),
+        }
+    }
+
+    /// Bytes of the JSON body or the SSE event being read.
+    fn buffered_len(&self) -> usize {
+        match self {
+            Self::OpenAiResponses(capture) => capture.body.buffered_len(),
+            Self::OpenAiChatCompletions(capture) => capture.body.buffered_len(),
+            Self::OpenAiDecisions(capture) => capture.body.buffered_len(),
+            Self::OpenAiEmbeddings(_) => 0,
+            Self::AnthropicMessages(capture) => capture.body.buffered_len(),
         }
     }
 
@@ -156,6 +181,11 @@ pub(crate) struct ExecutionCapture {
     metadata: Value,
     provider_model: Option<String>,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
+    spend_limits: Option<crate::spend::SpendRecording>,
+    /// Largest JSON body or single SSE event read from the response.
+    response_parse_limit: usize,
+    parse_growth: Option<ResponseParseGrowth>,
+    parse_reservation: Option<Box<dyn Send + Sync>>,
 }
 
 impl ExecutionCapture {
@@ -177,6 +207,10 @@ impl ExecutionCapture {
             metadata: json!({}),
             provider_model: None,
             delivery: None,
+            spend_limits: None,
+            response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
+            parse_growth: None,
+            parse_reservation: None,
         }
     }
 
@@ -240,6 +274,10 @@ impl ExecutionCapture {
             }),
             provider_model: None,
             delivery: None,
+            spend_limits: None,
+            response_parse_limit: MAX_OUTPUT_CAPTURE_BYTES,
+            parse_growth: None,
+            parse_reservation: None,
         }
     }
 
@@ -267,6 +305,19 @@ impl ExecutionCapture {
         self.delivery = Some((telemetry, delivery));
     }
 
+    /// A charged request parses responses up to `MAX_RESPONSE_PARSE_BYTES` to find
+    /// their usage, growing its memory reservation once a body or event needs it.
+    pub(crate) fn charge_on_finish(
+        &mut self,
+        spend_limits: Option<crate::spend::SpendRecording>,
+        parse_growth: Option<ResponseParseGrowth>,
+    ) {
+        if spend_limits.is_some() {
+            self.parse_growth = parse_growth;
+        }
+        self.spend_limits = spend_limits;
+    }
+
     pub(crate) fn set_provider_model(&mut self, model: &str) {
         self.provider_model = bounded_string(model);
     }
@@ -288,7 +339,16 @@ impl ExecutionCapture {
                 self.first_byte_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }
-            if protocol.push_bytes(bytes) {
+            let limit = self.response_parse_limit;
+            if let Some(grow) = self
+                .parse_growth
+                .take_if(|_| protocol.buffered_len().saturating_add(bytes.len()) > limit)
+                && let Some(reservation) = grow()
+            {
+                self.parse_reservation = Some(reservation);
+                self.response_parse_limit = MAX_RESPONSE_PARSE_BYTES;
+            }
+            if protocol.push_bytes(bytes, self.response_parse_limit) {
                 self.completion_start_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }
@@ -305,11 +365,38 @@ impl ExecutionCapture {
         let span = self.span.clone();
         let _entered = span.enter();
         crate::observability::execution_failed(outcome);
-        let Some(protocol) = self.protocol.take() else {
+        let Some(mut facts) = self.take_facts(outcome) else {
             return;
         };
-        let (api_format, inference) = protocol.into_facts();
-        let facts = InferenceFacts {
+        telemetry::debug_record(&facts);
+        crate::observability::execution_finished(&facts);
+        if let Some(spend_limits) = self.spend_limits.take() {
+            let metadata = self
+                .delivery
+                .as_ref()
+                .map(|(_, context)| context.observation_metadata(&facts))
+                .unwrap_or_default();
+            facts.charged_cost_details = spend_limits.record(&facts, &metadata);
+        }
+        self.deliver(facts);
+    }
+
+    /// Records a request the gateway refused, so it reaches Langfuse without
+    /// counting as a provider execution.
+    pub(crate) fn reject(mut self, rejection: GatewayRejection) {
+        let span = self.span.clone();
+        let _entered = span.enter();
+        let Some(mut facts) = self.take_facts(RelayOutcome::Eof) else {
+            return;
+        };
+        facts.rejection = Some(rejection);
+        telemetry::debug_record(&facts);
+        self.deliver(facts);
+    }
+
+    fn take_facts(&mut self, outcome: RelayOutcome) -> Option<InferenceFacts> {
+        let (api_format, inference) = self.protocol.take()?.into_facts();
+        Some(InferenceFacts {
             api_format,
             start_time_unix_ms: self.start_time_unix_ms,
             duration_ms: self.started.elapsed().as_millis(),
@@ -322,10 +409,13 @@ impl ExecutionCapture {
             response_body_bytes: self.response_body_bytes,
             metadata: std::mem::take(&mut self.metadata),
             outcome,
+            charged_cost_details: None,
+            rejection: None,
             inference,
-        };
-        telemetry::debug_record(&facts);
-        crate::observability::execution_finished(&facts);
+        })
+    }
+
+    fn deliver(&mut self, facts: InferenceFacts) {
         if let Some((telemetry, context)) = self.delivery.take() {
             telemetry.record(context, facts);
         }

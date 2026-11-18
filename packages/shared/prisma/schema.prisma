@@ -97,6 +97,7 @@ model User {
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
+  gatewaySpendLimitsOwned   GatewaySpendLimit[]         @relation("GatewaySpendLimitOwner")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentUser") @ignore
 
@@ -144,6 +145,7 @@ model Organization {
   verifiedDomains                  VerifiedDomain[]
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
+  gatewaySpendLimits               GatewaySpendLimit[]
   organizationLlmApiKeys           LlmApiKeys[]             @relation("OrganizationLlmApiKeys")
   roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
 
@@ -266,6 +268,7 @@ model ApiKey {
   createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
   gatewayAssociation  GatewayApiKeyAssociation?
+  gatewaySpendLimits  GatewaySpendLimit[]
   roleAssignments     RoleAssignment[]
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentApiKey") @ignore
@@ -404,6 +407,61 @@ model GatewayApiKeyAssociation {
   allowedModels Json?  @map("allowed_models") @db.JsonB
 
   @@map("gateway_api_key_associations")
+}
+
+enum GatewaySpendLimitScope {
+  API_KEY
+}
+
+enum GatewaySpendLimitInterval {
+  DAILY
+  WEEKLY
+  MONTHLY
+  TOTAL
+}
+
+// USD spend cap the AI gateway checks before each request. Windows are UTC
+// calendar windows (weeks start Monday); TOTAL never refreshes.
+model GatewaySpendLimit {
+  id                String                    @id @default(cuid())
+  organizationId    String                    @map("organization_id")
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // Each scope has its own subject column, set exactly for that scope (checked in the database).
+  scope             GatewaySpendLimitScope
+  apiKeyId          String?                   @map("api_key_id")
+  apiKey            ApiKey?                   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  interval          GatewaySpendLimitInterval
+  limitUsd          Decimal                   @map("limit_usd")
+  // When the limit starts counting spend, set when it is created; earlier spend does not count. The gateway's usage counters and the alert rows are keyed by it, so moving it starts counting afresh.
+  countingStartedAt DateTime                  @map("counting_started_at")
+  // Whoever last created or updated the limit. Gateway members may change only their own limits; admins may change all.
+  ownerUserId       String?                   @map("owner_user_id")
+  ownerUser         User?                     @relation("GatewaySpendLimitOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @default(now()) @updatedAt @map("updated_at")
+  alerts            GatewaySpendLimitAlert[]
+
+  @@unique([apiKeyId, interval])
+  @@index([organizationId])
+  @@map("gateway_spend_limits")
+}
+
+enum GatewaySpendLimitAlertType {
+  EXCEEDED
+}
+
+/// One notification per limit, alert type, counting start and window, so the gateway may report a limit any number of times.
+model GatewaySpendLimitAlert {
+  id                String                     @id @default(cuid())
+  spendLimitId      String                     @map("spend_limit_id")
+  spendLimit        GatewaySpendLimit          @relation(fields: [spendLimitId], references: [id], onDelete: Cascade)
+  type              GatewaySpendLimitAlertType
+  countingStartedAt DateTime                   @map("counting_started_at")
+  windowStart       DateTime                   @map("window_start")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+
+  @@unique([spendLimitId, type, countingStartedAt, windowStart], map: "gateway_spend_limit_alerts_limit_type_counting_window_key")
+  @@map("gateway_spend_limit_alerts")
 }
 
 enum InAppAgentConversationVisibilityScope {

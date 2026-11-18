@@ -64,7 +64,7 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
     let relay = provider(&upstream);
     let result = relay
         .forward_route(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             RequestBody {
@@ -72,6 +72,7 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
                 model_range: 100..110,
                 streaming: true,
                 reservation: None,
+                parse_growth: None,
             },
             Route::OpenAiResponses,
             &mut RequestCorrelation::default(),
@@ -95,7 +96,7 @@ async fn private_destinations_need_an_operator_exemption() {
     let send = |relay: ProviderTransport| async move {
         relay
             .forward(
-                relay.admit(),
+                relay.admit(None),
                 resolved_custom_base_url_context("https://llm-proxy.example/v1").await,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested"}"#),
@@ -137,7 +138,7 @@ async fn private_destinations_need_an_operator_exemption() {
     let relay = provider_with_policy(upstream.url.clone(), OutboundPolicy::default());
     let response = relay
         .forward(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -155,7 +156,7 @@ async fn private_destinations_need_an_operator_exemption() {
     let relay = provider_with_policy(upstream.url.clone(), proxy_only);
     let blocked = relay
         .forward(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -283,7 +284,7 @@ async fn rewrites_the_model_and_isolates_request_and_response_headers() {
     }
     let response = relay
         .forward(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context("provider-secret").await,
             &headers,
             Bytes::from_static(REQUEST),
@@ -329,7 +330,7 @@ async fn preserves_provider_failures_without_retries_or_redirects() {
         let relay = provider(&upstream);
         let response = relay
             .forward(
-                relay.admit(),
+                relay.admit(None),
                 resolved_request_context("provider-secret").await,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested"}"#),
@@ -371,7 +372,7 @@ async fn streams_sse_incrementally() {
     let relay = provider(&upstream);
     let response = relay
         .forward(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -416,13 +417,13 @@ async fn simultaneous_requests_keep_provider_credentials_and_bodies_isolated() {
     let headers = HeaderMap::new();
     let (alice, bob) = tokio::join!(
         relay.forward(
-            relay.admit(),
+            relay.admit(None),
             alice,
             &headers,
             Bytes::from_static(br#"{"model":"requested","owner":"alice"}"#)
         ),
         relay.forward(
-            relay.admit(),
+            relay.admit(None),
             bob,
             &headers,
             Bytes::from_static(br#"{"model":"requested","owner":"bob"}"#)
@@ -469,7 +470,7 @@ async fn dropping_downstream_cancels_upstream() {
     let relay = provider(&upstream);
     let response = relay
         .forward(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -502,7 +503,7 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
     );
     let response = relay
         .forward(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -524,7 +525,7 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
     let context = resolved_request_context("provider-secret").await;
     let response = relay
         .forward(
-            relay.admit(),
+            relay.admit(None),
             context,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -608,7 +609,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         ]);
         let response = relay
             .forward(
-                relay.admit(),
+                relay.admit(None),
                 resolved_request_context_with_mode("provider-secret", "full").await,
                 &headers,
                 Bytes::from_static(br#"{"model":"requested","input":"hello"}"#),
@@ -665,7 +666,7 @@ async fn ingestion_mode_none_relays_without_uploading() {
     let relay = provider(&upstream).with_telemetry(telemetry.clone());
     let response = relay
         .forward(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context_with_mode("provider-secret", "none").await,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested","input":"prompt-canary"}"#),
@@ -718,7 +719,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
         let context = resolved_request_context("provider-secret").await;
         let response = relay
             .forward(
-                relay.admit(),
+                relay.admit(None),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested","input":"prompt-canary"}"#),
@@ -813,7 +814,7 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
     let relay = provider(&upstream).with_telemetry(telemetry.clone());
     let compact = relay
         .forward_route(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             RequestBody {
@@ -821,6 +822,7 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
                 model_range: model_range(COMPACT).unwrap(),
                 streaming: true,
                 reservation: None,
+                parse_growth: None,
             },
             Route::OpenAiResponsesCompact,
             &mut RequestCorrelation::default(),
@@ -879,7 +881,7 @@ async fn decisions_records_questions_answers_and_usage() {
     let relay = provider(&upstream).with_telemetry(telemetry.clone());
     let response = relay
         .forward_route(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context_for(ApiFormat::OpenAiDecisions, "provider-secret", "full")
                 .await,
             &HeaderMap::new(),
@@ -888,6 +890,7 @@ async fn decisions_records_questions_answers_and_usage() {
                 model_range: model_range(DECISION).unwrap(),
                 streaming: false,
                 reservation: None,
+                parse_growth: None,
             },
             Route::OpenAiDecisions,
             &mut RequestCorrelation::default(),
@@ -969,7 +972,7 @@ async fn embeddings_records_input_vector_summary_and_usage() {
     let relay = provider(&upstream).with_telemetry(telemetry.clone());
     let response = relay
         .forward_route(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context_for(ApiFormat::OpenAiEmbeddings, "provider-secret", "full")
                 .await,
             &HeaderMap::new(),
@@ -978,6 +981,7 @@ async fn embeddings_records_input_vector_summary_and_usage() {
                 model_range: model_range(EMBEDDING).unwrap(),
                 streaming: false,
                 reservation: None,
+                parse_growth: None,
             },
             Route::OpenAiEmbeddings,
             &mut RequestCorrelation::default(),
@@ -1183,7 +1187,7 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
             .await;
     let response = relay
         .forward_route(
-            relay.admit(),
+            relay.admit(None),
             context,
             &headers(
                 &[
@@ -1208,6 +1212,7 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
                 model_range: model_range(REQUEST).unwrap(),
                 streaming: true,
                 reservation: None,
+                parse_growth: None,
             },
             Route::AnthropicMessages,
             &mut RequestCorrelation::default(),
@@ -1258,7 +1263,7 @@ async fn count_tokens_relays_the_body() {
             .await;
     let response = relay
         .forward_route(
-            relay.admit(),
+            relay.admit(None),
             context,
             &headers(&[("content-type", "application/json")]),
             RequestBody {
@@ -1267,6 +1272,7 @@ async fn count_tokens_relays_the_body() {
                     .unwrap(),
                 streaming: true,
                 reservation: None,
+                parse_growth: None,
             },
             Route::AnthropicCountTokens,
             &mut RequestCorrelation::default(),
@@ -1352,7 +1358,7 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
         let relay = provider(&upstream).with_telemetry(telemetry.clone());
         let response = relay
             .forward_route(
-                relay.admit(),
+                relay.admit(None),
                 resolved_request_context_for(
                     ApiFormat::OpenAiChatCompletions,
                     "provider-secret",
@@ -1371,6 +1377,7 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
                     model_range: model_range(request.as_bytes()).unwrap(),
                     streaming: true,
                     reservation: None,
+                    parse_growth: None,
                 },
                 Route::OpenAiChatCompletions,
                 &mut RequestCorrelation::default(),
@@ -1410,7 +1417,7 @@ async fn chat_completions_rewrite_non_streamed_models() {
     let relay = transport(&upstream);
     let response = relay
         .forward_route(
-            relay.admit(),
+            relay.admit(None),
             resolved_request_context_for(
                 ApiFormat::OpenAiChatCompletions,
                 "provider-secret",
@@ -1423,6 +1430,7 @@ async fn chat_completions_rewrite_non_streamed_models() {
                 model_range: model_range(JSON_REQUEST.as_bytes()).unwrap(),
                 streaming: true,
                 reservation: None,
+                parse_growth: None,
             },
             Route::OpenAiChatCompletions,
             &mut RequestCorrelation::default(),
