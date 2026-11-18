@@ -209,8 +209,8 @@ WHERE is_deleted = 0
   AND created_at >= now() - INTERVAL 48 HOUR;
 
 -- MV: topic_facet_summaries -> billable_events, one row per summary write.
--- A summary is one facet version over a trace or a session. Facet ids are
--- cuids and trace ids are client-chosen, so event_id is
+-- A summary is one facet version over a trace or a session. Facet ids only
+-- allow [a-zA-Z0-9_-] and trace ids are client-chosen, so event_id is
 -- '<facet_id>:<facet_version>:<length(trace_id)>:<trace_id>:<session_id>',
 -- with session_id only for session summaries, as in the table's sorting key.
 -- insufficient_input rows never reach the model, so they are not usage.
