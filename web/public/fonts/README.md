@@ -66,10 +66,7 @@ Keep the TrueType hinting tables (`cvt`, `fpgm`, `prep`, `gasp`) that this
 produces. `--no-hinting` saves about 12 KB per face and changes how the text
 renders on Windows.
 
-To take a newer upstream release, move `upstream` to the commit you want and
-update the `IBMPlexMono` entry in `FAMILIES` in `fonts.clienttest.ts` and the
-version above in the same commit. The test failing on an upgrade is the contract
-working.
+To take a newer upstream release, move `upstream` to the commit you want and update the `IBMPlexMono` entry in `FAMILIES` in `fonts.clienttest.ts` and the version above in the same commit. The test failing on an upgrade is the contract working.
 
 After regenerating, check against the files you replaced: codepoint coverage
 must be a superset, and `unitsPerEm`, ascender, descender, cap height, x-height
@@ -78,46 +75,30 @@ the app shifts.
 
 # Self-hosted IBM Plex Sans
 
-`web/src/styles/fonts.ts` loads one variable face through `next/font/local` and
-`--font-sans` in `globals.css` points at it, so it backs every sans surface in
-the app. The system sans stack stays behind it as the fallback.
+`web/src/styles/fonts.ts` loads one variable face through `next/font/local` and `--font-sans` in `globals.css` points at it, so it backs every sans surface in the app. The system sans stack stays behind it as the fallback.
 
 ## Provenance
 
-- **Family** — IBM Plex Sans, version 3.201, upright. Variable on weight (100
-  to 700) and width (75 to 100); the app uses the weight axis only.
-- **Source** — `IBMPlexSans[wdth,wght].ttf` in
-  [`google/fonts@0b58fb3:ofl/ibmplexsans`](https://github.com/google/fonts/tree/0b58fb370093f9a9f4ff785d94405710b79de67c/ofl/ibmplexsans),
-  converted to woff2 by the command below. The commit is pinned so the command
-  reproduces these exact bytes.
-- **License** — SIL Open Font License 1.1. `IBMPlexSans-OFL.txt` is the copy
-  from that same commit, with line endings normalised to LF; keep the two
-  together.
+- **Family** — IBM Plex Sans, version 3.201, upright. Variable on weight (100 to 700) and width (75 to 100); the app uses the weight axis only.
+- **Source** — `IBMPlexSans[wdth,wght].ttf` in [`google/fonts@0b58fb3:ofl/ibmplexsans`](https://github.com/google/fonts/tree/0b58fb370093f9a9f4ff785d94405710b79de67c/ofl/ibmplexsans), converted to woff2 by the command below. The commit is pinned so the command reproduces these exact bytes.
+- **License** — SIL Open Font License 1.1. `IBMPlexSans-OFL.txt` is the copy from that same commit, with line endings normalised to LF; keep the two together.
 
-There is no italic face. Browsers slant the upright one for italic text, as
-they do for IBM Plex Mono.
+There is no italic face. Browsers slant the upright one for italic text, as they do for IBM Plex Mono.
 
 ## Matched to the system font
 
-Layouts in this app were sized on the system font, so the face is matched to
-it (SF Pro, measured at 13px):
+Layouts in this app were sized on the system font, so the face is matched to it (SF Pro, measured at 13px):
 
 - `size-adjust: 102%` in `fonts.ts` equalises x-height.
-- The weight roles in `globals.css` are 410 / 480 / 560, the weights whose
-  stroke matches the system font at 400 / 500 / 600. They need the variable
-  weight axis, so do not swap the face for static weights without retuning
-  them.
+- The weight roles in `globals.css` are 410 / 480 / 560, the weights whose stroke matches the system font at 400 / 500 / 600. They need the variable weight axis, so do not swap the face for static weights without retuning them.
 
-Digits are tabular by default (every digit has the same advance), so numbers
-line up with or without `tabular-nums`.
+Digits are tabular by default (every digit has the same advance), so numbers line up with or without `tabular-nums`.
 
 ## Coverage contract
 
-Same rule as IBM Plex Mono: **ship every glyph the upstream family has — 891
-codepoints — and do not subset by script.** `fonts.clienttest.ts` asserts it.
+Same rule as IBM Plex Mono: **ship every glyph the upstream family has — 891 codepoints — and do not subset by script.** `fonts.clienttest.ts` asserts it.
 
-That covers Latin, Latin Extended, Vietnamese, Cyrillic and Greek. The family
-has no CJK and no box drawing; those characters fall back to the system font.
+That covers Latin, Latin Extended, Vietnamese, Cyrillic and Greek. The family has no CJK and no box drawing; those characters fall back to the system font.
 
 ## Regenerating
 
@@ -134,7 +115,4 @@ pyftsubset 'IBMPlexSans[wdth,wght].ttf' \
   --output-file=IBMPlexSans-Variable.woff2
 ```
 
-To take a newer upstream release, move `upstream` and update the `IBMPlexSans`
-entry in `FAMILIES` in `fonts.clienttest.ts` and the version above in the same
-commit. Check the same things as for IBM Plex Mono, plus that the weight axis
-still spans the weight roles.
+To take a newer upstream release, move `upstream` and update the `IBMPlexSans` entry in `FAMILIES` in `fonts.clienttest.ts` and the version above in the same commit. Check the same things as for IBM Plex Mono, plus that the weight axis still spans the weight roles.
