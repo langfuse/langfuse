@@ -382,7 +382,7 @@ export const NumberWithLongDescription = meta.story({
   name: "(Test) Number with long description",
   args: {
     title: "Total count observations",
-    description: "Shows the count of Observations",
+    description: "Shows the count of Observations in the selected time range",
     metric: undefined,
     content: { type: "number", value: 106677 },
   },
@@ -392,7 +392,9 @@ export const NumberWithLongDescription = meta.story({
     </div>
   ),
   play: async ({ canvas }) => {
-    const description = canvas.getByText("Shows the count of Observations");
+    const description = canvas.getByText(
+      "Shows the count of Observations in the selected time range",
+    );
     await expect(description).toBeVisible();
     const heading = canvas.getByRole("heading", {
       name: "Total count observations",
