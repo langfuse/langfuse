@@ -1,6 +1,5 @@
 import { Pencil } from "@langfuse/icons";
 
-import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -20,6 +19,7 @@ import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import {
   getGatewaySpendLimitWindowEnd,
@@ -79,7 +79,9 @@ const budgetColumn = (subject: "key" | "user") =>
             spentUsd={row.original.spentUsd}
             format="amounts"
           />
-          {row.original.isDefault && <Tag text="Default" />}
+          {row.original.isDefault && (
+            <GatewayDefaultBudgetTag subject={subject} />
+          )}
         </span>
       ) : (
         <span className="text-muted-foreground font-mono text-xs">
