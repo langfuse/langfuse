@@ -3,17 +3,14 @@ import { join } from "node:path";
 import { brotliDecompressSync } from "node:zlib";
 
 /**
- * The self-hosted IBM Plex Mono faces back every `font-mono` surface. A face
+ * The self-hosted faces back every `font-sans` and `font-mono` surface. A face
  * that is missing a character does not fail loudly: the browser substitutes a
- * system monospace for that character alone, so one line of text renders in
- * two typefaces. These tests read the shipped binaries and assert the coverage
+ * system font for that character alone, so one line of text renders in two
+ * typefaces. These tests read the shipped binaries and assert the coverage
  * contract in `web/public/fonts/README.md`.
  */
 
 const FONT_DIR = join(import.meta.dirname, "../../public/fonts");
-
-/** Every character IBM Plex Mono 2.3 defines a glyph for. */
-const UPSTREAM_CODEPOINT_COUNT = 930;
 
 const SAMPLES = {
   "Latin-1": "àäçèéêîôùûÀÄÇÈÉÊÎÔÙÛ",
@@ -22,10 +19,46 @@ const SAMPLES = {
   Vietnamese: "ăâđêôơưẠảấầẫậắằẵặ",
   Cyrillic: "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩ",
   "Cyrillic (Ukrainian)": "іїєґІЇЄҐ",
+  Greek: "αβγδεζηθικλμνξοπρσςτυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩάέήίόύώ",
   "Box drawing": "─│┌┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬",
   Arrows: "←→↑↓↔↕",
   Mathematical: "±×÷≈≠≤≥∑∏√∞∫",
 } as const;
+
+type Script = keyof typeof SAMPLES;
+
+const allScriptsExcept = (...missing: Script[]) =>
+  (Object.keys(SAMPLES) as Script[]).filter(
+    (script) => !missing.includes(script),
+  );
+
+/**
+ * Each family by file-name prefix: how many characters its upstream release
+ * defines a glyph for, and which of the samples that release covers.
+ */
+const FAMILIES: Record<
+  string,
+  { upstreamCodepointCount: number; scripts: readonly Script[] }
+> = {
+  // IBM Plex Mono 2.3 has no Greek.
+  IBMPlexMono: {
+    upstreamCodepointCount: 930,
+    scripts: allScriptsExcept("Greek"),
+  },
+  // IBM Plex Sans 3.201 has no box drawing.
+  IBMPlexSans: {
+    upstreamCodepointCount: 891,
+    scripts: allScriptsExcept("Box drawing"),
+  },
+};
+
+const prefixOf = (fileName: string) => fileName.split("-")[0]!;
+
+function familyOf(fileName: string) {
+  const family = FAMILIES[prefixOf(fileName)];
+  if (!family) throw new Error(`${fileName} has no entry in FAMILIES`);
+  return family;
+}
 
 const WOFF2_SIGNATURE = 0x774f4632;
 const WOFF2_HEADER_BYTES = 48;
@@ -191,16 +224,19 @@ it("finds the faces fonts.ts loads", () => {
   expect(faces.map(([fileName]) => fileName)).toEqual([
     "IBMPlexMono-Bold.woff2",
     "IBMPlexMono-Regular.woff2",
+    "IBMPlexSans-Variable.woff2",
   ]);
 });
 
-describe.each(faces)("%s", (_fileName, codepoints) => {
+describe.each(faces)("%s", (fileName, codepoints) => {
+  const family = familyOf(fileName);
+
   it("ships every glyph of the upstream family", () => {
-    expect(codepoints.size).toBe(UPSTREAM_CODEPOINT_COUNT);
+    expect(codepoints.size).toBe(family.upstreamCodepointCount);
   });
 
-  it.each(Object.entries(SAMPLES))("covers %s", (_script, sample) => {
-    const missing = [...sample].filter(
+  it.each(family.scripts)("covers %s", (script) => {
+    const missing = [...SAMPLES[script]].filter(
       (character) => !codepoints.has(character.codePointAt(0)!),
     );
     expect(missing).toEqual([]);
@@ -261,15 +297,17 @@ describe("cmap format 12 reader", () => {
   });
 });
 
-it("declares the same characters in every weight", () => {
+it("declares the same characters in every weight of a family", () => {
   // A character present in one weight only renders in a fallback font as soon
   // as it is bold, which is the same mixed-typeface bug one weight deep.
-  const [[, reference]] = faces;
-  const disagreements = faces.flatMap(([fileName, codepoints]) =>
-    [
+  const disagreements = faces.flatMap(([fileName, codepoints]) => {
+    const [, reference] = faces.find(
+      ([other]) => prefixOf(other) === prefixOf(fileName),
+    )!;
+    return [
       ...[...reference].filter((cp) => !codepoints.has(cp)),
       ...[...codepoints].filter((cp) => !reference.has(cp)),
-    ].map((cp) => `${fileName} U+${cp.toString(16).toUpperCase()}`),
-  );
+    ].map((cp) => `${fileName} U+${cp.toString(16).toUpperCase()}`);
+  });
   expect(disagreements).toEqual([]);
 });

@@ -360,7 +360,8 @@
     }
   },
   "extraFonts": [
-    "plex-mono.css"
+    "plex-mono.css",
+    "plex-sans.css"
   ],
   "titleMap": {
     "ChartTooltip": null,

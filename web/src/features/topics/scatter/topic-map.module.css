@@ -64,7 +64,7 @@
 }
 
 .lookLabel {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   font-size: var(--look-label-size);
   line-height: var(--look-label-line);
   letter-spacing: var(--look-label-tracking);
