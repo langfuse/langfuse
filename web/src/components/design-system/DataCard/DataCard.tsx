@@ -337,9 +337,10 @@ function FilterTags({
       </div>
       {hiddenCount > 0 && (
         <span
-          className="flex shrink-0"
+          className="relative flex shrink-0"
           title={`${hiddenCount} more selected`}
-          style={{ transform: `translateX(-${trailingHiddenWidth}px)` }}
+          // Relative offset keeps it on the pixel grid with the tags, unlike a transform.
+          style={{ left: -Math.round(trailingHiddenWidth) }}
         >
           <Tag text={`+${hiddenCount}`} />
         </span>
