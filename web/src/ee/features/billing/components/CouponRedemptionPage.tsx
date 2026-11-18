@@ -152,6 +152,7 @@ function CouponRedemptionContent() {
       key={organization.id}
       orgId={organization.id}
       orgName={organization.name}
+      clickhouseOrganizationId={clickhouse.organizationId}
       submitterEmail={submitterEmail}
       initialName={{ firstName, lastName: lastNameParts.join(" ") }}
     />

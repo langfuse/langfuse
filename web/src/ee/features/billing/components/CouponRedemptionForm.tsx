@@ -20,6 +20,8 @@ type CouponFormOutput = z.output<typeof couponFormSchema>;
 export type CouponRedemptionFormProps = {
   orgId: string;
   orgName: string;
+  /** The organization the credit-request form receives. */
+  clickhouseOrganizationId: string;
   submitterEmail: string;
   /** Prefilled from the account name. */
   initialName: { firstName: string; lastName: string };
@@ -28,6 +30,7 @@ export type CouponRedemptionFormProps = {
 export function CouponRedemptionForm({
   orgId,
   orgName,
+  clickhouseOrganizationId,
   submitterEmail,
   initialName,
 }: CouponRedemptionFormProps) {
@@ -65,8 +68,10 @@ export function CouponRedemptionForm({
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
           <dt className="text-muted-foreground">Organization</dt>
           <dd className="font-medium">{orgName}</dd>
-          <dt className="text-muted-foreground">Organization ID</dt>
+          <dt className="text-muted-foreground">Langfuse organization ID</dt>
           <dd>{orgId}</dd>
+          <dt className="text-muted-foreground">ClickHouse organization ID</dt>
+          <dd>{clickhouseOrganizationId}</dd>
         </dl>
         <p className="text-muted-foreground">
           {`Credits are applied to this organization. To redeem the coupon for a different one, switch organizations in the top left corner. We'll email you at ${submitterEmail} once your coupon has been reviewed.`}
