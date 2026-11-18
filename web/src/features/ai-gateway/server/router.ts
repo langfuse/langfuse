@@ -688,7 +688,7 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
-  /** Gives each key or user without one the same budget; only gateway managers may. */
+  /** Gives each key or user without one the same budget; members only their own keys. */
   createSpendLimits: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
@@ -698,9 +698,18 @@ export const aiGatewayRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      // User budgets are for gateway managers; members budget their own keys.
+      if (input.scope === "USER") {
+        requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      } else {
+        requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      }
       await new GatewaySpendLimitService(ctx.prisma).createForSubjects({
         organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
         scope: input.scope,
         subjectIds: input.subjectIds,
         limit: input.spendLimit,

@@ -28,7 +28,7 @@ type GatewayAddBudgetDialogControllerProps = {
   }) => ReactNode;
 };
 
-/** Adds a budget to keys or users without one; only gateway managers may. */
+/** Adds a budget to keys or users without one; members only to their own keys. */
 export function GatewayAddBudgetDialogController({
   organizationId,
   children,

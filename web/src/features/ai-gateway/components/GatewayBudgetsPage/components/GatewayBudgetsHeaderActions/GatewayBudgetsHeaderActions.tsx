@@ -6,6 +6,7 @@ import { GatewayAddBudgetDialogController } from "@/src/features/ai-gateway/comp
 import { GatewayDefaultBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayDefaultBudgetDialogController/GatewayDefaultBudgetDialogController";
 import { formatGatewayDefaultBudgetLabel } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/formatGatewayDefaultBudgetLabel";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 
 const defaultBudgetTooltips = {
   apiKeys: "The budget of every gateway key without a budget of its own.",
@@ -19,34 +20,38 @@ type GatewayBudgetsHeaderActionsProps = {
   tab: GatewaySpendTab;
 };
 
-/** "Set default budget" and "Add budget" in the page header of the Budgets page; managers only. */
+/** "Set default budget" (managers only) and "Add budget" in the page header of the Budgets page. */
 export function GatewayBudgetsHeaderActions({
   organizationId,
   tab,
 }: GatewayBudgetsHeaderActionsProps) {
+  const { canManageGateway } = useGatewaySettingsAccess(organizationId);
+
   return (
     <div className="flex items-center gap-2">
-      <GatewayDefaultBudgetDialogController
-        organizationId={organizationId}
-        subject={tab === "apiKeys" ? "key" : "user"}
-      >
-        {({ openDialog, defaultBudget }) => (
-          <CustomTooltip content={<span>{defaultBudgetTooltips[tab]}</span>}>
-            {({ getTriggerProps }) => (
-              <span {...getTriggerProps()} className="inline-flex">
-                <Button
-                  variant="outline"
-                  // The dialog prefills the current default, so it opens once that has loaded.
-                  disabled={defaultBudget === undefined}
-                  onClick={openDialog}
-                >
-                  {formatGatewayDefaultBudgetLabel(defaultBudget)}
-                </Button>
-              </span>
-            )}
-          </CustomTooltip>
-        )}
-      </GatewayDefaultBudgetDialogController>
+      {canManageGateway && (
+        <GatewayDefaultBudgetDialogController
+          organizationId={organizationId}
+          subject={tab === "apiKeys" ? "key" : "user"}
+        >
+          {({ openDialog, defaultBudget }) => (
+            <CustomTooltip content={<span>{defaultBudgetTooltips[tab]}</span>}>
+              {({ getTriggerProps }) => (
+                <span {...getTriggerProps()} className="inline-flex">
+                  <Button
+                    variant="outline"
+                    // The dialog prefills the current default, so it opens once that has loaded.
+                    disabled={defaultBudget === undefined}
+                    onClick={openDialog}
+                  >
+                    {formatGatewayDefaultBudgetLabel(defaultBudget)}
+                  </Button>
+                </span>
+              )}
+            </CustomTooltip>
+          )}
+        </GatewayDefaultBudgetDialogController>
+      )}
       <GatewayAddBudgetDialogController organizationId={organizationId}>
         {({ openDialog }) => (
           <Button onClick={() => openDialog(tab)}>

@@ -295,12 +295,13 @@ export class GatewaySpendLimitService {
   }
 
   /**
-   * Gives each key or user the same spend limit; callers must be gateway
-   * managers. Refuses all of them, before writing any, if one already has a
-   * limit.
+   * Gives each key or user the same spend limit. Only gateway managers add
+   * user budgets; members add budgets only to their own keys. Refuses all of
+   * them, before writing any, if one already has a limit.
    */
   async createForSubjects(params: {
     organizationId: string;
+    usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope["type"];
     subjectIds: string[];
     limit: SpendLimitInput;
@@ -309,6 +310,14 @@ export class GatewaySpendLimitService {
     const changes = [];
     for (const subjectId of params.subjectIds) {
       const scope = toSpendLimitScope(params.scope, subjectId);
+      // Checks the caller may see the key or user before saying whether it has a budget.
+      const change = await this.prepareChange({
+        organizationId: params.organizationId,
+        usageScope: params.usageScope,
+        scope,
+        limit: params.limit,
+        session: params.session,
+      });
       const existing = await this.repository.list({
         organizationId: params.organizationId,
         scope,
@@ -320,15 +329,7 @@ export class GatewaySpendLimitService {
             : "A selected user already has a spend budget",
         );
       }
-      changes.push(
-        await this.prepareChange({
-          organizationId: params.organizationId,
-          usageScope: { scope: "organization" },
-          scope,
-          limit: params.limit,
-          session: params.session,
-        }),
-      );
+      changes.push(change);
     }
     await this.applyChanges(changes);
   }

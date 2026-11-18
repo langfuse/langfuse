@@ -2380,7 +2380,7 @@ describe("AI gateway control plane", () => {
     expect((await listKeys()).data).toMatchObject([{ spendLimit: null }]);
   });
 
-  it("lets only gateway managers add a budget to a key without one", async () => {
+  it("lets members add a budget to their own keys without one, and managers to any key", async () => {
     const owner = await prepare();
     await owner.caller.aiGateway.updateConfig({
       orgId: owner.org.id,
@@ -2393,17 +2393,33 @@ describe("AI gateway control plane", () => {
       name: "Member key",
       metadata: {},
     });
-    const add = (caller: typeof member, limitUsd: number) =>
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+    const add = (caller: typeof member, apiKeyId: string, limitUsd: number) =>
       caller.aiGateway.createSpendLimits({
         orgId: owner.org.id,
         scope: "API_KEY",
-        subjectIds: [memberKey.id],
+        subjectIds: [apiKeyId],
         spendLimit: { interval: "WEEKLY", limitUsd },
       });
 
-    await expect(add(member, 10)).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await add(owner.caller, 10);
-    await expect(add(owner.caller, 20)).rejects.toThrow(
+    await expect(add(member, ownerKey.id, 10)).rejects.toThrow(
+      "Gateway key not found",
+    );
+    await expect(
+      member.aiGateway.createSpendLimits({
+        orgId: owner.org.id,
+        scope: "USER",
+        subjectIds: [owner.user.id],
+        spendLimit: { interval: "WEEKLY", limitUsd: 10 },
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await add(member, memberKey.id, 10);
+    await add(owner.caller, ownerKey.id, 10);
+    await expect(add(owner.caller, memberKey.id, 20)).rejects.toThrow(
       "already has a spend budget",
     );
     expect(
