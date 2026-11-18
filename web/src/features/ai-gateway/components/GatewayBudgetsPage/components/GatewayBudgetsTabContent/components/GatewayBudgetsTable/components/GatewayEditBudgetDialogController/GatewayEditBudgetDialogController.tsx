@@ -24,7 +24,7 @@ export type GatewayEditedBudgets = {
   spendLimit: GatewaySpendLimit | null;
   /** How many of them already have a budget that saving replaces; null when unknown. */
   existingBudgetCount: number | null;
-  onSaved?: () => void;
+  onAfterSave?: () => void;
 };
 
 type GatewayEditBudgetDialogControllerProps = {
@@ -54,7 +54,7 @@ export function GatewayEditBudgetDialogController({
       spendLimit,
     });
     if (!saved) return;
-    budgets.onSaved?.();
+    budgets.onAfterSave?.();
     closeDialog();
     mutation.reset();
   };

@@ -5,12 +5,11 @@ import {
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 
-/** No selection means the total of all gateway spend, not a breakdown. */
+/** Spend of exactly these keys or users; none matches nothing. */
 export function toGatewaySpendFilters(
   tab: GatewaySpendTab,
   selectedIds: string[],
 ): FilterState {
-  if (selectedIds.length === 0) return [];
   return [
     {
       column: GATEWAY_SPEND_TABS[tab].column,

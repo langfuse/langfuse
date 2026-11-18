@@ -12,7 +12,7 @@ type GatewayBudgetsTabContentProps = {
   /** Null while spend cannot be queried; the chart is then left out. */
   chart: Omit<
     ComponentProps<typeof GatewaySpendChart>,
-    "tab" | "selected" | "tags" | "onRemoveTag"
+    "tab" | "selection" | "tags" | "onRemoveTag"
   > | null;
 };
 
@@ -34,7 +34,7 @@ export function GatewayBudgetsTabContent({
         <GatewaySpendChart
           {...chart}
           tab={tab}
-          selected={spendSelection.selected}
+          selection={spendSelection.selection}
           tags={spendSelection.tags}
           onRemoveTag={spendSelection.removeTag}
         />

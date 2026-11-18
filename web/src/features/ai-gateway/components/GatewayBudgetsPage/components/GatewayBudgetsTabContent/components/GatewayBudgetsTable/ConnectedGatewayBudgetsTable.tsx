@@ -144,7 +144,7 @@ export function ConnectedGatewayBudgetsTable({
                       ? null
                       : selectedRows.filter((row) => row.spendLimit !== null)
                           .length,
-                    onSaved: clearSelection,
+                    onAfterSave: clearSelection,
                   });
                 }}
                 onRemove={openRemoveDialog}

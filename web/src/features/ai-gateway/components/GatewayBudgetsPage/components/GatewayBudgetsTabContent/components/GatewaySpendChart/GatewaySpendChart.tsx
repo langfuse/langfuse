@@ -13,6 +13,7 @@ import {
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { toGatewaySpendFilters } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/toGatewaySpendFilters";
+import type { GatewaySpendSelection } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewaySpendSelection";
 
 type GatewaySpendChartProps = {
   fetchQuery: GatewayAnalyticsFetchQuery;
@@ -20,11 +21,8 @@ type GatewaySpendChartProps = {
   interval: GatewaySpendInterval;
   onIntervalChange: (interval: GatewaySpendInterval) => void;
   tab: GatewaySpendTab;
-  /**
-   * The selected table rows by key or user id; none shows the total of all
-   * gateway spend, and a few are broken down one series each.
-   */
-  selected: { value: string; label: string }[];
+  /** A few selected keys or users are broken down one series each. */
+  selection: GatewaySpendSelection;
   /** What the filter shows: the selected rows, or one tag for all matching ones. */
   tags: { value: string; label: string }[];
   onRemoveTag: (value: string) => void;
@@ -47,20 +45,24 @@ export function GatewaySpendChart({
   interval,
   onIntervalChange,
   tab,
-  selected,
+  selection,
   tags,
   onRemoveTag,
 }: GatewaySpendChartProps) {
   const { widget, filters, labels } = useMemo(() => {
-    if (selected.length === 0) {
+    if (selection.status === "none") {
       return { widget: SPEND_WIDGET, filters: [], labels: undefined };
     }
+    const subjects = selection.status === "selected" ? selection.subjects : [];
     const filters = toGatewaySpendFilters(
       tab,
-      selected.map(({ value }) => value),
+      subjects.map(({ value }) => value),
     );
     // Beyond this many series the query layer refuses a breakdown, so show their total.
-    if (selected.length > MAX_TIME_SERIES_BREAKDOWN_VALUES) {
+    if (
+      subjects.length === 0 ||
+      subjects.length > MAX_TIME_SERIES_BREAKDOWN_VALUES
+    ) {
       return { widget: SPEND_WIDGET, filters, labels: undefined };
     }
     const column = GATEWAY_SPEND_TABS[tab].column;
@@ -72,9 +74,9 @@ export function GatewaySpendChart({
         dimensions: [{ field: column }],
       },
       filters,
-      labels: new Map(selected.map(({ value, label }) => [value, label])),
+      labels: new Map(subjects.map(({ value, label }) => [value, label])),
     };
-  }, [selected, tab]);
+  }, [selection, tab]);
 
   const handleIntervalChange = (value: string) => {
     const option = GATEWAY_SPEND_INTERVALS.find(
@@ -91,6 +93,15 @@ export function GatewaySpendChart({
       filters={filters}
       granularity={interval}
       dimensionLabelMap={labels}
+      isWaitingForLabels={selection.status === "loading"}
+      displayError={
+        selection.status === "error"
+          ? {
+              message: "The selected keys or users could not be loaded.",
+              onRetry: selection.onRetry,
+            }
+          : undefined
+      }
       filter={{
         label: filterLabels[tab],
         items: tags,

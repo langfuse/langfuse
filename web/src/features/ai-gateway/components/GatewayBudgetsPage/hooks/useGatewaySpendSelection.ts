@@ -17,7 +17,8 @@ const allLabels = {
 /**
  * What the spend chart filters by: the selected table rows, or under
  * select-all every key or user matching the table's search and status, as
- * the server lists them, shown as one tag.
+ * the server lists them, shown as one tag. Under select-all the chart waits
+ * for that list rather than showing everyone's spend meanwhile.
  */
 export function useGatewaySpendSelection(
   organizationId: string,
@@ -34,18 +35,41 @@ export function useGatewaySpendSelection(
     { enabled: table.selectAll },
   );
 
-  const selected = useMemo(() => {
-    if (table.selectAll) {
-      return (matching.data ?? []).map(({ id, name }) => ({
+  const { refetch } = matching;
+  const selection = useMemo((): GatewaySpendSelection => {
+    if (!table.selectAll) {
+      if (table.selectedRows.length === 0) return { status: "none" };
+      return {
+        status: "selected",
+        subjects: table.selectedRows.map((row) => ({
+          value: row.subjectId,
+          label: row.name,
+        })),
+      };
+    }
+    if (matching.isError) {
+      return {
+        status: "error",
+        onRetry: () => {
+          refetch().catch(() => undefined);
+        },
+      };
+    }
+    if (!matching.data) return { status: "loading" };
+    return {
+      status: "selected",
+      subjects: matching.data.map(({ id, name }) => ({
         value: id,
         label: name,
-      }));
-    }
-    return table.selectedRows.map((row) => ({
-      value: row.subjectId,
-      label: row.name,
-    }));
-  }, [matching.data, table.selectAll, table.selectedRows]);
+      })),
+    };
+  }, [
+    matching.data,
+    matching.isError,
+    refetch,
+    table.selectAll,
+    table.selectedRows,
+  ]);
 
   const tags = table.selectAll
     ? [
@@ -56,7 +80,10 @@ export function useGatewaySpendSelection(
           ),
         },
       ]
-    : selected;
+    : table.selectedRows.map((row) => ({
+        value: row.subjectId,
+        label: row.name,
+      }));
 
   const removeTag = (value: string) => {
     if (value === ALL_TAG) {
@@ -67,5 +94,12 @@ export function useGatewaySpendSelection(
     if (row) table.toggleRow(row.id);
   };
 
-  return { selected, tags, removeTag };
+  return { selection, tags, removeTag };
 }
+
+/** None shows everyone's spend; a selection, even an empty one, shows only its spend. */
+export type GatewaySpendSelection =
+  | { status: "none" }
+  | { status: "loading" }
+  | { status: "error"; onRetry: () => void }
+  | { status: "selected"; subjects: { value: string; label: string }[] };
