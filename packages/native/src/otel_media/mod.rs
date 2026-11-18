@@ -1,18 +1,75 @@
 //! Extract inline media before and after OTLP normalization.
 //!
-//! Before normalization, `ValidatedPayload::compact` replaces media in JSON text
-//! with temporary references. After normalization, `extract_normalized_media`
-//! finds additional media in Rust `Value`s, including provider objects assembled
-//! from OTLP attributes. Both retain extracted media for upload or inline restoration.
+//! The early pass removes large attachments before ingestion parses and normalizes
+//! the JSON. The normalized pass finds additional media in existing Rust `Value`s,
+//! including provider objects assembled from OTLP attributes and smaller attachments.
+//! Each extracted attachment becomes a temporary reference. Its removed source text
+//! is retained for upload or restoration later (reference abbreviated):
 //!
-//! Data URIs supply their own MIME type; raw base64 and Python bytes require
-//! recognized provider fields to identify the body and MIME type. Both passes
-//! also inspect JSON stored inside strings, within their nesting limits.
+//! ```text
+//! {"image":"data:image/png;base64,..."} -> {"image":"<media-ref>"} + retained media
+//! ```
 //!
-//! `validate` takes ownership of the input buffer. `compact` returns JSON text
-//! with references and media records that keep source bytes through `Arc` or a copy.
-//! The pipeline retains those records until uploads finish; failed uploads use
-//! them to restore the original text.
+//! Supported forms:
+//! - Data URIs in string values, including URIs surrounded by ordinary text.
+//!   The URI supplies its own MIME type; no provider object is needed.
+//! - Recognized provider objects containing raw base64 or Python bytes literals.
+//!   Sibling fields identify the body and MIME type (see `provider_shapes` for raw
+//!   JSON and `normalized_shapes` for normalized values).
+//!
+//! Both forms can also occur in JSON stored inside strings, within `scanner`'s
+//! embedded-JSON nesting limit. Beyond that limit, only unambiguous Data URI text
+//! is extracted. Arbitrary base64-looking strings outside recognized provider
+//! objects stay inline.
+//!
+//! Early extraction inspects the payload locations selected by `rules`. It leaves
+//! candidates smaller than `rules::MIN_EARLY_MEDIA_BYTES` for the normalized pass,
+//! limiting the number of media records retained while the raw document is parsed.
+//! Validation and extraction are separate so masking can run in between. Changed
+//! masking output must be validated again before extraction.
+//!
+//! ```text
+//! validate(bytes)
+//!   `-- json::validate_json          check syntax with jiter; retain owned bytes
+//!        -> ValidatedPayload        checked JSON, not a parsed object tree
+//!
+//! ValidatedPayload::compact()
+//!   |-- marker check                skip discovery when no candidate is possible
+//!   |-- scanner::discover
+//!   |    |-- structural_walk::scan   find strings that could contain media
+//!   |    |    -> Candidate           byte range of one quoted JSON string
+//!   |    `-- inspect those strings  decode with jiter; recognize and hash media
+//!   |         -> MediaManifest      edit plan: ranges to replace + media metadata
+//!   `-- payload::apply_edit_plan     replace those ranges with temporary references
+//!        -> EarlyMediaResult        smaller JSON + extracted media records
+//! ```
+//!
+//! Early validation and discovery each use a fresh jiter cursor; neither builds a
+//! JSON tree. Discovery keeps the field context needed to select media while jiter
+//! advances through tokens. Borrowed serde spans handle tokens jiter cannot read.
+//! `validate` takes ownership of the input buffer. Cursors and discovery borrow it;
+//! `compact` consumes it and returns owned compact JSON plus retained media. Media
+//! ranges keep the source alive through `Arc`, or own a detached copy (see `payload`).
+//! `otel_input` owns that result behind N-API handles; consumers perform uploads later.
+//!
+//! Normalized extraction mutates values already built by ingestion. It has no
+//! minimum-size cutoff and leaves existing media references untouched. Its value
+//! traversal stops at `MAX_LEGACY_MEDIA_DEPTH`; embedded JSON strings share the
+//! scanner's `MAX_EMBEDDED_JSON_DEPTH` limit, with Data URI scanning as the fallback.
+//!
+//! ```text
+//! extract_normalized_media(value, media)
+//!   |-- visit objects and arrays    extract provider media; otherwise traverse values
+//!   |-- inspect strings             scan Data URIs and embedded JSON
+//!   |    `-- extract_media_at_depth  reuse validation, discovery, and compaction
+//!   `-- replace media in place      append retained media records to the registry
+//!
+//! MediaReferenceCollector::collect([input, output, metadata])
+//!   `-- match references            select media-record indices for upload requests
+//! ```
+//!
+//! The pipeline retains media from both passes until uploads finish. Failed uploads
+//! use the retained source text to restore inline media.
 
 use std::collections::HashSet;
 
@@ -29,15 +86,16 @@ mod scanner;
 mod source_text;
 mod structural_walk;
 
-/// Test-only counters for traversal scaling. Production builds compile the fields out and
-/// `add_bytes` becomes a no-op. Tests use them to detect repeated traversal and growing
-/// index allocations; timing remains outside this instrumentation.
+/// Test counters for traversal scaling, not production telemetry. Outside tests,
+/// there are no fields and `add_bytes` does nothing. Tests use these counts to detect
+/// repeated traversal and growing index allocations without timing assertions.
 #[derive(Default)]
 pub(super) struct WalkStats {
-    // Instrumented cursor advances and marker scans; library-internal reads are uncounted.
+    // Instrumented cursor advances and marker scans, not every read inside libraries.
     #[cfg(test)]
     pub(super) bytes_walked: usize,
-    // Stack and candidate-vector capacities; retained media has separate accounting.
+    // Stack/candidate-vector capacities, not total heap use or RSS. Retained
+    // media has separate accounting.
     #[cfg(test)]
     pub(super) peak_index_bytes: usize,
 }
