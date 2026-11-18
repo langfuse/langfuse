@@ -2692,34 +2692,15 @@ describe("AI gateway control plane", () => {
       ).apiKeys.map(({ id }) => id),
     ).toEqual(expect.arrayContaining([service.id, ci.id]));
 
-    const setLaptopBudget = (spendLimit: {
-      interval: "DAILY" | "MONTHLY";
-      limitUsd: number;
-    }) =>
-      member.aiGateway.setSpendLimits({
-        orgId: owner.org.id,
-        scope: "API_KEY",
-        subjects: { type: "ids", subjectIds: [laptop.id] },
-        spendLimit,
-      });
-    await expect(
-      setLaptopBudget({ interval: "MONTHLY", limitUsd: 20 }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(
-      setLaptopBudget({ interval: "DAILY", limitUsd: 5 }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await setLaptopBudget({ interval: "MONTHLY", limitUsd: 4 });
-    // Returning to the default and setting a budget again would restart its count.
-    await expect(
-      member.aiGateway.setSpendLimits({
-        orgId: owner.org.id,
-        scope: "API_KEY",
-        subjects: { type: "ids", subjectIds: [laptop.id] },
-        spendLimit: null,
-      }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    // A key's own budget replaces the default, whatever its amount or interval.
+    await member.aiGateway.setSpendLimits({
+      orgId: owner.org.id,
+      scope: "API_KEY",
+      subjects: { type: "ids", subjectIds: [laptop.id] },
+      spendLimit: { interval: "WEEKLY", limitUsd: 20 },
+    });
     expect(await resolved(laptop.secretKey)).toEqual([
-      expect.objectContaining({ scope: "api_key", limit_usd: 4 }),
+      expect.objectContaining({ scope: "api_key", limit_usd: 20 }),
       { id: `${userDefaultId}:${userId}`, scope: "user", limit_usd: 30 },
     ]);
 

@@ -30,7 +30,6 @@ import {
   type GatewayUsageScope,
 } from "@/src/features/ai-gateway/server/gatewayUsageScope";
 import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
-import { gatewaySpendBudgetIntervalOptions } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
 import {
   GatewaySpendLimitRepository,
@@ -49,10 +48,6 @@ const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
 const BULK_WRITE_TIMEOUT_MS = 30_000;
 
 const NO_SUBJECTS = { totalCount: 0, rows: [] };
-
-const INTERVAL_LABELS = new Map(
-  gatewaySpendBudgetIntervalOptions.map(({ value, label }) => [value, label]),
-);
 
 const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
@@ -437,13 +432,6 @@ export class GatewaySpendLimitService {
         "A gateway admin set this key's spend budget, so only an admin can change it.",
       );
     }
-    if (ownerUserId !== undefined && scope.type === "API_KEY") {
-      if (limit && !isUnchanged) {
-        await this.requireWithinKeyDefault({ organizationId, limit });
-      } else if (!limit && existing.length > 0) {
-        await this.requireNoKeyDefault(organizationId);
-      }
-    }
     if (limit && !isUnchanged) {
       await this.requireRecordingProjectId(organizationId);
     }
@@ -519,43 +507,6 @@ export class GatewaySpendLimitService {
       }
     });
     await invalidateGatewayResolveCacheForOrganization(organizationId);
-  }
-
-  /** Members may lower the key default for their own keys, but not raise it or change its interval. */
-  private async requireWithinKeyDefault(params: {
-    organizationId: string;
-    limit: SpendLimitInput;
-  }) {
-    const fallback = await this.repository.findDefault({
-      organizationId: params.organizationId,
-      scope: "API_KEY",
-    });
-    if (
-      fallback &&
-      (params.limit.interval !== fallback.interval ||
-        params.limit.limitUsd > fallback.limitUsd.toNumber())
-    ) {
-      throw new ForbiddenError(
-        `Your key budget can't be higher than the default key budget of $${fallback.limitUsd.toNumber()} (resets: ${INTERVAL_LABELS.get(fallback.interval)}) or reset on another interval.`,
-      );
-    }
-  }
-
-  /**
-   * A budget counts afresh from when it is set, so a member who could switch
-   * their key back to the default and set a budget again would reset its spend
-   * each time; only admins may return a key to the default.
-   */
-  private async requireNoKeyDefault(organizationId: string) {
-    const fallback = await this.repository.findDefault({
-      organizationId,
-      scope: "API_KEY",
-    });
-    if (fallback) {
-      throw new ForbiddenError(
-        "While a default key budget is set, only a gateway admin can remove a key's budget.",
-      );
-    }
   }
 
   /** What the scope applies to, if the caller may see it. */
