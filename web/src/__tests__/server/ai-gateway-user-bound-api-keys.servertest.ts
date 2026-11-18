@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { ForbiddenError } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import {
   createApiKey,
   createApiKeyCacheKey,
@@ -146,8 +147,10 @@ describe("user-bound API keys", () => {
     it("issues a USER-scoped key bound to a creator who can invoke the gateway", async () => {
       const org = await createOrg();
       const user = await createUser();
-      await prisma.organizationMembership.create({
-        data: { orgId: org.id, userId: user.id, role: Role.MEMBER },
+      await createOrgMembership(prisma, {
+        orgId: org.id,
+        userId: user.id,
+        role: Role.MEMBER,
       });
 
       const key = await new GatewayApiKeyService(prisma).create({
@@ -170,8 +173,10 @@ describe("user-bound API keys", () => {
     it("leaves a service-account key unbound so it outlives the creator", async () => {
       const org = await createOrg();
       const user = await createUser();
-      await prisma.organizationMembership.create({
-        data: { orgId: org.id, userId: user.id, role: Role.ADMIN },
+      await createOrgMembership(prisma, {
+        orgId: org.id,
+        userId: user.id,
+        role: Role.ADMIN,
       });
 
       const key = await new GatewayApiKeyService(prisma).create({
@@ -197,8 +202,10 @@ describe("user-bound API keys", () => {
     it("rejects a service-account key from a creator whose role cannot manage the gateway", async () => {
       const org = await createOrg();
       const user = await createUser();
-      await prisma.organizationMembership.create({
-        data: { orgId: org.id, userId: user.id, role: Role.MEMBER },
+      await createOrgMembership(prisma, {
+        orgId: org.id,
+        userId: user.id,
+        role: Role.MEMBER,
       });
       const before = await existingKeyIds();
 
@@ -217,8 +224,10 @@ describe("user-bound API keys", () => {
     it("rejects a creator whose role cannot invoke the gateway", async () => {
       const org = await createOrg();
       const user = await createUser();
-      await prisma.organizationMembership.create({
-        data: { orgId: org.id, userId: user.id, role: Role.VIEWER },
+      await createOrgMembership(prisma, {
+        orgId: org.id,
+        userId: user.id,
+        role: Role.VIEWER,
       });
       const before = await existingKeyIds();
 

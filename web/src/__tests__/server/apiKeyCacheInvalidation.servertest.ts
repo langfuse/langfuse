@@ -14,8 +14,9 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
-import { assignRole } from "@langfuse/shared/rbac/server";
 import {
+  createOrgMembership,
+  createProjectMembership,
   deleteProjectMembership,
   saveOrgMembership,
   saveProjectMembership,
@@ -172,8 +173,10 @@ async function createUserInOrgs(orgIds: string[]) {
     },
   });
   for (const orgId of orgIds) {
-    await prisma.organizationMembership.create({
-      data: { userId: user.id, orgId, role: Role.OWNER },
+    await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId,
+      role: Role.OWNER,
     });
   }
   return user;
@@ -425,12 +428,15 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     const keys = await seedOrgScopedKey(orgId);
 
     const user = await createUserInOrgs([orgId]);
-    const assignment = await assignRole(prisma, {
-      tenantId: OrganizationId(orgId),
-      ownerId: ProjectId(projectId),
-      principalId: UserId(user.id),
-      roleId: SystemRoleId("VIEWER"),
-      tags: [],
+    await createProjectMembership(prisma, {
+      orgId,
+      orgMembershipId: await orgMembershipIdOf(orgId, user.id),
+      projectId,
+      userId: user.id,
+      role: Role.VIEWER,
+    });
+    const assignment = await prisma.roleAssignment.findFirstOrThrow({
+      where: { userId: user.id, ownerId: ProjectId(projectId) },
     });
 
     const res = makeRes();

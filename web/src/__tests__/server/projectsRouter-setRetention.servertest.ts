@@ -2,6 +2,7 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { type Plan, Role } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
@@ -28,8 +29,10 @@ async function createOrgAndProject() {
       name: "Test User",
     },
   });
-  await prisma.organizationMembership.create({
-    data: { userId: user.id, orgId, role: Role.OWNER },
+  await createOrgMembership(prisma, {
+    userId: user.id,
+    orgId,
+    role: Role.OWNER,
   });
 
   return { orgId, projectId, user };

@@ -8,6 +8,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { AI_GATEWAY_SERVICE_NAME } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -63,9 +64,7 @@ async function callerFor(
     },
   });
   cleanupUsers.push(user.id);
-  await prisma.organizationMembership.create({
-    data: { orgId: org.id, userId: user.id, role },
-  });
+  await createOrgMembership(prisma, { orgId: org.id, userId: user.id, role });
   const session: Session = {
     expires: "1",
     user: {

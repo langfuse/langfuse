@@ -240,8 +240,10 @@ describe("membership role assignments", () => {
       data: { name: randomUUID(), orgId: org.id },
     });
     const owner = await createUser();
-    await prisma.organizationMembership.create({
-      data: { orgId: org.id, userId: owner.id, role: Role.OWNER },
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: owner.id,
+      role: Role.OWNER,
     });
     orgId = org.id;
     projectId = project.id;
@@ -405,8 +407,10 @@ describe("membership role assignments", () => {
         const otherOrg = await prisma.organization.create({
           data: { name: randomUUID() },
         });
-        const otherMembership = await prisma.organizationMembership.create({
-          data: { orgId: otherOrg.id, userId: user.id, role: Role.VIEWER },
+        const otherMembership = await createOrgMembership(prisma, {
+          orgId: otherOrg.id,
+          userId: user.id,
+          role: Role.VIEWER,
         });
 
         await expect(
@@ -421,7 +425,7 @@ describe("membership role assignments", () => {
         expect(
           await prisma.projectMembership.count({ where: { userId: user.id } }),
         ).toBe(0);
-        expect(await rolesOf(user.id)).toEqual([]);
+        expect(await rolesOf(user.id)).toEqual([org(otherOrg.id, "VIEWER")]);
       },
     );
 
@@ -605,8 +609,10 @@ describe("membership role assignments", () => {
       const otherOrg = await prisma.organization.create({
         data: { name: randomUUID() },
       });
-      await prisma.organizationMembership.create({
-        data: { orgId: otherOrg.id, userId: ownerId, role: Role.OWNER },
+      await createOrgMembership(prisma, {
+        orgId: otherOrg.id,
+        userId: ownerId,
+        role: Role.OWNER,
       });
       await callerFor(ownerId, otherOrg.id).members.create({
         orgId: otherOrg.id,
@@ -651,13 +657,12 @@ describe("membership role assignments", () => {
       });
       expect(await rolesOf(user.id)).toEqual([org(orgId, "VIEWER")]);
 
-      await prisma.projectMembership.create({
-        data: {
-          projectId,
-          userId: user.id,
-          role: Role.ADMIN,
-          orgMembershipId: await orgMembershipId(user.id),
-        },
+      await createProjectMembership(prisma, {
+        orgId,
+        projectId,
+        userId: user.id,
+        role: Role.ADMIN,
+        orgMembershipId: await orgMembershipId(user.id),
       });
       await callOrgMemberships("DELETE", authorization, { userId: user.id });
       expect(await rolesOf(user.id)).toEqual([]);

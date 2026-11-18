@@ -8,6 +8,7 @@ import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/create
 import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/lib/v4Rollout";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { prisma, Role } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 
 const makeSession = ({
   userId,
@@ -211,18 +212,17 @@ describe("onboarding router", () => {
     const organization = await prisma.organization.create({
       data: {
         name: `Existing Org ${userId}`,
-        organizationMemberships: {
-          create: {
-            userId,
-            role: Role.OWNER,
-          },
-        },
       },
       include: {
         projects: true,
       },
     });
     createdOrgIds.push(organization.id);
+    await createOrgMembership(prisma, {
+      orgId: organization.id,
+      userId,
+      role: Role.OWNER,
+    });
 
     const project = await prisma.project.create({
       data: {
@@ -590,15 +590,14 @@ describe("onboarding router", () => {
     const organization = await prisma.organization.create({
       data: {
         name: `Org Only ${userId}`,
-        organizationMemberships: {
-          create: {
-            userId,
-            role: Role.OWNER,
-          },
-        },
       },
     });
     createdOrgIds.push(organization.id);
+    await createOrgMembership(prisma, {
+      orgId: organization.id,
+      userId,
+      role: Role.OWNER,
+    });
 
     const caller = appRouter.createCaller({
       ...createInnerTRPCContext({
@@ -676,12 +675,14 @@ describe("onboarding router", () => {
         Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: cloudRegion });
         const { caller, userId } = await createCallerForNewUser();
         const organization = await prisma.organization.create({
-          data: {
-            name: `Newsletter Org ${userId}`,
-            organizationMemberships: { create: { userId, role } },
-          },
+          data: { name: `Newsletter Org ${userId}` },
         });
         createdOrgIds.push(organization.id);
+        await createOrgMembership(prisma, {
+          orgId: organization.id,
+          userId,
+          role,
+        });
 
         await caller.onboarding.complete({
           newsletter: { outcome: "subscribed", lists: clientLists },

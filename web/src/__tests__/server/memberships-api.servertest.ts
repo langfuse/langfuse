@@ -32,6 +32,16 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
+import {
+  createOrgMembership,
+  createProjectMembership,
+  deleteOrgMembership,
+  deleteProjectMembership,
+  findOrCreateOrgMembership,
+  findOrCreateProjectMembership,
+  saveOrgMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
@@ -122,22 +132,19 @@ describe("Memberships APIs", () => {
     describe("GET /api/public/projects/[projectId]/memberships", () => {
       it("should get all project memberships with valid API key", async () => {
         // First create an organization membership for the test user
-        const orgMembership = await prisma.organizationMembership.create({
-          data: {
-            userId: testUserId,
-            orgId: testOrgId,
-            role: Role.MEMBER,
-          },
+        const orgMembership = await createOrgMembership(prisma, {
+          userId: testUserId,
+          orgId: testOrgId,
+          role: Role.MEMBER,
         });
 
         // Then create a project membership
-        await prisma.projectMembership.create({
-          data: {
-            userId: testUserId,
-            projectId: testProjectId,
-            role: Role.VIEWER,
-            orgMembershipId: orgMembership.id,
-          },
+        await createProjectMembership(prisma, {
+          orgId: testOrgId,
+          userId: testUserId,
+          projectId: testProjectId,
+          role: Role.VIEWER,
+          orgMembershipId: orgMembership.id,
         });
 
         const response = await makeZodVerifiedAPICall(
@@ -201,28 +208,29 @@ describe("Memberships APIs", () => {
     describe("PUT /api/public/projects/[projectId]/memberships", () => {
       it("should create a new project membership with valid API key", async () => {
         // First ensure the user has an organization membership
-        await prisma.organizationMembership.upsert({
-          where: {
-            orgId_userId: {
-              userId: testUserId,
-              orgId: testOrgId,
-            },
-          },
-          update: {},
-          create: {
-            userId: testUserId,
-            orgId: testOrgId,
-            role: Role.MEMBER,
-          },
+        await findOrCreateOrgMembership(prisma, {
+          userId: testUserId,
+          orgId: testOrgId,
+          role: Role.MEMBER,
         });
 
         // Delete any existing project membership
-        await prisma.projectMembership.deleteMany({
-          where: {
+        const existingProjectMembership =
+          await prisma.projectMembership.findUnique({
+            where: {
+              projectId_userId: {
+                userId: testUserId,
+                projectId: testProjectId,
+              },
+            },
+          });
+        if (existingProjectMembership) {
+          await deleteProjectMembership(prisma, {
+            orgId: testOrgId,
             userId: testUserId,
             projectId: testProjectId,
-          },
-        });
+          });
+        }
 
         const response = await makeZodVerifiedAPICall(
           MembershipResponseSchema,
@@ -313,36 +321,19 @@ describe("Memberships APIs", () => {
     describe("DELETE /api/public/projects/[projectId]/memberships", () => {
       it("should delete an existing project membership with valid API key", async () => {
         // First ensure the user has an organization membership
-        const orgMembership = await prisma.organizationMembership.upsert({
-          where: {
-            orgId_userId: {
-              userId: testUserId,
-              orgId: testOrgId,
-            },
-          },
-          update: {},
-          create: {
-            userId: testUserId,
-            orgId: testOrgId,
-            role: Role.MEMBER,
-          },
+        const orgMembership = await findOrCreateOrgMembership(prisma, {
+          userId: testUserId,
+          orgId: testOrgId,
+          role: Role.MEMBER,
         });
 
         // Create a project membership
-        await prisma.projectMembership.upsert({
-          where: {
-            projectId_userId: {
-              userId: testUserId,
-              projectId: testProjectId,
-            },
-          },
-          update: {},
-          create: {
-            userId: testUserId,
-            projectId: testProjectId,
-            role: Role.VIEWER,
-            orgMembershipId: orgMembership.id,
-          },
+        await findOrCreateProjectMembership(prisma, {
+          orgId: testOrgId,
+          userId: testUserId,
+          projectId: testProjectId,
+          role: Role.VIEWER,
+          orgMembershipId: orgMembership.id,
         });
 
         // Verify membership exists before deletion
@@ -390,19 +381,10 @@ describe("Memberships APIs", () => {
     describe("GET /api/public/organizations/memberships", () => {
       it("should get all organization memberships with valid API key", async () => {
         // First ensure the membership exists
-        await prisma.organizationMembership.upsert({
-          where: {
-            orgId_userId: {
-              userId: testUserId,
-              orgId: testOrgId,
-            },
-          },
-          update: {},
-          create: {
-            userId: testUserId,
-            orgId: testOrgId,
-            role: Role.MEMBER,
-          },
+        await findOrCreateOrgMembership(prisma, {
+          userId: testUserId,
+          orgId: testOrgId,
+          role: Role.MEMBER,
         });
 
         const response = await makeZodVerifiedAPICall(
@@ -428,12 +410,16 @@ describe("Memberships APIs", () => {
     describe("PUT /api/public/organizations/memberships", () => {
       it("should create a new organization membership with valid API key", async () => {
         // First delete any existing membership
-        await prisma.organizationMembership.deleteMany({
-          where: {
+        const existingOrgMembership =
+          await prisma.organizationMembership.findUnique({
+            where: { orgId_userId: { userId: testUserId, orgId: testOrgId } },
+          });
+        if (existingOrgMembership) {
+          await deleteOrgMembership(prisma, {
             userId: testUserId,
             orgId: testOrgId,
-          },
-        });
+          });
+        }
 
         const response = await makeZodVerifiedAPICall(
           MembershipResponseSchema,
@@ -511,19 +497,10 @@ describe("Memberships APIs", () => {
     describe("DELETE /api/public/organizations/memberships", () => {
       it("should delete an existing organization membership with valid API key", async () => {
         // First ensure the membership exists
-        await prisma.organizationMembership.upsert({
-          where: {
-            orgId_userId: {
-              userId: testUserId,
-              orgId: testOrgId,
-            },
-          },
-          update: { role: Role.MEMBER },
-          create: {
-            userId: testUserId,
-            orgId: testOrgId,
-            role: Role.MEMBER,
-          },
+        await saveOrgMembership(prisma, {
+          userId: testUserId,
+          orgId: testOrgId,
+          role: Role.MEMBER,
         });
 
         // Verify membership exists before deletion
@@ -586,14 +563,13 @@ describe("Organization membership safeguards", () => {
     });
     orgId = org.id;
     const [owner, member] = await Promise.all(
-      [Role.OWNER, Role.MEMBER].map((role) =>
-        prisma.user.create({
-          data: {
-            email: `${randomUUID()}@example.com`,
-            organizationMemberships: { create: { orgId, role } },
-          },
-        }),
-      ),
+      [Role.OWNER, Role.MEMBER].map(async (role) => {
+        const user = await prisma.user.create({
+          data: { email: `${randomUUID()}@example.com` },
+        });
+        await createOrgMembership(prisma, { orgId, userId: user.id, role });
+        return user;
+      }),
     );
     ownerId = owner!.id;
     memberId = member!.id;
@@ -671,9 +647,10 @@ describe("Organization membership safeguards", () => {
     ["DELETE", "owner", undefined],
   ] as const)("rejects ADMIN %s of %s to %s", async (method, target, role) => {
     if (target === "owner") {
-      await prisma.organizationMembership.update({
-        where: { orgId_userId: { orgId, userId: memberId } },
-        data: { role: Role.OWNER },
+      await updateOrgMembership(prisma, {
+        orgId,
+        userId: memberId,
+        role: Role.OWNER,
       });
     }
     const userId = target === "owner" ? ownerId : memberId;
@@ -695,9 +672,10 @@ describe("Organization membership safeguards", () => {
   });
 
   it("combines membership and ownership policy grants across roles", async () => {
-    await prisma.organizationMembership.update({
-      where: { orgId_userId: { orgId, userId: memberId } },
-      data: { role: Role.OWNER },
+    await updateOrgMembership(prisma, {
+      orgId,
+      userId: memberId,
+      role: Role.OWNER,
     });
     const context: AuthorizationContext = {
       ...adminContext,
@@ -776,9 +754,7 @@ describe("Organization membership safeguards", () => {
   });
 
   it("audits create, update, no-op PUT, and actual deletion with the verified key", async () => {
-    await prisma.organizationMembership.deleteMany({
-      where: { orgId, userId: memberId },
-    });
+    await deleteOrgMembership(prisma, { orgId, userId: memberId });
     expect((await request("PUT", memberId, Role.VIEWER)).status).toBe(200);
     const created = await membership(memberId);
     expect((await request("PUT", memberId, Role.ADMIN)).status).toBe(200);
@@ -840,9 +816,10 @@ describe("Organization membership safeguards", () => {
   it.each(["PUT", "DELETE"] as const)(
     "serializes concurrent owner %s operations",
     async (method) => {
-      await prisma.organizationMembership.update({
-        where: { orgId_userId: { orgId, userId: memberId } },
-        data: { role: Role.OWNER },
+      await updateOrgMembership(prisma, {
+        orgId,
+        userId: memberId,
+        role: Role.OWNER,
       });
       const responses = await Promise.all([
         request(method, ownerId, Role.ADMIN),
@@ -865,9 +842,7 @@ describe("Organization membership safeguards", () => {
     async (operation) => {
       const method = operation === "delete" ? "DELETE" : "PUT";
       if (operation === "create") {
-        await prisma.organizationMembership.deleteMany({
-          where: { orgId, userId: memberId },
-        });
+        await deleteOrgMembership(prisma, { orgId, userId: memberId });
       }
       const before = await membership(memberId);
       vi.spyOn(auditLogs, "auditLog").mockRejectedValueOnce(
@@ -940,9 +915,10 @@ describe("Organization membership safeguards", () => {
     it.each([Role.MEMBER, Role.VIEWER, Role.NONE])(
       "keeps gateway keys of an OWNER moved to %s, since a user key acts with its user's current roles",
       async (role) => {
-        await prisma.organizationMembership.update({
-          where: { orgId_userId: { orgId, userId: memberId } },
-          data: { role: Role.OWNER },
+        await updateOrgMembership(prisma, {
+          orgId,
+          userId: memberId,
+          role: Role.OWNER,
         });
         const key = await createBoundGatewayKey(memberId);
 
@@ -998,9 +974,10 @@ describe("Organization membership safeguards", () => {
     });
 
     it("keeps an existing AI_GATEWAY member re-sent while the AI Gateway is off", async () => {
-      await prisma.organizationMembership.update({
-        where: { orgId_userId: { orgId, userId: memberId } },
-        data: { role: Role.AI_GATEWAY },
+      await updateOrgMembership(prisma, {
+        orgId,
+        userId: memberId,
+        role: Role.AI_GATEWAY,
       });
 
       expect(await putRole(Role.AI_GATEWAY)).toBe(200);
@@ -1046,12 +1023,10 @@ describe("Project membership safeguards", () => {
     });
     projectId = project.id;
     const user = await prisma.user.create({
-      data: {
-        email: `${randomUUID()}@example.com`,
-        organizationMemberships: { create: { orgId, role: Role.MEMBER } },
-      },
+      data: { email: `${randomUUID()}@example.com` },
     });
     userId = user.id;
+    await createOrgMembership(prisma, { orgId, userId, role: Role.MEMBER });
     const key = await createApiKey(prisma, {
       tenant: OrganizationId(orgId),
       scope: OrganizationId(orgId),
@@ -1125,8 +1100,12 @@ describe("Project membership safeguards", () => {
         where: { orgId_userId: { orgId, userId } },
       },
     );
-    return prisma.projectMembership.create({
-      data: { projectId, userId, orgMembershipId: orgMembership.id, role },
+    return createProjectMembership(prisma, {
+      orgId,
+      projectId,
+      userId,
+      orgMembershipId: orgMembership.id,
+      role,
     });
   };
 
