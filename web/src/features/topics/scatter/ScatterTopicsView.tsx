@@ -1,4 +1,4 @@
-import { useMemo, type ComponentProps, type ReactNode } from "react";
+import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useMediaQuery } from "react-responsive";
 import {
@@ -15,6 +15,7 @@ import {
   orderedFacetTopics,
   type TopicTraceQuery,
   type UseTopicTraces,
+  useTracesWithSelection,
 } from "../facet-topics";
 import {
   prepareTopicDisplay,
@@ -30,6 +31,7 @@ import {
 import { filterTopicTraces, topicTraceQuery } from "../topic-trace-filters";
 import { type useTopicTraceFilters } from "../useTopicTraceFilters";
 import { ScatterMap } from "./ScatterMap";
+import { ScatterMap2 } from "../scatter2/ScatterMap2";
 
 /** The scatter above one-line topic rows, with the selected topic's traces beside them. */
 export function ScatterTopicsView({
@@ -42,7 +44,12 @@ export function ScatterTopicsView({
   peekView,
   tracePanelRef,
   useTraces,
+  variant = "new",
 }: ScatterTopicsViewProps) {
+  // "new 2" runs the original map: a dot click selects its trace and keeps its card open.
+  const selectsOnMap = variant === "new2";
+  const MapView = selectsOnMap ? ScatterMap2 : ScatterMap;
+  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   // The rows are the map's legend, so they take the scatter's colors.
   const topics = withScatterColors(
     prepareTopicDisplay(facet, "treemap").topics,
@@ -58,7 +65,11 @@ export function ScatterTopicsView({
     !selected &&
     (traceFilters.filters.length > 0 ||
       Boolean(traceFilters.searchQuery?.trim()));
-  const traces = useTraces(listQuery());
+  const traces = useTracesWithSelection(
+    useTraces,
+    listQuery(),
+    selectsOnMap ? selectedTraceId : null,
+  );
   function listQuery(): TopicTraceQuery | null {
     if (isSearching)
       return topicTraceQuery(
@@ -168,7 +179,7 @@ export function ScatterTopicsView({
         facet.map ? (
           <MapAndRowsSplit
             map={
-              <ScatterMap
+              <MapView
                 key={facet.map.runId}
                 query={mapResult}
                 topics={mapTopics}
@@ -178,13 +189,16 @@ export function ScatterTopicsView({
                   topicId === null ? clearPickedTopic() : selectTopic(topicId)
                 }
                 onSelectTrace={(traceId) => {
+                  if (selectsOnMap) setSelectedTraceId(traceId);
                   if (!traceId) return clearPickedTopic();
+                  if (selectsOnMap) return;
                   // The trace peek opens outside the fullscreen map.
                   if (document.fullscreenElement)
                     document.exitFullscreen().catch(() => undefined);
                   onOpenTrace(traceId);
                 }}
-                selectedTraceId={null}
+                selectedTraceId={selectsOnMap ? selectedTraceId : null}
+                pinSelection={selectsOnMap}
                 fillContainer
               />
             }
@@ -215,6 +229,7 @@ export function ScatterTopicsView({
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           divider="none"
+          selectedTraceId={selectsOnMap ? selectedTraceId : null}
           emptyMessage={isSearching ? "No matches." : undefined}
           topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
           search={{
@@ -243,6 +258,8 @@ type ScatterTopicsViewProps = {
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
+  /** "new2" swaps in the original map with the new colors and hover card. */
+  variant?: "new" | "new2";
 };
 
 const MAP_AND_ROWS_PANEL_IDS = ["map", "rows"];

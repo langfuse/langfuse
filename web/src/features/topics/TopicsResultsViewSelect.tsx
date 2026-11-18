@@ -6,6 +6,7 @@ const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
   { value: "map", label: "Scatter (old)" },
   { value: "scatter", label: "Scatter (new)" },
+  { value: "scatter2", label: "Scatter (new 2)" },
 ] as const;
 
 export type TopicsResultsView = (typeof TOPICS_RESULTS_VIEWS)[number]["value"];
