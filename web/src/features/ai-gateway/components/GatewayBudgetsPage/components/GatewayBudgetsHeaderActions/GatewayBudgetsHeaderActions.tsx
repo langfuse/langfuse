@@ -1,7 +1,7 @@
 import { Plus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import { GatewayAddBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayAddBudgetDialogController/GatewayAddBudgetDialogController";
+import { GatewayAddBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsHeaderActions/components/GatewayAddBudgetDialogController/GatewayAddBudgetDialogController";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 
 type GatewayBudgetsHeaderActionsProps = {
