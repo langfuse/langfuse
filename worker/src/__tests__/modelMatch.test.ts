@@ -19,6 +19,7 @@ let findModel: SharedServerModule["findModel"];
 let findModelInPostgres: SharedServerModule["findModelInPostgres"];
 let getRedisModelKey: SharedServerModule["getRedisModelKey"];
 let clearModelCacheForProject: SharedServerModule["clearModelCacheForProject"];
+let clearModelCacheForOrganization: SharedServerModule["clearModelCacheForOrganization"];
 
 const originalLocalCacheSetting =
   process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED;
@@ -39,6 +40,7 @@ describe("modelMatch", () => {
       findModelInPostgres,
       getRedisModelKey,
       clearModelCacheForProject,
+      clearModelCacheForOrganization,
     } = sharedServer);
   });
 
@@ -291,6 +293,68 @@ describe("modelMatch", () => {
       });
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("cached entries without an owner column", () => {
+    it("re-resolves entries written before organization ownership existed", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const model = await prisma.model.create({
+        data: {
+          scope: "PROJECT",
+          projectId,
+          modelName: "gpt-4o-mini",
+          matchPattern: "gpt-4o-mini",
+          unit: "TOKENS",
+        },
+      });
+
+      const { organizationId: _organizationId, ...staleModel } = model;
+      const redisKey = getRedisModelKey({ projectId, model: "gpt-4o-mini" });
+      await redis?.set(
+        redisKey,
+        JSON.stringify({
+          model: { ...staleModel, id: "stale-id" },
+          pricingTiers: [],
+        }),
+      );
+
+      const result = await findModel({ projectId, model: "gpt-4o-mini" });
+
+      expect(result.model?.id).toBe(model.id);
+    });
+  });
+
+  describe("clearModelCacheForOrganization", () => {
+    it("clears cached matches of every project in the organization only", async () => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      const secondProjectId = uuidv4();
+      await prisma.project.create({
+        data: { id: secondProjectId, name: secondProjectId, orgId },
+      });
+      const { projectId: otherOrgProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const model = "not-cached-yet";
+      for (const p of [projectId, secondProjectId, otherOrgProjectId]) {
+        await findModel({ projectId: p, model });
+      }
+
+      await clearModelCacheForOrganization(orgId);
+
+      expect(
+        await redis?.get(getRedisModelKey({ projectId, model })),
+      ).toBeNull();
+      expect(
+        await redis?.get(
+          getRedisModelKey({ projectId: secondProjectId, model }),
+        ),
+      ).toBeNull();
+      expect(
+        await redis?.get(
+          getRedisModelKey({ projectId: otherOrgProjectId, model }),
+        ),
+      ).toBe("LANGFUSE_MODEL_MATCH_NOT_FOUND");
     });
   });
 

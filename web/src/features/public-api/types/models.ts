@@ -63,6 +63,7 @@ const APIModelDefinition = z
 export function prismaToApiModelDefinition({
   scope,
   projectId,
+  organizationId,
   inputPrice,
   outputPrice,
   totalPrice,

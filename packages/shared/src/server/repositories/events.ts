@@ -1,3 +1,4 @@
+import { visibleModelsWhere } from "../ingestion/modelVisibility";
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { isTopicFilter } from "../../topics";
 import { topicFilterConditions } from "../topics/trace-filter";
@@ -383,7 +384,7 @@ async function enrichObservationsWithModelData(
                 id: {
                   in: uniqueModels,
                 },
-                OR: [{ projectId: projectId }, { scope: "LANGFUSE" }],
+                ...visibleModelsWhere(projectId),
               },
               include: {
                 Price: {
