@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import {
   prepareMapNodes,
+  haloVisibility,
   zoneHalo,
   type Camera,
   type MapPosition,
@@ -211,23 +212,26 @@ function drawMap(
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, size.width, size.height);
   const colors = mapColors(canvas);
-  // One soft halo per topic, as in the original map.
-  for (const zone of frame.zones) {
+  // One soft halo per topic, fading out when zoomed in, as in the original map.
+  const halos = haloVisibility(camera.zoom);
+  for (const zone of halos > 0 ? frame.zones : []) {
     if (zone.id === "outliers" || zone.id === "awaiting_map") continue;
     const { x, y, rx, ry } = zoneHalo(zone, camera, model.bounds, size);
     if (x + rx < 0 || x - rx > size.width || y + ry < 0 || y - ry > size.height)
       continue;
-    const strength =
-      !matchingTraceIds ||
+    // The fade goes through globalAlpha, so the gradient colors stay cached.
+    context.globalAlpha =
+      halos *
+      (!matchingTraceIds ||
       zone.points.some((point) => matchingTraceIds.has(point.traceId))
         ? 1
-        : 0.15;
+        : 0.15);
     context.save();
     context.translate(x, y);
     context.scale(rx, ry);
     const gradient = context.createRadialGradient(0, 0, 0, 0, 0, 1);
-    gradient.addColorStop(0, colors.paint(zone.color, 0.3 * strength));
-    gradient.addColorStop(0.7, colors.paint(zone.color, 0.1 * strength));
+    gradient.addColorStop(0, colors.paint(zone.color, 0.3));
+    gradient.addColorStop(0.7, colors.paint(zone.color, 0.1));
     gradient.addColorStop(1, colors.paint(zone.color, 0));
     context.fillStyle = gradient;
     context.beginPath();

@@ -540,6 +540,10 @@ export function hitMapNode(
   return nearest?.point ?? null;
 }
 
+/** Topic halos fade out as you zoom in, so close clusters keep a clean background, as in the original map. */
+export function haloVisibility(zoom: number) {
+  return 1 - smoothStep(3, 10, zoom);
+}
 export function zoneHalo(
   zone: TopicMapModel["zones"][number],
   camera: Camera,
