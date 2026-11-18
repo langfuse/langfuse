@@ -9,6 +9,7 @@ import {
   createEventsCh,
   EventRecordInsertType,
 } from "../../../src/server";
+import { findOrCreateOrgMembership } from "../../../src/features/memberships/orgMembershipRepository";
 import { GATEWAY_MODELS, toGatewayGenerationEvent } from "./gateway-traffic";
 import { jitter, utcDayStartMs } from "./rng";
 import {
@@ -240,16 +241,11 @@ const ensureUsersAndKeys = async (params: {
       update: {},
       select: { id: true },
     });
-    await prisma.organizationMembership.upsert({
-      where: {
-        orgId_userId: { orgId: params.organizationId, userId: user.id },
-      },
-      create: {
-        orgId: params.organizationId,
-        userId: user.id,
-        role: "AI_GATEWAY",
-      },
-      update: {},
+    // Gateway keys are authorized by the member's role assignments, not the membership row alone.
+    await findOrCreateOrgMembership(prisma, {
+      orgId: params.organizationId,
+      userId: user.id,
+      role: "AI_GATEWAY",
     });
     keys.push({
       id: await ensureKey({
