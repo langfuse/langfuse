@@ -98,6 +98,7 @@ function ConnectedGatewayAddBudgetDialog({
       {...props}
       targetPicker={{
         options,
+        search,
         onSearchChange: setSearch,
         isLoading: candidates.isLoading,
       }}

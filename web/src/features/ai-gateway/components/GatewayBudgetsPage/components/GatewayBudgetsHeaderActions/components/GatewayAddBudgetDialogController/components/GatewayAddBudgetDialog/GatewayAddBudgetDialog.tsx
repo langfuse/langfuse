@@ -6,7 +6,7 @@ import { z } from "zod";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
-import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
+import { AsyncMultiSelectTagInput } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
 import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
 import {
   GATEWAY_SPEND_TABS,
@@ -47,7 +47,8 @@ const gatewayAddBudgetFormSchema = z.object({
 type GatewayAddBudgetFormValues = z.infer<typeof gatewayAddBudgetFormSchema>;
 
 type TargetPicker = {
-  options: ComponentProps<typeof MultiSelectTagInput<string>>["options"];
+  options: ComponentProps<typeof AsyncMultiSelectTagInput<string>>["options"];
+  search: string;
   onSearchChange: (query: string) => void;
   isLoading: boolean;
 };
@@ -121,24 +122,17 @@ export function GatewayAddBudgetDialog({
             description={labels.description}
           >
             {(field) => (
-              <MultiSelectTagInput
+              <AsyncMultiSelectTagInput
                 id={field.id}
-                value={field.value.map(({ value }) => value)}
-                onValueChange={(values) => {
-                  const known = [...field.value, ...targetPicker.options];
-                  field.onChange(
-                    values.map((value) => ({
-                      value,
-                      label:
-                        known.find((option) => option.value === value)?.label ??
-                        value,
-                    })),
-                  );
-                }}
-                options={withSelectedOptions(field.value, targetPicker.options)}
+                value={field.value}
+                onValueChange={field.onChange}
+                options={targetPicker.options}
                 placeholder={labels.placeholder}
-                searchPlaceholder="Search…"
-                onSearchChange={targetPicker.onSearchChange}
+                search={{
+                  placeholder: "Search…",
+                  value: targetPicker.search,
+                  onValueChange: targetPicker.onSearchChange,
+                }}
                 loading={
                   targetPicker.isLoading ? { message: "Loading…" } : undefined
                 }
@@ -164,13 +158,4 @@ export function GatewayAddBudgetDialog({
       </Dialog.Body>
     </Dialog>
   );
-}
-
-/** Server search narrows the options, so selected ones outside it are kept to label their tags. */
-function withSelectedOptions(
-  selected: { value: string; label: string }[],
-  options: ComponentProps<typeof MultiSelectTagInput<string>>["options"],
-) {
-  const listed = new Set(options.map(({ value }) => value));
-  return [...selected.filter(({ value }) => !listed.has(value)), ...options];
 }
