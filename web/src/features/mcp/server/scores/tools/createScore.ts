@@ -15,8 +15,6 @@ import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ApiServerError } from "../../../core/errors";
 import { z } from "zod";
-import { randomUUID } from "crypto";
-import type { ServerContext } from "../../../types";
 
 type CreateScoreBatchError = {
   status: number;
@@ -24,11 +22,8 @@ type CreateScoreBatchError = {
   error?: string;
 };
 
-const throwCreateScoreBatchError = (
-  error: CreateScoreBatchError,
-  messagePrefix = "",
-): never => {
-  const message = `${messagePrefix}${error.error ?? error.message ?? "Failed to create score"}`;
+const throwCreateScoreBatchError = (error: CreateScoreBatchError): never => {
+  const message = error.error ?? error.message ?? "Failed to create score";
 
   if (error.status === 400) {
     throw new InvalidRequestError(message);
@@ -42,7 +37,7 @@ const throwCreateScoreBatchError = (
     throw new LangfuseNotFoundError(message);
   }
 
-  throw new ApiServerError(`${messagePrefix}Failed to create score`);
+  throw new ApiServerError("Failed to create score");
 };
 
 export const CreateScoreBaseSchema = z
@@ -78,60 +73,6 @@ export const CreateScoreBaseSchema = z
     "Create score request. Provide exactly one of traceId, sessionId, or datasetRunId. observationId may only be provided together with traceId.",
   );
 
-/**
- * Creates one score through the public API score service and returns its id
- * plus a UI link to the scored target. Error messages start with
- * `errorMessagePrefix`, so batch callers can name the failing item.
- */
-export async function createScoreForMcp({
-  input,
-  context,
-  errorMessagePrefix = "",
-}: {
-  input: z.infer<typeof PostScoreBodyV1> & { id: string };
-  context: ServerContext;
-  errorMessagePrefix?: string;
-}) {
-  const scoresApiService = new ScoresApiService("v2");
-  const auth = {
-    validKey: true as const,
-    scope: {
-      projectId: context.projectId,
-      orgId: context.orgId,
-      apiKeyId: context.apiKeyId,
-      publicKey: context.publicKey,
-      accessLevel: context.accessLevel,
-      isIngestionSuspended: false,
-    },
-  };
-  const { id: scoreId, result } = await scoresApiService.createScore({
-    body: input,
-    auth,
-    auditScope: context,
-    attribution: createUnknownSdkIngestionAttribution({
-      authCheck: auth,
-    }),
-  });
-
-  if (result.errors.length > 0) {
-    throwCreateScoreBatchError(result.errors[0], errorMessagePrefix);
-  }
-
-  if (result.successes.length !== 1) {
-    throw new ApiServerError(`${errorMessagePrefix}Failed to create score`);
-  }
-
-  const score = PostScoresResponseV1.parse({ id: scoreId });
-  const url = buildScoreTargetUrl({
-    projectId: context.projectId,
-    traceId: input.traceId,
-    observationId: input.observationId,
-    sessionId: input.sessionId,
-  });
-
-  return url ? { ...score, url } : score;
-}
-
 export const [createScoreTool, handleCreateScore] = defineTool({
   name: "createScore",
   description: [
@@ -151,13 +92,45 @@ export const [createScoreTool, handleCreateScore] = defineTool({
         "mcp.score_name": input.name,
       },
       fn: async (span) => {
-        const scoreId = input.id ?? randomUUID();
+        const scoresApiService = new ScoresApiService("v2");
+        const auth = {
+          validKey: true as const,
+          scope: {
+            projectId: context.projectId,
+            orgId: context.orgId,
+            apiKeyId: context.apiKeyId,
+            publicKey: context.publicKey,
+            accessLevel: context.accessLevel,
+            isIngestionSuspended: false,
+          },
+        };
+        const { id: scoreId, result } = await scoresApiService.createScore({
+          body: input,
+          auth,
+          auditScope: context,
+          attribution: createUnknownSdkIngestionAttribution({
+            authCheck: auth,
+          }),
+        });
         span.setAttribute("mcp.score_id", scoreId);
 
-        return await createScoreForMcp({
-          input: { ...input, id: scoreId },
-          context,
+        if (result.errors.length > 0) {
+          throwCreateScoreBatchError(result.errors[0]);
+        }
+
+        if (result.successes.length !== 1) {
+          throw new ApiServerError("Failed to create score");
+        }
+
+        const score = PostScoresResponseV1.parse({ id: scoreId });
+        const url = buildScoreTargetUrl({
+          projectId: context.projectId,
+          traceId: input.traceId,
+          observationId: input.observationId,
+          sessionId: input.sessionId,
         });
+
+        return url ? { ...score, url } : score;
       },
     });
   },

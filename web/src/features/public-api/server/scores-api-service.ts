@@ -17,6 +17,7 @@ import {
 } from "@langfuse/shared";
 import {
   _handleGetScoreById,
+  _handleGetScoresByIds,
   eventTypes,
   processEventBatch,
   QueueJobs,
@@ -289,22 +290,77 @@ export class ScoresApiService {
     return { id: scoreId, result };
   }
 
+  /**
+   * Ingests all scores in one batch. Invalid items are rejected individually.
+   * `eventIds[i]` is the ingestion event id of `bodies[i]`, which is the id
+   * reported in `result.successes` and `result.errors`. With `auditScope`,
+   * every accepted score with an id is audit logged as a create or update.
+   */
   async createScores({
     bodies,
     auth,
     attribution,
+    auditScope,
   }: {
     bodies: unknown[];
     auth: AuthHeaderValidVerificationResultIngestion;
     attribution: IngestionAttribution;
+    auditScope?: { projectId: string; orgId: string; apiKeyId: string };
   }) {
-    const result = await processEventBatch(
-      bodies.map((body) => toScoreCreateEvent(body)),
-      auth,
-      { attribution },
-    );
+    const events = bodies.map((body) => toScoreCreateEvent(body));
+    const scoreIdOf = (body: unknown) =>
+      typeof body === "object" &&
+      body !== null &&
+      "id" in body &&
+      typeof body.id === "string"
+        ? body.id
+        : undefined;
+    const scoreIds = auditScope
+      ? bodies.flatMap((body) => scoreIdOf(body) ?? [])
+      : [];
+    const existingScores =
+      auditScope && scoreIds.length > 0
+        ? await _handleGetScoresByIds({
+            projectId: auditScope.projectId,
+            scoreId: scoreIds,
+            scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
+            dataTypes:
+              this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined,
+            preferredClickhouseService: "ReadOnly",
+          })
+        : [];
 
-    return { result };
+    const result = await processEventBatch(events, auth, { attribution });
+
+    if (auditScope) {
+      const acceptedEventIds = new Set(result.successes.map(({ id }) => id));
+      const existingById = new Map(
+        existingScores.map((score) => [score.id, score]),
+      );
+
+      await Promise.all(
+        bodies.map(async (body, index) => {
+          const scoreId = scoreIdOf(body);
+          if (!scoreId || !acceptedEventIds.has(events[index].id)) return;
+
+          const existingScore = existingById.get(scoreId);
+          await auditLog({
+            action: existingScore ? "update" : "create",
+            resourceType: "score",
+            resourceId: scoreId,
+            projectId: auditScope.projectId,
+            orgId: auditScope.orgId,
+            apiKeyId: auditScope.apiKeyId,
+            before: existingScore
+              ? convertScoreToPublicApi(existingScore)
+              : undefined,
+            after: body,
+          });
+        }),
+      );
+    }
+
+    return { result, eventIds: events.map(({ id }) => id) };
   }
 
   async deleteScore({
