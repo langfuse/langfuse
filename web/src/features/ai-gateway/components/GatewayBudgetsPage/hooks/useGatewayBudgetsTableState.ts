@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { keepPreviousData } from "@tanstack/react-query";
 import { useStore } from "zustand";
 
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
@@ -21,19 +20,14 @@ export function useGatewayBudgetsTableState(
   const [state, setState] = useState(initialState);
   const { searchQuery, status, pagination, selectionStore } = state;
 
-  const budgets = api.aiGateway.listBudgets.useQuery(
-    {
-      orgId: organizationId,
-      scope: tab === "apiKeys" ? "API_KEY" : "USER",
-      searchQuery: searchQuery.trim() || undefined,
-      status,
-      page: pagination.pageIndex,
-      limit: pagination.pageSize,
-    },
-    // The table re-renders without end while it shows loading rows after it
-    // has shown data once, so keep the previous rows until the next ones load.
-    { placeholderData: keepPreviousData },
-  );
+  const budgets = api.aiGateway.listBudgets.useQuery({
+    orgId: organizationId,
+    scope: tab === "apiKeys" ? "API_KEY" : "USER",
+    searchQuery: searchQuery.trim() || undefined,
+    status,
+    page: pagination.pageIndex,
+    limit: pagination.pageSize,
+  });
   const rowSelection = useStore(selectionStore, (store) => store.rowSelection);
   const rows = budgets.data?.rows;
   // Stable while the rows and selection are, so the spend chart's query is too.
