@@ -262,9 +262,10 @@ it("places an issue without a message at its moment across overlapping threads",
       parentObservationId: null,
     },
   ]);
-  expect(withRoot.indexOf("[error AGENT agent] run failed")).toBeGreaterThan(
-    withRoot.indexOf("Wrap up"),
-  );
+  // "Retry" (thread 2) renders last; the run-level error comes after every thread.
+  const rootError = withRoot.indexOf("[error AGENT agent] run failed");
+  expect(rootError).toBeGreaterThan(withRoot.indexOf("Retry"));
+  expect(rootError).toBeGreaterThan(withRoot.lastIndexOf("</thread>"));
 
   // A top-level step that starts mid-run keeps its time; the root error comes after a trailing time-placed issue.
   const mixed = renderStoredTopicText(transcript, [
