@@ -25,6 +25,7 @@
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:seed": "turbo run db:seed",
+    "db:seed:bedrock": "pnpm --filter=shared run db:seed:bedrock",
     "db:seed:examples": "turbo run db:seed:examples",
     "ch:migrations:materialize": "pnpm --filter @langfuse/shared run ch:migrations:materialize",
     "ch:migrations:clean": "pnpm --filter @langfuse/shared run ch:migrations:clean",
