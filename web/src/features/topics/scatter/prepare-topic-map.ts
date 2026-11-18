@@ -17,9 +17,13 @@ export type Camera = { x: number; y: number; zoom: number };
 
 /** Zoom limits, as multiples of the whole-map fit. */
 const MIN_ZOOM = 0.8;
-const MAX_ZOOM = 3;
-/** Pointer parallax for the deepest points, in pixels. */
-const PARALLAX_PX = 2.5;
+const MAX_ZOOM = 8;
+/**
+ * Dots grow into readable cards only while the viewport holds few of them;
+ * past this many visible dots the cards fade back, since laying out and
+ * labelling thousands of cards per frame is what stalls a zoomed-in dense map.
+ */
+const DETAIL_MAX_VISIBLE = 300;
 export type Size = { width: number; height: number };
 export type MapPoint = MapData["points"][number] & {
   groupId: string;
@@ -278,7 +282,18 @@ export function prepareMapNodes(
 ): TopicMapNodeFrame {
   const full = readingNodeSize(size);
   const zoom = detailZoom(camera.zoom, size);
-  const blend = nodeDetailBlend(camera.zoom);
+  let visible = 0;
+  for (const point of model.points) {
+    // Dimmed dots never grow into cards, so only highlighted ones count.
+    if (readingTopic && point.groupId !== readingTopic) continue;
+    if (matchingTraceIds && !matchingTraceIds.has(point.traceId)) continue;
+    const at = screenPoint(point, camera, model.bounds, size);
+    if (at.x >= 0 && at.x <= size.width && at.y >= 0 && at.y <= size.height)
+      visible++;
+  }
+  const blend =
+    nodeDetailBlend(camera.zoom) *
+    (1 - smoothStep(DETAIL_MAX_VISIBLE, DETAIL_MAX_VISIBLE * 2, visible));
   const cells = new Map<string, number[]>();
   const cellWidth = full.width + 8;
   const cellHeight = full.height + 8;
@@ -286,11 +301,7 @@ export function prepareMapNodes(
     const worldPosition = { x: point.x, y: point.y };
     const projected = screenPoint(worldPosition, camera, model.bounds, size);
     const depth = point.depth * (1 - blend);
-    // A light parallax keeps the map alive without points wandering.
-    const center = {
-      x: projected.x + pointer.x * depth * PARALLAX_PX,
-      y: projected.y + pointer.y * depth * PARALLAX_PX,
-    };
+    const center = projected;
     const diameter = (5 + depth) * Math.sqrt(Math.min(zoom, 4));
     const matchesFilters =
       (!readingTopic || point.groupId === readingTopic) &&

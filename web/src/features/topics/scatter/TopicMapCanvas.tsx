@@ -109,10 +109,8 @@ export function TopicMapCanvas({
       };
     }
     const cameraMoving = unsettled;
-    scene.pointer = {
-      x: approach(scene.pointer.x, targetPointer.x, 120, 0.001),
-      y: approach(scene.pointer.y, targetPointer.y, 120, 0.001),
-    };
+    // Nothing drawn follows the pointer, so it needs no easing (and no extra frames).
+    scene.pointer = targetPointer;
     const frame = prepareMapNodes(
       model,
       scene.camera,
@@ -156,7 +154,6 @@ export function TopicMapCanvas({
       if (
         next.camera !== previous.camera ||
         next.scope !== previous.scope ||
-        next.pointer !== previous.pointer ||
         next.hoveredId !== previous.hoveredId ||
         next.reducedMotion !== previous.reducedMotion
       )
@@ -195,9 +192,22 @@ export function TopicMapCanvas({
 
 /** Dots outside the highlight stay visible as context. */
 const DIMMED = 0.25;
+/** Unassigned dots recede so the topics read first; hover brings one back. */
+const UNASSIGNED_OPACITY = 0.35;
 
 const isUnassigned = (node: TopicMapNodeFrame["nodes"][number]) =>
   node.point.groupId === "outliers" || node.point.groupId === "awaiting_map";
+
+/** Unassigned dots recede only on an unfiltered map; a highlighted one draws at full strength. */
+function fadedOpacity(
+  node: TopicMapNodeFrame["nodes"][number],
+  frame: TopicMapNodeFrame,
+) {
+  if (!node.matchesFilters) return DIMMED;
+  const highlighting =
+    frame.readingTopic !== null || frame.matchingTraceIds !== undefined;
+  return !highlighting && isUnassigned(node) ? UNASSIGNED_OPACITY : 1;
+}
 
 function drawMap(
   canvas: HTMLCanvasElement,
@@ -217,11 +227,9 @@ function drawMap(
   }
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, size.width, size.height);
-  const theme = getComputedStyle(canvas);
-  const { mark, rgbOf } = canvasColors(theme);
+  const { mark, rgbOf, ring } = canvasColors(canvas);
   // Blurred topic fields under ringed dots; an active dot gets an outline.
   drawLookFields(context, frame, LOOK, rgbOf, ratio);
-  const ring = rgbOf(lookBackground(theme));
   const stage = stageScale(size);
   // Unassigned dots go down first so topic colors sit on top.
   const unassigned = frame.nodes.filter((node) => isUnassigned(node));
@@ -241,7 +249,7 @@ function drawMap(
       node.center,
       rgb,
       ring,
-      node.matchesFilters ? 1 : DIMMED + active * (1 - DIMMED),
+      fadedOpacity(node, frame) + active * (1 - fadedOpacity(node, frame)),
       camera.zoom,
       stage,
     );
@@ -261,7 +269,7 @@ function drawMap(
  * Resolves `var(--token)` colors, which canvas cannot read, to RGB so that
  * fading a color keeps its hue instead of passing through grey.
  */
-function canvasColors(theme: CSSStyleDeclaration) {
+function resolveCanvasColors(theme: CSSStyleDeclaration) {
   const resolved = new Map<string, [number, number, number]>();
   const probe = document.createElement("canvas").getContext("2d", {
     willReadFrequently: true,
@@ -303,7 +311,24 @@ function canvasColors(theme: CSSStyleDeclaration) {
     );
     return `rgb(${r}, ${g}, ${b})`;
   };
-  return { paint, mark, rgbOf };
+  return { mark, rgbOf, ring: rgbOf(lookBackground(theme)) };
+}
+
+const colorCache = new WeakMap<
+  HTMLCanvasElement,
+  { key: string; colors: ReturnType<typeof resolveCanvasColors> }
+>();
+
+/** Colors resolve once per theme, not once per frame. */
+function canvasColors(canvas: HTMLCanvasElement) {
+  const root = document.documentElement;
+  const key = `${root.className}|${root.style.cssText}`;
+  let cached = colorCache.get(canvas);
+  if (cached?.key !== key) {
+    cached = { key, colors: resolveCanvasColors(getComputedStyle(canvas)) };
+    colorCache.set(canvas, cached);
+  }
+  return cached.colors;
 }
 
 type TopicMapCanvasProps = {

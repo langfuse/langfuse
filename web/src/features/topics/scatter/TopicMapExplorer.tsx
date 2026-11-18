@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -19,12 +18,7 @@ import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
 import { cn } from "@/src/utils/tailwind";
 import { TopicMapCanvas } from "./TopicMapCanvas";
 import styles from "./topic-map.module.css";
-import {
-  lookGrainOpacity,
-  lookStyle,
-  TOPIC_MAP_LOOKS,
-  LOOK,
-} from "./topic-map-looks";
+import { lookStyle, TOPIC_MAP_LOOKS, LOOK } from "./topic-map-looks";
 import {
   clearTopicMapHover,
   createTopicMapStore,
@@ -465,7 +459,6 @@ export function TopicMapExplorer({
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
         />
-        <MapGrain opacity={lookGrainOpacity(LOOK)} />
         <MapBackgroundLabels store={store} />
         <MapLabels
           model={model}
@@ -735,35 +728,6 @@ function HoverCardHeader({ color, title }: { color: string; title: string }) {
         {title}
       </span>
     </span>
-  );
-}
-
-/** Monochrome film grain over the fields and dots. */
-function MapGrain({ opacity }: { opacity: number }) {
-  const id = useId();
-  return (
-    <svg
-      aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full mix-blend-multiply"
-      style={{ opacity }}
-    >
-      <filter id={id}>
-        <feTurbulence
-          type="fractalNoise"
-          baseFrequency="0.85"
-          numOctaves="2"
-          stitchTiles="stitch"
-        />
-        <feColorMatrix type="saturate" values="0" />
-        {/* Lifted toward white, so multiplying adds specks without greying the map. */}
-        <feComponentTransfer>
-          <feFuncR type="linear" slope="0.6" intercept="0.62" />
-          <feFuncG type="linear" slope="0.6" intercept="0.62" />
-          <feFuncB type="linear" slope="0.6" intercept="0.62" />
-        </feComponentTransfer>
-      </filter>
-      <rect width="100%" height="100%" filter={`url(#${id})`} />
-    </svg>
   );
 }
 
