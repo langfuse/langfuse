@@ -1,5 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React, { useState } from "react";
@@ -220,7 +219,15 @@ export const RemoteExperimentUpsertForm = ({
   };
 
   if (!hasDatasetAccess) {
-    return null;
+    return (
+      <DialogHeader>
+        <DialogTitle>Access denied</DialogTitle>
+        <DialogDescription>
+          You do not have permission to configure remote experiment triggers for
+          this dataset.
+        </DialogDescription>
+      </DialogHeader>
+    );
   }
 
   if (dataset.isPending) {
@@ -353,11 +360,14 @@ export const RemoteExperimentUpsertForm = ({
                   <div className="space-y-0.5">
                     <FormLabel>Sign requests</FormLabel>
                     <FormDescription>
-                      {field.value
-                        ? existingRemoteExperiment?.displaySecretKey
-                          ? "Requests include an x-langfuse-signature header so your service can verify they come from Langfuse."
-                          : "A signing secret will be generated when you save and shown once."
-                        : "Requests will be sent without an x-langfuse-signature header."}
+                      {!field.value &&
+                        "Requests will be sent without an x-langfuse-signature header."}
+                      {field.value &&
+                        existingRemoteExperiment?.displaySecretKey &&
+                        "Requests include an x-langfuse-signature header so your service can verify they come from Langfuse."}
+                      {field.value &&
+                        !existingRemoteExperiment?.displaySecretKey &&
+                        "A signing secret will be generated when you save and shown once."}
                     </FormDescription>
                     {field.value &&
                       existingRemoteExperiment?.displaySecretKey && (
