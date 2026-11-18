@@ -3,11 +3,13 @@ import { keepPreviousData } from "@tanstack/react-query";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { GatewayAddBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsHeaderActions/components/GatewayAddBudgetDialogController/components/GatewayAddBudgetDialog/GatewayAddBudgetDialog";
-import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import {
+  GATEWAY_SPEND_TABS,
+  type GatewaySpendTab,
+} from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { useAddGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useAddGatewayBudgets";
-import { MAX_MEMBER_SEARCH_LENGTH } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 
 const TARGET_OPTION_LIMIT = 50;
 const ALREADY_BUDGETED = {
@@ -76,59 +78,53 @@ function ConnectedGatewayAddBudgetDialog({
   const { targetType } = props;
   const [search, setSearch] = useState("");
 
-  const apiKeysQuery = api.aiGateway.listApiKeys.useQuery(
+  const candidates = api.aiGateway.listBudgets.useQuery(
     {
       orgId: organizationId,
+      scope: GATEWAY_SPEND_TABS[targetType].scope,
       searchQuery: search,
+      status: "all",
       page: 0,
       limit: TARGET_OPTION_LIMIT,
     },
-    { enabled: targetType === "apiKeys", placeholderData: keepPreviousData },
+    { placeholderData: keepPreviousData },
   );
-  const usersQuery = api.aiGateway.getBudgetUserOptions.useQuery(
-    {
-      orgId: organizationId,
-      search: search.trim().slice(0, MAX_MEMBER_SEARCH_LENGTH),
-    },
-    { enabled: targetType === "users", placeholderData: keepPreviousData },
+  const options = (candidates.data?.rows ?? []).map((row) =>
+    toTargetOption(targetType, row),
   );
-  const userIds = usersQuery.data?.map(({ id }) => id) ?? [];
-  const userBudgetsQuery = api.aiGateway.getUsersSpend.useQuery(
-    { orgId: organizationId, userIds },
-    { enabled: targetType === "users" && userIds.length > 0 },
-  );
-  const budgetedUserIds = new Set(
-    userBudgetsQuery.data?.map(({ id }) => id) ?? [],
-  );
-
-  const options: GatewayAddBudgetDialogProps["targetPicker"]["options"] =
-    targetType === "apiKeys"
-      ? (apiKeysQuery.data?.data ?? []).map(({ apiKey, spendLimit }) => ({
-          value: apiKey.id,
-          label: apiKey.note ?? apiKey.displaySecretKey,
-          ...(spendLimit !== null
-            ? ALREADY_BUDGETED
-            : { secondaryLabel: apiKey.user?.name ?? undefined }),
-        }))
-      : (usersQuery.data ?? []).map((user) => ({
-          value: user.id,
-          label: user.name ? `${user.name} (${user.email})` : user.email,
-          ...(budgetedUserIds.has(user.id) && ALREADY_BUDGETED),
-        }));
-  const isLoading =
-    targetType === "apiKeys"
-      ? apiKeysQuery.isLoading
-      : usersQuery.isLoading || userBudgetsQuery.isLoading;
 
   return (
     <GatewayAddBudgetDialog
       {...props}
       targetPicker={{
         options,
-        search,
         onSearchChange: setSearch,
-        isLoading,
+        isLoading: candidates.isLoading,
       }}
     />
   );
+}
+
+/** Keys show their user; users show their email. Those with a budget are disabled. */
+function toTargetOption(
+  targetType: GatewaySpendTab,
+  row: RouterOutputs["aiGateway"]["listBudgets"]["rows"][number],
+): GatewayAddBudgetDialogProps["targetPicker"]["options"][number] {
+  const budgeted = row.spendLimit !== null ? ALREADY_BUDGETED : undefined;
+  if (targetType === "apiKeys") {
+    return {
+      value: row.subjectId,
+      label: row.name,
+      secondaryLabel: row.user?.name ?? undefined,
+      ...budgeted,
+    };
+  }
+  return {
+    value: row.subjectId,
+    label:
+      row.user?.name && row.user.email
+        ? `${row.user.name} (${row.user.email})`
+        : row.name,
+    ...budgeted,
+  };
 }

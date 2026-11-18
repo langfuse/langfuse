@@ -23,7 +23,7 @@ import {
   GatewaySpendLimitInterval,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
-import { orderBy } from "@langfuse/shared";
+import { InvalidRequestError, orderBy } from "@langfuse/shared";
 import { query as analyticsQuery } from "@langfuse/shared/query";
 
 import {
@@ -46,6 +46,7 @@ import {
   requireGatewayInvoke,
 } from "./gatewayAccess";
 import {
+  GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_USD,
 } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
@@ -98,17 +99,18 @@ const gatewaySpendLimitSubjectIdsInput = z
   .max(GATEWAY_SPEND_BUDGET_MAX_SUBJECTS)
   .transform((ids) => [...new Set(ids)]);
 
+/** The Budgets table's search and status filter. */
+const gatewayBudgetFilterInput = z.object({
+  searchQuery: z.string().trim().optional(),
+  status: z.enum(GATEWAY_BUDGET_STATUSES).default("all"),
+});
 /** Explicit keys or users, or every one matching a search and status, as the Budgets table lists them. */
 const gatewayBudgetSubjectsInput = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("ids"),
     subjectIds: gatewaySpendLimitSubjectIdsInput,
   }),
-  z.object({
-    type: z.literal("matching"),
-    searchQuery: z.string().trim().optional(),
-    status: z.enum(GATEWAY_BUDGET_STATUSES),
-  }),
+  gatewayBudgetFilterInput.extend({ type: z.literal("matching") }),
 ]);
 /** A key without patterns, or with an empty list, may call every enabled model. */
 const gatewayKeyAllowedModelsSchema = z
@@ -315,20 +317,6 @@ export const aiGatewayRouter = createTRPCRouter({
         currentUserId: ctx.session.user.id,
         search: input.search,
         excludeEmails: input.excludeEmails,
-      });
-    }),
-
-  getBudgetUserOptions: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        search: z.string().max(MAX_MEMBER_SEARCH_LENGTH),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayTeamService(ctx.prisma).getBudgetUserOptions({
-        organizationId: input.orgId,
-        search: input.search,
       });
     }),
 
@@ -677,30 +665,11 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
-  getUsersSpend: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        userIds: z.array(z.string()).max(100),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewaySpendLimitService(ctx.prisma).getUsersSpend({
-        organizationId: input.orgId,
-        usageScope: getGatewayUsageScope({
-          session: ctx.session,
-          orgId: input.orgId,
-        }),
-        userIds: input.userIds,
-      });
-    }),
-
   listBudgets: protectedOrganizationProcedure
     .input(
       offsetPaginatedOrganizationInput.extend({
         scope: gatewaySpendLimitScopeInput,
-        searchQuery: z.string().trim().optional(),
-        status: z.enum(GATEWAY_BUDGET_STATUSES).default("all"),
+        ...gatewayBudgetFilterInput.shape,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -771,6 +740,11 @@ export const aiGatewayRouter = createTRPCRouter({
                 status: input.subjects.status,
               })
             ).rows.map(({ subjectId }) => subjectId);
+      if (subjectIds.length > GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS) {
+        throw new InvalidRequestError(
+          `Budgets can change for at most ${GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS} keys or users at once. Narrow the search or status filter.`,
+        );
+      }
       await service.setForSubjects({
         organizationId: input.orgId,
         usageScope,
@@ -786,8 +760,7 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(
       organizationInput.extend({
         scope: gatewaySpendLimitScopeInput,
-        searchQuery: z.string().trim().optional(),
-        status: z.enum(GATEWAY_BUDGET_STATUSES).default("all"),
+        ...gatewayBudgetFilterInput.shape,
       }),
     )
     .query(async ({ input, ctx }) => {

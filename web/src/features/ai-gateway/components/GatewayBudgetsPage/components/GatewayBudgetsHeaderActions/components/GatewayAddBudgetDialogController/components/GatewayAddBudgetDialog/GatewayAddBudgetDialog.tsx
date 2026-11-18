@@ -48,8 +48,7 @@ type GatewayAddBudgetFormValues = z.infer<typeof gatewayAddBudgetFormSchema>;
 
 type TargetPicker = {
   options: ComponentProps<typeof MultiSelectTagInput<string>>["options"];
-  search: string;
-  onSearchChange: (value: string) => void;
+  onSearchChange: (query: string) => void;
   isLoading: boolean;
 };
 
@@ -139,10 +138,7 @@ export function GatewayAddBudgetDialog({
                 options={withSelectedOptions(field.value, targetPicker.options)}
                 placeholder={labels.placeholder}
                 searchPlaceholder="Search…"
-                search={{
-                  value: targetPicker.search,
-                  onValueChange: targetPicker.onSearchChange,
-                }}
+                onSearchChange={targetPicker.onSearchChange}
                 loading={
                   targetPicker.isLoading ? { message: "Loading…" } : undefined
                 }

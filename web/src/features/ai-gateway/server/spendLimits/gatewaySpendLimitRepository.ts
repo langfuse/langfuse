@@ -60,87 +60,11 @@ export class GatewaySpendLimitRepository {
   }
 
   /**
-   * One page of the organization's key or user limits, by key or user name,
-   * with what they apply to. Search matches the key name and the name or
-   * email of its user, or the user's name or email; with ownerUserId, only
-   * that user's keys or own limit are listed. Without a page, all of them.
-   */
-  async listPage(params: {
-    organizationId: string;
-    scope: "API_KEY" | "USER";
-    ownerUserId?: string;
-    searchQuery?: string;
-    page?: { page: number; limit: number };
-  }) {
-    const contains = params.searchQuery
-      ? ({
-          contains: escapeSqlLikePattern(params.searchQuery),
-          mode: "insensitive",
-        } as const)
-      : undefined;
-    const where: Prisma.GatewaySpendLimitWhereInput =
-      params.scope === "API_KEY"
-        ? {
-            organizationId: params.organizationId,
-            scope: "API_KEY",
-            apiKey: {
-              ...(params.ownerUserId !== undefined && {
-                userId: params.ownerUserId,
-              }),
-              ...(contains && {
-                OR: [
-                  { note: contains },
-                  { user: { name: contains } },
-                  { user: { email: contains } },
-                ],
-              }),
-            },
-          }
-        : {
-            organizationId: params.organizationId,
-            scope: "USER",
-            ...(params.ownerUserId !== undefined && {
-              userId: params.ownerUserId,
-            }),
-            ...(contains && {
-              user: { OR: [{ name: contains }, { email: contains }] },
-            }),
-          };
-    const [rows, totalCount] = await Promise.all([
-      this.prisma.gatewaySpendLimit.findMany({
-        where,
-        select: {
-          ...GATEWAY_SPEND_LIMIT_SELECT,
-          apiKey: {
-            select: {
-              note: true,
-              displaySecretKey: true,
-              user: BUDGET_USER_SELECT,
-            },
-          },
-          user: BUDGET_USER_SELECT,
-        },
-        orderBy: [
-          params.scope === "API_KEY"
-            ? { apiKey: { note: { sort: "asc", nulls: "last" } } }
-            : { user: { name: { sort: "asc", nulls: "last" } } },
-          { createdAt: "asc" },
-        ],
-        ...(params.page && {
-          skip: params.page.page * params.page.limit,
-          take: params.page.limit,
-        }),
-      }),
-      this.prisma.gatewaySpendLimit.count({ where }),
-    ]);
-    return { rows, totalCount };
-  }
-
-  /**
    * One page of the organization's gateway keys, or of its members with one
-   * of `memberRoles`, each with its spend limit if it has one. Search and
-   * ownerUserId work as in `listPage`; `unlimitedOnly` leaves out those with
-   * a limit.
+   * of `memberRoles`, each with its spend limit if it has one. Search matches
+   * the key name and the name or email of its user, or the user's name or
+   * email; with ownerUserId, only that user's keys or own entry are listed.
+   * `budget` narrows them to those with or without a limit.
    */
   async listSubjectsPage(params: {
     organizationId: string;
@@ -148,7 +72,7 @@ export class GatewaySpendLimitRepository {
     memberRoles: Role[];
     ownerUserId?: string;
     searchQuery?: string;
-    unlimitedOnly: boolean;
+    budget: "any" | "with" | "without";
     /** Without a page, all of them. */
     page?: { page: number; limit: number };
   }) {
@@ -164,7 +88,10 @@ export class GatewaySpendLimitRepository {
         ...gatewayApiKeyWhere(params),
         gatewayAssociation: { isNot: null },
         ...(params.searchQuery && gatewayApiKeySearch(params.searchQuery)),
-        ...(params.unlimitedOnly && { gatewaySpendLimits: { none: {} } }),
+        ...(params.budget === "with" && { gatewaySpendLimits: { some: {} } }),
+        ...(params.budget === "without" && {
+          gatewaySpendLimits: { none: {} },
+        }),
       };
       const [keys, totalCount] = await Promise.all([
         this.prisma.apiKey.findMany({
@@ -211,7 +138,10 @@ export class GatewaySpendLimitRepository {
       user: {
         email: { not: null },
         ...(search && { OR: [{ name: search }, { email: search }] }),
-        ...(params.unlimitedOnly && {
+        ...(params.budget === "with" && {
+          gatewaySpendLimits: { some: limitWhere },
+        }),
+        ...(params.budget === "without" && {
           gatewaySpendLimits: { none: limitWhere },
         }),
       },
@@ -250,24 +180,6 @@ export class GatewaySpendLimitRepository {
         limit: gatewaySpendLimits[0] ?? null,
       })),
     };
-  }
-
-  /** Each user's first user limit in the organization. */
-  async listFirstForUsers(params: {
-    organizationId: string;
-    userIds: string[];
-  }) {
-    if (params.userIds.length === 0) return [];
-    return this.prisma.gatewaySpendLimit.findMany({
-      where: {
-        organizationId: params.organizationId,
-        scope: "USER",
-        userId: { in: params.userIds },
-      },
-      select: GATEWAY_SPEND_LIMIT_SELECT,
-      orderBy: { createdAt: "asc" },
-      distinct: ["userId"],
-    });
   }
 
   /** Each key's first limit, for keys in the organization and, with ownerUserId, owned by that user. */

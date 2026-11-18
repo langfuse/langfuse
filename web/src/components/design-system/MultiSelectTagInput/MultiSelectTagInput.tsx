@@ -35,8 +35,11 @@ type MultiSelectTagInputProps<V> = {
   "aria-label"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
-  /** Searches on the server: options are not filtered locally. */
-  search?: { value: string; onValueChange: (value: string) => void };
+  /**
+   * Searches on the server: called as the query changes, and with "" when the
+   * menu closes; options are then not filtered locally.
+   */
+  onSearchChange?: (query: string) => void;
   loading?: { message: string };
 };
 
@@ -54,7 +57,7 @@ export function MultiSelectTagInput<V extends string>({
   "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
-  search,
+  onSearchChange,
   loading,
 }: MultiSelectTagInputProps<V>) {
   const container = useLayerContainer("popover");
@@ -172,7 +175,7 @@ export function MultiSelectTagInput<V extends string>({
       onOpenChange={(newOpen) => {
         if (disabled) return;
         setOpen(newOpen);
-        if (!newOpen) search?.onValueChange("");
+        if (!newOpen) onSearchChange?.("");
       }}
     >
       <InputControl contentLayout="none" error={error} disabled={disabled}>
@@ -307,12 +310,11 @@ export function MultiSelectTagInput<V extends string>({
             onTouchMove={stopScrollPropagation()}
           >
             <InputDropdown.Root>
-              <CommandPrimitive shouldFilter={!search}>
+              <CommandPrimitive shouldFilter={!onSearchChange}>
                 <InputDropdown.Search>
                   <CommandPrimitive.Input
                     placeholder={searchPlaceholder}
-                    value={search?.value}
-                    onValueChange={search?.onValueChange}
+                    onValueChange={onSearchChange}
                   />
                 </InputDropdown.Search>
                 {!loading && (

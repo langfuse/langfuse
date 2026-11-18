@@ -8,6 +8,5 @@ export function useInvalidateGatewayBudgets(organizationId: string) {
       utils.aiGateway.listBudgets.invalidate({ orgId: organizationId }),
       utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId }),
       utils.aiGateway.getApiKeysSpend.invalidate({ orgId: organizationId }),
-      utils.aiGateway.getUsersSpend.invalidate({ orgId: organizationId }),
     ]);
 }
