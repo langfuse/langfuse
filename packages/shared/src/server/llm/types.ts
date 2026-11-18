@@ -561,6 +561,7 @@ export const LLMApiKeySchema = z
     provider: z.string(),
     displaySecretKey: z.string(),
     secretKey: z.string(),
+    externalId: z.string().nullish(),
     extraHeaders: z.string().nullish(),
     extraHeaderKeys: z.array(z.string()),
     baseURL: z.string().nullable(),

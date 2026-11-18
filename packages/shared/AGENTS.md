@@ -132,6 +132,7 @@
   `projectId`: Cloud Bedrock runtime auth checks it against
   `LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS`. Raw credential
   tests omit this identity; only operator-provisioned stored secrets qualify.
+  Bedrock IAM role connections (`{ roleArn }` secret, kept out of `BedrockCredentialSchema`) assume the role with the encrypted external ID stored on their row (`LLMConnection.externalId`); see `@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials`.
 - `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
   ClickHouse clients and helpers without loading the full server barrel. Use this
   entry point for test cleanup so built and source-aliased clients retain the same
@@ -217,7 +218,7 @@ the same PR.
 2. Add migration in `prisma/migrations/*`.
 3. Regenerate client/types via `db:generate`.
 4. Update affected repository/query code under `src/server/repositories/*`.
-5. Add/adjust `web` and/or `worker` tests for changed behavior.
+5. Whether to add a test follows root [`AGENTS.md`](../../AGENTS.md). Place a warranted `web` and/or `worker` test for changed behavior.
 
 ### ClickHouse schema change
 
@@ -254,7 +255,7 @@ the same PR.
 2. Update queue helpers in `src/server/redis/*` if queue names/payload
    handling changed.
 3. Update producer and consumer code in `web`/`worker`.
-4. Add or update regression tests in affected packages.
+4. Whether to add a test follows root [`AGENTS.md`](../../AGENTS.md). Place a warranted regression test in the affected package.
 
 - If a queue becomes sharded, add its shard-count env in `src/env.ts` and keep
   the shard-aware queue callers in `web` and `worker` aligned with the shared

@@ -212,7 +212,7 @@ function drawMap(
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, size.width, size.height);
   const colors = mapColors(canvas);
-  // One soft halo per topic, fading out when zoomed in, as in the original map.
+  // One soft halo per topic, fading out when zoomed in.
   const halos = haloVisibility(camera.zoom);
   for (const zone of halos > 0 ? frame.zones : []) {
     if (zone.id === "outliers" || zone.id === "awaiting_map") continue;

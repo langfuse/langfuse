@@ -48,7 +48,7 @@ describe("GatewayApiKeyRepository pagination", () => {
     };
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderBy: [{ apiKey: { createdAt: "asc" } }, { apiKeyId: "asc" }],
+        orderBy: [{ apiKey: { createdAt: "desc" } }, { apiKeyId: "desc" }],
         take: 2,
         skip: 2,
         where,

@@ -214,6 +214,45 @@ describe("annotation queues trpc", () => {
     });
   });
 
+  describe("annotationQueues.all", () => {
+    it("sorts by name independently of creation time", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const { caller } = createCallerForProjectRole(setup);
+      await prisma.annotationQueue.createMany({
+        data: ["02 review", "03 review", "01 review"].map((name, index) => ({
+          name,
+          scoreConfigIds: [],
+          projectId: setup.project.id,
+          createdAt: new Date(Date.UTC(2026, 0, index + 1)),
+        })),
+      });
+
+      const listNames = async (orderBy?: {
+        column: "name" | "createdAt";
+        order: "ASC" | "DESC";
+      }) =>
+        (
+          await caller.annotationQueues.all({
+            projectId: setup.project.id,
+            orderBy,
+          })
+        ).queues.map((queue) => queue.name);
+
+      await expect(
+        listNames({ column: "name", order: "ASC" }),
+      ).resolves.toEqual(["01 review", "02 review", "03 review"]);
+      await expect(
+        listNames({ column: "name", order: "DESC" }),
+      ).resolves.toEqual(["03 review", "02 review", "01 review"]);
+      await expect(listNames()).resolves.toEqual([
+        "01 review",
+        "03 review",
+        "02 review",
+      ]);
+    });
+  });
+
   describe("annotationQueues.create", () => {
     it("rejects a second queue on cloud:hobby", async () => {
       const setup = await createOrgProjectAndApiKey();
