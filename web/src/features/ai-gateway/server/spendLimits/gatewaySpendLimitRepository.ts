@@ -58,15 +58,14 @@ export class GatewaySpendLimitRepository {
    * One page of the organization's key or user limits, by key or user name,
    * with what they apply to. Search matches the key name and the name or
    * email of its user, or the user's name or email; with ownerUserId, only
-   * that user's keys or own limit are listed.
+   * that user's keys or own limit are listed. Without a page, all of them.
    */
   async listPage(params: {
     organizationId: string;
     scope: "API_KEY" | "USER";
     ownerUserId?: string;
     searchQuery?: string;
-    page: number;
-    limit: number;
+    page?: { page: number; limit: number };
   }) {
     const contains = params.searchQuery
       ? ({
@@ -122,8 +121,10 @@ export class GatewaySpendLimitRepository {
             : { user: { name: { sort: "asc", nulls: "last" } } },
           { createdAt: "asc" },
         ],
-        skip: params.page * params.limit,
-        take: params.limit,
+        ...(params.page && {
+          skip: params.page.page * params.page.limit,
+          take: params.page.limit,
+        }),
       }),
       this.prisma.gatewaySpendLimit.count({ where }),
     ]);

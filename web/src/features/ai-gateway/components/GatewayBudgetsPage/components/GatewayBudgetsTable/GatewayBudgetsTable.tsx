@@ -45,8 +45,21 @@ type GatewayBudgetsTableProps = Pick<
   tab: GatewaySpendTab;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
+  status: {
+    value: GatewayBudgetStatusFilter;
+    onChange: (value: GatewayBudgetStatusFilter) => void;
+  };
+  /** Prepended when rows can be selected for bulk changes. */
+  selectColumn?: LangfuseColumnDef<GatewayBudgetRow>;
   onEditBudget: (row: GatewayBudgetRow) => void;
 };
+
+export type GatewayBudgetStatusFilter = "all" | "exceeded";
+
+const statusOptions: { value: GatewayBudgetStatusFilter; label: string }[] = [
+  { value: "all", label: "All budgets" },
+  { value: "exceeded", label: "Exceeded" },
+];
 
 const budgetSkeleton = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
 
@@ -128,12 +141,12 @@ const copyByTab = {
   apiKeys: {
     searchPlaceholder: "Search keys",
     noBudgets: "No key budgets yet.",
-    noMatches: "No key budgets match the current search.",
+    noMatches: "No key budgets match the current filters.",
   },
   users: {
     searchPlaceholder: "Search users",
     noBudgets: "No user budgets yet.",
-    noMatches: "No user budgets match the current search.",
+    noMatches: "No user budgets match the current filters.",
   },
 } as const satisfies Record<GatewaySpendTab, Record<string, string>>;
 
@@ -145,15 +158,19 @@ export function GatewayBudgetsTable({
   selectedRowId,
   pagination,
   search,
+  status,
+  selectColumn,
   onEditBudget,
 }: GatewayBudgetsTableProps) {
   const copy = copyByTab[tab];
-  const hasSearch = search.value.trim().length > 0;
+  const isFiltered = search.value.trim().length > 0 || status.value !== "all";
 
   return (
     <SettingsTable
       tableName={tab === "apiKeys" ? "gatewayKeyBudgets" : "gatewayUserBudgets"}
-      columns={columnsByTab[tab]}
+      columns={
+        selectColumn ? [selectColumn, ...columnsByTab[tab]] : columnsByTab[tab]
+      }
       data={data}
       onRowClick={onRowClick}
       selectedRowId={selectedRowId}
@@ -176,7 +193,20 @@ export function GatewayBudgetsTable({
       ]}
       pagination={pagination}
       search={{ ...search, placeholder: copy.searchPlaceholder }}
-      noResultsMessage={hasSearch ? copy.noMatches : copy.noBudgets}
+      filters={[
+        {
+          id: "status",
+          type: "select",
+          label: "Status",
+          placeholder: "All budgets",
+          options: statusOptions,
+          value: status.value,
+          onChange: (value) =>
+            status.onChange(value === "exceeded" ? "exceeded" : "all"),
+          muted: status.value === "all",
+        },
+      ]}
+      noResultsMessage={isFiltered ? copy.noMatches : copy.noBudgets}
     />
   );
 }

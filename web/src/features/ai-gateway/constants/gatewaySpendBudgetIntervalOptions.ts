@@ -10,3 +10,6 @@ export type GatewaySpendBudgetInterval =
 
 /** Matches the server's limit, so the form rejects what the API would. */
 export const GATEWAY_SPEND_BUDGET_MAX_USD = 1_000_000_000;
+
+/** How many keys or users one budget change may apply to, as on the server. */
+export const GATEWAY_SPEND_BUDGET_MAX_SUBJECTS = 100;

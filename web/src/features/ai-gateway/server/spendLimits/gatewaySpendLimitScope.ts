@@ -12,3 +12,16 @@ export function toScopeColumns(scope: GatewaySpendLimitScope) {
       return { scope: scope.type, userId: scope.userId };
   }
 }
+
+/** The scope capping one key or user, by its id. */
+export function toSpendLimitScope(
+  type: GatewaySpendLimitScope["type"],
+  subjectId: string,
+): GatewaySpendLimitScope {
+  switch (type) {
+    case "API_KEY":
+      return { type, apiKeyId: subjectId };
+    case "USER":
+      return { type, userId: subjectId };
+  }
+}

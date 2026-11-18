@@ -4,39 +4,41 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AsyncSelectInput } from "@/src/components/design-system/AsyncSelectInput/AsyncSelectInput";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
+import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
-import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import {
+  GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
+  type GatewaySpendBudgetInterval,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetLimitError";
 
 const targetLabels = {
   apiKeys: {
-    title: "Add key budget",
-    field: "Gateway key",
-    placeholder: "Select a key",
+    title: "Add key budgets",
+    field: "Gateway keys",
+    placeholder: "Select keys",
+    description: "Each key gets its own budget.",
   },
   users: {
-    title: "Add user budget",
-    field: "User",
-    placeholder: "Select a user",
+    title: "Add user budgets",
+    field: "Users",
+    placeholder: "Select users",
+    description:
+      "Each user gets their own budget, which caps all of their gateway keys in addition to each key's own budget.",
   },
 } as const satisfies Record<GatewaySpendTab, Record<string, string>>;
 
 const gatewayAddBudgetFormSchema = z.object({
-  target: z
-    .object({ value: z.string(), label: z.string() })
-    .nullable()
-    .superRefine((target, context) => {
-      if (target === null) {
-        context.addIssue({
-          code: "custom",
-          message: "Select who the budget applies to",
-        });
-      }
-    }),
+  targets: z
+    .array(z.object({ value: z.string(), label: z.string() }))
+    .min(1, "Select who the budget applies to")
+    .max(
+      GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
+      `Select at most ${GATEWAY_SPEND_BUDGET_MAX_SUBJECTS} at once`,
+    ),
   spendBudget: z.object({
     interval: z.custom<GatewaySpendBudgetInterval>(),
     limitUsd: z.string().superRefine((value, context) => {
@@ -49,7 +51,7 @@ const gatewayAddBudgetFormSchema = z.object({
 type GatewayAddBudgetFormValues = z.infer<typeof gatewayAddBudgetFormSchema>;
 
 type TargetPicker = {
-  options: ComponentProps<typeof AsyncSelectInput<string>>["options"];
+  options: ComponentProps<typeof MultiSelectTagInput<string>>["options"];
   search: string;
   onSearchChange: (value: string) => void;
   isLoading: boolean;
@@ -63,12 +65,12 @@ type GatewayAddBudgetDialogProps = {
   errorMessage: string | null;
   isSubmitting: boolean;
   onSubmit: (budget: {
-    targetId: string;
+    targetIds: string[];
     spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number };
   }) => void;
 };
 
-/** Adds a budget to a gateway key or to a user, which caps all of their keys. */
+/** Adds the same budget to gateway keys, or to users, which caps all of their keys. */
 export function GatewayAddBudgetDialog({
   targetType,
   targetPicker,
@@ -81,7 +83,7 @@ export function GatewayAddBudgetDialog({
   const form = useForm<GatewayAddBudgetFormValues>({
     resolver: zodResolver(gatewayAddBudgetFormSchema),
     defaultValues: {
-      target: null,
+      targets: [],
       spendBudget: { interval: "MONTHLY", limitUsd: "" },
     },
     mode: "onChange",
@@ -89,9 +91,8 @@ export function GatewayAddBudgetDialog({
   const labels = targetLabels[targetType];
 
   const handleValidSubmit = (values: GatewayAddBudgetFormValues) => {
-    if (!values.target) return;
     onSubmit({
-      targetId: values.target.value,
+      targetIds: values.targets.map(({ value }) => value),
       spendLimit: {
         interval: values.spendBudget.interval,
         limitUsd: Number(values.spendBudget.limitUsd.trim()),
@@ -106,7 +107,7 @@ export function GatewayAddBudgetDialog({
       noCapture
       actions={[
         {
-          label: "Add budget",
+          label: "Add budgets",
           type: "submit",
           form: formId,
           loading: isSubmitting,
@@ -123,27 +124,30 @@ export function GatewayAddBudgetDialog({
         >
           <Form.Field
             control={form.control}
-            name="target"
+            name="targets"
             label={labels.field}
-            description={
-              targetType === "users"
-                ? "Caps every gateway key of this user, in addition to each key's own budget."
-                : undefined
-            }
+            description={labels.description}
           >
             {(field) => (
-              <AsyncSelectInput
+              <MultiSelectTagInput
                 id={field.id}
-                value={field.value}
-                onValueChange={(option) =>
-                  field.onChange({ value: option.value, label: option.label })
-                }
-                onBlur={field.onBlur}
-                ref={field.ref}
+                value={field.value.map(({ value }) => value)}
+                selectedOptions={field.value}
+                onValueChange={(values) => {
+                  const known = [...field.value, ...targetPicker.options];
+                  field.onChange(
+                    values.map((value) => ({
+                      value,
+                      label:
+                        known.find((option) => option.value === value)?.label ??
+                        value,
+                    })),
+                  );
+                }}
                 options={targetPicker.options}
                 placeholder={labels.placeholder}
+                searchPlaceholder="Search…"
                 search={{
-                  placeholder: "Search…",
                   value: targetPicker.search,
                   onValueChange: targetPicker.onSearchChange,
                 }}
@@ -164,7 +168,7 @@ export function GatewayAddBudgetDialog({
           />
           {errorMessage !== null ? (
             <Alert variant="destructive">
-              <Alert.Title>Budget could not be added</Alert.Title>
+              <Alert.Title>Budgets could not be added</Alert.Title>
               <Alert.Description>{errorMessage}</Alert.Description>
             </Alert>
           ) : null}

@@ -44,7 +44,10 @@ import {
   requireGatewayAdmin,
   requireGatewayInvoke,
 } from "./gatewayAccess";
-import { GATEWAY_SPEND_BUDGET_MAX_USD } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import {
+  GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
+  GATEWAY_SPEND_BUDGET_MAX_USD,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { GatewaySpendLimitService } from "./spendLimits/gatewaySpendLimitService";
 import { GatewaySpendLimitRepository } from "./spendLimits/gatewaySpendLimitRepository";
 import { GatewayTeamService } from "./team/gatewayTeamService";
@@ -86,6 +89,13 @@ const gatewaySpendLimitInput = z.object({
   interval: z.enum(GatewaySpendLimitInterval),
   limitUsd: z.number().positive().max(GATEWAY_SPEND_BUDGET_MAX_USD),
 });
+const gatewaySpendLimitScopeInput = z.enum(["API_KEY", "USER"]);
+/** The keys or users a budget change applies to, at most one table page. */
+const gatewaySpendLimitSubjectIdsInput = z
+  .array(z.string())
+  .min(1)
+  .max(GATEWAY_SPEND_BUDGET_MAX_SUBJECTS)
+  .transform((ids) => [...new Set(ids)]);
 /** A key without patterns, or with an empty list, may call every enabled model. */
 const gatewayKeyAllowedModelsSchema = z
   .array(z.string().trim().min(1).max(500))
@@ -661,8 +671,9 @@ export const aiGatewayRouter = createTRPCRouter({
   listBudgets: protectedOrganizationProcedure
     .input(
       offsetPaginatedOrganizationInput.extend({
-        scope: z.enum(["API_KEY", "USER"]),
+        scope: gatewaySpendLimitScopeInput,
         searchQuery: z.string().trim().optional(),
+        exceededOnly: z.boolean().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -675,91 +686,60 @@ export const aiGatewayRouter = createTRPCRouter({
         }),
         scope: input.scope,
         searchQuery: input.searchQuery,
+        exceededOnly: input.exceededOnly,
         page: input.page,
         limit: input.limit,
       });
     }),
 
-  /** Null removes the key's budget. Members may change only budgets they set on their own keys. */
-  setApiKeySpendLimit: protectedOrganizationProcedure
+  /** Gives each key or user without one the same budget; only gateway managers may. */
+  createSpendLimits: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
-        apiKeyId: z.string(),
+        scope: gatewaySpendLimitScopeInput,
+        subjectIds: gatewaySpendLimitSubjectIdsInput,
+        spendLimit: gatewaySpendLimitInput,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).createForSubjects({
+        organizationId: input.orgId,
+        scope: input.scope,
+        subjectIds: input.subjectIds,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
+  /**
+   * Replaces the budget of each key or user; null removes it. Only gateway
+   * managers may change user budgets; members may change only budgets they set
+   * on their own keys.
+   */
+  setSpendLimits: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        scope: gatewaySpendLimitScopeInput,
+        subjectIds: gatewaySpendLimitSubjectIdsInput,
         spendLimit: gatewaySpendLimitInput.nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
-      await new GatewaySpendLimitService(ctx.prisma).setForApiKey({
+      if (input.scope === "USER") {
+        requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      } else {
+        requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      }
+      await new GatewaySpendLimitService(ctx.prisma).setForSubjects({
         organizationId: input.orgId,
         usageScope: getGatewayUsageScope({
           session: ctx.session,
           orgId: input.orgId,
         }),
-        apiKeyId: input.apiKeyId,
+        scope: input.scope,
+        subjectIds: input.subjectIds,
         limit: input.spendLimit,
-        session: ctx.session,
-      });
-    }),
-
-  createApiKeySpendLimit: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        apiKeyId: z.string(),
-        spendLimit: gatewaySpendLimitInput,
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      await new GatewaySpendLimitService(ctx.prisma).createForApiKey({
-        organizationId: input.orgId,
-        apiKeyId: input.apiKeyId,
-        limit: input.spendLimit,
-        session: ctx.session,
-      });
-    }),
-
-  createUserSpendLimit: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        userId: z.string(),
-        spendLimit: gatewaySpendLimitInput,
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      await new GatewaySpendLimitService(ctx.prisma).createForUser({
-        organizationId: input.orgId,
-        userId: input.userId,
-        limit: input.spendLimit,
-        session: ctx.session,
-      });
-    }),
-
-  updateUserSpendLimit: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        userId: z.string(),
-        spendLimit: gatewaySpendLimitInput,
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      await new GatewaySpendLimitService(ctx.prisma).updateForUser({
-        organizationId: input.orgId,
-        userId: input.userId,
-        limit: input.spendLimit,
-        session: ctx.session,
-      });
-    }),
-
-  deleteUserSpendLimit: protectedOrganizationProcedure
-    .input(organizationInput.extend({ userId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      await new GatewaySpendLimitService(ctx.prisma).deleteForUser({
-        organizationId: input.orgId,
-        userId: input.userId,
         session: ctx.session,
       });
     }),

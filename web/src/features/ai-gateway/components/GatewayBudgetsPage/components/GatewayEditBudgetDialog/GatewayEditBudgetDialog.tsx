@@ -27,12 +27,13 @@ type GatewaySpendLimit = {
   limitUsd: number;
 };
 
-const titles = { key: "Edit key budget", user: "Edit user budget" } as const;
+const nouns = { key: "key", user: "user" } as const;
 
 type GatewayEditBudgetDialogProps = {
-  /** What the budget caps: one key, or all keys of a user. */
-  subject: keyof typeof titles;
-  subjectName: string;
+  /** What each budget caps: one key, or all keys of a user. */
+  subject: keyof typeof nouns;
+  /** The keys or users whose budgets change together. */
+  subjectNames: string[];
   spendLimit: GatewaySpendLimit;
   /** Why the budget cannot be changed; undefined when it can. */
   unavailableReason?: string;
@@ -42,10 +43,10 @@ type GatewayEditBudgetDialogProps = {
   onRemove: () => void;
 };
 
-/** Changes or removes the budget of a key or of all of a user's keys. */
+/** Changes or removes the budgets of keys or of all of users' keys. */
 export function GatewayEditBudgetDialog({
   subject,
-  subjectName,
+  subjectNames,
   spendLimit,
   unavailableReason,
   errorMessage,
@@ -72,18 +73,26 @@ export function GatewayEditBudgetDialog({
     });
   };
 
+  const isBulk = subjectNames.length > 1;
+  const noun = nouns[subject];
   const name = (
-    <span className="text-foreground font-medium">{subjectName}</span>
+    <span className="text-foreground font-medium">
+      {isBulk ? `${subjectNames.length} ${noun}s` : subjectNames[0]}
+    </span>
   );
 
   return (
     <Dialog
-      title={titles[subject]}
+      title={
+        isBulk
+          ? `Edit ${subjectNames.length} ${noun} budgets`
+          : `Edit ${noun} budget`
+      }
       size="md"
       noCapture
       actions={[
         {
-          label: "Remove budget",
+          label: isBulk ? "Remove budgets" : "Remove budget",
           type: "button",
           variant: "destructive",
           disabled: isSubmitting,
@@ -97,7 +106,8 @@ export function GatewayEditBudgetDialog({
           disabled:
             unavailableReason !== undefined ||
             !form.formState.isValid ||
-            !form.formState.isDirty,
+            // Selected budgets may differ, so saving the prefilled one changes them.
+            (!isBulk && !form.formState.isDirty),
         },
       ]}
     >
@@ -111,11 +121,14 @@ export function GatewayEditBudgetDialog({
           <p className="text-muted-foreground text-sm">
             {subject === "user" ? (
               <>
-                Applies to every gateway key of {name}, in addition to each
-                key&apos;s own budget.
+                {isBulk ? "Each budget applies" : "Applies"} to every gateway
+                key of {name}, in addition to each key&apos;s own budget.
               </>
             ) : (
-              <>Applies to requests with {name}.</>
+              <>
+                {isBulk ? "Each budget applies" : "Applies"} to requests with{" "}
+                {name}.
+              </>
             )}
           </p>
           <GatewaySpendBudgetField.Inputs

@@ -31,7 +31,10 @@ import {
   GatewaySpendLimitRepository,
   type GatewaySpendLimitRecord,
 } from "./gatewaySpendLimitRepository";
-import type { GatewaySpendLimitScope } from "./gatewaySpendLimitScope";
+import {
+  type GatewaySpendLimitScope,
+  toSpendLimitScope,
+} from "./gatewaySpendLimitScope";
 
 const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
@@ -46,12 +49,6 @@ type SetForApiKeyParams = {
   usageScope: GatewayUsageScope;
   apiKeyId: string;
   limit: SpendLimitInput | null;
-  session: OrgAuthedContext["session"];
-};
-
-type UserSpendLimitParams = {
-  organizationId: string;
-  userId: string;
   session: OrgAuthedContext["session"];
 };
 
@@ -199,24 +196,51 @@ export class GatewaySpendLimitService {
    * each in its current window; `spentUsd` is absent while spend is not
    * recorded. Members see only their own keys' budgets and their own user
    * budget, and may edit only key budgets they set.
+   *
+   * Whether a budget is exceeded is only known from ClickHouse, so with
+   * `exceededOnly` every matching budget is read and paged after filtering.
    */
   async listBudgets(params: {
     organizationId: string;
     usageScope: GatewayUsageScope;
-    scope: "API_KEY" | "USER";
+    scope: GatewaySpendLimitScope["type"];
     searchQuery?: string;
+    exceededOnly?: boolean;
     page: number;
     limit: number;
   }) {
-    const ownUserId = getKeyOwnerFilter(params.usageScope);
+    const page = { page: params.page, limit: params.limit };
     const { rows, totalCount } = await this.repository.listPage({
       organizationId: params.organizationId,
       scope: params.scope,
-      ownerUserId: ownUserId,
+      ownerUserId: getKeyOwnerFilter(params.usageScope),
       searchQuery: params.searchQuery,
-      page: params.page,
-      limit: params.limit,
+      page: params.exceededOnly ? undefined : page,
     });
+    const budgets = await this.toBudgets({ ...params, rows });
+    if (!params.exceededOnly) return { totalCount, rows: budgets };
+
+    const exceeded = budgets.filter(
+      ({ spentUsd, spendLimit }) =>
+        spentUsd !== undefined && spentUsd >= spendLimit.limitUsd,
+    );
+    return {
+      totalCount: exceeded.length,
+      rows: exceeded.slice(
+        page.page * page.limit,
+        (page.page + 1) * page.limit,
+      ),
+    };
+  }
+
+  private async toBudgets(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    scope: GatewaySpendLimitScope["type"];
+    rows: Awaited<ReturnType<GatewaySpendLimitRepository["listPage"]>>["rows"];
+  }) {
+    const { rows } = params;
+    const ownUserId = getKeyOwnerFilter(params.usageScope);
     const recordingProjectId =
       rows.length > 0
         ? await this.getRecordingProjectId(params.organizationId)
@@ -264,16 +288,13 @@ export class GatewaySpendLimitService {
             ).map(({ id, spendUsd }) => [id, spendUsd]),
           )
         : null;
-      return {
-        totalCount,
-        rows: keyed.map(({ row, apiKeyId, apiKey }) => ({
-          ...toBudget(row, spend ? (spend.get(apiKeyId) ?? 0) : null),
-          subjectId: apiKeyId,
-          name: apiKey.note ?? apiKey.displaySecretKey,
-          user: apiKey.user,
-          keyCount: undefined,
-        })),
-      };
+      return keyed.map(({ row, apiKeyId, apiKey }) => ({
+        ...toBudget(row, spend ? (spend.get(apiKeyId) ?? 0) : null),
+        subjectId: apiKeyId,
+        name: apiKey.note ?? apiKey.displaySecretKey,
+        user: apiKey.user,
+        keyCount: undefined,
+      }));
     }
 
     const owned = rows.flatMap((row) =>
@@ -298,87 +319,77 @@ export class GatewaySpendLimitService {
         userIds: owned.map(({ userId }) => userId),
       }),
     ]);
-    return {
-      totalCount,
-      rows: owned.map(({ row, userId, user }) => ({
-        ...toBudget(row, spend ? (spend.get(userId) ?? 0) : null),
-        subjectId: userId,
-        name: user.name || (user.email ?? userId),
-        user,
-        keyCount: keyCounts.get(userId) ?? 0,
-      })),
-    };
+    return owned.map(({ row, userId, user }) => ({
+      ...toBudget(row, spend ? (spend.get(userId) ?? 0) : null),
+      subjectId: userId,
+      name: user.name || (user.email ?? userId),
+      user,
+      keyCount: keyCounts.get(userId) ?? 0,
+    }));
   }
 
-  /** Gives a key without one a spend limit; callers must be gateway managers. */
-  async createForApiKey(params: {
+  /**
+   * Gives each key or user the same spend limit; callers must be gateway
+   * managers. Refuses all of them, before writing any, if one already has a
+   * limit.
+   */
+  async createForSubjects(params: {
     organizationId: string;
-    apiKeyId: string;
+    scope: GatewaySpendLimitScope["type"];
+    subjectIds: string[];
     limit: SpendLimitInput;
     session: OrgAuthedContext["session"];
   }) {
-    const scope = { type: "API_KEY", apiKeyId: params.apiKeyId } as const;
-    const existing = await this.repository.list({
-      organizationId: params.organizationId,
-      scope,
-    });
-    if (existing.length > 0) {
-      throw new LangfuseConflictError("This key already has a spend budget");
+    const applies = [];
+    for (const subjectId of params.subjectIds) {
+      const scope = toSpendLimitScope(params.scope, subjectId);
+      const existing = await this.repository.list({
+        organizationId: params.organizationId,
+        scope,
+      });
+      if (existing.length > 0) {
+        throw new LangfuseConflictError(
+          params.scope === "API_KEY"
+            ? "A selected key already has a spend budget"
+            : "A selected user already has a spend budget",
+        );
+      }
+      applies.push(
+        await this.prepareSet({
+          organizationId: params.organizationId,
+          usageScope: { scope: "organization" },
+          scope,
+          limit: params.limit,
+          session: params.session,
+        }),
+      );
     }
-    const apply = await this.prepareSet({
-      organizationId: params.organizationId,
-      usageScope: { scope: "organization" },
-      scope,
-      limit: params.limit,
-      session: params.session,
-    });
-    await apply();
+    for (const apply of applies) await apply();
   }
 
-  /** Gives a user without one a spend limit. */
-  async createForUser(
-    params: UserSpendLimitParams & { limit: SpendLimitInput },
-  ) {
-    await this.setForUser({ ...params, hasLimit: false });
-  }
-
-  /** Replaces the user's spend limit; a new interval starts counting anew. */
-  async updateForUser(
-    params: UserSpendLimitParams & { limit: SpendLimitInput },
-  ) {
-    await this.setForUser({ ...params, hasLimit: true });
-  }
-
-  async deleteForUser(params: UserSpendLimitParams) {
-    await this.setForUser({ ...params, limit: null, hasLimit: true });
-  }
-
-  /** Callers must be gateway managers; `hasLimit` is whether the user must already have a limit. */
-  private async setForUser(
-    params: UserSpendLimitParams & {
-      limit: SpendLimitInput | null;
-      hasLimit: boolean;
-    },
-  ) {
-    const scope = { type: "USER", userId: params.userId } as const;
-    const existing = await this.repository.list({
-      organizationId: params.organizationId,
-      scope,
-    });
-    if (params.hasLimit && existing.length === 0) {
-      throw new LangfuseNotFoundError("This user has no spend budget");
+  /**
+   * Makes `limit` the only spend limit of each key or user, or removes theirs
+   * when it is null. Every subject is checked before any is written, so a
+   * refused one leaves all of them as they were.
+   */
+  async setForSubjects(params: {
+    organizationId: string;
+    usageScope: GatewayUsageScope;
+    scope: GatewaySpendLimitScope["type"];
+    subjectIds: string[];
+    limit: SpendLimitInput | null;
+    session: OrgAuthedContext["session"];
+  }) {
+    const applies = [];
+    for (const subjectId of params.subjectIds) {
+      applies.push(
+        await this.prepareSet({
+          ...params,
+          scope: toSpendLimitScope(params.scope, subjectId),
+        }),
+      );
     }
-    if (!params.hasLimit && existing.length > 0) {
-      throw new LangfuseConflictError("This user already has a spend budget");
-    }
-    const apply = await this.prepareSet({
-      organizationId: params.organizationId,
-      usageScope: { scope: "organization" },
-      scope,
-      limit: params.limit,
-      session: params.session,
-    });
-    await apply();
+    for (const apply of applies) await apply();
   }
 
   /** Throws unless limits can be set, so a caller can check before writing anything else. */

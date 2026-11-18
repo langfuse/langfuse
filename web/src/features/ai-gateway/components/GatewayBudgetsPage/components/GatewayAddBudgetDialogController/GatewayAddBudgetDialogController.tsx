@@ -15,7 +15,7 @@ import {
 const TARGET_OPTION_LIMIT = 50;
 const ALREADY_BUDGETED = {
   disabled: true,
-  disabledReason: "Already has a budget. Edit it from its row instead.",
+  secondaryLabel: "Has a budget",
 } as const;
 
 type TargetOptions = ComponentProps<
@@ -29,7 +29,7 @@ type GatewayAddBudgetDialogControllerProps = {
   }) => ReactNode;
 };
 
-/** Adds a budget to a key or a user without one; only gateway managers may. */
+/** Adds a budget to keys or users without one; only gateway managers may. */
 export function GatewayAddBudgetDialogController({
   organizationId,
   children,
@@ -98,49 +98,36 @@ function ConnectedGatewayAddBudgetDialog({
       ? (apiKeysQuery.data?.data ?? []).map(({ apiKey, spendLimit }) => ({
           value: apiKey.id,
           label: apiKey.note ?? apiKey.displaySecretKey,
-          badges: apiKey.user?.name ? [{ text: apiKey.user.name }] : undefined,
-          ...(spendLimit !== null ? ALREADY_BUDGETED : { disabled: false }),
+          ...(spendLimit !== null
+            ? ALREADY_BUDGETED
+            : { secondaryLabel: apiKey.user?.name ?? undefined }),
         }))
       : (usersQuery.data ?? []).map((user) => ({
           value: user.id,
           label: user.name ? `${user.name} (${user.email})` : user.email,
-          ...(budgetedUserIds.has(user.id)
-            ? ALREADY_BUDGETED
-            : { disabled: false }),
+          ...(budgetedUserIds.has(user.id) && ALREADY_BUDGETED),
         }));
   const isLoading =
     targetType === "apiKeys"
       ? apiKeysQuery.isLoading
       : usersQuery.isLoading || userBudgetsQuery.isLoading;
 
-  const onError = (error: unknown) =>
-    reportTrpcErrorWithoutToast(error, "ai-gateway-budgets");
-  const createForKey = api.aiGateway.createApiKeySpendLimit.useMutation({
-    onError,
+  const mutation = api.aiGateway.createSpendLimits.useMutation({
+    onError: (error) =>
+      reportTrpcErrorWithoutToast(error, "ai-gateway-budgets"),
   });
-  const createForUser = api.aiGateway.createUserSpendLimit.useMutation({
-    onError,
-  });
-  const mutation = targetType === "apiKeys" ? createForKey : createForUser;
 
   const handleSubmit: ComponentProps<
     typeof GatewayAddBudgetDialog
-  >["onSubmit"] = async ({ targetId, spendLimit }) => {
+  >["onSubmit"] = async ({ targetIds, spendLimit }) => {
     onPendingChange(true);
     try {
-      if (targetType === "apiKeys") {
-        await createForKey.mutateAsync({
-          orgId: organizationId,
-          apiKeyId: targetId,
-          spendLimit,
-        });
-      } else {
-        await createForUser.mutateAsync({
-          orgId: organizationId,
-          userId: targetId,
-          spendLimit,
-        });
-      }
+      await mutation.mutateAsync({
+        orgId: organizationId,
+        scope: targetType === "apiKeys" ? "API_KEY" : "USER",
+        subjectIds: targetIds,
+        spendLimit,
+      });
       onAdded();
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-budgets");
