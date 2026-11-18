@@ -38,7 +38,6 @@ export const Variants = meta.story({
         label="prompt"
         value="langfuse-docs-assistant-chat - v27"
       />
-      <Metric href="#" value="Open in Topics →" linkIcon="none" />
       <Metric size="sm" value="Oct 23, 14:02:11" />
     </div>
   ),

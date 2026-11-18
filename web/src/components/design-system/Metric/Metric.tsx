@@ -34,8 +34,6 @@ type MetricBaseProps = Omit<
   shouldWrap?: boolean;
   /** Links the metric: arrow after the value, underline on hover. */
   href?: LinkProps["href"];
-  /** `none` drops the arrow after a linked value, for text that carries its own. */
-  linkIcon?: "outbound" | "none";
   /** Opens `href` in a new tab. */
   newTab?: boolean;
   /** Keeps the value out of session recordings (ids, user names). */
@@ -81,7 +79,6 @@ export function Metric({
   size,
   shouldWrap,
   href,
-  linkIcon = "outbound",
   newTab,
   noCapture,
   title,
@@ -118,7 +115,7 @@ export function Metric({
         >
           {value}
         </span>
-        {isLink && linkIcon === "outbound" && (
+        {isLink && (
           <ArrowUpRight
             aria-hidden
             size="sm"
