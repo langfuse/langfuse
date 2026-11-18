@@ -21,6 +21,46 @@ type MediaBody = { contentType: string; bytes: Buffer };
 const MEDIA_BODY = Buffer.from("hi".repeat(2048));
 const MEDIA_BASE64 = MEDIA_BODY.toString("base64");
 const MEDIA_URI = `data:image/png;base64,${MEDIA_BASE64}`;
+const SMALL_MEDIA_BODY = Buffer.from("small media");
+const SMALL_MEDIA_BASE64 = SMALL_MEDIA_BODY.toString("base64");
+const SMALL_MEDIA_URI = `data:image/png;base64,${SMALL_MEDIA_BASE64}`;
+
+const NATIVE_MEDIA_CONTEXT = {
+  projectId: "native-media-contract",
+  fileKey: "native-media.json",
+  now: "2026-11-18T00:00:00.000Z",
+  ingestionApiKey: "",
+  ingestionSdkName: "test",
+  ingestionSdkVersion: "test",
+  isLangfuseInternal: false,
+} as const;
+
+const nativeMediaLifecycleCases = [
+  {
+    name: "Unicode-escaped provider base64",
+    source: String.raw`{"type":"file","mediaType":"image/png","data":"\u0061Gk="}`,
+  },
+  {
+    name: "lone surrogate value",
+    source: String.raw`{"value":"\ud800 ${SMALL_MEDIA_URI}"}`,
+  },
+  {
+    name: "lone surrogate value with an unrelated URI sibling",
+    source: String.raw`{"value":"\ud800 ${MEDIA_URI}","sibling":"${SMALL_MEDIA_URI}"}`,
+  },
+  {
+    name: "URI in a stringified object key",
+    source: String.raw`{"${MEDIA_URI}":"ordinary value","value":"${SMALL_MEDIA_URI}"}`,
+  },
+  {
+    name: "provider object with a URI sibling",
+    source: String.raw`{"type":"file","mediaType":"image/png","data":"${MEDIA_BASE64}","sibling":"${SMALL_MEDIA_URI}"}`,
+  },
+  {
+    name: "escaped URI headers with a lone surrogate",
+    source: String.raw`{"unicode":"\ud800 data:image/png;name=\u00e9;base64,${SMALL_MEDIA_BASE64}","slashes":"data:image/png;name=C:\\img\\a.png;base64,${MEDIA_BASE64}"}`,
+  },
+] as const;
 
 // These shared fixtures use tiny bodies. Enlarge their literal contents without
 // parsing their JSON: duplicate keys and escape spelling are part of the test.
@@ -141,6 +181,127 @@ async function expectMediaParity(json: string): Promise<void> {
   }
 }
 
+function nativeMediaDocument(source: string): string {
+  return JSON.stringify([
+    {
+      resource: {},
+      scopeSpans: [
+        {
+          scope: { name: "native-media-contract" },
+          spans: [
+            {
+              traceId: "a".repeat(32),
+              spanId: "b".repeat(16),
+              name: "native-media-contract",
+              startTimeUnixNano: "1750000000000000000",
+              endTimeUnixNano: "1750000001000000000",
+              attributes: [
+                {
+                  key: "langfuse.observation.input",
+                  // This is intentionally the source text, not JSON.stringify(source).
+                  value: { stringValue: source },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ]);
+}
+
+async function expectNativeMediaLifecycleParity(
+  source: string,
+  uploadSucceeds: boolean,
+): Promise<void> {
+  const tsPayload: { input: unknown } = { input: source };
+  const tsBodies: MediaBody[] = [];
+  await processOtelMedia({
+    targets: [
+      {
+        traceId: "trace",
+        observationId: "span",
+        payload: tsPayload,
+      },
+    ],
+    projectId: NATIVE_MEDIA_CONTEXT.projectId,
+    writePath: "direct",
+    mediaPath: "early",
+    mediaBucket: "test",
+    mediaPrefix: "test/",
+    uploadMedia: async ({ contentType, contentBytes }) => {
+      tsBodies.push({ contentType, bytes: contentBytes });
+      if (!uploadSucceeds) throw new Error("media upload failed");
+      return {
+        mediaId: getMediaId(
+          createHash("sha256").update(contentBytes).digest("base64"),
+        ),
+        outcome: "uploaded",
+      };
+    },
+  });
+
+  const validated = await validateOtelJson(
+    Buffer.from(nativeMediaDocument(source)),
+  );
+  const early = await validated.extract(true);
+  let processing:
+    | Awaited<ReturnType<typeof early.process>>["batch"]
+    | undefined;
+  try {
+    const prepared = await early.process(NATIVE_MEDIA_CONTEXT);
+    processing = prepared.batch;
+    const bodiesByMediaIndex = new Map<number, Buffer>();
+    const nativeBodies: MediaBody[] = [];
+    for (const request of prepared.mediaRequests) {
+      let bytes = bodiesByMediaIndex.get(request.mediaIndex);
+      if (!bytes) {
+        bytes = await processing.mediaBody(request.mediaIndex);
+        bodiesByMediaIndex.set(request.mediaIndex, bytes);
+      }
+      expect(request.sha256Hash).toBe(
+        createHash("sha256").update(bytes).digest("base64"),
+      );
+      nativeBodies.push({ contentType: request.contentType, bytes });
+    }
+
+    const sortedActual = sortedBodies(nativeBodies);
+    const sortedExpected = sortedBodies(tsBodies);
+    expect(sortedActual).toHaveLength(sortedExpected.length);
+    for (const [index, expected] of sortedExpected.entries()) {
+      const actual = sortedActual[index]!;
+      expect(actual.contentType).toBe(expected.contentType);
+      expect(actual.bytes.equals(expected.bytes)).toBe(true);
+    }
+
+    const mediaResults = prepared.mediaRequests.map((request) => {
+      if (!uploadSucceeds) return { index: request.index };
+      const bytes = bodiesByMediaIndex.get(request.mediaIndex)!;
+      return {
+        index: request.index,
+        reference: request.reference.replace(
+          /\|id=[^|@]+/,
+          `|id=${getMediaId(createHash("sha256").update(bytes).digest("base64"))}`,
+        ),
+      };
+    });
+    const { finalized } = await processing.complete(
+      mediaResults,
+      prepared.lookupRequests.map(() => ({})),
+      undefined,
+      true,
+    );
+    expect(finalized).toBeDefined();
+    expect((finalized!.evaluationRows[0] as { input: unknown }).input).toBe(
+      tsPayload.input,
+    );
+  } finally {
+    await processing?.dispose();
+    await early.dispose();
+    await validated.dispose();
+  }
+}
+
 describe(
   "native media matches the TypeScript payload contract",
   { retry: 0 },
@@ -168,6 +329,45 @@ describe(
         data: "b'abc\\'",
       }),
     ])("preserves raw provider field semantics: %s", expectMediaParity);
+
+    it.each(nativeMediaLifecycleCases)(
+      "matches processOtelMedia through native complete after $name succeeds",
+      async ({ source }) => expectNativeMediaLifecycleParity(source, true),
+    );
+
+    it.each(nativeMediaLifecycleCases)(
+      "restores $name through native complete after upload failure",
+      async ({ source }) => expectNativeMediaLifecycleParity(source, false),
+    );
+
+    it("matches extraction and restoration across generated URI spelling and JSON layers", async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          fc.constantFrom(
+            "",
+            String.raw`;name=\u00e9`,
+            String.raw`;name=C:\\img`,
+          ),
+          fc.constantFrom("", String.raw`\ud800 `, String.raw`\udfff `),
+          fc.boolean(),
+          fc.integer({ min: 0, max: 2 }),
+          fc.uint8Array({ minLength: 1, maxLength: 32 }),
+          async (header, prefix, withSibling, layers, bytes) => {
+            const uri = `data:image/png${header};base64,${Buffer.from(bytes).toString("base64")}`;
+            // Whitespace keeps the URI boundary valid even when surrounding quotes
+            // acquire additional escapes in a containing JSON string.
+            let source = `{"value":"${prefix}${uri} "${withSibling ? `,"sibling":"${SMALL_MEDIA_URI} "` : ""}}`;
+            for (let layer = 0; layer < layers; layer++) {
+              source = JSON.stringify({ nested: source });
+            }
+            for (const uploadSucceeds of [true, false]) {
+              await expectNativeMediaLifecycleParity(source, uploadSucceeds);
+            }
+          },
+        ),
+        { numRuns: 128, seed: 19965 },
+      );
+    });
 
     it("extracts media from SDK JSON-string-wrapped OTLP metadata", async () => {
       const providerBody = Buffer.from("provider attachment ".repeat(256));
