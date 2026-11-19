@@ -242,12 +242,12 @@ export const OptionalStartTimeRangeShape = {
   fromStartTime: isoDateTime({ offset: true })
     .optional()
     .describe(
-      "Optional inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Use the same time window as the observations you intend to search.",
+      "Inclusive, ISO 8601 with timezone (Z or offset). Use the window of the observations you will search.",
     ),
   toStartTime: isoDateTime({ offset: true })
     .optional()
     .describe(
-      "Optional exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. For a full calendar day, use midnight at the start of the next day, not 23:59:59.",
+      "Exclusive, ISO 8601 with timezone. For a full day use the next midnight, not 23:59:59.",
     ),
 };
 

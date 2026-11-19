@@ -9,9 +9,13 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 export const [deleteDatasetItemTool, handleDeleteDatasetItem] = defineTool({
   name: "deleteDatasetItem",
   description:
-    "Delete a dataset item, one example in a dataset, and all its run items.",
+    "Delete one dataset item. Run items and experiment results that reference it are kept, and on versioned datasets listDatasetItems at an earlier version still returns it. To hide it reversibly, set status ARCHIVED with upsertDatasetItem.",
   action: "datasets:CUD",
-  baseSchema: DeleteDatasetItemV1Query,
+  baseSchema: DeleteDatasetItemV1Query.extend({
+    datasetItemId: DeleteDatasetItemV1Query.shape.datasetItemId.describe(
+      "From listDatasetItems.",
+    ),
+  }),
   inputSchema: DeleteDatasetItemV1Query,
   handler: async (input, context) =>
     runMcpTool({

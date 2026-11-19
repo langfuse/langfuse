@@ -9,6 +9,7 @@ import {
   EvalTemplateType,
   observationVariableMapping,
 } from "@langfuse/shared";
+import { DECISION_MODEL_CONNECTIONS_HINT } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
   CodeEvaluatorDefinitionSchema,
@@ -38,16 +39,16 @@ const McpObservationVariableMappingSchema = observationVariableMapping.extend({
 });
 
 const McpDecisionModelQuestionBaseSchema = z.object({
-  id: DecisionModelChoiceQuestionSchema.shape.id.describe(
-    "Stable question identifier.",
-  ),
-  type: z.enum(DecisionModelQuestionType).describe("Decision question type."),
+  id: DecisionModelChoiceQuestionSchema.shape.id.describe("Stable identifier."),
+  type: z
+    .enum(DecisionModelQuestionType)
+    .describe(
+      "`choice` picks one of `options`, `score` one of ordered `levels`; `noul` is a yes/no question scored as the probability (0 to 1) that it is true.",
+    ),
   scoreName: DecisionModelChoiceQuestionSchema.shape.scoreName.describe(
-    "Name of the score produced by the question.",
+    "Name of the score it produces.",
   ),
-  instructions: z
-    .unknown()
-    .describe("Question instructions as text or structured JSON."),
+  instructions: z.unknown().describe("Text or structured JSON."),
   options: z
     .array(
       z.object({
@@ -55,133 +56,108 @@ const McpDecisionModelQuestionBaseSchema = z.object({
         description: z
           .unknown()
           .optional()
-          .describe("Option description as text or structured JSON."),
+          .describe("Text or structured JSON."),
       }),
     )
     .min(DECISION_MODEL_LIMITS.minChoiceOptions)
     .max(DECISION_MODEL_LIMITS.maxChoiceOptions)
     .optional()
-    .describe("Choice options. Required when type is `choice`."),
+    .describe("Required for `choice`."),
   levels: z
     .array(
       z.object({
-        description: z
-          .unknown()
-          .describe("Level description as text or structured JSON."),
+        description: z.unknown().describe("Text or structured JSON."),
       }),
     )
     .min(DECISION_MODEL_LIMITS.minScoreLevels)
     .max(DECISION_MODEL_LIMITS.maxScoreLevels)
     .optional()
-    .describe("Ordered score levels. Required when type is `score`."),
+    .describe("Ordered; required for `score`."),
   criteria: z
     .object({
       true: z.unknown().optional(),
       false: z.unknown().optional(),
     })
     .optional()
-    .describe("Optional true/false criteria when type is `noul`."),
+    .describe("Optional true/false criteria for `noul`."),
 });
 
 const McpEvalOutputDefinitionSchema = z.object({
-  dataType: EvalOutputDataTypeSchema.describe(
-    "The score type returned by the evaluator.",
-  ),
-  reasoning: z
-    .object({
-      description: z
-        .string()
-        .optional()
-        .describe("Instructions for the evaluator's reasoning output."),
-    })
-    .describe("Definition of the evaluator's textual reasoning output."),
+  dataType: EvalOutputDataTypeSchema,
+  reasoning: z.object({
+    description: z
+      .string()
+      .optional()
+      .describe("Instructions for the reasoning output."),
+  }),
   score: z
     .object({
       description: z
         .string()
         .optional()
-        .describe("Instructions for the evaluator's score output."),
-      minValue: z
-        .number()
-        .optional()
-        .describe("Optional minimum score for NUMERIC evaluators."),
-      maxValue: z
-        .number()
-        .optional()
-        .describe("Optional maximum score for NUMERIC evaluators."),
+        .describe("Instructions for the score output."),
+      minValue: z.number().optional().describe("NUMERIC only."),
+      maxValue: z.number().optional().describe("NUMERIC only."),
       categories: z
         .array(z.string())
         .optional()
-        .describe(
-          "Allowed score labels for CATEGORICAL evaluators. Provide at least two unique values.",
-        ),
+        .describe("CATEGORICAL only; at least two unique labels."),
       shouldAllowMultipleMatches: z
         .boolean()
         .optional()
-        .describe(
-          "Whether CATEGORICAL evaluators may return multiple score labels.",
-        ),
+        .describe("CATEGORICAL only: allow multiple labels."),
     })
-    .describe(
-      "Definition of the evaluator's typed score output. Type-specific fields are validated against dataType.",
-    ),
+    .describe("Type-specific fields are validated against dataType."),
 });
 
-export const EVALUATOR_DEFINITION_FIELDS_DESCRIPTION =
-  "Required fields by type: `LLM_AS_JUDGE` needs prompt and outputDefinition, with optional modelConfig and variableMapping. `CODE` needs sourceCode and sourceCodeLanguage (`PYTHON` or `TYPESCRIPT`) and accepts no variableMapping. `DECISION_MODEL` needs questions, a modelConfig with provider and model only, and at least one variableMapping entry defining its state.";
-
 export const EVALUATOR_ID_DESCRIPTION =
-  "Evaluator id: the `id` field returned by listEvaluators, getEvaluator, or createEvaluator.";
+  "The evaluator `id` from listEvaluators or createEvaluator.";
 
 export const McpEvaluatorInputBase = z.object({
   name: CreateEvaluatorSchema.shape.name.describe(
-    "Required. Evaluator display name. Names are not unique identifiers.",
+    "Display name; not a unique identifier.",
   ),
   description: CreateEvaluatorSchema.shape.description
     .unwrap()
     .optional()
-    .describe("Optional human-readable description of what is evaluated."),
+    .describe("What is evaluated."),
   type: z
     .enum([
       EvalTemplateType.LLM_AS_JUDGE,
       EvalTemplateType.CODE,
       EvalTemplateType.DECISION_MODEL,
     ])
-    .describe(
-      "Evaluator type. Determines which definition fields must be provided.",
-    ),
+    .describe("Determines the required definition fields."),
   prompt: z
     .string()
     .min(1)
     .optional()
     .describe(
-      "Required for LLM-as-a-judge evaluators. Judge prompt; reference mapped variables as {{variable}}.",
+      "Required for LLM_AS_JUDGE. Reference mapped variables as {{variable}}.",
     ),
   modelConfig: McpEvaluatorModelConfigSchema.optional().describe(
-    "Model configuration. Required for decision-model evaluators. Optional for LLM-as-a-judge evaluators, which use the project default when omitted.",
+    `Provider and model from listLlmConnections. Required for DECISION_MODEL (provider and model only; use ${DECISION_MODEL_CONNECTIONS_HINT}); optional for LLM_AS_JUDGE, which defaults to the project model.`,
   ),
   outputDefinition: McpEvalOutputDefinitionSchema.optional().describe(
-    "Required for LLM-as-a-judge evaluators. Defines the reasoning and score returned by the evaluator.",
+    "Required for LLM_AS_JUDGE: the reasoning and score it returns.",
   ),
   questions: z
     .array(McpDecisionModelQuestionBaseSchema)
     .min(1)
     .max(DECISION_MODEL_LIMITS.maxQuestions)
     .optional()
-    .describe(
-      "Required for decision-model evaluators. Each question produces its own score.",
-    ),
+    .describe("Required for DECISION_MODEL; each produces its own score."),
   sourceCode: CodeEvaluatorDefinitionSchema.shape.sourceCode
     .optional()
-    .describe("Required for code evaluators. Evaluator source code."),
+    .describe("Required for CODE."),
   sourceCodeLanguage: CodeEvaluatorDefinitionSchema.shape.sourceCodeLanguage
     .optional()
-    .describe("Required for code evaluators. Language of sourceCode."),
+    .describe("Required for CODE."),
   variableMapping: z
     .array(McpObservationVariableMappingSchema)
     .optional()
     .describe(
-      "Variable mappings for LLM-as-a-judge and decision-model evaluators. Decision-model mappings define the state and require at least one entry.",
+      "For LLM_AS_JUDGE, and required for DECISION_MODEL (at least one entry, defining its state); not accepted for CODE. Items use `templateVariable`, `selectedColumnId`, and optional `jsonSelector`, unlike the `variable`/`source`/`jsonPath` items of evaluation rule assignments.",
     ),
 });
 
@@ -191,9 +167,7 @@ export const McpEvaluatorDefinitionInputBase = McpEvaluatorInputBase.omit({
 });
 
 const McpEvaluatorRuntimeInputBase = McpEvaluatorInputBase.extend({
-  questions: DecisionModelQuestionsSchema.optional().describe(
-    "Required for decision-model evaluators. Each question produces its own score.",
-  ),
+  questions: DecisionModelQuestionsSchema.optional(),
 });
 
 function toEvaluatorInput(input: z.infer<typeof McpEvaluatorRuntimeInputBase>) {
@@ -317,7 +291,7 @@ export const McpEvaluatorInput = McpEvaluatorRuntimeInputBase.superRefine(
 );
 
 export const McpUpdateEvaluatorInputBase = McpEvaluatorInputBase.extend({
-  evaluatorId: z.string().describe(`Required. ${EVALUATOR_ID_DESCRIPTION}`),
+  evaluatorId: z.string().describe(EVALUATOR_ID_DESCRIPTION),
 });
 
 const McpUpdateEvaluatorRuntimeInputBase = McpEvaluatorRuntimeInputBase.extend({

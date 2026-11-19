@@ -9,21 +9,17 @@ import { rejectDatasetRunToolsInEventsOnlyMode } from "../events-only-guard";
 
 const CreateDatasetRunItemBaseSchema = z.object({
   runName: z.string(),
-  runDescription: z.string().optional(),
-  metadata: z.any().optional(),
-  datasetItemId: z.string(),
-  observationId: z
+  runDescription: z
     .string()
     .optional()
-    .describe(
-      "Observation ID linked to this run item. Provide this or traceId.",
-    ),
-  traceId: z
-    .string()
+    .describe("Applied only when the run is created."),
+  metadata: z
+    .any()
     .optional()
-    .describe(
-      "Trace ID linked to this run item. Provide this or observationId.",
-    ),
+    .describe("Run metadata; applied only when the run is created."),
+  datasetItemId: z.string().describe("From listDatasetItems."),
+  observationId: z.string().optional().describe("Provide this or traceId."),
+  traceId: z.string().optional().describe("Provide this or observationId."),
   datasetVersion: z.string().optional(),
   createdAt: isoDateTime({ offset: true }).optional(),
 });
@@ -32,8 +28,11 @@ export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =
   defineTool({
     name: "createDatasetRunItem",
     description:
-      "Create a dataset run item, a result that links one dataset item to a trace or observation in a dataset run.",
+      "Create a dataset run item linking one dataset item to a trace or observation in a dataset run, and return it. " +
+      "The run named runName is created on the item's dataset if missing, else reused unchanged." +
+      " Fails with not-found on v4 events-only deployments; read results with listExperimentItems there.",
     action: "datasets:CUD",
+    destructiveHint: false,
     baseSchema: CreateDatasetRunItemBaseSchema,
     inputSchema: PostDatasetRunItemsV1Body,
     handler: async (input, context) =>

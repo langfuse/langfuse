@@ -12,9 +12,9 @@ export const [updateSkillTagsTool, handleUpdateSkillTags] = defineTool({
   name: "updateSkillTags",
   description: [
     "Replace the tags on a skill in the current project, across all of its versions.",
-    "Read the current tags first and include every tag to retain; an empty tags array removes all tags.",
+    "Read the current tags with getSkill or listSkills first and include every tag to retain; an empty tags array removes all tags.",
     "This does not create a version or change version labels. Returns the latest version's metadata.",
-    "Adding or removing discovery tags can change which skills integrations, including Halo, load.",
+    "Tags are used for discovery, for example the tag filter of listSkills, so changing them can change which skills a client finds.",
   ].join(" "),
   action: "skills:CUD",
   baseSchema: UpdateSkillTagsSchema,

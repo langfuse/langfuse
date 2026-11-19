@@ -63,7 +63,7 @@ const placementPatchBaseSchema = z.object({
   height: z.number().int().positive().optional(),
 });
 const dashboardWidgetPatchBaseSchema = z.object({
-  widgetId: z.string(),
+  widgetId: z.string().describe("Widget ID from listDashboardWidgets."),
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   view: z
@@ -80,20 +80,46 @@ const dashboardWidgetPatchBaseSchema = z.object({
     .optional(),
   filters: z.array(DashboardWidgetFilterBaseSchema).optional(),
   chartType: z.enum(DashboardWidgetChartType).optional(),
-  chartConfig: DashboardWidgetChartConfigBaseSchema.optional(),
+  chartConfig: DashboardWidgetChartConfigBaseSchema.optional().describe(
+    "Changing chartType without chartConfig resets it to the new type's defaults.",
+  ),
 });
+// Advertised placement shape for dashboard definitions; the runtime schema
+// additionally requires widgetId for type "widget" and presetId for "preset".
+const dashboardPlacementBaseSchema = z.object({
+  type: z.enum(["widget", "preset"]),
+  id: z.string().describe("Unique within the dashboard."),
+  widgetId: z.string().optional(),
+  presetId: z.string().optional(),
+  x: z.number().int().gte(0),
+  y: z.number().int().gte(0),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+});
+const dashboardFiltersBaseSchema = z
+  .array(DashboardWidgetFilterBaseSchema)
+  .optional()
+  .describe("Applied to every widget; same shape as widget filters.");
 const dashboardPatchBaseSchema = z.object({
-  dashboardId: z.string(),
+  dashboardId: z.string().describe("Dashboard ID from listDashboards."),
   name: z.string().min(1).optional(),
   description: z.string().optional(),
-  filters: z.array(z.object({}).loose()).optional(),
-  definition: z.object({ widgets: z.array(z.object({}).loose()) }).optional(),
+  filters: dashboardFiltersBaseSchema.describe(
+    "Applied to every widget; same shape as widget filters. Replaces the existing list.",
+  ),
+  definition: z
+    .object({ widgets: z.array(dashboardPlacementBaseSchema) })
+    .optional()
+    .describe("Full layout; replaces every existing placement."),
 });
 const dashboardCreateBaseSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  filters: z.array(z.object({}).loose()).optional(),
-  definition: z.object({ widgets: z.array(z.object({}).loose()) }).optional(),
+  filters: dashboardFiltersBaseSchema,
+  definition: z
+    .object({ widgets: z.array(dashboardPlacementBaseSchema) })
+    .optional()
+    .describe("Initial layout; widget and preset ids must exist."),
 });
 // NOTE: object-level refinements do not survive `.shape` spreads, so every
 // schema built via `.extend(x.shape)` below must re-apply them explicitly.
@@ -154,7 +180,10 @@ const toPlacementCreate = (
 export const [listDashboardWidgetsTool, handleListDashboardWidgets] =
   defineTool({
     name: "listDashboardWidgets",
-    description: "List dashboard widgets in the current project.",
+    description:
+      "List the project's saved dashboard widgets (reusable chart " +
+      "definitions with url), paginated. Use the ids with " +
+      "addDashboardPlacement, getDashboardWidget or updateDashboardWidget.",
     action: "dashboards:read",
     baseSchema: GetUnstableDashboardWidgetsQuery,
     inputSchema: GetUnstableDashboardWidgetsQuery,
@@ -183,7 +212,9 @@ export const [listDashboardWidgetsTool, handleListDashboardWidgets] =
   });
 export const [getDashboardWidgetTool, handleGetDashboardWidget] = defineTool({
   name: "getDashboardWidget",
-  description: "Get a dashboard widget by ID.",
+  description:
+    "Get one dashboard widget's full chart definition and url. widgetId " +
+    "comes from listDashboardWidgets or a placement in getDashboard.",
   action: "dashboards:read",
   baseSchema: DashboardWidgetIdQuery,
   inputSchema: DashboardWidgetIdQuery,
@@ -207,7 +238,11 @@ export const [getDashboardWidgetTool, handleGetDashboardWidget] = defineTool({
 export const [updateDashboardWidgetTool, handleUpdateDashboardWidget] =
   defineTool({
     name: "updateDashboardWidget",
-    description: "Partially update a dashboard widget.",
+    description:
+      "Partially update a dashboard widget and return it. Omitted fields are " +
+      "kept; provided arrays and chartConfig replace the existing ones. " +
+      "Affects every dashboard that places it. Field rules match " +
+      "createDashboardWidget.",
     action: "dashboards:CUD",
     baseSchema: dashboardWidgetPatchBaseSchema,
     inputSchema: DashboardWidgetIdQuery.extend(
@@ -253,7 +288,10 @@ export const [deleteDashboardWidgetTool, handleDeleteDashboardWidget] =
 
 export const [listDashboardsTool, handleListDashboards] = defineTool({
   name: "listDashboards",
-  description: "List editable dashboards in the current project.",
+  description:
+    "List the project's own dashboards with filters, placements and url, " +
+    "paginated; Langfuse-managed dashboards are not included. Use the ids " +
+    "with getDashboard, updateDashboard or addDashboardPlacement.",
   action: "dashboards:read",
   baseSchema: GetUnstableDashboardsQuery,
   inputSchema: GetUnstableDashboardsQuery,
@@ -308,11 +346,13 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
 });
 export const [createDashboardTool, handleCreateDashboard] = defineTool({
   name: "createDashboard",
-  description: "Create an editable dashboard.",
+  description:
+    "Create an editable dashboard and return it with its id. Prefer a " +
+    "name only, then add tiles with addDashboardPlacement.",
   action: "dashboards:CUD",
   baseSchema: dashboardCreateBaseSchema,
   inputSchema: PostUnstableDashboardBody,
-  destructiveHint: true,
+  destructiveHint: false,
   handler: (input, context) =>
     runMcpTool({
       spanName: "mcp.dashboards.create",
@@ -328,7 +368,10 @@ export const [createDashboardTool, handleCreateDashboard] = defineTool({
 export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
   name: "updateDashboard",
   description:
-    "Partially update dashboard metadata, filters, or its complete definition.",
+    "Partially update a dashboard's name, description, filters or layout " +
+    "and return it; omitted fields are kept. For single-tile changes use " +
+    "addDashboardPlacement, updateDashboardPlacement or " +
+    "deleteDashboardPlacement.",
   action: "dashboards:CUD",
   baseSchema: dashboardPatchBaseSchema,
   inputSchema: DashboardIdQuery.extend(
@@ -386,7 +429,7 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
     inputSchema: DashboardIdQuery.extend(
       placementCreateBaseSchema.shape,
     ).superRefine(requirePlacementIds),
-    destructiveHint: true,
+    destructiveHint: false,
     handler: (input, context) =>
       runMcpTool({
         spanName: "mcp.dashboards.placements.add",

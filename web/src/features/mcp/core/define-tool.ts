@@ -130,6 +130,27 @@ function hasJsonSchemaUnion(value: unknown): boolean {
   return Object.values(schema).some(hasJsonSchemaUnion);
 }
 
+const ISO_DATE_TIME_PREFIX = `^${z.regexes.date.source.slice(1, -1)}T${z.regexes.time({}).source.slice(1, -1)}`;
+
+/**
+ * `isoDateTime` validates with a regex of several hundred characters that
+ * also checks calendar dates. Tools advertise a short pattern with the same
+ * shape (minutes, seconds or fractions; same timezone rule) instead; the full
+ * regex still validates every call through `inputSchema`.
+ */
+function advertiseCompactIsoDateTime(ctx: {
+  jsonSchema: JsonSchemaObject;
+}): void {
+  const { pattern } = ctx.jsonSchema;
+  if (typeof pattern !== "string" || !pattern.startsWith(ISO_DATE_TIME_PREFIX))
+    return;
+  const timezone =
+    pattern.slice(ISO_DATE_TIME_PREFIX.length, -1) === "Z"
+      ? "Z"
+      : "(?:Z|[+-]\\d{2}:\\d{2})";
+  ctx.jsonSchema.pattern = `^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?${timezone}$`;
+}
+
 /**
  * Define an MCP tool with automatic JSON Schema generation.
  *
@@ -178,7 +199,9 @@ export function defineTool<TInput, const TName extends string>(
   // Convert base Zod schema to JSON Schema using Zod v4's native method
   const jsonSchema = z.toJSONSchema(baseSchema, {
     target: "draft-7", // MCP uses JSON Schema draft-7
+    io: "input", // Advertise what callers send: defaulted fields stay optional
     unrepresentable: "any", // Fallback for unsupported types
+    override: advertiseCompactIsoDateTime,
   });
 
   if (!jsonSchema) {
@@ -210,8 +233,13 @@ export function defineTool<TInput, const TName extends string>(
     inputSchema: jsonSchemaObject,
   };
 
-  // Add annotations if provided
-  if (readOnlyHint || destructiveHint || expensiveHint) {
+  // Advertise every hint that is set, including explicit `false`: clients
+  // treat a missing destructiveHint on a write tool as destructive.
+  if (
+    readOnlyHint !== undefined ||
+    destructiveHint !== undefined ||
+    expensiveHint !== undefined
+  ) {
     toolDefinition.annotations = {
       readOnlyHint,
       destructiveHint,

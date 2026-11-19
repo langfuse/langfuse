@@ -12,7 +12,7 @@ import {
 } from "../schema";
 
 const McpUpdateScoreConfigBaseSchema = z.object({
-  configId: z.string(),
+  configId: z.string().describe("From listScoreConfigs."),
   name: McpScoreConfigNameSchema.optional(),
   numericMinValue: McpScoreConfigNumericMinValueSchema,
   numericMaxValue: McpScoreConfigNumericMaxValueSchema,
@@ -52,7 +52,10 @@ const McpUpdateScoreConfigInputSchema = z.preprocess(
 export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
   name: "updateScoreConfig",
   description:
-    "Update a score configuration. Use this to rename, describe, or adjust allowed numeric/category fields.",
+    "Partially update a score config and return it. Omitted fields are " +
+    "kept; categoricalCategories replaces the whole list. dataType cannot " +
+    "change, and the merged config must stay valid for it (e.g. no " +
+    "categories on NUMERIC). Existing scores are not modified.",
   action: "scoreConfigs:CUD",
   baseSchema: McpUpdateScoreConfigBaseSchema,
   inputSchema: McpUpdateScoreConfigInputSchema,

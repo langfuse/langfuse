@@ -6,7 +6,7 @@ import { GetScoreConfigsQuery } from "@/src/features/public-api/types/score-conf
 export const [listScoreConfigsTool, handleListScoreConfigs] = defineTool({
   name: "listScoreConfigs",
   description:
-    "List score configurations. Returns exactly data and meta at the top level.",
+    "List score configs, newest first, including archived ones (isArchived; unusable for new scores). Each has id, name, description, dataType, minValue/maxValue (NUMERIC) and categories (CATEGORICAL, BOOLEAN). Use the id as configId in createScore or in scoreConfigIds for createAnnotationQueue.",
   action: "scoreConfigs:read",
   baseSchema: GetScoreConfigsQuery,
   inputSchema: GetScoreConfigsQuery,

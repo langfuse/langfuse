@@ -736,7 +736,7 @@ describe("MCP Write Tools", () => {
 
     it("creates and versions an evaluator by stable id", async () => {
       const setup = await createMcpTestSetup();
-      verifyToolAnnotations(createEvaluatorTool, { destructiveHint: true });
+      verifyToolAnnotations(createEvaluatorTool, { destructiveHint: false });
       verifyToolAnnotations(updateEvaluatorTool, { destructiveHint: true });
       const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
 
@@ -810,7 +810,7 @@ describe("MCP Write Tools", () => {
   describe("createEvaluationRule tool", () => {
     it("should have destructiveHint annotation", () => {
       verifyToolAnnotations(createEvaluationRuleTool, {
-        destructiveHint: true,
+        destructiveHint: false,
       });
     });
 
@@ -1689,9 +1689,9 @@ describe("MCP Write Tools", () => {
   });
 
   describe("createDashboardWidget tool", () => {
-    it("should have destructiveHint annotation", () => {
+    it("should not have destructiveHint annotation", () => {
       verifyToolAnnotations(createDashboardWidgetTool, {
-        destructiveHint: true,
+        destructiveHint: false,
       });
     });
 

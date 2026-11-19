@@ -3,15 +3,18 @@ import { CreateAnnotationQueueItemResponse } from "@/src/features/public-api/typ
 import { defineTool } from "../../../core/define-tool";
 import { buildAnnotationQueueItemUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { CreateAnnotationQueueItemToolSchema } from "../schema";
+import {
+  CreateAnnotationQueueItemToolBaseSchema,
+  CreateAnnotationQueueItemToolSchema,
+} from "../schema";
 
 export const [createAnnotationQueueItemTool, handleCreateAnnotationQueueItem] =
   defineTool({
     name: "createAnnotationQueueItem",
     description:
-      "Add an annotation queue item, one trace or observation to review, to a queue.",
+      "Add one trace, observation, or session to an annotation queue for review and return the item. For several, use batchCreateAnnotationQueueItems.",
     action: "annotationQueues:CUD",
-    baseSchema: CreateAnnotationQueueItemToolSchema,
+    baseSchema: CreateAnnotationQueueItemToolBaseSchema,
     inputSchema: CreateAnnotationQueueItemToolSchema,
     handler: async (input, context) =>
       runMcpTool({
@@ -38,4 +41,5 @@ export const [createAnnotationQueueItemTool, handleCreateAnnotationQueueItem] =
           };
         },
       }),
+    destructiveHint: false,
   });
