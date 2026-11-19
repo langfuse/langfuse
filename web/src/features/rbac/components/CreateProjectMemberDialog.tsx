@@ -16,7 +16,44 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
+import {
+  ALREADY_ORGANIZATION_MEMBER_MESSAGE,
+  ALREADY_PROJECT_MEMBER_MESSAGE,
+  ORGANIZATION_ROLE_TOO_HIGH_MESSAGE,
+  PENDING_MEMBERSHIP_INVITE_MESSAGE,
+  PROJECT_ROLE_TOO_HIGH_MESSAGE,
+} from "@/src/features/rbac/constants/membershipErrorMessages";
 import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
+
+const EMAIL_FIELD_MESSAGES = new Set<string>([
+  ALREADY_PROJECT_MEMBER_MESSAGE,
+  ALREADY_ORGANIZATION_MEMBER_MESSAGE,
+  PENDING_MEMBERSHIP_INVITE_MESSAGE,
+]);
+
+function placeMemberInviteError(
+  error: unknown,
+  fields: { orgRole: boolean; projectRole: boolean },
+): {
+  field: "email" | "orgRole" | "projectRole" | "root";
+  message: string;
+} {
+  const message =
+    error instanceof Error && error.message.length > 0
+      ? error.message
+      : "Failed to add member";
+
+  if (EMAIL_FIELD_MESSAGES.has(message)) {
+    return { field: "email", message };
+  }
+  if (message === ORGANIZATION_ROLE_TOO_HIGH_MESSAGE && fields.orgRole) {
+    return { field: "orgRole", message };
+  }
+  if (message === PROJECT_ROLE_TOO_HIGH_MESSAGE && fields.projectRole) {
+    return { field: "projectRole", message };
+  }
+  return { field: "root", message };
+}
 
 const roleValues = {
   OWNER: "OWNER",
@@ -71,19 +108,25 @@ export function CreateProjectMemberDialog({
   });
 
   async function onSubmit(values: FormValues) {
+    form.clearErrors();
     try {
       await createProjectMember(values);
       form.reset();
       onSuccess();
     } catch (error) {
-      form.setError("email", {
+      const placed = placeMemberInviteError(error, {
+        orgRole: !hasOnlySingleProjectAccess,
+        projectRole: project !== undefined && hasProjectRoleEntitlement,
+      });
+      form.setError(placed.field, {
         type: "manual",
-        message:
-          error instanceof Error ? error.message : "Failed to add member",
+        message: placed.message,
       });
       reportTrpcErrorWithoutToast(error, "members");
     }
   }
+
+  const formError = form.formState.errors.root?.message;
 
   return (
     <Dialog
@@ -106,6 +149,11 @@ export function CreateProjectMemberDialog({
           onSubmit={form.handleSubmit(onSubmit)}
         >
           <Dialog.Body>
+            {formError ? (
+              <p role="alert" className="text-destructive text-sm font-bold">
+                {formError}
+              </p>
+            ) : null}
             <FormField
               control={form.control}
               name="email"

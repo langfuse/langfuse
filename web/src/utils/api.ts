@@ -152,8 +152,9 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * whose `data.zodError` is populated), plus CONFLICT on
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
  * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}. Empty/too-short fields, stale
- * in-app-agent approvals, and a rejected user-configured remote-experiment
- * URL are the product working as designed — the toast is the UX; Sentry
+ * in-app-agent approvals, a rejected user-configured remote-experiment URL,
+ * and an invite for someone who is already a member or already invited are
+ * the product working as designed — the UI already explains them; Sentry
  * must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
@@ -168,16 +169,18 @@ export const EXPECTED_TRPC_ERROR_CODES = [
 
 /**
  * CONFLICT is usually a uniqueness / concurrency failure we still want
- * (duplicate names, unique-constraint races). These procedures throw 409
- * only as an optimistic-concurrency / stale-UI race the product already
- * toasts — expected user-facing state, not a regression.
+ * captured (duplicate names, unique-constraint races). These procedures
+ * throw 409 only for a state the product already explains in the UI.
  *
- * `inAppAgent.decideToolApproval` is the only current member: every CONFLICT
- * it throws means the parent run is no longer AWAITING_APPROVAL (already
- * decided, expired, or cancelled). The UI already tells the user to reload.
+ * `inAppAgent.decideToolApproval`: the parent run is no longer
+ * AWAITING_APPROVAL (already decided, expired, or cancelled). The UI tells
+ * the user to reload.
+ * `members.create`: the address is already a member of the project or
+ * organization. The invite form shows that sentence on the email field.
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
+  "members.create",
 ] as const;
 
 const getTrpcErrorData = (

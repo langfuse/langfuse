@@ -682,10 +682,10 @@ describe("isExpectedTrpcClientError", () => {
     ).toBe(false);
   });
 
-  it("treats a rejected remote-experiment URL as expected", () => {
-    // triggerRemoteExperiment / upsertRemoteExperiment throw BAD_REQUEST
-    // only when validateWebhookURL rejects a user-configured URL (DNS
-    // lookup failed, private IP, …). The UI already toasts the message.
+  it("treats BAD_REQUEST on an allowlisted procedure as expected", () => {
+    // Each path throws BAD_REQUEST for rejected user input the UI already
+    // explains: a remote-experiment URL, a model or gateway connection, or
+    // an invite for someone who is already a member or already invited.
     for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
       expect(
         isExpectedTrpcClientError(
