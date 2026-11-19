@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import type { GatewaySpendLimitScope } from "@langfuse/shared";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { toGatewaySpendLimitUpdate } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewaySpendLimitUpdate";
 import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
 import { GatewaySetupGuide } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/GatewaySetupGuide";
 import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
@@ -13,8 +15,14 @@ import type {
   GatewayProject,
   GatewaySetupBudgets,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
+import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+
+const SETUP_BUDGET_SCOPES = {
+  organization: "ORGANIZATION",
+  user: "USER_DEFAULT",
+} as const satisfies Record<keyof GatewaySetupBudgets, GatewaySpendLimitScope>;
 
 export type ConnectedGatewaySetupGuideProps = {
   organizationId: string;
@@ -39,6 +47,7 @@ export function ConnectedGatewaySetupGuide({
   const activeStep = getActiveStep(progress.activeStep, finishedSteps);
   const { budgets, saveBudgets, ...budgetSaveState } =
     useGatewaySetupBudgets(organizationId);
+  const captureBudgetChange = useCaptureGatewayBudgetChange(organizationId);
   const { spendBudgetUnavailableReason } =
     useGatewaySettingsAccess(organizationId);
   const { saveIngestion, isSaving } = useSaveGatewayIngestion(
@@ -71,7 +80,23 @@ export function ConnectedGatewaySetupGuide({
   }
 
   async function handleSaveBudgets(nextBudgets: GatewaySetupBudgets) {
-    if (await saveBudgets(nextBudgets)) finishBudgets({ isSkipped: false });
+    if (!(await saveBudgets(nextBudgets))) return;
+    // Both budgets are saved together, so only those the user changed are captured.
+    for (const budget of ["organization", "user"] as const) {
+      const change = toGatewaySpendLimitUpdate({
+        loaded: budgets?.[budget] ?? null,
+        hasSeveralSpendLimits: false,
+        submitted: nextBudgets[budget],
+      });
+      if (change === undefined) continue;
+      captureBudgetChange({
+        surface: "setup_guide",
+        scope: SETUP_BUDGET_SCOPES[budget],
+        subjectCount: 1,
+        spendLimit: change,
+      });
+    }
+    finishBudgets({ isSkipped: false });
   }
 
   function finishSetup({ isSkipped }: { isSkipped: boolean }) {

@@ -284,19 +284,21 @@ export function ProviderDialogController({
     test.reset();
     try {
       let saved;
+      const endpoint = getEndpoint(selectedConnection);
       if (selectedConnection) {
         saved = await update.mutateAsync({
           orgId: organizationId,
           id: selectedConnection.id,
           name,
           ...(credential ? { credential } : {}),
-          ...getEndpoint(selectedConnection),
+          ...endpoint,
         });
         capture("ai_gateway:provider_credential_updated", {
           orgId: organizationId,
           provider: selectedConnection.provider,
           isRenamed: name.trim() !== selectedConnection.name,
           isCredentialReplaced: Boolean(credential),
+          ...toEndpointUsage(selectedConnection.provider, endpoint),
         });
       } else {
         saved = await create.mutateAsync({
@@ -305,13 +307,14 @@ export function ProviderDialogController({
           name,
           credential,
           config: getConfig(null),
-          ...getEndpoint(null),
+          ...endpoint,
         });
         capture("ai_gateway:provider_credential_added", {
           orgId: organizationId,
           surface,
           provider,
           isFirstCredential: existingNames.length === 0,
+          ...toEndpointUsage(provider, endpoint),
         });
         onAfterCreate?.({ provider });
       }
@@ -572,6 +575,18 @@ export function ProviderDialogController({
       }}
     </DialogController>
   );
+}
+
+/** Azure's endpoint is its resource, not a custom base URL, so it never counts. */
+function toEndpointUsage(
+  provider: GatewayProvider,
+  endpoint: { baseURL?: string | null; extraHeaders?: Record<string, string> },
+) {
+  return {
+    hasCustomBaseUrl:
+      supportsCustomEndpoint(provider) && Boolean(endpoint.baseURL),
+    extraHeaderCount: Object.keys(endpoint.extraHeaders ?? {}).length,
+  };
 }
 
 function isValidAzureResource({ name, project }: AzureResourceFieldValue) {
