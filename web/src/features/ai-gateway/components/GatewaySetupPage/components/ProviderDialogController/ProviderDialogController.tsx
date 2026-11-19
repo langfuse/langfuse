@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ReactNode } from "react";
 import { type MutationStatus } from "@tanstack/react-query";
+import {
+  getInvalidLlmBaseUrlReason,
+  getLlmBaseUrlFormatError,
+} from "@langfuse/shared";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
@@ -113,7 +117,7 @@ export function ProviderDialogController({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const existingNames = useExistingConnectionNames(organizationId);
-  const { region } = useLangfuseCloudRegion();
+  const { region, isLangfuseCloud } = useLangfuseCloudRegion();
   const name =
     nameDraft ?? suggestGatewayConnectionName(provider, existingNames);
   const test = api.aiGateway.testConnection.useMutation({
@@ -137,7 +141,9 @@ export function ProviderDialogController({
     saveError && isGatewayConnectionNameError(saveError.message)
       ? saveError.message
       : null;
-  const isSaveError = Boolean(saveError) && !serverNameError;
+  const serverBaseURLError = saveError
+    ? getInvalidLlmBaseUrlReason(saveError.message)
+    : null;
   const testOutcome = getTestOutcome(test);
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */
@@ -149,6 +155,16 @@ export function ProviderDialogController({
           currentName: selectedConnection?.name,
           existingNames,
         }) ?? serverNameError);
+
+  /** The server skips an unchanged base URL, as it was validated when it was saved. */
+  const getBaseURLFormatError = (
+    selectedConnection: GatewayConnection | null,
+  ) => {
+    const trimmed = baseURL.trim();
+    return trimmed && trimmed !== (selectedConnection?.baseURL ?? "")
+      ? getLlmBaseUrlFormatError(trimmed, isLangfuseCloud)
+      : null;
+  };
 
   /** Bedrock's region and Vertex AI's location are fixed once saved, so edits reuse the stored one. */
   const getConfig = (selectedConnection: GatewayConnection | null) => {
@@ -234,6 +250,11 @@ export function ProviderDialogController({
 
   const updateName = (value: string) => {
     setNameDraft(value);
+    clearSaveError();
+  };
+
+  const updateBaseURL = (value: string) => {
+    setBaseURL(value);
     clearSaveError();
   };
 
@@ -340,6 +361,19 @@ export function ProviderDialogController({
         const dialogProvider = selectedConnection?.provider ?? provider;
         const isMissingEndpoint =
           dialogProvider === "AZURE" && !isValidAzureResource(azureResource);
+        const hasBaseURLField = supportsCustomEndpoint(dialogProvider);
+        const baseURLFormatError = hasBaseURLField
+          ? getBaseURLFormatError(selectedConnection)
+          : null;
+        // Server rejections can be transient, like a failed DNS lookup, so
+        // only format errors block a retry.
+        const baseURLError = hasBaseURLField
+          ? (baseURLFormatError ?? serverBaseURLError)
+          : null;
+        const isSaveError =
+          Boolean(saveError) &&
+          !serverNameError &&
+          !(hasBaseURLField && serverBaseURLError);
         return (
           <>
             <DialogHeader>
@@ -427,14 +461,15 @@ export function ProviderDialogController({
                 hasSavedKey={Boolean(selectedConnection)}
                 onCredentialChange={setCredential}
               />
-              {supportsCustomEndpoint(dialogProvider) ? (
+              {hasBaseURLField ? (
                 <AdvancedSettings
                   provider={dialogProvider}
                   baseURL={baseURL}
+                  baseURLError={baseURLError}
                   headers={extraHeaders}
                   storedHeaderKeys={selectedConnection?.extraHeaderKeys ?? []}
                   isEditing={Boolean(selectedConnection)}
-                  onBaseURLChange={setBaseURL}
+                  onBaseURLChange={updateBaseURL}
                   onHeadersChange={setExtraHeaders}
                 />
               ) : null}
@@ -469,6 +504,7 @@ export function ProviderDialogController({
                   !credential ||
                   isMissingRegion ||
                   isMissingEndpoint ||
+                  Boolean(baseURLFormatError) ||
                   isPending
                 }
                 loading={test.isPending}
@@ -483,6 +519,7 @@ export function ProviderDialogController({
                   (!selectedConnection && !credential) ||
                   isMissingRegion ||
                   isMissingEndpoint ||
+                  Boolean(baseURLFormatError) ||
                   isPending ||
                   isSaved
                 }
