@@ -1,12 +1,13 @@
 import { createHash } from "crypto";
+import { subscribe, unsubscribe } from "node:diagnostics_channel";
+import { once } from "node:events";
 import {
   createServer,
-  type Agent,
+  type ClientRequest,
   type Server,
   type ServerResponse,
 } from "node:http";
-import type { AddressInfo, LookupFunction } from "node:net";
-import { setTimeout as delay } from "node:timers/promises";
+import type { AddressInfo } from "node:net";
 import { PassThrough, Readable } from "stream";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,7 +15,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { S3Client } from "@aws-sdk/client-s3";
 
 import { env } from "../../env";
-import { getSecureOutboundHttpAgents } from "../outbound-url/connection";
 import { StorageServiceFactory } from "./StorageService";
 
 /**
@@ -504,7 +504,9 @@ describe("S3 keep-alive sockets", () => {
     }
   };
 
-  it("opens a replacement connection after a queued download waits through slow DNS", async () => {
+  it("keeps a queued download alive when its replacement socket signals a timeout", async ({
+    onTestFinished,
+  }) => {
     const server = createServer((request, response) => {
       if (request.url?.includes("/first")) {
         response.setHeader("Connection", "close");
@@ -513,39 +515,39 @@ describe("S3 keep-alive sockets", () => {
       }
     });
     await withLocalS3(server, true, async (service) => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
       const started = new Promise<ServerResponse>((resolve) =>
         server.once("request", (_req, res) => resolve(res)),
       );
       const first = service.download("first");
       const held = await started;
-      const { httpAgent } = getSecureOutboundHttpAgents(connectionValidation, {
-        maxSockets: 1,
-        timeout: idleTimeoutMs,
-      });
-      const options = (
-        httpAgent as Agent & { options: { lookup: LookupFunction } }
-      ).options;
-      const lookup = options.lookup;
-      try {
-        options.lookup = (hostname, lookupOptions, callback) => {
-          setTimeout(
-            () => lookup(hostname, lookupOptions, callback),
-            idleTimeoutMs * 4,
-          );
+      const queued = new Promise<ClientRequest>((resolve) => {
+        const requestCreated = "http.client.request.created";
+        const capture = (message: unknown) => {
+          const { request } = message as { request: ClientRequest };
+          if (request.path.includes("/second")) resolve(request);
         };
-        const downloads = Promise.all([first, service.download("second")]);
-        await expect
-          .poll(() => Object.keys(httpAgent.requests))
-          .toHaveLength(1);
-        // Keep the request queued past the transport's three-second socket timeout deferral.
-        await delay(3100);
-        held.end("first");
-        await expect(downloads).resolves.toEqual(["first", "second"]);
-      } finally {
-        options.lookup = lookup;
-      }
+        subscribe(requestCreated, capture);
+        onTestFinished(() => {
+          unsubscribe(requestCreated, capture);
+        });
+      });
+      const downloads = Promise.all([first, service.download("second")]);
+      const request = await queued;
+      expect(request.socket).toBeNull();
+      vi.runOnlyPendingTimers();
+      const assigned = once(request, "socket");
+      held.end("first");
+      const [socket] = await assigned;
+      // A connecting socket can signal inactivity while its DNS lookup is pending.
+      expect(socket.connecting).toBe(true);
+      socket.emit("timeout");
+      await expect(downloads).resolves.toEqual(["first", "second"]);
     });
-  }, 10_000);
+  });
 
   it.each([
     { transport: "plain", validated: false },
