@@ -2,7 +2,6 @@ import { MessageSquare, Pencil } from "@langfuse/icons";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type TopicsActions } from "./prepare-topics-actions";
-import { useOpenTopicsFeedback } from "./useOpenTopicsFeedback";
 
 export function TopicsActionsMenu({
   actions,
@@ -12,7 +11,6 @@ export function TopicsActionsMenu({
   closeMenu: (options?: { handoffFocus?: boolean }) => void;
 }) {
   const { display } = actions;
-  const openFeedback = useOpenTopicsFeedback();
   const DisplayIcon = display.icon;
   return (
     <>
@@ -55,14 +53,16 @@ export function TopicsActionsMenu({
         aria-pressed={display.checked}
         onClick={() => display.onCheckedChange(!display.checked)}
       />
-      <HeaderActionMenuRow
-        label="Give feedback"
-        icon={<MessageSquare size="base" color="default" />}
-        onClick={() => {
-          closeMenu();
-          openFeedback();
-        }}
-      />
+      {actions.giveFeedback && (
+        <HeaderActionMenuRow
+          label="Give feedback"
+          icon={<MessageSquare size="base" color="default" />}
+          onClick={() => {
+            closeMenu();
+            actions.giveFeedback?.();
+          }}
+        />
+      )}
     </>
   );
 }

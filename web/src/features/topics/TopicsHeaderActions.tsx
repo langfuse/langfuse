@@ -1,22 +1,23 @@
-import { EllipsisVertical, Pencil } from "@langfuse/icons";
+import { EllipsisVertical, MessageSquare, Pencil } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type TopicsActions } from "./prepare-topics-actions";
-import { useOpenTopicsFeedback } from "./useOpenTopicsFeedback";
 
 export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
-  const openFeedback = useOpenTopicsFeedback();
   return (
     <div className="ph-no-capture flex shrink-0 items-center justify-end gap-1">
-      <Button
-        text="Give feedback"
-        size="default"
-        variant="ghost"
-        onClick={openFeedback}
-      />
+      {actions.giveFeedback && (
+        <Button
+          text="Give feedback"
+          icon={MessageSquare}
+          size="default"
+          variant="ghost"
+          onClick={actions.giveFeedback}
+        />
+      )}
       {actions.editRun && <EditMapButton editRun={actions.editRun} />}
       <DropdownMenu
         ariaLabel="Topics actions"

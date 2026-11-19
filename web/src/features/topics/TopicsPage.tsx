@@ -46,6 +46,7 @@ import {
   prepareTopicsActions,
   refreshMapDisabledReason,
 } from "./prepare-topics-actions";
+import { useOpenTopicsFeedback } from "./useOpenTopicsFeedback";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { TopicRunDetails } from "./TopicRunDetails";
@@ -204,6 +205,7 @@ function TopicsWorkspaceContent({
   openAutomaticProcessing,
 }: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
+  const openFeedback = useOpenTopicsFeedback();
   const [resultsView, setResultsView] = useTopicsResultsView();
   const isHandheld = useIsHandheld();
   const [showUnassigned, setShowUnassigned] = useSessionStorage(
@@ -561,6 +563,7 @@ function TopicsWorkspaceContent({
           // Settings only edits models and idle time; setup starts from onboarding.
           onConfigure: openConfigure,
           onHistory: openHistory,
+          onGiveFeedback: openFeedback,
           onEditRun:
             selectedRule && !showOnboarding
               ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
