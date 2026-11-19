@@ -38,6 +38,9 @@ const state = vi.hoisted(() => ({
   maps: undefined as unknown,
 }));
 
+vi.mock("./useOpenTopicsFeedback", () => ({
+  useOpenTopicsFeedback: () => vi.fn(),
+}));
 vi.mock("use-query-params", () => ({
   StringParam: {},
   useQueryParam: () => [undefined, vi.fn()],

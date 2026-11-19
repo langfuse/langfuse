@@ -25,6 +25,7 @@ const baseUrlHints: Record<GatewayCustomEndpointProvider, string> = {
 export function AdvancedSettings({
   provider,
   baseURL,
+  baseURLError,
   headers,
   storedHeaderKeys,
   isEditing,
@@ -33,6 +34,7 @@ export function AdvancedSettings({
 }: {
   provider: GatewayCustomEndpointProvider;
   baseURL: string;
+  baseURLError: string | null;
   headers: ExtraHeaderRow[];
   /** Names whose values are stored; their rows may stay blank to keep the value. */
   storedHeaderKeys: string[];
@@ -42,6 +44,15 @@ export function AdvancedSettings({
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isOpenAI = provider === "OPENAI";
+  const [shownBaseURLError, setShownBaseURLError] = useState<string | null>(
+    null,
+  );
+  // A new error opens the section once. Open state stays with the user, so
+  // fixing the URL never collapses it and closing it always works.
+  if (baseURLError !== shownBaseURLError) {
+    setShownBaseURLError(baseURLError);
+    if (baseURLError) setIsExpanded(true);
+  }
 
   const handleBaseURLChange = (event: ChangeEvent<HTMLInputElement>) => {
     onBaseURLChange(event.target.value);
@@ -75,21 +86,42 @@ export function AdvancedSettings({
                 </>
               }
             />
-            {isOpenAI ? (
-              <BaseUrlPicker
-                id="gateway-base-url"
-                presets={openAiBaseUrlPresets}
-                value={baseURL}
-                onChange={onBaseURLChange}
-              />
-            ) : (
-              <Input
-                id="gateway-base-url"
-                placeholder="default"
-                value={baseURL}
-                onChange={handleBaseURLChange}
-              />
-            )}
+            <div className="space-y-1">
+              {isOpenAI ? (
+                <BaseUrlPicker
+                  id="gateway-base-url"
+                  presets={openAiBaseUrlPresets}
+                  value={baseURL}
+                  aria-invalid={Boolean(baseURLError)}
+                  aria-describedby={
+                    baseURLError ? "gateway-base-url-error" : undefined
+                  }
+                  error={Boolean(baseURLError)}
+                  onChange={onBaseURLChange}
+                />
+              ) : (
+                <Input
+                  id="gateway-base-url"
+                  placeholder="default"
+                  value={baseURL}
+                  aria-invalid={Boolean(baseURLError)}
+                  aria-describedby={
+                    baseURLError ? "gateway-base-url-error" : undefined
+                  }
+                  error={Boolean(baseURLError)}
+                  onChange={handleBaseURLChange}
+                />
+              )}
+              {baseURLError ? (
+                <p
+                  id="gateway-base-url-error"
+                  role="alert"
+                  className="text-destructive text-sm"
+                >
+                  {baseURLError}
+                </p>
+              ) : null}
+            </div>
           </div>
           <ExtraHeadersSettings
             headers={headers}
