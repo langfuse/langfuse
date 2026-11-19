@@ -13,6 +13,7 @@ import {
   listTopicRules,
   nightlyRefitSlot,
   readTopicRuleSetup,
+  recordNightlyRefitHour,
 } from "@langfuse/shared/topics/server";
 import {
   TOPICS_MAX_SELECTION_RANGE_MS,
@@ -22,6 +23,7 @@ import {
   type TopicFacetRef,
   type TopicRun,
 } from "@langfuse/shared/topics";
+import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 const RECENT_FIT_MS = 3_600_000;
@@ -56,7 +58,7 @@ export async function scheduleNightlyTopicRefits(
       slot: nightlyRefitSlot(
         models.projectId,
         now,
-        sharedEnv.LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC,
+        env.LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC,
       ),
     }))
     .sort((a, b) => a.slot.getTime() - b.slot.getTime());
@@ -280,6 +282,7 @@ export class TopicsNightlyRefitRunner extends PeriodicExclusiveRunner {
   }
 
   protected async execute(): Promise<void> {
+    await recordNightlyRefitHour(env.LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC);
     await this.withLock(() =>
       scheduleNightlyTopicRefits(new Date(), () => this.extendLockOnProgress()),
     );

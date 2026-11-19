@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
+import { redis } from "../redis/redis";
 
 const DAY_MS = 86_400_000;
 // Projects refit at a stable offset within this many minutes after the hour.
 const REFIT_SPREAD_MINUTES = 30;
+const REFIT_HOUR_KEY = "topics:nightly-refit-hour-utc";
+// Outlives missed scheduler ticks; once no scheduler runs, the hour is unknown.
+const REFIT_HOUR_TTL_SECONDS = 3600;
 
 /**
  * The latest daily refit time at or before `now`: the configured UTC hour plus
@@ -32,4 +36,26 @@ export function nextNightlyRefitSlot(
   hourUtc: number,
 ): Date {
   return new Date(nightlyRefitSlot(projectId, now, hourUtc).getTime() + DAY_MS);
+}
+
+/**
+ * Publishes the worker's configured refit hour, which only the worker's
+ * environment carries, so web can show when the next refit runs.
+ */
+export async function recordNightlyRefitHour(hourUtc: number): Promise<void> {
+  await redis?.set(
+    REFIT_HOUR_KEY,
+    String(hourUtc),
+    "EX",
+    REFIT_HOUR_TTL_SECONDS,
+  );
+}
+
+/** The refit hour a running scheduler published, or null. */
+export async function getNightlyRefitHour(): Promise<number | null> {
+  const value = await redis?.get(REFIT_HOUR_KEY);
+  const hour = Number(value);
+  return value && Number.isInteger(hour) && hour >= 0 && hour <= 23
+    ? hour
+    : null;
 }

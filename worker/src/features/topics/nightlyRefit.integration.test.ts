@@ -12,8 +12,8 @@ import {
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "@langfuse/shared/src/env";
 import { scheduleNightlyTopicRefits } from "./nightlyRefit";
+import { env } from "../../env";
 
 // The refit's queue handoff and model settings are not under test; its run rows are.
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
