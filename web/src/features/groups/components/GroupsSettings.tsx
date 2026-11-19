@@ -25,6 +25,11 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { GroupMemberStack } from "@/src/features/groups/components/GroupMemberStack";
 import { GroupName } from "@/src/features/groups/components/GroupName";
+import {
+  describeGroupRoleCell,
+  GroupRoleDialogController,
+} from "@/src/features/groups/components/GroupRoleDialogController";
+import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
 import { GroupSourceLabel } from "@/src/features/groups/components/GroupSourceLabel";
 import {
   GROUP_SOURCE_DISPLAY,
@@ -32,7 +37,6 @@ import {
   SCIM_LOCK_LABEL,
 } from "@/src/features/groups/groupSource";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -40,10 +44,7 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 type Group = RouterOutputs["groups"]["list"][number];
 type GroupMember = Group["members"][number];
 type GroupMemberRow = GroupMember & { effectiveRole: string };
-type GroupRole = "ADMIN" | "MEMBER" | "VIEWER";
 
-// Groups never grant OWNER; NONE removes the group's org-wide role.
-const ORG_GROUP_ROLES: Role[] = ["NONE", "VIEWER", "MEMBER", "ADMIN"];
 const roleLabel = (role: string) =>
   role === "NONE" ? "None" : role.charAt(0) + role.slice(1).toLowerCase();
 const NO_EDIT_REASON = {
@@ -353,7 +354,14 @@ function GroupsSettingsTable({
   );
 }
 
-/** Saves on change, like the organization role on the Members page. */
+/** Why the group's organization role cannot be changed right now, if it cannot. */
+const orgRoleBlockedReason = (canEdit: boolean, isSaving: boolean) => {
+  if (!canEdit) return NO_EDIT_REASON.reason;
+  if (isSaving) return "Saving…";
+  return undefined;
+};
+
+/** Opens the shared role dialog for the group's organization-wide role. */
 function GroupOrgRoleSelect({
   orgId,
   group,
@@ -379,20 +387,25 @@ function GroupOrgRoleSelect({
     },
   });
   return (
-    <RoleSelect
-      roles={ORG_GROUP_ROLES}
-      value={(group.orgRole as Role | null) ?? "NONE"}
-      canManageOwnership={false}
-      size="compact"
-      disabled={!canEdit || setOrgRole.isPending}
-      onValueChange={(role) =>
-        setOrgRole.mutate({
-          orgId,
-          groupId: group.id,
-          role: role === "NONE" ? null : (role as GroupRole),
-        })
-      }
-    />
+    <GroupRoleDialogController
+      level="organization"
+      groupName={group.displayName}
+      memberCount={group.members.length}
+      orgRole={(group.orgRole as Role | null) ?? null}
+      disabledReason={orgRoleBlockedReason(canEdit, setOrgRole.isPending)}
+      onChange={(role) => setOrgRole.mutate({ orgId, groupId: group.id, role })}
+    >
+      {(openDialog) => (
+        <RoleCellTrigger
+          {...describeGroupRoleCell({
+            level: "organization",
+            groupName: group.displayName,
+            orgRole: (group.orgRole as Role | null) ?? null,
+          })}
+          onClick={openDialog}
+        />
+      )}
+    </GroupRoleDialogController>
   );
 }
 

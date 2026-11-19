@@ -14,6 +14,7 @@ export const RoleSelectItem = ({
   display = roleDisplay,
   isProjectRole,
   disabledReason,
+  description,
   onViewPermissions,
 }: {
   role: SystemRole;
@@ -22,9 +23,11 @@ export const RoleSelectItem = ({
   isProjectRole?: boolean;
   /** disabledReason makes the option unselectable and explains why. */
   disabledReason?: string;
+  /** Replaces the role's own description, e.g. for NONE meaning "inherit". */
+  description?: string;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
-  const { name: label, description, Icon } = display(role);
+  const { name: label, description: roleDescription, Icon } = display(role);
   const keepDefaultNote = role === "NONE" && isProjectRole;
 
   return (
@@ -40,7 +43,9 @@ export const RoleSelectItem = ({
             {label}
             {keepDefaultNote ? " (keep default role)" : ""}
           </span>
-          <span className="text-muted-foreground text-xs">{description}</span>
+          <span className="text-muted-foreground text-xs">
+            {description ?? roleDescription}
+          </span>
           {disabledReason !== undefined && (
             <span className="text-muted-foreground text-xs italic">
               {disabledReason}

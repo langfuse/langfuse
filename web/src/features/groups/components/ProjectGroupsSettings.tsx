@@ -10,7 +10,11 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { GroupMemberStack } from "@/src/features/groups/components/GroupMemberStack";
 import { GroupName } from "@/src/features/groups/components/GroupName";
-import { GroupProjectRoleCell } from "@/src/features/groups/components/GroupProjectRoleCell";
+import {
+  describeGroupRoleCell,
+  GroupRoleDialogController,
+} from "@/src/features/groups/components/GroupRoleDialogController";
+import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
 import { GroupSourceLabel } from "@/src/features/groups/components/GroupSourceLabel";
 import { GROUP_SOURCE_DISPLAY } from "@/src/features/groups/groupSource";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -88,7 +92,8 @@ function projectGroupColumns({
       cell: ({ row }) => {
         const { group } = row.original;
         return (
-          <GroupProjectRoleCell
+          <GroupRoleDialogController
+            level="project"
             groupName={group.displayName}
             memberCount={group.memberCount}
             orgRole={group.orgRole}
@@ -98,7 +103,19 @@ function projectGroupColumns({
               pendingGroupId === group.id ? "Saving…" : editBlockedReason
             }
             onChange={(role) => onChange(group, role)}
-          />
+          >
+            {(openDialog) => (
+              <RoleCellTrigger
+                {...describeGroupRoleCell({
+                  level: "project",
+                  groupName: group.displayName,
+                  orgRole: group.orgRole,
+                  projectRole: group.projectRole,
+                })}
+                onClick={openDialog}
+              />
+            )}
+          </GroupRoleDialogController>
         );
       },
     },

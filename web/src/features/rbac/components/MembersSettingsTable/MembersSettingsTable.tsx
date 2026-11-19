@@ -15,6 +15,7 @@ import { createBadgeListTableColumn } from "@/src/components/design-system/table
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsControl";
@@ -23,11 +24,12 @@ import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 import {
   belowGroupFloor,
-  EffectiveRoleSource,
+  describeRoleCell,
+  EffectiveRoleDialogController,
   resolveEffectiveRole,
   type DirectRoleEditor,
   type EffectiveRole,
-} from "./EffectiveRoleSource";
+} from "./EffectiveRoleDialogController";
 
 const formatRoleLabel = (role: Role) => systemRoleAccessRights[role].name;
 
@@ -243,12 +245,17 @@ export function MembersSettingsTable({
             level: onProject ? "project" : "organization",
           });
           return (
-            <EffectiveRoleSource
+            <EffectiveRoleDialogController
               effective={effective}
               orgRole={member.orgRole}
               orgId={orgId}
               projectId={onProject ? project?.id : undefined}
               canSeeOrgSettings={hasOrgCudAccess}
+              member={{
+                name: member.user.name,
+                email: member.email,
+                image: member.user.image,
+              }}
               editor={directRoleEditor(member, effective, {
                 project,
                 projectRolesEntitlement,
@@ -262,7 +269,14 @@ export function MembersSettingsTable({
                 onUpdateOrgRole,
                 onUpdateProjectRole,
               })}
-            />
+            >
+              {(openDialog) => (
+                <RoleCellTrigger
+                  {...describeRoleCell(effective, onProject)}
+                  onClick={openDialog}
+                />
+              )}
+            </EffectiveRoleDialogController>
           );
         },
       } satisfies LangfuseColumnDef<MembersSettingsTableRow>,
