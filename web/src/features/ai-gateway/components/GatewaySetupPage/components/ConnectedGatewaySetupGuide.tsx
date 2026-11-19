@@ -71,7 +71,7 @@ export function ConnectedGatewaySetupGuide({
   return (
     <CreateGatewayApiKeyDialogController
       organizationId={organizationId}
-      onCreatedKeyDismiss={onFinish}
+      onAfterCreatedKeyDismiss={onFinish}
     >
       {({ openDialog: openCreateKeyDialog }) => (
         <ProviderDialogController

@@ -15,12 +15,12 @@ import {
 
 export function CreateGatewayApiKeyDialogController({
   organizationId,
-  onCreatedKeyDismiss,
+  onAfterCreatedKeyDismiss,
   children,
 }: {
   organizationId: string;
   /** Called once the new key's secret has been shown and its dialog closed. */
-  onCreatedKeyDismiss?: () => void;
+  onAfterCreatedKeyDismiss?: () => void;
   children: (control: { openDialog: () => void }) => ReactNode;
 }) {
   const canIssueServiceAccountKeys = useHasOrganizationAccess({
@@ -77,7 +77,7 @@ export function CreateGatewayApiKeyDialogController({
     <DialogController
       onBeforeClose={() => !create.isPending}
       onDismiss={() => {
-        if (generatedSecretKey) onCreatedKeyDismiss?.();
+        if (generatedSecretKey) onAfterCreatedKeyDismiss?.();
       }}
       renderDialog={({ isOpen }) =>
         generatedSecretKey ? (
