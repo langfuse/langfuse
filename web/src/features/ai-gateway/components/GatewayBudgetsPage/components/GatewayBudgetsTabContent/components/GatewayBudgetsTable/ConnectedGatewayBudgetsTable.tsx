@@ -9,6 +9,7 @@ import {
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import type { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTableState";
 import { useSetGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
+import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
 import {
   type GatewayBudgetRow,
   GatewayBudgetsTable,
@@ -47,6 +48,8 @@ export function ConnectedGatewayBudgetsTable({
   });
   const { setBudgets, mutation: removal } =
     useSetGatewayBudgets(organizationId);
+  // Removing a budget falls back to the organization's default while one is set.
+  const hasDefault = Boolean(useGatewayDefaultBudget(organizationId, subject));
   const totalCount = budgets.data?.totalCount ?? null;
   const pageRows = budgets.data?.rows ?? [];
   const selectedCount = selectAll
@@ -67,7 +70,10 @@ export function ConnectedGatewayBudgetsTable({
   const handleRowClick = (row: GatewayBudgetRow) => table.toggleRow(row.id);
 
   return (
-    <GatewayEditBudgetDialogController organizationId={organizationId}>
+    <GatewayEditBudgetDialogController
+      organizationId={organizationId}
+      subject={subject}
+    >
       {({ openDialog }) => (
         <>
           <GatewayBudgetsTable
@@ -92,7 +98,8 @@ export function ConnectedGatewayBudgetsTable({
                 count: 1,
                 name: row.name,
                 spendLimit: row.spendLimit,
-                existingBudgetCount: row.spendLimit ? 1 : 0,
+                existingBudgetCount:
+                  row.spendLimit !== null && !row.isDefault ? 1 : 0,
               })
             }
             search={table.search}
@@ -142,11 +149,15 @@ export function ConnectedGatewayBudgetsTable({
                     spendLimit: first.spendLimit,
                     existingBudgetCount: selectAll
                       ? null
-                      : selectedRows.filter((row) => row.spendLimit !== null)
-                          .length,
+                      : selectedRows.filter(
+                          (row) => row.spendLimit !== null && !row.isDefault,
+                        ).length,
                     onAfterSave: clearSelection,
                   });
                 }}
+                removeLabel={
+                  hasDefault ? "Use default budget" : "Remove budget"
+                }
                 onRemove={openRemoveDialog}
               />
             )}

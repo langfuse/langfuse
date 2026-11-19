@@ -32,6 +32,7 @@ import {
   GatewaySpendLimitRepository,
   type GatewaySpendLimitRecord,
 } from "./gatewaySpendLimitRepository";
+import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "./gatewayDefaultSpendLimits";
 import {
   type GatewaySpendLimitScope,
   toSpendLimitScope,
@@ -43,12 +44,7 @@ const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
 
 const BULK_WRITE_TIMEOUT_MS = 30_000;
 
-const BUDGET_FILTER_BY_STATUS = {
-  all: "any",
-  budgeted: "with",
-  unlimited: "without",
-  exceeded: "with",
-} as const satisfies Record<GatewayBudgetStatus, "any" | "with" | "without">;
+const NO_SUBJECTS = { totalCount: 0, rows: [] };
 
 const GATEWAY_SPEND_LIMITS_UNAVAILABLE_REASON =
   "Please switch to ingestion mode usage to enable this";
@@ -89,7 +85,8 @@ export class GatewaySpendLimitService {
 
   /**
    * What ClickHouse has recorded against each key's first limit in its current
-   * window, the limit the key list shows. Keys without a limit are absent. The
+   * window, the limit the key list shows, or else against the organization's
+   * default key budget. Keys with neither are absent. The
    * gateway enforces against its own counters, which run ahead of ClickHouse
    * by the ingestion delay.
    */
@@ -102,12 +99,27 @@ export class GatewaySpendLimitService {
       params.organizationId,
     );
     if (!recordingProjectId) return { available: false, apiKeys: [] };
-    const limits = await this.repository.listFirstForApiKeys({
+    const ownerUserId = getKeyOwnerFilter(params.usageScope);
+    const ownLimits = await this.repository.listFirstForApiKeys({
       organizationId: params.organizationId,
-      ownerUserId: getKeyOwnerFilter(params.usageScope),
+      ownerUserId,
       apiKeyIds: params.apiKeyIds,
     });
-    const budgeted = limits.flatMap((limit) =>
+    const fallback = await this.repository.findDefault({
+      organizationId: params.organizationId,
+      scope: "API_KEY",
+    });
+    const withOwnLimit = new Set(ownLimits.map(({ apiKeyId }) => apiKeyId));
+    const defaultLimits = fallback
+      ? (
+          await this.apiKeys.filterVisibleGatewayApiKeyIds({
+            organizationId: params.organizationId,
+            ownerUserId,
+            apiKeyIds: params.apiKeyIds.filter((id) => !withOwnLimit.has(id)),
+          })
+        ).map((apiKeyId) => ({ ...fallback, apiKeyId }))
+      : [];
+    const budgeted = [...ownLimits, ...defaultLimits].flatMap((limit) =>
       limit.apiKeyId ? [{ subjectId: limit.apiKeyId, limit }] : [],
     );
     const spend = await readSpend(recordingProjectId, "API_KEY", budgeted);
@@ -123,8 +135,10 @@ export class GatewaySpendLimitService {
   /**
    * One page of gateway keys or users, each with its budget, if any, and what
    * ClickHouse has recorded against it in its current window; `spentUsd` is
-   * absent while spend is not recorded. Members see only their own keys, and
-   * may edit only budgets they set; only gateway managers list users.
+   * absent while spend is not recorded. A key or user without a budget of its
+   * own has the organization's default, if one is set. Members see only their
+   * own keys, and may edit only budgets they set; only gateway managers list
+   * users.
    */
   listBudgets(params: {
     organizationId: string;
@@ -153,17 +167,23 @@ export class GatewaySpendLimitService {
     searchQuery?: string;
     status: GatewayBudgetStatus;
   }) {
-    const { rows } =
-      params.status === "exceeded"
-        ? await this.listSubjects(params)
-        : await this.repository.listSubjectsPage({
-            organizationId: params.organizationId,
-            scope: params.scope,
-            memberRoles: GATEWAY_MEMBER_ROLES,
-            ownerUserId: getKeyOwnerFilter(params.usageScope),
-            searchQuery: params.searchQuery,
-            budget: BUDGET_FILTER_BY_STATUS[params.status],
-          });
+    if (params.status === "exceeded") {
+      const { rows } = await this.listSubjects(params);
+      return rows.map(({ subjectId, name }) => ({ subjectId, name }));
+    }
+    const budget = toBudgetFilter(
+      params.status,
+      (await this.repository.findDefault(params)) !== null,
+    );
+    if (budget === null) return [];
+    const { rows } = await this.repository.listSubjectsPage({
+      organizationId: params.organizationId,
+      scope: params.scope,
+      memberRoles: GATEWAY_MEMBER_ROLES,
+      ownerUserId: getKeyOwnerFilter(params.usageScope),
+      searchQuery: params.searchQuery,
+      budget,
+    });
     return rows.map(({ subjectId, name }) => ({ subjectId, name }));
   }
 
@@ -182,16 +202,23 @@ export class GatewaySpendLimitService {
     page?: { page: number; limit: number };
   }) {
     const { page } = params;
+    const fallback = await this.repository.findDefault(params);
+    const budget = toBudgetFilter(params.status, fallback !== null);
+    if (budget === null) return NO_SUBJECTS;
     const listed = await this.repository.listSubjectsPage({
       organizationId: params.organizationId,
       scope: params.scope,
       memberRoles: GATEWAY_MEMBER_ROLES,
       ownerUserId: getKeyOwnerFilter(params.usageScope),
       searchQuery: params.searchQuery,
-      budget: BUDGET_FILTER_BY_STATUS[params.status],
+      budget,
       page: params.status === "exceeded" ? undefined : page,
     });
-    const rows = await this.withSpend({ ...params, rows: listed.rows });
+    const rows = await this.withSpend({
+      ...params,
+      fallback,
+      rows: listed.rows,
+    });
     if (params.status !== "exceeded") {
       return { totalCount: listed.totalCount, rows };
     }
@@ -217,11 +244,13 @@ export class GatewaySpendLimitService {
     rows: Awaited<
       ReturnType<GatewaySpendLimitRepository["listSubjectsPage"]>
     >["rows"];
+    fallback: GatewaySpendLimitRecord | null;
   }) {
     const ownUserId = getKeyOwnerFilter(params.usageScope);
-    const budgeted = params.rows.flatMap(({ subjectId, limit }) =>
-      limit ? [{ subjectId, limit }] : [],
-    );
+    const budgeted = params.rows.flatMap(({ subjectId, limit }) => {
+      const applied = limit ?? params.fallback;
+      return applied ? [{ subjectId, limit: applied }] : [];
+    });
     const recordingProjectId =
       budgeted.length > 0
         ? await this.getRecordingProjectId(params.organizationId)
@@ -230,30 +259,38 @@ export class GatewaySpendLimitService {
       ? await readSpend(recordingProjectId, params.scope, budgeted)
       : null;
 
-    return params.rows.map(({ subjectId, name, user, limit }) => ({
-      id: subjectId,
-      subjectId,
-      name,
-      user,
-      spendLimit: limit
-        ? { interval: limit.interval, limitUsd: limit.limitUsd.toNumber() }
-        : null,
-      spentUsd: limit && spend ? (spend.get(subjectId) ?? 0) : undefined,
-      // Members may add a budget to their own keys, and change only budgets they set.
-      isEditable:
-        ownUserId === undefined ||
-        (params.scope === "API_KEY" &&
-          (limit === null || limit.ownerUserId === ownUserId)),
-    }));
+    return params.rows.map(({ subjectId, name, user, limit }) => {
+      const applied = limit ?? params.fallback;
+      return {
+        id: subjectId,
+        subjectId,
+        name,
+        user,
+        spendLimit: applied
+          ? {
+              interval: applied.interval,
+              limitUsd: applied.limitUsd.toNumber(),
+            }
+          : null,
+        isDefault: limit === null && applied !== null,
+        spentUsd: applied && spend ? (spend.get(subjectId) ?? 0) : undefined,
+        // Members may add a budget to their own keys, and change only budgets they set.
+        isEditable:
+          ownUserId === undefined ||
+          (params.scope === "API_KEY" &&
+            (limit === null || limit.ownerUserId === ownUserId)),
+      };
+    });
   }
 
   /**
-   * Gives each key or user the same spend limit; callers must be gateway
-   * managers. Refuses all of them, before writing any, if one already has a
-   * limit.
+   * Gives each key or user the same spend limit. Only gateway managers add
+   * user budgets; members add budgets only to their own keys. Refuses all of
+   * them, before writing any, if one already has a limit.
    */
   async createForSubjects(params: {
     organizationId: string;
+    usageScope: GatewayUsageScope;
     scope: GatewaySpendLimitScope["type"];
     subjectIds: string[];
     limit: SpendLimitInput;
@@ -262,6 +299,14 @@ export class GatewaySpendLimitService {
     const changes = [];
     for (const subjectId of params.subjectIds) {
       const scope = toSpendLimitScope(params.scope, subjectId);
+      // Checks the caller may see the key or user before saying whether it has a budget.
+      const change = await this.prepareChange({
+        organizationId: params.organizationId,
+        usageScope: params.usageScope,
+        scope,
+        limit: params.limit,
+        session: params.session,
+      });
       const existing = await this.repository.list({
         organizationId: params.organizationId,
         scope,
@@ -273,15 +318,7 @@ export class GatewaySpendLimitService {
             : "A selected user already has a spend budget",
         );
       }
-      changes.push(
-        await this.prepareChange({
-          organizationId: params.organizationId,
-          usageScope: { scope: "organization" },
-          scope,
-          limit: params.limit,
-          session: params.session,
-        }),
-      );
+      changes.push(change);
     }
     await this.applyChanges(changes);
   }
@@ -409,6 +446,76 @@ export class GatewaySpendLimitService {
     };
   }
 
+  /**
+   * The organization's default budget for keys and for users, each applying to
+   * every key or user without a budget of its own.
+   */
+  async getDefaults(organizationId: string) {
+    const defaults = await this.repository.listDefaults(organizationId);
+    const toBudget = (scope: GatewaySpendLimitScope["type"]) => {
+      const limit = defaults.find(
+        (candidate) =>
+          candidate.scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[scope],
+      );
+      return limit
+        ? { interval: limit.interval, limitUsd: limit.limitUsd.toNumber() }
+        : null;
+    };
+    return { API_KEY: toBudget("API_KEY"), USER: toBudget("USER") };
+  }
+
+  /**
+   * Makes `limit` the organization's default budget for keys or users, or
+   * removes it when null. Like a budget of one key or user, an unchanged
+   * default keeps counting, a new amount keeps counting and a new interval
+   * starts counting afresh. Every key of the organization may resolve it, so
+   * all of them are dropped from the resolve cache.
+   */
+  async setDefault(params: {
+    organizationId: string;
+    scope: GatewaySpendLimitScope["type"];
+    limit: SpendLimitInput | null;
+    session: OrgAuthedContext["session"];
+  }) {
+    const { organizationId, scope, limit, session } = params;
+    const existing = await this.repository.findDefault(params);
+    const kept = existing?.interval === limit?.interval ? existing : null;
+    if (kept && kept.limitUsd.toNumber() === limit?.limitUsd) return;
+    if (!limit && !existing) return;
+    if (limit) await this.requireRecordingProjectId(organizationId);
+
+    // One default per scope, so a replaced one goes first, in the same
+    // transaction so that a failed write keeps it.
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        if (kept && limit) {
+          await update(tx, {
+            before: kept,
+            limitUsd: limit.limitUsd,
+            session,
+          });
+          return;
+        }
+        if (existing) await remove(tx, { before: existing, session });
+        if (limit) {
+          await createDefault(tx, { organizationId, scope, ...limit, session });
+        }
+      });
+    } catch (error) {
+      // Another save of the same default won: one created it (P2002) or removed the replaced one (P2025).
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === "P2002" || error.code === "P2025")
+      ) {
+        throw new LangfuseConflictError(
+          "The default budget was changed at the same time. Reload and try again.",
+        );
+      }
+      throw error;
+    }
+    await invalidateGatewayResolveCacheForOrganization(organizationId);
+  }
+
   /** What the scope applies to, if the caller may see it. */
   private async requireSubject(params: {
     organizationId: string;
@@ -531,6 +638,27 @@ async function create(
   await audit(tx, { session: params.session, action: "create", after: limit });
 }
 
+async function createDefault(
+  tx: Prisma.TransactionClient,
+  params: {
+    organizationId: string;
+    scope: GatewaySpendLimitScope["type"];
+    interval: GatewaySpendLimitInterval;
+    limitUsd: number;
+    session: OrgAuthedContext["session"];
+  },
+) {
+  const limit = await new GatewaySpendLimitRepository(tx).createDefault({
+    organizationId: params.organizationId,
+    scope: params.scope,
+    interval: params.interval,
+    limitUsd: params.limitUsd,
+    countingStartedAt: new Date(),
+    ownerUserId: params.session.user.id,
+  });
+  await audit(tx, { session: params.session, action: "create", after: limit });
+}
+
 async function update(
   tx: Prisma.TransactionClient,
   params: {
@@ -596,3 +724,23 @@ type SpendLimitChange = {
   write: (tx: Prisma.TransactionClient) => Promise<void>;
   invalidateResolveCache: () => Promise<void>;
 };
+
+/**
+ * Which keys or users a status lists, by whether they have a budget of their
+ * own; null when it lists none. With a default, every key or user has a
+ * budget, so none is unlimited and every one may be exceeded.
+ */
+function toBudgetFilter(status: GatewayBudgetStatus, hasDefault: boolean) {
+  switch (status) {
+    case "all":
+      return "any";
+    case "budgeted":
+      return "with";
+    case "default":
+      return hasDefault ? "without" : null;
+    case "unlimited":
+      return hasDefault ? null : "without";
+    case "exceeded":
+      return hasDefault ? "any" : "with";
+  }
+}

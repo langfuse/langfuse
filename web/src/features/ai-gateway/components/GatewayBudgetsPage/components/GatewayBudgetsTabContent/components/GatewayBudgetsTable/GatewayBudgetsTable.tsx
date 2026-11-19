@@ -19,6 +19,7 @@ import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import {
   getGatewaySpendLimitWindowEnd,
@@ -50,6 +51,7 @@ type GatewayBudgetsTableProps = Pick<
 const statusOptions: { value: GatewayBudgetStatus; label: string }[] = [
   { value: "all", label: "All" },
   { value: "budgeted", label: "With budget" },
+  { value: "default", label: "Default budget" },
   { value: "unlimited", label: "Unlimited" },
   { value: "exceeded", label: "Exceeded" },
 ];
@@ -70,12 +72,17 @@ const budgetColumn = (subject: "key" | "user") =>
     loadingCell: budgetSkeleton,
     renderCell: (spendLimit, { row }) =>
       spendLimit ? (
-        <GatewaySpendBudgetBadge
-          subject={subject}
-          spendLimit={spendLimit}
-          spentUsd={row.original.spentUsd}
-          format="amounts"
-        />
+        <span className="inline-flex items-center gap-2">
+          <GatewaySpendBudgetBadge
+            subject={subject}
+            spendLimit={spendLimit}
+            spentUsd={row.original.spentUsd}
+            format="amounts"
+          />
+          {row.original.isDefault && (
+            <GatewayDefaultBudgetTag subject={subject} />
+          )}
+        </span>
       ) : (
         <span className="text-muted-foreground font-mono text-xs">
           Unlimited

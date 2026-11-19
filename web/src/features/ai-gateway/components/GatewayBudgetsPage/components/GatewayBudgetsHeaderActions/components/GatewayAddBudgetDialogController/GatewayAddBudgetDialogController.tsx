@@ -28,7 +28,7 @@ type GatewayAddBudgetDialogControllerProps = {
   }) => ReactNode;
 };
 
-/** Adds a budget to keys or users without one; only gateway managers may. */
+/** Adds a budget to keys or users without one; members only to their own keys. */
 export function GatewayAddBudgetDialogController({
   organizationId,
   children,
@@ -111,7 +111,9 @@ function toTargetOption(
   targetType: GatewaySpendTab,
   row: RouterOutputs["aiGateway"]["listBudgets"]["rows"][number],
 ): GatewayAddBudgetDialogProps["targetPicker"]["options"][number] {
-  const budgeted = row.spendLimit !== null ? ALREADY_BUDGETED : undefined;
+  // Rows on the default have no budget of their own, so one can be added.
+  const budgeted =
+    row.spendLimit !== null && !row.isDefault ? ALREADY_BUDGETED : undefined;
   if (targetType === "apiKeys") {
     return {
       value: row.subjectId,

@@ -2,6 +2,7 @@ import type { OrderByState } from "@langfuse/shared";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
 import { api } from "@/src/utils/api";
 
 /**
@@ -41,9 +42,14 @@ export function useGatewayApiKeysTableData({
       trpc: { context: { skipBatch: true } },
     },
   );
+  // Keys without their own budget are capped by the default key budget, if one is set.
+  const defaultSpendLimit =
+    useGatewayDefaultBudget(organizationId, "key") ?? null;
   const budgetedApiKeyIds =
     apiKeysQuery.data?.data
-      .filter(({ spendLimit }) => spendLimit !== null)
+      .filter(
+        ({ spendLimit }) => spendLimit !== null || defaultSpendLimit !== null,
+      )
       .map(({ apiKey }) => apiKey.id) ?? [];
   const spendQuery = api.aiGateway.getApiKeysSpend.useQuery(
     { orgId: organizationId, apiKeyIds: budgetedApiKeyIds },
@@ -54,7 +60,11 @@ export function useGatewayApiKeysTableData({
   );
 
   const withLastUsed = joinTableCoreAndMetrics(
-    apiKeysQuery.data?.data.map((row) => ({ ...row, id: row.apiKey.id })),
+    apiKeysQuery.data?.data.map((row) => ({
+      ...row,
+      id: row.apiKey.id,
+      defaultSpendLimit: row.spendLimit ? null : defaultSpendLimit,
+    })),
     lastUsedQuery.data?.apiKeys,
   ).rows;
   return {

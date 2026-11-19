@@ -207,10 +207,9 @@ export function useGatewayPages(): GatewayPageEntry[] {
           : "Spend of your requests made through the AI Gateway, in total or per gateway key, and the budgets of your keys.",
         href: GATEWAY_ANALYTICS_DOCS_URL,
       },
+      // Everyone may add budgets to their own keys; the default is for managers only.
       actions:
-        access.canManageGateway &&
-        !access.showNotDeployedNotice &&
-        !showsNotSetUpNotice ? (
+        !access.showNotDeployedNotice && !showsNotSetUpNotice ? (
           <GatewayBudgetsHeaderActions
             organizationId={organization.id}
             tab={budgetsTab}
