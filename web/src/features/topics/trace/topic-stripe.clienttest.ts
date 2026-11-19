@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   TOPIC_STRIPE_SLOTS,
   toggleStripeTopic,
+  topicStripeCoverage,
   topicStripeSegments,
 } from "./topic-stripe";
 
@@ -21,20 +22,65 @@ describe("topicStripeSegments", () => {
       ],
       topicsByTrace: {
         one: [
-          { facet: "Intent", topic: "Billing" },
-          { facet: "Intent", topic: "Billing" },
-          { facet: "Tone", topic: "Angry" },
+          { facet: "Intent", topic: "Billing", runIds: ["map-a"] },
+          { facet: "Tone", topic: "Angry", runIds: ["map-t"] },
         ],
-        two: [{ facet: "Intent", topic: "Refunds" }],
-        three: [{ facet: "Tone", topic: "Calm" }],
+        two: [{ facet: "Intent", topic: "Refunds", runIds: ["map-a"] }],
+        three: [{ facet: "Tone", topic: "Calm", runIds: ["map-t"] }],
       },
       facet: "Intent",
-      facetTopics: ["Refunds", "Billing"],
+      map: { runId: "map-a" },
     });
     expect(segments).toEqual([
-      { kind: "topic", name: "Billing", count: 1, slot: 1 },
-      { kind: "topic", name: "Refunds", count: 1, slot: 0 },
+      { kind: "topic", name: "Billing", count: 1, slot: 0 },
+      { kind: "topic", name: "Refunds", count: 1, slot: 1 },
       { kind: "unassigned", count: 1 },
+    ]);
+  });
+
+  it("counts a trace once, in the map's topic, ignoring the facet's other maps", () => {
+    const input = {
+      rows: [
+        { traceId: "both" },
+        { traceId: "other-only" },
+        { traceId: "outlier" },
+      ],
+      topicsByTrace: {
+        both: [
+          { facet: "Intent", topic: "Billing", runIds: ["map-a"] },
+          { facet: "Intent", topic: "Enterprise billing", runIds: ["map-b"] },
+        ],
+        "other-only": [
+          { facet: "Intent", topic: "Enterprise billing", runIds: ["map-b"] },
+        ],
+        outlier: [{ facet: "Intent", topic: null, runIds: ["map-a"] }],
+      },
+      facet: "Intent",
+      map: { runId: "map-a" },
+    };
+    expect(topicStripeSegments(input)).toEqual([
+      { kind: "topic", name: "Billing", count: 1, slot: 0 },
+      { kind: "unassigned", count: 2 },
+    ]);
+    // The map's outlier counts as analysed; a trace only another map saw does not.
+    expect(topicStripeCoverage(input)).toEqual({ analysed: 2, total: 3 });
+  });
+
+  it("colours topics by their rank in the loaded rows, largest first", () => {
+    const segments = topicStripeSegments({
+      rows: ["a", "b", "c", "d"].map((traceId) => ({ traceId })),
+      topicsByTrace: {
+        a: [{ facet: "Intent", topic: "Billing", runIds: ["map-a"] }],
+        b: [{ facet: "Intent", topic: "Billing", runIds: ["map-a"] }],
+        c: [{ facet: "Intent", topic: "Billing", runIds: ["map-a"] }],
+        d: [{ facet: "Intent", topic: "Refunds", runIds: ["map-a", "map-b"] }],
+      },
+      facet: "Intent",
+      map: { runId: "map-a" },
+    });
+    expect(segments).toEqual([
+      { kind: "topic", name: "Billing", count: 3, slot: 0 },
+      { kind: "topic", name: "Refunds", count: 1, slot: 1 },
     ]);
   });
 
@@ -46,10 +92,13 @@ describe("topicStripeSegments", () => {
     const segments = topicStripeSegments({
       rows: names.map((name) => ({ traceId: name })),
       topicsByTrace: Object.fromEntries(
-        names.map((name) => [name, [{ facet: "Intent", topic: name }]]),
+        names.map((name) => [
+          name,
+          [{ facet: "Intent", topic: name, runIds: ["map-a"] }],
+        ]),
       ),
       facet: "Intent",
-      facetTopics: names,
+      map: { runId: "map-a" },
     });
     expect(segments).toHaveLength(TOPIC_STRIPE_SLOTS + 1);
     expect(segments.at(-1)).toEqual({ kind: "more", count: 3, topicCount: 3 });
