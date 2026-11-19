@@ -51,7 +51,8 @@ export function useTopicStripe({
   const facet = topicStripeFacet(Object.keys(facetTopics ?? {}));
   const map = api.topics.stripeMap.useQuery(
     { projectId, facet: facet ?? "" },
-    { enabled: enabled && facet !== null, staleTime: 5 * 60 * 1000 },
+    // Matches the trace topics' refresh, so a refit's new run id lines up.
+    { enabled: enabled && facet !== null, staleTime: 60 * 1000 },
   ).data;
   const topicsByTrace = useTraceTopicsForRows(
     projectId,

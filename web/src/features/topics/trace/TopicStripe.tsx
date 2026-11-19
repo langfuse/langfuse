@@ -1,5 +1,6 @@
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { useState } from "react";
+import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -45,11 +46,15 @@ export function TopicStripe({
     return sum;
   }, 0);
   const anySelected = selected.size > 0;
+  // Controlled so a tap opens the card too; hover cards never open on touch.
+  const [cardOpen, setCardOpen] = useState(false);
   return (
     <div className="ph-no-capture flex min-w-0 items-center gap-2">
       <span className="flex shrink-0 items-center">
         <span className="text-muted-foreground text-xs">{facet}</span>
-        <HoverCard
+        <ControlledHoverCard
+          open={cardOpen}
+          onOpenChange={setCardOpen}
           placement="bottom-start"
           content={
             <div className="ph-no-capture flex w-64 flex-col gap-2 p-3">
@@ -68,9 +73,17 @@ export function TopicStripe({
           }
         >
           {({ getTriggerProps }) => (
-            <DocPopupTrigger triggerProps={getTriggerProps()} />
+            <DocPopupTrigger
+              triggerProps={getTriggerProps({
+                onClick: (event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setCardOpen(!cardOpen);
+                },
+              })}
+            />
           )}
-        </HoverCard>
+        </ControlledHoverCard>
       </span>
       <div className="flex h-1.5 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
         {segments.map((segment) => {
@@ -109,7 +122,7 @@ export function TopicStripe({
                     flexGrow: segment.count,
                     flexBasis: 0,
                     backgroundColor:
-                      segment.kind === "topic"
+                      segment.kind === "topic" && segment.slot >= 0
                         ? scatterSwatchColor(segment.slot)
                         : UNASSIGNED_SWATCH_COLOR,
                   }}

@@ -290,13 +290,8 @@ export async function topicStripeRanking(
   );
   return {
     runId: map.run.id,
-    // Topics without traces in the window rank after the counted ones.
-    topics: [
-      ...new Set([
-        ...ranking.flatMap((id) => names.get(id) ?? []),
-        ...map.run.topics.map((topic) => topic.name),
-      ]),
-    ],
+    // Topics without traces in the window stay unranked, grey as on the Topics page.
+    topics: [...new Set(ranking.flatMap((id) => names.get(id) ?? []))],
   };
 }
 

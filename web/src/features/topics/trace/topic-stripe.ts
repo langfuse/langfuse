@@ -13,7 +13,7 @@ type TraceTopics = Record<
 export type TopicStripeMap = { runId: string; topics: string[] };
 
 export type TopicStripeSegment =
-  /** `slot` is the topic's rank on the Topics page for the same map, so colours match it. */
+  /** `slot` is the topic's rank on the Topics page for the same map, so colours match it; -1 (grey) when unranked. */
   | { kind: "topic"; name: string; count: number; slot: number }
   | { kind: "more"; count: number; topicCount: number }
   | { kind: "unassigned"; count: number };

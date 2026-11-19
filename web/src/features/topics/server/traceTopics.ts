@@ -72,21 +72,30 @@ export async function tracesTopics(
   return result;
 }
 
-/** The Tracing stripe's map of a facet: the oldest covering rule's, as the Topics page opens it. */
+/** The Tracing stripe's map of a facet: the oldest covering rule's that has one, as the Topics page opens it. */
 export async function topicStripeMap(projectId: string, facetName: string) {
   const facet = (await listTopicFacets(projectId)).find(
     (item) => item.name === facetName,
   );
   if (!facet) return null;
-  const rule = (await listTopicRules(projectId)).find((item) =>
+  const rules = (await listTopicRules(projectId)).filter((item) =>
     item.facetIds.includes(facet.id),
   );
-  const ranking = await topicStripeRanking(projectId, facet, rule?.id);
-  if (!ranking) return null;
-  return {
-    facetId: facet.id,
-    ruleId: rule?.id ?? null,
-    mapName: rule?.name ?? null,
-    ...ranking,
-  };
+  // The oldest covering rule with a map; a rule may not have one yet.
+  for (const rule of rules) {
+    const ranking = await topicStripeRanking(projectId, facet, rule.id);
+    if (ranking)
+      return {
+        facetId: facet.id,
+        ruleId: rule.id,
+        mapName: rule.name,
+        ...ranking,
+      };
+  }
+  const ranking = rules.length
+    ? null
+    : await topicStripeRanking(projectId, facet);
+  return ranking
+    ? { facetId: facet.id, ruleId: null, mapName: null, ...ranking }
+    : null;
 }
