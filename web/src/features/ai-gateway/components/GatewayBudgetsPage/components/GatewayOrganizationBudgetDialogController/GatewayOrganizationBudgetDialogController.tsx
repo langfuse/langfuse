@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { GatewayBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetDialog/GatewayBudgetDialog";
-import { useGatewayOrganizationBudget } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayOrganizationBudget";
-import { useSetGatewayOrganizationBudget } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayOrganizationBudget";
+import { useGatewayOrganizationBudget } from "@/src/features/ai-gateway/hooks/useGatewayOrganizationBudget";
+import { useSetGatewayOrganizationBudget } from "@/src/features/ai-gateway/hooks/useSetGatewayOrganizationBudget";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
