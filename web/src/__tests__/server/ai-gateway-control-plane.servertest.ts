@@ -181,9 +181,11 @@ async function authenticateRequest(
   const context = await new GatewayApiKeyAuthenticator(
     prisma,
   ).authenticateRequest(params);
-  return new GatewayResolveService().resolve({
+  const service = new GatewayResolveService();
+  return service.resolve({
     context,
     apiFormat: params.apiFormat,
+    pricing: service.findPricing(context),
   });
 }
 
