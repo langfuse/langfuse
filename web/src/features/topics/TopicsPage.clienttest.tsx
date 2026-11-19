@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   updatedAt: "2026-09-23T12:00:00Z",
   retry: vi.fn(),
   refetchExecution: vi.fn(),
+  queryCosts: vi.fn<() => Promise<Record<string, number>>>(),
   dateRange: undefined as string | undefined,
   executionId: undefined as string | undefined,
   setQueryParams: vi.fn(),
@@ -270,7 +271,7 @@ vi.mock("@/src/utils/api", () => ({
       },
     },
     useUtils: () => ({
-      client: { topics: { executionCosts: { query: async () => ({}) } } },
+      client: { topics: { executionCosts: { query: state.queryCosts } } },
       topics: {
         modelSettings: { invalidate: vi.fn() },
         maps: { invalidate: vi.fn() },
@@ -295,6 +296,7 @@ function renderTopicsPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.queryCosts.mockReset().mockResolvedValue({});
   state.maps = undefined;
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-09T12:00:00Z"));
@@ -426,6 +428,34 @@ function withSummaries() {
   ];
   state.rules = [{ facetIds: ["intent", "outcome"] }];
 }
+
+it("keeps settled costs visible while fetching the final cost of a completed run", async () => {
+  withSummaries();
+  const settled = execution("completed", "process");
+  const unpriced = { ...settled, id: "unpriced" };
+  const active = execution("running", "process");
+  state.executions = [settled, unpriced, active];
+  const finalCosts = Promise.withResolvers<Record<string, number>>();
+  state.queryCosts
+    .mockResolvedValueOnce({ [settled.id]: 0, [active.id]: 0.12 })
+    .mockReturnValueOnce(finalCosts.promise);
+  const view = renderTopicsPage();
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "History" }));
+  expect(await screen.findByText("~$0.12")).toBeVisible();
+
+  state.executions = [settled, unpriced, { ...active, status: "completed" }];
+  view.rerender(<TopicsPage />);
+  expect(screen.getByText("~$0.00")).toBeVisible();
+  expect(screen.getByText("Unavailable")).toBeVisible();
+  expect(screen.getByText("Loading…")).toBeVisible();
+  expect(state.queryCosts).toHaveBeenLastCalledWith(
+    { projectId: "project", executionIds: [active.id] },
+    expect.anything(),
+  );
+  finalCosts.resolve({ [active.id]: 0.34 });
+  expect(await screen.findByText("~$0.34")).toBeVisible();
+});
 
 it.each([
   ["no facets", () => []],

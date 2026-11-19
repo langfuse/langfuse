@@ -1,7 +1,12 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { useEffect, useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
@@ -856,25 +861,65 @@ type RunCostStatus = Pick<TopicRunWithCost, "id" | "status" | "updatedAt">;
 /** Only visible estimates read ClickHouse. Each terminal revision fetches a final estimate, including after a retry. */
 function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
   const utils = api.useUtils();
+  const queryClient = useQueryClient();
   const revisions = Object.fromEntries(
     runs.map((run) => [run.id, busy(run.status) ? null : run.updatedAt]),
   );
   const executionIds = Object.keys(revisions).sort();
   const input = { projectId, executionIds };
-  const costs = useQuery({
+  const pollInterval = 30_000;
+  const staleTime = 60_000;
+  const runKey = (id: string) =>
+    ["topics-run-cost", projectId, id, revisions[id]] as const;
+  const { data, isError } = useQuery({
     queryKey: [
       ...getQueryKey(api.topics.executionCosts, input, "query"),
       revisions,
     ],
-    queryFn: ({ signal }) =>
-      utils.client.topics.executionCosts.query(input, { signal }),
+    queryFn: async ({ signal }) => {
+      const estimates: Record<string, number | null> = {};
+      const due: string[] = [];
+      for (const id of executionIds) {
+        const cached = queryClient.getQueryState<number | null>(runKey(id));
+        const maxAge = revisions[id] === null ? pollInterval : staleTime;
+        if (
+          cached?.data !== undefined &&
+          Date.now() - cached.dataUpdatedAt < maxAge
+        ) {
+          estimates[id] = cached.data;
+        } else {
+          due.push(id);
+        }
+      }
+      if (due.length) {
+        const amounts = await utils.client.topics.executionCosts.query(
+          { projectId, executionIds: due },
+          { signal },
+        );
+        signal.throwIfAborted();
+        for (const id of due) {
+          estimates[id] = amounts[id] ?? null;
+          queryClient.setQueryData(runKey(id), estimates[id]);
+        }
+      }
+      return { projectId, revisions, estimates };
+    },
     enabled: executionIds.length > 0,
-    staleTime: 60_000,
-    refetchInterval: Object.values(revisions).includes(null) ? 30_000 : false,
+    placeholderData: keepPreviousData,
+    staleTime,
+    refetchInterval: Object.values(revisions).includes(null)
+      ? pollInterval
+      : false,
     meta: { silentAllErrors: true },
   });
-  return (id: string) =>
-    costs.isPending ? undefined : (costs.data?.[id] ?? null);
+  return (id: string) => {
+    const cost = queryClient.getQueryData<number | null>(runKey(id));
+    if (cost !== undefined) return cost;
+    // The last visible batch can still be on screen after the individual cache entries expire.
+    if (data?.projectId === projectId && data.revisions[id] === revisions[id])
+      return data.estimates[id];
+    return isError ? null : undefined;
+  };
 }
 
 function ExecutionPanel({
