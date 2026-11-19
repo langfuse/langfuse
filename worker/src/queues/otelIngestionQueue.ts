@@ -720,20 +720,14 @@ export const otelIngestionQueueProcessorBuilder = (
       }
 
       const writesToLegacyTables = v4WritesToLegacyTables(env);
-      let processor: OtelIngestionProcessor | undefined;
-      const getProcessor = () => {
-        if (processor === undefined) {
-          processor = new OtelIngestionProcessor({
-            projectId,
-            publicKey: attribution.ingestionApiKey,
-            sdkName: attribution.ingestionSdkName,
-            sdkVersion: attribution.ingestionSdkVersion,
-            fileKey,
-            isLangfuseInternal,
-          });
-        }
-        return processor;
-      };
+      const processor = new OtelIngestionProcessor({
+        projectId,
+        publicKey: attribution.ingestionApiKey,
+        sdkName: attribution.ingestionSdkName,
+        sdkVersion: attribution.ingestionSdkVersion,
+        fileKey,
+        isLangfuseInternal,
+      });
       let traces: IngestionEventType[] = [];
       let observations: IngestionEventType[] = [];
 
@@ -744,7 +738,7 @@ export const otelIngestionQueueProcessorBuilder = (
           );
         }
         ({ traces, observations } = await prepareTypeScriptOtelEvents({
-          processor: getProcessor(),
+          processor,
           resourceSpans: parsedSpans,
           isLangfuseInternal,
           earlyBatch,
@@ -967,7 +961,7 @@ export const otelIngestionQueueProcessorBuilder = (
           );
         }
         const directMediaPresence = await processOtelEvents({
-          processor: getProcessor(),
+          processor,
           resourceSpans: parsedSpans,
           ingestionService: getIngestionService(),
           projectId,
