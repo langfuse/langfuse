@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent } from "react";
 import { PlusIcon, TrashIcon } from "@langfuse/icons";
 
-import { BaseUrlPicker } from "@/src/components/BaseUrlPicker";
+import { BaseUrlPicker } from "@/src/components/BaseUrlPicker/BaseUrlPicker";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";

@@ -32,7 +32,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { BaseUrlPicker } from "@/src/components/BaseUrlPicker";
+import { BaseUrlPicker } from "@/src/components/BaseUrlPicker/BaseUrlPicker";
 import {
   OPENAI_DATA_RESIDENCY_HINT,
   openAiBaseUrlPresets,
