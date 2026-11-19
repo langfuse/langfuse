@@ -499,6 +499,7 @@ type ProviderScope = keyof typeof providerKeys;
 
 type ProviderReplaySeed = {
   scope: ProviderScope;
+  spanName?: Json;
   events?: {
     name: string;
     attributes?: ProviderReplaySeed["sources"] | null;
@@ -631,6 +632,10 @@ const providerReplayArbitrary: Arbitrary<ProviderReplaySeed> = fc
   .chain((scope) =>
     fc.record({
       scope: fc.constant(scope),
+      spanName: fc.oneof(
+        fc.string({ maxLength: 24 }),
+        recursiveJsonArbitrary(2, 3),
+      ),
       events: fc.array(
         fc.record({
           name: fc.constantFrom(
@@ -842,6 +847,7 @@ function buildProviderReplay(seeds: ProviderReplaySeed[]): Buffer {
           spans: [
             {
               ...spans[index]!,
+              ...(seed.spanName === undefined ? {} : { name: seed.spanName }),
               attributes,
               events: seed.events?.map(({ name, attributes }) => ({
                 name,
@@ -1202,7 +1208,19 @@ function aiProviderSeed(
   };
 }
 
+const declaredTypeExamples = [
+  ["langfuse.observation.type", "generation"],
+  ["openinference.span.kind", "LLM"],
+  ["gen_ai.operation.name", "chat"],
+  ["genkit:metadata:subtype", "embedder"],
+] as const;
+
 const directedProviderExamples: ProviderReplaySeed[][] = [
+  declaredTypeExamples.flatMap(([key, alias]) =>
+    [[alias], [[alias]], [alias, ""]].map((value) =>
+      aiProviderSeed([{ key, value }]),
+    ),
+  ),
   ...[null, false, "", [], [1, 2]].map((primary) => [
     {
       scope: "other" as const,

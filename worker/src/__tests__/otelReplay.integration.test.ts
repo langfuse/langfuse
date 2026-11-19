@@ -1323,6 +1323,66 @@ describe(
       }
     });
 
+    it("matches stored names and evaluation decisions for competing name sources", async () => {
+      const resource = buildFocusedResourceSpans({})[0]!;
+      const scope = resource.scopeSpans![0]!;
+      const template = scope.spans![0]!;
+      const cases = [
+        { raw: 5, attr: { intValue: "5" } },
+        { raw: false, attr: { boolValue: false } },
+        {
+          raw: ["tool"],
+          attr: { arrayValue: { values: [{ stringValue: "tool" }] } },
+        },
+        { raw: "5", attr: { stringValue: "5" } },
+        { raw: "", attr: { stringValue: "" } },
+        { raw: null, attr: {} },
+      ];
+      const sources = [
+        "gen_ai.tool.name",
+        "genkit:name",
+        "logfire.msg",
+        "ai.toolCall.name",
+      ];
+      const fixtures = cases.flatMap(({ raw, attr }) => [
+        { name: raw, attributes: [] },
+        ...sources.map((key, index) => ({
+          name: raw,
+          attributes: [
+            { key, value: attr },
+            ...sources
+              .slice(index + 1)
+              .map((alias) => stringAttribute(alias, "lower priority")),
+          ],
+        })),
+        {
+          name: raw,
+          attributes: [stringAttribute("genkit:name", "valid override")],
+        },
+        {
+          name: raw,
+          attributes: [
+            stringAttribute("ai.operationId", "generate"),
+            { key: "ai.telemetry.functionId", value: attr },
+          ],
+        },
+      ]);
+      const spans = fixtures.map((fixture, index) => ({
+        ...template,
+        ...fixture,
+        spanId: createBufferId((index + 1).toString(16).padStart(16, "0")),
+      }));
+      const comparison = await runOtelReplayComparison({
+        bytes: Buffer.from(
+          JSON.stringify([{ ...resource, scopeSpans: [{ ...scope, spans }] }]),
+        ),
+        projectId: PROJECT_ID,
+      });
+      expect(comparison.originalTs.storedRows).toHaveLength(fixtures.length);
+      expect(comparison.originalTs.evaluatedSpans).toHaveLength(33);
+      expectRawNativeParity(comparison);
+    });
+
     it.each([
       "langfuse.trace.name",
       "langfuse.version",
@@ -1352,26 +1412,15 @@ describe(
           spanId: createBufferId(ids[index]!),
           attributes: [{ key, value }],
         }));
-        let cursor = 0;
         const comparison = await runOtelReplayComparison({
           bytes: Buffer.from(JSON.stringify([resource])),
           projectId: PROJECT_ID,
-          captureSideEffects: () => {
-            const calls =
-              otelReplayMocks.scheduleObservationEvals.mock.calls.slice(cursor);
-            cursor = otelReplayMocks.scheduleObservationEvals.mock.calls.length;
-            return calls.map(([{ observation }]) => observation.span_id).sort();
-          },
         });
         expect(comparison.originalTs.storedRows).toHaveLength(values.length);
+        expect(
+          comparison.originalTs.evaluatedSpans.map(([, id]) => id),
+        ).toEqual(ids.slice(3));
         expectRawNativeParity(comparison);
-        expect(comparison.originalTs.sideEffects).toEqual(ids.slice(3));
-        expect(comparison.earlyTs.sideEffects).toEqual(
-          comparison.originalTs.sideEffects,
-        );
-        expect(comparison.earlyRust.sideEffects).toEqual(
-          comparison.originalTs.sideEffects,
-        );
       },
     );
 
@@ -1426,7 +1475,6 @@ describe(
           return { id: "replay-prompt-id" };
         });
         let promptCursor = 0;
-        let evaluationCursor = 0;
         const comparison = await runOtelReplayComparison({
           bytes: Buffer.from(JSON.stringify([resource])),
           projectId: PROJECT_ID,
@@ -1434,18 +1482,7 @@ describe(
             const prompts =
               otelReplayMocks.getPrompt.mock.calls.slice(promptCursor);
             promptCursor = otelReplayMocks.getPrompt.mock.calls.length;
-            const evaluations =
-              otelReplayMocks.scheduleObservationEvals.mock.calls.slice(
-                evaluationCursor,
-              );
-            evaluationCursor =
-              otelReplayMocks.scheduleObservationEvals.mock.calls.length;
-            return {
-              prompts: prompts.map(([request]) => request.promptName).sort(),
-              evaluations: evaluations
-                .map(([{ observation }]) => observation.span_id)
-                .sort(),
-            };
+            return prompts.map(([request]) => request.promptName).sort();
           },
         });
         const expectedLookups = sources
@@ -1454,10 +1491,8 @@ describe(
         expect(comparison.earlyRust.storedRows).toHaveLength(
           failLookup ? 9 : 18,
         );
-        expect(comparison.originalTs.sideEffects.prompts).toEqual(
-          expectedLookups,
-        );
-        expect(comparison.originalTs.sideEffects.evaluations).toHaveLength(
+        expect(comparison.originalTs.sideEffects).toEqual(expectedLookups);
+        expect(comparison.originalTs.evaluatedSpans).toHaveLength(
           failLookup ? 3 : 12,
         );
         expect(comparison.earlyTs.sideEffects).toEqual(

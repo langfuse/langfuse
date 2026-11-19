@@ -18,7 +18,10 @@ import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { initializeEventByteAccounting } from "../../services/ClickhouseWriter/eventByteAccounting";
 import { otelIngestionQueueProcessorBuilder } from "../../queues/otelIngestionQueue";
 import { ingestionQueueProcessorBuilder } from "../../queues/ingestionQueue";
-import { configureOtelReplayEnvironment } from "./otelReplaySetup";
+import {
+  configureOtelReplayEnvironment,
+  otelReplayMocks,
+} from "./otelReplaySetup";
 
 type OtelReplayStoredRow = Record<string, unknown>;
 
@@ -26,6 +29,7 @@ export type OtelReplayResult = {
   mode: OtelRawReplayMode;
   storedRows: OtelReplayStoredRow[];
   legacyRows?: Partial<Record<LegacyReplayTable, OtelReplayStoredRow[]>>;
+  evaluatedSpans: [string, string][];
   sideEffects?: unknown;
 };
 
@@ -137,6 +141,12 @@ export function comparableOtelReplayRows(
 export function expectRawNativeParity(
   comparison: OtelRawReplayComparison,
 ): void {
+  expect(comparison.earlyTs.evaluatedSpans).toEqual(
+    comparison.originalTs.evaluatedSpans,
+  );
+  expect(comparison.earlyRust.evaluatedSpans).toEqual(
+    comparison.originalTs.evaluatedSpans,
+  );
   expect(comparableOtelReplayRows(comparison.earlyTs.storedRows)).toEqual(
     comparableOtelReplayRows(comparison.originalTs.storedRows),
   );
@@ -177,6 +187,8 @@ export async function runOneOtelReplay(
   }
   await eventByteAccountingReady;
 
+  const evaluationStart =
+    otelReplayMocks.scheduleObservationEvals.mock.calls.length;
   const projectId = params.projectId ?? "otel-replay-test";
   const fileKey = params.fileKey ?? "otel-replay/test.json";
   const writeMode = params.writeMode ?? "events_only";
@@ -418,6 +430,13 @@ export async function runOneOtelReplay(
       mode: params.mode,
       storedRows: (await result.json()) as OtelReplayStoredRow[],
       legacyRows,
+      evaluatedSpans: otelReplayMocks.scheduleObservationEvals.mock.calls
+        .slice(evaluationStart)
+        .map(([{ observation }]): [string, string] => [
+          observation.trace_id,
+          observation.span_id,
+        ])
+        .sort(),
       sideEffects: params.captureSideEffects?.(),
     };
   } catch (error) {
