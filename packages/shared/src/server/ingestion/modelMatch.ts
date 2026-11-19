@@ -208,18 +208,6 @@ const getModelWithPricesFromRedis = async (
 
     const parsed = JSON.parse(redisValue);
 
-    // Entries written by app versions that predate a Model column cannot say
-    // which owner the row has, so they are re-resolved from Postgres.
-    if (
-      parsed.model !== undefined &&
-      parsed.model !== null &&
-      (typeof parsed.model.scope !== "string" ||
-        !("organizationId" in parsed.model))
-    ) {
-      recordIncrement("langfuse.model_match.cache_stale_entry", 1);
-      return null;
-    }
-
     if (parsed.model !== undefined && parsed.pricingTiers !== undefined) {
       const model = redisModelToPrismaModel(parsed.model);
       const pricingTiers: PricingTierWithPrices[] = parsed.pricingTiers.map(
@@ -388,9 +376,17 @@ const getModelMatchKeyPrefix = () => {
   return "model-price-tiers";
 };
 
-export const redisModelToPrismaModel = (redisModel: Model): Model => {
+export const redisModelToPrismaModel = (
+  redisModel: Omit<Model, "scope" | "organizationId"> & {
+    scope?: Model["scope"];
+    organizationId?: Model["organizationId"];
+  },
+): Model => {
   return {
     ...redisModel,
+    // Entries cached before the scope or organization columns existed only ever held project or Langfuse rows.
+    scope: redisModel.scope ?? (redisModel.projectId ? "PROJECT" : "LANGFUSE"),
+    organizationId: redisModel.organizationId ?? null,
     createdAt: new Date(redisModel.createdAt),
     updatedAt: new Date(redisModel.updatedAt),
     inputPrice:

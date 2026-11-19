@@ -297,32 +297,46 @@ describe("modelMatch", () => {
   });
 
   describe("cached entries without an owner column", () => {
-    it("re-resolves entries written before organization ownership existed", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const model = await prisma.model.create({
-        data: {
-          scope: "PROJECT",
-          projectId,
-          modelName: "gpt-4o-mini",
-          matchPattern: "gpt-4o-mini",
-          unit: "TOKENS",
-        },
-      });
+    it.each([
+      { cachedProjectId: true, expectedScope: "PROJECT" },
+      { cachedProjectId: false, expectedScope: "LANGFUSE" },
+    ])(
+      "serves entries cached without scope or organizationId as hits (project row: $cachedProjectId)",
+      async ({ cachedProjectId, expectedScope }) => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const modelName = `legacy-${uuidv4()}`;
+        const redisKey = getRedisModelKey({ projectId, model: modelName });
+        await redis?.set(
+          redisKey,
+          JSON.stringify({
+            model: {
+              id: "cached-id",
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              projectId: cachedProjectId ? projectId : null,
+              modelName,
+              matchPattern: modelName,
+              startDate: null,
+              inputPrice: null,
+              outputPrice: null,
+              totalPrice: null,
+              unit: "TOKENS",
+              tokenizerId: null,
+              tokenizerConfig: null,
+            },
+            pricingTiers: [],
+          }),
+        );
 
-      const { organizationId: _organizationId, ...staleModel } = model;
-      const redisKey = getRedisModelKey({ projectId, model: "gpt-4o-mini" });
-      await redis?.set(
-        redisKey,
-        JSON.stringify({
-          model: { ...staleModel, id: "stale-id" },
-          pricingTiers: [],
-        }),
-      );
+        const result = await findModel({ projectId, model: modelName });
 
-      const result = await findModel({ projectId, model: "gpt-4o-mini" });
-
-      expect(result.model?.id).toBe(model.id);
-    });
+        expect(result.model).toMatchObject({
+          id: "cached-id",
+          scope: expectedScope,
+          organizationId: null,
+        });
+      },
+    );
   });
 
   describe("clearModelCacheForOrganization", () => {
