@@ -69,6 +69,18 @@ export function topicRuleFreshness(
   return `Updated ${formatCompactRelativeTime(new Date(rule.lastRefitAt), now)}`;
 }
 
+/**
+ * "in about 5 hours"; approximate, since the scheduler picks the slot up within
+ * minutes. A slot that passed since the overview was fetched recurs daily.
+ */
+export function topicNextRefitLabel(nextRefitAt: string, now: number) {
+  let at = Date.parse(nextRefitAt);
+  while (at <= now) at += 86_400_000;
+  const hours = Math.round((at - now) / 3_600_000);
+  if (hours < 1) return "in under an hour";
+  return `in about ${hours} ${hours === 1 ? "hour" : "hours"}`;
+}
+
 /** The selected facets at their current prompt versions. */
 export function latestFacetRefs(
   facets: TopicFacet[],
