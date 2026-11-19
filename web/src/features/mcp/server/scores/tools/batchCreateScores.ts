@@ -17,7 +17,24 @@ const BatchCreateScoresBaseSchema = z.object({
 });
 
 const BatchCreateScoresInputSchema = z.object({
-  scores: z.array(PostScoreBodyV1).min(1).max(MAX_BATCH_CREATE_SCORES),
+  scores: z
+    .array(PostScoreBodyV1)
+    .min(1)
+    .max(MAX_BATCH_CREATE_SCORES)
+    .superRefine((scores, ctx) => {
+      const seenIds = new Set<string>();
+      for (const [index, score] of scores.entries()) {
+        if (!score.id) continue;
+        if (seenIds.has(score.id)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Score id must be unique within a batch",
+            path: [index, "id"],
+          });
+        }
+        seenIds.add(score.id);
+      }
+    }),
 });
 
 export const [batchCreateScoresTool, handleBatchCreateScores] = defineTool({

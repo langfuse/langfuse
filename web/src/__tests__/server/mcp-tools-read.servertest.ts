@@ -54,6 +54,7 @@ import {
   buildPromptUrl,
   buildSessionUrl,
   buildTraceUrl,
+  createUnknownSdkIngestionAttribution,
 } from "@langfuse/shared/src/server";
 import {
   LLMAdapter,
@@ -136,6 +137,7 @@ import {
   createScoreTool,
   handleCreateScore,
 } from "@/src/features/mcp/server/scores/tools/createScore";
+import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
@@ -3847,6 +3849,56 @@ describe("MCP Read Tools", () => {
         resourceId: scoreId,
         action: "create",
       });
+    });
+  });
+
+  describe("batchCreateScores tool", () => {
+    it("maps ingestion results to inputs and audits only accepted scores", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const auth = {
+        validKey: true as const,
+        scope: {
+          projectId,
+          orgId: context.orgId,
+          apiKeyId: context.apiKeyId,
+          publicKey: context.publicKey,
+          accessLevel: context.accessLevel,
+          isIngestionSuspended: false,
+        },
+      };
+      const acceptedIds = [randomUUID(), randomUUID()];
+      const rejectedId = randomUUID();
+
+      const { result, eventIds } = await new ScoresApiService(
+        "v2",
+      ).createScores({
+        bodies: [
+          { id: acceptedIds[0], traceId: randomUUID(), name: "a", value: 1 },
+          {
+            id: rejectedId,
+            traceId: randomUUID(),
+            name: "b",
+            value: "not-a-number",
+            dataType: "NUMERIC",
+          },
+          { id: acceptedIds[1], traceId: randomUUID(), name: "c", value: 0 },
+        ],
+        auth,
+        auditScope: context,
+        attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+      });
+
+      expect(result.errors.map(({ id }) => id)).toEqual([eventIds[1]]);
+      expect(result.successes.map(({ id }) => id).sort()).toEqual(
+        [eventIds[0], eventIds[2]].sort(),
+      );
+      const auditLogs = await prisma.auditLog.findMany({
+        where: { projectId, resourceType: "score" },
+      });
+      expect(auditLogs.map(({ resourceId }) => resourceId).sort()).toEqual(
+        acceptedIds.sort(),
+      );
+      expect(auditLogs.every(({ action }) => action === "create")).toBe(true);
     });
   });
 
