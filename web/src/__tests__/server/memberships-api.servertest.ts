@@ -423,6 +423,126 @@ describe("Memberships APIs", () => {
           ),
         ).toBe(true);
       });
+
+      describe("with an email filter", () => {
+        let memberUserId: string;
+        let memberEmail: string;
+        let outsideUserId: string;
+        let outsideEmail: string;
+        let otherOrgId: string;
+
+        const membershipsByEmailUrl = (email: string) =>
+          `/api/public/organizations/memberships?email=${encodeURIComponent(email)}`;
+
+        beforeAll(async () => {
+          const suffix = randomUUID().substring(0, 8);
+          memberEmail = `filter-member-${suffix}@example.com`;
+          memberUserId = (
+            await prisma.user.create({
+              data: { email: memberEmail, name: "Filter Member" },
+            })
+          ).id;
+          await prisma.organizationMembership.create({
+            data: { orgId: testOrgId, userId: memberUserId, role: Role.VIEWER },
+          });
+
+          // Outside user: a member of a different organization only
+          outsideEmail = `filter-outside-${suffix}@example.com`;
+          outsideUserId = (
+            await prisma.user.create({
+              data: { email: outsideEmail, name: "Filter Outside" },
+            })
+          ).id;
+          otherOrgId = (
+            await prisma.organization.create({
+              data: { name: `Other Org ${suffix}` },
+            })
+          ).id;
+          await prisma.organizationMembership.create({
+            data: {
+              orgId: otherOrgId,
+              userId: outsideUserId,
+              role: Role.OWNER,
+            },
+          });
+        });
+
+        afterAll(async () => {
+          await prisma.user.deleteMany({
+            where: { id: { in: [memberUserId, outsideUserId] } },
+          });
+          await prisma.organization.delete({ where: { id: otherOrgId } });
+        });
+
+        it("should return only the membership of the matching user", async () => {
+          const response = await makeZodVerifiedAPICall(
+            MembershipsListSchema,
+            "GET",
+            membershipsByEmailUrl(memberEmail),
+            undefined,
+            createBasicAuthHeader(testApiKey, testApiSecretKey),
+            200,
+          );
+
+          expect(response.body.memberships).toEqual([
+            {
+              userId: memberUserId,
+              role: Role.VIEWER,
+              email: memberEmail,
+              name: "Filter Member",
+            },
+          ]);
+        });
+
+        it("should match the email case-insensitively", async () => {
+          const response = await makeZodVerifiedAPICall(
+            MembershipsListSchema,
+            "GET",
+            membershipsByEmailUrl(memberEmail.toUpperCase()),
+            undefined,
+            createBasicAuthHeader(testApiKey, testApiSecretKey),
+            200,
+          );
+
+          expect(response.body.memberships.map((m) => m.userId)).toEqual([
+            memberUserId,
+          ]);
+        });
+
+        it.each([
+          ["a user of another organization", () => outsideEmail],
+          ["an unknown email", () => `nonexistent-${randomUUID()}@example.com`],
+        ])("should return an empty list for %s", async (_, email) => {
+          const response = await makeZodVerifiedAPICall(
+            MembershipsListSchema,
+            "GET",
+            membershipsByEmailUrl(email()),
+            undefined,
+            createBasicAuthHeader(testApiKey, testApiSecretKey),
+            200,
+          );
+
+          expect(response.body.memberships).toEqual([]);
+        });
+
+        it.each([
+          ["empty", "/api/public/organizations/memberships?email="],
+          [
+            "longer than 320 characters",
+            `/api/public/organizations/memberships?email=${"a".repeat(321)}`,
+          ],
+        ])("should return 400 for an email that is %s", async (_, url) => {
+          const result = await makeAPICall<{ error: string }>(
+            "GET",
+            url,
+            undefined,
+            createBasicAuthHeader(testApiKey, testApiSecretKey),
+          );
+
+          expect(result.status).toBe(400);
+          expect(result.body.error).toContain("Invalid email");
+        });
+      });
     });
 
     describe("PUT /api/public/organizations/memberships", () => {
