@@ -93,6 +93,8 @@ export type HeaderMetric = {
       | {
           type: "details";
           text: string;
+          /** Renders the trigger as a coloured `Badge` instead of a `Metric`. */
+          color?: React.ComponentProps<typeof Badge>["color"];
           title: string;
           href: string;
           linkText: string;
@@ -744,9 +746,18 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
           </div>
         }
       >
-        {({ getTriggerProps }) => (
-          <Metric {...getTriggerProps()} interactive value={metric.text} />
-        )}
+        {({ getTriggerProps }) =>
+          metric.color ? (
+            <Badge
+              {...getTriggerProps()}
+              interactive
+              text={metric.text}
+              color={metric.color}
+            />
+          ) : (
+            <Metric {...getTriggerProps()} interactive value={metric.text} />
+          )
+        }
       </HoverCard>
     );
   return assertUnreachable(metric);

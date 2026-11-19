@@ -98,6 +98,7 @@ model User {
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
   gatewaySpendLimitsOwned   GatewaySpendLimit[]         @relation("GatewaySpendLimitOwner")
+  gatewaySpendLimits        GatewaySpendLimit[]         @relation("GatewaySpendLimitUser")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentUser") @ignore
 
@@ -411,6 +412,12 @@ model GatewayApiKeyAssociation {
 
 enum GatewaySpendLimitScope {
   API_KEY
+  USER
+  // The organization's fallback for keys or users without a limit of their own; no subject column is set. One per organization and scope (partial unique index in the migration).
+  API_KEY_DEFAULT
+  USER_DEFAULT
+  // Caps the whole organization's gateway spend; no subject column is set. One per organization, by the defaults' partial unique index.
+  ORGANIZATION
 }
 
 enum GatewaySpendLimitInterval {
@@ -430,6 +437,9 @@ model GatewaySpendLimit {
   scope             GatewaySpendLimitScope
   apiKeyId          String?                   @map("api_key_id")
   apiKey            ApiKey?                   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  // Caps the spend of all the user's gateway keys in the organization.
+  userId            String?                   @map("user_id")
+  user              User?                     @relation("GatewaySpendLimitUser", fields: [userId], references: [id], onDelete: Cascade)
   interval          GatewaySpendLimitInterval
   limitUsd          Decimal                   @map("limit_usd")
   // When the limit starts counting spend, set when it is created; earlier spend does not count. The gateway's usage counters and the alert rows are keyed by it, so moving it starts counting afresh.
@@ -442,7 +452,9 @@ model GatewaySpendLimit {
   alerts            GatewaySpendLimitAlert[]
 
   @@unique([apiKeyId, interval])
+  @@unique([organizationId, userId, interval])
   @@index([organizationId])
+  @@index([userId])
   @@map("gateway_spend_limits")
 }
 
@@ -450,17 +462,19 @@ enum GatewaySpendLimitAlertType {
   EXCEEDED
 }
 
-/// One notification per limit, alert type, counting start and window, so the gateway may report a limit any number of times.
+/// One notification per limit, subject, alert type, counting start and window, so the gateway may report a limit any number of times.
 model GatewaySpendLimitAlert {
   id                String                     @id @default(cuid())
   spendLimitId      String                     @map("spend_limit_id")
   spendLimit        GatewaySpendLimit          @relation(fields: [spendLimitId], references: [id], onDelete: Cascade)
+  // The key or user a default limit was reached for; empty for a limit of one key or user.
+  subjectId         String                     @default("") @map("subject_id")
   type              GatewaySpendLimitAlertType
   countingStartedAt DateTime                   @map("counting_started_at")
   windowStart       DateTime                   @map("window_start")
   createdAt         DateTime                   @default(now()) @map("created_at")
 
-  @@unique([spendLimitId, type, countingStartedAt, windowStart], map: "gateway_spend_limit_alerts_limit_type_counting_window_key")
+  @@unique([spendLimitId, subjectId, type, countingStartedAt, windowStart], map: "gateway_spend_limit_alerts_limit_type_counting_window_key")
   @@map("gateway_spend_limit_alerts")
 }
 
@@ -730,6 +744,8 @@ model AnnotationQueue {
   name                      String
   description               String?
   scoreConfigIds            String[]                    @default([]) @map("score_config_ids")
+  sessionViewId             String?                     @map("session_view_id")
+  sessionView               SessionView?                @relation(fields: [projectId, sessionViewId], references: [projectId, id], onDelete: NoAction)
   projectId                 String                      @map("project_id")
   project                   Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt                 DateTime                    @default(now()) @map("created_at")
@@ -740,6 +756,7 @@ model AnnotationQueue {
   @@unique([projectId, name])
   @@index([id, projectId])
   @@index([projectId, createdAt])
+  @@index([projectId, sessionViewId])
   @@map("annotation_queues")
 }
 
@@ -2065,7 +2082,14 @@ enum SessionUnmatchedTraces {
   hide
 }
 
+enum SessionViewOwnership {
+  PRIVATE
+  PROJECT
+}
+
 model SessionView {
+  ownership                   SessionViewOwnership     @default(PROJECT)
+  annotationQueues            AnnotationQueue[]
   isPinnedByDefaultForProject Boolean                  @default(false) @map("is_pinned_by_default_for_project")
   pins                        SessionViewPinOverride[]
   id                          String                   @id @default(cuid())
@@ -2080,7 +2104,6 @@ model SessionView {
   createdAt                   DateTime                 @default(now()) @map("created_at")
   updatedAt                   DateTime                 @default(now()) @updatedAt @map("updated_at")
 
-  @@unique([projectId, name])
   @@unique([projectId, id])
   @@map("session_views")
 }

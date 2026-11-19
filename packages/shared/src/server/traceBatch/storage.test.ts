@@ -93,9 +93,10 @@ describe("trace batch input storage", () => {
 
   it("reads the saved v1 format and writes it at the deterministic revision key", async () => {
     const value = transcript();
-    const key = "test/trace-batch/trace/ecb/project/trace/revision.json";
+    const key =
+      "test/events-dispatch/trace-transcript/ecb/project/trace/revision.json";
     // The saved fixture predates execution issues, which read as empty.
-    expect(await inputStorage.legacyGet(reference)).toEqual({
+    expect(await inputStorage.get(key)).toEqual({
       transcript: value,
       executionIssues: [],
       traceContext,
@@ -167,7 +168,7 @@ describe("trace batch input storage", () => {
           : {
               outcome: "stored",
               jsonLength: size,
-              key: "test/trace-batch/trace/ecb/project/trace/revision.json",
+              key: "test/events-dispatch/trace-transcript/ecb/project/trace/revision.json",
             },
       );
       expect(storage.uploadFile).toHaveBeenCalledTimes(

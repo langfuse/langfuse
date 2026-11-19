@@ -725,9 +725,12 @@ function mayContainSerializedMedia(value: string): boolean {
 }
 
 function isMediaReference(value: string): boolean {
+  // Only one whole reference is opaque; mixed text can still contain inline media.
   return (
     value.startsWith(MEDIA_REFERENCE_PREFIX) &&
-    value.endsWith(MEDIA_REFERENCE_SUFFIX)
+    value.endsWith(MEDIA_REFERENCE_SUFFIX) &&
+    value.indexOf(MEDIA_REFERENCE_SUFFIX, MEDIA_REFERENCE_PREFIX.length) ===
+      value.length - MEDIA_REFERENCE_SUFFIX.length
   );
 }
 

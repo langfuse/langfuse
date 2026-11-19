@@ -13,6 +13,7 @@ import {
 } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
@@ -33,6 +34,8 @@ import {
 } from "./topic-maps";
 
 const TOP_TOPICS = 3;
+const REFRESH_DESCRIPTION =
+  "Recluster this map's topics now instead of waiting for the nightly update.";
 
 type CreateKind = "map" | "snapshot";
 /** What the preview pane shows: a map, or what a footer entry would create. */
@@ -48,6 +51,7 @@ export function TopicsMapPicker({
   usePreviewTopics,
   processingOn,
   create,
+  refresh,
 }: {
   projectId: string;
   overview: TopicMapsOverview;
@@ -59,7 +63,9 @@ export function TopicsMapPicker({
   /** Automatic analysis is on for the project; live runs show Paused otherwise. */
   processingOn: boolean;
   /** Footer entries for New map and New snapshot; null hides one. */
-  create?: { map: CreateEntry | null; snapshot: CreateEntry | null };
+  create?: { map: FooterEntry | null; snapshot: FooterEntry | null };
+  /** Reclusters a live map now, offered on its preview card. */
+  refresh?: ((rule: TopicRuleMap) => FooterEntry) | null;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -73,6 +79,8 @@ export function TopicsMapPicker({
       ? overview.analyses.find((analysis) => analysis.id === selection.id)
       : undefined;
   const selectedName = selectedRule?.name ?? selectedAnalysis?.label ?? "";
+  const refreshEntry = selectedRule && refresh ? refresh(selectedRule) : null;
+  const hasCreate = Boolean(create && (create.map || create.snapshot));
   const query = search.trim().toLowerCase();
   // Paused maps sort below active ones; order is otherwise kept.
   const rules = overview.rules
@@ -174,10 +182,28 @@ export function TopicsMapPicker({
                 </p>
               )}
             </div>
-            {create && (create.map || create.snapshot) && (
-              <div className="mt-auto flex flex-col border-t p-1.5">
-                {create.map && (
-                  <CreateButton
+            {(refreshEntry || hasCreate) && (
+              <div
+                className={cn(
+                  "mt-auto flex flex-col border-t p-1.5",
+                  !hasCreate && "sm:hidden",
+                )}
+              >
+                {/* Phones have no preview card, so the selected map's refresh sits here. */}
+                {refreshEntry && (
+                  <div className="flex flex-col sm:hidden">
+                    <FooterButton
+                      entry={refreshEntry}
+                      icon={RefreshCw}
+                      label={`Refresh “${selectedName}”`}
+                      description={REFRESH_DESCRIPTION}
+                      onChosen={() => changeOpen(false)}
+                    />
+                    {hasCreate && <div className="-mx-1.5 my-1.5 border-t" />}
+                  </div>
+                )}
+                {create?.map && (
+                  <FooterButton
                     entry={create.map}
                     icon={Plus}
                     label="New live map"
@@ -187,8 +213,8 @@ export function TopicsMapPicker({
                     onChosen={() => changeOpen(false)}
                   />
                 )}
-                {create.snapshot && (
-                  <CreateButton
+                {create?.snapshot && (
+                  <FooterButton
                     entry={create.snapshot}
                     icon={CalendarRange}
                     label="New snapshot"
@@ -211,6 +237,8 @@ export function TopicsMapPicker({
                 rule={shownRule}
                 facetId={facetId}
                 processingOn={processingOn}
+                refresh={refresh ? refresh(shownRule) : null}
+                onRefreshChosen={() => changeOpen(false)}
               />
             )}
             {shownAnalysis && (
@@ -260,21 +288,27 @@ export function TopicsMapPicker({
   );
 }
 
-type CreateEntry = { onSelect: () => void; disabledReason?: string };
+type FooterEntry = { onSelect: () => void; disabledReason?: string };
 
-function CreateButton({
+function FooterButton({
   entry,
   icon: Icon,
   label,
+  description,
   onPreview,
   onChosen,
 }: {
-  entry: CreateEntry;
+  entry: FooterEntry;
   icon: IconComponent;
   label: string;
-  onPreview: () => void;
+  /** A second line saying what the entry does; a disabled entry shows its reason there. */
+  description?: string;
+  /** Shows what the entry would do in the preview pane. */
+  onPreview?: () => void;
   onChosen: () => void;
 }) {
+  // Touch screens show no tooltip, so a disabled entry's reason is on screen.
+  const secondLine = entry.disabledReason ?? description;
   const button = (
     <button
       type="button"
@@ -285,25 +319,31 @@ function CreateButton({
         onChosen();
         entry.onSelect();
       }}
-      className="hover:bg-accent focus-visible:bg-accent flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+      className="hover:bg-accent focus-visible:bg-accent flex w-full items-start gap-2 rounded-md px-2.5 py-2 text-left text-sm focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
     >
-      <Icon size="base" color="default" aria-hidden />
-      {label}
+      {/* Centered on the label's first line, not on a two-line entry. */}
+      <span className="flex h-5 shrink-0 items-center">
+        <Icon size="base" color="default" aria-hidden />
+      </span>
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="truncate" title={label}>
+          {label}
+        </span>
+        {secondLine && (
+          <span className="text-muted-foreground text-xs">{secondLine}</span>
+        )}
+      </span>
     </button>
   );
-  if (!entry.disabledReason) return button;
+  if (!entry.disabledReason || !onPreview) return button;
   return (
-    // Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
-    <Tooltip label={entry.disabledReason}>
-      {({ getTriggerProps }) => (
-        <span
-          {...getTriggerProps({ onMouseEnter: onPreview })}
-          className="flex w-full cursor-not-allowed [&>button]:pointer-events-none"
-        >
-          {button}
-        </span>
-      )}
-    </Tooltip>
+    // Disabled buttons fire no pointer events, so the wrapper starts the preview.
+    <span
+      onMouseEnter={onPreview}
+      className="flex w-full cursor-not-allowed [&>button]:pointer-events-none"
+    >
+      {button}
+    </span>
   );
 }
 
@@ -395,14 +435,64 @@ function MapRow({
   );
 }
 
-function PreviewHeader({ name, badge }: { name: string; badge?: ReactNode }) {
+function PreviewHeader({
+  name,
+  badge,
+  action,
+}: {
+  name: string;
+  badge?: ReactNode;
+  /** Sits at the card's top right. */
+  action?: ReactNode;
+}) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <span className="truncate text-base font-bold" title={name}>
-        {name}
-      </span>
-      {badge}
+    <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="truncate text-base font-bold" title={name}>
+          {name}
+        </span>
+        {badge}
+      </div>
+      {action && <div className="ml-auto shrink-0">{action}</div>}
     </div>
+  );
+}
+
+/** Refreshes the previewed live map; a disabled one says why below the header. */
+function RefreshMapButton({
+  entry,
+  onChosen,
+}: {
+  entry: FooterEntry;
+  onChosen: () => void;
+}) {
+  if (entry.disabledReason)
+    return (
+      <Button
+        text="Refresh"
+        icon={RefreshCw}
+        size="sm"
+        variant="outline"
+        disabled
+      />
+    );
+  return (
+    <Tooltip label={REFRESH_DESCRIPTION}>
+      {({ getTriggerProps }) => (
+        <span {...getTriggerProps()} className="inline-flex">
+          <Button
+            text="Refresh"
+            icon={RefreshCw}
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              onChosen();
+              entry.onSelect();
+            }}
+          />
+        </span>
+      )}
+    </Tooltip>
   );
 }
 
@@ -440,21 +530,38 @@ function RulePreview({
   facetId,
   usePreviewTopics,
   processingOn,
+  refresh,
+  onRefreshChosen,
 }: {
   projectId: string;
   usePreviewTopics: UsePreviewTopics;
   rule: TopicRuleMap;
   facetId: string | undefined;
   processingOn: boolean;
+  refresh: FooterEntry | null;
+  onRefreshChosen: () => void;
 }) {
   const results = usePreviewTopics(projectId, { kind: "rule", id: rule.id });
   const top = topTopicsOf(results, facetId);
   return (
     <div className="flex flex-col gap-4">
-      <PreviewHeader
-        name={rule.name}
-        badge={<LiveBadge paused={!processingOn || rule.enabled === false} />}
-      />
+      <div className="flex flex-col gap-1">
+        <PreviewHeader
+          name={rule.name}
+          badge={<LiveBadge paused={!processingOn || rule.enabled === false} />}
+          action={
+            refresh && (
+              <RefreshMapButton entry={refresh} onChosen={onRefreshChosen} />
+            )
+          }
+        />
+        {/* Touch screens show no tooltip, so the reason is on screen. */}
+        {refresh?.disabledReason && (
+          <p className="text-muted-foreground text-right text-xs">
+            {refresh.disabledReason}
+          </p>
+        )}
+      </div>
       <PreviewRows
         rows={[
           ["Filter", <FilterValue key="filter" filter={rule.filter} />],

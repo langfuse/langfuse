@@ -25,13 +25,20 @@ export const CLICKHOUSE_QUERY_ELAPSED_MS_METRIC =
   "langfuse.clickhouse.query.elapsed_ms";
 
 /**
- * `client_closed` is not a ClickHouse failure: the caller aborted its signal for
- * a reason other than a deadline, e.g. a browser closing a dashboard stream. A
- * deadline abort is an `error` with `error_code:client_timeout`.
+ * Neither is a ClickHouse failure:
+ *
+ * - `client_closed`: the caller aborted its signal for a reason other than a
+ *   deadline, e.g. a browser closing a dashboard stream.
+ * - `deadline`: the caller's own time budget ran out. Covers a deadline abort
+ *   (`error_code:client_timeout`) and, for queries run with `callerDeadline`,
+ *   ClickHouse enforcing that budget as `max_execution_time`
+ *   (`error_code:timeout_exceeded`). Whichever side fires first, the outcome is
+ *   the same.
  */
 export type ClickHouseQueryOutcome =
   | "success"
   | "client_closed"
+  | "deadline"
   | "timeout"
   | "memory_limit"
   | "overcommit"

@@ -34,7 +34,7 @@ each project and queue; changing the current item keeps the same run history.
 
 ## Structure and consumers
 
-Queue setup keeps server data in tRPC. `AnnotationQueueSetupController` gates
+Queue setup keeps server data in tRPC. `ConnectedAnnotationQueueSetupController` gates
 initial loading and adapts mutations to `AnnotationQueueSetupForm`. Its React
 Hook Form draft lives above the responsive sidebar, so collapsing the panel or
 closing its mobile sheet preserves unsaved changes. `AnnotationQueueItems` owns
@@ -51,7 +51,7 @@ Add score action lists available configs and offers config creation. Choosing a
 config appends its ID; the design-system
 `SortableList` owns pointer/touch/keyboard dragging and reports a single reorder
 on drop. Row removal confirms for populated queues.
-`AnnotationQueueFormDialogController` handles queue creation and retains
+`ConnectedAnnotationQueueFormDialogController` handles queue creation and retains
 creation/assignment retry coordination. The queue list links to each queue's
 inline setup instead of exposing a separate edit action.
 

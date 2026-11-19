@@ -55,7 +55,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
         ...params,
         model: "Production OpenAI:gpt-4o",
       });
-      return service.resolve({ context, apiFormat: params.apiFormat });
+      return service.resolve({
+        context,
+        apiFormat: params.apiFormat,
+        pricing: service.findPricing(context),
+      });
     },
   };
 };
@@ -85,6 +89,7 @@ const row = (overrides: {
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
   gatewaySpendLimits: [],
   organization: {
+    gatewaySpendLimits: [],
     gatewayConfig: {
       defaultIngestionProjectId: overrides.withoutProject ? null : "project-1",
       ingestionMode: overrides.ingestionMode ?? "USAGE",
@@ -356,7 +361,11 @@ describe("GatewayResolveService", () => {
           expiresAt: null,
           gatewayAssociation: null,
           gatewaySpendLimits: [],
-          organization: { gatewayConfig: null, gatewayAiConnections: [] },
+          organization: {
+            gatewaySpendLimits: [],
+            gatewayConfig: null,
+            gatewayAiConnections: [],
+          },
         }),
       "org-not-allowed",
     );

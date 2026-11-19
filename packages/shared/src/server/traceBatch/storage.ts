@@ -53,8 +53,6 @@ export interface TraceBatchInputStorage {
    * retryable: a later attempt can run on an updated reader.
    */
   get(key: string): Promise<TraceBatchInputData>;
-  /** Topics still rebuilds the key from the project, trace, and revision. */
-  legacyGet(reference: TraceBatchInputReference): Promise<TraceBatchInputData>;
 }
 
 /** The object was written by a newer schema than this reader knows. */
@@ -69,6 +67,12 @@ export class UnsupportedTraceBatchInputVersionError extends Error {
 
 // UTF-16 length of the complete JSON envelope, not a UTF-8 byte limit.
 export const TRACE_BATCH_INPUT_MAX_CHARACTERS = 1_000_000;
+
+/** After `LANGFUSE_S3_EVENT_UPLOAD_PREFIX`. The events-dispatch transcript cleaner lists this prefix. */
+export const TRACE_BATCH_INPUT_PREFIX = "events-dispatch/trace-transcript/";
+
+/** Trace-batch inputs expire after three days, matching span-eval inputs. */
+export const TRACE_BATCH_INPUT_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 
 let storage: StorageService | undefined;
 
@@ -98,9 +102,6 @@ export function createTraceBatchInputStorage(): TraceBatchInputStorage {
       return { outcome: "stored", jsonLength, key };
     },
     get: readStored,
-    legacyGet(reference) {
-      return readStored(getTraceBatchInputsKey(reference));
-    },
   };
 }
 
@@ -148,5 +149,5 @@ function getTraceBatchInputsKey({
     0,
     3,
   );
-  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}trace-batch/trace/${hash}/${safeProjectId}/${safeTraceId}/${safeRevision}.json`;
+  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${TRACE_BATCH_INPUT_PREFIX}${hash}/${safeProjectId}/${safeTraceId}/${safeRevision}.json`;
 }

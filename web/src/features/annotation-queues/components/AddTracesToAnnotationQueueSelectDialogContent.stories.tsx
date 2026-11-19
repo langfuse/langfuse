@@ -43,7 +43,20 @@ export const CreateQueueInStackedDialog = meta.story({
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: [],
             }}
-            projectId="project-1"
+            sessionViewSettings={null}
+            userAssignments={{
+              users: [],
+              assignedUsers: [],
+              totalAssignedUsers: 0,
+              searchQuery: "",
+              onSearchChange: fn(),
+              searchResults: [],
+              isLoading: false,
+              hasMoreResults: false,
+              canWrite: false,
+              isRemoving: false,
+              onRemove: fn(),
+            }}
             queueNames={queueOptions.map((queue) => queue.name)}
             hasQueueAssignmentsReadAccess={false}
             isSubmitting={false}
