@@ -41,7 +41,7 @@ audit from the linked source rows.
 - Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) for the Linear
   write-back: it proposes measured evidence comments and new filings, then
   writes once you approve the set.
-- Check each alert cluster against the monitor's runbook in the infrastructure repo (`runbooks/<slug>.md`).
+- Check each alert cluster against the monitor's runbook in the infrastructure repo (`runbooks/<slug>.md`). After the review, offer to propose each newly root-caused cluster as a runbook update; write it only after approval.
 
 ## Workflow
 
@@ -122,7 +122,7 @@ Linear for matching issue keys, titles, source URLs, and comments. If an
 existing issue covers it, link to that issue and mark the row as already
 tracked instead of reporting it again as fresh work.
 
-An alert cluster that matches a cause documented in the monitor's runbook is already tracked even without a Linear issue: link the runbook instead.
+An alert cluster that matches a cause documented in the monitor's runbook is already tracked even without a Linear issue: link the runbook instead. It matches only when every recognition signal of that cause fits the evidence; report a partial match as new and name the near-miss.
 
 Use short stable link labels:
 
