@@ -12,8 +12,11 @@ import {
 } from "./AnnotationQueueSetupForm";
 import { QueueScoreConfigFields } from "./QueueScoreConfigFields";
 import { UserAssignmentSection } from "./UserAssignmentSection";
+import { useQueueUserAssignments } from "../hooks/useQueueUserAssignments";
+import { ConnectedAnnotationQueueSessionViewSettings } from "./ConnectedAnnotationQueueSessionViewSettings";
+import { AnnotationQueueSessionViewSettings } from "./AnnotationQueueSessionViewSettings/AnnotationQueueSessionViewSettings";
 
-export function AnnotationQueueSetupController({
+export function ConnectedAnnotationQueueSetupController({
   projectId,
   queueId,
   renderLayout,
@@ -47,6 +50,7 @@ export function AnnotationQueueSetupController({
     { enabled: canEdit },
   );
   const utils = api.useUtils();
+  const userAssignments = useQueueUserAssignments({ projectId, queueId });
   const capture = usePostHogClientCapture();
   const update = api.annotationQueues.update.useMutation();
   const assign = api.annotationQueueAssignments.createMany.useMutation();
@@ -98,6 +102,7 @@ export function AnnotationQueueSetupController({
         description: queue.data.description ?? "",
         scoreConfigIds: queue.data.scoreConfigs.map((config) => config.id),
         newAssignmentUserIds: [],
+        sessionViewId: queue.data.sessionViewId ?? null,
       }}
       queueNames={(queues.data ?? [])
         .filter((candidate) => candidate.id !== queueId)
@@ -106,6 +111,23 @@ export function AnnotationQueueSetupController({
       isSubmitting={update.isPending || assign.isPending}
       hasAssignments={hasAssignments}
       renderLayout={renderLayout}
+      renderSessionViewSettings={({ value, onChange, disabled }) => (
+        <ConnectedAnnotationQueueSessionViewSettings
+          projectId={projectId}
+          value={value ?? null}
+          onChange={onChange}
+          disabled={disabled}
+        >
+          {(settings) =>
+            settings && (
+              <AnnotationQueueSessionViewSettings
+                {...settings}
+                disabled={disabled}
+              />
+            )
+          }
+        </ConnectedAnnotationQueueSessionViewSettings>
+      )}
       onSubmit={(values, dirty) =>
         saveQueueSetup({
           projectId,
@@ -128,8 +150,7 @@ export function AnnotationQueueSetupController({
       }
       renderAssignments={({ value, onChange }) => (
         <UserAssignmentSection
-          projectId={projectId}
-          queueId={queueId}
+          {...userAssignments}
           selectedUserIds={value}
           onChange={onChange}
         />
@@ -170,7 +191,12 @@ async function saveQueueSetup({
   ) => Promise<unknown>;
   onSaved: () => Promise<void>;
 }) {
-  if (dirty.name || dirty.description || dirty.scoreConfigIds) {
+  if (
+    dirty.name ||
+    dirty.description ||
+    dirty.scoreConfigIds ||
+    dirty.sessionViewId
+  ) {
     await updateQueue({
       projectId,
       queueId,
@@ -178,6 +204,9 @@ async function saveQueueSetup({
       ...(dirty.description ? { description: values.description } : {}),
       ...(dirty.scoreConfigIds
         ? { scoreConfigIds: values.scoreConfigIds }
+        : {}),
+      ...(dirty.sessionViewId
+        ? { sessionViewId: values.sessionViewId ?? null }
         : {}),
     });
   }

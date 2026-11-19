@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useId, useState, type ReactNode } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -6,11 +5,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Button as LegacyButton } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
@@ -374,11 +369,18 @@ function ModelSlot({
       </p>
       <div className="flex w-full min-w-0 flex-1 flex-col gap-1">
         {locked ? (
-          <Tooltip>
-            <TooltipTrigger asChild>{fields}</TooltipTrigger>
-            <TooltipContent side="bottom">
-              {"lockedHint" in copy ? copy.lockedHint : null}
-            </TooltipContent>
+          <Tooltip
+            label={name === "embedding" ? SLOT_COPY.embedding.lockedHint : ""}
+            placement="bottom"
+          >
+            {({ getTriggerProps }) => (
+              <div
+                {...getTriggerProps()}
+                className="flex min-w-0 flex-1 items-center gap-2"
+              >
+                {controls}
+              </div>
+            )}
           </Tooltip>
         ) : (
           fields

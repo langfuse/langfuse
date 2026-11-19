@@ -98,7 +98,7 @@ export function prepareAssembledTopicTranscript(
 }
 
 // Bump when the Topics text rendering changes what the summarizer sees.
-export const TOPICS_TEXT_VERSION = "topics-text-v2";
+export const TOPICS_TEXT_VERSION = "topics-text-v3";
 
 // No per-block caps; only the summary input limit bounds the text.
 const UNCAPPED = Number.MAX_SAFE_INTEGER;

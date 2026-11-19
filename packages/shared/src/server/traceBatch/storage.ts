@@ -53,8 +53,6 @@ export interface TraceBatchInputStorage {
    * retryable: a later attempt can run on an updated reader.
    */
   get(key: string): Promise<TraceBatchInputData>;
-  /** Topics still rebuilds the key from the project, trace, and revision. */
-  legacyGet(reference: TraceBatchInputReference): Promise<TraceBatchInputData>;
 }
 
 /** The object was written by a newer schema than this reader knows. */
@@ -71,7 +69,7 @@ export class UnsupportedTraceBatchInputVersionError extends Error {
 export const TRACE_BATCH_INPUT_MAX_CHARACTERS = 1_000_000;
 
 /** After `LANGFUSE_S3_EVENT_UPLOAD_PREFIX`. The events-dispatch transcript cleaner lists this prefix. */
-export const TRACE_BATCH_INPUT_PREFIX = "trace-batch/trace/";
+export const TRACE_BATCH_INPUT_PREFIX = "events-dispatch/trace-transcript/";
 
 /** Trace-batch inputs expire after three days, matching span-eval inputs. */
 export const TRACE_BATCH_INPUT_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
@@ -104,9 +102,6 @@ export function createTraceBatchInputStorage(): TraceBatchInputStorage {
       return { outcome: "stored", jsonLength, key };
     },
     get: readStored,
-    legacyGet(reference) {
-      return readStored(getTraceBatchInputsKey(reference));
-    },
   };
 }
 

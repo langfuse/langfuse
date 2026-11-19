@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useMemo } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
+import { ConnectedAnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/ConnectedAnnotationQueueFormDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type AnalyticsData } from "@/src/features/scores/types";
@@ -16,7 +16,7 @@ type QueueRemoval = {
   queueName: string;
 };
 
-type AnnotationQueueSubmenuItemControllerProps = {
+type ConnectedAnnotationQueueSubmenuItemControllerProps = {
   projectId: string;
   objectId: string;
   objectType: AnnotationQueueObjectType;
@@ -46,8 +46,8 @@ function getQueueAnalyticsContext(
   };
 }
 
-export function AnnotationQueueSubmenuItemController(
-  props: AnnotationQueueSubmenuItemControllerProps,
+export function ConnectedAnnotationQueueSubmenuItemController(
+  props: ConnectedAnnotationQueueSubmenuItemControllerProps,
 ) {
   const { projectId, objectId, objectType, analyticsData } = props;
   const capture = usePostHogClientCapture();
@@ -56,7 +56,7 @@ export function AnnotationQueueSubmenuItemController(
     api.annotationQueueItems.deleteMany.useMutation();
 
   return (
-    <AnnotationQueueFormDialogController
+    <ConnectedAnnotationQueueFormDialogController
       projectId={projectId}
       mode="create"
       onSuccess={() => undefined}
@@ -90,7 +90,7 @@ export function AnnotationQueueSubmenuItemController(
           }}
         >
           {({ openDialog: openRemoveQueueDialog }) => (
-            <AnnotationQueueSubmenuItemControllerContent
+            <ConnectedAnnotationQueueSubmenuItemControllerContent
               {...props}
               createQueueDisabled={createQueueDisabled}
               openQueueDialog={openQueueDialog}
@@ -99,11 +99,11 @@ export function AnnotationQueueSubmenuItemController(
           )}
         </ConfirmationDialogController>
       )}
-    </AnnotationQueueFormDialogController>
+    </ConnectedAnnotationQueueFormDialogController>
   );
 }
 
-function AnnotationQueueSubmenuItemControllerContent({
+function ConnectedAnnotationQueueSubmenuItemControllerContent({
   projectId,
   objectId,
   objectType,
@@ -112,7 +112,7 @@ function AnnotationQueueSubmenuItemControllerContent({
   createQueueDisabled,
   openQueueDialog,
   openRemoveQueueDialog,
-}: AnnotationQueueSubmenuItemControllerProps & {
+}: ConnectedAnnotationQueueSubmenuItemControllerProps & {
   createQueueDisabled: { reason: string } | undefined;
   openQueueDialog: () => void;
   openRemoveQueueDialog: (queueRemoval: QueueRemoval) => void;

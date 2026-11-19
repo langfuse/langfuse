@@ -416,6 +416,8 @@ enum GatewaySpendLimitScope {
   // The organization's fallback for keys or users without a limit of their own; no subject column is set. One per organization and scope (partial unique index in the migration).
   API_KEY_DEFAULT
   USER_DEFAULT
+  // Caps the whole organization's gateway spend; no subject column is set. One per organization, by the defaults' partial unique index.
+  ORGANIZATION
 }
 
 enum GatewaySpendLimitInterval {
@@ -742,6 +744,8 @@ model AnnotationQueue {
   name                      String
   description               String?
   scoreConfigIds            String[]                    @default([]) @map("score_config_ids")
+  sessionViewId             String?                     @map("session_view_id")
+  sessionView               SessionView?                @relation(fields: [projectId, sessionViewId], references: [projectId, id], onDelete: NoAction)
   projectId                 String                      @map("project_id")
   project                   Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt                 DateTime                    @default(now()) @map("created_at")
@@ -752,6 +756,7 @@ model AnnotationQueue {
   @@unique([projectId, name])
   @@index([id, projectId])
   @@index([projectId, createdAt])
+  @@index([projectId, sessionViewId])
   @@map("annotation_queues")
 }
 
@@ -2077,7 +2082,14 @@ enum SessionUnmatchedTraces {
   hide
 }
 
+enum SessionViewOwnership {
+  PRIVATE
+  PROJECT
+}
+
 model SessionView {
+  ownership                   SessionViewOwnership     @default(PROJECT)
+  annotationQueues            AnnotationQueue[]
   isPinnedByDefaultForProject Boolean                  @default(false) @map("is_pinned_by_default_for_project")
   pins                        SessionViewPinOverride[]
   id                          String                   @id @default(cuid())
@@ -2092,7 +2104,6 @@ model SessionView {
   createdAt                   DateTime                 @default(now()) @map("created_at")
   updatedAt                   DateTime                 @default(now()) @updatedAt @map("updated_at")
 
-  @@unique([projectId, name])
   @@unique([projectId, id])
   @@map("session_views")
 }

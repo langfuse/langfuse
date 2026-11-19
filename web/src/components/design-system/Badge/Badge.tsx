@@ -51,7 +51,7 @@ const badgeVariants = cva(
         false: "",
       },
       interactive: {
-        true: "underline-dotted",
+        true: "",
         false: "",
       },
       dismissible: {
@@ -169,13 +169,12 @@ export function Badge({
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(
-          "py-0.5",
+          // min-w-0 lets the text shrink inside the badge so it truncates.
+          "min-w-0 py-0.5",
           shouldWrap
-            ? "min-w-0 break-words whitespace-normal"
+            ? "break-words whitespace-normal"
             : "text-ellipsis whitespace-nowrap",
-          interactive
-            ? "underline-dotted overflow-clip"
-            : "overflow-x-clip overflow-y-visible",
+          interactive ? "overflow-clip" : "overflow-x-clip overflow-y-visible",
         )}
         title={title ?? (interactive ? undefined : text)}
       >

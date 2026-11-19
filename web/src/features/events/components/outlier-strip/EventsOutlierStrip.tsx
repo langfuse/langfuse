@@ -21,6 +21,10 @@ import {
 import { toChartFilters } from "@/src/features/chart-view/lib/chartFilterCompatibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  TopicStripe,
+  type TopicStripeProps,
+} from "@/src/features/topics/trace/TopicStripe";
+import {
   estimateYLabelWidthPx,
   OutlierBarStrip,
   type OutlierStripDrillTrigger,
@@ -165,6 +169,7 @@ export function EventsOutlierStrip({
   toTimestamp,
   searchIgnored = false,
   onSelectRange,
+  topicStripe,
 }: {
   projectId: string;
   filterState: FilterState;
@@ -173,6 +178,8 @@ export function EventsOutlierStrip({
   /** The table has an active free-text search the strip cannot apply. */
   searchIgnored?: boolean;
   onSelectRange: (range: { from: Date; to: Date }) => void;
+  /** Topic shares shown at the end of the header row. */
+  topicStripe?: TopicStripeProps | null;
 }) {
   const capture = usePostHogClientCapture();
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
@@ -416,6 +423,11 @@ export function EventsOutlierStrip({
               </span>
             )}
           </AggDropdownController>
+        )}
+        {topicStripe && (
+          <div className="ml-auto w-80 min-w-0 self-center">
+            <TopicStripe {...topicStripe} />
+          </div>
         )}
       </MetricStripHeaderRow>
     </div>

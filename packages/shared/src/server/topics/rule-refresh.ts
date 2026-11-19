@@ -4,7 +4,10 @@ import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { LangfuseConflictError } from "../../errors/ConflictError";
 import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { TooManyRequestsError } from "../../errors/TooManyRequestsError";
-import { TOPICS_MAX_SELECTION_RANGE_MS } from "../../topics";
+import {
+  TOPIC_RULE_REFRESH_COOLDOWN_MS,
+  TOPICS_MAX_SELECTION_RANGE_MS,
+} from "../../topics";
 import { redis } from "../redis/redis";
 import { getEnabledTopicsModels } from "./model-config";
 import {
@@ -15,8 +18,6 @@ import {
 } from "./postgres";
 import { enqueueTopicRuleRefit } from "./queue";
 import { isTopicRuleSetupActive, readTopicRuleSetup } from "./rule-setup";
-
-export const TOPIC_RULE_REFRESH_COOLDOWN_MS = 15 * 60_000;
 
 export type TopicRuleRefreshStatus = {
   /** When the next manual refresh may start; null when it may start now. */
@@ -135,7 +136,7 @@ export async function startTopicRuleRefresh({
   );
   if (claimed !== "OK")
     throw new TooManyRequestsError(
-      "This map was refreshed less than 15 minutes ago.",
+      `This map was refreshed less than ${TOPIC_RULE_REFRESH_COOLDOWN_MS / 60_000} minutes ago.`,
     );
   try {
     for (const run of runs) {

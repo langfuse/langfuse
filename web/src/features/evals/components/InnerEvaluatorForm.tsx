@@ -76,11 +76,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   BetweenHorizonalStart,
   CircleDot,
@@ -875,16 +871,12 @@ export const InnerEvaluatorForm = (props: {
                     <FormLabel>
                       Run on{" "}
                       {props.mode === "edit" && (
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <InfoIcon size="sm" color="muted" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-[200px] p-2">
-                            <span className="leading-4">
-                              An evaluator&apos;s target data may only be
-                              configured at creation.
-                            </span>
-                          </TooltipContent>
+                        <Tooltip label="An evaluator's target data may only be configured at creation.">
+                          {({ getTriggerProps }) => (
+                            <button type="button" {...getTriggerProps()}>
+                              <InfoIcon size="sm" color="muted" />
+                            </button>
+                          )}
                         </Tooltip>
                       )}
                     </FormLabel>
@@ -1076,25 +1068,17 @@ export const InnerEvaluatorForm = (props: {
                               {field.value.includes("EXISTING") &&
                                 !props.disabled &&
                                 (props.mode === "edit" ? (
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <InfoIcon size="sm" color="muted" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="max-w-[300px] p-2">
-                                      <span className="leading-4">
-                                        This evaluator has already run on
-                                        existing{" "}
-                                        {getTargetDisplayName(
-                                          form.watch("target"),
-                                        )}{" "}
-                                        once. Set up a new evaluator to re-run
-                                        on existing{" "}
-                                        {getTargetDisplayName(
-                                          form.watch("target"),
-                                        )}
-                                        .
-                                      </span>
-                                    </TooltipContent>
+                                  <Tooltip
+                                    label={`This evaluator has already run on existing ${getTargetDisplayName(form.watch("target"))} once. Set up a new evaluator to re-run on existing ${getTargetDisplayName(form.watch("target"))}.`}
+                                  >
+                                    {({ getTriggerProps }) => (
+                                      <button
+                                        type="button"
+                                        {...getTriggerProps()}
+                                      >
+                                        <InfoIcon size="sm" color="muted" />
+                                      </button>
+                                    )}
                                   </Tooltip>
                                 ) : (
                                   <ExecutionCountTooltip

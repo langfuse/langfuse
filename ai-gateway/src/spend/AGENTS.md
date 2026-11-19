@@ -4,4 +4,4 @@
 After changing the TypeScript cost calculation, regenerate `ai-gateway/tests/fixtures/cost-cases.json`:
 `pnpm --filter @langfuse/shared run test gatewayCostFixture -u`.
 
-Counter keys start with `gateway-spend:`; nothing else may write under that prefix. Total counters never expire, so the Redis must not evict (see README "Spend limits").
+Counter keys start with `gateway-spend:`; nothing else may write under that prefix. Total counters never expire, so the Redis must not evict (see README "Budgets").

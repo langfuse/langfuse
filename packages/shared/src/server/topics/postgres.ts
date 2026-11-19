@@ -1,6 +1,7 @@
 import { JobConfigState, prisma, Prisma } from "../../db";
 import {
   DEFAULT_TOPIC_FACETS,
+  DEFAULT_TOPIC_RULE_NAME,
   TOPICS_MAX_RULES,
   topicRuleSettingsSchema,
   topicTimeRangeSchema,
@@ -307,7 +308,7 @@ export async function writeTopicRule(
       `A project can have at most ${TOPICS_MAX_RULES} Topics rules.`,
     );
   const ruleId = existing?.id;
-  const name = input.name?.trim() || existing?.name || "All traces";
+  const name = input.name?.trim() || existing?.name || DEFAULT_TOPIC_RULE_NAME;
   // A write without sampling or a filter keeps the rule's stored rate and filter.
   const config = topicRuleSettingsSchema.parse({
     ...input,
