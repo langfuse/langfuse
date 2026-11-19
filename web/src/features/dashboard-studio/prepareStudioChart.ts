@@ -21,18 +21,61 @@ import {
 import { readableField } from "./catalog";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
+function histogramBinDescription(
+  row: StudioRow,
+  bucketUnit: string | undefined,
+) {
+  const label = row.dimension ?? row.label;
+  const unit = bucketUnit === "milliseconds" ? "ms" : bucketUnit;
+  return unit && label !== "No value" ? `${label} ${unit}` : label;
+}
+
+function histogramBinLabel(row: StudioRow, bucketUnit: string | undefined) {
+  const label = row.dimension ?? row.label;
+  if (label === "No value") return label;
+  const unit = bucketUnit === "milliseconds" ? "ms" : bucketUnit;
+  if (bucketUnit === "milliseconds" && row.dimensions.bin?.startsWith("[")) {
+    try {
+      const edges: unknown = JSON.parse(row.dimensions.bin);
+      if (
+        Array.isArray(edges) &&
+        edges.length === 2 &&
+        edges.every(
+          (edge) =>
+            edge === null ||
+            (typeof edge === "number" && Number.isFinite(edge)),
+        )
+      ) {
+        const finiteEdges = edges.filter(
+          (edge): edge is number => typeof edge === "number",
+        );
+        if (
+          finiteEdges.some((edge) => Math.abs(edge) >= 1000) &&
+          finiteEdges.every((edge) => edge % 1000 === 0)
+        ) {
+          const [lower, upper] = edges.map((edge) =>
+            edge === null ? null : edge / 1000,
+          );
+          if (lower === null) return `< ${upper} s`;
+          if (upper === null) return `≥ ${lower} s`;
+          return `[${lower}, ${upper}${label.endsWith("]") ? "]" : ")"} s`;
+        }
+      }
+    } catch {
+      // Adaptive histogram responses can carry a formatted interval instead of a tuple.
+    }
+  }
+  return unit ? `${unit} ${label}` : label;
+}
+
 function chartDimension(
   row: StudioRow,
   config: StudioWidgetConfig,
   bucketUnit: string | undefined,
   seriesLabel: string,
 ) {
-  if (config.display.chartType === "HISTOGRAM") {
-    const label = row.dimension ?? row.label;
-    const suffix = bucketUnit === "milliseconds" ? "ms" : bucketUnit;
-    const bin = suffix && label !== "No value" ? `${label} ${suffix}` : label;
-    return `${seriesLabel} · ${bin}`;
-  }
+  if (config.display.chartType === "HISTOGRAM")
+    return histogramBinLabel(row, bucketUnit);
   if (
     config.display.timeSeries ||
     config.display.chartType.endsWith("TIME_SERIES")
@@ -217,6 +260,101 @@ export function prepareStudioChart(
     time_dimension: row.time ?? undefined,
     metric: row.value,
   }));
+  const histogram: Visualization | undefined = (() => {
+    if (config.display.chartType !== "HISTOGRAM" || !visibleSeries.length)
+      return undefined;
+    const formatCount = (value: number) => formatStudioValue(value, undefined);
+    const binDetails = new Map(
+      selectedRows.map((row) => {
+        const series = seriesById.get(row.seriesId)!;
+        const label = histogramBinLabel(row, series.bucketUnit);
+        const raw = histogramBinDescription(row, series.bucketUnit);
+        return [label, raw];
+      }),
+    );
+    if (visibleSeries.length === 1) {
+      const series = visibleSeries[0]!;
+      return {
+        type: "histogram",
+        data: data.map((point) => ({
+          label: point.dimension ?? "No value",
+          value: typeof point.metric === "number" ? point.metric : null,
+        })),
+        color: palette.get(series.id)!.fillColor,
+        valueFormatter: formatCount,
+        ariaLabel: `${series.label} histogram`,
+        tooltipHeading: (bin) =>
+          `${binDetails.get(bin) ?? bin} · ${series.label}`,
+        tooltipValueLabel: series.unit ? `Count (${series.unit})` : "Count",
+      };
+    }
+    const bins = new Map<string, Record<string, number | null>>();
+    for (const row of selectedRows) {
+      const series = seriesById.get(row.seriesId)!;
+      const bin = chartDimension(row, config, series.bucketUnit, series.label);
+      const values =
+        bins.get(bin) ??
+        Object.fromEntries(visibleSeries.map((series) => [series.id, null]));
+      values[row.seriesId] = row.value;
+      bins.set(bin, values);
+    }
+    return {
+      type: "grouped-bar",
+      data: [...bins].map(([key, values]) => ({ key, values })),
+      series: visibleSeries.map((series) => ({
+        id: series.id,
+        label: series.label,
+        color: palette.get(series.id)!.fillColor,
+      })),
+      valueFormatter: formatCount,
+      tickFormatter: (bin) => bin,
+      tooltipFormatter: (bin) => `Bin: ${binDetails.get(bin) ?? bin}`,
+      legend:
+        config.display.legend === false
+          ? { visibility: "hidden" }
+          : { visibility: "visible", interaction: "toggle", summary: "none" },
+    };
+  })();
+  const mobileHistogram: Visualization | undefined =
+    config.display.chartType === "HISTOGRAM"
+      ? {
+          type: "table",
+          columns: [
+            { id: "band", label: "Band" },
+            { id: "count", label: "Count", align: "right" },
+          ],
+          rows: visibleSeries.flatMap((series) => [
+            ...(visibleSeries.length > 1
+              ? [
+                  {
+                    id: `${series.id}.population`,
+                    emphasis: "subtotal" as const,
+                    cells: [
+                      { columnId: "band", value: series.label },
+                      { columnId: "count", value: "" },
+                    ],
+                  },
+                ]
+              : []),
+            ...selectedRows
+              .filter((row) => row.seriesId === series.id)
+              .map((row, index) => ({
+                id: `${series.id}.bin.${index}`,
+                cells: [
+                  {
+                    columnId: "band",
+                    value: histogramBinLabel(row, series.bucketUnit),
+                    detail: `${histogramBinDescription(row, series.bucketUnit)} · ${series.label}`,
+                  },
+                  {
+                    columnId: "count",
+                    value: row.value?.toLocaleString("en") ?? "—",
+                  },
+                ],
+              })),
+          ]),
+        }
+      : undefined;
   const colors = Object.fromEntries(
     visibleSeries.map((series) => [
       series.id,
@@ -397,6 +535,8 @@ export function prepareStudioChart(
   };
   return {
     data,
+    histogram,
+    mobileHistogram,
     colors,
     unit,
     table,
@@ -416,9 +556,30 @@ export function applyStudioSeriesPresentation(
   visualization: Visualization,
   prepared: Pick<
     ReturnType<typeof prepareStudioChart>,
-    "colors" | "visibleSeries"
+    "colors" | "visibleSeries" | "histogram" | "mobileHistogram"
   >,
+  onLegendInteraction?: ChartProps["onLegendInteraction"],
+  isMobile = false,
 ): Visualization {
+  if (isMobile && prepared.mobileHistogram) return prepared.mobileHistogram;
+  if (prepared.histogram) {
+    const histogram = prepared.histogram;
+    if (
+      histogram.type === "grouped-bar" &&
+      histogram.legend?.visibility !== "hidden"
+    )
+      return {
+        ...histogram,
+        legend: {
+          ...histogram.legend,
+          visibility: "visible",
+          interaction: "toggle",
+          summary: "none",
+          onInteraction: onLegendInteraction,
+        },
+      };
+    return histogram;
+  }
   if (
     visualization.type !== "line" &&
     visualization.type !== "area" &&
