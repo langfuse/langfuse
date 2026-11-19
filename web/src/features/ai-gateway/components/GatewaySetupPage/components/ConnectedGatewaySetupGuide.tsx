@@ -60,18 +60,34 @@ export function ConnectedGatewaySetupGuide({
     return <Skeleton className="h-64 w-full max-w-3xl" />;
   }
 
-  function finishBudgets() {
+  function finishBudgets({ isSkipped }: { isSkipped: boolean }) {
+    capture("ai_gateway:setup_step_completed", {
+      orgId: organizationId,
+      step: "budgets",
+      stepNumber: 3,
+      isSkipped,
+    });
     setFinishedSteps((steps) => ({ ...steps, budgets: true }));
   }
 
   async function handleSaveBudgets(nextBudgets: GatewaySetupBudgets) {
-    if (await saveBudgets(nextBudgets)) finishBudgets();
+    if (await saveBudgets(nextBudgets)) finishBudgets({ isSkipped: false });
+  }
+
+  function finishSetup({ isSkipped }: { isSkipped: boolean }) {
+    capture("ai_gateway:setup_step_completed", {
+      orgId: organizationId,
+      step: "api_key",
+      stepNumber: 5,
+      isSkipped,
+    });
+    onFinish();
   }
 
   return (
     <CreateGatewayApiKeyDialogController
       organizationId={organizationId}
-      onAfterCreatedKeyDismiss={onFinish}
+      onAfterCreatedKeyDismiss={() => finishSetup({ isSkipped: false })}
     >
       {({ openDialog: openCreateKeyDialog }) => (
         <ProviderDialogController
@@ -111,7 +127,7 @@ export function ConnectedGatewaySetupGuide({
                 ...budgetSaveState,
                 unavailableReason: spendBudgetUnavailableReason,
                 onSave: handleSaveBudgets,
-                onSkip: finishBudgets,
+                onSkip: () => finishBudgets({ isSkipped: true }),
               }}
               recipients={recipients}
               isInviting={isInviting}
@@ -126,7 +142,7 @@ export function ConnectedGatewaySetupGuide({
                 setFinishedSteps((steps) => ({ ...steps, teamInvite: true }));
               }}
               onCreateKey={openCreateKeyDialog}
-              onSkipKey={onFinish}
+              onSkipKey={() => finishSetup({ isSkipped: true })}
             />
           )}
         </ProviderDialogController>

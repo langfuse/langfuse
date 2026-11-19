@@ -29,7 +29,9 @@ export type AiGatewayEventMap = {
           ingestionMode: GatewayIngestionMode;
         }
       | { step: "credential"; stepNumber: 2; provider: GatewayProvider }
+      | { step: "budgets"; stepNumber: 3; isSkipped: boolean }
       | { step: "team_invite"; stepNumber: 4; isSkipped: boolean }
+      | { step: "api_key"; stepNumber: 5; isSkipped: boolean }
     );
   "ai_gateway:ingestion_settings_saved": OrganizationContext &
     Pick<GatewayIngestionSettings, "ingestionMode" | "projectTarget"> & {
