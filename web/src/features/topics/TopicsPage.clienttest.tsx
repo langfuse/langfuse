@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
@@ -144,6 +145,7 @@ vi.mock("./CurrentTopics", () => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
+      executionCosts: { _def: () => ({ path: ["topics", "executionCosts"] }) },
       facets: {
         useQuery: () => ({
           data: state.facetsLoading ? undefined : state.facets,
@@ -268,6 +270,7 @@ vi.mock("@/src/utils/api", () => ({
       },
     },
     useUtils: () => ({
+      client: { topics: { executionCosts: { query: async () => ({}) } } },
       topics: {
         modelSettings: { invalidate: vi.fn() },
         maps: { invalidate: vi.fn() },
@@ -276,6 +279,19 @@ vi.mock("@/src/utils/api", () => ({
     }),
   },
 }));
+
+function renderTopicsPage() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(<TopicsPage />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>
+        <LayerProvider>{children}</LayerProvider>
+      </QueryClientProvider>
+    ),
+  });
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -336,7 +352,7 @@ afterEach(() => {
 
 it("shows Not found instead of the workspace when the Topics gate is closed", () => {
   state.canViewTopics = false;
-  render(<TopicsPage />, { wrapper: LayerProvider });
+  renderTopicsPage();
   expect(screen.getByText("This page is not available.")).toBeTruthy();
   expect(state.currentTopics).not.toHaveBeenCalled();
 });
@@ -345,13 +361,13 @@ it("keeps the question picker reachable with the mobile header", () => {
   state.mobileHeader = true;
   state.resultFacets = [{ facetId: "intent", name: "Intent" }];
   state.rules = [{ facetIds: ["intent"] }];
-  render(<TopicsPage />);
+  renderTopicsPage();
   expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
 });
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
   state.executionId = "execution";
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
+  const view = renderTopicsPage();
   const status = screen.getByRole("dialog", { name: "Regenerate topics" });
   fireEvent.click(within(status).getByRole("button", { name: "Resume run" }));
   expect(state.retry).toHaveBeenCalledWith({
@@ -420,7 +436,7 @@ it.each([
     state.facets = facets();
     state.facetsLoading = true;
     state.executions = undefined;
-    const view = render(<TopicsPage />, { wrapper: LayerProvider });
+    const view = renderTopicsPage();
     expect(screen.queryByTestId("current-topics")).toBeNull();
     expect(state.currentTopics).toHaveBeenCalled();
     const { refreshAfter } = state.currentTopics.mock.lastCall![0];
@@ -438,7 +454,7 @@ it.each([
 
 it("leaves creating and refreshing maps to the map picker, not the menu", async () => {
   withSummaries();
-  render(<TopicsPage />, { wrapper: LayerProvider });
+  renderTopicsPage();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
@@ -470,7 +486,7 @@ it.each([
     ],
     analyses: [],
   };
-  render(<TopicsPage />, { wrapper: LayerProvider });
+  renderTopicsPage();
   const editMap = screen.getByRole("button", { name: "Edit map" });
   expect(editMap).toHaveProperty("disabled", !canWrite);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
@@ -485,7 +501,7 @@ it("offers creating maps in the menu while onboarding hides the map picker", asy
   // Configured but off, and no summaries stored yet.
   state.settings = { ...state.settings, enabled: false };
   state.hasStoredSummaries = false;
-  render(<TopicsPage />, { wrapper: LayerProvider });
+  renderTopicsPage();
   expect(screen.queryByRole("button", { name: /Topic map:/ })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
@@ -507,7 +523,7 @@ it.each([
     state.canWrite = canWrite;
     // A refresh needs automatic processing on.
     state.settings = { ...state.settings, enabled: true };
-    render(<TopicsPage />, { wrapper: LayerProvider });
+    renderTopicsPage();
     fireEvent.click(screen.getByRole("button", { name: "Topic map: Rule" }));
     const picker = within(
       await screen.findByRole("dialog", { name: "Topic maps" }),
@@ -535,7 +551,7 @@ it.each([
 
 it("shows the setup landing until the project's first stored summary exists", () => {
   state.hasStoredSummaries = false;
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
+  const view = renderTopicsPage();
   expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
   expect(screen.queryByTestId("current-topics")).toBeNull();
   state.hasStoredSummaries = true;
