@@ -121,16 +121,18 @@ export function buildDashboardLearningReport({
   );
   chart("single_cost", {
     ...workloadCost,
-    title: "Recorded cost for Search",
+    title: "Recorded cost for the selected workload",
     description:
       "One filtered population, one aggregate result. Data shows the unrounded value.",
-    queries: workloadCost.queries.filter((query) => query.id === "search"),
+    queries: workloadCost.queries
+      .filter((query) => query.id === "search")
+      .map((query) => ({ ...query, label: "Workload cost" })),
     display: { chartType: "NUMBER", unit: "USD", showHeadline: true },
   });
   note(
     "pipeline",
     "Where a number becomes a mark",
-    "The server resolves fields against a declared view, validates allowed measures and filters, and builds a project-scoped ClickHouse query. A grouped result has a row per group and time bucket. The browser assigns series labels, colors, units and marks. A new chart layout can reuse the same rows. Discovering a group that the server never returned requires another query.\n\n**Try one change.** Edit the chart and switch the metadata value from `search` to `support`. Predict which part of the request changes, then run the preview. The predicate and the returned sum change. The unit and the aggregation stay the same.",
+    "The server resolves fields against a declared view, validates allowed measures and filters, and builds a project-scoped ClickHouse query. A grouped result has a row per group and time bucket. The browser assigns series labels, colors, units and marks. A new chart layout can reuse the same rows. Discovering a group that the server never returned requires another query.\n\n**Try one change.** Edit the chart and switch the metadata value from `search` to `support`. Predict which part of the request changes, then run the preview. The predicate and the returned sum change. The example keeps its title because it describes the selected workload. In the recorded 303,000-observation example, Search costs $1,295.78 and Support costs $100.03. Cancel to return to the saved example.",
   );
 
   chapter(
