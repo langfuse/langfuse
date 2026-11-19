@@ -80,7 +80,9 @@ export const projectDeleteProcessor: Processor = async (
   logger.info(`Deleting PG data for project ${projectId} in org ${orgId}`);
 
   // Finally, delete the project itself which should delete all related
-  // resources due to the referential actions defined via Prisma
+  // resources due to the referential actions defined via Prisma.
+  // The cascade removes every Postgres row of the project in one statement,
+  // so a large project holds one long transaction on the writer.
   try {
     const existingProject = await prisma.project.findUnique({
       where: {
