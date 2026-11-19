@@ -2,7 +2,6 @@ import { get_encoding } from "tiktoken";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "@langfuse/shared/src/env";
 import {
   calculateModelUsageCosts,
   findModel,
@@ -224,12 +223,6 @@ async function topicTraceSink(
   projectId: string,
   metadata?: Record<string, unknown>,
 ) {
-  if (
-    !env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL?.includes(
-      projectId,
-    )
-  )
-    return undefined;
   const trace = getLangfuseAITraceSinkParams({
     feature: "topics",
     projectId,

@@ -3,9 +3,6 @@ import { Decimal } from "decimal.js";
 import { encrypt } from "@langfuse/shared/encryption";
 
 const state = vi.hoisted(() => ({
-  env: {
-    LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: ["project"],
-  },
   call: vi.fn(),
   findModel: vi.fn(),
   embed: vi.fn(),
@@ -27,7 +24,6 @@ vi.mock("tiktoken", async (importOriginal) => {
       state.encoding ?? actual.get_encoding(...args),
   };
 });
-vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
@@ -124,9 +120,6 @@ const evidence = {
 };
 
 beforeEach(() => {
-  state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [
-    "project",
-  ];
   state.call.mockReset();
   state.findModel.mockReset().mockResolvedValue({
     model: null,
@@ -198,7 +191,7 @@ describe("Topics naming boundary", () => {
       typeof import("@langfuse/shared/topics/server")
     >("@langfuse/shared/topics/server");
     state.call.mockImplementation(generateTopicText);
-    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [];
+    state.traceSink.mockReturnValue(undefined);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -244,7 +237,7 @@ describe("Topics naming boundary", () => {
       typeof import("@langfuse/shared/topics/server")
     >("@langfuse/shared/topics/server");
     state.call.mockImplementation(generateTopicText);
-    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [];
+    state.traceSink.mockReturnValue(undefined);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -1069,32 +1062,23 @@ describe("Topics naming boundary", () => {
     },
   );
 
-  it.each(["unconfigured destination", "empty allowlist", "unlisted source"])(
-    "keeps inference untraced and skips the consent lookup with %s",
-    async (reason) => {
-      if (reason === "unconfigured destination")
-        state.traceSink.mockReturnValue(undefined);
-      else
-        state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL =
-          reason === "empty allowlist" ? [] : ["ai-features", "project-other"];
-      state.call.mockResolvedValue({
-        output: keyed({ summary: "A billing request.", status: "applicable" }),
-        usage: {},
-        usageDetails: {},
-        providedCostDetails: {},
-      });
-      await summarizeOne(
-        topicsModels(),
-        "A billing request.",
-        topicProcessingConfigSchema.parse({}),
-      );
-      expect(state.project).not.toHaveBeenCalled();
-      expect(state.call).toHaveBeenCalledOnce();
-      expect(state.call.mock.calls[0][0].trace).toBeUndefined();
-      if (reason !== "unconfigured destination")
-        expect(state.traceSink).not.toHaveBeenCalled();
-    },
-  );
+  it("keeps inference untraced and skips the consent lookup without a destination", async () => {
+    state.traceSink.mockReturnValue(undefined);
+    state.call.mockResolvedValue({
+      output: keyed({ summary: "A billing request.", status: "applicable" }),
+      usage: {},
+      usageDetails: {},
+      providedCostDetails: {},
+    });
+    await summarizeOne(
+      topicsModels(),
+      "A billing request.",
+      topicProcessingConfigSchema.parse({}),
+    );
+    expect(state.project).not.toHaveBeenCalled();
+    expect(state.call).toHaveBeenCalledOnce();
+    expect(state.call.mock.calls[0][0].trace).toBeUndefined();
+  });
 
   it("prices the full embedding batch through the shared engine", async () => {
     state.embed.mockResolvedValue({

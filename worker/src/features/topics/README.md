@@ -19,7 +19,7 @@ Use the normal migrated Postgres, ClickHouse and Redis stack and build shared an
 
 Project settings resolve three LLM connections: summary, embedding and clustering (naming). Pass the resolved `TopicsModels` explicitly; credentials must not enter persisted execution or batch state. Model validation and connection lifecycle belong to [model-config.ts](../../../../packages/shared/src/server/topics/model-config.ts). The embedding model and dimensions are locked once embedded summaries exist. Discovery and later assignment must use the same embedding purpose and normalization; equal dimensions alone do not make vector spaces compatible. An execution whose frozen summary or embedding model differs from current settings must be restarted. Changing the naming model affects subsequent naming; it does not rename unchanged definitions.
 
-Text-call tracing is separate from processing. It requires the source project in `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL` and the organization's AI-feature and AI-analytics settings. Embeddings are untraced. Preserve internal-environment exclusion to prevent recursive processing. OpenRouter Broadcast can create new public traces without the reserved internal environment; exclude the Topics key from a Broadcast destination that itself runs Topics.
+Topics traces summary and naming calls to the configured Langfuse AI project when the source organization enables both AI features and AI feature tracing. Embeddings are untraced. Preserve internal-environment exclusion to prevent recursive processing. OpenRouter Broadcast can create new public traces without the reserved internal environment; exclude the Topics key from a Broadcast destination that itself runs Topics.
 
 ## Processing and updates
 
