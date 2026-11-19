@@ -11,6 +11,41 @@ import { renderHook } from "@testing-library/react";
 import { usePreparedWidgetChart } from "@/src/features/widgets/components/usePreparedWidgetChart";
 
 describe("studio chart preparation", () => {
+  it("identifies a parameterized percentile in the data used to audit a chart", () => {
+    const config = createStudioWidget();
+    config.queries[0]!.metrics = [
+      { id: "tail", measure: "latency", aggregation: "p50", percentile: 25 },
+    ];
+    const row = {
+      seriesId: "a.tail",
+      queryId: "a",
+      metricId: "tail",
+      label: "Latency",
+      dimension: null,
+      dimensions: {},
+      time: null,
+      value: 1500,
+    };
+    const data = prepareStudioData(
+      {
+        status: "complete",
+        rows: [row],
+        summaries: [],
+        series: [],
+        diagnostics: [],
+        warnings: [],
+      },
+      config,
+      { scope: "rows", reference: "all", pageIndex: 0, pageSize: 50 },
+    );
+    expect(
+      data.table.rows[0]?.cells.find((cell) => cell.columnId === "reference")
+        ?.value,
+    ).toContain("p25");
+    expect(
+      data.referenceOptions.find((option) => option.value === "a.tail")?.label,
+    ).toContain("p25");
+  });
   it("distinguishes all-null bucket markers from measured zeros without changing raw Data", () => {
     const config = createStudioWidget();
     config.display = { chartType: "LINE_TIME_SERIES", timeSeries: true };

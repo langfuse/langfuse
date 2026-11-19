@@ -50,7 +50,7 @@ import {
 import { readTextFromClipboard } from "@/src/utils/clipboard";
 import { createStudioStore } from "./studioStore";
 import { createMetadataComparison, createStudioWidget } from "./catalog";
-import { StudioWidgetEditor } from "./StudioWidgetEditor";
+import { WidgetVisionEditor } from "./WidgetVisionEditor";
 import { StudioTextEditor } from "./StudioTextEditor";
 import { type StudioPlacement } from "./StudioPlacementCard";
 import { parseStudioPlacement } from "./clipboard";
@@ -329,8 +329,15 @@ function StudioWorkspace({
       {editor ? (
         <DashboardQuerySchedulerProvider store={scheduler}>
           {editor?.type === "query" ? (
-            <StudioWidgetEditor
+            <WidgetVisionEditor
               key={editor.id}
+              initialMode={
+                editor.config.executionMode === "prototype" ||
+                (editor.config.executionMode === undefined &&
+                  definition.widgets.some((item) => item.id === editor.id))
+                  ? "future"
+                  : "multi-query"
+              }
               initialValue={editor.config}
               isNew={!definition.widgets.some((item) => item.id === editor.id)}
               dashboardName={initialDashboard.name}

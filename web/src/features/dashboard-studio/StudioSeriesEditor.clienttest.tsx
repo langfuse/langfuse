@@ -72,6 +72,29 @@ afterAll(() => {
 });
 
 describe("studio series sort scope", () => {
+  it("updates a generated metric label when its measure changes without renaming the formula reference", async () => {
+    const onChange = renderEditor({
+      ...query,
+      metrics: [
+        { id: "count", label: "Count", measure: "count", aggregation: "count" },
+      ],
+      dimensions: [],
+      orderBy: undefined,
+    });
+    await select("Measure", "Total cost");
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        metrics: [
+          expect.objectContaining({
+            id: "count",
+            measure: "totalCost",
+            aggregation: "sum",
+            label: undefined,
+          }),
+        ],
+      }),
+    );
+  });
   it("chooses a breakdown before changing the query", async () => {
     const onChange = renderEditor({ ...query, dimensions: [] });
     fireEvent.keyDown(screen.getByRole("combobox", { name: "Add breakdown" }), {

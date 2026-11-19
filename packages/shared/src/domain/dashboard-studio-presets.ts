@@ -229,6 +229,7 @@ const recipes: Record<HomeDashboardPresetId, StudioWidgetConfig> = {
         "Cost by user",
         [metric("cost", "totalCost", "sum")],
         ["userId"],
+        generations,
       ),
       query(
         "traces",
@@ -312,19 +313,24 @@ const recipes: Record<HomeDashboardPresetId, StudioWidgetConfig> = {
     { unit: "milliseconds", rowLimit: 20 },
   ),
   "home-generation-latency": config(
-    "p50 and p90 in one chart",
-    "Two percentile measures grouped by model. Model selection, metric labels and chart display share one configuration.",
-    [
+    "Model latency percentiles",
+    "Five percentile views of generation duration by model. Select a percentile to compare models on the same scale.",
+    (["p50", "p75", "p90", "p95", "p99"] as const).map((p) =>
       query(
-        "latency",
-        "Generation latency",
-        [metric("p50", "latency", "p50"), metric("p90", "latency", "p90")],
+        p,
+        p,
+        [metric(p, "latency", p)],
         ["providedModelName"],
         generations,
       ),
-    ],
+    ),
     "LINE_TIME_SERIES",
-    { unit: "milliseconds", timeSeries: true },
+    {
+      unit: "milliseconds",
+      timeSeries: true,
+      rowLimit: 1000,
+      activeQueryIds: ["p50"],
+    },
   ),
   "home-score-analytics": config(
     "Typed score views",

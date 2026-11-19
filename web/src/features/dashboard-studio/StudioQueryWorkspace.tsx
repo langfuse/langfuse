@@ -13,6 +13,7 @@ import { StudioFormulaEditor } from "./StudioFormulaEditor";
 
 export function StudioQueryWorkspace({
   config,
+  executionMode,
   projectId,
   isV4,
   dateRange,
@@ -29,6 +30,7 @@ export function StudioQueryWorkspace({
   onFormulaRemove,
   onFormulaAdd,
 }: StudioQueryWorkspaceProps) {
+  const queryLimit = executionMode === "current" ? 5 : 8;
   const references = config.queries.flatMap((query) =>
     query.metrics.map((metric) => `${query.id}.${metric.id}`),
   );
@@ -84,7 +86,7 @@ export function StudioQueryWorkspace({
           ) : null}
         </div>
         <div className="flex items-center gap-1">
-          {config.queries.length < 8 ? (
+          {config.queries.length < queryLimit ? (
             <Button
               text="Add query"
               icon={PlusIcon}
@@ -140,6 +142,7 @@ export function StudioQueryWorkspace({
           <StudioSeriesEditor
             key={query.id}
             query={query}
+            executionMode={executionMode}
             isV4={isV4}
             timeSeries={
               config.display.timeSeries ??
@@ -158,7 +161,7 @@ export function StudioQueryWorkspace({
                 : undefined
             }
             onDuplicate={
-              config.queries.length < 8
+              config.queries.length < queryLimit
                 ? () => onQueryDuplicate(query)
                 : undefined
             }
@@ -182,6 +185,7 @@ export function StudioQueryWorkspace({
 }
 
 type StudioQueryWorkspaceProps = {
+  executionMode: "current" | "prototype";
   config: StudioWidgetConfig;
   projectId: string;
   isV4: boolean;

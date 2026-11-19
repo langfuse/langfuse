@@ -58,6 +58,7 @@ export const StudioQuerySchema = z.object({
 export const StudioWidgetConfigSchema = z
   .object({
     version: z.literal(1),
+    executionMode: z.enum(["current", "prototype"]).optional(),
     title: z.string().min(1).max(200),
     description: z.string().max(10000),
     queries: z.array(StudioQuerySchema).min(1).max(8),
@@ -174,6 +175,8 @@ export type StudioRow = {
   dimensions: Record<string, string | null>;
   dimension: string | null;
   value: number | null;
+  /** Score records contributing to an untransformed numeric or boolean mean. */
+  evaluationCount?: number;
 };
 
 export type StudioSeries = {

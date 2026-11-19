@@ -5,6 +5,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   getStudioPresetReplacement,
+  LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -16,6 +17,61 @@ describe("DashboardService update methods", () => {
 
   afterEach(() => {
     env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED = originalStudioEnabled;
+  });
+
+  it("accepts only one concurrent definition replacement from the same revision", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const dashboard = await DashboardService.createDashboard(
+      projectId,
+      "Concurrent edits",
+      "",
+    );
+    const revision = new Date("2026-01-01T00:00:00.000Z");
+    await prisma.dashboard.update({
+      where: { id: dashboard.id, projectId },
+      data: { updatedAt: revision },
+    });
+    const definitions = ["First edit", "Second edit"].map((presetId) => ({
+      widgets: [
+        {
+          id: uuidv4(),
+          type: "preset" as const,
+          presetId,
+          x: 0,
+          y: 0,
+          x_size: 6,
+          y_size: 4,
+        },
+      ],
+    }));
+    const attempts = await Promise.allSettled(
+      definitions.map((definition) =>
+        DashboardService.updateDashboardDefinition(
+          dashboard.id,
+          projectId,
+          definition,
+          undefined,
+          undefined,
+          revision,
+        ),
+      ),
+    );
+    const saved = attempts.filter((attempt) => attempt.status === "fulfilled");
+    const stale = attempts.filter((attempt) => attempt.status === "rejected");
+    expect(saved).toHaveLength(1);
+    expect(stale).toHaveLength(1);
+    expect(stale[0]!.reason).toBeInstanceOf(LangfuseConflictError);
+    expect(
+      (await DashboardService.getDashboard(dashboard.id, projectId))!
+        .definition,
+    ).toEqual(saved[0]!.value.definition);
+
+    const unversioned = await DashboardService.updateDashboardDefinition(
+      dashboard.id,
+      projectId,
+      { widgets: [] },
+    );
+    expect(unversioned.definition.widgets).toEqual([]);
   });
 
   it("gates prototype writes and preserves placements outside the writer's capabilities", async () => {

@@ -5,6 +5,10 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const studioEvents = {
+  report_section: "dashboard_studio:report_section",
+  report_open_editor: "dashboard_studio:report_open_editor",
+  report_edit_note: "dashboard_studio:report_edit_note",
+  report_run: "dashboard_studio:report_run",
   opened: "dashboard_studio:opened",
   add_menu_opened: "dashboard_studio:add_menu_opened",
   template_selected: "dashboard_studio:template_selected",
@@ -50,6 +54,13 @@ export type DashboardStudioEventProperties = {
   expressionCount?: number;
   widgetCount?: number;
   selectedCount?: number;
+  sectionIndex?: number;
+  editorMode?: "current" | "multi-query" | "future";
+  capability?:
+    | "metadata-grouping"
+    | "top-clients"
+    | "score-join"
+    | "custom-percentile";
   controlId?:
     | "models"
     | "scores"

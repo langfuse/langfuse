@@ -122,6 +122,8 @@ export const DashboardDefinitionPresetWidgetSchema = z.object({
 const DashboardDefinitionQueryWidgetSchema = z.object({
   type: z.literal("query"),
   id: z.string(),
+  /** A report can compare one or more saved queries with the referenced preset placement. */
+  compareWith: z.string().optional(),
   config: StudioWidgetConfigSchema,
   x: z.number().int().gte(0),
   y: z.number().int().gte(0),

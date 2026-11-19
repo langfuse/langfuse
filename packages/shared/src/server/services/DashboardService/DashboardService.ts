@@ -230,6 +230,7 @@ export class DashboardService {
     definition: z.infer<typeof DashboardDefinitionSchema>,
     userId?: string,
     supportedPlacementTypes: readonly string[] = ["widget", "preset"],
+    expectedUpdatedAt?: Date,
   ): Promise<DashboardDomain> {
     assertStudioPlacementsEnabled(definition);
     if (
@@ -255,6 +256,13 @@ export class DashboardService {
       if (!current)
         throw new LangfuseNotFoundError(
           `Dashboard ${dashboardId} not found in project ${projectId}`,
+        );
+      if (
+        expectedUpdatedAt &&
+        current.updatedAt.getTime() !== expectedUpdatedAt.getTime()
+      )
+        throw new LangfuseConflictError(
+          "This dashboard changed while you were editing. Reload it before saving.",
         );
       const stored = DashboardDefinitionSchema.parse(current.definition);
       const retained = stored.widgets.filter(

@@ -71,6 +71,18 @@ export function formatStudioValue(
       );
 }
 
+type Metric = StudioWidgetConfig["queries"][number]["metrics"][number];
+const metricAggregation = (metric: Metric) =>
+  metric.percentile === undefined
+    ? metric.aggregation
+    : `p${metric.percentile}`;
+function metricLabel(metric: Metric) {
+  return (
+    metric.label ??
+    `${metricAggregation(metric)} ${readableField(metric.measure)}`
+  );
+}
+
 function studioSeriesPresentation(config: StudioWidgetConfig) {
   const queries = new Map(config.queries.map((query) => [query.id, query]));
   const expressions = new Map(
@@ -90,15 +102,9 @@ function studioSeriesPresentation(config: StudioWidgetConfig) {
     const query = queries.get(item.queryId);
     const metric = query?.metrics.find((metric) => metric.id === item.metricId);
     if (!query || !metric) return item.label;
-    const aggregation =
-      metric.percentile === undefined
-        ? metric.aggregation
-        : `p${metric.percentile}`;
-    let metricLabel = metric.label;
-    if (!metricLabel)
-      metricLabel = `${aggregation} ${readableField(metric.measure)}`;
     let base = query.label;
-    if (query.metrics.length > 1) base = `${query.label} · ${metricLabel}`;
+    if (query.metrics.length > 1)
+      base = `${query.label} · ${metricLabel(metric)}`;
     else if (metric.label)
       base =
         config.queries.length > 1
@@ -106,12 +112,12 @@ function studioSeriesPresentation(config: StudioWidgetConfig) {
           : metric.label;
     if (!dimension) return base;
     if (query.metrics.length === 1) return `${base} · ${dimension}`;
-    if (
+    const label =
       !metric.label &&
       query.metrics.every((item) => item.measure === metric.measure)
-    )
-      metricLabel = aggregation;
-    return `${dimension} · ${metricLabel}${config.queries.length > 1 ? ` · ${query.label}` : ""}`;
+        ? metricAggregation(metric)
+        : metricLabel(metric);
+    return `${dimension} · ${label}${config.queries.length > 1 ? ` · ${query.label}` : ""}`;
   };
   const presentSeries = (series: StudioSeries) => ({
     ...series,
@@ -305,11 +311,7 @@ export function prepareStudioChart(
         const metric = query?.metrics.find(
           (metric) => metric.id === series.metricId,
         );
-        const metricName =
-          metric?.label ||
-          (metric
-            ? `${metric.percentile ? `p${metric.percentile}` : metric.aggregation} ${readableField(metric.measure)}`
-            : series.label);
+        const metricName = metric ? metricLabel(metric) : series.label;
         const label =
           config.queries.filter((item) => !item.hidden).length > 1 && query
             ? `${query.label} · ${metricName}`
@@ -461,6 +463,7 @@ export function prepareStudioData(
     reference: string;
     pageIndex: number;
     pageSize: number;
+    compact?: boolean;
   },
 ) {
   const presentation = studioSeriesPresentation(config);
@@ -484,7 +487,7 @@ export function prepareStudioData(
         (metric) =>
           [
             `${query.id}.${metric.id}`,
-            `${query.label} · ${metric.label ?? `${metric.aggregation} ${readableField(metric.measure)}`}`,
+            `${query.label} · ${metricLabel(metric)}`,
           ] as const,
       ),
     ),
@@ -503,7 +506,7 @@ export function prepareStudioData(
       .filter((value) => present.has(value))
       .map((value) => ({
         value,
-        label: `${value} · ${labels.get(value) ?? value}`,
+        label: `${labels.get(value) ?? value} (${value})`,
       })),
   ];
   const reference = present.has(page.reference) ? page.reference : "all";
@@ -524,12 +527,19 @@ export function prepareStudioData(
   const table: Extract<Visualization, { type: "table" }> = {
     type: "table",
     columns: [
-      { id: "reference", label: "Reference" },
+      ...(!page.compact ? [{ id: "reference", label: "Metric" }] : []),
       { id: "series", label: "Series" },
+      ...(page.compact
+        ? [{ id: "displayValue", label: "Value", align: "right" as const }]
+        : []),
       { id: "time", label: page.scope === "summaries" ? "Period" : "Time" },
       { id: "dimension", label: "Breakdown" },
       { id: "value", label: "Raw value", align: "right" },
+      ...(rows.some((row) => row.evaluationCount !== undefined)
+        ? [{ id: "evaluations", label: "Evaluations", align: "right" as const }]
+        : []),
       { id: "unit", label: "Unit" },
+      ...(page.compact ? [{ id: "reference", label: "Metric" }] : []),
     ],
     rows: pageRows.map((row, index) => {
       const reference = referenceOf(row);
@@ -537,7 +547,19 @@ export function prepareStudioData(
       return {
         id: `${row.seriesId}_${index}`,
         cells: [
-          { columnId: "reference", value: reference },
+          ...(page.compact
+            ? [
+                {
+                  columnId: "displayValue",
+                  value: formatStudioValue(row.value, descriptor?.unit),
+                },
+              ]
+            : []),
+          {
+            columnId: "reference",
+            value: labels.get(reference) ?? reference,
+            detail: `Formula reference: ${reference}`,
+          },
           {
             columnId: "series",
             value: presentation.labelFor(
@@ -555,6 +577,9 @@ export function prepareStudioData(
               : undefined,
           },
           { columnId: "value", value: row.value ?? "null" },
+          ...(row.evaluationCount === undefined
+            ? []
+            : [{ columnId: "evaluations", value: row.evaluationCount }]),
           {
             columnId: "unit",
             value: descriptor?.rawUnit ?? descriptor?.unit ?? "—",

@@ -49,6 +49,7 @@ export function toStudioQueryConfig(
 ): StudioWidgetConfig {
   return {
     version: config.version,
+    executionMode: config.executionMode,
     title: "Widget",
     description: "",
     queries: config.queries.map((query) => ({

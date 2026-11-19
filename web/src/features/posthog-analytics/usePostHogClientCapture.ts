@@ -324,6 +324,10 @@ const events = {
     "delete_dashboard_button_click",
   ],
   dashboard_studio: [
+    "report_section",
+    "report_open_editor",
+    "report_edit_note",
+    "report_run",
     "opened",
     "add_menu_opened",
     "template_selected",

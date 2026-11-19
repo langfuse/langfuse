@@ -33,6 +33,7 @@ const chartIcons: Record<
 
 export function StudioWidgetAppearance({
   config,
+  experimental = true,
   series,
   onChange,
   onChartTypeChange,
@@ -275,28 +276,30 @@ export function StudioWidgetAppearance({
                     }
                   />
                 </label>
-                <label className="flex flex-col gap-1.5 text-xs">
-                  Custom boundaries
-                  <Input
-                    aria-label="Histogram boundaries"
-                    placeholder="0, 1, 2, 5, 10"
-                    defaultValue={
-                      config.display.histogramEdges?.join(", ") ?? ""
-                    }
-                    onBlur={(event) => {
-                      const raw = event.target.value.trim();
-                      onChange({
-                        ...config,
-                        display: {
-                          ...config.display,
-                          histogramEdges: raw
-                            ? raw.split(",").map(Number)
-                            : undefined,
-                        },
-                      });
-                    }}
-                  />
-                </label>
+                {experimental ? (
+                  <label className="flex flex-col gap-1.5 text-xs">
+                    Custom boundaries
+                    <Input
+                      aria-label="Histogram boundaries"
+                      placeholder="0, 1, 2, 5, 10"
+                      defaultValue={
+                        config.display.histogramEdges?.join(", ") ?? ""
+                      }
+                      onBlur={(event) => {
+                        const raw = event.target.value.trim();
+                        onChange({
+                          ...config,
+                          display: {
+                            ...config.display,
+                            histogramEdges: raw
+                              ? raw.split(",").map(Number)
+                              : undefined,
+                          },
+                        });
+                      }}
+                    />
+                  </label>
+                ) : null}
                 <p className="text-muted-foreground text-xs">
                   Choose a histogram aggregation in the query. Boundaries use
                   the metric’s original unit.
@@ -311,6 +314,7 @@ export function StudioWidgetAppearance({
 }
 
 type StudioWidgetAppearanceProps = {
+  experimental?: boolean;
   config: StudioWidgetConfig;
   series: { id: string; label: string }[];
   onChange: (config: StudioWidgetConfig) => void;

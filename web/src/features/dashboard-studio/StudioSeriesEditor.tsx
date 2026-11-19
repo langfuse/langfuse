@@ -21,17 +21,40 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { PopoverController } from "@/src/components/ui/popover";
 import { getStudioSource, readableField, studioSourceOptions } from "./catalog";
 import { StudioFilterEditor } from "./StudioFilterEditor";
+import { StudioScoreDefinitionPicker } from "./StudioScoreDefinitionPicker";
+import { StudioScoreFilters } from "./StudioScoreFilters";
+
+function labelAfterMetricChange(metric: StudioMetric) {
+  if (!metric.label) return undefined;
+  const generated = [
+    metricCaption(metric),
+    readableField(metric.measure),
+    "Count",
+    "Observation count",
+    "Observations",
+    "Average score",
+    "Pass rate (0–1)",
+    "Score records",
+  ];
+  return generated.some(
+    (label) => label.toLowerCase() === metric.label!.toLowerCase(),
+  )
+    ? undefined
+    : metric.label;
+}
 
 function MetricDetails({
   queryId,
   metric,
   source,
   onChange,
+  experimental = true,
 }: {
   queryId: string;
   metric: StudioMetric;
   source: ReturnType<typeof getStudioSource>;
   onChange: (metric: StudioMetric) => void;
+  experimental?: boolean;
 }) {
   const measure = source.measures[metric.measure];
   const aggregations = getValidAggregationsForMeasureType(measure?.type);
@@ -44,17 +67,18 @@ function MetricDetails({
             aria-label="Measure"
             placeholder="Measure"
             value={metric.measure}
-            options={Object.entries(source.measures).map(
-              ([value, definition]) => ({
+            options={Object.entries(source.measures)
+              .filter(([key]) => experimental || key !== "activeDays")
+              .map(([value, definition]) => ({
                 value,
                 label: readableField(value),
                 description: definition.description,
-              }),
-            )}
+              }))}
             onValueChange={(value) => {
               const next = source.measures[value];
               onChange({
                 ...metric,
+                label: labelAfterMetricChange(metric),
                 measure: value,
                 summary: undefined,
                 percentile: undefined,
@@ -86,6 +110,7 @@ function MetricDetails({
               onValueChange={(aggregation) =>
                 onChange({
                   ...metric,
+                  label: labelAfterMetricChange(metric),
                   aggregation,
                   percentile: undefined,
                   summary: undefined,
@@ -110,7 +135,7 @@ function MetricDetails({
           />
         </div>
       </details>
-      {metric.aggregation.startsWith("p") ? (
+      {experimental && metric.aggregation.startsWith("p") ? (
         <label className="flex items-center gap-2 text-xs">
           Custom percentile
           <div className="w-24 shrink-0">
@@ -287,6 +312,7 @@ export function StudioSeriesEditor({
   onDuplicate,
   filtersValid = true,
   onFilterValidityChange,
+  executionMode = "prototype",
 }: {
   query: StudioQuery;
   isV4: boolean;
@@ -298,6 +324,7 @@ export function StudioSeriesEditor({
   onDuplicate?: () => void;
   filtersValid?: boolean;
   onFilterValidityChange?: (valid: boolean) => void;
+  executionMode?: "current" | "prototype";
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const bodyId = useId();
@@ -317,7 +344,20 @@ export function StudioSeriesEditor({
     onQueryChange({ ...next, orderBy: orderBy?.length ? orderBy : undefined });
   };
   const dimensions = Object.entries(source.dimensions).filter(
-    ([, definition]) => !definition.uiHidden,
+    ([field, definition]) =>
+      !definition.uiHidden &&
+      (executionMode !== "current" ||
+        (field !== "scoreTarget" &&
+          (!query.view.startsWith("scores-") ||
+            [
+              "name",
+              "source",
+              "dataType",
+              "stringValue",
+              "configId",
+              "timestampDay",
+              "timestampMonth",
+            ].includes(field)))),
   );
   return (
     <section
@@ -362,17 +402,49 @@ export function StudioSeriesEditor({
             options={[...studioSourceOptions]}
             onValueChange={(view) => {
               onFilterValidityChange?.(true);
+              const defaults: Record<string, { type: string; label: string }> =
+                {
+                  "scores-numeric": { type: "NUMERIC", label: "Average score" },
+                  "scores-boolean": {
+                    type: "BOOLEAN",
+                    label: "Pass rate (0–1)",
+                  },
+                  "scores-categorical": {
+                    type: "CATEGORICAL",
+                    label: "Score records",
+                  },
+                };
+              const scoreDefaults = defaults[view];
+              let metrics: StudioMetric[] = [
+                { id: "count", measure: "count", aggregation: "count" },
+              ];
+              const filters: StudioQuery["filters"] = [];
+              if (scoreDefaults) {
+                metrics = [
+                  {
+                    id: "score",
+                    measure: view === "scores-categorical" ? "count" : "value",
+                    aggregation:
+                      view === "scores-categorical" ? "count" : "avg",
+                    label: scoreDefaults.label,
+                  },
+                ];
+                filters.push({
+                  type: "string",
+                  column: "dataType",
+                  operator: "=",
+                  value: scoreDefaults.type,
+                });
+              }
               onChange({
                 ...query,
                 view,
-                scoreTarget: view.startsWith("scores-")
+                scoreTarget: scoreDefaults
                   ? (query.scoreTarget ?? "all")
                   : undefined,
                 dimensions: [],
-                metrics: [
-                  { id: "count", measure: "count", aggregation: "count" },
-                ],
-                filters: [],
+                metrics,
+                filters,
                 orderBy: undefined,
               });
             }}
@@ -410,6 +482,13 @@ export function StudioSeriesEditor({
         id={bodyId}
         className={`${collapsed ? "hidden" : "flex"} min-w-0 flex-col gap-2 border-t px-3 py-1.5`}
       >
+        {query.view.startsWith("scores-") ? (
+          <StudioScoreDefinitionPicker
+            query={query}
+            projectId={projectId}
+            onChange={onChange}
+          />
+        ) : null}
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
           <span className="text-muted-foreground w-16 shrink-0 text-xs">
             Summarize
@@ -421,6 +500,7 @@ export function StudioSeriesEditor({
                 queryId={query.id}
                 metric={metric}
                 source={source}
+                experimental={executionMode !== "current"}
                 onChange={(next) =>
                   onChange({
                     ...query,
@@ -554,23 +634,36 @@ export function StudioSeriesEditor({
             ) : null}
           </div>
           {query.view.startsWith("scores-") ? (
-            <div className="w-40">
-              <SelectInput
-                aria-label={`Query ${query.id} score target`}
-                value={query.scoreTarget ?? "all"}
-                placeholder="All score targets"
-                options={[
-                  { value: "all", label: "All score targets" },
-                  { value: "trace", label: "Trace scores" },
-                  { value: "observation", label: "Observation scores" },
-                  { value: "session", label: "Session scores" },
-                  { value: "experiment", label: "Experiment scores" },
-                ]}
-                onValueChange={(scoreTarget) =>
-                  onChange({ ...query, scoreTarget })
-                }
-              />
-            </div>
+            <details>
+              <summary className="text-muted-foreground cursor-pointer text-xs">
+                Score attachment (optional)
+              </summary>
+              <div className="w-48 pt-2">
+                <SelectInput
+                  aria-label={`Query ${query.id} score target`}
+                  value={query.scoreTarget ?? "all"}
+                  placeholder="All score targets"
+                  options={[
+                    { value: "all", label: "All score targets" },
+                    executionMode === "current"
+                      ? {
+                          value: "trace",
+                          label: "Trace scores",
+                          disabled: true,
+                          disabledReason:
+                            "Exact implicit trace scope needs a richer predicate.",
+                        }
+                      : { value: "trace", label: "Trace scores" },
+                    { value: "observation", label: "Observation scores" },
+                    { value: "session", label: "Session scores" },
+                    { value: "experiment", label: "Experiment scores" },
+                  ]}
+                  onValueChange={(scoreTarget) =>
+                    onChange({ ...query, scoreTarget })
+                  }
+                />
+              </div>
+            </details>
           ) : null}
           <PopoverController
             align="end"
@@ -667,16 +760,27 @@ export function StudioSeriesEditor({
             )}
           </PopoverController>
         </div>
-        <StudioFilterEditor
-          key={query.view}
-          projectId={projectId}
-          view={query.view}
-          isV4={isV4}
-          dateRange={dateRange}
-          onValidityChange={onFilterValidityChange}
-          filters={query.filters}
-          onChange={(filters) => onChange({ ...query, filters })}
-        />
+        {query.view.startsWith("scores-") && executionMode === "current" ? (
+          <StudioScoreFilters
+            query={query}
+            projectId={projectId}
+            isV4={isV4}
+            dateRange={dateRange}
+            onValidityChange={onFilterValidityChange}
+            onChange={(filters) => onChange({ ...query, filters })}
+          />
+        ) : (
+          <StudioFilterEditor
+            key={query.view}
+            projectId={projectId}
+            view={query.view}
+            isV4={isV4}
+            dateRange={dateRange}
+            onValidityChange={onFilterValidityChange}
+            filters={query.filters}
+            onChange={(filters) => onChange({ ...query, filters })}
+          />
+        )}
       </div>
     </section>
   );

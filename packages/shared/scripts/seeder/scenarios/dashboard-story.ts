@@ -13,6 +13,7 @@ import {
   type ScoreRecordInsertType,
 } from "../../../src/server";
 import { buildDashboardStoryDefinition } from "./dashboard-story-definition";
+import { buildDashboardResearchReport } from "./dashboard-research-report";
 import { jitter, utcDayStartMs } from "./rng";
 import { type ScenarioDefinition, SeedError } from "./types";
 
@@ -170,6 +171,7 @@ export const dashboardStoryScenario: ScenarioDefinition = {
         ? `${ctx.idPrefix}-project`
         : ctx.projectId;
     const dashboardId = `${ctx.idPrefix}-dashboard`;
+    const reportId = `${ctx.idPrefix}-report`;
     const traceCount = observationCount / 3;
     const scoreEvery = observationCount / 3000;
     const scoreTraceCount = Math.ceil(traceCount / scoreEvery);
@@ -196,15 +198,17 @@ export const dashboardStoryScenario: ScenarioDefinition = {
       dashboardLink,
       `${ctx.baseUrl}/project/${projectId}/traces?dateRange=${range}`,
       `${ctx.baseUrl}/project/${projectId}/scores?dateRange=${range}`,
+      `${ctx.baseUrl}/project/${projectId}/dashboards/${reportId}/report?dateRange=${range}`,
     ];
     const counts = {
       ...truth,
       projects: projectId === ctx.projectId ? 0 : 1,
-      dashboards: 1,
+      dashboards: 2,
       sessions: 40,
       legacyComparisons: 12,
     };
     const definition = buildDashboardStoryDefinition(observationCount, days);
+    const report = buildDashboardResearchReport(definition);
     if (ctx.dryRun)
       return {
         scenario: "dashboard-story",
@@ -610,6 +614,18 @@ export const dashboardStoryScenario: ScenarioDefinition = {
         definition,
         description: `Dashboard examples with synthetic observations. Full ${days}-day fixture; ${observationCount} observations.`,
       },
+    });
+    await prisma.dashboard.upsert({
+      where: { id: reportId },
+      create: {
+        id: reportId,
+        projectId,
+        name: "An investigation into LLM operations",
+        description: `Dashboard research notebook · ${observationCount.toLocaleString("en-US")} synthetic observations over ${days} days`,
+        definition: report,
+        filters: [],
+      },
+      update: {},
     });
     await prisma.project.update({
       where: { id: projectId },

@@ -18,6 +18,7 @@
 - tRPC context/procedures: `src/server/api/trpc.ts`
 - tRPC router registry: `src/server/api/root.ts`
 - Dashboard studio execution: `src/features/dashboard/server/dashboard-studio-router.ts` and `dashboard-studio-service.ts`; bounded independent queries reuse the shared compiler and progress/cancellation transport. Formula arithmetic is parsed by `studio-expressions.ts` without executing code.
+- `dashboard.updateDashboardDefinition` accepts optional `expectedUpdatedAt` for optimistic concurrency; editors using it must retain their original revision and handle stale saves as conflicts.
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`

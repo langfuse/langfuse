@@ -15,6 +15,7 @@ import {
 } from "./prepareStudioChart";
 import { useDashboardStudioCapture } from "./analytics";
 import { ScoreTag } from "@/src/components/ScoreTag";
+import { describeStudioScores } from "./studioScoreDescription";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type useStudioWidgetResult } from "./useStudioWidgetResult";
 import { useIsMobile } from "@/src/hooks/use-mobile";
@@ -50,6 +51,7 @@ export function StudioWidgetResultPresentation({
   Frame: ComponentType<StudioWidgetResultFrameProps>;
 }) {
   const [view, setView] = useState("chart");
+  const [focusedBucket, setFocusedBucket] = useState<string>();
   const [dataView, setDataView] = useState<{
     scope: "rows" | "summaries";
     reference: string;
@@ -62,6 +64,32 @@ export function StudioWidgetResultPresentation({
   const track = useDashboardStudioCapture(runtime.version === "v2");
   const selectedQuery = queryView?.value ?? "configured";
   const effectiveConfig = config;
+  const scoreSeries =
+    prepared.visibleSeries.length === 1
+      ? prepared.visibleSeries[0]?.id
+      : undefined;
+  const scoreBuckets =
+    scoreSeries && config.display.chartType === "LINE_TIME_SERIES"
+      ? (result.data?.rows.filter(
+          (row) =>
+            row.seriesId === scoreSeries &&
+            row.time &&
+            row.evaluationCount !== undefined,
+        ) ?? [])
+      : [];
+  const focusedScore =
+    focusedBucket &&
+    scoreBuckets.find(
+      (row) =>
+        row.time === focusedBucket ||
+        String(Date.parse(row.time!)) === focusedBucket,
+    );
+  const displayedScore =
+    focusedScore ||
+    scoreBuckets.reduce<(typeof scoreBuckets)[number] | undefined>(
+      (latest, row) => (!latest || row.time! > latest.time! ? row : latest),
+      undefined,
+    );
   const dataScope =
     dataView.scope === "summaries" && result.data?.summaries.length
       ? "summaries"
@@ -71,9 +99,13 @@ export function StudioWidgetResultPresentation({
       ? prepareStudioData(result.data, effectiveConfig, {
           ...dataView,
           scope: dataScope,
+          compact: isMobile,
         })
       : undefined;
   const chart = usePreparedWidgetChart({
+    sync: scoreBuckets.length
+      ? { activeKey: focusedBucket, onActiveKeyChange: setFocusedBucket }
+      : undefined,
     chartType: config.display.chartType,
     active: true,
     data: prepared.data,
@@ -116,7 +148,14 @@ export function StudioWidgetResultPresentation({
         columns: [
           { id: "query", label: "Query" },
           { id: "duration", label: "Duration", align: "right" },
-          { id: "queries", label: "Database queries", align: "right" },
+          {
+            id: "queries",
+            label:
+              config.executionMode === "current"
+                ? "API requests"
+                : "Database queries",
+            align: "right",
+          },
           { id: "rows", label: "Result rows", align: "right" },
           { id: "read", label: "Rows read", align: "right" },
           { id: "bytes", label: "Bytes read", align: "right" },
@@ -128,7 +167,10 @@ export function StudioWidgetResultPresentation({
             { columnId: "query", value: item.queryId },
             {
               columnId: "duration",
-              value: `${Math.round(item.durationMs)} ms`,
+              value:
+                config.executionMode === "current"
+                  ? "—"
+                  : `${Math.round(item.durationMs)} ms`,
             },
             { columnId: "queries", value: item.queryCount },
             { columnId: "rows", value: item.resultRows },
@@ -204,6 +246,7 @@ export function StudioWidgetResultPresentation({
           series.metricId === headline.metricId,
       )?.unit
     : undefined;
+  const scoreDescriptions = describeStudioScores(effectiveConfig);
   const scoreTargets = [
     ...new Set(
       effectiveConfig.queries
@@ -240,28 +283,54 @@ export function StudioWidgetResultPresentation({
       };
     return undefined;
   })();
+  const description = (() => {
+    if (view === "chart") return config.description;
+    if (view === "inspect" && config.executionMode === "current")
+      return "The browser counts API requests and result rows. Server timing, rows read and bytes read are unavailable on this endpoint.";
+    return undefined;
+  })();
   return (
     <div className="ph-no-capture flex h-full min-h-0 flex-col">
       <Frame
         title={config.title}
-        description={view === "chart" ? config.description : undefined}
+        description={description}
         descriptionBehavior="expandable"
         descriptor={
-          scoreTargets.length ? (
-            <>
-              <span className="text-muted-foreground text-xs">
-                Score targets:
-              </span>
-              {scoreTargets.map((target) =>
-                target === "all" ? (
-                  <span key={target} className="text-muted-foreground text-xs">
-                    All score targets
-                  </span>
-                ) : (
-                  <ScoreTag key={target} level={target} />
-                ),
+          scoreDescriptions.length ? (
+            <div className="ph-no-capture flex min-w-0 flex-col gap-1 text-xs">
+              {scoreDescriptions.length === 1 ? (
+                <span className="text-muted-foreground">
+                  {scoreDescriptions[0]}
+                </span>
+              ) : (
+                <details>
+                  <summary className="text-muted-foreground cursor-pointer">
+                    {scoreDescriptions.length} score queries · definition,
+                    origin and measure
+                  </summary>
+                  <ul className="flex flex-col gap-1 pt-2">
+                    {scoreDescriptions.map((description, index) => (
+                      <li key={index}>{description}</li>
+                    ))}
+                  </ul>
+                </details>
               )}
-            </>
+              <span className="text-muted-foreground">
+                Individual score records · score timestamp
+                {scoreTargets.every((target) => target === "all")
+                  ? " · all attachments"
+                  : ""}
+              </span>
+              {scoreTargets.some((target) => target !== "all") ? (
+                <span className="flex flex-wrap items-center gap-1">
+                  {scoreTargets
+                    .filter((target) => target !== "all")
+                    .map((target) => (
+                      <ScoreTag key={target} level={target} />
+                    ))}
+                </span>
+              ) : null}
+            </div>
           ) : undefined
         }
         actions={actions}
@@ -525,6 +594,14 @@ export function StudioWidgetResultPresentation({
           temporary.
         </p>
       ) : null}
+      {view === "chart" && displayedScore && (
+        <p className="text-muted-foreground shrink-0 border-t px-3 py-1.5 text-xs">
+          {focusedScore ? "Selected bucket" : "Latest bucket"} ·{" "}
+          {displayedScore.time} ·{" "}
+          {formatStudioValue(displayedScore.value, config.display.unit)} from{" "}
+          {displayedScore.evaluationCount?.toLocaleString()} evaluations
+        </p>
+      )}
       {selectionError ? (
         <p role="alert" className="text-destructive shrink-0 px-3 py-1 text-xs">
           {selectionError}

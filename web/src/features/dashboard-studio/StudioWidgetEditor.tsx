@@ -33,6 +33,7 @@ import {
   hasStudioQueryChanges,
 } from "./studioQueryConfig";
 import { prepareStudioChart } from "./prepareStudioChart";
+import { validateCurrentStudioConfig } from "./currentStudioExecution";
 
 function nextStudioId(config: StudioWidgetConfig, kind: "query" | "formula") {
   const used = new Set(
@@ -88,6 +89,8 @@ export function StudioWidgetEditor({
   filterState,
   onApply,
   onCancel,
+  active = true,
+  applyContext = "dashboard",
 }: StudioWidgetEditorProps) {
   const [config, setConfig] = useState(initialValue);
   const [preview, setPreview] = useState(initialValue);
@@ -108,8 +111,9 @@ export function StudioWidgetEditor({
     readPath,
     dateRange,
     filterState,
+    enabled: active,
   });
-  const applyBlockReason = getStudioApplyBlockReason(
+  const previewApplyBlockReason = getStudioApplyBlockReason(
     config,
     preview,
     runtime.result,
@@ -129,7 +133,31 @@ export function StudioWidgetEditor({
     readPath === "v4" ? "v2" : "v1",
     filterState,
   );
+  const currentCapabilities = config.executionMode === "current";
+  const capabilityValidation = currentCapabilities
+    ? validateCurrentStudioConfig(config, queryVersion)
+    : { valid: true as const };
+  const unselectedScore = config.queries.find(
+    (query) =>
+      query.view.startsWith("scores-") &&
+      !query.dimensions.some((dimension) => dimension.field === "name") &&
+      !query.filters.some(
+        (filter) =>
+          ["name", "scoreName", "configId"].includes(filter.column) &&
+          (typeof filter.value === "string"
+            ? Boolean(filter.value.trim())
+            : Array.isArray(filter.value) && filter.value.length > 0),
+      ),
+  );
+  const scoreDefinitionReason = unselectedScore
+    ? `Choose a score definition in query ${unselectedScore.id.toUpperCase()} before running.`
+    : null;
+  const applyBlockReason = capabilityValidation.valid
+    ? (scoreDefinitionReason ?? previewApplyBlockReason)
+    : capabilityValidation.reason;
   const track = useDashboardStudioCapture(queryVersion === "v2");
+  const newApplyLabel =
+    applyContext === "report" ? "Add to report" : "Add to dashboard";
   const metadata = {
     widgetKind: "query" as const,
     chartType: config.display.chartType,
@@ -156,6 +184,7 @@ export function StudioWidgetEditor({
   const appearance = (
     <StudioWidgetAppearance
       config={config}
+      experimental={!currentCapabilities}
       series={prepared.availableSeries}
       onChange={(next) => {
         setConfig(next);
@@ -206,6 +235,7 @@ export function StudioWidgetEditor({
   const queries = (
     <StudioQueryWorkspace
       config={config}
+      executionMode={currentCapabilities ? "current" : "prototype"}
       projectId={projectId}
       isV4={queryVersion === "v2"}
       dateRange={dateRange}
@@ -398,7 +428,10 @@ export function StudioWidgetEditor({
             text="Run preview"
             icon={PlayIcon}
             variant="outline"
-            disabled={Boolean(filterError)}
+            disabled={
+              Boolean(filterError || scoreDefinitionReason) ||
+              !capabilityValidation.valid
+            }
             loading={runtime.result.isFetching}
             onClick={() => {
               const next = validate();
@@ -414,7 +447,7 @@ export function StudioWidgetEditor({
             }}
           />
           <Button
-            text={isNew ? "Add to dashboard" : "Apply changes"}
+            text={isNew ? newApplyLabel : "Apply changes"}
             disabled={Boolean(filterError || applyBlockReason)}
             onClick={() => {
               if (applyBlockReason) return;
@@ -431,7 +464,9 @@ export function StudioWidgetEditor({
           className="text-muted-foreground w-full text-[11px]"
         >
           {applyBlockReason ??
-            "Changes apply to the dashboard draft. Save the dashboard to publish them."}
+            (applyContext === "report"
+              ? "Apply changes saves this chart to the report."
+              : "Changes apply to the dashboard draft. Save the dashboard to publish them.")}
         </p>
       </div>
       {filterError ? (
@@ -513,6 +548,8 @@ export function StudioWidgetEditor({
 }
 
 type StudioWidgetEditorProps = {
+  active?: boolean;
+  applyContext?: "dashboard" | "report";
   initialValue: StudioWidgetConfig;
   isNew: boolean;
   dashboardName: string;

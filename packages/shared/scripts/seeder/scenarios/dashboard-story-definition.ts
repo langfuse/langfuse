@@ -60,7 +60,6 @@ const modelNames = Array.from(
   (_, index) => `studio-model-${String(index + 1).padStart(2, "0")}`,
 );
 const selectedModels: FilterState = [
-  ...generations,
   {
     column: "providedModelName",
     type: "stringOptions",
@@ -75,7 +74,8 @@ const recipeFor = (presetId: (typeof HOME_DASHBOARD_PRESET_IDS)[number]) => {
     presetId === "home-generation-latency" ||
     presetId === "home-model-usage"
   ) {
-    for (const item of recipe.queries) item.filters = selectedModels;
+    for (const item of recipe.queries)
+      item.filters = [...item.filters, ...selectedModels];
     recipe.description +=
       " Saved selection: studio-model-01 through studio-model-10. Select these same ten models in the legacy dropdown for an exact comparison.";
   }

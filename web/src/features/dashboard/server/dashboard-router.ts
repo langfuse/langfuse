@@ -72,6 +72,7 @@ const UpdateDashboardDefinitionInput = z.object({
   dashboardId: z.string(),
   definition: DashboardDefinitionSchema,
   supportedPlacementTypes: supportedPlacementTypes.optional(),
+  expectedUpdatedAt: z.date().optional(),
 });
 
 // Update dashboard input schema
@@ -586,6 +587,7 @@ export const dashboardRouter = createTRPCRouter({
         input.definition,
         ctx.session.user.id,
         input.supportedPlacementTypes,
+        input.expectedUpdatedAt,
       );
 
       return dashboard;

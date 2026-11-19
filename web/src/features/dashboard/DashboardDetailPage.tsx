@@ -1354,6 +1354,16 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                     ),
                     actionButtonsRight: (
                       <>
+                        {studioCapability.data === true &&
+                          dashboardDefinition?.widgets.some(
+                            (cell) => cell.type === "text",
+                          ) && (
+                            <DesignSystemButton
+                              text="Read as report"
+                              variant="outline"
+                              href={`/project/${projectId}/dashboards/${dashboardId}/report?dateRange=${encodeURIComponent(rangeToString(timeRange))}`}
+                            />
+                          )}
                         {studioCapability.data === true && hasCUDAccess && (
                           <DesignSystemButton
                             text="Edit dashboard"
