@@ -2303,6 +2303,7 @@ async function runObservationsScanQuery<T>(
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
     abortSignal,
+    callerDeadline: true,
     clickhouseConfigs: { request_timeout: OBSERVATIONS_SCAN_BUDGET_MS },
     clickhouseSettings: {
       read_in_order_use_buffering: 0,
