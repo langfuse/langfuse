@@ -13,18 +13,20 @@ function segmentLabel(segment: TopicStripeSegment) {
   return "Unassigned";
 }
 
+export type TopicStripeProps = {
+  facet: string;
+  segments: TopicStripeSegment[];
+  selected: Set<string>;
+  onToggle: (topic: string) => void;
+};
+
 /** A thin stacked bar of one facet's topic shares; click a topic to filter by it. */
 export function TopicStripe({
   facet,
   segments,
   selected,
   onToggle,
-}: {
-  facet: string;
-  segments: TopicStripeSegment[];
-  selected: Set<string>;
-  onToggle: (topic: string) => void;
-}) {
+}: TopicStripeProps) {
   const capture = usePostHogClientCapture();
   const topicCount = segments.reduce((sum, segment) => {
     if (segment.kind === "topic") return sum + 1;
@@ -33,9 +35,9 @@ export function TopicStripe({
   }, 0);
   const anySelected = selected.size > 0;
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="ph-no-capture flex min-w-0 items-center gap-2">
       <span className="text-muted-foreground shrink-0 text-xs">{facet}</span>
-      <div className="ph-no-capture flex h-1.5 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
+      <div className="flex h-1.5 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
         {segments.map((segment) => {
           const topic = segment.kind === "topic" ? segment.name : null;
           const name = segmentLabel(segment);

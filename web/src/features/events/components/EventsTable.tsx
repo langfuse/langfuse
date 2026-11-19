@@ -144,7 +144,6 @@ import {
   TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
 } from "@langfuse/shared/topics";
 import { TraceTopicsCell } from "@/src/features/topics/trace/TraceTopicsCell";
-import { TopicStripe } from "@/src/features/topics/trace/TopicStripe";
 import {
   useTopicFilterOptions,
   useTopicStripe,
@@ -2461,7 +2460,7 @@ export default function ObservationsEventsTable({
                 toTimestamp={chartTimeWindow.to}
                 searchIgnored={Boolean(searchQuery)}
                 onSelectRange={setTimeRangeTransient}
-                topicStripe={topicStripe && <TopicStripe {...topicStripe} />}
+                topicStripe={topicStripe}
               />
             )}
             {chartEnabled && chartViewMode === "chart" ? (

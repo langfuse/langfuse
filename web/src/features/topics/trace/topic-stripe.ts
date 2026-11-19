@@ -41,7 +41,7 @@ export function topicStripeSegments({
         .filter((item) => item.facet === facet)
         .map((item) => item.topic),
     );
-    if (!names.size) unassigned++;
+    if (names.size === 0) unassigned++;
     for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   const topics = [...counts]
@@ -55,7 +55,7 @@ export function topicStripeSegments({
   const folded = topics.slice(TOPIC_STRIPE_SLOTS);
   return [
     ...topics.slice(0, TOPIC_STRIPE_SLOTS),
-    ...(folded.length
+    ...(folded.length > 0
       ? [
           {
             kind: "more" as const,
@@ -64,7 +64,9 @@ export function topicStripeSegments({
           },
         ]
       : []),
-    ...(unassigned ? [{ kind: "unassigned" as const, count: unassigned }] : []),
+    ...(unassigned > 0
+      ? [{ kind: "unassigned" as const, count: unassigned }]
+      : []),
   ];
 }
 
@@ -77,7 +79,7 @@ export function selectedStripeTopics(filters: FilterState, facet: string) {
   return new Set(filter?.type === "categoryOptions" ? filter.value : []);
 }
 
-/** Adds the topic to the facet's "any of" filter, or removes it. */
+/** Adds the topic to the facet's first "any of" filter, or removes it; other filters stay as they are. */
 export function toggleStripeTopic(
   filters: FilterState,
   facet: string,
@@ -86,16 +88,15 @@ export function toggleStripeTopic(
   const selected = selectedStripeTopics(filters, facet);
   if (selected.has(topic)) selected.delete(topic);
   else selected.add(topic);
-  const rest = filters.filter((filter) => !isFacetAnyOfFilter(facet)(filter));
-  if (!selected.size) return rest;
-  return [
-    ...rest,
-    {
-      type: "categoryOptions",
-      column: "topics",
-      key: facet,
-      operator: "any of",
-      value: [...selected],
-    },
-  ];
+  const index = filters.findIndex(isFacetAnyOfFilter(facet));
+  const next: FilterState[number] = {
+    type: "categoryOptions",
+    column: "topics",
+    key: facet,
+    operator: "any of",
+    value: [...selected],
+  };
+  if (index === -1) return selected.size === 0 ? filters : [...filters, next];
+  if (selected.size === 0) return filters.filter((_, i) => i !== index);
+  return filters.map((filter, i) => (i === index ? next : filter));
 }

@@ -88,4 +88,29 @@ describe("toggleStripeTopic", () => {
     );
     expect(removed).toEqual(other);
   });
+
+  it("edits only the first any-of filter of the facet", () => {
+    const second: FilterState[number] = {
+      type: "categoryOptions",
+      column: "topics",
+      key: "Intent",
+      operator: "any of",
+      value: ["Refunds"],
+    };
+    const filters: FilterState = [
+      ...other,
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing"],
+      },
+      second,
+    ];
+    expect(toggleStripeTopic(filters, "Intent", "Billing")).toEqual([
+      ...other,
+      second,
+    ]);
+  });
 });
