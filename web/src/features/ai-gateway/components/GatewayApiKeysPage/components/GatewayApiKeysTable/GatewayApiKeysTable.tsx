@@ -68,6 +68,7 @@ export function GatewayApiKeysTable({
   spend,
   onEdit,
   onRevoke,
+  onCreateKey,
   pagination,
   search,
   orderBy,
@@ -78,6 +79,7 @@ export function GatewayApiKeysTable({
   spend: GatewayApiKeysSpendState;
   onEdit: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
+  onCreateKey: () => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
 }) {
@@ -237,7 +239,11 @@ export function GatewayApiKeysTable({
           ? "No gateway keys match the current search."
           : "No gateway keys created."
       }
-      emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}
+      emptyState={
+        hasNoKeys ? (
+          <GatewayApiKeysEmptyState onCreateKey={onCreateKey} />
+        ) : undefined
+      }
     />
   );
 }
