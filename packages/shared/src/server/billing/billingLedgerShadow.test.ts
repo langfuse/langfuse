@@ -12,7 +12,7 @@ vi.mock("../instrumentation", () => ({
 }));
 vi.mock("../repositories/billable-events", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../repositories/billable-events")>()),
-  getBillableUnitCountsByProjectInWindow: mocks.ledgerCounts,
+  getBillableUnitCountsByProjectInRange: mocks.ledgerCounts,
 }));
 
 import { compareWithBillingLedger } from "./billingLedgerShadow";
@@ -59,8 +59,8 @@ describe("compareWithBillingLedger", () => {
     });
 
     expect(mocks.ledgerCounts).toHaveBeenCalledWith({
-      windowFrom: FROM,
-      windowTo: TO,
+      from: FROM,
+      to: TO,
       projectId: undefined,
     });
     expect(incrementsOf("langfuse.billing.ledger_shadow.units")).toEqual(
@@ -179,8 +179,8 @@ describe("compareWithBillingLedger", () => {
     });
 
     expect(mocks.ledgerCounts).toHaveBeenCalledWith({
-      windowFrom: from,
-      windowTo: to,
+      from,
+      to,
       projectId: "p-1",
     });
   });

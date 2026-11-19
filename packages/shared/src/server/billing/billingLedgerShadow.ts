@@ -2,7 +2,7 @@ import { recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
 import {
   type BillableEventType,
-  getBillableUnitCountsByProjectInWindow,
+  getBillableUnitCountsByProjectInRange,
 } from "../repositories/billable-events";
 
 /** Billing consumer whose legacy counts the ledger is compared against. */
@@ -99,9 +99,9 @@ export const compareWithBillingLedger = async ({
   }
 
   try {
-    const ledger = await getBillableUnitCountsByProjectInWindow({
-      windowFrom: from,
-      windowTo: to,
+    const ledger = await getBillableUnitCountsByProjectInRange({
+      from,
+      to,
       projectId,
     });
 

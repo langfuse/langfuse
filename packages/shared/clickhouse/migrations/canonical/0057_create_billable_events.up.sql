@@ -1,7 +1,7 @@
 -- Billing ledger: one row per billable unit (observation, trace, score, topics
 -- facet summary) each time it is ingested. A unit is billed once in a billing
 -- window of ingested_at when its id appears there and not in the 24 hours
--- before the window starts (getBillableUnitCountsByProjectInWindow).
+-- before the window starts (getBillableUnitCountsByProjectInRange).
 -- The ledger is append-only. It has no TTL, and deletes and data retention
 -- never touch it, so the ids, sizes and timestamps of deleted or expired data
 -- stay in it. It starts filling when this migration runs, and earlier usage is

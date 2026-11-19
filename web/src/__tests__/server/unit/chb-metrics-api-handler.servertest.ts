@@ -213,25 +213,10 @@ describe("chbMetricsApiHandler", () => {
     expect(mocks.ledgerCounts).not.toHaveBeenCalled();
   });
 
-  it("rejects a window off the 15-minute boundaries with 400", async () => {
-    const response = await chbMetricsApiHandler(
-      createRequest({
-        startTime: "2026-07-01T00:00:00Z",
-        endTime: "2026-07-01T00:20:00Z",
-      }),
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      message: "startTime and endTime must fall on 15-minute boundaries",
-    });
-    expect(mocks.ledgerCounts).not.toHaveBeenCalled();
-  });
-
   it("asks CHB to retry a window that has not settled yet", async () => {
-    // Four minutes after the window ends, inserts can still land in it.
+    // Rows stamped just before the end may not be readable yet.
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-07-01T00:19:00Z"));
+    vi.setSystemTime(new Date("2026-07-01T00:15:30Z"));
 
     const response = await chbMetricsApiHandler(
       createRequest({
@@ -241,7 +226,7 @@ describe("chbMetricsApiHandler", () => {
     );
 
     expect(response.status).toBe(503);
-    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(response.headers.get("Retry-After")).toBe("30");
     expect(mocks.ledgerCounts).not.toHaveBeenCalled();
   });
 });

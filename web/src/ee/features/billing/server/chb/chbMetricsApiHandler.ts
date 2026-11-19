@@ -7,8 +7,7 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  BILLING_WINDOW_MS,
-  BILLING_WINDOW_SETTLE_MS,
+  BILLING_SETTLE_MS,
   type BillableEventType,
   getBillableUnitCountsByProjectInRange,
   logger,
@@ -19,10 +18,10 @@ import {
  * Billing metrics API for ClickHouse Billing (CHB).
  *
  * CHB's metering pipeline polls this endpoint per project (`resourceId`) and
- * 15-minute window to derive billable usage. Counts come from the
- * billable_events ledger as the sum of the 15-minute windows in the requested
- * range, so deletes and retention never lower them. Response contract:
- * unknown resources return zeros, never 404.
+ * time window to derive billable usage. Counts come from the billable_events
+ * ledger, so deletes and retention never lower them, and the counts of
+ * adjacent windows always add up to the count of their union. Response
+ * contract: unknown resources return zeros, never 404.
  *
  * Auth: dedicated bearer secret (`CLICKHOUSE_BILLING_METRICS_API_KEY`).
  *
@@ -31,7 +30,7 @@ import {
  */
 
 // Reject windows above 35 days: keeps a misbehaving caller from issuing
-// unbounded ledger scans; CHB polls 15-minute windows.
+// unbounded ledger scans; CHB polls short trailing windows.
 const MAX_WINDOW_MS = 35 * 24 * 60 * 60 * 1000;
 
 const METRIC_BY_EVENT_TYPE = {
@@ -63,9 +62,6 @@ const metricsForProject = (
   }
   return metrics;
 };
-
-const isOnWindowBoundary = (date: Date) =>
-  date.getTime() % BILLING_WINDOW_MS === 0;
 
 const isAuthorized = (req: NextRequest, apiKey: string): boolean => {
   const authHeader = req.headers.get("authorization");
@@ -133,15 +129,10 @@ export async function chbMetricsApiHandler(req: NextRequest) {
       { status: 400 },
     );
   }
-  if (!isOnWindowBoundary(start) || !isOnWindowBoundary(end)) {
-    return NextResponse.json(
-      { message: "startTime and endTime must fall on 15-minute boundaries" },
-      { status: 400 },
-    );
-  }
-  // A window still receives inserts shortly after it ends. Answering early
-  // would under-bill it for good, so ask CHB to retry once it has settled.
-  const settlesAt = end.getTime() + BILLING_WINDOW_SETTLE_MS;
+  // Rows stamped just before endTime can take a moment to become readable.
+  // Answering early would under-bill the window for good, so ask CHB to retry
+  // once it has settled.
+  const settlesAt = end.getTime() + BILLING_SETTLE_MS;
   if (settlesAt > Date.now()) {
     recordIncrement("langfuse.billing_metrics.unsettled_window", 1, {
       unit: "requests",

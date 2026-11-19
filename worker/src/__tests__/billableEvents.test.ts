@@ -10,7 +10,6 @@ import {
   deleteEventsByTraceIds,
   deleteScoresByTraceIds,
   getBillableUnitCountsByProjectInRange,
-  getBillableUnitCountsByProjectInWindow,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 // import type { TopicSummary } from "@langfuse/shared/topics";
@@ -40,14 +39,10 @@ const getBillableRows = (projectId: string) =>
     params: { projectId },
   });
 
-const countsInWindow = async (
-  projectId: string,
-  windowFrom: Date,
-  windowTo: Date,
-) => {
-  const rows = await getBillableUnitCountsByProjectInWindow({
-    windowFrom,
-    windowTo,
+const countsInRange = async (projectId: string, from: Date, to: Date) => {
+  const rows = await getBillableUnitCountsByProjectInRange({
+    from,
+    to,
     projectId,
   });
   return Object.fromEntries(rows.map((row) => [row.eventType, row.count]));
@@ -55,7 +50,7 @@ const countsInWindow = async (
 
 /** Billed units of rows the MVs just wrote, whose ingested_at is now. */
 const billedUnitsAroundNow = (projectId: string) =>
-  countsInWindow(
+  countsInRange(
     projectId,
     new Date(Date.now() - HOUR),
     new Date(Date.now() + HOUR),
@@ -404,7 +399,7 @@ describe("billable_events materialized views", () => {
   // });
 });
 
-describe("getBillableUnitCountsByProjectInWindow", () => {
+describe("getBillableUnitCountsByProjectInRange", () => {
   // A fixed window start; each test uses its own project.
   const T0 = new Date("2026-01-05T00:00:00.000Z");
   const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
@@ -427,10 +422,10 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
       { eventType: "trace", eventId: "at-window-end", at: at(HOUR) },
     ]);
 
-    expect(await countsInWindow(projectId, T0, at(HOUR))).toEqual({
+    expect(await countsInRange(projectId, T0, at(HOUR))).toEqual({
       trace: 2,
     });
-    expect(await countsInWindow(projectId, at(HOUR), at(2 * HOUR))).toEqual({
+    expect(await countsInRange(projectId, at(HOUR), at(2 * HOUR))).toEqual({
       trace: 1,
     });
   });
@@ -449,7 +444,7 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
 
     const counts = await Promise.all(
       windowStarts.map((windowFrom) =>
-        countsInWindow(
+        countsInRange(
           projectId,
           windowFrom,
           new Date(windowFrom.getTime() + 15 * MINUTE),
@@ -474,15 +469,15 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
       { eventType: "observation", eventId: "id-1", at: at(MINUTE) },
     ]);
 
-    expect(await countsInWindow(projectA, T0, at(15 * MINUTE))).toEqual({
+    expect(await countsInRange(projectA, T0, at(15 * MINUTE))).toEqual({
       observation: 2,
       trace: 1,
       score: 1,
     });
 
-    const allProjects = await getBillableUnitCountsByProjectInWindow({
-      windowFrom: T0,
-      windowTo: at(15 * MINUTE),
+    const allProjects = await getBillableUnitCountsByProjectInRange({
+      from: T0,
+      to: at(15 * MINUTE),
     });
     expect(
       allProjects.filter((row) => row.projectId === projectA),
@@ -492,67 +487,58 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
     ]);
   });
 
-  it("rejects a window that does not end after it starts", async () => {
+  it("rejects a range that does not end after it starts", async () => {
     await expect(
-      getBillableUnitCountsByProjectInWindow({ windowFrom: T0, windowTo: T0 }),
+      getBillableUnitCountsByProjectInRange({ from: T0, to: T0 }),
     ).rejects.toThrow("must end after it starts");
   });
-});
 
-describe("getBillableUnitCountsByProjectInRange", () => {
-  const T0 = new Date("2026-01-12T00:00:00.000Z");
-  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
-  const QUARTER = 15 * MINUTE;
-
-  it("equals the sum of the 15-minute windows in the range", async () => {
+  it("adds up across any split of a range", async () => {
     const projectId = randomUUID();
+    const day = new Date("2026-01-12T00:00:00.000Z");
+    const on = (offsetMs: number) => new Date(day.getTime() + offsetMs);
     await insertBillableEvents(projectId, [
-      // Counted once: the later quarter has the first one in its lookback.
-      { eventType: "trace", eventId: "twice-in-range", at: at(MINUTE) },
-      { eventType: "trace", eventId: "twice-in-range", at: at(50 * MINUTE) },
-      // Seen exactly 24h before the range starts. The 00:15 window's lookback
-      // starts 15 minutes later and misses that row, so it counts the unit,
-      // where one window over the whole range would not.
-      { eventType: "observation", eventId: "edge", at: at(-24 * HOUR) },
-      { eventType: "observation", eventId: "edge", at: at(QUARTER + MINUTE) },
-      // In the lookback of every window it appears in: never counted.
-      { eventType: "observation", eventId: "seen-before", at: at(-HOUR) },
-      { eventType: "observation", eventId: "seen-before", at: at(2 * MINUTE) },
-      // Counted again after a gap of more than 24 hours inside the range.
-      { eventType: "score", eventId: "after-gap", at: at(MINUTE) },
-      { eventType: "score", eventId: "after-gap", at: at(25 * HOUR) },
-      // `to` is exclusive.
-      { eventType: "score", eventId: "at-range-end", at: at(26 * HOUR) },
+      // Billed once: its second appearance is within 24 hours.
+      { eventType: "trace", eventId: "twice", at: on(MINUTE) },
+      { eventType: "trace", eventId: "twice", at: on(50 * MINUTE) },
+      // Last seen 24h before the 00:00 window starts, so that window skips
+      // it. The 00:15 window looks back from 15 minutes later and bills it.
+      { eventType: "observation", eventId: "edge", at: on(-24 * HOUR) },
+      { eventType: "observation", eventId: "edge", at: on(16 * MINUTE) },
+      // Seen within the 24 hours before the range: never billed.
+      { eventType: "observation", eventId: "seen-before", at: on(-HOUR) },
+      { eventType: "observation", eventId: "seen-before", at: on(2 * MINUTE) },
+      // Billed again after a gap of more than 24 hours.
+      { eventType: "score", eventId: "after-gap", at: on(MINUTE) },
+      { eventType: "score", eventId: "after-gap", at: on(25 * HOUR) },
+      // Two appearances in one window, on both sides of a 00:07 cut: billed
+      // at the first one, so only the range before the cut counts it.
+      { eventType: "score", eventId: "split-window", at: on(3 * MINUTE) },
+      { eventType: "score", eventId: "split-window", at: on(11 * MINUTE) },
     ]);
 
-    const to = at(26 * HOUR);
-    const windowSums: Record<string, number> = {};
-    for (let from = T0.getTime(); from < to.getTime(); from += QUARTER) {
-      const counts = await countsInWindow(
-        projectId,
-        new Date(from),
-        new Date(from + QUARTER),
-      );
-      for (const [eventType, count] of Object.entries(counts))
-        windowSums[eventType] = (windowSums[eventType] ?? 0) + count;
-    }
+    const to = on(26 * HOUR);
+    const whole = await countsInRange(projectId, day, to);
+    expect(whole).toEqual({ trace: 1, observation: 1, score: 3 });
 
-    const rows = await getBillableUnitCountsByProjectInRange({
-      from: T0,
+    const cuts = [
+      day,
+      on(7 * MINUTE),
+      on(16 * MINUTE + 30 * SECOND),
+      on(25 * HOUR - 1),
       to,
-      projectId,
+    ];
+    const splitTotals: Record<string, number> = {};
+    for (let i = 0; i < cuts.length - 1; i++) {
+      const counts = await countsInRange(projectId, cuts[i], cuts[i + 1]);
+      for (const [eventType, count] of Object.entries(counts))
+        splitTotals[eventType] = (splitTotals[eventType] ?? 0) + count;
+    }
+    expect(splitTotals).toEqual(whole);
+    // The cut at 00:07 assigns split-window to the first part only.
+    expect(await countsInRange(projectId, day, on(7 * MINUTE))).toEqual({
+      trace: 1,
+      score: 2,
     });
-    const rangeCounts = Object.fromEntries(
-      rows.map((row) => [row.eventType, row.count]),
-    );
-
-    expect(windowSums).toEqual({ trace: 1, observation: 1, score: 2 });
-    expect(rangeCounts).toEqual(windowSums);
-  });
-
-  it("rejects a range that does not fall on 15-minute boundaries", async () => {
-    await expect(
-      getBillableUnitCountsByProjectInRange({ from: at(MINUTE), to: at(HOUR) }),
-    ).rejects.toThrow("15-minute boundaries");
   });
 });
