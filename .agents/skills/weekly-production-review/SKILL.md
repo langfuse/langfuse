@@ -41,8 +41,7 @@ audit from the linked source rows.
 - Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) for the Linear
   write-back: it proposes measured evidence comments and new filings, then
   writes once you approve the set.
-- Check each alert cluster against the monitor's runbook in the infrastructure
-  repo (`runbooks/<slug>.md`).
+- Check each alert cluster against the monitor's runbook in the infrastructure repo (`runbooks/<slug>.md`).
 
 ## Workflow
 
@@ -72,9 +71,7 @@ audit from the linked source rows.
    Group repeated firings by monitor/page title or ID, environment, service/team,
    and trigger reason.
 6. For every Datadog alert/page cluster, perform the deep dive before writing the
-   final row. Do not stop at the monitor title or count. Check the monitor's
-   runbook in the infrastructure repo (`runbooks/<slug>.md`) first; a
-   documented cause may explain the cluster. Inspect matching APM
+   final row. Do not stop at the monitor title or count. Check the monitor's runbook in the infrastructure repo (`runbooks/<slug>.md`) first; a documented cause may explain the cluster — cite the runbook in the `incident.io / Linear Link` column. Inspect matching APM
    spans, representative traces, related logs, error records, exception details,
    failed job logs, dependency spans, queue backlog/delay context, and monitor
    time windows. Put the relevant trace/span evidence and relevant logs/errors
@@ -125,6 +122,8 @@ Linear for matching issue keys, titles, source URLs, and comments. If an
 existing issue covers it, link to that issue and mark the row as already
 tracked instead of reporting it again as fresh work.
 
+An alert cluster that matches a cause documented in the monitor's runbook is already tracked even without a Linear issue: link the runbook instead.
+
 Use short stable link labels:
 
 - `Datadog monitor: <monitor name>`
@@ -134,6 +133,7 @@ Use short stable link labels:
 - `incident.io: <INC reference>`
 - `incident.io alert load: <escalation path or team>`
 - `Linear: <issue key>`
+- `Runbook: <slug>`
 
 Do not write links, create follow-ups, or update external systems unless the
 user explicitly asks for changes after reviewing the report.
@@ -250,8 +250,7 @@ Column rules:
   retry exhaustion, validation failures, or `No measurements found`.
 - `Verdict`: use `customer incident`, `confirmed bug`, `infra/dependency`,
   `expected/test`, `monitor noise`, or `unknown/no measurements`.
-- `incident.io / Linear Link`: matching incident.io reference, Linear issue key,
-  explicit disposition, or `none found`.
+- `incident.io / Linear Link`: matching incident.io reference, Linear issue key, runbook (`Runbook: <slug>`), explicit disposition, or `none found`.
 
 For API route and queue consumer errors, start from APM spans matching:
 
