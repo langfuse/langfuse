@@ -7,22 +7,10 @@ import {
 } from "./utils";
 
 describe("getCreateEvaluatorHref", () => {
-  it("links forced-v3 projects to the legacy evaluator UI", () => {
-    expect(
-      getCreateEvaluatorHref({
-        projectId: "project-id",
-        forceV3Experience: true,
-      }),
-    ).toBe("/project/project-id/evals/legacy");
-  });
-
-  it("links other projects to the current evaluator gallery", () => {
-    expect(
-      getCreateEvaluatorHref({
-        projectId: "project-id",
-        forceV3Experience: false,
-      }),
-    ).toBe("/project/project-id/evals?gallery=open");
+  it("links to the current evaluator gallery", () => {
+    expect(getCreateEvaluatorHref("project-id")).toBe(
+      "/project/project-id/evals?gallery=open",
+    );
   });
 });
 

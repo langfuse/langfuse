@@ -7,7 +7,6 @@ import {
   type BatchEvalSourceTable,
   BatchEvalSourceTable as SourceTable,
   extractVariables,
-  observationVariableMappingList,
 } from "@langfuse/shared";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import {
@@ -20,18 +19,12 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { ChevronLeft, ExternalLink, Plus } from "@langfuse/icons";
-import {
-  EvaluatorSelectionStep,
-  type BatchEvaluator,
-} from "./EvaluatorSelectionStep";
+import { ExternalLink, Plus } from "@langfuse/icons";
 import { EvaluatorMappingStep } from "./EvaluatorMappingStep";
-import { ConfirmationStep } from "./ConfirmationStep";
 import {
   buildQueryWithSelectedIds,
   getBatchEvalCostObservationCount,
@@ -63,8 +56,6 @@ type RunEvaluationDialogProps = {
   sourceTable?: BatchEvalSourceTable;
 };
 
-type DialogStep = "select-evaluator" | "confirm";
-
 export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   const {
     projectId,
@@ -76,11 +67,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   } = props;
 
   const capture = usePostHogClientCapture();
-  const [step, setStep] = useState<DialogStep>("select-evaluator");
-  const [selectedEvaluators, setSelectedEvaluators] = useState<
-    BatchEvaluator[]
-  >([]);
-  const [evaluatorSearchQuery, setEvaluatorSearchQuery] = useState("");
   const [mappingSearch, setMappingSearch] = useState("");
   const [mappingSearchQuery, setMappingSearchQuery] = useState("");
   const debouncedMappingSearch = useDebounce(setMappingSearchQuery, 300, false);
@@ -97,26 +83,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     (state) => state.assignments,
   );
 
-  const forceV3Query = api.v4Transition.forceV3Experience.useQuery(
-    { projectId },
-    {
-      enabled: Boolean(projectId),
-      staleTime: Infinity,
-    },
-  );
-  const forceV3Experience = forceV3Query.data === true;
-  const isExperiencePending = forceV3Query.isPending;
-  const showMappingEditor = !isExperiencePending && !forceV3Experience;
-
   const evaluatorsQuery = api.evalsV2.options.useQuery(
     {
       projectId,
       limit: BATCH_EVAL_EVALUATOR_LIMIT,
       excludeLegacyEvaluators: true,
-      search:
-        showMappingEditor && mappingSearchQuery.trim()
-          ? mappingSearchQuery.trim()
-          : undefined,
+      search: mappingSearchQuery.trim() ? mappingSearchQuery.trim() : undefined,
     },
     {
       placeholderData: (previousData) => previousData,
@@ -167,22 +139,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     },
   );
 
-  const eligibleEvaluators = useMemo(
-    () =>
-      (evaluatorsQuery.data ?? [])
-        .filter((evaluator) => evaluator.blockedAt === null)
-        .map((evaluator): BatchEvaluator => ({
-          id: evaluator.id,
-          scoreName: evaluator.name,
-          variableMapping:
-            observationVariableMappingList.safeParse(
-              evaluator.latestVersion?.variableMapping,
-            ).data ?? [],
-          prompt: evaluator.latestVersion?.prompt ?? null,
-        })),
-    [evaluatorsQuery.data],
-  );
-
   const evaluatorOptions = useMemo(
     () =>
       (evaluatorsQuery.data ?? [])
@@ -214,19 +170,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     [evaluatorsQuery.data],
   );
 
-  const selectedEvaluatorIds = useMemo(
-    () => selectedEvaluators.map((evaluator) => evaluator.id),
-    [selectedEvaluators],
-  );
-
   const sampleObject = buildSelectedSampleObject({
     observation: props.exampleObservation?.id ? props.exampleObservation : null,
     eventDetails: previewQuery.data?.[0],
   });
 
-  const selectedCount = showMappingEditor
-    ? mappingAssignments.length
-    : selectedEvaluators.length;
+  const selectedCount = mappingAssignments.length;
   const mappingsComplete = hasCompleteBatchEvalMappings(mappingAssignments);
   const costObservationCount = getBatchEvalCostObservationCount({
     displayCount,
@@ -242,23 +191,8 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     return "Map every evaluator variable to a source column before running.";
   })();
 
-  const toggleEvaluatorSelection = (evaluatorId: string) => {
-    setSelectedEvaluators((previous) => {
-      if (previous.some((evaluator) => evaluator.id === evaluatorId)) {
-        return previous.filter((evaluator) => evaluator.id !== evaluatorId);
-      }
-      const evaluator = eligibleEvaluators.find(
-        (candidate) => candidate.id === evaluatorId,
-      );
-      return evaluator ? [...previous, evaluator] : previous;
-    });
-  };
-
   const onSubmit = async () => {
-    if (selectedCount === 0) {
-      return;
-    }
-    if (showMappingEditor && !mappingsComplete) {
+    if (selectedCount === 0 || !mappingsComplete) {
       return;
     }
 
@@ -267,16 +201,14 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       selectAll,
       selectedObservationIds,
     });
-    const evaluatorIds = showMappingEditor
-      ? mappingAssignments.map((assignment) => assignment.evaluatorId)
-      : selectedEvaluators.map((evaluator) => evaluator.id);
-    const evaluatorMappings = showMappingEditor
-      ? mappingAssignments.map((assignment) => ({
-          evaluatorId: assignment.evaluatorId,
-          variableMapping: assignment.variableMapping,
-        }))
-      : undefined;
-    const mappingOverrideCount = (evaluatorMappings ?? []).filter(
+    const evaluatorIds = mappingAssignments.map(
+      (assignment) => assignment.evaluatorId,
+    );
+    const evaluatorMappings = mappingAssignments.map((assignment) => ({
+      evaluatorId: assignment.evaluatorId,
+      variableMapping: assignment.variableMapping,
+    }));
+    const mappingOverrideCount = evaluatorMappings.filter(
       (mapping) => mapping.variableMapping !== null,
     ).length;
 
@@ -287,7 +219,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
         evaluatorIds,
         sourceTable,
         evalVersion: "v2",
-        ...(evaluatorMappings ? { evaluatorMappings } : {}),
+        evaluatorMappings,
       });
     } catch {
       return;
@@ -297,7 +229,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       evaluatorCount: evaluatorIds.length,
       mappingOverrideCount,
       sourceTable,
-      isForceV3Experience: forceV3Experience,
       isV4: true,
     });
 
@@ -319,10 +250,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     props.onClose();
   };
 
-  const createEvaluatorHref = getCreateEvaluatorHref({
-    projectId,
-    forceV3Experience,
-  });
+  const createEvaluatorHref = getCreateEvaluatorHref(projectId);
 
   return (
     <Dialog
@@ -332,12 +260,8 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       }
     >
       <DialogContent
-        {...(showMappingEditor ? { size: "lg" as const } : {})}
-        className={
-          showMappingEditor
-            ? "flex max-h-[85vh] min-h-[38vh] flex-col"
-            : "flex max-h-[62vh] min-h-[38vh] max-w-2xl flex-col"
-        }
+        size="lg"
+        className="flex max-h-[85vh] min-h-[38vh] flex-col"
       >
         <DialogHeader>
           <DialogTitle>
@@ -348,121 +272,45 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 : `Evaluate ${displayCount} ${scopeLabel}${displayCount === 1 ? "" : "s"}`}
           </DialogTitle>
           <DialogDescription>
-            {step === "confirm"
-              ? "Review your evaluation configuration before running."
-              : showMappingEditor
-                ? "Select evaluators and review their variable mappings."
-                : "Select one or more evaluators."}
+            Select evaluators and review their variable mappings.
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody
-          className={
-            showMappingEditor
-              ? "min-h-0 flex-1 overflow-y-auto"
-              : "flex-1 overflow-hidden"
-          }
-        >
-          {isExperiencePending ? (
-            <Skeleton className="h-20 w-full" />
-          ) : step === "select-evaluator" ? (
-            showMappingEditor ? (
-              <EvaluatorMappingStep
-                projectId={projectId}
-                store={ruleSetupStore}
-                evaluatorOptions={evaluatorOptions}
-                isQueryLoading={evaluatorsQuery.isLoading}
-                isQueryError={evaluatorsQuery.isError}
-                queryErrorMessage={evaluatorsQuery.error?.message}
-                search={mappingSearch}
-                onSearchChange={(value) => {
-                  setMappingSearch(value);
-                  debouncedMappingSearch(value);
-                }}
-                sampleObject={sampleObject}
-                costObservationCount={costObservationCount}
-              />
-            ) : (
-              <EvaluatorSelectionStep
-                eligibleEvaluators={eligibleEvaluators}
-                selectedEvaluators={selectedEvaluators}
-                isQueryLoading={evaluatorsQuery.isLoading}
-                isQueryError={evaluatorsQuery.isError}
-                queryErrorMessage={evaluatorsQuery.error?.message}
-                previewObservation={previewQuery.data?.[0]}
-                isPreviewLoading={previewQuery.isLoading}
-                selectedEvaluatorIds={selectedEvaluatorIds}
-                evaluatorSearchQuery={evaluatorSearchQuery}
-                onSearchQueryChange={setEvaluatorSearchQuery}
-                onToggleEvaluator={toggleEvaluatorSelection}
-              />
-            )
-          ) : (
-            <ConfirmationStep
-              projectId={projectId}
-              displayCount={displayCount}
-              evaluators={selectedEvaluators.map((evaluator) => ({
-                id: evaluator.id,
-                name: evaluator.scoreName,
-              }))}
-              hideCount={sourceTable !== SourceTable.EVENTS}
-              sourceTable={sourceTable}
-            />
-          )}
+        <DialogBody className="min-h-0 flex-1 overflow-y-auto">
+          <EvaluatorMappingStep
+            projectId={projectId}
+            store={ruleSetupStore}
+            evaluatorOptions={evaluatorOptions}
+            isQueryLoading={evaluatorsQuery.isLoading}
+            isQueryError={evaluatorsQuery.isError}
+            queryErrorMessage={evaluatorsQuery.error?.message}
+            search={mappingSearch}
+            onSearchChange={(value) => {
+              setMappingSearch(value);
+              debouncedMappingSearch(value);
+            }}
+            sampleObject={sampleObject}
+            costObservationCount={costObservationCount}
+          />
         </DialogBody>
 
         <DialogFooter className="flex justify-between">
-          {step === "confirm" ? (
-            <Button
-              variant="ghost"
-              onClick={() => setStep("select-evaluator")}
-              disabled={runEvaluationMutation.isPending}
-            >
-              <ChevronLeft size="base" color="default" __rawClassName="mr-1" />
-              Back
-            </Button>
-          ) : (
-            <div />
-          )}
-
+          <div />
           <div className="flex items-center gap-2">
-            {step !== "confirm" ? (
-              <CreateEvaluatorButton
-                href={createEvaluatorHref}
-                onClick={() => {
-                  // The legacy (v3) editor is not part of the onboarding funnel.
-                  if (forceV3Experience) return;
-                  capture("eval:onboarding_started", {
-                    entryPoint: "batch_evaluation",
-                  });
-                }}
-              />
-            ) : null}
-            {showMappingEditor ? (
-              <MappingRunButton
-                disabledReason={mappingRunDisabledReason}
-                selectedCount={selectedCount}
-                loading={runEvaluationMutation.isPending}
-                onClick={onSubmit}
-              />
-            ) : step === "select-evaluator" ? (
-              <Button
-                onClick={() => setStep("confirm")}
-                disabled={isExperiencePending || selectedCount === 0}
-              >
-                Continue{" "}
-                {selectedCount > 0
-                  ? `with ${selectedCount} evaluator(s)`
-                  : null}
-              </Button>
-            ) : (
-              <Button
-                onClick={onSubmit}
-                loading={runEvaluationMutation.isPending}
-              >
-                Run Evaluation
-              </Button>
-            )}
+            <CreateEvaluatorButton
+              href={createEvaluatorHref}
+              onClick={() => {
+                capture("eval:onboarding_started", {
+                  entryPoint: "batch_evaluation",
+                });
+              }}
+            />
+            <MappingRunButton
+              disabledReason={mappingRunDisabledReason}
+              selectedCount={selectedCount}
+              loading={runEvaluationMutation.isPending}
+              onClick={onSubmit}
+            />
           </div>
         </DialogFooter>
       </DialogContent>

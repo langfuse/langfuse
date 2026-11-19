@@ -12,11 +12,6 @@ const { submit, submitted } = vi.hoisted(() => ({
 vi.mock("@/src/utils/api", () => ({
   sendAsPostOption: {},
   api: {
-    v4Transition: {
-      forceV3Experience: {
-        useQuery: () => ({ data: true, isPending: false }),
-      },
-    },
     evalsV2: {
       options: {
         useQuery: () => ({
@@ -62,24 +57,20 @@ vi.mock(
 );
 vi.mock("@/src/features/evals/v2/stores/createRuleSetupStore", () => ({
   buildSelectedSampleObject: () => null,
-  createRuleSetupStore: () => createStore(() => ({ assignments: [] })),
+  createRuleSetupStore: () =>
+    createStore(() => ({
+      assignments: [
+        {
+          evaluatorId: "evaluator",
+          evaluatorType: "CODE",
+          variableMapping: null,
+          defaultVariableMapping: [],
+        },
+      ],
+    })),
 }));
 vi.mock("./EvaluatorMappingStep", () => ({
   EvaluatorMappingStep: () => <div />,
-}));
-vi.mock("./EvaluatorSelectionStep", () => ({
-  EvaluatorSelectionStep: ({
-    onToggleEvaluator,
-  }: {
-    onToggleEvaluator: (id: string) => void;
-  }) => (
-    <button onClick={() => onToggleEvaluator("evaluator")}>
-      Select Accuracy
-    </button>
-  ),
-}));
-vi.mock("./ConfirmationStep", () => ({
-  ConfirmationStep: () => <p>Confirm evaluation</p>,
 }));
 
 function SelectionHarness() {
@@ -122,15 +113,13 @@ describe("Run evaluation lifecycle", () => {
   it("retains selection on failure and clears it once when retry succeeds", async () => {
     submit.mockRejectedValueOnce(new Error("Temporarily unavailable"));
     render(<SelectionHarness />);
-    fireEvent.click(screen.getByRole("button", { name: "Select Accuracy" }));
-    fireEvent.click(screen.getByRole("button", { name: /Continue with/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Run Evaluation" }));
+    fireEvent.click(screen.getByRole("button", { name: /Run Evaluation/ }));
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
     expect(screen.getByText("2 rows selected")).toBeInTheDocument();
-    expect(screen.getByText("Confirm evaluation")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(submitted).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Run Evaluation" }));
+    fireEvent.click(screen.getByRole("button", { name: /Run Evaluation/ }));
     await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1));
     expect(screen.getByText("0 rows selected")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

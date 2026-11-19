@@ -103,7 +103,6 @@ const memoryRedis = vi.hoisted(() => {
 
 const sharedServerMock = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
-  isForceV3ExperienceProject: vi.fn(() => false),
   logger: {
     warn: vi.fn(),
   },
@@ -710,7 +709,6 @@ describe("v4TransitionRouter", () => {
 
     expect(result).toMatchObject({
       projectId,
-      forceV3Experience: false,
       sdkUsage: {
         projectId,
         sdkUsageSeries: expect.arrayContaining([
@@ -1002,7 +1000,6 @@ describe("v4TransitionRouter", () => {
             mixpanel: false,
             blobStorage: false,
           },
-          forceV3Experience: false,
         },
         {
           projectId: secondProjectId,
@@ -1013,7 +1010,6 @@ describe("v4TransitionRouter", () => {
             mixpanel: true,
             blobStorage: false,
           },
-          forceV3Experience: false,
         },
       ],
     });
@@ -1164,7 +1160,6 @@ describe("v4TransitionRouter", () => {
             mixpanel: false,
             blobStorage: false,
           },
-          forceV3Experience: false,
         },
       ],
     });
@@ -2267,7 +2262,6 @@ describe("v4TransitionRouter", () => {
         const caller = createCaller(mockPrismaForActions());
 
         await expect(caller.migrationActions({ projectId })).resolves.toEqual({
-          forceV3Experience: false,
           sdkActionNeeded: true,
           experimentsActionNeeded: null,
           apisActionNeeded: null,
@@ -2305,7 +2299,6 @@ describe("v4TransitionRouter", () => {
         const caller = createCaller(mockPrismaForActions({ evalCount: 2 }));
 
         await expect(caller.migrationActions({ projectId })).resolves.toEqual({
-          forceV3Experience: false,
           sdkActionNeeded: true,
           experimentsActionNeeded: false,
           apisActionNeeded: false,
@@ -2425,25 +2418,6 @@ describe("v4TransitionRouter", () => {
         ).resolves.toMatchObject({
           apisActionNeeded: true,
         });
-      });
-
-      it("short-circuits partner-managed (forced v3) projects without any I/O", async () => {
-        await seedRedisCache();
-        sharedServerMock.isForceV3ExperienceProject.mockReturnValueOnce(true);
-        const prismaMock = mockPrismaForActions();
-        const caller = createCaller(prismaMock);
-
-        await expect(caller.migrationActions({ projectId })).resolves.toEqual({
-          forceV3Experience: true,
-          sdkActionNeeded: null,
-          experimentsActionNeeded: null,
-          apisActionNeeded: null,
-          evalsActionNeeded: false,
-          exportsActionNeeded: false,
-        });
-
-        expect(prismaMock.evaluationRule.groupBy).not.toHaveBeenCalled();
-        expect(mockedQueryClickhouse).not.toHaveBeenCalled();
       });
 
       it("when Redis is unavailable, queries the full window and derives the SDK flag", async () => {

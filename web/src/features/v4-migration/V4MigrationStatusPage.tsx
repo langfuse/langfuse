@@ -35,7 +35,6 @@ import {
   type ProjectMigrationReadiness,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
-import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
@@ -91,23 +90,6 @@ function MigrationActionCell({ state }: { state: MigrationActionState }) {
 }
 
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
-  // Forced-v3 projects are managed by their integration partner — link the pill
-  // straight to the FAQ instead of showing a migration action state.
-  if (readiness === "partner-managed") {
-    return (
-      <a
-        data-row-click-ignore
-        href={PARTNER_INTEGRATION_FAQ_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="bg-muted text-muted-foreground inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap hover:underline"
-        title="Upgrade is handled by your integration partner"
-      >
-        Integration partner
-      </a>
-    );
-  }
-
   if (readiness !== "action-needed") return null;
 
   return (
@@ -188,10 +170,7 @@ function OrgStatusSection({
     row: { id: string; name: string; status: ProjectMigrationStatus },
     readiness: ProjectMigrationReadiness,
   ) => {
-    // Forced-v3 projects have no migration panel — just navigate to the project.
-    if (!row.status.forceV3Experience) {
-      openProjectMigration(row, readiness);
-    }
+    openProjectMigration(row, readiness);
     router.push(`/project/${row.id}/traces`);
   };
 
@@ -248,7 +227,6 @@ function OrgStatusSection({
           checking: 1,
           "action-needed": 2,
           ready: 3,
-          "partner-managed": 4,
         }[row.readiness];
       case "sdk":
         if (row.status.sdk.status === "latest") {
@@ -330,9 +308,7 @@ function OrgStatusSection({
           className="block truncate font-bold hover:underline"
           title={row.original.name}
           onClick={() => {
-            if (!row.original.status.forceV3Experience) {
-              openProjectMigration(row.original, row.original.readiness);
-            }
+            openProjectMigration(row.original, row.original.readiness);
           }}
         >
           {row.original.name}

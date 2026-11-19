@@ -131,11 +131,9 @@ const OrganizationProjectTiles = ({
                     </CardTitle>
                   </div>
                   {!project.deletedAt &&
-                    (migrationReadiness === "action-needed" ||
-                      migrationReadiness === "partner-managed") && (
+                    migrationReadiness === "action-needed" && (
                       <V4MigrationProjectChip
                         project={{ id: project.id, name: project.name }}
-                        readiness={migrationReadiness}
                       />
                     )}
                 </div>

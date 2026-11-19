@@ -93,7 +93,6 @@ import {
   resolveProjectRole,
   isLangfuseAITracingConfigured,
   shouldSkipScoresDedup,
-  isForceV3ExperienceProject,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -1091,9 +1090,6 @@ export async function getAuthOptions(
                                   project.id,
                                 ),
                                 scoreEditsDisabled: shouldSkipScoresDedup(
-                                  project.id,
-                                ),
-                                forceV3Experience: isForceV3ExperienceProject(
                                   project.id,
                                 ),
                                 deletedAt: project.deletedAt,

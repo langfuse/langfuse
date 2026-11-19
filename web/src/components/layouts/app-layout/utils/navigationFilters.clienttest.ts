@@ -28,7 +28,6 @@ it.each([
       uiCustomization: null,
       isLangfuseCloud: true,
       hasActiveCloudIncident: false,
-      forceV3Experience: false,
     };
     expect(applyNavigationFilters([route], context, undefined)).toEqual([]);
     context.session!.user!.featureFlags[flag] = true;
@@ -38,44 +37,35 @@ it.each([
   },
 );
 
-it.each([
-  { forceV3Experience: true, visible: false },
-  { forceV3Experience: false, visible: true },
-])(
-  "recovery visibility is $visible when forceV3Experience is $forceV3Experience",
-  ({ forceV3Experience, visible }) => {
-    const route = ROUTES.find(
-      (route) => route.featureFlag === "v4BetaToggleVisible",
-    )!;
-    const context: NavigationFilterContext = {
-      routerProjectId: "project-1",
-      routerOrganizationId: undefined,
-      session: {
-        user: {
-          canToggleV4: false,
-          v4BetaEnabled: false,
-          v4UpgradeUiAvailable: true,
-          featureFlags: testFeatureFlags({}),
-        },
-        environment: { v4WriteMode: "dual" },
-      } as Session,
-      enableExperimentalFeatures: false,
-      internalFeaturesEnabled: false,
-      entitlements: [],
-      uiCustomization: null,
-      isLangfuseCloud: true,
-      hasActiveCloudIncident: false,
-      forceV3Experience,
-    };
+it("shows v4 recovery for a cloud project stuck on v3 during dual write", () => {
+  const route = ROUTES.find(
+    (route) => route.featureFlag === "v4BetaToggleVisible",
+  )!;
+  const context: NavigationFilterContext = {
+    routerProjectId: "project-1",
+    routerOrganizationId: undefined,
+    session: {
+      user: {
+        canToggleV4: false,
+        v4BetaEnabled: false,
+        v4UpgradeUiAvailable: true,
+        featureFlags: testFeatureFlags({}),
+      },
+      environment: { v4WriteMode: "dual" },
+    } as Session,
+    enableExperimentalFeatures: false,
+    internalFeaturesEnabled: false,
+    entitlements: [],
+    uiCustomization: null,
+    isLangfuseCloud: true,
+    hasActiveCloudIncident: false,
+  };
 
-    expect(applyNavigationFilters([route], context, undefined)).toEqual(
-      visible ? [route] : [],
-    );
+  expect(applyNavigationFilters([route], context, undefined)).toEqual([route]);
 
-    context.routerProjectId = undefined;
-    expect(applyNavigationFilters([route], context, undefined)).toEqual([]);
-  },
-);
+  context.routerProjectId = undefined;
+  expect(applyNavigationFilters([route], context, undefined)).toEqual([]);
+});
 
 it.each([
   { topicsEnabled: true, visible: true },
@@ -105,7 +95,6 @@ it.each([
       uiCustomization: null,
       isLangfuseCloud: true,
       hasActiveCloudIncident: false,
-      forceV3Experience: false,
     };
 
     expect(applyNavigationFilters([route], context, organization)).toEqual(
@@ -152,7 +141,6 @@ it.each([
       uiCustomization: null,
       isLangfuseCloud: false,
       hasActiveCloudIncident: false,
-      forceV3Experience: false,
     };
 
     expect(applyNavigationFilters([route], context, organization)).toEqual(
@@ -189,7 +177,6 @@ it("shows the AI Gateway pages among the organization routes", () => {
     uiCustomization: null,
     isLangfuseCloud: false,
     hasActiveCloudIncident: false,
-    forceV3Experience: false,
   };
 
   expect(

@@ -128,8 +128,6 @@ const mocks = vi.hoisted(() => ({
     delayedOtelIngestionCount: 0,
   } as V4MigrationSdkState,
   v4UpgradeUiEnabled: true,
-  forceV3: false,
-  isV4: false,
   projectId: "project-1",
   openMigrationPanel: vi.fn(),
   capture: vi.fn(),
@@ -138,14 +136,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiEnabled: () => mocks.v4UpgradeUiEnabled,
   useV4UpgradeUiFlag: () => mocks.v4UpgradeUiEnabled,
-}));
-
-vi.mock("@/src/features/v4-migration/useForceV3Experience", () => ({
-  useForceV3Experience: () => mocks.forceV3,
-}));
-
-vi.mock("@/src/features/events/hooks/useReadPath", () => ({
-  useReadPath: () => ({ isV4: mocks.isV4 }),
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -206,8 +196,6 @@ describe("V4MigrationDelayBadge", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.v4UpgradeUiEnabled = true;
-    mocks.forceV3 = false;
-    mocks.isV4 = false;
     mocks.projectId = "project-1";
     setSdk("latest", [makeSdkUsageSeries({})]);
   });
@@ -289,40 +277,6 @@ describe("V4MigrationDelayBadge", () => {
     setSdk("legacy", [outdatedSdkSeries()]);
     render(<V4MigrationDelayBadge page="traces" />);
     expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
-  });
-
-  it("stays hidden for forced-v3 projects while they view v3", () => {
-    // On v3 views the legacy tables are real-time — no delay to announce.
-    mocks.forceV3 = true;
-    mocks.isV4 = false;
-    setSdk("legacy", [outdatedSdkSeries()]);
-    render(<V4MigrationDelayBadge page="traces" />);
-    expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
-  });
-
-  it("opens the partner FAQ instead of the panel for forced-v3 projects on v4", () => {
-    mocks.forceV3 = true;
-    mocks.isV4 = true;
-    setSdk("legacy", [outdatedSdkSeries()]);
-    const windowOpen = vi.spyOn(window, "open").mockImplementation(() => null);
-
-    render(<V4MigrationDelayBadge page="traces" />);
-    expect(
-      screen.getAllByText(/Learn more in the docs/).length,
-    ).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getAllByText("New data in ~15 min")[0]);
-    expect(windowOpen).toHaveBeenCalledWith(
-      expect.stringContaining("langfuse.com"),
-      "_blank",
-      "noopener,noreferrer",
-    );
-    expect(mocks.openMigrationPanel).not.toHaveBeenCalled();
-    expect(mocks.capture).toHaveBeenCalledWith(
-      "v4_migration:delay_badge_clicked",
-      { action: "docs", page: "traces" },
-    );
-    windowOpen.mockRestore();
   });
 
   describe("discoverability events", () => {

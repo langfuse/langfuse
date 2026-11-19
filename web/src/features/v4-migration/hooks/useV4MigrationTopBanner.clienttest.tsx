@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
     name: string;
   } | null,
   project: null as { id: string } | null,
-  forceV3Settled: true,
   v4UpgradeUiEnabled: true,
   accountQueryOptions: undefined as unknown,
 }));
@@ -39,9 +38,6 @@ vi.mock("@/src/features/projects/hooks", () => ({
 }));
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiEnabled: () => mocks.v4UpgradeUiEnabled,
-}));
-vi.mock("@/src/features/v4-migration/useForceV3Experience", () => ({
-  useIsForceV3ExperienceSettled: () => mocks.forceV3Settled,
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -74,7 +70,6 @@ beforeEach(() => {
   mocks.variant = "deadline";
   mocks.organization = { id: "org-1", name: "Org 1" };
   mocks.project = null;
-  mocks.forceV3Settled = true;
   mocks.v4UpgradeUiEnabled = true;
   mocks.accountQueryOptions = undefined;
 });
@@ -158,14 +153,4 @@ describe("useV4MigrationTopBanner", () => {
       });
     },
   );
-
-  it("waits for the force-v3 gate before checking project routes", () => {
-    mocks.project = { id: "project-legacy" };
-    mocks.forceV3Settled = false;
-
-    const { result } = renderHook(() => useV4MigrationTopBanner());
-
-    expect(result.current).toBeNull();
-    expect(mocks.accountQueryOptions).toMatchObject({ enabled: false });
-  });
 });

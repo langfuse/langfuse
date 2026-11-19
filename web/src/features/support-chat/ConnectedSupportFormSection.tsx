@@ -21,7 +21,7 @@ export function ConnectedSupportFormSection({
 }) {
   const { organization, project } = useQueryProjectOrOrganization();
   const { initialTopic, initialMessage } = useSupportDrawer();
-  const showV4MigrationTopic = useV4UpgradeUiEnabled(project?.id);
+  const showV4MigrationTopic = useV4UpgradeUiEnabled();
   // The support drawer is mounted globally and reachable from pages without an
   // org/project in the URL (home, setup, onboarding, account settings), where
   // `organization` is null. Without an org context the plan is unknown, so

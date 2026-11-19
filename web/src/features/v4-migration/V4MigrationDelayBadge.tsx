@@ -5,8 +5,6 @@ import {
   useV4UpgradeUiEnabled,
   useV4UpgradeUiFlag,
 } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
-import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
@@ -22,7 +20,6 @@ import {
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 // The pill's description finishes expanding after 300ms (V4MigrationBadgeContent),
 // so a 500ms dwell means the full text was on screen — a drive-by mouse pass
@@ -38,13 +35,8 @@ export function V4MigrationDelayBadge({
   const v4UpgradeUiFlagEnabled = useV4UpgradeUiFlag();
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { project } = useQueryProject();
-  const forceV3 = useForceV3Experience(project?.id);
-  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
-
-  // Forced-v3 projects still see the data-delay badge, but it points at the
-  // partner FAQ instead of the migration panel
-  const enabled = v4UpgradeUiFlagEnabled && (!forceV3 || isV4);
+  const enabled = v4UpgradeUiFlagEnabled;
   const sdk = useProjectV4SdkData({
     projectId: project?.id,
     enabled: enabled && Boolean(project),
@@ -141,11 +133,6 @@ export function V4MigrationDelayBadge({
     // re-hover after the click must not file the user under "never clicked".
     handleHoverEnd();
     hoverCapturedForRef.current = project.id;
-    if (forceV3) {
-      capture("v4_migration:delay_badge_clicked", { action: "docs", page });
-      window.open(PARTNER_INTEGRATION_FAQ_URL, "_blank", "noopener,noreferrer");
-      return;
-    }
     capture("v4_migration:delay_badge_clicked", { page });
     openMigrationPanel({ id: project.id, name: project.name }, "delay_badge");
   };
@@ -171,7 +158,7 @@ export function V4MigrationDelayBadge({
       onHoverStart={handleHoverStart}
       onHoverEnd={handleHoverEnd}
       title="New data in ~15 min"
-      description={forceV3 ? "Learn more in the docs" : description}
+      description={description}
     />
   );
 }
@@ -180,7 +167,7 @@ export function V4MigrationDelayBadge({
  * project context, and a loaded, non-zero deprecated-eval count. */
 function useEvalUpdateRequiredBadgeState() {
   const { project } = useQueryProject();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(project?.id);
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const enabled = v4UpgradeUiEnabled && Boolean(project);
   const evalState = useProjectV4EvalData({
     projectId: project?.id,

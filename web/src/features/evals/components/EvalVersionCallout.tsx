@@ -77,12 +77,6 @@ export const getEvalVersionCalloutContent = (
 
   // For dataset target (legacy dataset run methods)
   if (isDatasetTarget(targetObject)) {
-    // Forced-v3 projects keep trace evaluators as their intended experience —
-    // no upgrade nag.
-    if (evalCapabilities.forceV3Experience) {
-      return null;
-    }
-
     return {
       title: "Legacy low-level SDK methods",
       description: (
@@ -107,12 +101,6 @@ export const getEvalVersionCalloutContent = (
 
   // For trace target
   if (isTraceTarget(targetObject)) {
-    // Forced-v3 projects keep trace evaluators as their intended experience —
-    // no upgrade nag.
-    if (evalCapabilities.forceV3Experience) {
-      return null;
-    }
-
     return {
       title: "Consider upgrading to observation evaluators",
       description: (

@@ -26,7 +26,6 @@ describe("getV4MigrationData MCP tool", () => {
   it("returns the project-scoped data exposed by the v4 migration API", async () => {
     const migrationData = {
       projectId: "project-1",
-      forceV3Experience: false,
       sdkUsage: {
         projectId: "project-1",
         experimentInstrumentationMigration: {

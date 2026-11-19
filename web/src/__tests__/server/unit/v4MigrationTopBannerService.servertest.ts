@@ -59,7 +59,6 @@ const session = {
 } as unknown as Session;
 
 const actionNeeded = {
-  forceV3Experience: false,
   sdkActionNeeded: true,
   experimentsActionNeeded: false,
   apisActionNeeded: false,
@@ -115,8 +114,8 @@ describe("getV4MigrationTopBannerState", () => {
     ).resolves.toMatchObject({ severity: "off", message: null });
   });
 
-  it("counts actionable projects and excludes forced-v3 projects", async () => {
-    const projectIds = ["project-a", "project-ready", "project-partner"];
+  it("counts projects that still need a migration action", async () => {
+    const projectIds = ["project-a", "project-ready"];
     const scopedSession = {
       ...session,
       user: {
@@ -137,7 +136,6 @@ describe("getV4MigrationTopBannerState", () => {
       new Map([
         ["project-a", actionNeeded],
         ["project-ready", noActionNeeded],
-        ["project-partner", { ...actionNeeded, forceV3Experience: true }],
       ]),
     );
 

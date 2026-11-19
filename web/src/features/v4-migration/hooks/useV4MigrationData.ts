@@ -12,7 +12,6 @@ import {
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
 import { getV4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionStatus";
-import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 
@@ -121,13 +120,6 @@ export function useAccountV4MigrationData(params: {
               ?.legacyIntegrationCount ?? 0
           );
         }),
-        // Forced-v3 projects still appear in the aggregation, marked as
-        // partner-managed so surfaces can show "upgrade handled by your
-        // integration partner" instead of a user-facing migration action.
-        forceV3Experience:
-          integrationQuery?.data?.projects.find(
-            (row) => row.projectId === project.id,
-          )?.forceV3Experience === true,
       });
     });
   });
@@ -199,7 +191,6 @@ export function useProjectV4MigrationData(params: {
 }) {
   const { projectId, enabled } = params;
   const queryEnabled = enabled && Boolean(projectId);
-  const forceV3Experience = useForceV3Experience(projectId);
   const { sdkQuery, summary: sdkSummary } = useProjectV4SdkSummary({
     projectId,
     enabled,
@@ -268,7 +259,6 @@ export function useProjectV4MigrationData(params: {
       integrationQuery,
       (data) => data.legacyIntegrationCount,
     ),
-    forceV3Experience,
     apiUsage,
     legacyIntegrations,
   };
