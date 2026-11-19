@@ -198,7 +198,9 @@ async function deleteLinkRowsInMediaIdOrder(params: {
     const rows = await params.findPage(afterMediaId);
     if (rows.length === 0) return;
     const mediaIds = [...new Set(rows.map((row) => row.mediaId))];
-    await params.deleteByMediaIds(mediaIds);
+    for (const ids of chunk(mediaIds, BATCH_SIZE)) {
+      await params.deleteByMediaIds(ids);
+    }
     if (rows.length < params.batchSize) return;
     afterMediaId = mediaIds[mediaIds.length - 1];
   }
