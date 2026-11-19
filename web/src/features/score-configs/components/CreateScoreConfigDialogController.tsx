@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { type ReactNode } from "react";
 
@@ -6,10 +5,7 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { UpsertScoreConfigDialogContent } from "@/src/features/score-configs/components/UpsertScoreConfigDialogContent";
-import {
-  type CreateConfig,
-  type UpdateConfig,
-} from "@/src/features/score-configs/lib/upsertFormTypes";
+import { type CreateConfig } from "@/src/features/score-configs/lib/upsertFormTypes";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 const createDefaultValues: CreateConfig = {
@@ -73,64 +69,6 @@ export function CreateScoreConfigDialogController({
       {({ openDialog }) =>
         children({ disabled, isSubmitting: mutation.isPending, openDialog })
       }
-    </DialogController>
-  );
-}
-
-export function EditScoreConfigDialogController({
-  projectId,
-  children,
-}: {
-  projectId: string;
-  children: (control: {
-    disabled: { reason: string } | undefined;
-    openDialog: (defaultValues: UpdateConfig) => void;
-  }) => ReactNode;
-}) {
-  const capture = usePostHogClientCapture();
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "scoreConfigs:CUD",
-  });
-  const utils = api.useUtils();
-  const mutation = api.scoreConfigs.update.useMutation({
-    onSuccess: () =>
-      Promise.all([
-        utils.scoreConfigs.invalidate(),
-        utils.annotationQueues.invalidate(),
-      ]),
-  });
-  const disabled = hasAccess
-    ? undefined
-    : { reason: "You don't have permission to edit score configs." };
-
-  return (
-    <DialogController<UpdateConfig>
-      renderDialog={({ state: defaultValues, closeDialog }) => (
-        <UpsertScoreConfigDialogContent
-          key={defaultValues.id}
-          mode="edit"
-          defaultValues={defaultValues}
-          onSubmit={async (values) => {
-            await mutation.mutateAsync({
-              ...values,
-              projectId,
-              id: defaultValues.id,
-              description: values.description ?? null,
-              categories: values.categories?.length
-                ? values.categories
-                : undefined,
-            });
-            capture("score_configs:update_form_submit", {
-              dataType: values.dataType,
-            });
-          }}
-          onFormSuccess={closeDialog}
-          isSubmitting={mutation.isPending}
-        />
-      )}
-    >
-      {({ openDialog }) => children({ disabled, openDialog })}
     </DialogController>
   );
 }
