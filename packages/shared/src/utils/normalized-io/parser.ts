@@ -17,7 +17,10 @@ type ParsedSpanIO = {
 
 function parseIOValue(value: unknown): ParsedIOValue {
   const parsed = parseIfString(value);
-  return { value: parsed, record: asRecord(parsed) };
+  // Numeric strings are message text, preserving their original precision.
+  const messageValue =
+    typeof value === "string" && typeof parsed === "number" ? value : parsed;
+  return { value: messageValue, record: asRecord(messageValue) };
 }
 
 function parseSpanIO(span: SpanIO): ParsedSpanIO {
