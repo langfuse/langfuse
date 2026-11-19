@@ -7,15 +7,9 @@ import {
 } from "@/src/features/rbac/components/RolePermissionList";
 
 /** RolePermissionCountBadge shows how many permissions a role grants. */
-export function RolePermissionCountBadge({
-  role,
-  size = "sm",
-}: {
-  role: SystemRole;
-  size?: "sm" | "xs";
-}) {
+export function RolePermissionCountBadge({ role }: { role: SystemRole }) {
   return (
-    <BadgeShell color="filled" size={size}>
+    <BadgeShell color="filled" size="sm">
       <span className="font-bold">{rolePermissionCount(role)}</span>{" "}
       {rolePermissionNoun(role)}
     </BadgeShell>

@@ -3,7 +3,8 @@ import { type SystemRole } from "@langfuse/shared/src/db";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SelectItem } from "@/src/components/ui/select";
-import { RolePermissionCountBadge } from "@/src/features/rbac/components/RolePermissionCountBadge";
+import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
+import { cn } from "@/src/utils/tailwind";
 import {
   roleDisplay,
   type RoleDisplay,
@@ -24,7 +25,7 @@ export const RoleSelectItem = ({
   isProjectRole?: boolean;
   /** disabledReason makes the option unselectable and explains why. */
   disabledReason?: string;
-  /** showPermissionCount adds a permission count badge beside the label. */
+  /** showPermissionCount shows the permission count beside the view-permissions icon on hover. */
   showPermissionCount?: boolean;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
@@ -40,16 +41,9 @@ export const RoleSelectItem = ({
       <div className="flex w-full items-start gap-2 text-left">
         <Icon size="base" __rawClassName="mt-1" />
         <div className="flex flex-col">
-          <span className="flex items-center gap-2">
-            <span className="font-bold">
-              {label}
-              {keepDefaultNote ? " (keep default role)" : ""}
-            </span>
-            {showPermissionCount && (
-              <span className="flex shrink-0 tabular-nums">
-                <RolePermissionCountBadge role={role} size="xs" />
-              </span>
-            )}
+          <span className="font-bold">
+            {label}
+            {keepDefaultNote ? " (keep default role)" : ""}
           </span>
           <span className="text-muted-foreground text-xs">{description}</span>
           {disabledReason !== undefined && (
@@ -58,25 +52,37 @@ export const RoleSelectItem = ({
             </span>
           )}
         </div>
-        <Tooltip label="View permissions" hoverableContent={false} delay={0}>
-          {({ getTriggerProps }) => (
-            <button
-              type="button"
-              {...getTriggerProps()}
-              onPointerDown={(e) => e.stopPropagation()}
-              onPointerUp={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onViewPermissions(role);
-              }}
-              aria-label={`View ${label} permissions`}
-              className="text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-disabled:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
-            >
-              <SquareArrowOutUpRight size="base" />
-            </button>
+        <div
+          className={cn(
+            "relative ml-auto flex shrink-0 items-center self-center",
+            showPermissionCount && "-mt-0.5 self-start",
           )}
-        </Tooltip>
+        >
+          {showPermissionCount && (
+            <span className="text-muted-foreground pointer-events-none absolute right-full pr-1 text-xs whitespace-nowrap tabular-nums opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100">
+              {rolePermissionCountLabel(role)}
+            </span>
+          )}
+          <Tooltip label="View permissions" hoverableContent={false} delay={0}>
+            {({ getTriggerProps }) => (
+              <button
+                type="button"
+                {...getTriggerProps()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onViewPermissions(role);
+                }}
+                aria-label={`View ${label} permissions`}
+                className="text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-disabled:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
+              >
+                <SquareArrowOutUpRight size="base" />
+              </button>
+            )}
+          </Tooltip>
+        </div>
       </div>
     </SelectItem>
   );

@@ -16,7 +16,6 @@ const badgeVariants = cva(
         default: "h-5.25 gap-1.5 px-2",
         md: "h-4.75 gap-1 px-1.5",
         sm: "h-4.25 gap-1 px-1.5",
-        xs: "h-3.75 gap-0.5 px-1 text-[0.625rem] leading-none",
       },
       /**
        * Neutrals are named by appearance, status colours by state, category

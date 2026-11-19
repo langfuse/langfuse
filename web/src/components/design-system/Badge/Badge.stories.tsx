@@ -53,7 +53,6 @@ export const Sizes = meta.story({
       <Badge size="default" label="env" text="production" />
       <Badge color="filled" size="md" label="accuracy" text="0.95" />
       <Badge color="filled" size="sm" text="Healthy" />
-      <Badge color="filled" size="xs" text="12 permissions" />
     </div>
   ),
 });
