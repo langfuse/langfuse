@@ -54,7 +54,6 @@ import {
   buildPromptUrl,
   buildSessionUrl,
   buildTraceUrl,
-  createUnknownSdkIngestionAttribution,
 } from "@langfuse/shared/src/server";
 import {
   LLMAdapter,
@@ -137,7 +136,7 @@ import {
   createScoreTool,
   handleCreateScore,
 } from "@/src/features/mcp/server/scores/tools/createScore";
-import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { handleBatchCreateScores } from "@/src/features/mcp/server/scores/tools/batchCreateScores";
 import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
@@ -3853,52 +3852,42 @@ describe("MCP Read Tools", () => {
   });
 
   describe("batchCreateScores tool", () => {
-    it("maps ingestion results to inputs and audits only accepted scores", async () => {
-      const { context, projectId } = await createMcpTestSetup();
-      const auth = {
-        validKey: true as const,
-        scope: {
-          projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
-          publicKey: context.publicKey,
-          accessLevel: context.accessLevel,
-          isIngestionSuspended: false,
-        },
-      };
-      const acceptedIds = [randomUUID(), randomUUID()];
-      const rejectedId = randomUUID();
+    it("creates each score with its own audit log", async () => {
+      const { context, projectId, apiKeyId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const scoreIds = [randomUUID(), randomUUID()];
 
-      const { result, eventIds } = await new ScoresApiService(
-        "v2",
-      ).createScores({
-        bodies: [
-          { id: acceptedIds[0], traceId: randomUUID(), name: "a", value: 1 },
-          {
-            id: rejectedId,
-            traceId: randomUUID(),
-            name: "b",
-            value: "not-a-number",
+      const result = await handleBatchCreateScores(
+        {
+          scores: scoreIds.map((id, index) => ({
+            id,
+            traceId,
+            name: `mcp-batch-score-${index}`,
+            value: index,
             dataType: "NUMERIC",
-          },
-          { id: acceptedIds[1], traceId: randomUUID(), name: "c", value: 0 },
-        ],
-        auth,
-        auditScope: context,
-        attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
-      });
+            environment: "default",
+            source: "API",
+          })),
+        },
+        context,
+      );
 
-      expect(result.errors.map(({ id }) => id)).toEqual([eventIds[1]]);
-      expect(result.successes.map(({ id }) => id).sort()).toEqual(
-        [eventIds[0], eventIds[2]].sort(),
-      );
-      const auditLogs = await prisma.auditLog.findMany({
-        where: { projectId, resourceType: "score" },
+      const url = buildTraceUrl({ projectId, traceId });
+      expect(result).toEqual({
+        data: scoreIds.map((id, index) => ({ index, id, url })),
+        errors: [],
       });
-      expect(auditLogs.map(({ resourceId }) => resourceId).sort()).toEqual(
-        acceptedIds.sort(),
-      );
-      expect(auditLogs.every(({ action }) => action === "create")).toBe(true);
+      for (const resourceId of scoreIds) {
+        await expect(
+          verifyAuditLog({
+            projectId,
+            apiKeyId,
+            resourceType: "score",
+            resourceId,
+            action: "create",
+          }),
+        ).resolves.toMatchObject({ resourceId, action: "create" });
+      }
     });
   });
 
