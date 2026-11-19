@@ -130,6 +130,8 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
 
 /** A project runs at most this many continuous Topics rules. */
 export const TOPICS_MAX_RULES = 5;
+/** Name of the map the first Topics setup creates. */
+export const DEFAULT_TOPIC_RULE_NAME = "Default";
 /** Largest random cohort a one-off analysis selects. */
 export const TOPICS_SLICE_MAX_TRACES = 20_000;
 /** An analysis needs this many summarized traces before it can cluster. */
