@@ -1,19 +1,15 @@
 import { NextRequest } from "next/server";
 import type * as SharedServer from "@langfuse/shared/src/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   env: {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "eu" as string | undefined,
     CLICKHOUSE_BILLING_METRICS_API_KEY: "chb-secret" as string | undefined,
-    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: "false",
   },
   findProject: vi.fn(),
-  traceCounts: vi.fn(),
-  observationCounts: vi.fn(),
-  scoreCounts: vi.fn(),
+  ledgerCounts: vi.fn(),
   recordIncrement: vi.fn(),
-  compareWithBillingLedger: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
@@ -29,11 +25,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
   return {
     ...actual,
-    getTraceCountsByProjectInCreationInterval: mocks.traceCounts,
-    getObservationCountsByProjectInCreationInterval: mocks.observationCounts,
-    getScoreCountsByProjectInCreationInterval: mocks.scoreCounts,
+    getBillableUnitCountsByProjectInRange: mocks.ledgerCounts,
     recordIncrement: mocks.recordIncrement,
-    compareWithBillingLedger: mocks.compareWithBillingLedger,
   };
 });
 
@@ -73,13 +66,17 @@ describe("chbMetricsApiHandler", () => {
     vi.clearAllMocks();
     mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "eu";
     mocks.env.CLICKHOUSE_BILLING_METRICS_API_KEY = "chb-secret";
-    mocks.env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED = "false";
     mocks.findProject.mockResolvedValue({ id: PROJECT_ID });
-    mocks.traceCounts.mockResolvedValue([{ projectId: PROJECT_ID, count: 7 }]);
-    mocks.observationCounts.mockResolvedValue([
-      { projectId: PROJECT_ID, count: 11 },
+    mocks.ledgerCounts.mockResolvedValue([
+      { projectId: PROJECT_ID, eventType: "trace", count: 7 },
+      { projectId: PROJECT_ID, eventType: "observation", count: 11 },
+      { projectId: PROJECT_ID, eventType: "score", count: 3 },
+      { projectId: PROJECT_ID, eventType: "topic_facet_summary", count: 2 },
     ]);
-    mocks.scoreCounts.mockResolvedValue([{ projectId: PROJECT_ID, count: 3 }]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("returns per-resource usage counts for an authorized poll", async () => {
@@ -91,22 +88,21 @@ describe("chbMetricsApiHandler", () => {
         traces: { sum: 7 },
         observations: { sum: 11 },
         scores: { sum: 3 },
+        topicFacetSummaries: { sum: 2 },
       },
     });
     // The window is passed through as instants and scoped to the resource, so a
     // poll can never bill one org for another org's project.
-    expect(mocks.traceCounts).toHaveBeenCalledWith({
-      start: new Date("2026-07-01T00:00:00Z"),
-      end: new Date("2026-07-02T00:00:00Z"),
+    expect(mocks.ledgerCounts).toHaveBeenCalledWith({
+      from: new Date("2026-07-01T00:00:00Z"),
+      to: new Date("2026-07-02T00:00:00Z"),
       projectId: PROJECT_ID,
     });
   });
 
   it("returns zeros and a telemetry signal for an unknown resource", async () => {
     mocks.findProject.mockResolvedValue(null);
-    mocks.traceCounts.mockResolvedValue([]);
-    mocks.observationCounts.mockResolvedValue([]);
-    mocks.scoreCounts.mockResolvedValue([]);
+    mocks.ledgerCounts.mockResolvedValue([]);
 
     const response = await chbMetricsApiHandler(
       createRequest({ resourceId: "never-existed" }),
@@ -118,6 +114,7 @@ describe("chbMetricsApiHandler", () => {
         traces: { sum: 0 },
         observations: { sum: 0 },
         scores: { sum: 0 },
+        topicFacetSummaries: { sum: 0 },
       },
     });
     expect(mocks.recordIncrement).toHaveBeenCalledWith(
@@ -128,7 +125,7 @@ describe("chbMetricsApiHandler", () => {
   });
 
   it("keeps the structured JSON contract when a count query fails", async () => {
-    mocks.observationCounts.mockRejectedValue(new Error("Timeout error."));
+    mocks.ledgerCounts.mockRejectedValue(new Error("Timeout error."));
 
     const response = await chbMetricsApiHandler(createRequest());
 
@@ -150,7 +147,7 @@ describe("chbMetricsApiHandler", () => {
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ message: "Unauthorized" });
-    expect(mocks.traceCounts).not.toHaveBeenCalled();
+    expect(mocks.ledgerCounts).not.toHaveBeenCalled();
   });
 
   it("refuses to run when the API key is not configured", async () => {
@@ -183,7 +180,7 @@ describe("chbMetricsApiHandler", () => {
 
     expect(response.status).toBe(400);
     expect((await response.json()).message).toBe("Invalid query parameters");
-    expect(mocks.traceCounts).not.toHaveBeenCalled();
+    expect(mocks.ledgerCounts).not.toHaveBeenCalled();
   });
 
   it("rejects an inverted window with 400", async () => {
@@ -201,8 +198,7 @@ describe("chbMetricsApiHandler", () => {
   });
 
   it("rejects a window wider than 35 days with 400", async () => {
-    // Guards against full-history created_at scans, which have hit the
-    // ClickHouse request ceiling in production.
+    // Guards against unbounded ledger scans.
     const response = await chbMetricsApiHandler(
       createRequest({
         startTime: "2026-01-01T00:00:00Z",
@@ -214,13 +210,28 @@ describe("chbMetricsApiHandler", () => {
     expect(await response.json()).toEqual({
       message: "Requested window exceeds the 35 day maximum",
     });
-    expect(mocks.traceCounts).not.toHaveBeenCalled();
+    expect(mocks.ledgerCounts).not.toHaveBeenCalled();
   });
 
-  it("compares the poll with the billing ledger without waiting for it", async () => {
-    mocks.env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED = "true";
-    // Never settles: awaiting the comparison would hang the poll.
-    mocks.compareWithBillingLedger.mockReturnValue(new Promise(() => {}));
+  it("rejects a window off the 15-minute boundaries with 400", async () => {
+    const response = await chbMetricsApiHandler(
+      createRequest({
+        startTime: "2026-07-01T00:00:00Z",
+        endTime: "2026-07-01T00:20:00Z",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      message: "startTime and endTime must fall on 15-minute boundaries",
+    });
+    expect(mocks.ledgerCounts).not.toHaveBeenCalled();
+  });
+
+  it("asks CHB to retry a window that has not settled yet", async () => {
+    // Four minutes after the window ends, inserts can still land in it.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-07-01T00:19:00Z"));
 
     const response = await chbMetricsApiHandler(
       createRequest({
@@ -229,31 +240,8 @@ describe("chbMetricsApiHandler", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      metrics: {
-        traces: { sum: 7 },
-        observations: { sum: 11 },
-        scores: { sum: 3 },
-      },
-    });
-    expect(mocks.compareWithBillingLedger).toHaveBeenCalledWith({
-      source: "chb_metrics_api",
-      from: new Date("2026-07-01T00:00:00Z"),
-      to: new Date("2026-07-01T00:15:00Z"),
-      projectId: PROJECT_ID,
-      legacy: {
-        traces: [{ projectId: PROJECT_ID, count: 7 }],
-        observations: [{ projectId: PROJECT_ID, count: 11 }],
-        scores: [{ projectId: PROJECT_ID, count: 3 }],
-      },
-    });
-  });
-
-  it("does not read the billing ledger unless enabled", async () => {
-    const response = await chbMetricsApiHandler(createRequest());
-
-    expect(response.status).toBe(200);
-    expect(mocks.compareWithBillingLedger).not.toHaveBeenCalled();
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(mocks.ledgerCounts).not.toHaveBeenCalled();
   });
 });

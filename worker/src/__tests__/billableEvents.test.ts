@@ -9,6 +9,7 @@ import {
   createTraceScore,
   deleteEventsByTraceIds,
   deleteScoresByTraceIds,
+  getBillableUnitCountsByProjectInRange,
   getBillableUnitCountsByProjectInWindow,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
@@ -495,5 +496,63 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
     await expect(
       getBillableUnitCountsByProjectInWindow({ windowFrom: T0, windowTo: T0 }),
     ).rejects.toThrow("must end after it starts");
+  });
+});
+
+describe("getBillableUnitCountsByProjectInRange", () => {
+  const T0 = new Date("2026-01-12T00:00:00.000Z");
+  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
+  const QUARTER = 15 * MINUTE;
+
+  it("equals the sum of the 15-minute windows in the range", async () => {
+    const projectId = randomUUID();
+    await insertBillableEvents(projectId, [
+      // Counted once: the later quarter has the first one in its lookback.
+      { eventType: "trace", eventId: "twice-in-range", at: at(MINUTE) },
+      { eventType: "trace", eventId: "twice-in-range", at: at(50 * MINUTE) },
+      // Seen exactly 24h before the range starts. The 00:15 window's lookback
+      // starts 15 minutes later and misses that row, so it counts the unit,
+      // where one window over the whole range would not.
+      { eventType: "observation", eventId: "edge", at: at(-24 * HOUR) },
+      { eventType: "observation", eventId: "edge", at: at(QUARTER + MINUTE) },
+      // In the lookback of every window it appears in: never counted.
+      { eventType: "observation", eventId: "seen-before", at: at(-HOUR) },
+      { eventType: "observation", eventId: "seen-before", at: at(2 * MINUTE) },
+      // Counted again after a gap of more than 24 hours inside the range.
+      { eventType: "score", eventId: "after-gap", at: at(MINUTE) },
+      { eventType: "score", eventId: "after-gap", at: at(25 * HOUR) },
+      // `to` is exclusive.
+      { eventType: "score", eventId: "at-range-end", at: at(26 * HOUR) },
+    ]);
+
+    const to = at(26 * HOUR);
+    const windowSums: Record<string, number> = {};
+    for (let from = T0.getTime(); from < to.getTime(); from += QUARTER) {
+      const counts = await countsInWindow(
+        projectId,
+        new Date(from),
+        new Date(from + QUARTER),
+      );
+      for (const [eventType, count] of Object.entries(counts))
+        windowSums[eventType] = (windowSums[eventType] ?? 0) + count;
+    }
+
+    const rows = await getBillableUnitCountsByProjectInRange({
+      from: T0,
+      to,
+      projectId,
+    });
+    const rangeCounts = Object.fromEntries(
+      rows.map((row) => [row.eventType, row.count]),
+    );
+
+    expect(windowSums).toEqual({ trace: 1, observation: 1, score: 2 });
+    expect(rangeCounts).toEqual(windowSums);
+  });
+
+  it("rejects a range that does not fall on 15-minute boundaries", async () => {
+    await expect(
+      getBillableUnitCountsByProjectInRange({ from: at(MINUTE), to: at(HOUR) }),
+    ).rejects.toThrow("15-minute boundaries");
   });
 });

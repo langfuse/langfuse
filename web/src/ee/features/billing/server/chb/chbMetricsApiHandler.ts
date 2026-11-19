@@ -7,10 +7,10 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  compareWithBillingLedger,
-  getObservationCountsByProjectInCreationInterval,
-  getScoreCountsByProjectInCreationInterval,
-  getTraceCountsByProjectInCreationInterval,
+  BILLING_WINDOW_MS,
+  BILLING_WINDOW_SETTLE_MS,
+  type BillableEventType,
+  getBillableUnitCountsByProjectInRange,
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -19,7 +19,9 @@ import {
  * Billing metrics API for ClickHouse Billing (CHB).
  *
  * CHB's metering pipeline polls this endpoint per project (`resourceId`) and
- * short trailing time window to derive billable usage. Response contract:
+ * 15-minute window to derive billable usage. Counts come from the
+ * billable_events ledger as the sum of the 15-minute windows in the requested
+ * range, so deletes and retention never lower them. Response contract:
  * unknown resources return zeros, never 404.
  *
  * Auth: dedicated bearer secret (`CLICKHOUSE_BILLING_METRICS_API_KEY`).
@@ -29,8 +31,15 @@ import {
  */
 
 // Reject windows above 35 days: keeps a misbehaving caller from issuing
-// full-history created_at scans; CHB polls short trailing windows.
+// unbounded ledger scans; CHB polls 15-minute windows.
 const MAX_WINDOW_MS = 35 * 24 * 60 * 60 * 1000;
+
+const METRIC_BY_EVENT_TYPE = {
+  trace: "traces",
+  observation: "observations",
+  score: "scores",
+  topic_facet_summary: "topicFacetSummaries",
+} as const satisfies Record<BillableEventType, string>;
 
 const MetricsQuerySchema = z.object({
   startTime: isoDateTime({ offset: true }),
@@ -38,13 +47,25 @@ const MetricsQuerySchema = z.object({
   resourceId: z.string().min(1),
 });
 
-const sumForProject = (
-  rows: { projectId: string; count: number }[],
+const metricsForProject = (
+  rows: { projectId: string; eventType: BillableEventType; count: number }[],
   projectId: string,
-): number =>
-  rows
-    .filter((row) => row.projectId === projectId)
-    .reduce((sum, row) => sum + row.count, 0);
+) => {
+  const metrics = {
+    traces: { sum: 0 },
+    observations: { sum: 0 },
+    scores: { sum: 0 },
+    topicFacetSummaries: { sum: 0 },
+  };
+  for (const row of rows) {
+    if (row.projectId !== projectId) continue;
+    metrics[METRIC_BY_EVENT_TYPE[row.eventType]].sum += row.count;
+  }
+  return metrics;
+};
+
+const isOnWindowBoundary = (date: Date) =>
+  date.getTime() % BILLING_WINDOW_MS === 0;
 
 const isAuthorized = (req: NextRequest, apiKey: string): boolean => {
   const authHeader = req.headers.get("authorization");
@@ -112,6 +133,29 @@ export async function chbMetricsApiHandler(req: NextRequest) {
       { status: 400 },
     );
   }
+  if (!isOnWindowBoundary(start) || !isOnWindowBoundary(end)) {
+    return NextResponse.json(
+      { message: "startTime and endTime must fall on 15-minute boundaries" },
+      { status: 400 },
+    );
+  }
+  // A window still receives inserts shortly after it ends. Answering early
+  // would under-bill it for good, so ask CHB to retry once it has settled.
+  const settlesAt = end.getTime() + BILLING_WINDOW_SETTLE_MS;
+  if (settlesAt > Date.now()) {
+    recordIncrement("langfuse.billing_metrics.unsettled_window", 1, {
+      unit: "requests",
+    });
+    return NextResponse.json(
+      { message: "Requested window has not settled yet, retry later" },
+      {
+        status: 503,
+        headers: {
+          "Retry-After": String(Math.ceil((settlesAt - Date.now()) / 1000)),
+        },
+      },
+    );
+  }
 
   try {
     // Telemetry-only lookup: a resourceId unknown to this region still returns
@@ -132,48 +176,14 @@ export async function chbMetricsApiHandler(req: NextRequest) {
       );
     }
 
-    const [traceCounts, observationCounts, scoreCounts] = await Promise.all([
-      getTraceCountsByProjectInCreationInterval({
-        start,
-        end,
-        projectId: resourceId,
-      }),
-      getObservationCountsByProjectInCreationInterval({
-        start,
-        end,
-        projectId: resourceId,
-      }),
-      getScoreCountsByProjectInCreationInterval({
-        start,
-        end,
-        projectId: resourceId,
-      }),
-    ]);
-
-    // Not awaited, so the comparison never delays CHB's poll, and it never
-    // throws. Windows longer than an hour are skipped.
-    if (env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED === "true") {
-      compareWithBillingLedger({
-        source: "chb_metrics_api",
-        from: start,
-        to: end,
-        projectId: resourceId,
-        legacy: {
-          traces: traceCounts,
-          observations: observationCounts,
-          scores: scoreCounts,
-        },
-      });
-    }
+    const counts = await getBillableUnitCountsByProjectInRange({
+      from: start,
+      to: end,
+      projectId: resourceId,
+    });
 
     return NextResponse.json(
-      {
-        metrics: {
-          traces: { sum: sumForProject(traceCounts, resourceId) },
-          observations: { sum: sumForProject(observationCounts, resourceId) },
-          scores: { sum: sumForProject(scoreCounts, resourceId) },
-        },
-      },
+      { metrics: metricsForProject(counts, resourceId) },
       { status: 200 },
     );
   } catch (err) {
