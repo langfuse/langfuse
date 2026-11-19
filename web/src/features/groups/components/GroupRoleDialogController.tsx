@@ -235,50 +235,47 @@ function GroupRoleDialog({
           {/* On a project the group's role can come from its organization
               role or its project role; at organization level there is only
               one source, which the description already names. */}
-          {onProject && (
-            <div className="flex flex-col gap-1">
-              <p>
-                <span className="font-bold">Where it comes from</span>
-                {onProject && (
-                  <span className="text-muted-foreground text-xs">
-                    {" "}
-                    · the highest role applies
-                  </span>
-                )}
-              </p>
-              <ul className="flex flex-col divide-y rounded-md border">
-                {resolved.sources.map((source) => (
-                  <li
-                    key={source.key}
-                    className={`grid grid-cols-[minmax(0,1fr)_8rem_4.5rem] items-center gap-3 px-3 py-2 ${source.status === "Highest" ? "bg-muted font-bold" : ""}`}
-                  >
-                    <span>{source.label}</span>
-                    <span
-                      className={`flex items-center gap-1.5 ${source.status === "Highest" ? "" : "text-muted-foreground"}`}
-                    >
-                      {source.role ? (
-                        <RoleWithIcon role={source.role} />
-                      ) : (
-                        <>
-                          <Lock
-                            size="sm"
-                            aria-hidden="true"
-                            __rawClassName="invisible"
-                          />
-                          Not set
-                        </>
-                      )}
-                    </span>
-                    <span
-                      className={`text-right text-xs ${source.status === "Highest" ? "" : "text-muted-foreground"}`}
-                    >
-                      {source.status}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* Same tag style as the Members dialog: each role the group has
+              here, where it is set, and whether it counts. At organization
+              level there is only one source, which the description names. */}
+          {onProject &&
+            resolved.sources.some(
+              (source) => source.role && source.role !== "NONE",
+            ) && (
+              <div className="flex flex-col gap-1">
+                <p className="text-muted-foreground text-xs">
+                  Roles {groupName} has on this project
+                </p>
+                <ul className="flex flex-col divide-y rounded-md border">
+                  {resolved.sources
+                    .filter((source) => source.role && source.role !== "NONE")
+                    .map((source) => (
+                      <li
+                        key={source.key}
+                        className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 px-3 py-2"
+                      >
+                        <span
+                          className={`font-bold ${source.status === "No effect" ? "text-muted-foreground" : ""}`}
+                        >
+                          {source.role && <RoleWithIcon role={source.role} />}
+                        </span>
+                        <span className="flex items-baseline gap-2">
+                          <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
+                            {source.key === "project"
+                              ? "Project"
+                              : "Organization"}
+                          </span>
+                          {source.status === "No effect" && (
+                            <span className="text-muted-foreground text-xs">
+                              no effect
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
 
           <div className="flex flex-col gap-1">
             <label htmlFor={fieldId} className="font-bold">

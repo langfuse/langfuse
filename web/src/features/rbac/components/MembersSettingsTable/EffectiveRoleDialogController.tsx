@@ -254,6 +254,13 @@ function omittedNote(
   { orgRole, projectId }: { orgRole: Role; projectId?: string },
 ) {
   if (!projectId) return null;
+  // A set project role replaces the org role; a None or AI Gateway org role
+  // gives nothing on a project either way, so there is nothing to explain.
+  if (
+    !effective.directIsOrgDefault &&
+    (orgRole === "NONE" || orgRole === "AI_GATEWAY")
+  )
+    return null;
   if (orgRole === "AI_GATEWAY")
     return "Organization role is AI Gateway, which gives no project access.";
   if (!effective.directIsOrgDefault && orgRole !== "NONE")
