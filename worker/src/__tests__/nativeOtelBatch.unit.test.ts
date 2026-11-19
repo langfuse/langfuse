@@ -1,7 +1,77 @@
 import { describe, expect, it } from "vitest";
 import { validateOtelJson } from "@langfuse/native";
+import { convertEventRecordToObservationForEval } from "@langfuse/shared";
+
+const nativeContext = {
+  projectId: "native-boundary",
+  fileKey: "generated-lookups.json",
+  now: "2026-09-24T00:00:00.000Z",
+  ingestionApiKey: "",
+  ingestionSdkName: "test",
+  ingestionSdkVersion: "test",
+  isLangfuseInternal: false,
+};
+
+const spanId = (index: number) => (index + 1).toString(16).padStart(16, "0");
 
 describe("Native OTEL batch NAPI boundary", () => {
+  it.each([undefined, 1])(
+    "retains raw evaluation types across completion with overflow limit %s",
+    async (limit) => {
+      const spans = [
+        { arrayValue: { values: [{ stringValue: "trace-name" }] } },
+        { stringValue: '["trace-name"]' },
+      ].map((value, index) => ({
+        traceId: "a".repeat(32),
+        spanId: spanId(index),
+        name: "evaluation-types",
+        startTimeUnixNano: "1750000000000000000",
+        endTimeUnixNano: "1750000001000000000",
+        attributes: [
+          { key: "langfuse.trace.name", value },
+          {
+            key: "langfuse.observation.input",
+            value: { stringValue: "full input" },
+          },
+        ],
+      }));
+      const validated = await validateOtelJson(
+        Buffer.from(
+          JSON.stringify([{ resource: {}, scopeSpans: [{ spans }] }]),
+        ),
+      );
+      const batch = await validated.extract(true);
+      const { batch: processing } = await batch.process(nativeContext);
+      try {
+        const completion = await processing.complete([], [], limit, true);
+        const finalized =
+          completion.finalized ??
+          (await processing.finalize(
+            completion.overflowRequests.map(({ index }) => ({ index })),
+            true,
+          ));
+        expect(finalized.events).toHaveLength(2);
+        const rows = finalized.evaluationRows as Parameters<
+          typeof convertEventRecordToObservationForEval
+        >[0][];
+        expect(rows.map((row) => row.input)).toEqual([
+          "full input",
+          "full input",
+        ]);
+        expect(() =>
+          convertEventRecordToObservationForEval(rows[0]!),
+        ).toThrow();
+        expect(
+          convertEventRecordToObservationForEval(rows[1]!).trace_name,
+        ).toBe('["trace-name"]');
+      } finally {
+        await processing.dispose();
+        await batch.dispose();
+        await validated.dispose();
+      }
+    },
+  );
+
   it("associates sparse lookup results with their events and retains events needing no I/O", async () => {
     const selectedTraceId = "0123456789abcdef0123456789abcdef";
     const unselectedTraceId = "fedcba9876543210fedcba9876543210";

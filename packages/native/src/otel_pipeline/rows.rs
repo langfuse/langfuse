@@ -66,7 +66,7 @@ pub(super) fn enrich_inner(
     let mut lookups = lookups.into_iter().map(Value::from);
     let mut rows = Vec::with_capacity(events.len());
     let mut regexes = otel_enrichment::PricingRegexCache::default();
-    for event in events {
+    for mut event in events {
         let lookup = if needs_lookup(&event) {
             lookups.next().expect("validated lookup count")
         } else {
@@ -78,6 +78,7 @@ pub(super) fn enrich_inner(
         }
         let enrichment = otel_enrichment::enrich(&event, &lookup, &mut regexes);
         let start_time_iso = event.start_time.clone();
+        let evaluation_fields = event.evaluation_fields.take();
         let mut row = event.into_storage(enrichment, &state.context);
         if !state.source.media.is_empty() {
             row.restore_media(&mut |text| {
@@ -89,6 +90,7 @@ pub(super) fn enrich_inner(
         rows.push(Some(EnrichedStorageRow {
             row,
             start_time_iso,
+            evaluation_fields,
         }));
     }
     state.rows = BatchRows::Ready(rows);
@@ -253,6 +255,11 @@ fn evaluation_rows(rows: &[Option<EnrichedStorageRow>]) -> NativeResult<Vec<serd
             if let Some(text) = value["model_parameters"].as_str() {
                 if let Ok(parsed) = serde_json::from_str(text) {
                     value["model_parameters"] = parsed;
+                }
+            }
+            if let Some(fields) = &row.evaluation_fields {
+                for (column, original) in fields.iter() {
+                    value[column.as_str()] = original.clone().into_serde_lossy();
                 }
             }
             Ok(value)

@@ -97,6 +97,7 @@ impl BatchRows {
 struct EnrichedStorageRow {
     row: OtelStorageRow,
     start_time_iso: String,
+    evaluation_fields: Option<Box<crate::otel::types::JsonObject>>,
 }
 
 #[napi]
