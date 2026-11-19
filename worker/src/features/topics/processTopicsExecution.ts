@@ -916,8 +916,8 @@ const refitLimits = () => ({
 });
 
 /**
- * A stable hash sample of the window's summaries whose trace meets the rule's
- * current filter, so consecutive nights refit mostly the same traces.
+ * A stable hash sample of the summaries whose trace meets the rule's current
+ * filter, so consecutive nights refit mostly the same traces, and the window it covers.
  */
 async function refitCohort({
   projectId,
@@ -933,24 +933,25 @@ async function refitCohort({
   scheduled: TopicTimeRange;
 }): Promise<{ summaries: TopicSummary[]; timeRange: TopicTimeRange }> {
   const filter = (await getTopicRule(projectId, ruleId))?.filter ?? [];
-  const summaries = await getSampledTopicClusteringSummaries(
+  const { summaries, timeRange } = await getSampledTopicClusteringSummaries(
     projectId,
     facet,
     embeddingConfig,
     scheduled,
     refitLimits(),
     filter.length
-      ? await summarizedTopicMatchesQuery(
-          { projectId, facet, filter, ...scheduled },
-          prisma,
-        )
+      ? (window) =>
+          summarizedTopicMatchesQuery(
+            { projectId, facet, filter, ...window },
+            prisma,
+          )
       : undefined,
   );
   getCurrentSpan()?.setAttribute(
     "langfuse.topics.refit_window_days",
-    (scheduled.to.getTime() - scheduled.from.getTime()) / 86_400_000,
+    (timeRange.to.getTime() - timeRange.from.getTime()) / 86_400_000,
   );
-  return { summaries, timeRange: scheduled };
+  return { summaries, timeRange };
 }
 
 /**

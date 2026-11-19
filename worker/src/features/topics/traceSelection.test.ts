@@ -171,8 +171,8 @@ describe("Topics trace selection", () => {
         { embeddingModel: "embed", embeddingDimensions: 2 },
         timeRange,
         limits,
-        traces,
-      ).then((rows) => rows.map(({ traceId }) => traceId));
+        async () => traces,
+      ).then(({ summaries }) => summaries.map(({ traceId }) => traceId));
 
     const matched = ["trace-new", "trace-old", "trace-earlier", "trace-long"];
     expect((await sample({ maxRows: 10, maxBytes: 1_000_000 })).sort()).toEqual(
@@ -223,16 +223,16 @@ describe("Topics trace selection", () => {
         sampleProject,
         facet,
         { embeddingModel: "embed", embeddingDimensions: 2 },
-        { from: new Date(from), to: new Date(from + 8 * day) },
+        { from: new Date(from), to: new Date(from + 7 * day) },
         { maxRows: 40, maxBytes: 1_000_000 },
-      );
+      ).then(({ summaries }) => summaries);
     const [first, second] = [await night(start), await night(start + day)];
     const overlap = (rows: TopicSummary[]) =>
       rows
         .filter(
           ({ unitStartTime }) =>
             Date.parse(unitStartTime) >= start + day &&
-            Date.parse(unitStartTime) < start + 8 * day,
+            Date.parse(unitStartTime) < start + 7 * day,
         )
         .map(({ traceId }) => traceId)
         .sort();

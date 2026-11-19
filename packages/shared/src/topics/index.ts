@@ -330,7 +330,7 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   facetVersion: number;
   /** "snapshot" when a snapshot's execution requested the summary, else "rule". */
   triggerType: "rule" | "snapshot";
-  /** Rules of the triggering job that select this facet; empty when unknown (rows written before rule ids were stored). */
+  /** Rules of the triggering job that select this facet; empty when only a snapshot requested it. */
   ruleIds: string[];
   /** The snapshot execution that requested the summary; null for rule-triggered rows. */
   executionId: string | null;
@@ -362,7 +362,7 @@ export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   unitStartTime: string;
   summaryProcessedAt: string;
   runId: string | null;
-  /** Rule of the map; null for snapshots and rows written before rule ids were stored. */
+  /** Rule of the map; null for snapshots. */
   ruleId: string | null;
   topicId: string | null;
   topicVersionId: string | null;

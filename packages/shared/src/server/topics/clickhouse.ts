@@ -578,9 +578,13 @@ export async function getTopicClusteringSummaries(
 
 const SAMPLED_SUMMARIES_TIMEOUT_SECONDS = 60;
 
+// How far back from the window's end each step reaches; the last step reaches the window's start.
+const SAMPLED_SUMMARIES_STEP_DAYS = [7, 30];
+
 /**
- * A stable sample of the window's compatible summaries, up to the limits: units
- * whose unit_hash falls below a bound, so overlapping windows pick the same units.
+ * A stable sample of compatible summaries, up to the limits: units whose unit_hash
+ * falls below a bound, so overlapping windows pick the same units. The sample
+ * comes from the last 7 days when they hold enough units, else from the window.
  */
 export async function getSampledTopicClusteringSummaries(
   projectId: string,
@@ -588,16 +592,15 @@ export async function getSampledTopicClusteringSummaries(
   embeddingConfig: TopicEmbeddingConfig,
   timeRange: TopicTimeRange,
   limits: { maxRows: number; maxBytes: number },
-  traces?: TopicCohortTraces,
-): Promise<TopicSummary[]> {
+  traces?: (window: TopicTimeRange) => Promise<TopicCohortTraces>,
+): Promise<{ summaries: TopicSummary[]; timeRange: TopicTimeRange }> {
   // Vector bytes plus a 2 KB allowance for text; reading enforces the real size.
   const rowBytes = embeddingConfig.embeddingDimensions * 8 + 2048;
   const limit = Math.min(
     limits.maxRows,
     Math.floor(limits.maxBytes / rowBytes),
   );
-  if (limit < 1) return [];
-  const cohort = traces && { traces };
+  if (limit < 1) return { summaries: [], timeRange };
   const options = {
     // A background read: keep it off the primary and bound its CPU.
     preferredClickhouseService: "EventsReadOnly" as const,
@@ -611,29 +614,51 @@ export async function getSampledTopicClusteringSummaries(
       timeout_overflow_mode: "throw" as const,
     },
   };
-  const params = {
-    ...traces?.params,
-    projectId,
-    facetId: facet.facetId,
-    facetVersion: facet.version,
-    ...embeddingConfig,
-    ...timeRangeParams(timeRange),
-    internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-    publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
-    limit,
-  };
-  const [counted] = await queryClickhouse<{ count: string }>({
-    query: clusteringSummariesSql(
-      "count() AS count",
-      "trace_id, processing_state, embedding_model, environment",
-      cohort,
-    ),
-    params,
-    tags: { route: "topics-sampled-clustering-count", projectId },
-    ...options,
-  });
-  const count = Number(counted?.count ?? 0);
-  if (count === 0) return [];
+  let window = timeRange;
+  let cohort: TopicClusteringCohort | undefined;
+  let params: Record<string, unknown> = {};
+  let count = 0;
+  for (const days of SAMPLED_SUMMARIES_STEP_DAYS) {
+    const last = days === SAMPLED_SUMMARIES_STEP_DAYS.at(-1);
+    window = {
+      from: last
+        ? timeRange.from
+        : new Date(
+            Math.max(
+              timeRange.from.getTime(),
+              timeRange.to.getTime() - days * 86_400_000,
+            ),
+          ),
+      to: timeRange.to,
+    };
+    const windowTraces = await traces?.(window);
+    cohort = windowTraces && { traces: windowTraces };
+    params = {
+      ...windowTraces?.params,
+      projectId,
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+      ...embeddingConfig,
+      ...timeRangeParams(window),
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+      limit,
+    };
+    const [counted] = await queryClickhouse<{ count: string }>({
+      query: clusteringSummariesSql(
+        "count() AS count",
+        "trace_id, processing_state, embedding_model, environment",
+        cohort,
+      ),
+      params,
+      tags: { route: "topics-sampled-clustering-count", projectId },
+      ...options,
+    });
+    count = Number(counted?.count ?? 0);
+    if (count >= limit || window.from.getTime() <= timeRange.from.getTime())
+      break;
+  }
+  if (count === 0) return { summaries: [], timeRange: window };
   // k = limit / count * 2^64; without a cut every unit is read.
   const sampleBound =
     count > limit
@@ -662,10 +687,10 @@ export async function getSampledTopicClusteringSummaries(
   })) {
     const { embedding, ...fields } = row;
     bytes += embedding.length * 8 + JSON.stringify(fields).length * 2 + 256;
-    if (bytes > limits.maxBytes) return summaries;
+    if (bytes > limits.maxBytes) break;
     summaries.push(summaryResult(row));
   }
-  return summaries;
+  return { summaries, timeRange: window };
 }
 
 export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
@@ -1213,7 +1238,7 @@ export async function readLatestTopicAssignments(
 
 /**
  * Each trace's latest placement per facet and rule, in any run of the rules, or in the published
- * runs for maps without a rule and older rows; outliers, with an empty topic id, only when asked.
+ * runs of maps without a rule (snapshots); outliers, with an empty topic id, only when asked.
  */
 export async function readCurrentTraceTopics(
   projectId: string,

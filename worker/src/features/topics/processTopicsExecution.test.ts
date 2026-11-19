@@ -167,8 +167,9 @@ vi.mock("@langfuse/shared/topics/server", () => {
       facet: TopicFacetRef,
       embeddingConfig: TopicEmbeddingConfig,
       timeRange: TopicTimeRange,
-    ) =>
-      [...state.summaries.values()]
+    ) => ({
+      timeRange,
+      summaries: [...state.summaries.values()]
         .filter(
           (row) =>
             row.projectId === projectId &&
@@ -181,6 +182,7 @@ vi.mock("@langfuse/shared/topics/server", () => {
             inTimeRange(row, timeRange),
         )
         .sort((a, b) => b.unitStartTime.localeCompare(a.unitStartTime)),
+    }),
     getTopicRun: async (_project: string, id: string) =>
       state.runs.get(id) ?? null,
     readTopicRunTraceIds: async (
