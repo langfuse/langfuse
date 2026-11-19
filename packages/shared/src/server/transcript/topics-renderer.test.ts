@@ -417,6 +417,26 @@ describe("Topics transcript renderer", () => {
       renderTranscript(pending, [root, generation], topicsTranscriptConfig)
         .text,
     ).toContain("last action: assistant tool call\nvisible reply: none");
+
+    // A blank text part next to the tool call is not a reply the user can read.
+    const [request, call] = messages;
+    const blank: Transcript = {
+      threads: [
+        {
+          ...pending.threads[0],
+          currentTurn: {
+            ...pending.threads[0].currentTurn,
+            messages: [
+              request,
+              { ...call, parts: [{ type: "text", text: "  " }, ...call.parts] },
+            ],
+          },
+        },
+      ],
+    };
+    expect(
+      renderTranscript(blank, [root, generation], topicsTranscriptConfig).text,
+    ).toContain("visible reply: none");
   });
 
   it("marks the request after supplied context without repeating trace input", () => {
@@ -607,6 +627,8 @@ describe("Topics transcript renderer", () => {
     expect(text).not.toContain("[tool] lookup");
     expect(text).not.toContain("[final output] Result");
     expect(text).toContain("final output: tool result");
+    // The root output reached the user, even though it repeats the final tool result.
+    expect(text).toContain("visible reply: application output");
   });
 
   it("pairs a result with the current call when replayed history reused its ID", () => {
@@ -742,5 +764,6 @@ describe("Topics transcript renderer", () => {
     expect(text).toContain(
       "[assistant] [audio/wav omitted] transcript: Prices start at $10.",
     );
+    expect(text).toContain("visible reply: assistant audio");
   });
 });
