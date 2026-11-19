@@ -113,6 +113,7 @@ impl EnrichedStorageRow {
         std::mem::size_of::<Self>() - std::mem::size_of::<OtelStorageRow>()
             + self.row.retained_bytes()
             + self.start_time_iso.capacity()
+            + crate::native_memory::retained_size(&self.evaluation_fields)
     }
 }
 

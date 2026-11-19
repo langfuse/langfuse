@@ -37,6 +37,12 @@ impl RetainedSize for JsString {
     }
 }
 
+impl<T: RetainedSize> RetainedSize for Box<T> {
+    fn retained_bytes(&self) -> usize {
+        size_of::<T>() + retained_size(self.as_ref())
+    }
+}
+
 impl<T: RetainedSize> RetainedSize for Option<T> {
     fn retained_bytes(&self) -> usize {
         self.as_ref().map_or(0, RetainedSize::retained_bytes)
