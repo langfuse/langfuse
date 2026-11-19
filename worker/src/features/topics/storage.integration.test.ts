@@ -15,6 +15,9 @@ import {
   getTopicClusteringSummaries,
   getTopicSummaryCounts,
   getTopicExecutionCosts,
+  startTopicNamingCall,
+  finishTopicNamingCall,
+  getTopicExecutionNamingCosts,
   getTopicTraceUnitTimeRange,
   createTopicFacet,
   createTopicFacetVersion,
@@ -410,6 +413,69 @@ describe("Topics eval-backed configuration", () => {
     expect(
       await saveTopicRun({ ...run, status: "failed", error: "Late retry" }),
     ).toEqual(completed);
+  });
+
+  it("counts each naming call once across attempts and preserves incomplete pricing", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Naming costs",
+      description: "",
+      prompt: "Summarize.",
+    });
+    const tracked = { namingCostTracked: true };
+    const makeRun = (
+      batchActionId: string,
+      config: Record<string, boolean>,
+      status = "completed",
+    ) =>
+      prisma.topicClusteringRun.create({
+        data: {
+          projectId,
+          facetId: facet.id,
+          facetVersion: 1,
+          batchActionId,
+          config,
+          status,
+        },
+      });
+    const [first, retry, unpriced] = await Promise.all([
+      makeRun("retried", tracked, "failed"),
+      makeRun("retried", tracked),
+      makeRun("unpriced", tracked),
+      makeRun("zero", tracked, "skipped"),
+      makeRun("legacy", {}),
+    ]);
+    const callId = randomUUID();
+    await Promise.all([
+      startTopicNamingCall(first.id, callId),
+      startTopicNamingCall(first.id, callId),
+    ]);
+    await finishTopicNamingCall(callId, 0.1);
+    await finishTopicNamingCall(callId, 1);
+    const retryCall = randomUUID();
+    await startTopicNamingCall(retry.id, retryCall);
+    await finishTopicNamingCall(retryCall, 0.2);
+    const unknownCall = randomUUID();
+    await startTopicNamingCall(unpriced.id, unknownCall);
+
+    const ids = ["retried", "unpriced", "zero", "legacy", "missing"];
+    expect(await getTopicExecutionNamingCosts(projectId, ids)).toEqual({
+      retried: { cost: 0.3, partial: false },
+      unpriced: { cost: null, partial: false },
+      zero: { cost: 0, partial: false },
+      legacy: { cost: null, partial: false },
+    });
+    expect(await getTopicExecutionNamingCosts(otherProjectId, ids)).toEqual({});
+
+    await makeRun("retried", {});
+    await startTopicNamingCall(unpriced.id, randomUUID());
+    await finishTopicNamingCall(unknownCall, 0);
+    expect(
+      await getTopicExecutionNamingCosts(projectId, ["retried", "unpriced"]),
+    ).toEqual({
+      retried: { cost: 0.3, partial: true },
+      unpriced: { cost: 0, partial: true },
+    });
   });
 
   it("never serves an analysis, even as the facet's newest snapshot", async () => {

@@ -66,7 +66,10 @@ function processRun(
     createdAt,
     updatedAt: createdAt,
     error,
-    estimatedCost,
+    costBreakdown: {
+      summaries: estimatedCost,
+      naming: { cost: null, partial: false },
+    },
     facets: facetRefs.map(({ facetId, version }) =>
       facetProgress(facetId, version, counts),
     ),
@@ -94,7 +97,7 @@ function updateRun(
     createdAt,
     updatedAt: createdAt,
     error,
-    estimatedCost: null,
+    costBreakdown: { summaries: null, naming: { cost: null, partial: true } },
     facets: facetRefs
       .slice(0, 2)
       .map(({ facetId, version }) =>
@@ -121,7 +124,7 @@ function summarizingSnapshot(id: string, createdAt: string): Run {
   return {
     ...run,
     phase: "summarizing",
-    estimatedCost: 0.31,
+    costBreakdown: { summaries: 0.31, naming: { cost: null, partial: true } },
     input: {
       ...run.input,
       analysis: {
@@ -185,7 +188,10 @@ export const PinsRunningAndGroupsByDay = meta.story({
   name: "(Test) Pins the running run and groups past runs by day",
   args: {
     executions: [
-      updateRun("regenerate-done", "completed", atDaysAgo(4, 10)),
+      {
+        ...updateRun("regenerate-done", "completed", atDaysAgo(4, 10)),
+        costBreakdown: { summaries: null, naming: { cost: 0, partial: false } },
+      },
       summarizingSnapshot("snapshot-running", atDaysAgo(0, 9)),
       processRun("analyze-done", "completed", atDaysAgo(1, 10), 0, {
         requested: 1_412,
@@ -210,8 +216,8 @@ export const PinsRunningAndGroupsByDay = meta.story({
     const active = canvas.getByRole("status");
     await expect(active).toHaveTextContent("Snapshot · Checkout");
     await expect(active).toHaveTextContent("640 / 1,280");
-    await expect(active).toHaveTextContent("Summaries and embeddings");
-    await expect(active).toHaveTextContent("~$0.31");
+    await expect(active).toHaveTextContent("Estimated model cost");
+    await expect(active).toHaveTextContent("~$0.31 (partial)");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
     ).toBeVisible();
@@ -229,15 +235,17 @@ export const PinsRunningAndGroupsByDay = meta.story({
       .getAllByRole("button")
       .filter((row) => !active.contains(row));
     await expect(rows[0]).toHaveTextContent(
-      "1,412 traces · Summaries and embeddings · ~$0.00",
+      "1,412 traces · Estimated model cost · ~$0.00",
     );
     await expect(rows[1]).toHaveTextContent(
-      "1,330 traces · Summaries and embeddings · Unavailable",
+      "1,330 traces · Estimated model cost · Unavailable",
     );
     await expect(rows[1]).toHaveTextContent("12 traces failed");
-    await expect(rows[2]).toHaveTextContent("No new summaries");
+    await expect(rows[2]).toHaveTextContent(
+      "Estimated model cost · Unavailable",
+    );
     await expect(rows[2]).toHaveTextContent("Embedding model returned 429.");
-    await expect(rows[3]).toHaveTextContent("No new summaries");
+    await expect(rows[3]).toHaveTextContent("Estimated model cost · ~$0.00");
     await expect(within(rows[1]).getByText("Done with issues")).toBeVisible();
     await expect(within(rows[2]).getByText("Failed")).toBeVisible();
 

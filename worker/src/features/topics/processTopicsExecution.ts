@@ -232,6 +232,7 @@ async function clusterFacet(
   };
   const config = {
     ...numericConfig,
+    namingCostTracked: true,
     exploratory,
     embeddingModel: scope.embeddingConfig.embeddingModel!,
     dimensions: scope.embeddingConfig.embeddingDimensions,
@@ -594,9 +595,8 @@ async function nameGroupAvoidingConflicts(
   models: TopicsModels,
   named: NamedTopics,
   group: Parameters<typeof nameTopicGroup>[1],
-  metadata: Record<string, unknown>,
+  metadata: Record<string, unknown> & { run_id: string },
 ) {
-  // TODO: Persist naming usage and costs, including conflict retries, with the run.
   let { output: label } = await nameTopicGroup(models, group, metadata);
   const conflict = named.get(label.name.toLowerCase());
   if (conflict) {

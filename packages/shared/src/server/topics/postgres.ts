@@ -22,10 +22,62 @@ import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { TopicsTargetObject } from "../../features/evals/types";
 import { topicRuleWhere } from "./processing-gate";
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
+import { traceException } from "../instrumentation";
+import { logger } from "../logger";
 
 type FacetVersionRow = Prisma.EvaluatorVersionGetPayload<object>;
 type FacetRow = Prisma.EvaluatorGetPayload<{ include: { versions: true } }>;
 type RunRow = Prisma.TopicClusteringRunGetPayload<object>;
+
+/** Reserve one provider call before inference. Replaying the write preserves any recorded price. */
+export async function startTopicNamingCall(runId: string, callId: string) {
+  await prisma.topicNamingCall.createMany({
+    data: [{ id: callId, runId }],
+    skipDuplicates: true,
+  });
+}
+
+export async function finishTopicNamingCall(callId: string, cost: number) {
+  await prisma.topicNamingCall.updateMany({
+    where: { id: callId, costUsd: null },
+    data: { costUsd: cost },
+  });
+}
+
+/** Naming spend across every clustering attempt of each execution, including failed attempts. */
+export async function getTopicExecutionNamingCosts(
+  projectId: string,
+  executionIds: string[],
+): Promise<Record<string, { cost: number | null; partial: boolean }>> {
+  if (!executionIds.length) return {};
+  try {
+    // A tracked attempt without calls incurred zero naming cost. Untracked attempts
+    // (including preallocated runs) and calls without a price have unknown cost.
+    const rows = await prisma.$queryRaw<
+      { executionId: string; cost: Prisma.Decimal | null; unknown: boolean }[]
+    >`
+      SELECT r.batch_action_id AS "executionId",
+             SUM(CASE WHEN c.id IS NULL AND r.config->'namingCostTracked' = 'true'::jsonb
+                      THEN 0 ELSE c.cost_usd END) AS cost,
+             BOOL_OR(r.config->'namingCostTracked' IS DISTINCT FROM 'true'::jsonb
+                     OR (c.id IS NOT NULL AND c.cost_usd IS NULL)) AS unknown
+      FROM topic_clustering_runs r
+      LEFT JOIN topic_naming_calls c ON c.run_id = r.id
+      WHERE r.project_id = ${projectId} AND r.batch_action_id IN (${Prisma.join(executionIds)})
+      GROUP BY r.batch_action_id
+    `;
+    return Object.fromEntries(
+      rows.map(({ executionId, cost, unknown }) => [
+        executionId,
+        { cost: cost?.toNumber() ?? null, partial: cost !== null && unknown },
+      ]),
+    );
+  } catch (error) {
+    traceException(error);
+    logger.warn("Failed to read Topics naming costs", { projectId, error });
+    return {};
+  }
+}
 
 function facetVersion(
   row: FacetVersionRow,

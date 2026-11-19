@@ -62,6 +62,7 @@ import {
   busy,
   createsSummaries,
   runLabel,
+  type TopicRunCost,
   type TopicRunWithCost,
 } from "./topic-run-labels";
 import {
@@ -342,17 +343,20 @@ function TopicsWorkspaceContent({
   const analysisId = mapSelection?.kind === "analysis" ? mapSelection.id : null;
   const historyRuns =
     historyOpen && !executionId ? (executions.data ?? []) : [];
-  const pricedRuns: RunCostStatus[] = historyRuns.filter((run) =>
-    createsSummaries(run.input),
-  );
-  if (selectedAnalysis?.summarize) {
+  const pricedRuns: RunCostStatus[] = [...historyRuns];
+  if (selectedAnalysis) {
     // The execution list reconciles interrupted runs the map overview can still report as running.
     const snapshot = executions.data?.find(
       (run) => run.id === selectedAnalysis.id,
     );
-    pricedRuns.push(snapshot ?? selectedAnalysis);
+    pricedRuns.push(
+      snapshot ?? {
+        ...selectedAnalysis,
+        input: { operation: "update", analysis: selectedAnalysis },
+      },
+    );
   }
-  if (selectedExecution.data && createsSummaries(selectedExecution.data.input))
+  if (executionId && selectedExecution.data)
     pricedRuns.push(selectedExecution.data);
   const costFor = useVisibleRunCosts(projectId, pricedRuns);
   // Onboarding has no selection yet; the first rule is the one setup created.
@@ -691,7 +695,7 @@ function TopicsWorkspaceContent({
                 {selectedAnalysis && (
                   <TopicMapStrip.Analysis
                     analysis={selectedAnalysis}
-                    estimatedCost={costFor(selectedAnalysis.id)}
+                    costBreakdown={costFor(selectedAnalysis.id)}
                     onViewRun={() => openExecution(selectedAnalysis.id)}
                     controls={viewControls}
                     options={unassignedSwitch}
@@ -754,7 +758,7 @@ function TopicsWorkspaceContent({
                           projectId={projectId}
                           executionId={executionId}
                           query={selectedExecution}
-                          estimatedCost={costFor(executionId)}
+                          costBreakdown={costFor(executionId)}
                           facets={facets.data ?? []}
                           canWrite={canWrite}
                           onBack={() => showExecutionList(true)}
@@ -763,7 +767,7 @@ function TopicsWorkspaceContent({
                         <TopicRunHistoryList
                           executions={historyRuns.map((run) => ({
                             ...run,
-                            estimatedCost: costFor(run.id),
+                            costBreakdown: costFor(run.id),
                           }))}
                           errorMessage={executions.error?.message}
                           onOpen={openExecution}
@@ -856,7 +860,9 @@ function TopicsWorkspaceContent({
   );
 }
 
-type RunCostStatus = Pick<TopicRunWithCost, "id" | "status" | "updatedAt">;
+type RunCostStatus = Pick<TopicRunWithCost, "id" | "status" | "updatedAt"> & {
+  input: Parameters<typeof createsSummaries>[0];
+};
 
 /** Only visible estimates read ClickHouse. Each terminal revision fetches a final estimate, including after a retry. */
 function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
@@ -866,21 +872,30 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
     runs.map((run) => [run.id, busy(run.status) ? null : run.updatedAt]),
   );
   const executionIds = Object.keys(revisions).sort();
-  const input = { projectId, executionIds };
+  const summaryIds = new Set(
+    runs.filter((run) => createsSummaries(run.input)).map((run) => run.id),
+  );
+  const input = {
+    projectId,
+    executionIds,
+    summaryExecutionIds: executionIds.filter((id) => summaryIds.has(id)),
+  };
   const pollInterval = 30_000;
   const staleTime = 60_000;
   const runKey = (id: string) =>
-    ["topics-run-cost", projectId, id, revisions[id]] as const;
+    ["topics-run-cost-breakdown", projectId, id, revisions[id]] as const;
   const { data, isError } = useQuery({
     queryKey: [
-      ...getQueryKey(api.topics.executionCosts, input, "query"),
+      ...getQueryKey(api.topics.executionCostBreakdown, input, "query"),
       revisions,
     ],
     queryFn: async ({ signal }) => {
-      const estimates: Record<string, number | null> = {};
+      const estimates: Record<string, TopicRunCost | null> = {};
       const due: string[] = [];
       for (const id of executionIds) {
-        const cached = queryClient.getQueryState<number | null>(runKey(id));
+        const cached = queryClient.getQueryState<TopicRunCost | null>(
+          runKey(id),
+        );
         const maxAge = revisions[id] === null ? pollInterval : staleTime;
         if (
           cached?.data !== undefined &&
@@ -892,8 +907,12 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
         }
       }
       if (due.length) {
-        const amounts = await utils.client.topics.executionCosts.query(
-          { projectId, executionIds: due },
+        const amounts = await utils.client.topics.executionCostBreakdown.query(
+          {
+            projectId,
+            executionIds: due,
+            summaryExecutionIds: due.filter((id) => summaryIds.has(id)),
+          },
           { signal },
         );
         signal.throwIfAborted();
@@ -913,7 +932,7 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
     meta: { silentAllErrors: true },
   });
   return (id: string) => {
-    const cost = queryClient.getQueryData<number | null>(runKey(id));
+    const cost = queryClient.getQueryData<TopicRunCost | null>(runKey(id));
     if (cost !== undefined) return cost;
     // The last visible batch can still be on screen after the individual cache entries expire.
     if (data?.projectId === projectId && data.revisions[id] === revisions[id])
@@ -926,7 +945,7 @@ function ExecutionPanel({
   projectId,
   executionId,
   query,
-  estimatedCost,
+  costBreakdown,
   facets,
   canWrite,
   onBack,
@@ -937,7 +956,7 @@ function ExecutionPanel({
     RouterOutputs["topics"]["execution"],
     { message: string }
   >;
-  estimatedCost: number | null | undefined;
+  costBreakdown: TopicRunCost | null | undefined;
   facets: TopicFacet[];
   canWrite: boolean;
   onBack: () => void;
@@ -975,7 +994,7 @@ function ExecutionPanel({
   }
   return (
     <TopicRunDetails
-      execution={{ ...execution, estimatedCost }}
+      execution={{ ...execution, costBreakdown }}
       facets={facets}
       canWrite={canWrite}
       retry={{

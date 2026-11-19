@@ -6,6 +6,7 @@ import TopicsPage from "./TopicsPage";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
 import { type TopicFacet } from "@langfuse/shared/topics";
+import { type TopicRunCost } from "./topic-run-labels";
 
 const state = vi.hoisted(() => ({
   canViewTopics: true,
@@ -14,7 +15,7 @@ const state = vi.hoisted(() => ({
   updatedAt: "2026-09-23T12:00:00Z",
   retry: vi.fn(),
   refetchExecution: vi.fn(),
-  queryCosts: vi.fn<() => Promise<Record<string, number>>>(),
+  queryCosts: vi.fn<() => Promise<Record<string, TopicRunCost>>>(),
   dateRange: undefined as string | undefined,
   executionId: undefined as string | undefined,
   setQueryParams: vi.fn(),
@@ -146,7 +147,9 @@ vi.mock("./CurrentTopics", () => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
-      executionCosts: { _def: () => ({ path: ["topics", "executionCosts"] }) },
+      executionCostBreakdown: {
+        _def: () => ({ path: ["topics", "executionCostBreakdown"] }),
+      },
       facets: {
         useQuery: () => ({
           data: state.facetsLoading ? undefined : state.facets,
@@ -271,7 +274,11 @@ vi.mock("@/src/utils/api", () => ({
       },
     },
     useUtils: () => ({
-      client: { topics: { executionCosts: { query: state.queryCosts } } },
+      client: {
+        topics: {
+          executionCostBreakdown: { query: state.queryCosts },
+        },
+      },
       topics: {
         modelSettings: { invalidate: vi.fn() },
         maps: { invalidate: vi.fn() },
@@ -433,11 +440,14 @@ it("keeps settled costs visible while fetching the final cost of a completed run
   withSummaries();
   const settled = execution("completed", "process");
   const unpriced = { ...settled, id: "unpriced" };
-  const active = execution("running", "process");
+  const active = execution("running", "update");
   state.executions = [settled, unpriced, active];
-  const finalCosts = Promise.withResolvers<Record<string, number>>();
+  const finalCosts = Promise.withResolvers<Record<string, TopicRunCost>>();
   state.queryCosts
-    .mockResolvedValueOnce({ [settled.id]: 0, [active.id]: 0.12 })
+    .mockResolvedValueOnce({
+      [settled.id]: { summaries: 0, naming: { cost: null, partial: false } },
+      [active.id]: { summaries: null, naming: { cost: 0.12, partial: false } },
+    })
     .mockReturnValueOnce(finalCosts.promise);
   const view = renderTopicsPage();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
@@ -450,10 +460,16 @@ it("keeps settled costs visible while fetching the final cost of a completed run
   expect(screen.getByText("Unavailable")).toBeVisible();
   expect(screen.getByText("Loading…")).toBeVisible();
   expect(state.queryCosts).toHaveBeenLastCalledWith(
-    { projectId: "project", executionIds: [active.id] },
+    {
+      projectId: "project",
+      executionIds: [active.id],
+      summaryExecutionIds: [],
+    },
     expect.anything(),
   );
-  finalCosts.resolve({ [active.id]: 0.34 });
+  finalCosts.resolve({
+    [active.id]: { summaries: null, naming: { cost: 0.34, partial: false } },
+  });
   expect(await screen.findByText("~$0.34")).toBeVisible();
 });
 

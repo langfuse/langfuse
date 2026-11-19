@@ -169,7 +169,10 @@ function MapSwitcher({
       {selectedAnalysis ? (
         <TopicMapStrip.Analysis
           analysis={selectedAnalysis}
-          estimatedCost={selectedAnalysis.summarize ? 0.42 : null}
+          costBreakdown={{
+            summaries: selectedAnalysis.summarize ? 0.42 : null,
+            naming: { cost: 0.08, partial: false },
+          }}
           onViewRun={() => onViewRun(selectedAnalysis.id)}
         />
       ) : null}
@@ -243,7 +246,7 @@ export const TestSwitchesMaps = meta.story({
     ).toBeVisible();
     await expect(canvas.getByText(/1,840 traces/)).toBeVisible();
     await expect(
-      canvas.getByText("Summaries and embeddings · ~$0.42"),
+      canvas.getByText("Estimated model cost · ~$0.50"),
     ).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "View run" }));
     await expect(args.onViewRun).toHaveBeenCalledWith("analysis-refunds");

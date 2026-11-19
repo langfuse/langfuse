@@ -20,6 +20,7 @@ import {
 import {
   readTopicExecutionSummary,
   getTopicExecutionCosts,
+  getTopicExecutionNamingCosts,
   enqueueTopicSnapshotSetup,
   readTopicSnapshotSummarizing,
   writeTopicExecution,
@@ -83,6 +84,8 @@ import {
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
 const includeCosts = z.boolean().default(true);
+// A history page plus the selected snapshot and an open run detail.
+const visibleExecutionIds = z.array(topicIdSchema).max(102);
 const mapInput = projectInput.extend({ runId: topicIdSchema });
 // Snapshots offer 7 or 14 days; longer windows risk an out-of-memory fit.
 const SNAPSHOT_MAX_WINDOW_MS = 14 * 86_400_000;
@@ -577,14 +580,39 @@ export const topicsRouter = createTRPCRouter({
       return { ...execution, estimatedCost: costs?.[execution.id] ?? null };
     }),
   executionCosts: topicsProcedure
-    .input(
-      projectInput.extend({
-        // A history page plus the selected snapshot and an open run detail.
-        executionIds: z.array(topicIdSchema).max(102),
-      }),
-    )
+    .input(projectInput.extend({ executionIds: visibleExecutionIds }))
     .query(({ input }) =>
       getTopicExecutionCosts(input.projectId, input.executionIds),
+    ),
+  executionCostBreakdown: topicsProcedure
+    .input(
+      projectInput.extend({
+        executionIds: visibleExecutionIds,
+        summaryExecutionIds: visibleExecutionIds,
+      }),
+    )
+    .query(
+      async ({ input: { projectId, executionIds, summaryExecutionIds } }) => {
+        const requestedSummaries = new Set(summaryExecutionIds);
+        const [summaries, naming] = await Promise.all([
+          getTopicExecutionCosts(
+            projectId,
+            executionIds.filter((id) => requestedSummaries.has(id)),
+          ),
+          getTopicExecutionNamingCosts(projectId, executionIds),
+        ]);
+        return Object.fromEntries(
+          executionIds.map((id) => [
+            id,
+            {
+              summaries: Object.hasOwn(summaries, id) ? summaries[id] : null,
+              naming: Object.hasOwn(naming, id)
+                ? naming[id]
+                : { cost: null, partial: false },
+            },
+          ]),
+        );
+      },
     ),
   setupTraceCounts: topicsProcedure
     .input(

@@ -1,4 +1,5 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
 import {
   type TopicExecutionSummary,
@@ -6,8 +7,11 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 
+export type TopicRunCost =
+  RouterOutputs["topics"]["executionCostBreakdown"][string];
+
 export type TopicRunWithCost = TopicExecutionSummary & {
-  estimatedCost?: number | null;
+  costBreakdown?: TopicRunCost | null;
 };
 
 type RunCostInput = {
@@ -54,12 +58,27 @@ export function createsSummaries(input: RunCostInput) {
   return input.operation === "process" || Boolean(input.analysis?.summarize);
 }
 
+export function formatTopicCost(
+  cost: number | null | undefined,
+  partial = false,
+) {
+  if (cost === undefined) return "Loading…";
+  if (cost === null) return "Unavailable";
+  return `~${costFormatter(cost)}${partial ? " (partial)" : ""}`;
+}
+
 export function formatTopicRunCost(
   input: RunCostInput,
-  estimatedCost: number | null | undefined,
+  costs: TopicRunCost | null | undefined,
 ) {
-  if (!createsSummaries(input)) return "No new summaries";
-  if (estimatedCost === undefined) return "Loading…";
-  if (estimatedCost === null) return "Unavailable";
-  return `~${costFormatter(estimatedCost)}`;
+  if (costs == null) return formatTopicCost(costs);
+  const expectsSummaries = createsSummaries(input);
+  const summaries = expectsSummaries ? costs.summaries : null;
+  const naming = costs.naming.cost;
+  if (summaries === null && naming === null) return "Unavailable";
+  const partial =
+    costs.naming.partial ||
+    (expectsSummaries && summaries === null) ||
+    (input.operation === "update" && naming === null);
+  return formatTopicCost((summaries ?? 0) + (naming ?? 0), partial);
 }

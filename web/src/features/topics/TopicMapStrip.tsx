@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
-import { formatTopicRunCost } from "./topic-run-labels";
+import { formatTopicRunCost, type TopicRunCost } from "./topic-run-labels";
 import {
   topicRuleFreshness,
   topicWindowLabel,
@@ -99,26 +99,26 @@ export function topicRuleStatus(
 /** A past run's controls and the period it covered. */
 function TopicAnalysisStrip({
   analysis,
-  estimatedCost,
+  costBreakdown,
   onViewRun,
   controls,
   options,
 }: {
   analysis: TopicAnalysisMap;
-  estimatedCost: number | null | undefined;
+  costBreakdown: TopicRunCost | null | undefined;
   onViewRun: () => void;
   controls?: ReactNode;
   options?: ReactNode;
 }) {
   const cost = formatTopicRunCost(
     { operation: "update", analysis },
-    estimatedCost,
+    costBreakdown,
   );
   return (
     <Strip
       status={topicAnalysisStatus(analysis)}
       run={{
-        cost: analysis.summarize ? `Summaries and embeddings · ${cost}` : cost,
+        cost: `Estimated model cost · ${cost}`,
         onView: onViewRun,
       }}
       controls={controls}
