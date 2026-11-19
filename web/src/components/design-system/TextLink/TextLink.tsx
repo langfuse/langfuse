@@ -8,6 +8,7 @@ export function TextLink({
   onClick,
   title,
   external = false,
+  variant = "default",
 }: {
   path: string;
   value: string;
@@ -16,6 +17,8 @@ export function TextLink({
   title?: string;
   /** Opens in a new tab. */
   external?: boolean;
+  /** `inline` sits in body copy. `default` is the compact bold link. */
+  variant?: "default" | "inline";
 }) {
   const Icon = icon;
   const handleClick = (event: React.MouseEvent) => {
@@ -30,14 +33,24 @@ export function TextLink({
 
   return (
     <Link
-      className="text-link hover:text-link-hover inline-block max-w-full text-xs leading-normal font-bold"
+      className={
+        variant === "inline"
+          ? "text-link hover:text-link-hover underline"
+          : "text-link hover:text-link-hover inline-block max-w-full text-xs leading-normal font-bold"
+      }
       href={path}
       title={title ?? value}
       prefetch={false}
       onClick={handleClick}
       {...(external && { target: "_blank", rel: "noopener noreferrer" })}
     >
-      <span className="inline-block max-w-full overflow-hidden align-middle leading-normal text-nowrap text-ellipsis">
+      <span
+        className={
+          variant === "inline"
+            ? undefined
+            : "inline-block max-w-full overflow-hidden align-middle leading-normal text-nowrap text-ellipsis"
+        }
+      >
         {Icon ? (
           <span className="inline-flex max-w-full items-center gap-1">
             <Icon size="base" />

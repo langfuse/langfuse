@@ -4,6 +4,7 @@ import { useForm, type UseFormReturn } from "react-hook-form";
 import * as z from "zod";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import {
   Form,
@@ -124,14 +125,12 @@ function deleteOrganizationDialogBody({
       <Dialog.Body>
         <p>{PROJECTS_STILL_DELETING_MESSAGE}</p>
         <p>
-          <a
-            className="text-link hover:text-link-hover underline"
-            href={ORGANIZATION_DELETION_DOCS_URL}
-            rel="noreferrer"
-            target="_blank"
-          >
-            Deleting an organization
-          </a>
+          <TextLink
+            path={ORGANIZATION_DELETION_DOCS_URL}
+            value="Deleting an organization"
+            external
+            variant="inline"
+          />
         </p>
       </Dialog.Body>
     );

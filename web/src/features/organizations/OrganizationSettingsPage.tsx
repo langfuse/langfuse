@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
@@ -180,16 +180,9 @@ const getOrganizationSettingsPages = ({
                     );
                     if (!disabled) return button;
                     return (
-                      <Tooltip label={disabled.reason}>
-                        {({ getTriggerProps }) => (
-                          <span
-                            {...getTriggerProps()}
-                            className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
-                          >
-                            {button}
-                          </span>
-                        )}
-                      </Tooltip>
+                      <DisabledActionTooltip label={disabled.reason}>
+                        {button}
+                      </DisabledActionTooltip>
                     );
                   }}
                 </DeleteOrganizationDialogController>
