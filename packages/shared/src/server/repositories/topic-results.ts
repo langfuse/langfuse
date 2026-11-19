@@ -11,9 +11,6 @@ import {
   unitTimeFilterSql,
 } from "../topics/clickhouse";
 import { getPublishedTopicRunIds } from "../topics/postgres";
-import { logger } from "../logger";
-import { traceException } from "../instrumentation";
-import { redis } from "../redis/redis";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -674,87 +671,6 @@ export type TopicResultCounts = {
   topics: { topicId: string; count: number }[];
 };
 
-/** Rows of the given facets in the window, without internal eval traces. */
-function topicResultScope(
-  projectId: string,
-  window: TopicTimeRange,
-  facetIds: string[],
-) {
-  return {
-    scope: `project_id = {projectId:String} AND ${unitTimeFilterSql}
-    AND trace_id != '' AND facet_id IN {facetIds:Array(String)}
-    AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
-    AND environment != {publicLlmJudgeEnvironment:String}`,
-    params: {
-      projectId,
-      facetIds,
-      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
-      ...timeRangeParams(window),
-    },
-  };
-}
-
-/** Short, so a live map's ranking keeps up with the Topics page. */
-const TOPIC_RANKING_CACHE_TTL_SECONDS = 300;
-
-/**
- * Topic ids of one run, most traces first, the order the Topics page colours
- * by. Cached per run, since the Tracing stripe asks on every visit.
- */
-export async function getTopicRanking(input: {
-  projectId: string;
-  window: TopicTimeRange;
-  facetId: string;
-  runId: string;
-}): Promise<string[]> {
-  const key = `langfuse:topics:ranking:${input.projectId}:${input.runId}`;
-  try {
-    const cached = await redis?.get(key);
-    const parsed = cached ? (JSON.parse(cached) as unknown) : null;
-    if (
-      Array.isArray(parsed) &&
-      parsed.every((id): id is string => typeof id === "string")
-    )
-      return parsed;
-  } catch (error) {
-    traceException(error);
-    logger.warn("Failed to read the cached Topics ranking", {
-      projectId: input.projectId,
-      error,
-    });
-  }
-  const { scope, params } = topicResultScope(input.projectId, input.window, [
-    input.facetId,
-  ]);
-  const rows = await queryClickhouse<{ topic_id: string }>({
-    ...READ_OPTIONS,
-    query: `SELECT topic_id
-      FROM topic_assignments
-      WHERE ${scope} AND clustering_run_id = {runId:String} AND topic_id != ''
-      GROUP BY topic_id
-      ORDER BY uniqCombined(trace_id) DESC, topic_id`,
-    params: { ...params, runId: input.runId },
-    tags: { route: "topics-ranking", projectId: input.projectId },
-  });
-  const ranking = rows.map((row) => row.topic_id);
-  try {
-    await redis?.set(
-      key,
-      JSON.stringify(ranking),
-      "EX",
-      TOPIC_RANKING_CACHE_TTL_SECONDS,
-    );
-  } catch (error) {
-    traceException(error);
-    logger.warn("Failed to cache the Topics ranking", {
-      projectId: input.projectId,
-      error,
-    });
-  }
-  return ranking;
-}
-
 /**
  * Distinct trace counts per facet and topic in the window, approximated with
  * uniqCombined so memory stays flat for any project size. Assignments count
@@ -768,16 +684,19 @@ export async function getTopicResultCounts(input: {
 }): Promise<TopicResultCounts[]> {
   if (input.facets.length === 0) return [];
   const facetIds = input.facets.map(({ facetId }) => facetId);
-  const { scope, params: scopeParams } = topicResultScope(
-    input.projectId,
-    input.window,
-    facetIds,
-  );
   const params = {
-    ...scopeParams,
+    projectId: input.projectId,
+    facetIds,
     versions: input.facets.map(({ version }) => version ?? 0),
     runIds: input.facets.map(({ runId }) => runId ?? ""),
+    internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+    publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+    ...timeRangeParams(input.window),
   };
+  const scope = `project_id = {projectId:String} AND ${unitTimeFilterSql}
+    AND trace_id != '' AND facet_id IN {facetIds:Array(String)}
+    AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+    AND environment != {publicLlmJudgeEnvironment:String}`;
   const tags = { route: "topics-counts", projectId: input.projectId };
   const [summaries, assignments] = await Promise.all([
     queryClickhouse<{

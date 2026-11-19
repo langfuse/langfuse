@@ -754,7 +754,6 @@ export {
 } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
-  getTopicRanking,
   getTopicResultCounts,
   type TopicResultCounts,
   listCurrentTopicAssignments,

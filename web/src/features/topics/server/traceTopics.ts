@@ -1,10 +1,10 @@
 import {
+  getCurrentTopicMapRows,
   getPublishedTopicMaps,
   listTopicFacets,
   listTopicRules,
   readCurrentTraceTopics,
 } from "@langfuse/shared/topics/server";
-import { topicStripeRanking } from "./currentResults";
 
 /** Sidebar and search bar options: facet name → topic names of its current published map. */
 export async function topicFilterOptions(projectId: string) {
@@ -72,30 +72,30 @@ export async function tracesTopics(
   return result;
 }
 
-/** The Tracing stripe's map of a facet: the oldest covering rule's that has one, as the Topics page opens it. */
+/** The Tracing stripe's map of a facet: the oldest covering rule's that has one, as the Topics page opens it. Postgres only. */
 export async function topicStripeMap(projectId: string, facetName: string) {
   const facet = (await listTopicFacets(projectId)).find(
     (item) => item.name === facetName,
   );
   if (!facet) return null;
-  const rules = (await listTopicRules(projectId)).filter((item) =>
-    item.facetIds.includes(facet.id),
+  const [rules, maps] = await Promise.all([
+    listTopicRules(projectId),
+    getCurrentTopicMapRows(projectId, [facet.id]),
+  ]);
+  const rule = rules.find(
+    (item) =>
+      item.facetIds.includes(facet.id) &&
+      maps.some((map) => map.ruleId === item.id),
   );
-  // The oldest covering rule with a map; a rule may not have one yet.
-  for (const rule of rules) {
-    const ranking = await topicStripeRanking(projectId, facet, rule.id);
-    if (ranking)
-      return {
-        facetId: facet.id,
-        ruleId: rule.id,
-        mapName: rule.name,
-        ...ranking,
-      };
-  }
-  const ranking = rules.length
-    ? null
-    : await topicStripeRanking(projectId, facet);
-  return ranking
-    ? { facetId: facet.id, ruleId: null, mapName: null, ...ranking }
-    : null;
+  // A facet no rule covers keeps its serving map.
+  const map = rule
+    ? maps.find((item) => item.ruleId === rule.id)
+    : maps.find((item) => item.ruleId === null);
+  if (!map) return null;
+  return {
+    facetId: facet.id,
+    ruleId: rule?.id ?? null,
+    mapName: rule?.name ?? null,
+    runId: map.run.id,
+  };
 }

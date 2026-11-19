@@ -9,11 +9,11 @@ type TraceTopics = Record<
   { facet: string; topic: string | null; runIds: string[] }[]
 >;
 
-/** The one map the stripe counts: its run and topic names in the Topics page ranking. */
-export type TopicStripeMap = { runId: string; topics: string[] };
+/** The one map the stripe counts. */
+export type TopicStripeMap = { runId: string };
 
 export type TopicStripeSegment =
-  /** `slot` is the topic's rank on the Topics page for the same map, so colours match it; -1 (grey) when unranked. */
+  /** `slot` is the topic's rank in the loaded rows, largest first; the colour follows it. */
   | { kind: "topic"; name: string; count: number; slot: number }
   | { kind: "more"; count: number; topicCount: number }
   | { kind: "unassigned"; count: number };
@@ -79,13 +79,13 @@ export function topicStripeSegments({
     else counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   const topics = [...counts]
-    .map(([name, count]) => ({
+    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+    .map(([name, count], slot) => ({
       kind: "topic" as const,
       name,
       count,
-      slot: map.topics.indexOf(name),
-    }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      slot,
+    }));
   const folded = topics.slice(TOPIC_STRIPE_SLOTS);
   return [
     ...topics.slice(0, TOPIC_STRIPE_SLOTS),

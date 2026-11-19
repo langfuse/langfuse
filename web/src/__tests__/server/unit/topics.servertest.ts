@@ -15,7 +15,7 @@ import {
 } from "@langfuse/shared/topics";
 
 const mocks = vi.hoisted(() => ({
-  getTopicRanking: vi.fn(),
+  getCurrentTopicMapRows: vi.fn(),
   getTopicResultCounts: vi.fn(),
   listCurrentTopicSummaries: vi.fn(),
   createTopicExecution: vi.fn(),
@@ -76,7 +76,6 @@ vi.mock(
 );
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  getTopicRanking: mocks.getTopicRanking,
   getTopicResultCounts: mocks.getTopicResultCounts,
   listCurrentTopicSummaries: mocks.listCurrentTopicSummaries,
 }));
@@ -919,35 +918,19 @@ describe("Topics current results", () => {
     expect(JSON.stringify(result)).not.toMatch(/embedding|centroid/);
   });
 
-  it("gives the stripe the oldest covering rule's map, topics in the page's ranking", async () => {
+  it("gives the stripe the oldest covering rule's map, from Postgres only", async () => {
     mocks.listTopicFacets.mockResolvedValue([
-      {
-        id: facetId,
-        name: "Intent",
-        versions: [{ version: facetVersion }],
-      },
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
     ]);
     mocks.listTopicRules.mockResolvedValue([
       { id: "rule-other", name: "Other", facetIds: ["other-facet"] },
       { id: "rule-a", name: "All traces", facetIds: [facetId] },
       { id: "rule-b", name: "Enterprise", facetIds: [facetId] },
     ] as Awaited<ReturnType<typeof topicsServer.listTopicRules>>);
-    const topic = (id: string, name: string) => ({
-      ...run.topics[0],
-      topicId: id,
-      topicVersionId: `${id}-v1`,
-      name,
-    });
-    mocks.getTopicRuleMap.mockResolvedValue({
-      ...run,
-      ruleId: "rule-a",
-      topics: [
-        topic("topic-a", "Refunds"),
-        topic("topic-b", "Billing"),
-        topic("topic-c", "Exports"),
-      ],
-    });
-    mocks.getTopicRanking.mockResolvedValue(["topic-b", "topic-a"]);
+    mocks.getCurrentTopicMapRows.mockResolvedValue([
+      { ruleId: "rule-b", run: { ...run, id: "run-b" } },
+      { ruleId: "rule-a", run },
+    ]);
     expect(
       await caller("VIEWER").stripeMap({ projectId, facet: "Intent" }),
     ).toEqual({
@@ -955,17 +938,12 @@ describe("Topics current results", () => {
       ruleId: "rule-a",
       mapName: "All traces",
       runId: run.id,
-      topics: ["Billing", "Refunds"],
     });
-    expect(mocks.getTopicRuleMap).toHaveBeenCalledWith(
-      projectId,
-      "rule-a",
+    expect(mocks.getCurrentTopicMapRows).toHaveBeenCalledWith(projectId, [
       facetId,
-    );
-    expect(mocks.getTopicRanking).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId, facetId, runId: run.id }),
-    );
+    ]);
     expect(mocks.getTopicResultCounts).not.toHaveBeenCalled();
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
   });
 
   it("falls back to the next covering rule when the oldest has no map yet", async () => {
@@ -976,25 +954,15 @@ describe("Topics current results", () => {
       { id: "rule-a", name: "New rule", facetIds: [facetId] },
       { id: "rule-b", name: "All traces", facetIds: [facetId] },
     ] as Awaited<ReturnType<typeof topicsServer.listTopicRules>>);
-    mocks.getTopicRuleMap.mockImplementation(
-      async (_projectId: string, ruleId: string) =>
-        ruleId === "rule-b"
-          ? {
-              ...run,
-              ruleId: "rule-b",
-              topics: [
-                { ...run.topics[0], topicId: "topic-a", name: "Refunds" },
-              ],
-            }
-          : null,
-    );
-    mocks.getTopicRanking.mockResolvedValue(["topic-a"]);
+    mocks.getCurrentTopicMapRows.mockResolvedValue([
+      { ruleId: "rule-b", run: { ...run, id: "run-b" } },
+    ]);
     expect(
       await caller("VIEWER").stripeMap({ projectId, facet: "Intent" }),
     ).toMatchObject({
       ruleId: "rule-b",
       mapName: "All traces",
-      topics: ["Refunds"],
+      runId: "run-b",
     });
   });
 });

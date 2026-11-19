@@ -29,11 +29,11 @@ describe("topicStripeSegments", () => {
         three: [{ facet: "Tone", topic: "Calm", runIds: ["map-t"] }],
       },
       facet: "Intent",
-      map: { runId: "map-a", topics: ["Refunds", "Billing"] },
+      map: { runId: "map-a" },
     });
     expect(segments).toEqual([
-      { kind: "topic", name: "Billing", count: 1, slot: 1 },
-      { kind: "topic", name: "Refunds", count: 1, slot: 0 },
+      { kind: "topic", name: "Billing", count: 1, slot: 0 },
+      { kind: "topic", name: "Refunds", count: 1, slot: 1 },
       { kind: "unassigned", count: 1 },
     ]);
   });
@@ -56,7 +56,7 @@ describe("topicStripeSegments", () => {
         outlier: [{ facet: "Intent", topic: null, runIds: ["map-a"] }],
       },
       facet: "Intent",
-      map: { runId: "map-a", topics: ["Billing"] },
+      map: { runId: "map-a" },
     };
     expect(topicStripeSegments(input)).toEqual([
       { kind: "topic", name: "Billing", count: 1, slot: 0 },
@@ -66,7 +66,7 @@ describe("topicStripeSegments", () => {
     expect(topicStripeCoverage(input)).toEqual({ analysed: 2, total: 3 });
   });
 
-  it("colours topics by the map's ranking, not by the page's counts", () => {
+  it("colours topics by their rank in the loaded rows, largest first", () => {
     const segments = topicStripeSegments({
       rows: ["a", "b", "c", "d"].map((traceId) => ({ traceId })),
       topicsByTrace: {
@@ -76,11 +76,11 @@ describe("topicStripeSegments", () => {
         d: [{ facet: "Intent", topic: "Refunds", runIds: ["map-a", "map-b"] }],
       },
       facet: "Intent",
-      map: { runId: "map-a", topics: ["Refunds", "Exports", "Billing"] },
+      map: { runId: "map-a" },
     });
     expect(segments).toEqual([
-      { kind: "topic", name: "Billing", count: 3, slot: 2 },
-      { kind: "topic", name: "Refunds", count: 1, slot: 0 },
+      { kind: "topic", name: "Billing", count: 3, slot: 0 },
+      { kind: "topic", name: "Refunds", count: 1, slot: 1 },
     ]);
   });
 
@@ -98,7 +98,7 @@ describe("topicStripeSegments", () => {
         ]),
       ),
       facet: "Intent",
-      map: { runId: "map-a", topics: names },
+      map: { runId: "map-a" },
     });
     expect(segments).toHaveLength(TOPIC_STRIPE_SLOTS + 1);
     expect(segments.at(-1)).toEqual({ kind: "more", count: 3, topicCount: 3 });
