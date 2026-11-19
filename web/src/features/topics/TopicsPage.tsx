@@ -754,7 +754,8 @@ function TopicsWorkspaceContent({
                     itemType="TRACE"
                     projectId={projectId}
                     defaultWidthTarget={tracePanel}
-                    widthStorageKey="topicsPeekViewWidthFraction"
+                    // v2 drops widths saved before the peek matched the list, so it opens beside the map.
+                    widthStorageKey="topicsPeekViewWidthFraction-v2"
                   />
                   {showBuilding && selectedRule ? (
                     <TopicRuleBuildingState

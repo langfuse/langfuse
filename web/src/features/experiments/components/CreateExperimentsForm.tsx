@@ -345,8 +345,16 @@ export const CreateExperimentsForm = ({
                     <Button
                       aria-label="Edit remote trigger settings"
                       className="rounded-l-none rounded-r-md border-l-2 px-2"
-                      title="Edit remote trigger settings"
-                      onClick={() => setShowRemoteExperimentUpsertForm(true)}
+                      title={
+                        !hasDatasetAccess
+                          ? "You do not have permission to configure remote experiments"
+                          : "Edit remote trigger settings"
+                      }
+                      disabled={!hasDatasetAccess}
+                      onClick={() => {
+                        if (!hasDatasetAccess) return;
+                        setShowRemoteExperimentUpsertForm(true);
+                      }}
                     >
                       <Cog size="base" />
                     </Button>
@@ -354,9 +362,23 @@ export const CreateExperimentsForm = ({
                 ) : (
                   <Button
                     className="w-full"
-                    disabled={!datasetId || isRemoteExperimentLoading}
+                    disabled={
+                      !datasetId ||
+                      isRemoteExperimentLoading ||
+                      !hasDatasetAccess
+                    }
+                    title={
+                      !hasDatasetAccess
+                        ? "You do not have permission to configure remote experiments"
+                        : undefined
+                    }
                     onClick={() => {
-                      if (!datasetId || isRemoteExperimentLoading) return;
+                      if (
+                        !datasetId ||
+                        isRemoteExperimentLoading ||
+                        !hasDatasetAccess
+                      )
+                        return;
                       setShowRemoteExperimentUpsertForm(true);
                     }}
                   >
@@ -402,7 +424,7 @@ export const CreateExperimentsForm = ({
     );
   }
 
-  if (showRemoteExperimentUpsertForm && datasetId) {
+  if (showRemoteExperimentUpsertForm && datasetId && hasDatasetAccess) {
     return (
       <RemoteExperimentUpsertForm
         projectId={projectId}

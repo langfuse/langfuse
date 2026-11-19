@@ -96,8 +96,23 @@ function filterRangeIncludesZero(
  *
  * // Use filterState directly in query
  */
+/**
+ * `commentContent` set / not set as the equivalent comment count filter: an
+ * object has comment content exactly when it has a comment.
+ */
+function commentContentNullAsCount(
+  filter: z.infer<typeof singleFilter>,
+): z.infer<typeof singleFilter> {
+  if (filter.type !== "null" || filter.column !== "commentContent") {
+    return filter;
+  }
+  return filter.operator === "is null"
+    ? { type: "number", column: "commentCount", operator: "=", value: 0 }
+    : { type: "number", column: "commentCount", operator: ">=", value: 1 };
+}
+
 export async function applyCommentFilters({
-  filterState,
+  filterState: rawFilterState,
   prisma,
   projectId,
   objectType,
@@ -113,6 +128,7 @@ export async function applyCommentFilters({
   hasNoMatches: boolean;
   matchingIds: string[] | null;
 }> {
+  const filterState = rawFilterState.map(commentContentNullAsCount);
   // Extract comment filters from filterState
   const commentCountFilters = filterState.filter(
     (f) =>

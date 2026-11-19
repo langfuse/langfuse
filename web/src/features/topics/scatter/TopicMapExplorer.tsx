@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
+  type CSSProperties,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -19,12 +19,6 @@ import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
 import { cn } from "@/src/utils/tailwind";
 import { TopicMapCanvas } from "./TopicMapCanvas";
 import styles from "./topic-map.module.css";
-import {
-  lookGrainOpacity,
-  lookStyle,
-  TOPIC_MAP_LOOKS,
-  LOOK,
-} from "./topic-map-looks";
 import {
   clearTopicMapHover,
   createTopicMapStore,
@@ -79,6 +73,7 @@ export function TopicMapExplorer({
   matchingTraceIds,
   fillContainer = false,
   previewOnSelect = false,
+  pinSelection = false,
 }: TopicMapExplorerProps) {
   // Projection preparation is independent of the high-frequency camera store.
   const model = useMemo(() => prepareTopicMap(data, topics), [data, topics]);
@@ -86,6 +81,9 @@ export function TopicMapExplorer({
   const [stageRef, stageSize] = useElementSize<HTMLDivElement>();
   const sectionRef = useRef<HTMLElement>(null);
   const animationRef = useRef(0);
+  // Stays non-zero for the whole gesture, including while a frame is applying.
+  const flightRef = useRef(0);
+  const nextFlightRef = useRef(0);
   const size = {
     width: stageSize?.width || 960,
     height: stageSize?.height || 560,
@@ -109,21 +107,20 @@ export function TopicMapExplorer({
     store.setState({ camera, scope });
   };
   const cancelFlight = () => {
-    const manualFlight = animationRef.current !== 0;
+    const manualFlight = flightRef.current !== 0;
+    flightRef.current = 0;
     cancelAnimationFrame(animationRef.current);
     animationRef.current = 0;
     const state = store.getState();
     const frame = state.frame;
-    if (
+    // The painted camera is world-space, so a subpixel stage resize still
+    // describes the frame the user is looking at.
+    const frameMatches =
+      frame?.model === model && frame.readingTopic === selectedTopic;
+    const canvasFlight =
       state.isMoving &&
-      (manualFlight ||
-        state.scope !== selectedTopic ||
-        state.camera === null) &&
-      frame?.model === model &&
-      frame.readingTopic === selectedTopic &&
-      frame.size.width === size.width &&
-      frame.size.height === size.height
-    )
+      (state.scope !== selectedTopic || state.camera === null);
+    if (frame && frameMatches && (manualFlight || canvasFlight))
       setCamera(frame.camera);
   };
   const flyTo = (target: Camera, scope: string | null, fit = false) => {
@@ -134,10 +131,14 @@ export function TopicMapExplorer({
       setCamera(fit ? null : target, scope);
       return;
     }
+    const flightId = ++nextFlightRef.current;
+    flightRef.current = flightId;
     const started = performance.now();
     const step = (now: number) => {
+      if (flightRef.current !== flightId) return;
       animationRef.current = 0;
       const progress = Math.min(1, (now - started) / 1050);
+      if (flightRef.current !== flightId) return;
       const t = progress ** 3 * (progress * (progress * 6 - 15) + 10);
       setCamera(
         {
@@ -149,10 +150,15 @@ export function TopicMapExplorer({
         },
         scope,
       );
+      if (flightRef.current !== flightId) return;
       if (progress < 1) animationRef.current = requestAnimationFrame(step);
-      else if (fit) setCamera(null, scope);
+      else {
+        flightRef.current = 0;
+        if (fit) setCamera(null, scope);
+      }
     };
     setCamera(start, scope);
+    if (flightRef.current !== flightId) return;
     animationRef.current = requestAnimationFrame(step);
   };
   const chooseZone = (id: string | null) => {
@@ -208,6 +214,7 @@ export function TopicMapExplorer({
     return () => {
       motion.removeEventListener("change", updateMotion);
       document.removeEventListener("fullscreenchange", updateFullscreen);
+      flightRef.current = 0;
       cancelAnimationFrame(animationRef.current);
     };
   }, [store]);
@@ -289,19 +296,7 @@ export function TopicMapExplorer({
       return;
     }
     const hovered = hitMapNode(frame, at);
-    const traceLabel =
-      event.target instanceof Element
-        ? event.target.closest<HTMLElement>(
-            '[data-topic-trace]:not([data-active="false"])',
-          )
-        : null;
-    setTopicMapHover(
-      store,
-      traceLabel?.dataset.topicTrace ?? hovered?.traceId ?? null,
-      null,
-      pointer,
-      pointerAt,
-    );
+    setTopicMapHover(store, hovered?.traceId ?? null, null, pointer, pointerAt);
   };
   const handleStageClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -317,9 +312,7 @@ export function TopicMapExplorer({
             y: event.clientY - rect.top,
           })
         : null;
-    // A click while a trace's hover card shows opens that trace, not only a direct hit.
-    const hovered = getTopicMapHover(store.getState(), frame).hoveredId;
-    selectTrace(point?.traceId ?? hovered ?? null);
+    selectTrace(point?.traceId ?? null);
   };
   const handleStageDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (previewOnSelect || event.target !== event.currentTarget) return;
@@ -360,6 +353,7 @@ export function TopicMapExplorer({
       return;
     }
     if (selectedTraceId) {
+      clearTopicMapHover(store);
       onSelectTrace(null);
       return;
     }
@@ -384,6 +378,8 @@ export function TopicMapExplorer({
       aria-label="Scatter"
       className={cn(
         "ph-no-capture bg-background flex min-w-0 flex-col overflow-hidden",
+        // Filling a panel, the panel draws the edges; a standalone map keeps its card.
+        !fillContainer && !fullscreen && "rounded-lg border",
         fillContainer && "h-full min-h-0",
         fullscreen && "h-dvh",
       )}
@@ -405,9 +401,8 @@ export function TopicMapExplorer({
             ? "min-h-0 flex-1"
             : "h-[clamp(380px,64vh,820px)] min-h-[340px]",
           gestures.isDragging ? "cursor-grabbing" : "cursor-grab",
-          styles.look,
         )}
-        style={{ touchAction: "none", ...lookStyle(LOOK) }}
+        style={{ touchAction: "none" }}
         {...gestures.pointerHandlers}
         onPointerMove={handlePointerMove}
         onPointerLeave={handlePointerLeave}
@@ -418,10 +413,7 @@ export function TopicMapExplorer({
         <div
           role="toolbar"
           aria-label="Scatter controls"
-          className={cn(
-            "bg-sidebar absolute top-2 right-2 z-2 flex items-center gap-0.5 rounded-md p-0.5",
-            styles.lookChrome,
-          )}
+          className="bg-background/85 absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-md border p-0.5 shadow-sm backdrop-blur-sm"
           onPointerDown={stopPointerPropagation}
           onPointerMove={stopPointerPropagation}
           onPointerEnter={handleControlPointerEnter}
@@ -429,13 +421,11 @@ export function TopicMapExplorer({
           <IconButton
             icon={LocateFixed}
             label="Fit scatter (0)"
-            variant="toolbar"
             onClick={handleFitMap}
           />
           <IconButton
             icon={Minus}
             label="Zoom out (-)"
-            variant="toolbar"
             onClick={handleZoomOut}
           />
           <ZoomReadout
@@ -443,16 +433,10 @@ export function TopicMapExplorer({
             initialCamera={initialCamera}
             scope={selectedTopic}
           />
-          <IconButton
-            icon={Plus}
-            label="Zoom in (+)"
-            variant="toolbar"
-            onClick={handleZoomIn}
-          />
+          <IconButton icon={Plus} label="Zoom in (+)" onClick={handleZoomIn} />
           <IconButton
             icon={fullscreen ? X : Maximize2}
             label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            variant="toolbar"
             onClick={handleToggleFullscreen}
           />
         </div>
@@ -465,7 +449,6 @@ export function TopicMapExplorer({
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
         />
-        <MapGrain opacity={lookGrainOpacity(LOOK)} />
         <MapBackgroundLabels store={store} />
         <MapLabels
           model={model}
@@ -474,20 +457,15 @@ export function TopicMapExplorer({
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
-          onSelectTrace={selectTrace}
           previewOnSelect={previewOnSelect}
+          pinSelection={pinSelection}
         />
         {model.points.length === 0 && (
           <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm">
             No plotted summaries in this selection. Try a wider time range.
           </div>
         )}
-        <div
-          className={cn(
-            "text-muted-foreground pointer-events-none absolute right-4 bottom-3 left-5 flex flex-wrap items-center justify-between gap-2 text-[11px]",
-            styles.lookChrome,
-          )}
-        >
+        <div className="text-muted-foreground pointer-events-none absolute right-4 bottom-3 left-4 flex flex-wrap items-center justify-between gap-2 text-[11px]">
           <LayoutReadout
             store={store}
             population={
@@ -555,12 +533,12 @@ function LayoutReadout({
           {...getTriggerProps()}
           type="button"
           aria-label={`Map coverage: ${population}`}
-          className="focus-visible:outline-ring pointer-events-auto cursor-help text-left font-mono text-xs focus-visible:outline-2"
+          className="focus-visible:outline-ring pointer-events-auto cursor-help text-left focus-visible:outline-2"
           onPointerDown={stopPointerPropagation}
           onPointerMove={stopPointerPropagation}
           onPointerEnter={handlePointerEnter}
         >
-          {population}
+          {population} · Saved 2D projection
         </button>
       )}
     </Tooltip>
@@ -574,12 +552,34 @@ function MapLabels({
   selectedTopic,
   selectedTraceId,
   matchingTraceIds,
-  onSelectTrace,
   previewOnSelect,
+  pinSelection,
 }: MapLabelsProps) {
   const state = useStore(store);
   const frame = state.frame;
   const hover = getTopicMapHover(state, frame);
+  // A pinned selection shows its card whenever nothing else is hovered.
+  const pinnedId =
+    pinSelection && !hover.hoveredId && !hover.hoveredZoneId
+      ? selectedTraceId
+      : null;
+  const hoveredTraceId = hover.hoveredId ?? pinnedId;
+  const labels =
+    pinnedId &&
+    !state.hoverLabels.some(
+      (label) => label.kind === "trace" && label.id === pinnedId,
+    )
+      ? [
+          ...state.hoverLabels,
+          {
+            kind: "trace" as const,
+            id: pinnedId,
+            token: -1,
+            active: true,
+            frame,
+          },
+        ]
+      : state.hoverLabels;
   const current =
     frame !== null &&
     frame.model === model &&
@@ -587,10 +587,6 @@ function MapLabels({
     frame.size.height === size.height &&
     frame.readingTopic === selectedTopic &&
     frame.matchingTraceIds === matchingTraceIds;
-  const handleTraceClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
-    const traceId = event.currentTarget.dataset.traceId;
-    if (traceId) onSelectTrace(traceId);
-  };
   const handleHoverTransitionEnd = (
     event: ReactTransitionEvent<HTMLDivElement>,
   ) => {
@@ -605,54 +601,23 @@ function MapLabels({
   };
   return (
     <div className="pointer-events-none absolute inset-0">
-      {current &&
-        frame!.nodes
-          .filter((node) => node.textOpacity > 0.001)
-          .map((node) => (
-            <button
-              key={node.point.traceId}
-              type="button"
-              data-topic-node=""
-              data-topic-trace={node.point.traceId}
-              data-trace-id={node.point.traceId}
-              data-testid="topic-map-trace-card"
-              data-hovered={node.point.traceId === hover.hoveredId}
-              data-text-opacity={node.textOpacity}
-              tabIndex={node.textOpacity >= 0.9 ? 0 : -1}
-              aria-pressed={node.point.traceId === selectedTraceId}
-              aria-label={`Select trace: ${node.point.summary}`}
-              onClick={handleTraceClick}
-              className="text-foreground focus-visible:outline-ring pointer-events-auto absolute cursor-pointer overflow-hidden rounded-lg px-2 py-1.5 text-left leading-relaxed focus-visible:outline-2"
-              style={{
-                left: node.rect.x,
-                top: node.rect.y,
-                width: node.rect.width,
-                height: node.rect.height,
-                opacity: node.textOpacity,
-                fontSize: node.fontSize,
-              }}
-            >
-              <span className="block">{node.excerpt}</span>
-            </button>
-          ))}
-      {state.hoverLabels.map((label) => {
+      {labels.map((label) => {
         if (!frame || frame.model !== model) return null;
         const active =
           current &&
           label.active &&
           (label.kind === "trace"
-            ? hover.hoveredId === label.id
+            ? hoveredTraceId === label.id
             : hover.hoveredZoneId === label.id) &&
           (previewOnSelect ||
             label.kind !== "trace" ||
-            (frame.nodeById.get(label.id)?.textOpacity ?? 1) < 0.65);
+            frame.nodeById.has(label.id));
         const source = active ? frame : label.frame;
         if (!source) return null;
         const hints = prepareMapHover(
           source,
           label.kind === "trace" ? label.id : null,
           label.kind === "zone" ? label.id : null,
-          previewOnSelect,
         );
         const trace = hints.traces[0];
         const zone = hints.zones[0];
@@ -723,6 +688,60 @@ function MapLabels({
   );
 }
 
+function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
+  const frame = useStore(store, (state) => state.frame);
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+      aria-hidden
+    >
+      {frame &&
+        prepareMapTextLabels(frame).map((label) => (
+          <div
+            key={label.id}
+            data-topic-background-label={label.id}
+            data-label-kind={label.kind}
+            className={cn(
+              "text-muted-foreground pointer-events-none absolute overflow-hidden text-center",
+              styles.backgroundLabel,
+            )}
+            style={{
+              left: label.rect.x,
+              top: label.rect.y,
+              width: label.rect.width,
+              height: label.rect.height,
+              opacity: label.opacity,
+            }}
+          >
+            <span
+              className={cn(
+                "line-clamp-2 block leading-[1.2]",
+                label.kind === "zone" && "font-bold",
+                styles.labelTitle,
+              )}
+              style={
+                {
+                  fontSize: label.fontSize,
+                  "--label-color": label.color,
+                } as CSSProperties
+              }
+            >
+              {label.title}
+            </span>
+            {label.description.length > 0 && (
+              <span
+                className="mt-1 line-clamp-2 block text-[11px] leading-relaxed"
+                style={{ opacity: label.detailOpacity }}
+              >
+                {label.description}
+              </span>
+            )}
+          </div>
+        ))}
+    </div>
+  );
+}
+
 function HoverCardHeader({ color, title }: { color: string; title: string }) {
   return (
     <span className="bg-muted/50 flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs">
@@ -735,76 +754,6 @@ function HoverCardHeader({ color, title }: { color: string; title: string }) {
         {title}
       </span>
     </span>
-  );
-}
-
-/** Monochrome film grain over the fields and dots. */
-function MapGrain({ opacity }: { opacity: number }) {
-  const id = useId();
-  return (
-    <svg
-      aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full mix-blend-multiply"
-      style={{ opacity }}
-    >
-      <filter id={id}>
-        <feTurbulence
-          type="fractalNoise"
-          baseFrequency="0.85"
-          numOctaves="2"
-          stitchTiles="stitch"
-        />
-        <feColorMatrix type="saturate" values="0" />
-        {/* Lifted toward white, so multiplying adds specks without greying the map. */}
-        <feComponentTransfer>
-          <feFuncR type="linear" slope="0.6" intercept="0.62" />
-          <feFuncG type="linear" slope="0.6" intercept="0.62" />
-          <feFuncB type="linear" slope="0.6" intercept="0.62" />
-        </feComponentTransfer>
-      </filter>
-      <rect width="100%" height="100%" filter={`url(#${id})`} />
-    </svg>
-  );
-}
-
-/** Topic names above their clusters, at a fixed size. */
-function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
-  const frame = useStore(store, (state) => state.frame);
-  const fullscreen = useStore(store, (state) => state.isFullscreen);
-  const { size, lineHeight } = TOPIC_MAP_LOOKS[LOOK].label;
-  return (
-    <div
-      className="pointer-events-none absolute inset-0 overflow-hidden"
-      aria-hidden
-    >
-      {frame &&
-        prepareMapTextLabels(frame, {
-          fontSize: size,
-          lineHeight,
-          atFit: fullscreen,
-        }).map((label) => (
-          <div
-            key={label.id}
-            data-topic-background-label={label.id}
-            title={label.title}
-            className={cn(
-              "absolute line-clamp-2 text-center",
-              styles.lookLabel,
-              styles.backgroundLabel,
-            )}
-            style={{
-              left: label.rect.x,
-              top: label.rect.y,
-              width: label.rect.width,
-              opacity: label.opacity,
-              fontSize: label.fontSize,
-              lineHeight: `${label.lineHeight}px`,
-            }}
-          >
-            {label.title}
-          </div>
-        ))}
-    </div>
   );
 }
 
@@ -830,6 +779,8 @@ export type TopicMapExplorerProps = {
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
   previewOnSelect?: boolean;
+  /** Keeps the selected trace's summary card open, e.g. while its peek shows. */
+  pinSelection?: boolean;
 };
 
 type LayoutReadoutProps = {
@@ -846,6 +797,6 @@ type MapLabelsProps = {
   selectedTopic: string | null;
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
-  onSelectTrace: (id: string) => void;
   previewOnSelect: boolean;
+  pinSelection: boolean;
 };

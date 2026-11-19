@@ -67,10 +67,6 @@ export interface JSONTableViewProps<T> {
   // Custom row rendering
   /** Render content before columns (e.g., tree indentation) */
   renderRowPrefix?: (item: T, isExpanded: boolean) => ReactNode;
-
-  // Styling
-  /** Additional class name for the container */
-  className?: string;
 }
 
 /**

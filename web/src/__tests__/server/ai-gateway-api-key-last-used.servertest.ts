@@ -221,6 +221,59 @@ describe("aiGateway.getApiKeysLastUsed", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("returns budget spend only for budgeted keys the caller can list", async () => {
+    const { org, ingestionProject } = await prepareOrganization();
+    const owner = await callerFor(org, Role.OWNER);
+    const member = await callerFor(org, Role.MEMBER);
+    await prisma.gatewayConfig.create({
+      data: {
+        organizationId: org.id,
+        defaultIngestionProjectId: ingestionProject.id,
+      },
+    });
+    const spendLimit = { interval: "MONTHLY" as const, limitUsd: 10 };
+    const ownerKey = await owner.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Owner key",
+      metadata: {},
+      spendLimit,
+    });
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Member key",
+      metadata: {},
+      spendLimit,
+    });
+    const unbudgetedKey = await member.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Unbudgeted key",
+      metadata: {},
+    });
+    const at = new Date();
+    await createEventsCh(
+      [ownerKey, memberKey, memberKey, unbudgetedKey].map((key) =>
+        createEvent({
+          ...gatewayRequest({
+            projectId: ingestionProject.id,
+            apiKeyId: key.id,
+            at,
+          }),
+          cost_details: { total: 2.5 },
+        }),
+      ),
+    );
+
+    await expect(
+      member.aiGateway.getApiKeysSpend({
+        orgId: org.id,
+        apiKeyIds: [ownerKey.id, memberKey.id, unbudgetedKey.id],
+      }),
+    ).resolves.toEqual({
+      available: true,
+      apiKeys: [{ id: memberKey.id, spentUsd: 5 }],
+    });
+  });
+
   it("reports usage as untracked in ingestion mode NONE or without an active ingestion project", async () => {
     const { org, ingestionProject } = await prepareOrganization();
     const owner = await callerFor(org, Role.OWNER);

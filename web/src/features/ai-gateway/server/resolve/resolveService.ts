@@ -24,6 +24,7 @@ import {
   getGatewayUpstream,
   getGatewayUpstreamSecret,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { findGatewayModelPricing } from "@/src/features/ai-gateway/server/resolve/gatewayModelPricing";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 
@@ -109,6 +110,15 @@ export class GatewayResolveService {
         baseURL: context.connection.baseURL,
         credential: decryptedCredential,
       });
+      // NONE mode records no spend, so it enforces no limits.
+      const spendLimits = deliversToLangfuse ? context.spendLimits : [];
+      const pricing =
+        spendLimits.length > 0 && ingestionProjectId
+          ? await findGatewayModelPricing({
+              projectId: ingestionProjectId,
+              providerModel: context.providerModel,
+            })
+          : null;
       const credential = await this.getUpstreamSecret({
         connectionId: context.connection.id,
         provider: context.connection.provider,
@@ -156,6 +166,8 @@ export class GatewayResolveService {
                 projectId: ingestionProjectId,
               })
             : null,
+        spend_limits: spendLimits,
+        pricing,
       };
     });
   }

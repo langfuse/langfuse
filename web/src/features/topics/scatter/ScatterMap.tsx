@@ -3,7 +3,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { TopicMapExplorer } from "./TopicMapExplorer";
 import { ScatterMapLoading } from "./ScatterMapLoading";
 
-/** The new scatter: blurred topic fields, ringed dots and grain over the saved 2D projection. */
+/** The Scatter view's map, with its error, loading and no-projection states. */
 export function ScatterMap({
   query,
   topics,
@@ -14,6 +14,7 @@ export function ScatterMap({
   matchingTraceIds,
   fillContainer = false,
   previewOnSelect = false,
+  pinSelection = false,
 }: ScatterMapProps) {
   if (query.error)
     return (
@@ -43,6 +44,7 @@ export function ScatterMap({
       matchingTraceIds={matchingTraceIds}
       fillContainer={fillContainer}
       previewOnSelect={previewOnSelect}
+      pinSelection={pinSelection}
     />
   );
 }
@@ -60,6 +62,8 @@ type ScatterMapProps = {
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
   previewOnSelect?: boolean;
+  /** Keeps the selected trace's summary card open, e.g. while its peek shows. */
+  pinSelection?: boolean;
 };
 
 type Topic = Pick<
