@@ -9,6 +9,7 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import {
+  sessionCountLabel,
   type TopicDisplay,
   UNASSIGNED_TOPIC_ID,
 } from "./prepare-topic-display";
@@ -167,13 +168,19 @@ function TopicTileButton({
     tier,
     showShare ? shareLabel : null,
   );
+  const sessions = sessionCountLabel(topic.sessionCount);
+  // Shares the count's line, so it needs no height of its own.
+  const tileSessions =
+    tier === "large" || tier === "medium"
+      ? sessionCountLabel(topic.sessionCount, { compact: true })
+      : null;
   return (
     <button
       {...triggerProps}
       type="button"
       onClick={selectTopic}
       aria-pressed={isSelected}
-      aria-label={`${topic.name}, ${topic.count} traces`}
+      aria-label={`${topic.name}, ${topic.count} traces${sessions ? `, ${sessions}` : ""}`}
       style={rect}
       className={cn(
         "absolute flex flex-col justify-between overflow-hidden rounded-md text-left",
@@ -203,10 +210,20 @@ function TopicTileButton({
       )}
       {showCount && (
         <span className="flex flex-col gap-0.5">
-          <span className={cn("font-bold tabular-nums", COUNT_SIZE[tier])}>
-            {compactNumberFormatter(
-              topic.count,
-              topic.count >= 100_000 ? 0 : 1,
+          <span className="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
+            <span className={cn("font-bold tabular-nums", COUNT_SIZE[tier])}>
+              {compactNumberFormatter(
+                topic.count,
+                topic.count >= 100_000 ? 0 : 1,
+              )}
+            </span>
+            {tileSessions && (
+              <span
+                title={sessions ?? undefined}
+                className="min-w-0 truncate text-xs tabular-nums opacity-80"
+              >
+                {tileSessions}
+              </span>
             )}
           </span>
           {showShare && (
@@ -235,6 +252,11 @@ function TopicTile(props: TopicTileProps) {
           <span className="text-muted-foreground text-xs">
             {topic.count.toLocaleString()} traces · {percentLabel}
           </span>
+          {topic.sessionCount !== undefined && (
+            <span className="text-muted-foreground text-xs">
+              {sessionCountLabel(topic.sessionCount)}
+            </span>
+          )}
           {capped && (
             <span className="text-muted-foreground text-xs">
               Shown smaller than its actual share so topics stay readable.

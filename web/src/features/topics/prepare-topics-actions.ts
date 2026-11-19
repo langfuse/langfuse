@@ -5,6 +5,7 @@ import {
   History,
   Plus,
   Settings,
+  Users,
   type IconComponent,
 } from "@langfuse/icons";
 
@@ -82,6 +83,7 @@ export function prepareTopicsActions({
   mapPickerShown,
   showUnassigned,
   onShowUnassignedChange,
+  sessionCounts,
   onGiveFeedback,
 }: {
   automaticProcessing: { state: AutomaticProcessingState; saving: boolean };
@@ -105,6 +107,11 @@ export function prepareTopicsActions({
   mapPickerShown: boolean;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
+  /** Internal view only: shows each topic's approximate session count. */
+  sessionCounts?: {
+    checked: boolean;
+    onCheckedChange: (show: boolean) => void;
+  };
   /** Opens the support form as Topics feedback. */
   onGiveFeedback?: () => void;
 }) {
@@ -178,6 +185,14 @@ export function prepareTopicsActions({
     refreshMap: refreshMap ?? null,
     menu,
     display,
+    sessionCounts: sessionCounts
+      ? ({
+          id: "show-session-counts",
+          label: "Show session counts",
+          icon: Users,
+          ...sessionCounts,
+        } as const)
+      : null,
     giveFeedback: onGiveFeedback ?? null,
   };
 }

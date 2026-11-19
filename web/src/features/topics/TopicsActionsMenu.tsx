@@ -1,6 +1,7 @@
 import { MessageSquare, Pencil } from "@langfuse/icons";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { type TopicsActions } from "./prepare-topics-actions";
 
 export function TopicsActionsMenu({
@@ -10,7 +11,7 @@ export function TopicsActionsMenu({
   actions: TopicsActions;
   closeMenu: (options?: { handoffFocus?: boolean }) => void;
 }) {
-  const { display } = actions;
+  const { display, sessionCounts } = actions;
   const DisplayIcon = display.icon;
   return (
     <>
@@ -53,6 +54,20 @@ export function TopicsActionsMenu({
         aria-pressed={display.checked}
         onClick={() => display.onCheckedChange(!display.checked)}
       />
+      {sessionCounts && (
+        <HeaderActionMenuRow
+          label={sessionCounts.label}
+          icon={<sessionCounts.icon size="base" color="default" />}
+          badge={
+            <span className="flex items-center gap-1">
+              <FeatureReleaseStatus status="internal" />
+              <Badge text={sessionCounts.checked ? "On" : "Off"} size="sm" />
+            </span>
+          }
+          aria-pressed={sessionCounts.checked}
+          onClick={() => sessionCounts.onCheckedChange(!sessionCounts.checked)}
+        />
+      )}
       {actions.giveFeedback && (
         <HeaderActionMenuRow
           label="Give feedback"
