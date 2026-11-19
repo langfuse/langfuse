@@ -15,9 +15,22 @@ environment variables. The configured user needs to read the `events_full`
 schema and create, insert into, select from, and drop the test tables. An
 unavailable ClickHouse server fails the run.
 
-The corpus, integration, and property suites replay identical stored JSON bytes through the original TypeScript, early-media TypeScript, and early-media Rust paths. The Rust path also performs normalization, enrichment, and remaining media detection in Rust. Model and prompt lookups, media uploads, and evaluation scheduling use test doubles.
+## What a replay checks
 
-Each replay creates isolated Memory tables from the live schema and uses the production JSON and Native writer singletons. A thin client adapter substitutes the temporary destination table for production table names and rejects unmapped inserts. Blob-storage file logging and background trace evaluation jobs are disabled. The harness drains the writer before reading persisted rows. The integration suite also covers dual writes by draining only its queued legacy jobs into isolated trace and observation tables and removing those jobs even when legacy processing fails. The suites keep generated seeds reproducible and disable retries. Memory tables cover ClickHouse types, defaults, and serialization; MergeTree deduplication and production materialized views are outside the run.
+1. Run the same stored JSON through original TypeScript, TypeScript with early
+   media extraction, and Rust with early media extraction. The Rust
+   path also normalizes and enriches spans and detects remaining media.
+2. Let each production writer encode and send its insert. The test client
+   redirects, for example, an `events_full` insert to a fresh table with the
+   same columns and defaults. An insert into an unexpected table fails the test.
+3. Flush the writers and compare the rows ClickHouse stored. In dual-write
+   tests, the harness also processes its own legacy jobs and checks the trace
+   and observation tables. It removes those jobs even if processing fails.
+
+The test tables use the Memory engine. They exercise serialization, column types,
+and defaults. MergeTree deduplication and materialized views need separate coverage.
+Generated cases have reproducible seeds. The harness disables retries, blob-storage
+file logging, and background trace evaluation jobs.
 
 ## Scope and caveats
 
