@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import {
   forwardRef,
   type ComponentPropsWithoutRef,
@@ -6,11 +5,7 @@ import {
 } from "react";
 import { X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 type FacetHeaderProps = Pick<
@@ -82,33 +77,36 @@ export const FacetHeader = forwardRef<HTMLButtonElement, FacetHeaderProps>(
           )}
         </div>
         {isActive && onReset && (
-          <Tooltip delayDuration={80}>
-            <TooltipTrigger asChild>
-              {/* The accordion trigger is already a button. */}
+          <Tooltip
+            delay={80}
+            placement="right"
+            label={`Clear ${label.toLowerCase()} filter`}
+          >
+            {({ getTriggerProps }) => (
+              // The accordion trigger is already a button.
               <div
                 role="button"
                 tabIndex={0}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onReset();
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
+                {...getTriggerProps({
+                  onClick: (event) => {
                     event.stopPropagation();
-                    event.preventDefault();
                     onReset();
-                  }
-                }}
+                  },
+                  onKeyDown: (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.stopPropagation();
+                      event.preventDefault();
+                      onReset();
+                    }
+                  },
+                })}
                 className="text-muted-foreground hover:text-foreground flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
                 aria-label={`Clear ${label} filter`}
               >
                 <X size="sm" />
                 Clear
               </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="text-xs">
-              Clear {label.toLowerCase()} filter
-            </TooltipContent>
+            )}
           </Tooltip>
         )}
       </button>
