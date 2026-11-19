@@ -15,6 +15,7 @@ export type BaseUrlPickerProps = {
   onChange: (baseURL: string) => void;
   onBlur?: () => void;
   error?: boolean;
+  disabled?: boolean;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
   ref?: Ref<HTMLInputElement>;
@@ -28,13 +29,17 @@ export function BaseUrlPicker({
   onChange,
   onBlur,
   error,
+  disabled,
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
   ref,
 }: BaseUrlPickerProps) {
   const matchedPreset = findBaseUrlPreset(presets, value);
-  // Stays on Custom once chosen, even while the typed URL equals a preset.
-  const [isCustomSelected, setIsCustomSelected] = useState(false);
+  // Custom stays selected until a preset is picked, so clearing or retyping a
+  // custom URL never swaps the input out from under the user.
+  const [isCustomSelected, setIsCustomSelected] = useState(
+    () => !matchedPreset,
+  );
   const isCustom = isCustomSelected || !matchedPreset;
   const options = [
     ...presets.map((preset) => ({
@@ -74,6 +79,7 @@ export function BaseUrlPicker({
         onValueChange={handleOptionChange}
         placeholder="Select a base URL"
         noCapture
+        disabled={disabled}
         aria-describedby={ariaDescribedBy}
         aria-invalid={!isCustom && ariaInvalid}
         error={!isCustom && error}
@@ -85,13 +91,21 @@ export function BaseUrlPicker({
           aria-label="Custom base URL"
           placeholder="https://proxy.example.com/v1"
           value={value}
+          disabled={disabled}
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid}
           error={error}
           onChange={handleCustomURLChange}
           onBlur={onBlur}
         />
-      ) : null}
+      ) : (
+        <p
+          title={matchedPreset.url}
+          className="text-muted-foreground truncate px-3 font-mono text-xs"
+        >
+          {matchedPreset.url}
+        </p>
+      )}
     </div>
   );
 }
