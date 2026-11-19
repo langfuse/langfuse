@@ -38,9 +38,15 @@ export function AdvancedSettings({
   onHeadersChange: (headers: ExtraHeaderRow[]) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  // An error opens the section and it stays open, so the error is never hidden
-  // and fixing the URL doesn't unmount the field mid-edit.
-  if (baseURLError && !isExpanded) setIsExpanded(true);
+  const [shownBaseURLError, setShownBaseURLError] = useState<string | null>(
+    null,
+  );
+  // A new error opens the section once. Open state stays with the user, so
+  // fixing the URL never collapses it and closing it always works.
+  if (baseURLError !== shownBaseURLError) {
+    setShownBaseURLError(baseURLError);
+    if (baseURLError) setIsExpanded(true);
+  }
 
   const handleBaseURLChange = (event: ChangeEvent<HTMLInputElement>) => {
     onBaseURLChange(event.target.value);

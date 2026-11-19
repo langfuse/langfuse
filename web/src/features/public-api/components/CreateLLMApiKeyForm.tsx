@@ -11,7 +11,6 @@ import {
   type VertexAIConfig,
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
-  getInvalidLlmBaseUrlReason,
   getLlmBaseUrlFormatError,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
@@ -57,6 +56,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import type { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
+import {
+  getBaseURLFieldPlacement,
+  getLlmConnectionSaveErrorTarget,
+} from "@/src/features/public-api/fns/getLlmConnectionSaveErrorTarget";
 import {
   AuthMethod,
   BedrockAuthMethodSchema,
@@ -538,15 +541,6 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.VertexAI ||
     adapter === LLMAdapter.GoogleAIStudio ||
     adapter === LLMAdapter.TypeSafe;
-  const isBaseURLInAdvancedSettings =
-    hasAdvancedSettings(currentAdapter) &&
-    currentAdapter !== LLMAdapter.TypeSafe;
-  const isBaseURLFieldShown =
-    isBaseURLInAdvancedSettings ||
-    currentAdapter === LLMAdapter.Azure ||
-    (currentAdapter === LLMAdapter.TypeSafe &&
-      currentTypeSafeUpstream.id === "custom");
-
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "customModels",
@@ -686,17 +680,25 @@ export function CreateLLMApiKeyForm({
   };
 
   const showSaveError = (message: string) => {
-    const baseURLReason = getInvalidLlmBaseUrlReason(message);
-    if (baseURLReason === null || !isBaseURLFieldShown) {
-      form.setError("root", { type: "manual", message });
+    const target = getLlmConnectionSaveErrorTarget({
+      message,
+      adapter: currentAdapter,
+      typeSafeUpstreamId: currentTypeSafeUpstream.id,
+    });
+    if (target.field === "root") {
+      form.setError("root", { type: "manual", message: target.message });
       return;
     }
-    form.setError("baseURL", { type: "server", message: baseURLReason });
-    if (isBaseURLInAdvancedSettings) setShowAdvancedSettings(true);
+    form.setError("baseURL", { type: "server", message: target.message });
+    if (target.opensAdvancedSettings) setShowAdvancedSettings(true);
   };
 
   const handleInvalidSubmit = (errors: typeof form.formState.errors) => {
-    if (errors.baseURL && isBaseURLInAdvancedSettings) {
+    const placement = getBaseURLFieldPlacement(
+      currentAdapter,
+      currentTypeSafeUpstream.id,
+    );
+    if (errors.baseURL && placement === "advanced") {
       setShowAdvancedSettings(true);
     }
   };

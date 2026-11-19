@@ -158,13 +158,13 @@ export function ProviderDialogController({
         }) ?? serverNameError);
 
   /** The server skips an unchanged base URL, as it was validated when it was saved. */
-  const getBaseURLError = (selectedConnection: GatewayConnection | null) => {
+  const getBaseURLFormatError = (
+    selectedConnection: GatewayConnection | null,
+  ) => {
     const trimmed = baseURL.trim();
-    const formatError =
-      trimmed && trimmed !== (selectedConnection?.baseURL ?? "")
-        ? getLlmBaseUrlFormatError(trimmed, isLangfuseCloud)
-        : null;
-    return formatError ?? serverBaseURLError;
+    return trimmed && trimmed !== (selectedConnection?.baseURL ?? "")
+      ? getLlmBaseUrlFormatError(trimmed, isLangfuseCloud)
+      : null;
   };
 
   /** Bedrock's region and Vertex AI's location are fixed once saved, so edits reuse the stored one. */
@@ -363,8 +363,13 @@ export function ProviderDialogController({
         const isMissingEndpoint =
           dialogProvider === "AZURE" && !isValidAzureResource(azureResource);
         const hasBaseURLField = supportsCustomEndpoint(dialogProvider);
+        const baseURLFormatError = hasBaseURLField
+          ? getBaseURLFormatError(selectedConnection)
+          : null;
+        // Server rejections can be transient, like a failed DNS lookup, so
+        // only format errors block a retry.
         const baseURLError = hasBaseURLField
-          ? getBaseURLError(selectedConnection)
+          ? (baseURLFormatError ?? serverBaseURLError)
           : null;
         const isSaveError =
           Boolean(saveError) &&
@@ -509,7 +514,7 @@ export function ProviderDialogController({
                   !credential ||
                   isMissingRegion ||
                   isMissingEndpoint ||
-                  Boolean(baseURLError) ||
+                  Boolean(baseURLFormatError) ||
                   isPending
                 }
                 loading={test.isPending}
@@ -524,7 +529,7 @@ export function ProviderDialogController({
                   (!selectedConnection && !credential) ||
                   isMissingRegion ||
                   isMissingEndpoint ||
-                  Boolean(baseURLError) ||
+                  Boolean(baseURLFormatError) ||
                   isPending ||
                   isSaved
                 }
