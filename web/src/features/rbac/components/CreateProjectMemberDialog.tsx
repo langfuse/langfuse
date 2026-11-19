@@ -4,6 +4,7 @@ import { useId, type ComponentProps } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import {
   Form,
@@ -17,44 +18,8 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
-import {
-  ALREADY_ORGANIZATION_MEMBER_MESSAGE,
-  ALREADY_PROJECT_MEMBER_MESSAGE,
-  ORGANIZATION_ROLE_TOO_HIGH_MESSAGE,
-  PENDING_MEMBERSHIP_INVITE_MESSAGE,
-  PROJECT_ROLE_TOO_HIGH_MESSAGE,
-} from "@/src/features/rbac/constants/membershipErrorMessages";
+import { placeMemberInviteError } from "@/src/features/rbac/fns/placeMemberInviteError";
 import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
-
-const EMAIL_FIELD_MESSAGES = new Set<string>([
-  ALREADY_PROJECT_MEMBER_MESSAGE,
-  ALREADY_ORGANIZATION_MEMBER_MESSAGE,
-  PENDING_MEMBERSHIP_INVITE_MESSAGE,
-]);
-
-function placeMemberInviteError(
-  error: unknown,
-  fields: { orgRole: boolean; projectRole: boolean },
-): {
-  field: "email" | "orgRole" | "projectRole" | "root";
-  message: string;
-} {
-  const message =
-    error instanceof Error && error.message.length > 0
-      ? error.message
-      : "Failed to add member";
-
-  if (EMAIL_FIELD_MESSAGES.has(message)) {
-    return { field: "email", message };
-  }
-  if (message === ORGANIZATION_ROLE_TOO_HIGH_MESSAGE && fields.orgRole) {
-    return { field: "orgRole", message };
-  }
-  if (message === PROJECT_ROLE_TOO_HIGH_MESSAGE && fields.projectRole) {
-    return { field: "projectRole", message };
-  }
-  return { field: "root", message };
-}
 
 const roleValues = {
   OWNER: "OWNER",
@@ -167,9 +132,9 @@ export function CreateProjectMemberDialog({
         >
           <Dialog.Body>
             {formError ? (
-              <p role="alert" className="text-destructive text-sm font-bold">
-                {formError}
-              </p>
+              <Alert variant="destructive" size="sm">
+                <Alert.Description>{formError}</Alert.Description>
+              </Alert>
             ) : null}
             <FormField
               control={form.control}

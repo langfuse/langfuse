@@ -1,7 +1,8 @@
 /**
  * Sentences `members.create` returns when the address cannot be invited.
- * The unique-constraint path builds the same already-member sentences in
- * `rethrowIfMembershipExists`.
+ * A concurrent insert hits the membership unique constraint.
+ * `rethrowIfMembershipExists` in `@langfuse/shared` returns the same
+ * already-member sentences as a 409.
  */
 export const ALREADY_PROJECT_MEMBER_MESSAGE =
   "User is already a member of this project";

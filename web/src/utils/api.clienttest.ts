@@ -659,6 +659,21 @@ describe("isExpectedTrpcClientError", () => {
     expect(isExpectedTrpcClientError(error)).toBe(true);
   });
 
+  it("treats an already-member invite conflict as expected", () => {
+    // members.create returns 409 only from the membership unique constraint
+    // (`rethrowIfMembershipExists`). The invite form shows that sentence.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "CONFLICT",
+          httpStatus: 409,
+          path: "members.create",
+          message: "User is already a member of this project",
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("does not treat CONFLICT on other procedures as expected", () => {
     // Negative fixture: duplicate-name / unique-constraint CONFLICTs must
     // still reach Sentry. Widening the allowlist would hide those.

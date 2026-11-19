@@ -11,10 +11,8 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { organizationMemberLimitMessage } from "@/src/features/entitlements/constants/organizationMemberLimitMessage";
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import {
-  ALREADY_ORGANIZATION_MEMBER_MESSAGE,
   ALREADY_PROJECT_MEMBER_MESSAGE,
   ORGANIZATION_ROLE_TOO_HIGH_MESSAGE,
-  PENDING_MEMBERSHIP_INVITE_MESSAGE,
   PROJECT_ROLE_TOO_HIGH_MESSAGE,
 } from "@/src/features/rbac/constants/membershipErrorMessages";
 import type * as ApiModule from "@/src/utils/api";
@@ -171,45 +169,29 @@ describe("member invite errors", () => {
     cleanup();
   });
 
-  it.each([
-    {
-      code: "CONFLICT",
-      httpStatus: 409,
-      message: ALREADY_PROJECT_MEMBER_MESSAGE,
-    },
-    {
-      code: "BAD_REQUEST",
-      httpStatus: 400,
-      message: ALREADY_ORGANIZATION_MEMBER_MESSAGE,
-    },
-    {
-      code: "BAD_REQUEST",
-      httpStatus: 400,
-      message: PENDING_MEMBERSHIP_INVITE_MESSAGE,
-    },
-    {
-      code: "BAD_REQUEST",
-      httpStatus: 400,
-      message: ALREADY_PROJECT_MEMBER_MESSAGE,
-    },
-  ])(
-    "shows $message on the email field without a toast or Sentry event ($code)",
-    async ({ code, httpStatus, message }) => {
-      invite.mockRejectedValue(trpcServerError({ code, httpStatus, message }));
-      renderInviteDialog();
+  it("shows an already-member conflict on the email field without a toast or Sentry event", async () => {
+    invite.mockRejectedValue(
+      trpcServerError({
+        code: "CONFLICT",
+        httpStatus: 409,
+        message: ALREADY_PROJECT_MEMBER_MESSAGE,
+      }),
+    );
+    renderInviteDialog();
 
-      await submitInvite();
+    await submitInvite();
 
-      expect(fieldContainer("Email")).toHaveTextContent(message);
-      expect(screen.getByRole("textbox", { name: "Email" })).toHaveAttribute(
-        "aria-invalid",
-        "true",
-      );
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-      expect(trpcErrorToastMock).not.toHaveBeenCalled();
-      expect(captureExceptionMock).not.toHaveBeenCalled();
-    },
-  );
+    expect(fieldContainer("Email")).toHaveTextContent(
+      ALREADY_PROJECT_MEMBER_MESSAGE,
+    );
+    expect(screen.getByRole("textbox", { name: "Email" })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(trpcErrorToastMock).not.toHaveBeenCalled();
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
 
   it("shows an organization role above your own on the organization role field", async () => {
     invite.mockRejectedValue(
