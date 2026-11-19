@@ -13,7 +13,7 @@ import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
  *
  * Only settings a project can choose belong here. Reasoning effort, provider
  * options, retries, timeouts and the naming output limit are derived from the
- * model in `models.ts` and `packages/shared/src/server/topics/{text,embeddings}.ts`;
+ * model in `../models.ts` and `packages/shared/src/server/topics/{text,embeddings}.ts`;
  * to cover another derivation, register a model that triggers it.
  */
 export const TOPICS_LLM_COMBINATIONS: TopicsLlmCombination[] = [
