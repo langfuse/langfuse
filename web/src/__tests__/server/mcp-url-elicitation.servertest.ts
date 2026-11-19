@@ -5,6 +5,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import {
   Client,
   StreamableHTTPClientTransport,
+  type ClientCapabilities,
 } from "@modelcontextprotocol/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { LLMAdapter } from "@langfuse/shared";
@@ -40,13 +41,15 @@ describe("MCP URL elicitation", () => {
     await new Promise((resolve) => httpServer.close(resolve));
   });
 
+  type TestClient = {
+    pin?: "2026-07-28";
+    elicitation: ClientCapabilities["elicitation"];
+  };
+
   /** Calls the tool from a client that accepts every elicitation it gets. */
   async function setDefaultModel(
     provider: string,
-    client: {
-      pin?: "2026-07-28";
-      elicitation: { url?: object; form?: object };
-    } = { pin: "2026-07-28", elicitation: { url: {} } },
+    client: TestClient = { pin: "2026-07-28", elicitation: { url: {} } },
   ) {
     const requests: { message: string; url: string }[] = [];
     const mcpClient = new Client(
@@ -77,14 +80,14 @@ describe("MCP URL elicitation", () => {
     }
   }
 
-  it.each([
+  it.each<{ label: string; client: TestClient }>([
     {
       label: "2025-era clients",
       client: { elicitation: { url: {} } },
     },
     {
       label: "2026-07-28 clients without URL elicitation",
-      client: { pin: "2026-07-28" as const, elicitation: { form: {} } },
+      client: { pin: "2026-07-28", elicitation: { form: {} } },
     },
   ])("returns the original error to $label", async ({ client }) => {
     const provider = `mcp-url-${randomUUID()}`;
