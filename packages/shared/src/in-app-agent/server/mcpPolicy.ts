@@ -368,6 +368,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "scores:save" },
   },
+  batchCreateScores: {
+    approval: "approval",
+    availability: { scope: "scores:save" },
+  },
   listScoreConfigs: {
     approval: "auto",
     availability: { scope: "scoreConfigs:read" },

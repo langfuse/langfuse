@@ -664,6 +664,12 @@ const EnvSchema = z.object({
     .positive()
     .default(10_000), // Max items (media files) to process per batch
 
+  // Deletes stored events-dispatch transcripts older than three days. Off until
+  // enabled so workers do not list the bucket by default.
+  LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+
   // Batch Trace Deletion Cleaner configuration
   LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED: z
     .enum(["true", "false"])

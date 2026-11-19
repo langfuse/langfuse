@@ -249,6 +249,7 @@ describe("MCP public API tools", () => {
       [
         "addDashboardPlacement",
         "attachEvaluatorToEvaluationRule",
+        "batchCreateScores",
         "batchUpsertDatasetItems",
         "createChatPrompt",
         "createDashboard",

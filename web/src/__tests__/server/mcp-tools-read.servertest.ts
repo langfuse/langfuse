@@ -136,6 +136,7 @@ import {
   createScoreTool,
   handleCreateScore,
 } from "@/src/features/mcp/server/scores/tools/createScore";
+import { handleBatchCreateScores } from "@/src/features/mcp/server/scores/tools/batchCreateScores";
 import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
@@ -3847,6 +3848,46 @@ describe("MCP Read Tools", () => {
         resourceId: scoreId,
         action: "create",
       });
+    });
+  });
+
+  describe("batchCreateScores tool", () => {
+    it("creates each score with its own audit log", async () => {
+      const { context, projectId, apiKeyId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const scoreIds = [randomUUID(), randomUUID()];
+
+      const result = await handleBatchCreateScores(
+        {
+          scores: scoreIds.map((id, index) => ({
+            id,
+            traceId,
+            name: `mcp-batch-score-${index}`,
+            value: index,
+            dataType: "NUMERIC",
+            environment: "default",
+            source: "API",
+          })),
+        },
+        context,
+      );
+
+      const url = buildTraceUrl({ projectId, traceId });
+      expect(result).toEqual({
+        data: scoreIds.map((id, index) => ({ index, id, url })),
+        errors: [],
+      });
+      for (const resourceId of scoreIds) {
+        await expect(
+          verifyAuditLog({
+            projectId,
+            apiKeyId,
+            resourceType: "score",
+            resourceId,
+            action: "create",
+          }),
+        ).resolves.toMatchObject({ resourceId, action: "create" });
+      }
     });
   });
 
