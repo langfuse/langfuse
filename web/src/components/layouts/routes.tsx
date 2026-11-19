@@ -43,7 +43,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import {
   GATEWAY_PAGE_SLUGS,
   type GatewayPageSlug,
@@ -222,7 +221,7 @@ export const ROUTES: Route[] = [
     title: "Topics",
     href: "/project/[projectId]/topics",
     icon: Grid2X2,
-    label: <TopicsInternalBadge />,
+    label: <FeatureReleaseStatus status="beta" />,
     show: ({ canViewTopics }) => canViewTopics,
     group: RouteGroup.Observability,
     section: RouteSection.Main,
@@ -424,13 +423,6 @@ function GatewayKeyReminderDot() {
       aria-label="Get your AI Gateway API key"
       className="size-1.75 shrink-0 rounded-full bg-orange-400"
     />
-  ) : null;
-}
-
-function TopicsInternalBadge() {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  return internalFeaturesEnabled ? (
-    <FeatureReleaseStatus status="internal" />
   ) : null;
 }
 

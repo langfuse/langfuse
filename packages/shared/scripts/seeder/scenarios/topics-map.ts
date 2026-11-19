@@ -109,6 +109,20 @@ const ISSUE_TOPICS: SeedTopic[] = [
   },
 ];
 
+// The enterprise rule fits its own Intent map on fewer traces, so its topics
+// have other names than the first rule's.
+const ENTERPRISE_INTENT_TOPICS: SeedTopic[] = [
+  {
+    name: "Enterprise invoices and seat changes",
+    description: "Annual-plan invoices, seat counts and procurement.",
+    count: 34,
+  },
+  {
+    name: "Production incidents on SSO workspaces",
+    description: "Errors and outages reported by enterprise teams.",
+    count: 14,
+  },
+];
 const OUTLIERS = 7;
 const AWAITING = 4;
 const DIMENSIONS = 16;
@@ -144,7 +158,7 @@ const OUTLIER_REQUESTS = [
 export const topicsMapScenario: ScenarioDefinition = {
   name: "topics-map",
   description:
-    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project.",
+    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, a second Intent map with its own topic names, long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project.",
   supportsV4: true,
   flags: [],
   run: async (ctx, params) => {
@@ -384,7 +398,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         runId: `${runPrefix}-enterprise-intent`,
         rule: rules[1]!,
         facet: intent,
-        topics: INTENT_TOPICS,
+        topics: ENTERPRISE_INTENT_TOPICS,
         topicOf: (index: number) => intentOf[index],
         members: (index: number) => index < SECOND_RULE_TRACES,
         summaries: intentSummaries,

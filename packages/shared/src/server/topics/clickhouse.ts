@@ -1210,8 +1210,8 @@ export async function readLatestTopicAssignments(
 }
 
 /**
- * Each trace's latest placement per facet and rule, in any run of the rules, or in
- * the published runs for maps without a rule and rows from before rule ids were stored.
+ * Each trace's latest placement per facet and rule, in any run of the rules, or in the published
+ * runs for maps without a rule and older rows; outliers, with an empty topic id, only when asked.
  */
 export async function readCurrentTraceTopics(
   projectId: string,
@@ -1220,11 +1220,13 @@ export async function readCurrentTraceTopics(
     facetIds,
     ruleIds,
     publishedRunIds,
+    includeOutliers = false,
   }: {
     traces: { traceId: string; timestamp: Date }[];
     facetIds: string[];
     ruleIds: string[];
     publishedRunIds: string[];
+    includeOutliers?: boolean;
   },
 ) {
   const times = traces.map((trace) => trace.timestamp.getTime());
@@ -1258,7 +1260,7 @@ export async function readCurrentTraceTopics(
     },
     tags: { route: "topics-trace-topics", projectId },
   });
-  return rows.filter((row) => row.topicId !== "");
+  return includeOutliers ? rows : rows.filter((row) => row.topicId !== "");
 }
 
 /**

@@ -3,6 +3,7 @@ import {
   entitlementAccess,
   type EntitlementLimit,
 } from "@/src/features/entitlements/constants/entitlements";
+import { organizationMemberLimitMessage } from "@/src/features/entitlements/constants/organizationMemberLimitMessage";
 import { type Plan } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
@@ -109,7 +110,11 @@ export const throwIfExceedsLimit = (
     const limit = hasEntitlementLimit(p);
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: `Usage (${p.currentUsage}) exceeds the limit (${limit}) for entitlement: ${p.entitlementLimit}`,
+      message:
+        p.entitlementLimit === "organization-member-count" &&
+        typeof limit === "number"
+          ? organizationMemberLimitMessage(p.currentUsage, limit)
+          : `Usage (${p.currentUsage}) exceeds the limit (${limit}) for entitlement: ${p.entitlementLimit}`,
     });
   }
 };

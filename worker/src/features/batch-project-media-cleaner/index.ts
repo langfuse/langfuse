@@ -1,4 +1,5 @@
 import {
+  deleteDatasetMediaLinksByMediaIds,
   deleteMediaLinkRowsByProjectId,
   deleteMediaFiles,
   findAllMediaByProjectId,
@@ -90,21 +91,35 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
   private async deleteMediaChunk(projectId: string): Promise<number> {
     const batchSize = env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE;
 
-    await deleteMediaLinkRowsByProjectId({ projectId });
-
-    const mediaFiles = await findAllMediaByProjectId({
+    // One extra row tells whether this is the project's last chunk.
+    const fetched = await findAllMediaByProjectId({
       projectId,
-      limit: batchSize,
+      limit: batchSize + 1,
     });
+    const mediaFiles = fetched.slice(0, batchSize);
+    const isLastChunk = fetched.length <= batchSize;
 
     recordGauge(`${METRIC_PREFIX}.batch_items`, mediaFiles.length, {
       projectId,
     });
 
+    // The project is no longer picked once its media is gone, so the
+    // remaining link rows are swept before the last chunk. If the sweep
+    // fails, the media survives and the next tick retries it.
+    if (isLastChunk) {
+      await this.deleteOrphanLinks(projectId);
+    }
+
     if (mediaFiles.length === 0) {
-      logger.info(`${this.instanceName}: No media remaining`, { projectId });
       return env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS;
     }
+
+    // Claimed dataset links protect media from deleteMediaFiles; in a deleted
+    // project they no longer should.
+    await deleteDatasetMediaLinksByMediaIds({
+      projectId,
+      mediaIds: mediaFiles.map((f) => f.id),
+    });
 
     const deletedCount = await deleteMediaFiles({
       projectId,
@@ -121,9 +136,17 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
     logger.info(`${this.instanceName}: Deleted media chunk`, {
       projectId,
       count: deletedCount,
-      hasMore: mediaFiles.length >= batchSize,
+      hasMore: !isLastChunk,
     });
 
     return env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS;
+  }
+
+  private async deleteOrphanLinks(projectId: string): Promise<void> {
+    logger.info(`${this.instanceName}: Sweeping media links`, { projectId });
+    await deleteMediaLinkRowsByProjectId({
+      projectId,
+      batchSize: env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE,
+    });
   }
 }
