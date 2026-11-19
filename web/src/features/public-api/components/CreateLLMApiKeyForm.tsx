@@ -32,6 +32,11 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { BaseUrlPicker } from "@/src/components/BaseUrlPicker";
+import {
+  OPENAI_DATA_RESIDENCY_HINT,
+  openAiBaseUrlPresets,
+} from "@/src/constants/openAiBaseUrlPresets";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import {
   Select,
@@ -1585,28 +1590,42 @@ export function CreateLLMApiKeyForm({
                     <FormField
                       control={form.control}
                       name="baseURL"
-                      render={({ field }) => (
+                      render={({ field, fieldState }) => (
                         <FormItem>
                           <FormLabel>API Base URL</FormLabel>
-                          <FormDescription>
-                            Leave blank to use the default base URL for the
-                            given LLM adapter.{" "}
-                            {currentAdapter === LLMAdapter.OpenAI && (
-                              <span>
-                                OpenAI default: https://api.openai.com/v1
-                              </span>
-                            )}
-                            {currentAdapter === LLMAdapter.Anthropic && (
-                              <span>
-                                Anthropic default: https://api.anthropic.com
-                                (excluding /v1/messages)
-                              </span>
-                            )}
-                          </FormDescription>
-
-                          <FormControl>
-                            <Input {...field} placeholder="default" />
-                          </FormControl>
+                          {currentAdapter === LLMAdapter.OpenAI ? (
+                            <>
+                              <FormDescription>
+                                {OPENAI_DATA_RESIDENCY_HINT}
+                              </FormDescription>
+                              <FormControl>
+                                <BaseUrlPicker
+                                  presets={openAiBaseUrlPresets}
+                                  value={field.value}
+                                  error={Boolean(fieldState.error)}
+                                  onChange={field.onChange}
+                                  onBlur={field.onBlur}
+                                  ref={field.ref}
+                                />
+                              </FormControl>
+                            </>
+                          ) : (
+                            <>
+                              <FormDescription>
+                                Leave blank to use the default base URL for the
+                                given LLM adapter.{" "}
+                                {currentAdapter === LLMAdapter.Anthropic && (
+                                  <span>
+                                    Anthropic default: https://api.anthropic.com
+                                    (excluding /v1/messages)
+                                  </span>
+                                )}
+                              </FormDescription>
+                              <FormControl>
+                                <Input {...field} placeholder="default" />
+                              </FormControl>
+                            </>
+                          )}
 
                           <FormMessage />
                         </FormItem>
