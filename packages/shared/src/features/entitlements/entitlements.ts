@@ -1,4 +1,4 @@
-import { type Plan } from "@langfuse/shared";
+import { type Plan } from "./plans";
 
 // Entitlements: Binary feature access
 const entitlements = [
@@ -202,4 +202,18 @@ export const entitlementAccess: Record<
       "monitor-count": false,
     },
   },
+};
+
+/**
+ * Check if a plan grants a specific entitlement.
+ */
+export const hasEntitlementBasedOnPlan = ({
+  plan,
+  entitlement,
+}: {
+  plan: Plan | null;
+  entitlement: Entitlement;
+}) => {
+  if (!plan) return false;
+  return entitlementAccess[plan].entitlements.includes(entitlement);
 };

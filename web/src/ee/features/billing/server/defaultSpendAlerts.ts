@@ -1,9 +1,8 @@
-import { type Plan } from "@langfuse/shared";
+import { type Plan, mapStripeProductIdToPlan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeCatalogue";
 
 /**
  * Seeding of the default spend alerts a paid organization starts out with.

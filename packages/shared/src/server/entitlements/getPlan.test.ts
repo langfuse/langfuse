@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { CloudConfigSchema } from "@langfuse/shared";
+import { env } from "../../env";
+import { getOrganizationPlanServerSide } from "./getPlan";
+import { CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
 
 const CHB_ORG_ID = "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a";
 const STRIPE_TEAM_PRODUCT_ID = "prod_QhK9qKGH25BTcS";
@@ -11,18 +12,14 @@ const cloudConfig = (input: unknown) => CloudConfigSchema.parse(input);
 // getOrganizationPlanServerSide only resolves cloud plans when a cloud region is
 // set; without it every case would short-circuit to the self-hosted branch.
 describe("getOrganizationPlanServerSide (cloud)", () => {
-  const originalRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
   beforeAll(() => {
-    process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "DEV" });
   });
 
   afterAll(() => {
-    if (originalRegion === undefined) {
-      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    } else {
-      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
-    }
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion });
   });
 
   it.each([
