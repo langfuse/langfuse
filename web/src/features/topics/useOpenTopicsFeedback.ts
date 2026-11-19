@@ -10,7 +10,8 @@ export function useOpenTopicsFeedback() {
     openWithMode("form", {
       messageType: "Feedback",
       topic: "Observability",
-      message: "Topics: ",
+      message:
+        "I have some feedback to share related to the new Topics feature.\n\n",
     });
   };
 }
