@@ -6,7 +6,7 @@ import {
   createTopicRun,
   enqueueTopicRuleRefit,
   getEnabledTopicsModels,
-  getTopicSummaryCounts,
+  hasCompatibleTopicSummaries,
   getTopicRuleMap,
   isTopicRuleSetupActive,
   listTopicFacets,
@@ -279,13 +279,10 @@ async function hasNewSummaries(
     now.getTime() - TOPICS_MAX_TIME_RANGE_MS,
   );
   if (from >= now.getTime()) return false;
-  const [{ count }] = await getTopicSummaryCounts(
-    projectId,
-    [facet],
-    embeddingConfig,
-    { from: new Date(from), to: now },
-  );
-  return count > 0;
+  return hasCompatibleTopicSummaries(projectId, facet, embeddingConfig, {
+    from: new Date(from),
+    to: now,
+  });
 }
 
 export class TopicsNightlyRefitRunner extends PeriodicExclusiveRunner {

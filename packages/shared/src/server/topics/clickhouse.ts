@@ -704,6 +704,42 @@ export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/**
+ * Whether any compatible complete summary of the facet exists in the window: one row, not a count.
+ * Unlike getTopicSummaryCounts it does not resolve each unit's latest version, so a unit whose latest
+ * revision is no longer complete can still count; at worst that schedules one unneeded refit.
+ */
+export async function hasCompatibleTopicSummaries(
+  projectId: string,
+  facet: TopicFacetRef,
+  embeddingConfig: TopicEmbeddingConfig,
+  timeRange: TopicTimeRange,
+): Promise<boolean> {
+  const rows = await queryClickhouse<{ found: number }>({
+    query: `SELECT 1 AS found FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+        AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
+        AND trace_id != '' AND processing_state = 'complete'
+        AND embedding_model = {embeddingModel:String}
+        AND embedding.size0 = {embeddingDimensions:UInt32}
+        AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
+        AND environment != {publicLlmJudgeEnvironment:String}
+      LIMIT 1`,
+    params: {
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+      ...embeddingConfig,
+      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
+    },
+    tags: { route: "topics-has-compatible-summaries", projectId },
+    clickhouseSettings: { max_threads: 1 },
+  });
+  return rows.length > 0;
+}
+
 /** Project onboarding readiness, cached for 30 minutes when ready and 30 seconds when empty. */
 export async function hasStoredTopicSummaries(
   projectId: string,
