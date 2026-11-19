@@ -2860,11 +2860,14 @@ describe("AI gateway control plane", () => {
   it("rejects budget reads and changes from another organization and from callers without the gateway scope they need", async () => {
     const owner = await prepare();
     const other = await prepare();
-    await owner.caller.aiGateway.updateConfig({
-      orgId: owner.org.id,
-      defaultIngestionProjectId: owner.project.id,
-      ingestionMode: "USAGE",
-    });
+    // Both record spend, so cross-tenant reads reach the organization filters.
+    for (const { caller, org, project } of [owner, other]) {
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: project.id,
+        ingestionMode: "USAGE",
+      });
+    }
     const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
     const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
     const spendLimit = { interval: "MONTHLY" as const, limitUsd: 1 };
@@ -2995,7 +2998,7 @@ describe("AI gateway control plane", () => {
         orgId: other.org.id,
         apiKeyIds: [ownerKey.id],
       }),
-    ).toMatchObject({ apiKeys: [] });
+    ).toEqual({ available: true, apiKeys: [] });
     await expect(
       other.caller.aiGateway.setSpendLimits({
         orgId: other.org.id,
