@@ -3,8 +3,8 @@
 // Prefix beats substring, both case-insensitive (callers lowercase). A single
 // trailing plural also matches the singular exactly, so `generations` reaches
 // `generation` and `errors` reaches `error`. The stem is only accepted as an
-// exact value — stripping `s` must not turn `status` into a prefix of every
-// word that starts with `statu`.
+// exact value — stripping a trailing "s" must not turn "status" into a prefix
+// of unrelated words.
 
 const MIN_PLURAL_LENGTH = 5;
 
