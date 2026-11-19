@@ -87,6 +87,10 @@ import {
   handleUpdateEvaluator,
 } from "@/src/features/mcp/server/evals/tools/updateEvaluator";
 import {
+  McpEvaluatorInput,
+  McpUpdateEvaluatorInput,
+} from "@/src/features/mcp/server/evals/tools/evaluatorInput";
+import {
   createEvaluationRuleTool,
   handleCreateEvaluationRule,
 } from "@/src/features/mcp/server/evals/tools/createEvaluationRule";
@@ -708,6 +712,25 @@ describe("MCP Write Tools", () => {
         ).rejects.toThrow();
       } finally {
         testEvaluatorSpy.mockRestore();
+      }
+    });
+
+    it("documents required evaluator inputs with an example that validates", () => {
+      for (const [tool, schema] of [
+        [createEvaluatorTool, McpEvaluatorInput],
+        [updateEvaluatorTool, McpUpdateEvaluatorInput],
+      ] as const) {
+        const properties = tool.inputSchema.properties as Record<
+          string,
+          { description?: string }
+        >;
+        for (const field of tool.inputSchema.required ?? []) {
+          expect(properties[field]?.description, field).toBeTruthy();
+        }
+
+        const example = tool.description.match(/Example[^{]*(\{.*\})\.$/)?.[1];
+        expect(example, tool.name).toBeDefined();
+        expect(schema.safeParse(JSON.parse(example!)).error).toBeUndefined();
       }
     });
 

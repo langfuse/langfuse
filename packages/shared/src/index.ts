@@ -307,6 +307,8 @@ export { type ListableScoreDataType } from "./domain/scores";
 export { type ListableScore } from "./domain/scores";
 export { TableViewPresetTableName } from "./domain/table-view-presets";
 export {
+  SessionViewConfigSchema,
+  type SessionViewConfig,
   SessionViewInputSchema,
   SessionViewPreferencesSchema,
 } from "./domain/session-views";

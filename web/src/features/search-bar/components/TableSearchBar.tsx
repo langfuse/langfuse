@@ -23,6 +23,7 @@ export function TableSearchBar({
   erroredColumns,
   inset = false,
   size = "default",
+  spacing,
 }: {
   projectId?: string;
   tableName: string;
@@ -43,6 +44,8 @@ export function TableSearchBar({
   inset?: boolean;
   /** `large` on full-page lists; embedded toolbars keep the default. */
   size?: ComponentProps<typeof EventsSearchBarRow>["size"];
+  /** `page` on full-page lists, matching Tracing's 12px inset. */
+  spacing?: ComponentProps<typeof EventsSearchBarRow>["spacing"];
 }) {
   // The host owns the applied query and scope; the bar edits both together.
   const { store, commit, applyFilters } = useEventsSearchBar({
@@ -66,6 +69,7 @@ export function TableSearchBar({
       <div className="min-w-0 flex-1">
         <EventsSearchBarRow
           className={inset ? "p-0" : undefined}
+          spacing={spacing}
           projectId={projectId}
           tableName={tableName}
           registry={registry}

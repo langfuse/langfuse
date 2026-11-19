@@ -143,16 +143,15 @@ export async function getPoliciesForApiKey(
     scope,
   }: { apiKeyId: string; userId?: string | null; scope: ApiKeyScope },
 ): Promise<Policy[][]> {
-  const keyPolicies = toPolicies(
-    await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId)),
-  );
-  if (scope !== "USER") return [keyPolicies];
+  const keyRoles = getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
+  if (scope !== "USER") return [toPolicies(await keyRoles)];
   // An empty user set denies a user key whose user is gone.
-  if (!userId) return [[], keyPolicies];
-  const userPolicies = toPolicies(
-    await getRolesForPrincipal(prisma, UserId(userId)),
-  );
-  return [userPolicies, keyPolicies];
+  if (!userId) return [[], toPolicies(await keyRoles)];
+  const [userRoles, ownRoles] = await Promise.all([
+    getRolesForPrincipal(prisma, UserId(userId)),
+    keyRoles,
+  ]);
+  return [toPolicies(userRoles), toPolicies(ownRoles)];
 }
 
 /**

@@ -25,27 +25,33 @@ Examples:
   },
   {
     name: "Sentiment",
-    description: "How the end user felt about the interaction.",
-    prompt: `Describe how the end user felt about this interaction and what the feeling was directed at.
+    description: "How the end user felt about the responses they got.",
+    prompt: `Describe how the end user felt about the responses they got, from an assistant, agent or application, and how they expressed it. Do not describe what the conversation was about.
 
-Format: "<Label>: <cue and its target>", where Label is one of:
-- Positive: thanks, praise, relief, or warm engagement.
-- Negative: frustration, annoyance, distrust, or giving up.
-- Mixed: both are substantial, for example annoyance that turns into relief.
-- Neutral: factual or procedural messages with no emotional signal.
+Format: "<Label>: user <expression> <target>." with Label one of Negative, Positive, Mixed, Neutral.
 
-- Judge only text the end user wrote. Assistant, tool, and system text shows what the user reacts to, never how the user feels.
-- Judge the attitude toward the interaction, not the subject. A calm report of a bug, a failed test, or a personal hardship is not negative by itself.
-- Weight sustained tone and how the user ends over a single remark. Terse or strict instructions are Neutral; so is routine politeness.
-- Name the target in terms of the assistant's behavior (wrong answers, slow progress, ignored corrections, a working fix), not the user's private circumstances.
+Decide in this order, looking at what the end user wrote in this run, above all their last message:
+1. Negative if the user shows dissatisfaction with the assistant, even calmly or in a few words: says its answer or fix is wrong or did not work ("still failing", "it gives a compile error", "not this"), corrects or overrides what it did ("no, I meant …", "do not do that"), repeats or tightens an earlier instruction, objects to how it answered ("too long, just say yes or no"), asks why it did something unexpected, or shows frustration, distrust, or giving up.
+2. Positive if the user approves the result ("perfect", "cool", "looks good", "good work"), shows relief or warmth, or thanks the assistant in a message that is mainly thanks ("thanks", "thank you and good night"). Approval stays Positive when a new request follows.
+3. Mixed if both 1 and 2 hold and both matter.
+4. Otherwise Neutral: requests, first instructions even when terse or strict, answers to the assistant's questions, factual questions, and a "thanks" that only opens the next request ("Thanks. Next, …").
+
+- Only text the end user wrote counts as a signal. Assistant, tool, and system text shows what the user reacts to.
+- A calm report of a problem the assistant did not cause, such as a bug the user brings in or a personal hardship, is not negative by itself.
+- Expression, pick the closest. Negative: reported that … failed, corrected, repeated an instruction after, objected to, complained about, questioned, gave up on. Positive: approved, praised, thanked the assistant for, was relieved by. Mixed: one Positive and one Negative expression joined by "but".
+- Target, pick the closest: a wrong or unsupported answer, a fix or action that did not work, an ignored instruction, an unwanted action, the answer's length or format, slow or repeated attempts, the result, the help overall.
+- Never name the task's subject, domain, product, code, files, data, people, or the user's circumstances. Those belong to other facets.
+- For Neutral, name only the kind of message (a procedural request, an answer to a question, a factual question), not its subject, so that neutral runs read alike.
 
 Status: not_applicable when the run has no end-user text, as in automated pipelines. insufficient_input when user text exists but is unreadable.
 
 Examples:
-- Negative: user repeated the same formatting correction and said the assistant keeps ignoring it.
-- Positive: user thanked the assistant after a working fix for a failing deployment script.
-- Mixed: user was annoyed by two wrong answers, then relieved when the third one worked.
-- Neutral: user gave step-by-step instructions without emotional cues.`,
+- Negative: user reported that a fix failed again.
+- Negative: user objected to an unwanted action.
+- Negative: user repeated an instruction the assistant ignored.
+- Positive: user approved the result.
+- Mixed: user praised the result but corrected a wrong answer.
+- Neutral: user gave a procedural request.`,
   },
   {
     name: "Outcome",

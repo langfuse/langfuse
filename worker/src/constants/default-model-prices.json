@@ -7508,6 +7508,370 @@
     ]
   },
   {
+    "id": "7bea288e-5c7c-499a-b08a-b3b1b5d1587b",
+    "modelName": "gpt-6.2-astra",
+    "matchPattern": "(?i)^(openai/)?(gpt-6\\.2-astra)$",
+    "createdAt": "2026-11-18T00:00:00.000Z",
+    "updatedAt": "2026-11-18T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "7bea288e-5c7c-499a-b08a-b3b1b5d1587b_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 8e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cache_creation": 10e-6,
+          "cache_write_tokens": 10e-6,
+          "input_cache_write_tokens": 10e-6,
+          "output": 40e-6,
+          "output_reasoning_tokens": 40e-6,
+          "output_reasoning": 40e-6,
+          "reasoning_tokens": 40e-6
+        }
+      },
+      {
+        "id": "2543de8a-053e-4faa-9af3-38daaf3fed0f",
+        "name": "Ultrafast · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["ultrafast"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 48e-6,
+          "input_cached_tokens": 2.4e-6,
+          "input_cache_read": 2.4e-6,
+          "cache_read_input_tokens": 2.4e-6,
+          "input_cache_creation": 60e-6,
+          "cache_write_tokens": 60e-6,
+          "input_cache_write_tokens": 60e-6,
+          "output": 180e-6,
+          "output_reasoning_tokens": 180e-6,
+          "output_reasoning": 180e-6,
+          "reasoning_tokens": 180e-6
+        }
+      },
+      {
+        "id": "ab298b77-e3ec-4571-b0d1-2ea995fac2ff",
+        "name": "Fast mode · Large context (>272K)",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 32e-6,
+          "input_cached_tokens": 1.6e-6,
+          "input_cache_read": 1.6e-6,
+          "cache_read_input_tokens": 1.6e-6,
+          "input_cache_creation": 40e-6,
+          "cache_write_tokens": 40e-6,
+          "input_cache_write_tokens": 40e-6,
+          "output": 120e-6,
+          "output_reasoning_tokens": 120e-6,
+          "output_reasoning": 120e-6,
+          "reasoning_tokens": 120e-6
+        }
+      },
+      {
+        "id": "463001d5-8589-4d35-ac70-ef0410dcc6a6",
+        "name": "Ultrafast",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["ultrafast"]
+          }
+        ],
+        "prices": {
+          "input": 24e-6,
+          "input_cached_tokens": 1.2e-6,
+          "input_cache_read": 1.2e-6,
+          "cache_read_input_tokens": 1.2e-6,
+          "input_cache_creation": 30e-6,
+          "cache_write_tokens": 30e-6,
+          "input_cache_write_tokens": 30e-6,
+          "output": 120e-6,
+          "output_reasoning_tokens": 120e-6,
+          "output_reasoning": 120e-6,
+          "reasoning_tokens": 120e-6
+        }
+      },
+      {
+        "id": "3606e833-8c74-4576-afc3-4b45b460d752",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 4,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 16e-6,
+          "input_cached_tokens": 0.8e-6,
+          "input_cache_read": 0.8e-6,
+          "cache_read_input_tokens": 0.8e-6,
+          "input_cache_creation": 20e-6,
+          "cache_write_tokens": 20e-6,
+          "input_cache_write_tokens": 20e-6,
+          "output": 80e-6,
+          "output_reasoning_tokens": 80e-6,
+          "output_reasoning": 80e-6,
+          "reasoning_tokens": 80e-6
+        }
+      },
+      {
+        "id": "916fd375-b8c4-41c8-b8b3-73b7e8e139c3",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 5,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 16e-6,
+          "input_cached_tokens": 0.8e-6,
+          "input_cache_read": 0.8e-6,
+          "cache_read_input_tokens": 0.8e-6,
+          "input_cache_creation": 20e-6,
+          "cache_write_tokens": 20e-6,
+          "input_cache_write_tokens": 20e-6,
+          "output": 60e-6,
+          "output_reasoning_tokens": 60e-6,
+          "output_reasoning": 60e-6,
+          "reasoning_tokens": 60e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "37fd32b3-6474-4bfa-b0c4-d25cc04c2222",
+    "modelName": "gpt-6.2-sol",
+    "matchPattern": "(?i)^(openai/)?(gpt-6\\.2-sol)$",
+    "createdAt": "2026-11-18T00:00:00.000Z",
+    "updatedAt": "2026-11-18T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "37fd32b3-6474-4bfa-b0c4-d25cc04c2222_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "cache_read_input_tokens": 0.1e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
+          "output": 10e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "reasoning_tokens": 10e-6
+        }
+      },
+      {
+        "id": "75a46eb6-bfa7-44cf-a15d-712932052bef",
+        "name": "Ultrafast · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["ultrafast"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 12e-6,
+          "input_cached_tokens": 0.6e-6,
+          "input_cache_read": 0.6e-6,
+          "cache_read_input_tokens": 0.6e-6,
+          "input_cache_creation": 15e-6,
+          "cache_write_tokens": 15e-6,
+          "input_cache_write_tokens": 15e-6,
+          "output": 45e-6,
+          "output_reasoning_tokens": 45e-6,
+          "output_reasoning": 45e-6,
+          "reasoning_tokens": 45e-6
+        }
+      },
+      {
+        "id": "42ef6f5d-19aa-41e2-98ae-f092bbdec064",
+        "name": "Fast mode · Large context (>272K)",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 8e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cache_creation": 10e-6,
+          "cache_write_tokens": 10e-6,
+          "input_cache_write_tokens": 10e-6,
+          "output": 30e-6,
+          "output_reasoning_tokens": 30e-6,
+          "output_reasoning": 30e-6,
+          "reasoning_tokens": 30e-6
+        }
+      },
+      {
+        "id": "24198fb0-0b9b-4763-81b3-5f51cf21595e",
+        "name": "Ultrafast",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["ultrafast"]
+          }
+        ],
+        "prices": {
+          "input": 6e-6,
+          "input_cached_tokens": 0.3e-6,
+          "input_cache_read": 0.3e-6,
+          "cache_read_input_tokens": 0.3e-6,
+          "input_cache_creation": 7.5e-6,
+          "cache_write_tokens": 7.5e-6,
+          "input_cache_write_tokens": 7.5e-6,
+          "output": 30e-6,
+          "output_reasoning_tokens": 30e-6,
+          "output_reasoning": 30e-6,
+          "reasoning_tokens": 30e-6
+        }
+      },
+      {
+        "id": "82abdab4-1a96-4175-a13a-7a13eb269efd",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 4,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 4e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
+          "output": 20e-6,
+          "output_reasoning_tokens": 20e-6,
+          "output_reasoning": 20e-6,
+          "reasoning_tokens": 20e-6
+        }
+      },
+      {
+        "id": "ad51af6c-d051-4fe0-9fc3-9660be1525d9",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 5,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 4e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6,
+          "reasoning_tokens": 15e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "92f817ff-d8a1-479b-87eb-405f9c7b4a18",
     "modelName": "gpt-6-astra",
     "matchPattern": "(?i)^(openai/)?(gpt-6-astra)$",
@@ -9437,6 +9801,234 @@
           "thoughts_token_count": 18e-6,
           "output_reasoning_tokens": 18e-6,
           "output_reasoning": 18e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      }
+    ]
+  },
+  {
+    "id": "cb62cbde-6c31-4897-bf93-d51b4fcbe214",
+    "modelName": "gemini-4-carbon",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-4-carbon)$",
+    "createdAt": "2026-11-19T00:00:00.000Z",
+    "updatedAt": "2026-11-19T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "cb62cbde-6c31-4897-bf93-d51b4fcbe214_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-6,
+          "input_text": 2e-6,
+          "input_modality_1": 2e-6,
+          "prompt_token_count": 2e-6,
+          "promptTokenCount": 2e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "cached_content_token_count": 0.1e-6,
+          "output": 10e-6,
+          "output_text": 10e-6,
+          "output_modality_1": 10e-6,
+          "candidates_token_count": 10e-6,
+          "candidatesTokenCount": 10e-6,
+          "thoughtsTokenCount": 10e-6,
+          "thoughts_token_count": 10e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      },
+      {
+        "id": "7a1b2c3d-4e5f-4061-8a2b-3c4d5e6f7a8b",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
+          }
+        ],
+        "prices": {
+          "input": 3.6e-6,
+          "input_text": 3.6e-6,
+          "input_modality_1": 3.6e-6,
+          "prompt_token_count": 3.6e-6,
+          "promptTokenCount": 3.6e-6,
+          "input_cached_tokens": 0.18e-6,
+          "input_cache_read": 0.18e-6,
+          "cached_content_token_count": 0.18e-6,
+          "output": 18e-6,
+          "output_text": 18e-6,
+          "output_modality_1": 18e-6,
+          "candidates_token_count": 18e-6,
+          "candidatesTokenCount": 18e-6,
+          "thoughtsTokenCount": 18e-6,
+          "thoughts_token_count": 18e-6,
+          "output_reasoning_tokens": 18e-6,
+          "output_reasoning": 18e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      }
+    ]
+  },
+  {
+    "id": "82fb839a-1b07-40bd-b8ee-80c138e53e95",
+    "modelName": "gemini-4-neon",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-4-neon)$",
+    "createdAt": "2026-11-19T00:00:00.000Z",
+    "updatedAt": "2026-11-19T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "82fb839a-1b07-40bd-b8ee-80c138e53e95_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 3e-6,
+          "input_text": 3e-6,
+          "input_modality_1": 3e-6,
+          "prompt_token_count": 3e-6,
+          "promptTokenCount": 3e-6,
+          "input_cached_tokens": 0.15e-6,
+          "input_cache_read": 0.15e-6,
+          "cached_content_token_count": 0.15e-6,
+          "output": 15e-6,
+          "output_text": 15e-6,
+          "output_modality_1": 15e-6,
+          "candidates_token_count": 15e-6,
+          "candidatesTokenCount": 15e-6,
+          "thoughtsTokenCount": 15e-6,
+          "thoughts_token_count": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      },
+      {
+        "id": "9c0d1e2f-3a4b-4c5d-9e6f-7a8b9c0d1e2f",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
+          }
+        ],
+        "prices": {
+          "input": 5.4e-6,
+          "input_text": 5.4e-6,
+          "input_modality_1": 5.4e-6,
+          "prompt_token_count": 5.4e-6,
+          "promptTokenCount": 5.4e-6,
+          "input_cached_tokens": 0.27e-6,
+          "input_cache_read": 0.27e-6,
+          "cached_content_token_count": 0.27e-6,
+          "output": 27e-6,
+          "output_text": 27e-6,
+          "output_modality_1": 27e-6,
+          "candidates_token_count": 27e-6,
+          "candidatesTokenCount": 27e-6,
+          "thoughtsTokenCount": 27e-6,
+          "thoughts_token_count": 27e-6,
+          "output_reasoning_tokens": 27e-6,
+          "output_reasoning": 27e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      }
+    ]
+  },
+  {
+    "id": "e8c7d468-76c1-43a0-9f51-01b43e9abd13",
+    "modelName": "gemini-4-hydrogen",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-4-hydrogen)$",
+    "createdAt": "2026-11-19T00:00:00.000Z",
+    "updatedAt": "2026-11-19T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "e8c7d468-76c1-43a0-9f51-01b43e9abd13_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.5e-6,
+          "input_text": 1.5e-6,
+          "input_modality_1": 1.5e-6,
+          "prompt_token_count": 1.5e-6,
+          "promptTokenCount": 1.5e-6,
+          "input_cached_tokens": 0.075e-6,
+          "input_cache_read": 0.075e-6,
+          "cached_content_token_count": 0.075e-6,
+          "output": 7.5e-6,
+          "output_text": 7.5e-6,
+          "output_modality_1": 7.5e-6,
+          "candidates_token_count": 7.5e-6,
+          "candidatesTokenCount": 7.5e-6,
+          "thoughtsTokenCount": 7.5e-6,
+          "thoughts_token_count": 7.5e-6,
+          "output_reasoning_tokens": 7.5e-6,
+          "output_reasoning": 7.5e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      },
+      {
+        "id": "1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority", "ON_DEMAND_PRIORITY"]
+          }
+        ],
+        "prices": {
+          "input": 2.7e-6,
+          "input_text": 2.7e-6,
+          "input_modality_1": 2.7e-6,
+          "prompt_token_count": 2.7e-6,
+          "promptTokenCount": 2.7e-6,
+          "input_cached_tokens": 0.135e-6,
+          "input_cache_read": 0.135e-6,
+          "cached_content_token_count": 0.135e-6,
+          "output": 13.5e-6,
+          "output_text": 13.5e-6,
+          "output_modality_1": 13.5e-6,
+          "candidates_token_count": 13.5e-6,
+          "candidatesTokenCount": 13.5e-6,
+          "thoughtsTokenCount": 13.5e-6,
+          "thoughts_token_count": 13.5e-6,
+          "output_reasoning_tokens": 13.5e-6,
+          "output_reasoning": 13.5e-6,
           "grounding_queries": 14e-3,
           "groundingQueries": 14e-3,
           "web_search_queries": 14e-3,

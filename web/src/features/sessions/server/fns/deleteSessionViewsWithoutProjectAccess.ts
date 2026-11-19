@@ -13,7 +13,12 @@ export async function deleteSessionViewsWithoutProjectAccess(
     where: { orgId_userId: { orgId, userId } },
     include: { ProjectMemberships: true },
   });
-  const where = { createdBy: userId, project: { orgId }, projectId };
+  const where = {
+    createdBy: userId,
+    project: { orgId },
+    projectId,
+    ownership: "PRIVATE" as const,
+  };
   if (!membership) {
     await tx.sessionView.deleteMany({ where });
     return;

@@ -28,8 +28,8 @@ jobs:
       id-token: write # assume the AWS deploy role via OIDC
     env:
       # Iron Bank UBI 9 bases, the same ones pipeline.yml uses for release images.
-      BASE_IMAGE: registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
-      MICRO_BASE_IMAGE: registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8
+      BASE_IMAGE: registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.9
+      MICRO_BASE_IMAGE: registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.9
     steps:
       - name: Get app name
         uses: winterjung/split@a211a1c46e35fcdc4097d59dd6282d4a9859651b # v2

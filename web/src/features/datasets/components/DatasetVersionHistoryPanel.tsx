@@ -1,12 +1,7 @@
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
 import { Clock, MoreVertical, Copy, ExternalLink } from "@langfuse/icons";
@@ -177,39 +172,39 @@ export function DatasetVersionHistoryPanel({
             {formatDistanceToNow(version, { addSuffix: true })}
           </span>
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical size="base" color="default" />
-              <span className="sr-only">Version actions</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                copyVersionTimestamp(version);
-              }}
-            >
-              <Copy size="base" color="default" __rawClassName="mr-2" />
-              Copy version timestamp (UTC)
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                openDocumentation();
-              }}
-            >
-              <ExternalLink size="base" color="default" __rawClassName="mr-2" />
-              How to use in experiments
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div onClick={(event) => event.stopPropagation()}>
+          <DropdownMenu
+            placement="bottom-end"
+            items={[
+              {
+                type: "item",
+                id: "copy-timestamp",
+                title: "Copy version timestamp (UTC)",
+                icon: Copy,
+                onClick: () => copyVersionTimestamp(version),
+              },
+              {
+                type: "item",
+                id: "documentation",
+                title: "How to use in experiments",
+                icon: ExternalLink,
+                onClick: openDocumentation,
+              },
+            ]}
+          >
+            {({ getTriggerProps }) => (
+              <Button
+                {...getTriggerProps()}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                <MoreVertical size="base" color="default" />
+                <span className="sr-only">Version actions</span>
+              </Button>
+            )}
+          </DropdownMenu>
+        </div>
       </div>
     );
   };

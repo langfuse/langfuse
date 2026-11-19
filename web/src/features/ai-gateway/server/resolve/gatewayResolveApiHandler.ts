@@ -31,11 +31,12 @@ export async function gatewayResolveApiHandler({
     const context = await new GatewayApiKeyAuthenticator(
       prisma,
     ).authenticateRequest({ fastHashedSecretKey, apiFormat, model });
+    const service = new GatewayResolveService();
+    // Pricing runs alongside rate limiting to save a Redis round trip. A
+    // rate-limit rejection still wins, since `resolve` awaits pricing later.
+    const pricing = service.findPricing(context);
     await enforceGatewayRateLimits({ context, requestBytes });
-    const result = await new GatewayResolveService().resolve({
-      context,
-      apiFormat,
-    });
+    const result = await service.resolve({ context, apiFormat, pricing });
     return res.status(200).json(GatewayResolveResponseSchema.parse(result));
   } catch (error) {
     if (error instanceof GatewayRateLimitError) {
