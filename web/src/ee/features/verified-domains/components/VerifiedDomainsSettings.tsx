@@ -81,7 +81,7 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
     return (
       <div>
         {heading}
-        <Banner title="Access Denied">
+        <Banner title="Access denied">
           You do not have permission to manage verified domains for this
           organization.
         </Banner>

@@ -43,7 +43,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
     return (
       <div>
         <Header title="API Keys" />
-        <Banner title="Access Denied">
+        <Banner title="Access denied">
           You do not have permission to view API keys for this {scope}.
         </Banner>
       </div>

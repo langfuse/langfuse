@@ -210,7 +210,7 @@ export function ConnectedMembersSettingsTable({
 
   if (project ? !hasProjectViewAccess : !hasOrgViewAccess) {
     return (
-      <Banner title="Access Denied">
+      <Banner title="Access denied">
         You do not have permission to view members of this organization.
       </Banner>
     );

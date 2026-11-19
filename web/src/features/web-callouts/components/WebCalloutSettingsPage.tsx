@@ -109,7 +109,7 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
   if (!hasAccess) {
     return (
       <div>
-        <Banner title="Access Denied">
+        <Banner title="Access denied">
           You do not have permission to manage integrations for this project.
         </Banner>
       </div>

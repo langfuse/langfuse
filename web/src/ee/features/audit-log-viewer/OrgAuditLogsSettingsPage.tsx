@@ -25,7 +25,7 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
     }
     if (!hasAccess) {
       return (
-        <Banner title="Access Denied">
+        <Banner title="Access denied">
           Contact your organization administrator to request access.
         </Banner>
       );

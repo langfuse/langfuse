@@ -4,7 +4,7 @@ export const SupportOrUpgradePage = () => {
   return (
     <div className="flex h-full w-full items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <Banner title="Access Restricted">
+        <Banner title="Access restricted">
           <p className="mb-2">This feature requires additional permissions</p>
           <p>
             Contact your system/project administrator for access or upgrade your

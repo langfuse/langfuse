@@ -21,7 +21,7 @@ export function BatchExportsSettingsPage(props: { projectId: string }) {
       {hasAccess ? (
         <ConnectedBatchExportsTable projectId={props.projectId} />
       ) : (
-        <Banner title="Access Denied">
+        <Banner title="Access denied">
           You do not have permission to view batch exports.
         </Banner>
       )}

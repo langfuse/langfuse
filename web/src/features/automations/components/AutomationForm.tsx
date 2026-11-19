@@ -356,7 +356,7 @@ const VersionTriggerFields = ({
 /** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
 const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
   <Banner
-    title="How Alerts Connect"
+    title="How alerts connect"
     actions={[
       { text: "Create alerts page", href: `/project/${projectId}/alerts/new` },
     ]}

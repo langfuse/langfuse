@@ -43,7 +43,7 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
         <VerifiedDomainsSettings orgId={orgId} />
         <div>
           {heading}
-          <Banner title="Access Denied">
+          <Banner title="Access denied">
             You do not have permission to configure SSO for this organization.
           </Banner>
         </div>

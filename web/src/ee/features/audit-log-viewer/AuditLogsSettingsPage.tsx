@@ -22,7 +22,7 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
     }
     if (!hasAccess) {
       return (
-        <Banner title="Access Denied">
+        <Banner title="Access denied">
           Contact your project administrator to request access.
         </Banner>
       );

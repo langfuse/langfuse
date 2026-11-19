@@ -267,7 +267,7 @@ export default function NewEvaluatorPage() {
             {hasNewerTemplate && latestTemplate && currentTemplate ? (
               <Banner
                 variant="info"
-                title="Selected Evaluator has been updated"
+                title="Selected evaluator has been updated"
                 actions={[
                   {
                     text: "Use updated evaluator",

@@ -53,7 +53,7 @@ export function LlmApiKeyList(props: {
 
   if (!hasAccess) {
     return (
-      <Banner title="Access Denied">
+      <Banner title="Access denied">
         You do not have permission to view LLM API keys for this project.
       </Banner>
     );

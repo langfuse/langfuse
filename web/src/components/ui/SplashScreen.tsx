@@ -162,7 +162,7 @@ export function SplashScreen({
 
       {gettingStarted && (
         <div className="w-full max-w-3xl">
-          <Banner title="Getting Started">{gettingStarted}</Banner>
+          <Banner title="Getting started">{gettingStarted}</Banner>
         </div>
       )}
 

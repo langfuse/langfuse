@@ -30,7 +30,7 @@ export const DatasetSchemaValidationError: React.FC<
 
   return (
     <div className="mt-4">
-      <Banner variant="error" title="Schema Validation Failed">
+      <Banner variant="error" title="Schema validation failed">
         <div className="flex flex-col gap-3">
           <p>
             {hasMoreThan10

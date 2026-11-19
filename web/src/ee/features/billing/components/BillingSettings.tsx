@@ -62,7 +62,7 @@ export const BillingSettings = () => {
 
   if (!hasAccess) {
     return (
-      <Banner title="Access Denied">
+      <Banner title="Access denied">
         You do not have permission to view the billing settings of this
         organization.
       </Banner>

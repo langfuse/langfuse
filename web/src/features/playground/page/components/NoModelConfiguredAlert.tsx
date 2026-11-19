@@ -12,10 +12,10 @@ export function NoModelConfiguredAlert({
     <div className="px-4 pt-4">
       <Banner
         variant="warning"
-        title="No LLM Connection Configured"
+        title="No LLM connection configured"
         actions={[
           {
-            text: "LLM Connection Settings",
+            text: "LLM connection settings",
             href: `/project/${projectId}/settings/llm-connections`,
             icon: Settings,
           },

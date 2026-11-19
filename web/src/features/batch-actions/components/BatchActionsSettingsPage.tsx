@@ -21,7 +21,7 @@ export function BatchActionsSettingsPage(props: { projectId: string }) {
       {hasAccess ? (
         <ConnectedBatchActionsTable projectId={props.projectId} />
       ) : (
-        <Banner title="Access Denied">
+        <Banner title="Access denied">
           You do not have permission to view batch actions.
         </Banner>
       )}
