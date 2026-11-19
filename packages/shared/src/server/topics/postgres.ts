@@ -554,6 +554,24 @@ export async function getPublishedTopicMaps(
   };
 }
 
+/** Every completed run of the rules, outside analyses: a pending or failed refit's assignments never show. */
+export async function getCompletedTopicRuleRunIds(
+  projectId: string,
+  ruleIds: string[],
+): Promise<string[]> {
+  if (!ruleIds.length) return [];
+  const runs = await prisma.topicClusteringRun.findMany({
+    where: {
+      projectId,
+      ruleId: { in: ruleIds },
+      status: "completed",
+      config: { path: ["analysis"], equals: Prisma.DbNull },
+    },
+    select: { id: true },
+  });
+  return runs.map(({ id }) => id);
+}
+
 export async function createTopicRun(input: {
   id?: string;
   projectId: string;

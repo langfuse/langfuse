@@ -966,6 +966,12 @@ describe("Topics definition persistence", () => {
       assign(earlier, "match", { runId: "previous" }),
       // Another rule's map keeps its own current topic for the same trace.
       assign(reassigned, "match", { runId: "other-rule", ruleId: "other" }),
+      // A refit that wrote a batch and never completed does not replace the shown topic.
+      assign(current, "", {
+        runId: "unfinished",
+        topicVersionId: "",
+        assignedAt: "2026-09-05T00:00:00.000Z",
+      }),
     ]);
     const timeRange = {
       from: new Date("2026-08-31T00:00:00.000Z"),
@@ -983,8 +989,9 @@ describe("Topics definition persistence", () => {
         timestamp: rowStart,
       })),
       facetIds: [summary.facetId],
-      ruleIds: ["rule", "other"],
-      publishedRunIds: ["serving", "other-rule"],
+      // The completed runs of the rules; "unfinished" is not one of them.
+      runIds: ["serving", "previous", "other-rule"],
+      includeOutliers: true,
     });
     expect(
       topics.map(({ traceId, topicId }) => [traceId, topicId]).sort(),

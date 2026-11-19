@@ -1237,22 +1237,20 @@ export async function readLatestTopicAssignments(
 }
 
 /**
- * Each trace's latest placement per facet and rule, in any run of the rules, or in the published
- * runs of maps without a rule (snapshots); outliers, with an empty topic id, only when asked.
+ * Each trace's latest placement per facet and rule among the given completed runs: the rules'
+ * runs and the published maps without a rule (snapshots); outliers, with an empty topic id, only when asked.
  */
 export async function readCurrentTraceTopics(
   projectId: string,
   {
     traces,
     facetIds,
-    ruleIds,
-    publishedRunIds,
+    runIds,
     includeOutliers = false,
   }: {
     traces: { traceId: string; timestamp: Date }[];
     facetIds: string[];
-    ruleIds: string[];
-    publishedRunIds: string[];
+    runIds: string[];
     includeOutliers?: boolean;
   },
 ) {
@@ -1274,7 +1272,7 @@ export async function readCurrentTraceTopics(
       FROM topic_assignments_by_trace
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
         AND facet_id IN {facetIds:Array(String)} AND trace_id IN {traceIds:Array(String)}
-        AND (rule_id IN {ruleIds:Array(String)} OR clustering_run_id IN {publishedRunIds:Array(String)})
+        AND clustering_run_id IN {runIds:Array(String)}
       ORDER BY assigned_at DESC, origin DESC
       LIMIT 1 BY facet_id, rule_id, trace_id`,
     params: {
@@ -1282,8 +1280,7 @@ export async function readCurrentTraceTopics(
       ...timeRangeParams(timeRange),
       facetIds,
       traceIds: [...new Set(traces.map((trace) => trace.traceId))],
-      ruleIds: ruleIds.filter((id) => id !== ""),
-      publishedRunIds,
+      runIds,
     },
     tags: { route: "topics-trace-topics", projectId },
   });

@@ -1,4 +1,5 @@
 import {
+  getCompletedTopicRuleRunIds,
   getCurrentTopicMapRows,
   getPublishedTopicMaps,
   listTopicFacets,
@@ -39,11 +40,11 @@ export async function tracesTopics(
     projectId,
     facets.map((facet) => facet.id),
   );
+  const ruleRunIds = await getCompletedTopicRuleRunIds(projectId, ruleIds);
   const rows = await readCurrentTraceTopics(projectId, {
     traces,
     facetIds: facets.map((facet) => facet.id),
-    ruleIds,
-    publishedRunIds: runIds,
+    runIds: [...new Set([...runIds, ...ruleRunIds])],
     includeOutliers: true,
   });
   // Placements from earlier runs name their topic by the current map's stable topic id.

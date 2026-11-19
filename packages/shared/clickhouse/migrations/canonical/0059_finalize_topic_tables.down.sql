@@ -1,4 +1,4 @@
--- Restores the 0055 Topics tables kept as *_old; rows written since 0059 are dropped.
+-- Restores the 0055 Topics tables kept as *_old. Rows written since 0059 are dropped.
 DROP VIEW IF EXISTS topic_assignments_by_trace_mv {CLICKHOUSE_CLUSTER_CLAUSE};
 DROP TABLE IF EXISTS topic_assignments_by_trace {CLICKHOUSE_CLUSTER_CLAUSE} SYNC;
 DROP TABLE IF EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE} SYNC;
