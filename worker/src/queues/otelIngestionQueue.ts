@@ -755,18 +755,17 @@ export const otelIngestionQueueProcessorBuilder = (
       if (!availableRedis) throw new Error("Redis not available");
       if (!availablePrisma) throw new Error("Prisma not available");
 
+      // Rust events-only batches use the native writer. Creating the service
+      // on demand keeps those batches from starting the JSON writer's flush timer.
       let ingestionService: IngestionService | undefined;
-      const getIngestionService = () => {
-        if (ingestionService === undefined) {
-          ingestionService = new IngestionService(
-            availableRedis,
-            availablePrisma,
-            ClickhouseWriter.getInstance(),
-            clickhouseClient(),
-          );
-        }
-        return ingestionService;
-      };
+      const getIngestionService = () =>
+        ingestionService ??
+        (ingestionService = new IngestionService(
+          availableRedis,
+          availablePrisma,
+          ClickhouseWriter.getInstance(),
+          clickhouseClient(),
+        ));
 
       // Decide whether observations should be processed via new flow (directly to events table)
       // or via the dual write (staging table and batch job to events).
