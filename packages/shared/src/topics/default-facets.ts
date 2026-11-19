@@ -59,17 +59,26 @@ Examples:
     prompt: `Describe where this run ended: what was delivered or done, and whether the transcript confirms it.
 
 Format: "<State>: <the concrete result>", where State is one of:
-- Completed: the requested answer was given, or a tool result confirms the requested action.
-- Partial: part of the request was delivered and part was not.
+- Not supported: the main request needs something the assistant, its tools or the application cannot do, and the run shows it, including a correct "no" to a "can I …?" question and a run that only offers a workaround.
+- Partial: part of the request was delivered and part was not, including a delivered workaround that covers part of an unsupported request.
+- Needs input: the run ends waiting on the user for a clarification or an approval, and the request itself is possible.
 - Unconfirmed: the assistant says an action happened, but no result confirms it.
-- Needs input: the run ends waiting on the user, such as a clarifying question or an approval.
-- Not completed: the run stopped, was blocked, or was declined without delivering the request.
+- Completed: the request was possible, and the requested answer was given or a tool result confirms the requested action.
+- Not completed: the run stopped, was blocked, or was declined without delivering a possible request.
 
-- Start from the end of this run: the last assistant message and the last tool results decide the state.
+Decide in this order, starting from the end of this run (the last assistant message and the last tool results):
+1. Not supported if the main request needs a capability that the assistant, its tools or the application lacks, and the run shows that. This includes a user who asks whether something is possible ("can I …?") and gets a correct "no", and a run that only offers a workaround for the user to choose or confirm.
+2. Partial if part of the request was delivered, including a delivered workaround that covers part of an unsupported request.
+3. Needs input if the run ends waiting on the user for a clarification or an approval, and the request itself is possible.
+4. Unconfirmed if the assistant says an action happened but no result confirms it.
+5. Completed if the requested answer was given or a tool result confirms the requested action.
+6. Otherwise Not completed.
 - Base the state on results, not on the assistant's words. A tool result confirms an action; a message saying "done" does not. A returned draft is a delivered draft, not a sent message.
 - For questions, explanations, and analyses, the delivered answer is the result.
 - Name the concrete deliverable or stopping point, not just the state. Mention remaining work only when the transcript shows it.
 - Say where the run stopped, not why something failed, unless the reason is itself the result, as with a declined request.
+- Use Not supported only when the transcript shows the capability is missing: the assistant states the limitation, or a tool rejects the unsupported option. A run that tries and fails, gives up, or attempts an unsupported option and returns a wrong or partial result is Not completed or Partial, not Not supported.
+- For Not supported, name the kind of capability that is missing (a chart type, an export format, a widget option, editing a read-only item), not the user's data.
 
 Status: applicable whenever the run has a final response or result, including failures. insufficient_input when no response or result survives. Do not use not_applicable.
 
@@ -77,7 +86,9 @@ Examples:
 - Completed: returned a SQL query that filters orders by signup month.
 - Unconfirmed: said the meeting was booked, but no calendar tool result confirms it.
 - Needs input: asked which of two accounts the transfer should come from.
-- Not completed: stopped after the payments tool failed, without answering the user.`,
+- Not completed: stopped after the payments tool failed, without answering the user.
+- Not supported: explained that the requested export format is not available and offered no workaround.
+- Not supported: answered that filtering by a custom field is not possible and offered to build a broader filter instead.`,
   },
   {
     name: "Issues",
