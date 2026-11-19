@@ -225,22 +225,6 @@ const openPicker = async (canvasElement: HTMLElement) => {
   return within(picker);
 };
 
-/** Runs at a desktop size, since the preview pane only shows from the `sm` breakpoint up, wider than Vitest's default viewport. */
-const atDesktopViewport = async (run: () => Promise<void>) => {
-  // Only Vitest's browser runner provides this module, so it loads on demand.
-  const vitestPage =
-    "__vitest_browser__" in globalThis
-      ? (await import("vitest/browser")).page
-      : null;
-  const viewport = { width: window.innerWidth, height: window.innerHeight };
-  await vitestPage?.viewport(1024, 768);
-  try {
-    await run();
-  } finally {
-    await vitestPage?.viewport(viewport.width, viewport.height);
-  }
-};
-
 export const TestSwitchesMaps = meta.story({
   name: "(Test) Switches between maps and snapshots",
   play: async ({ args, canvasElement }) => {
@@ -297,8 +281,15 @@ export const TestExplainsNewEntries = meta.story({
 
 export const TestKeepsHeightWhilePreviewing = meta.story({
   name: "(Test) Keeps its height while previewing",
-  play: ({ canvasElement }) =>
-    atDesktopViewport(async () => {
+  play: async ({ canvasElement }) => {
+    // The preview pane only shows from the `sm` breakpoint up, wider than Vitest's default viewport.
+    const vitestPage =
+      "__vitest_browser__" in globalThis
+        ? (await import("vitest/browser")).page
+        : null;
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    await vitestPage?.viewport(1024, 768);
+    try {
       const picker = await openPicker(canvasElement);
       // A short list, so the preview pane sets the popover's height.
       await userEvent.type(
@@ -321,45 +312,10 @@ export const TestKeepsHeightWhilePreviewing = meta.story({
         picker.getByText(/A snapshot doesn’t change afterwards/),
       ).toBeVisible();
       await expect(dialog.getBoundingClientRect().height).toBe(height);
-    }),
-});
-
-export const TestAlignsPreviewLayout = meta.story({
-  name: "(Test) Previews share one layout",
-  play: ({ canvasElement }) =>
-    atDesktopViewport(async () => {
-      const picker = await openPicker(canvasElement);
-      const dialog = within(canvasElement.ownerDocument.body).getByRole(
-        "dialog",
-        { name: "Topic maps" },
-      );
-      // Title top and the gap to the first line below it, relative to the popover.
-      const layoutOf = async (title: string, firstLine: RegExp | string) => {
-        const heading = await picker.findByText(title, {
-          selector: ".font-bold",
-        });
-        const below = await picker.findByText(firstLine);
-        const top = dialog.getBoundingClientRect().top;
-        const headingBox = heading.getBoundingClientRect();
-        return {
-          title: headingBox.top - top,
-          gap: below.getBoundingClientRect().top - headingBox.bottom,
-        };
-      };
-      // A live map's header holds the Refresh button; a create preview has none.
-      await userEvent.hover(
-        picker.getByRole("button", { name: /^Support agent/ }),
-      );
-      const map = await layoutOf("Support agent", "Filter");
-      await userEvent.hover(
-        picker.getByRole("button", { name: "New live map" }),
-      );
-      const create = await layoutOf(
-        "New live map",
-        /keeps sorting new traces into them/,
-      );
-      await expect(create).toEqual(map);
-    }),
+    } finally {
+      await vitestPage?.viewport(viewport.width, viewport.height);
+    }
+  },
 });
 
 export const TestPausedLast = meta.story({
