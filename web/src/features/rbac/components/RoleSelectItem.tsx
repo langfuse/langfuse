@@ -3,6 +3,7 @@ import { type SystemRole } from "@langfuse/shared/src/db";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SelectItem } from "@/src/components/ui/select";
+import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import {
   roleDisplay,
   type RoleDisplay,
@@ -15,6 +16,7 @@ export const RoleSelectItem = ({
   isProjectRole,
   disabledReason,
   description,
+  showPermissionCount,
   onViewPermissions,
 }: {
   role: SystemRole;
@@ -25,6 +27,8 @@ export const RoleSelectItem = ({
   disabledReason?: string;
   /** Replaces the role's own description, e.g. for NONE meaning "inherit". */
   description?: string;
+  /** Shows how many permissions the role grants next to its name. */
+  showPermissionCount?: boolean;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
   const { name: label, description: roleDescription, Icon } = display(role);
@@ -42,6 +46,12 @@ export const RoleSelectItem = ({
           <span className="font-bold">
             {label}
             {keepDefaultNote ? " (keep default role)" : ""}
+            {showPermissionCount && (
+              <span className="text-muted-foreground text-xs font-normal">
+                {" "}
+                · {rolePermissionCountLabel(role)}
+              </span>
+            )}
           </span>
           <span className="text-muted-foreground text-xs">
             {description ?? roleDescription}

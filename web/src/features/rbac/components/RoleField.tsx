@@ -56,7 +56,7 @@ export function RoleField({
   };
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1">
       <Select
         open={open}
         onOpenChange={setOpen}
@@ -82,6 +82,7 @@ export function RoleField({
               transformName={nameOf}
               description={describe(role)}
               disabledReason={optionDisabledReason?.(role)}
+              showPermissionCount
               onViewPermissions={showPermissions}
             />
           ))}

@@ -39,14 +39,17 @@ import {
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 type Group = RouterOutputs["groups"]["list"][number];
 type GroupMember = Group["members"][number];
 type GroupMemberRow = GroupMember & { effectiveRole: string };
 
+/** A role's display name, e.g. "AI Gateway"; group roles come back as plain strings. */
 const roleLabel = (role: string) =>
-  role === "NONE" ? "None" : role.charAt(0) + role.slice(1).toLowerCase();
+  systemRoleAccessRights[role as Role]?.name ?? role;
 const NO_EDIT_REASON = {
   reason: "You do not have permission to manage groups",
 };
@@ -372,6 +375,9 @@ function GroupOrgRoleSelect({
   canEdit: boolean;
 }) {
   const utils = api.useUtils();
+  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
+    organizationId: orgId,
+  });
   const setOrgRole = api.groups.setOrgRole.useMutation({
     onSuccess: ({ role }) => {
       utils.groups.invalidate().catch(() => undefined);
@@ -392,6 +398,7 @@ function GroupOrgRoleSelect({
       groupName={group.displayName}
       memberCount={group.members.length}
       orgRole={(group.orgRole as Role | null) ?? null}
+      isAiGatewayEnabled={isAiGatewayEnabled}
       disabledReason={orgRoleBlockedReason(canEdit, setOrgRole.isPending)}
       onChange={(role) => setOrgRole.mutate({ orgId, groupId: group.id, role })}
     >

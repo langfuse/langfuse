@@ -28,6 +28,14 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 // No OWNER (too broad) and no NONE (adds nothing).
 const GroupRole = z.enum([Role.ADMIN, Role.MEMBER, Role.VIEWER]);
+// AI Gateway only grants organization permissions, so only an org-wide group
+// role can be AI Gateway; project group roles stay on the ladder.
+const OrgGroupRole = z.enum([
+  Role.ADMIN,
+  Role.MEMBER,
+  Role.VIEWER,
+  Role.AI_GATEWAY,
+]);
 
 const groupRoleAssignmentsSelect = {
   select: { projectId: true, systemRole: true },
@@ -371,7 +379,7 @@ export const groupsRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         groupId: z.string(),
-        orgRole: GroupRole.nullable(),
+        orgRole: OrgGroupRole.nullable(),
         projectRoles: z
           .array(z.object({ projectId: z.string(), role: GroupRole }))
           .refine(
@@ -461,7 +469,7 @@ export const groupsRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         groupId: z.string(),
-        role: GroupRole.nullable(),
+        role: OrgGroupRole.nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {

@@ -102,7 +102,11 @@ function projectGroupColumns({
             disabledReason={
               pendingGroupId === group.id ? "Saving…" : editBlockedReason
             }
-            onChange={(role) => onChange(group, role)}
+            onChange={(role) => {
+              // Project group roles never include AI Gateway.
+              if (role === "AI_GATEWAY") return;
+              onChange(group, role);
+            }}
           >
             {(openDialog) => (
               <RoleCellTrigger

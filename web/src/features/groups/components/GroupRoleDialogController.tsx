@@ -9,9 +9,19 @@ import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 
-type GroupRole = "ADMIN" | "MEMBER" | "VIEWER";
+type GroupRole = "ADMIN" | "MEMBER" | "VIEWER" | "AI_GATEWAY";
 
 const OPTIONS: Role[] = ["NONE", "ADMIN", "MEMBER", "VIEWER"];
+
+/** Role options for a group here: AI Gateway is org-wide only, behind its flag. */
+const optionsFor = (level: Level, isAiGatewayEnabled: boolean): Role[] =>
+  level === "organization" && isAiGatewayEnabled
+    ? [...OPTIONS, "AI_GATEWAY"]
+    : OPTIONS;
+
+/** AI Gateway grants no project permissions, so on a project it counts as no role. */
+const onProjectLevel = (role: Role): Role =>
+  role === "AI_GATEWAY" ? "NONE" : role;
 
 const roleName = (role: Role) => systemRoleAccessRights[role].name;
 
@@ -72,17 +82,18 @@ function resolveGroupRole(
       editing: orgRole,
     };
   }
+  const inherited = onProjectLevel(orgRole);
   const projectApplies =
-    projectRole !== null && orderedRoles[projectRole] > orderedRoles[orgRole];
+    projectRole !== null && orderedRoles[projectRole] > orderedRoles[inherited];
   let tag = "No role here";
   if (projectApplies) tag = "Set on this project";
-  else if (orgRole !== "NONE") tag = "Inherited from organization";
+  else if (inherited !== "NONE") tag = "Inherited from organization";
   const sources: Source[] = [
     {
       key: "organization",
       label: "Organization role",
-      role: orgRole,
-      status: !projectApplies && orgRole !== "NONE" ? "Highest" : "",
+      role: inherited,
+      status: !projectApplies && inherited !== "NONE" ? "Highest" : "",
     },
     {
       key: "project",
@@ -92,7 +103,7 @@ function resolveGroupRole(
     },
   ];
   return {
-    role: projectApplies && projectRole ? projectRole : orgRole,
+    role: projectApplies && projectRole ? projectRole : inherited,
     tag,
     sources,
     editing: projectRole ?? ("NONE" as Role),
@@ -109,6 +120,8 @@ type GroupRoleCellProps = {
   projectRole?: Role | null;
   /** Roles the current user may grant here. */
   grantableRoles?: Role[];
+  /** Offers AI Gateway as an organization role (org level only). */
+  isAiGatewayEnabled?: boolean;
   /** Why the role cannot be changed here, if it cannot. */
   disabledReason?: string;
   onChange: (role: GroupRole | null) => void;
@@ -165,22 +178,25 @@ function GroupRoleDialog({
   orgRole: orgRoleOrNull,
   projectRole = null,
   grantableRoles,
+  isAiGatewayEnabled = false,
   disabledReason,
   onChange,
   onDone,
 }: GroupRoleCellProps & { onDone: () => void }) {
   const fieldId = useId();
   const orgRole = orgRoleOrNull ?? "NONE";
+  const onProject = level === "project";
+  // What the org role means at this level: AI Gateway counts as none on a project.
+  const levelOrgRole = onProject ? onProjectLevel(orgRole) : orgRole;
   const resolved = resolveGroupRole(level, orgRole, projectRole);
   const [selected, setSelected] = useState<Role>(resolved.editing);
-  const onProject = level === "project";
   const roleKind = onProject ? "Project role" : "Organization role";
   const members = `${memberCount} ${memberCount === 1 ? "member" : "members"}`;
   const noEffect =
     onProject &&
     selected !== "NONE" &&
-    orgRole !== "NONE" &&
-    orderedRoles[selected] <= orderedRoles[orgRole];
+    levelOrgRole !== "NONE" &&
+    orderedRoles[selected] <= orderedRoles[levelOrgRole];
 
   return (
     <Dialog
@@ -190,7 +206,7 @@ function GroupRoleDialog({
         groupName,
         members,
         role: resolved.role,
-        setHere: onProject && resolved.role !== orgRole,
+        setHere: onProject && resolved.role !== levelOrgRole,
       })}
       closeLabel="Cancel"
       actions={[
@@ -205,52 +221,57 @@ function GroupRoleDialog({
         },
       ]}
     >
-      <Dialog.Body>
-        <div className="flex flex-col gap-5 text-sm">
-          <div className="flex flex-col gap-1.5">
-            <p>
-              <span className="font-bold">Where it comes from</span>
-              {onProject && (
-                <span className="text-muted-foreground text-xs">
-                  {" "}
-                  · the highest role applies
-                </span>
-              )}
-            </p>
-            <ul className="flex flex-col divide-y rounded-md border">
-              {resolved.sources.map((source) => (
-                <li
-                  key={source.key}
-                  className={`grid grid-cols-[minmax(0,1fr)_8rem_4.5rem] items-center gap-3 px-3 py-2 ${source.status === "Highest" ? "bg-muted font-bold" : ""}`}
-                >
-                  <span>{source.label}</span>
-                  <span
-                    className={`flex items-center gap-1.5 ${source.status === "Highest" ? "" : "text-muted-foreground"}`}
-                  >
-                    {source.role ? (
-                      <RoleWithIcon role={source.role} />
-                    ) : (
-                      <>
-                        <Lock
-                          size="sm"
-                          aria-hidden="true"
-                          __rawClassName="invisible"
-                        />
-                        Not set
-                      </>
-                    )}
+      <Dialog.Body spacing="compact">
+        <div className="flex flex-col gap-3 text-sm">
+          {/* On a project the group's role can come from its organization
+              role or its project role; at organization level there is only
+              one source, which the description already names. */}
+          {onProject && (
+            <div className="flex flex-col gap-1">
+              <p>
+                <span className="font-bold">Where it comes from</span>
+                {onProject && (
+                  <span className="text-muted-foreground text-xs">
+                    {" "}
+                    · the highest role applies
                   </span>
-                  <span
-                    className={`text-right text-xs ${source.status === "Highest" ? "" : "text-muted-foreground"}`}
+                )}
+              </p>
+              <ul className="flex flex-col divide-y rounded-md border">
+                {resolved.sources.map((source) => (
+                  <li
+                    key={source.key}
+                    className={`grid grid-cols-[minmax(0,1fr)_8rem_4.5rem] items-center gap-3 px-3 py-2 ${source.status === "Highest" ? "bg-muted font-bold" : ""}`}
                   >
-                    {source.status}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
+                    <span>{source.label}</span>
+                    <span
+                      className={`flex items-center gap-1.5 ${source.status === "Highest" ? "" : "text-muted-foreground"}`}
+                    >
+                      {source.role ? (
+                        <RoleWithIcon role={source.role} />
+                      ) : (
+                        <>
+                          <Lock
+                            size="sm"
+                            aria-hidden="true"
+                            __rawClassName="invisible"
+                          />
+                          Not set
+                        </>
+                      )}
+                    </span>
+                    <span
+                      className={`text-right text-xs ${source.status === "Highest" ? "" : "text-muted-foreground"}`}
+                    >
+                      {source.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1">
             <label htmlFor={fieldId} className="font-bold">
               {roleKind} for {groupName}
             </label>
@@ -259,13 +280,13 @@ function GroupRoleDialog({
             ) : (
               <RoleField
                 id={fieldId}
-                roles={OPTIONS}
+                roles={optionsFor(level, isAiGatewayEnabled)}
                 value={selected}
                 onChange={setSelected}
                 noneLabel={onProject ? "Inherit from organization" : undefined}
                 noneDescription={
                   onProject
-                    ? `Keep the group's organization role (${roleName(orgRole)}) on this project.`
+                    ? `Keep the group's organization role (${roleName(levelOrgRole)}) on this project.`
                     : "The group gives no organization role."
                 }
                 optionDisabledReason={(role) =>
@@ -282,10 +303,10 @@ function GroupRoleDialog({
               <p className="text-muted-foreground flex items-start gap-2 text-xs">
                 <Lock size="sm" aria-hidden="true" __rawClassName="mt-0.5" />
                 <span>
-                  Anything at or below <Em>{roleName(orgRole)}</Em> has no
-                  effect: <Em>{groupName}</Em> already gives {roleName(orgRole)}{" "}
-                  in the organization. Pick a higher role, or inherit from the
-                  organization.
+                  Anything at or below <Em>{roleName(levelOrgRole)}</Em> has no
+                  effect: <Em>{groupName}</Em> already gives{" "}
+                  {roleName(levelOrgRole)} in the organization. Pick a higher
+                  role, or inherit from the organization.
                 </span>
               </p>
             )}

@@ -16,6 +16,8 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
+import { directRoleColumns } from "./directRoleColumns";
+import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsControl";
@@ -33,15 +35,18 @@ import {
 
 const formatRoleLabel = (role: Role) => systemRoleAccessRights[role].name;
 
-const allRoles = Object.keys(orderedRoles) as Role[];
+const allRoles = (Object.keys(orderedRoles) as Role[]).toSorted(
+  byPermissionCount,
+);
 
 const allProjectRoles = allRoles.filter((role) => role !== "AI_GATEWAY");
 
 const ownerLockedLabel = "Requires owner access";
 
-const roleFilterOptions = allRoles
-  .toSorted((a, b) => orderedRoles[b] - orderedRoles[a])
-  .map((role) => ({ value: role, label: formatRoleLabel(role) }));
+const roleFilterOptions = allRoles.map((role) => ({
+  value: role,
+  label: formatRoleLabel(role),
+}));
 
 export type MembersSettingsTableRow = {
   user: { image: string | null; name: string | null };
@@ -79,6 +84,8 @@ type MembersSettingsTableProps = Pick<
   canManageOrgOwnership: boolean;
   canManageProjectOwnership: boolean;
   isAiGatewayEnabled: boolean;
+  /** Groups can grant roles, so the role dialog mentions them. */
+  isGroupsEnabled: boolean;
   projectRolesEntitlement: boolean;
   showFeaturePreviews: boolean;
   updatingOrgRoleMembershipIds: ReadonlySet<string>;
@@ -195,6 +202,7 @@ export function MembersSettingsTable({
   canManageOrgOwnership,
   canManageProjectOwnership,
   isAiGatewayEnabled,
+  isGroupsEnabled,
   projectRolesEntitlement,
   showFeaturePreviews,
   updatingOrgRoleMembershipIds,
@@ -225,61 +233,86 @@ export function MembersSettingsTable({
         header: "SSO Provider",
         enableHiding: true,
       }),
-      {
-        accessorKey: project ? "projectRole" : "orgRole",
-        header: project ? "Project role" : "Organization role",
-        headerTooltip: {
-          description: project
-            ? "The role this member has on this project: the highest of their direct role and the roles their groups give them. Click it to see every source and change the direct project role."
-            : "The role this member has in the organization: the highest of their direct role and the roles their groups give them. Click it to see every source and change the direct role.",
-          href: "https://langfuse.com/docs/administration/rbac",
-        },
-        size: 280,
-        cell: ({ row }) => {
-          const member = row.original;
-          const onProject = Boolean(project) && projectRolesEntitlement;
-          const effective = resolveEffectiveRole({
-            orgRole: member.orgRole,
-            projectRole: onProject ? member.projectRole : undefined,
-            groupRoles: member.groupRoles,
-            level: onProject ? "project" : "organization",
-          });
-          return (
-            <EffectiveRoleDialogController
-              effective={effective}
-              orgRole={member.orgRole}
-              orgId={orgId}
-              projectId={onProject ? project?.id : undefined}
-              canSeeOrgSettings={hasOrgCudAccess}
-              member={{
-                name: member.user.name,
-                email: member.email,
-                image: member.user.image,
-              }}
-              editor={directRoleEditor(member, effective, {
-                project,
-                projectRolesEntitlement,
-                hasOrgCudAccess,
-                hasProjectCudAccess,
-                canManageOrgOwnership,
-                canManageProjectOwnership,
-                isAiGatewayEnabled,
-                updatingOrgRoleMembershipIds,
-                updatingProjectRoleMembershipIds,
-                onUpdateOrgRole,
-                onUpdateProjectRole,
-              })}
-            >
-              {(openDialog) => (
-                <RoleCellTrigger
-                  {...describeRoleCell(effective, onProject)}
-                  onClick={openDialog}
-                />
-              )}
-            </EffectiveRoleDialogController>
-          );
-        },
-      } satisfies LangfuseColumnDef<MembersSettingsTableRow>,
+      // Without Groups a member only has their direct role, so the role
+      // pickers stay as they were before groups. With Groups one cell shows
+      // the effective role and opens the dialog that explains it.
+      ...(isGroupsEnabled
+        ? [
+            {
+              accessorKey: project ? "projectRole" : "orgRole",
+              header: project ? "Project role" : "Organization role",
+              headerTooltip: {
+                description: project
+                  ? "The roles this member has on this project, from their direct role and their groups. Click it to see where each role comes from and change the direct project role."
+                  : "The roles this member has in the organization, from their direct role and their groups. Click it to see where each role comes from and change the direct role.",
+                href: "https://langfuse.com/docs/administration/rbac",
+              },
+              size: 280,
+              cell: ({ row }) => {
+                const member = row.original;
+                const onProject = Boolean(project) && projectRolesEntitlement;
+                const effective = resolveEffectiveRole({
+                  orgRole: member.orgRole,
+                  projectRole: onProject ? member.projectRole : undefined,
+                  groupRoles: member.groupRoles,
+                  level: onProject ? "project" : "organization",
+                });
+                return (
+                  <EffectiveRoleDialogController
+                    effective={effective}
+                    orgRole={member.orgRole}
+                    orgId={orgId}
+                    projectId={onProject ? project?.id : undefined}
+                    canSeeOrgSettings={hasOrgCudAccess}
+                    isGroupsEnabled={isGroupsEnabled}
+                    member={{
+                      name: member.user.name,
+                      email: member.email,
+                      image: member.user.image,
+                    }}
+                    editor={directRoleEditor(member, effective, {
+                      project,
+                      projectRolesEntitlement,
+                      hasOrgCudAccess,
+                      hasProjectCudAccess,
+                      canManageOrgOwnership,
+                      canManageProjectOwnership,
+                      isAiGatewayEnabled,
+                      updatingOrgRoleMembershipIds,
+                      updatingProjectRoleMembershipIds,
+                      onUpdateOrgRole,
+                      onUpdateProjectRole,
+                    })}
+                  >
+                    {(openDialog) => (
+                      <RoleCellTrigger
+                        {...describeRoleCell(effective, onProject)}
+                        onClick={openDialog}
+                      />
+                    )}
+                  </EffectiveRoleDialogController>
+                );
+              },
+            } satisfies LangfuseColumnDef<MembersSettingsTableRow>,
+          ]
+        : directRoleColumns({
+            orgId,
+            project,
+            orgRoles: allRoles.filter(
+              (role) => isAiGatewayEnabled || role !== "AI_GATEWAY",
+            ),
+            projectRoles: allProjectRoles,
+            ownerLockedLabel,
+            hasOrgCudAccess,
+            hasProjectCudAccess,
+            canManageOrgOwnership,
+            canManageProjectOwnership,
+            projectRolesEntitlement,
+            updatingOrgRoleMembershipIds,
+            updatingProjectRoleMembershipIds,
+            onUpdateOrgRole,
+            onUpdateProjectRole,
+          })),
       ...(showFeaturePreviews
         ? ([
             {
@@ -330,6 +363,7 @@ export function MembersSettingsTable({
       hasOrgCudAccess,
       hasProjectCudAccess,
       isAiGatewayEnabled,
+      isGroupsEnabled,
       onUpdateOrgRole,
       onUpdateProjectRole,
       orgId,
