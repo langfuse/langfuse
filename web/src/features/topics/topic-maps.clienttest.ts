@@ -36,8 +36,8 @@ describe("resolveTopicMapSelection", () => {
 describe("topicNextRefitLabel", () => {
   it("counts to the following day's slot once a fetched slot has passed", () => {
     const slot = Date.parse("2026-11-19T04:12:00.000Z");
-    expect(topicNextRefitLabel(new Date(slot).toISOString(), slot + 3_600_000)).toBe(
-      "in about 23 hours",
-    );
+    expect(
+      topicNextRefitLabel(new Date(slot).toISOString(), slot + 3_600_000),
+    ).toBe("in about 23 hours");
   });
 });

@@ -33,7 +33,10 @@ export function TopicRefreshMapDialogView({
         <p>
           Reclusters this map&apos;s topics from the last {WINDOW_DAYS} days of
           matching traces now, instead of at the next scheduled nightly update
-          {rule.nextRefitAt ? ` ${topicNextRefitLabel(rule.nextRefitAt, now)}` : ""}.
+          {rule.nextRefitAt
+            ? ` ${topicNextRefitLabel(rule.nextRefitAt, now)}`
+            : ""}
+          .
         </p>
         <ul className="flex list-disc flex-col gap-1 pl-5">
           <li>Topics may be renamed, merged or split.</li>
