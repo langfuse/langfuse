@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Role } from "@langfuse/shared";
-import { useId } from "react";
+import { useId, type ComponentProps } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -13,6 +13,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  useFormField,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
@@ -71,6 +72,22 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+function MemberRoleSelect(props: ComponentProps<typeof RoleSelect>) {
+  const { error, formItemId, formDescriptionId, formMessageId } =
+    useFormField();
+
+  return (
+    <RoleSelect
+      {...props}
+      triggerId={formItemId}
+      aria-invalid={Boolean(error)}
+      aria-describedby={
+        error ? `${formDescriptionId} ${formMessageId}` : formDescriptionId
+      }
+    />
+  );
+}
 
 type CreateProjectMemberDialogProps = {
   project: { id: string; name: string } | undefined;
@@ -174,7 +191,7 @@ export function CreateProjectMemberDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Organization Role</FormLabel>
-                    <RoleSelect
+                    <MemberRoleSelect
                       roles={Object.values(roleValues).filter(
                         (role) =>
                           isAiGatewayEnabled || role !== roleValues.AI_GATEWAY,
@@ -195,7 +212,7 @@ export function CreateProjectMemberDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Project Role</FormLabel>
-                    <RoleSelect
+                    <MemberRoleSelect
                       isProjectRole
                       canManageOwnership={canManageProjectOwnership}
                       roles={Object.values(roleValues).filter(

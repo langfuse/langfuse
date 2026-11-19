@@ -226,6 +226,12 @@ describe("member invite errors", () => {
     expect(fieldContainer("Organization Role")).toHaveTextContent(
       ORGANIZATION_ROLE_TOO_HIGH_MESSAGE,
     );
+    expect(
+      screen.getByRole("combobox", { name: "Organization Role" }),
+    ).toHaveAttribute("aria-invalid", "true");
+    expect(
+      screen.getByRole("combobox", { name: "Organization Role" }),
+    ).toHaveAccessibleDescription(ORGANIZATION_ROLE_TOO_HIGH_MESSAGE);
     expect(screen.getByRole("textbox", { name: "Email" })).not.toHaveAttribute(
       "aria-invalid",
       "true",
@@ -252,6 +258,12 @@ describe("member invite errors", () => {
     expect(fieldContainer("Project Role")).toHaveTextContent(
       PROJECT_ROLE_TOO_HIGH_MESSAGE,
     );
+    expect(
+      screen.getByRole("combobox", { name: "Project Role" }),
+    ).toHaveAttribute("aria-invalid", "true");
+    expect(
+      screen.getByRole("combobox", { name: "Project Role" }),
+    ).toHaveAccessibleDescription(PROJECT_ROLE_TOO_HIGH_MESSAGE);
     expect(screen.getByRole("textbox", { name: "Email" })).not.toHaveAttribute(
       "aria-invalid",
       "true",
