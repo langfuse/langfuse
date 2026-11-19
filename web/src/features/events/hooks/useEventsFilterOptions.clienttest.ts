@@ -200,7 +200,10 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
   });
 
   it("uses an explicit column list as the eager set in lazy mode", () => {
-    renderHook(() =>
+    const scoresAvg = [{ value: "accuracy" }];
+    mocks.perColumnData.scores_avg = { scores_avg: scoresAvg };
+
+    const { result } = renderHook(() =>
       useEventsFilterOptions({
         projectId: "p",
         startTimeFilter: [START_TIME],
@@ -214,6 +217,13 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
     expect(bulk.columns).toEqual(["environment", "name", "traceName"]);
     expect(bulk.columns).not.toContain("scores_avg");
     expect(mocks.perColumnInputs).toHaveLength(0);
+
+    act(() => result.current.requestColumns(["scores_avg", "name"]));
+
+    expect(mocks.perColumnInputs.map((q) => q.columns)).toEqual([
+      ["scores_avg"],
+    ]);
+    expect(result.current.filterOptions.scores_avg).toEqual(scoresAvg);
   });
 
   it("re-routes user-authored start-time conditions into startTimeFilter", () => {
