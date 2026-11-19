@@ -178,6 +178,59 @@ describe("Native OTEL batch NAPI boundary", () => {
     }
   });
 
+  it("weights the payload retained after each overflow upload for trace dispatch", async () => {
+    const traceId = "a".repeat(32);
+    const input = 'é"'.repeat(200);
+    const reference =
+      "@@@langfuseMedia:type=text/plain|id=example|source=field_size_limit@@@";
+    const spans = [spanId(0), spanId(1)].map((id) => ({
+      traceId,
+      spanId: id,
+      name: "overflow",
+      attributes: [
+        { key: "langfuse.observation.input", value: { stringValue: input } },
+      ],
+    }));
+    const batch = await prepareOtelJson(
+      Buffer.from(JSON.stringify([{ scopeSpans: [{ spans }] }])),
+      false,
+    );
+    try {
+      const { batch: processing } = await batch.process(nativeContext);
+      try {
+        const { overflowRequests } = await processing.complete(
+          [],
+          [],
+          256,
+          false,
+          [traceId],
+        );
+        expect(overflowRequests.map((request) => request.field)).toEqual([
+          "input",
+          "input",
+        ]);
+        const { events } = await processing.finalize(
+          overflowRequests.map(({ index, observationId }) => ({
+            index,
+            reference: observationId === spanId(0) ? reference : undefined,
+          })),
+          false,
+          [traceId],
+        );
+        const [uploaded, retained] = events.map(
+          (event) => event.serializedEventBytes!,
+        );
+        expect(retained! - uploaded!).toBe(
+          Buffer.byteLength(input) - Buffer.byteLength(reference),
+        );
+      } finally {
+        await processing.dispose();
+      }
+    } finally {
+      await batch.dispose();
+    }
+  });
+
   it("drops invalid usage entries while preserving valid rows and pricing", async () => {
     const spans = [
       { input: 7, input_cached_tokens: 2 ** 64 },

@@ -53,7 +53,7 @@ queues is not.
 
 At startup, TypeScript writers detect the sizing DEFAULT with `DESCRIBE TABLE events_full`. If confirmed, direct and staging writes omit `event_bytes`; otherwise they keep their legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native blocks always omit the column and require the migration first. Older writers may still supply explicit sizes. Historical rows and backfill accounting are unchanged. Restore older writers before rolling back the database default.
 
-Raw ingress limits and byte-length telemetry remain pre-media measurements. Trace-batch intake keeps its own JSON size estimate for read-capacity guards, computed only when intake is enabled.
+Raw ingress limits and byte-length telemetry remain pre-media measurements. Trace-batch intake estimates read capacity separately for sampled spans. See [trace-window size estimates](../traceBatching/README.md#trace-window-size-estimates).
 
 ## Rust direct processing
 
