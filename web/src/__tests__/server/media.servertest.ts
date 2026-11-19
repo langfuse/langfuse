@@ -21,6 +21,7 @@ import {
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { InvalidRequestError } from "@langfuse/shared";
 import {
   MediaAssociationOrigin,
   type Media,
@@ -28,7 +29,7 @@ import {
   prisma,
   type TraceMedia,
 } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
+import { redis, upsertMediaRecord } from "@langfuse/shared/src/server";
 
 describe("Media Upload API", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -810,6 +811,12 @@ describe("Media Upload API", () => {
   // Azure Blob Storage answers a successful Put Blob with 201 Created.
   describe("Azure Blob upload status", () => {
     it("treats a 201 upload as completed and reuses the media", async () => {
+      const organization = await prisma.organization.create({
+        data: { name: "Media 201 reuse test" },
+      });
+      const project = await prisma.project.create({
+        data: { name: "Media 201 reuse test", orgId: organization.id },
+      });
       const uploadRequest = {
         contentType: MediaContentType.PNG,
         contentLength: validPNG.contentLength,
@@ -818,36 +825,169 @@ describe("Media Upload API", () => {
         field: "input",
       };
 
-      const first = await createMediaUploadUrl({
-        projectId,
-        body: uploadRequest,
-      });
-      expect(first.uploadUrl).toEqual(expect.any(String));
+      try {
+        const first = await createMediaUploadUrl({
+          projectId: project.id,
+          body: uploadRequest,
+        });
+        expect(first.uploadUrl).toEqual(expect.any(String));
 
-      await updateMediaUploadStatus({
-        projectId,
-        mediaId: first.mediaId,
-        body: {
-          uploadedAt: new Date(),
+        await updateMediaUploadStatus({
+          projectId: project.id,
+          mediaId: first.mediaId,
+          body: {
+            uploadedAt: new Date(),
+            uploadHttpStatus: 201,
+            uploadHttpError: "",
+          },
+        });
+
+        const media = await prisma.media.findUnique({
+          where: {
+            projectId_id: { projectId: project.id, id: first.mediaId },
+          },
+        });
+        expect(media).toMatchObject({
           uploadHttpStatus: 201,
-          uploadHttpError: "",
+          uploadHttpError: null,
+        });
+
+        const second = await createMediaUploadUrl({
+          projectId: project.id,
+          body: { ...uploadRequest, traceId: `trace-${crypto.randomUUID()}` },
+        });
+        expect(second).toEqual({ mediaId: first.mediaId, uploadUrl: null });
+      } finally {
+        await prisma.traceMedia.deleteMany({
+          where: { projectId: project.id },
+        });
+        await prisma.observationMedia.deleteMany({
+          where: { projectId: project.id },
+        });
+        await prisma.media.deleteMany({ where: { projectId: project.id } });
+        await prisma.project.delete({ where: { id: project.id } });
+        await prisma.organization.delete({ where: { id: organization.id } });
+      }
+    });
+  });
+
+  it("does not downgrade a completed media upload after a failure report", async () => {
+    const organization = await prisma.organization.create({
+      data: { name: "Media status transition test" },
+    });
+    const project = await prisma.project.create({
+      data: { name: "Media status transition test", orgId: organization.id },
+    });
+    const mediaId = `media-${crypto.randomUUID()}`;
+    const uploadedAt = new Date("2026-11-01T12:00:00.000Z");
+    try {
+      await prisma.media.create({
+        data: {
+          id: mediaId,
+          projectId: project.id,
+          sha256Hash: crypto.randomBytes(32).toString("base64"),
+          bucketPath: `media/${mediaId}.png`,
+          bucketName: "test-bucket",
+          contentType: "image/png",
+          contentLength: 1234,
+          uploadedAt,
+          uploadHttpStatus: 201,
         },
       });
 
-      const media = await prisma.media.findUnique({
-        where: { projectId_id: { projectId, id: first.mediaId } },
+      await expect(
+        updateMediaUploadStatus({
+          projectId: project.id,
+          mediaId,
+          body: {
+            uploadedAt: new Date("2026-11-01T12:01:00.000Z"),
+            uploadHttpStatus: 500,
+            uploadHttpError: "retry failed",
+          },
+        }),
+      ).rejects.toBeInstanceOf(InvalidRequestError);
+
+      const media = await prisma.media.findUniqueOrThrow({
+        where: { projectId_id: { projectId: project.id, id: mediaId } },
       });
       expect(media).toMatchObject({
+        uploadedAt,
         uploadHttpStatus: 201,
         uploadHttpError: null,
       });
+    } finally {
+      await prisma.media.deleteMany({ where: { projectId: project.id } });
+      await prisma.project.delete({ where: { id: project.id } });
+      await prisma.organization.delete({ where: { id: organization.id } });
+    }
+  });
 
-      const second = await createMediaUploadUrl({
-        projectId,
-        body: { ...uploadRequest, traceId: `trace-${crypto.randomUUID()}` },
-      });
-      expect(second).toEqual({ mediaId: first.mediaId, uploadUrl: null });
+  it("records a failed reupload with a different content type", async () => {
+    const organization = await prisma.organization.create({
+      data: { name: "Media reupload test" },
     });
+    const project = await prisma.project.create({
+      data: { name: "Media reupload test", orgId: organization.id },
+    });
+    const mediaId = `media-${crypto.randomUUID()}`;
+    const sha256Hash = crypto.randomBytes(32).toString("base64");
+    try {
+      await prisma.media.create({
+        data: {
+          id: mediaId,
+          projectId: project.id,
+          sha256Hash,
+          bucketPath: `media/${mediaId}.png`,
+          bucketName: "test-bucket",
+          contentType: MediaContentType.PNG,
+          contentLength: 1234,
+          uploadedAt: new Date("2026-11-01T12:00:00.000Z"),
+          uploadHttpStatus: 200,
+        },
+      });
+
+      await upsertMediaRecord({
+        mediaId,
+        projectId: project.id,
+        sha256Hash,
+        bucketPath: `media/${mediaId}.pdf`,
+        uploadBucket: "test-bucket",
+        contentType: MediaContentType.PDF,
+        contentLength: 1234,
+      });
+
+      const pending = await prisma.media.findUniqueOrThrow({
+        where: { projectId_id: { projectId: project.id, id: mediaId } },
+      });
+      expect(pending).toMatchObject({
+        contentType: MediaContentType.PDF,
+        uploadHttpStatus: null,
+        uploadedAt: null,
+      });
+
+      await updateMediaUploadStatus({
+        projectId: project.id,
+        mediaId,
+        body: {
+          uploadedAt: new Date("2026-11-01T12:01:00.000Z"),
+          uploadHttpStatus: 500,
+          uploadHttpError: "reupload failed",
+        },
+      });
+
+      const failed = await prisma.media.findUniqueOrThrow({
+        where: { projectId_id: { projectId: project.id, id: mediaId } },
+      });
+      expect(failed).toMatchObject({
+        contentType: MediaContentType.PDF,
+        uploadHttpStatus: 500,
+        uploadHttpError: "reupload failed",
+      });
+    } finally {
+      await prisma.media.deleteMany({ where: { projectId: project.id } });
+      await prisma.project.delete({ where: { id: project.id } });
+      await prisma.organization.delete({ where: { id: organization.id } });
+    }
   });
 
   describe("tRPC media reader", () => {
