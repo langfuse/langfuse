@@ -110,6 +110,10 @@ describe("in-app agent router", () => {
       (
         env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
       ).LANGFUSE_AI_FEATURES_PROJECT_ID = telemetryFixture.projectId;
+      await prisma.organization.update({
+        where: { id: fixture.orgId },
+        data: { aiTelemetryEnabled: true },
+      });
 
       await expect(
         externalCaller.inAppAgent.telemetryProject({

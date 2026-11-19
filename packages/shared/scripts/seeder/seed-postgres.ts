@@ -120,6 +120,7 @@ async function main() {
       id: seedOrgId,
       name: "Seed Org",
       aiFeaturesEnabled: true,
+      aiTelemetryEnabled: true,
       cloudConfig: {
         plan: "Team",
       },

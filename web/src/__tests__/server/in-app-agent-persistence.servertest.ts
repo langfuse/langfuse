@@ -86,7 +86,7 @@ describe("in-app agent persistence", () => {
 
     await prisma.organization.update({
       where: { id: setup.orgId },
-      data: { aiFeaturesEnabled: true },
+      data: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
     });
 
     await prisma.user.create({

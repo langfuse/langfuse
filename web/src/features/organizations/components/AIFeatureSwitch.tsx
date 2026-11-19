@@ -36,7 +36,7 @@ export default function AIFeatureSwitch() {
     aiFeaturesEnabled ?? false,
   );
   const [isAITelemetrySwitchEnabled, setIsAITelemetrySwitchEnabled] = useState(
-    aiTelemetryEnabled ?? true,
+    aiTelemetryEnabled ?? false,
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const hasAccess = useHasOrganizationAccess({
@@ -60,7 +60,7 @@ export default function AIFeatureSwitch() {
       utils.inAppAgent.telemetryProject.invalidate();
     },
     onError: () => {
-      setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? true);
+      setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? false);
     },
   });
 
