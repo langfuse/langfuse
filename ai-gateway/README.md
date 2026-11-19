@@ -263,10 +263,9 @@ Gateway-specific metrics:
 - `gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
   `gateway.admission.rejected` (`phase`: `request`, `request_body` or
   `model_catalog`), and `gateway.telemetry.records`.
+- `gateway.spend.usd` (`langfuse.organization.id`, `langfuse.project.id`, `gateway.provider`): monotonic counter of the USD a request on a spend-limited key added to its budget counters. Each charge also logs `gateway spend charged` with `cost_usd`, `user_id`, `organization_id` and `project_id`, so per-user spend can be derived from logs.
 
-Durations use seconds; first-byte timing measures provider bytes arriving at the
-gateway, not first-token delivery to the caller. Metric attributes contain
-bounded categories, not tenant or request identifiers.
+Durations use seconds; first-byte timing measures provider bytes arriving at the gateway, not first-token delivery to the caller. Metric attributes contain bounded categories, not tenant or request identifiers, except the organization and project on `gateway.spend.usd`, which per-organization spend alerts need. User ids never become metric attributes.
 
 Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
 Metrics export every 30 seconds. Export calls use a three-second timeout; failures
