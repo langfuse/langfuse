@@ -49,6 +49,58 @@ describe("Native OTEL batch NAPI boundary", () => {
     }
   });
 
+  it("matches TypeScript optional experiment fields in evaluation snapshots", async () => {
+    const experimentFields = [
+      ["id", "experiment_id"],
+      ["name", "experiment_name"],
+      ["description", "experiment_description"],
+      ["dataset.id", "experiment_dataset_id"],
+      ["item.id", "experiment_item_id"],
+      ["item.expected_output", "experiment_item_expected_output"],
+      ["item.root_observation_id", "experiment_item_root_span_id"],
+    ] as const;
+    const expectedExperimentFields = Object.fromEntries(
+      experimentFields.map(([, column], index) => [
+        column,
+        `experiment-${index}`,
+      ]),
+    );
+    const spans = [
+      {
+        traceId: "a".repeat(32),
+        spanId: spanId(0),
+        name: "without-experiment",
+      },
+      {
+        traceId: "a".repeat(32),
+        spanId: spanId(1),
+        name: "with-experiment",
+        attributes: experimentFields.map(([suffix], index) => ({
+          key: `langfuse.experiment.${suffix}`,
+          value: { stringValue: `experiment-${index}` },
+        })),
+      },
+    ];
+    const validated = await validateOtelJson(
+      Buffer.from(JSON.stringify([{ resource: {}, scopeSpans: [{ spans }] }])),
+    );
+    const batch = await validated.extract(true);
+    const { batch: processing } = await batch.process(nativeContext);
+    try {
+      const { finalized } = await processing.complete([], [], undefined, true);
+      const rows = finalized!.evaluationRows as Record<string, unknown>[];
+
+      for (const [, column] of experimentFields) {
+        expect(rows[0]).not.toHaveProperty(column);
+      }
+      expect(rows[1]).toMatchObject(expectedExperimentFields);
+    } finally {
+      await processing.dispose();
+      await batch.dispose();
+      await validated.dispose();
+    }
+  });
+
   it.each([undefined, 1])(
     "retains raw evaluation types across completion with overflow limit %s",
     async (limit) => {
