@@ -763,3 +763,36 @@ export async function getTopicResultCounts(input: {
     };
   });
 }
+
+/**
+ * Completed facet summaries written in `[start, end)`, counted by
+ * `processed_at` (the table has no creation time). Rows are not deduplicated,
+ * so a source re-summarized before a merge counts once per write.
+ */
+export async function getTopicFacetSummaryCountsByProjectInCreationInterval({
+  start,
+  end,
+}: {
+  start: Date;
+  end: Date;
+}): Promise<{ projectId: string; count: number }[]> {
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
+    query: `
+      SELECT project_id, count() AS count
+      FROM topic_facet_summaries
+      WHERE processed_at >= {start: DateTime64(3)}
+        AND processed_at < {end: DateTime64(3)}
+        AND processing_state = 'complete'
+      GROUP BY project_id
+    `,
+    params: {
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+    },
+    clickhouseConfigs: { request_timeout: 300_000 },
+  });
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
+  }));
+}
