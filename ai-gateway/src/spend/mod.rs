@@ -3,7 +3,8 @@
 //! response, the request's cost is added to them. Requests are not reserved,
 //! so concurrent requests can overshoot a limit by what they cost. A request
 //! for a model Langfuse has no price for is rejected before it is forwarded; a
-//! response that still adds nothing is counted in `gateway.spend.uncharged`.
+//! response that still adds nothing is counted in `gateway.spend.uncharged`;
+//! one that adds a cost is counted in `gateway.spend.usd`.
 //! Web is told when a limit is reached, so it can email the people it applies
 //! to.
 mod alert;
@@ -163,10 +164,14 @@ impl SpendLimits {
                 exceeded.rejection(now),
             )));
         }
+        let attribution = context.attribution();
         Ok(Some(SpendRecording {
             store: Arc::clone(store),
             tasks: Arc::clone(&self.tasks),
             provider: context.connection().provider().as_str(),
+            organization_id: organization_id.to_owned(),
+            project_id: attribution.project_id().map(|id| id.as_str().to_owned()),
+            user_id: attribution.user_id().map(str::to_owned),
             limits: usage.iter().map(LimitUsage::counted).collect(),
             model,
             alerts,
@@ -288,6 +293,10 @@ pub(crate) struct SpendRecording {
     store: Arc<RedisCounters>,
     tasks: Arc<TaskTracker>,
     provider: &'static str,
+    organization_id: String,
+    project_id: Option<String>,
+    /// The key's owner; absent for keys not bound to a user.
+    user_id: Option<String>,
     limits: Vec<CountedLimit>,
     model: ModelWithPrices,
     alerts: Option<SpendAlerts>,
@@ -310,11 +319,30 @@ impl SpendRecording {
             .and_then(|cost| cost.total)
             .filter(|total| *total > 0.0)
         {
-            Some(total) => self.add_in_background(total),
+            Some(total) => {
+                self.report_charged(total);
+                self.add_in_background(total);
+            }
             None => self.report_uncharged(facts, cost.as_ref()),
         }
         cost.filter(|cost| !cost.provided && !cost.details.is_empty())
             .map(|cost| cost.details)
+    }
+
+    /// The log's request correlation fields add the organization and project, so
+    /// per-user spend can be derived from logs without a user-tagged metric.
+    fn report_charged(&self, cost: f64) {
+        crate::observability::spend_charged(
+            cost,
+            &self.organization_id,
+            self.project_id.as_deref(),
+            self.provider,
+        );
+        tracing::info!(
+            cost_usd = cost,
+            user_id = self.user_id.as_deref(),
+            "gateway spend charged"
+        );
     }
 
     /// A successful response that adds nothing usually means its usage is missing or
