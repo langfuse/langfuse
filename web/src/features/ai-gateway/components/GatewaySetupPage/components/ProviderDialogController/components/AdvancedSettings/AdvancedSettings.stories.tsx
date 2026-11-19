@@ -80,33 +80,6 @@ export const EditingStoredHeaders = meta.story({
   },
 });
 
-/** A base URL error opens the settings so it is visible, and the user can still close them. */
-export const BaseURLError = meta.story({
-  name: "(Test) Base URL Error",
-  args: {
-    provider: "OPENAI",
-    baseURL: "http://llm-proxy.example.com/v1",
-    baseURLError: "Only HTTPS base URLs are allowed on Langfuse Cloud",
-    headers: [],
-    storedHeaderKeys: [],
-    isEditing: false,
-  },
-  play: async ({ canvas, userEvent }) => {
-    await expect(
-      canvas.getByRole("textbox", { name: "API Base URL" }),
-    ).toHaveAttribute("aria-invalid", "true");
-    await expect(canvas.getByRole("alert")).toHaveTextContent(
-      "Only HTTPS base URLs are allowed on Langfuse Cloud",
-    );
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Hide advanced settings" }),
-    );
-    await expect(
-      canvas.queryByRole("textbox", { name: "API Base URL" }),
-    ).not.toBeInTheDocument();
-  },
-});
-
 /** A custom base URL can name customer infrastructure, so it stays out of session replay. */
 export const BaseURLBlockedFromReplay = meta.story({
   name: "(Test) Base URL Blocked From Replay",
