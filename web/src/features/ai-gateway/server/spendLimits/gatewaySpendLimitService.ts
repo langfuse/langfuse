@@ -11,7 +11,10 @@ import {
   type PrismaClient,
 } from "@langfuse/shared/src/db";
 import { organizationRoleAccessRights } from "@langfuse/shared/rbac";
-import { getGatewaySpendSinceFromEvents } from "@langfuse/shared/src/server";
+import {
+  getGatewaySpendSinceFromEvents,
+  logger,
+} from "@langfuse/shared/src/server";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
@@ -497,12 +500,20 @@ export class GatewaySpendLimitService {
     });
     if (!limit) return null;
     const recordingProjectId = await this.getRecordingProjectId(organizationId);
+    // The budget stays visible and editable while its spend can't be read.
     const spentUsd = recordingProjectId
-      ? ((
-          await readSpend(recordingProjectId, "ORGANIZATION", [
-            { subjectId: recordingProjectId, limit },
-          ])
-        ).get(recordingProjectId) ?? 0)
+      ? await readSpend(recordingProjectId, "ORGANIZATION", [
+          { subjectId: recordingProjectId, limit },
+        ]).then(
+          (spend) => spend.get(recordingProjectId) ?? 0,
+          (error: unknown) => {
+            logger.warn("Failed to read the organization's gateway spend", {
+              organizationId,
+              error,
+            });
+            return undefined;
+          },
+        )
       : undefined;
     return {
       spendLimit: {

@@ -767,7 +767,7 @@ const SPEND_LIMIT_EXCEEDED: Classification = (
 );
 const SPEND_LIMIT_UNPRICED_MODEL: Classification = (
     StatusCode::BAD_REQUEST,
-    "This API key has a budget, and Langfuse has no price for this model. Add a model price in Langfuse to use the model with this key.",
+    "A budget applies to this API key, and Langfuse has no price for this model. Add a model price in Langfuse to use the model with this key.",
     "invalid_request_error",
     "spend_limit_unpriced_model",
 );

@@ -4,17 +4,11 @@ import {
   getGatewaySpendLimitWindowEnd,
   getGatewaySpendLimitWindowStart,
 } from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
-import { usdFormatter } from "@/src/utils/numbers";
+import { formatGatewayBudgetUsd } from "@/src/features/ai-gateway/fns/formatGatewayBudgetUsd";
+import { formatGatewaySpendBudget } from "@/src/features/ai-gateway/fns/formatGatewaySpendBudget";
 import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 import { GatewaySpendBudgetStatusDot } from "@/src/features/ai-gateway/components/GatewaySpendBudgetStatusDot/GatewaySpendBudgetStatusDot";
 import { getGatewaySpendBudgetStatus } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetStatus";
-
-const intervalLabels: Record<GatewaySpendBudgetInterval, string> = {
-  DAILY: "daily",
-  WEEKLY: "weekly",
-  MONTHLY: "monthly",
-  TOTAL: "total",
-};
 
 const requestsBySubject = {
   key: "Requests with this key",
@@ -40,8 +34,8 @@ export function GatewaySpendBudgetBadge({
 }: GatewaySpendBudgetBadgeProps) {
   const limit =
     format === "amounts"
-      ? formatUsd(spendLimit.limitUsd)
-      : `${formatUsd(spendLimit.limitUsd)} ${intervalLabels[spendLimit.interval]}`;
+      ? formatGatewayBudgetUsd(spendLimit.limitUsd)
+      : formatGatewaySpendBudget(spendLimit);
   const { title, description } = describeBudget(
     spendLimit,
     spentUsd,
@@ -53,7 +47,9 @@ export function GatewaySpendBudgetBadge({
       ? "ok"
       : getGatewaySpendBudgetStatus(spentUsd, spendLimit.limitUsd);
   const text =
-    spentUsd === undefined ? limit : `${formatUsd(spentUsd)} / ${limit}`;
+    spentUsd === undefined
+      ? limit
+      : `${formatGatewayBudgetUsd(spentUsd)} / ${limit}`;
 
   return (
     <CustomTooltip
@@ -116,8 +112,4 @@ function formatResetsAt(interval: GatewaySpendBudgetInterval) {
     interval,
     getGatewaySpendLimitWindowStart(interval),
   )?.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
-
-function formatUsd(value: number) {
-  return usdFormatter(value, 0, 2);
 }
