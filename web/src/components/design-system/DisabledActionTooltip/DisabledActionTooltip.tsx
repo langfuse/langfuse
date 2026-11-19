@@ -1,12 +1,29 @@
 "use client";
 
-import { type ReactElement } from "react";
+import { cloneElement, type ReactElement } from "react";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
-// A disabled button is not a pointer target, so the tooltip trigger is a
-// transparent layer above it rather than a style applied to the button.
+// Disabled buttons swallow pointer events, so the tooltip listens on this
+// wrapper and the button lets those events through.
+type PointerChild = ReactElement<{
+  className?: string;
+  ignorePointer?: boolean;
+}>;
+
+function releasePointerEvents(child: ReactElement) {
+  const element = child as PointerChild;
+  if (element.type === Button) {
+    return cloneElement(element, { ignorePointer: true });
+  }
+
+  return cloneElement(element, {
+    className: cn(element.props.className, "pointer-events-none"),
+  });
+}
+
 export function DisabledActionTooltip({
   label,
   fill = false,
@@ -19,17 +36,23 @@ export function DisabledActionTooltip({
 }) {
   return (
     <Tooltip label={label}>
-      {({ getTriggerProps }) => (
-        <span
-          className={cn("relative inline-flex", fill && "w-full sm:w-auto")}
-        >
-          {children}
+      {({ getTriggerProps }) => {
+        const triggerProps = getTriggerProps();
+        return (
           <span
-            {...getTriggerProps()}
-            className="absolute inset-0 cursor-not-allowed"
-          />
-        </span>
-      )}
+            {...triggerProps}
+            className={cn(
+              typeof triggerProps.className === "string"
+                ? triggerProps.className
+                : undefined,
+              "inline-flex cursor-not-allowed",
+              fill && "w-full sm:w-auto",
+            )}
+          >
+            {releasePointerEvents(children)}
+          </span>
+        );
+      }}
     </Tooltip>
   );
 }
