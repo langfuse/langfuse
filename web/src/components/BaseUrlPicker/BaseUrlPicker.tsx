@@ -3,7 +3,7 @@ import { PlusIcon } from "@langfuse/icons";
 
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { findBaseUrlPreset } from "@/src/fns/findBaseUrlPreset";
+import { findBaseUrlPreset } from "@/src/components/BaseUrlPicker/fns/findBaseUrlPreset";
 import type { BaseUrlPreset } from "@/src/types/baseUrlPreset";
 
 const CUSTOM_OPTION = "custom";

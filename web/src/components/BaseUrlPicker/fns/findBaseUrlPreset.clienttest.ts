@@ -1,5 +1,5 @@
 import { openAiBaseUrlPresets } from "@/src/constants/openAiBaseUrlPresets";
-import { findBaseUrlPreset } from "@/src/fns/findBaseUrlPreset";
+import { findBaseUrlPreset } from "@/src/components/BaseUrlPicker/fns/findBaseUrlPreset";
 
 describe("findBaseUrlPreset", () => {
   it("maps a saved base URL to its preset, or to none for a custom URL", () => {
