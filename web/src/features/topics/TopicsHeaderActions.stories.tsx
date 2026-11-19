@@ -17,6 +17,7 @@ const defaultArgs: ComponentProps<typeof TopicsHeaderActions> = {
     mapPickerShown: true,
     showUnassigned: true,
     onShowUnassignedChange: fn(),
+    onGiveFeedback: fn(),
   }),
 };
 

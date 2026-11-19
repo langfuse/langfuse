@@ -153,8 +153,10 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
  * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, plus PRECONDITION_FAILED on
  * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}. Empty/too-short fields, stale
- * in-app-agent approvals, and a rejected user-configured remote-experiment
- * URL are the product working as designed — the toast is the UX; Sentry
+ * in-app-agent approvals, a rejected user-configured remote-experiment URL,
+ * an invite for someone who is already a member or already invited, and an
+ * organization delete while projects are still being purged are the product
+ * working as designed — the UI already explains them; Sentry
  * must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
@@ -169,16 +171,20 @@ export const EXPECTED_TRPC_ERROR_CODES = [
 
 /**
  * CONFLICT is usually a uniqueness / concurrency failure we still want
- * (duplicate names, unique-constraint races). These procedures throw 409
- * only as an optimistic-concurrency / stale-UI race the product already
- * toasts — expected user-facing state, not a regression.
+ * captured (duplicate names, unique-constraint races). These procedures
+ * throw 409 only for a state the product already explains in the UI.
  *
- * `inAppAgent.decideToolApproval` is the only current member: every CONFLICT
- * it throws means the parent run is no longer AWAITING_APPROVAL (already
- * decided, expired, or cancelled). The UI already tells the user to reload.
+ * `inAppAgent.decideToolApproval`: the parent run is no longer
+ * AWAITING_APPROVAL (already decided, expired, or cancelled). The UI tells
+ * the user to reload.
+ * `members.create`: a concurrent insert hits the membership unique
+ * constraint. `rethrowIfMembershipExists` in `@langfuse/shared` returns
+ * 409 with the already-member sentence, and the invite form shows it on
+ * the email field. The pre-check for the same state is BAD_REQUEST.
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
+  "members.create",
 ] as const;
 
 /**

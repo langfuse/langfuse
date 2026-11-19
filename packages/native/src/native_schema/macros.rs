@@ -40,6 +40,9 @@ macro_rules! restore_field {
 }
 
 macro_rules! apply_attribute {
+    ($row:ident, $field:ident, $attributes:ident, text [$($key:expr),*]) => {
+        $row.$field = $attributes.text(stringify!($field), &[$($key),*]);
+    };
     ($row:ident, $field:ident, $attributes:ident, $method:ident [$($key:expr),*]) => {
         $row.$field = $attributes.$method(&[$($key),*]);
     };

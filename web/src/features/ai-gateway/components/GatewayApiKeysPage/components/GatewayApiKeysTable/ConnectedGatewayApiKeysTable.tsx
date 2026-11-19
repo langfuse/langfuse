@@ -16,12 +16,15 @@ export function ConnectedGatewayApiKeysTable({
   organizationId,
   description,
   emptyState,
+  onCreateKey,
 }: {
   organizationId: string;
   /** Shown above the table; the no-keys placeholder explains keys itself. */
   description: ReactNode;
   /** Replaces the whole table, search included, while there are no keys. */
   emptyState?: ReactNode;
+  /** The dialog must live above this table: the empty state unmounts once the key exists. */
+  onCreateKey: () => void;
 }) {
   const [paginationState, setPaginationState] = usePaginationState(0, 10, {
     page: "pageIndex",
@@ -131,6 +134,7 @@ export function ConnectedGatewayApiKeysTable({
                   }}
                   onEdit={openEditDialog}
                   onRevoke={openRevokeDialog}
+                  onCreateKey={onCreateKey}
                 />
               </div>
             </div>
