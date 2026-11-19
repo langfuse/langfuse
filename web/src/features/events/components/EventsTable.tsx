@@ -110,7 +110,7 @@ import { default as useColumnVisibility } from "@/src/features/column-visibility
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { InfoIcon, LightbulbIcon } from "@langfuse/icons";
+import { InfoIcon, LightbulbIcon, ListFilter } from "@langfuse/icons";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/TablePeekViewObservationDetail";
@@ -192,6 +192,8 @@ import {
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { EventsNameFilterPopover } from "@/src/features/events/components/EventsNameFilterPopover";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type EventsTableRow = {
   // Identity fields
@@ -343,6 +345,7 @@ export default function ObservationsEventsTable({
   isolateTableState = false,
   showAllEnvironments = false,
 }: EventsTableProps) {
+  const capture = usePostHogClientCapture();
   const peekContext = usePeekTableState();
   const hasBatchExportAccess = useHasProjectAccess({
     projectId,
@@ -1346,6 +1349,52 @@ export default function ObservationsEventsTable({
   const isMobile = useIsMobile();
   const enableSorting = showToolbar;
 
+  const nameColumnHeader = (column: "name" | "traceName") => {
+    const label = getEventsColumnName(column);
+    const filter = queryFilter.filters.find(
+      (filter) => filter.column === column,
+    );
+    if (!showToolbar || externalFilterState || filter?.type !== "categorical") {
+      return undefined;
+    }
+    return (
+      <EventsNameFilterPopover
+        key={queryFilter.draftResetKey}
+        filter={filter}
+        tableName={eventsFilterConfig.tableName}
+        onAfterOpen={() => {
+          requestColumns([column]);
+          capture("table:column_filter_header_click", {
+            column,
+            tableName: eventsFilterConfig.tableName,
+            isV4: true,
+          });
+        }}
+      >
+        {({ Trigger, disabled }) => (
+          <Trigger asChild>
+            <button
+              type="button"
+              disabled={disabled}
+              aria-label={`Filter by ${label.toLowerCase()}`}
+              className="hover:text-foreground focus-visible:ring-ring flex w-full items-center gap-1 rounded-sm text-left focus-visible:ring-2 focus-visible:outline-hidden"
+            >
+              <span className="truncate" title={label}>
+                {label}
+              </span>
+              <ListFilter
+                size="sm"
+                color={filter.isActive ? "foreground" : "muted"}
+              />
+            </button>
+          </Trigger>
+        )}
+      </EventsNameFilterPopover>
+    );
+  };
+  const nameHeader = nameColumnHeader("name");
+  const traceNameHeader = nameColumnHeader("traceName");
+
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
     ...(showToolbar && !isMobile ? [selectActionColumn] : []),
     createDateTableColumn<EventsTableRow>({
@@ -1364,14 +1413,20 @@ export default function ObservationsEventsTable({
     createTextTableColumn<EventsTableRow>({
       accessorKey: "name",
       header: getEventsColumnName("name"),
+      headerContent: nameHeader,
+      headerBlock: Boolean(nameHeader),
       size: 150,
       enableSorting,
+      enableHeaderSorting: false,
     }),
     createTextTableColumn<EventsTableRow>({
       accessorKey: "traceName",
       header: getEventsColumnName("traceName"),
+      headerContent: traceNameHeader,
+      headerBlock: Boolean(traceNameHeader),
       size: 150,
       enableSorting: true,
+      enableHeaderSorting: false,
     }),
     createIOTableColumn<EventsTableRow>({
       accessorKey: "input",

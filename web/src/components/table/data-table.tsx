@@ -649,6 +649,8 @@ export function DataTable<TData extends object, TValue>({
                     const columnDef = header.column
                       .columnDef as LangfuseColumnDef<unknown>;
                     const sortingEnabled = columnDef.enableSorting;
+                    const headerSortingEnabled =
+                      sortingEnabled && columnDef.enableHeaderSorting !== false;
                     // Dynamic column names are user defined and may not be a
                     // valid CSS variable. Those fall back to 150px.
                     const width = fixedTableColumnWidth(columnDef, header.id);
@@ -658,7 +660,7 @@ export function DataTable<TData extends object, TValue>({
                         key={header.id}
                         className={cn(
                           "group p-1 first:pl-2",
-                          sortingEnabled && "cursor-pointer",
+                          headerSortingEnabled && "cursor-pointer",
                           getPinningClasses(header.column),
                           columnDef.headerClassName,
                           columnDef.hideBelowMd && "hidden md:table-cell",
@@ -681,7 +683,11 @@ export function DataTable<TData extends object, TValue>({
                             return;
                           }
 
-                          if (!setOrderBy || !columnDef.id || !sortingEnabled) {
+                          if (
+                            !setOrderBy ||
+                            !columnDef.id ||
+                            !headerSortingEnabled
+                          ) {
                             return;
                           }
 
@@ -727,10 +733,11 @@ export function DataTable<TData extends object, TValue>({
                               // Opted out of the single truncated line, so a
                               // header can carry more than the column's name.
                               <div className="min-w-0 flex-1 leading-normal">
-                                {flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext(),
-                                )}
+                                {columnDef.headerContent ??
+                                  flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  )}
                               </div>
                             ) : (
                               <span
@@ -742,10 +749,11 @@ export function DataTable<TData extends object, TValue>({
                                   ),
                                 )}
                               >
-                                {flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext(),
-                                )}
+                                {columnDef.headerContent ??
+                                  flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  )}
                               </span>
                             )}
                             {columnDef.headerTooltip && (

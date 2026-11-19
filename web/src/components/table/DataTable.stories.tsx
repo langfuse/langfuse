@@ -1,7 +1,7 @@
 /* eslint-disable @repo/storybook-play-no-implementation-detail-assertions, no-nested-ternary */
 import preview from "../../../.storybook/preview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { expect, fireEvent, fn } from "storybook/test";
+import { expect, fireEvent, fn, within } from "storybook/test";
 import {
   type OnChangeFn,
   type PaginationState,
@@ -15,6 +15,7 @@ import {
   type AsyncTableData,
 } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { EventsNameFilterPopover } from "@/src/features/events/components/EventsNameFilterPopover";
 import {
   resolveRowHeightRendering,
   useRowHeightRendering,
@@ -2005,3 +2006,91 @@ type RowHeightLifecycleStoryProps = Pick<
   | "customRowHeightPx"
   | "onCustomRowHeightChange"
 > & { initialRowCount?: number };
+
+export const NameFilteringPreservesRestoredSort = meta.story({
+  name: "(Test) Name filtering preserves restored sort",
+  render: () => {
+    const [selectedNames, setSelectedNames] = useState(["alpha", "beta"]);
+    const [orderBy, setOrderBy] = useState<OrderByState>({
+      column: "name",
+      order: "ASC",
+    });
+    return (
+      <DataTable
+        tableName="observations-events"
+        columns={[
+          createTextTableColumn<{ name: string }>({
+            accessorKey: "name",
+            header: "Name",
+            enableSorting: true,
+            enableHeaderSorting: false,
+            headerBlock: true,
+            headerContent: (
+              <EventsNameFilterPopover
+                tableName="observations-events"
+                onAfterOpen={fn()}
+                filter={{
+                  type: "categorical",
+                  column: "name",
+                  label: "Name",
+                  loading: false,
+                  expanded: true,
+                  isActive: selectedNames.length < 2,
+                  isDisabled: false,
+                  value: selectedNames,
+                  options: ["alpha", "beta"],
+                  counts: new Map(),
+                  onChange: setSelectedNames,
+                  onOnlyChange: (name) => setSelectedNames([name]),
+                  onReset: () => setSelectedNames(["alpha", "beta"]),
+                  onTextFilterAdd: fn(),
+                }}
+              >
+                {({ Trigger, disabled }) => (
+                  <Trigger asChild>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      aria-label="Filter by name"
+                    >
+                      Name
+                    </button>
+                  </Trigger>
+                )}
+              </EventsNameFilterPopover>
+            ),
+          }),
+        ]}
+        orderBy={orderBy}
+        setOrderBy={setOrderBy}
+        hidePagination
+        data={{
+          isLoading: false,
+          isError: false,
+          data: selectedNames.map((name) => ({ name })),
+        }}
+      />
+    );
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const header = canvas.getByRole("columnheader", { name: /Name/ });
+    await userEvent.click(header);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Filter by name" }),
+    );
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole(
+      "dialog",
+    );
+    await userEvent.click(within(dialog).getByText("alpha"));
+    await expect(canvas.getByRole("cell", { name: "alpha" })).toBeVisible();
+    await expect(
+      canvas.queryByRole("cell", { name: "beta" }),
+    ).not.toBeInTheDocument();
+    await expect(dialog).toBeVisible();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Clear filter" }),
+    );
+    await expect(canvas.getByRole("cell", { name: "beta" })).toBeVisible();
+    await expect(header).toHaveTextContent("sorted ascending");
+  },
+});

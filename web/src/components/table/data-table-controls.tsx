@@ -1,5 +1,5 @@
 /* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
+/* eslint-disable @repo/no-style-props */
 import {
   type default as React,
   createContext,
@@ -10,14 +10,6 @@ import {
   useCallback,
 } from "react";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import {
   facetNameRank,
   getFacetSummary,
@@ -76,11 +68,14 @@ import type {
   NumericKeyValueFilterEntry,
   BooleanKeyValueFilterEntry,
   StringKeyValueFilterEntry,
-  TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { KeyValueFilterBuilder } from "@/src/components/table/KeyValueFilterBuilder";
 import { FacetHeader } from "@/src/components/table/FacetHeader";
-import { CategoricalFilterSelect } from "@/src/features/filters/components/CategoricalFilterSelect";
+import {
+  CategoricalFilterContent,
+  type CategoricalFilterContentProps,
+} from "@/src/components/table/CategoricalFilterContent";
+import { useCategoricalFilterMode } from "@/src/features/filters/hooks/useCategoricalFilterMode";
 import {
   Popover,
   PopoverContent,
@@ -1273,32 +1268,29 @@ interface BaseFacetProps {
   onReset?: () => void;
 }
 
-interface CategoricalFacetProps extends BaseFacetProps {
+interface CategoricalFacetProps
+  extends
+    BaseFacetProps,
+    Pick<
+      CategoricalFilterContentProps,
+      | "options"
+      | "counts"
+      | "displayByValue"
+      | "value"
+      | "onChange"
+      | "onOnlyChange"
+      | "renderIcon"
+      | "renderOptionSuffix"
+      | "getOptionTitle"
+      | "operator"
+      | "onOperatorChange"
+      | "textFilters"
+      | "onTextFilterAdd"
+      | "onTextFilterRemove"
+    > {
   conditionCount?: number;
-  /** Color-coded icon of the single value the summary names (renderIcon). */
   summaryIcon?: React.ReactNode;
-  /** v3-vs-v4 analytics dimension of the surface (Rule 4). */
   isV4?: boolean;
-  options: string[];
-  counts: Map<string, number>;
-  displayByValue?: Map<string, string>;
-  value: string[];
-  onChange: (values: string[]) => void;
-  onOnlyChange?: (value: string) => void;
-  renderIcon?: (value: string) => React.ReactNode;
-  renderOptionSuffix?: (value: string) => React.ReactNode;
-  getOptionTitle?: (value: string, displayLabel: string) => string;
-  operator?: "any of" | "all of" | "none of";
-  onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
-  textFilters?: TextFilterEntry[];
-  onTextFilterAdd?: (
-    operator: "contains" | "does not contain",
-    value: string,
-  ) => void;
-  onTextFilterRemove?: (
-    operator: "contains" | "does not contain",
-    value: string,
-  ) => void;
 }
 
 interface NumericFacetProps extends BaseFacetProps {
@@ -1506,43 +1498,13 @@ export function CategoricalFacet({
   onTextFilterAdd,
   onTextFilterRemove,
 }: CategoricalFacetProps) {
-  const capture = usePostHogClientCapture();
   const { tableName } = useContext(ControlsContext) ?? {};
-  // Which input mode the facet is in (checkbox select vs contains/does-not-
-  // contain text). Seeded from the applied filters so a deep link carrying
-  // text filters opens in text mode instead of hiding them behind the tab.
-  const hasTextFilters = (textFilters?.length ?? 0) > 0;
-  const [filterMode, setFilterMode] = useState<"select" | "text">(() =>
-    hasTextFilters ? "text" : "select",
-  );
-  // Adopt DURING render as well: on a hard reload the Pages Router delivers
-  // `?filter=` a few renders after mount (LFE-10164 in the state hook), so
-  // the mount seed alone would leave a text-filter deep link on the Select
-  // tab. Only the 0→n transition switches — removing the last text filter
-  // or picking a tab by hand is never overridden.
-  const [prevHasTextFilters, setPrevHasTextFilters] = useState(hasTextFilters);
-  if (hasTextFilters !== prevHasTextFilters) {
-    setPrevHasTextFilters(hasTextFilters);
-    if (hasTextFilters) setFilterMode("text");
-  }
-
-  // Switching modes is NON-destructive: the other mode's applied filters stay
-  // until the user applies something in the new mode — the state hook already
-  // enforces select/text mutual exclusivity at apply time (updateFilter drops
-  // the column's text filters, addTextFilter drops its checkbox filters).
-  // Clearing on the tab click itself deleted a shared link's filters one
-  // exploratory click after opening it, with no undo. Captured here at the
-  // user-intent seam (Tabs only fires on actual change); the render-time
-  // text-mode adoption above deliberately bypasses this and emits nothing.
-  const handleModeChange = (newMode: "select" | "text") => {
-    setFilterMode(newMode);
-    capture("filters:facet_mode_switched", {
-      tableName,
-      column: filterKey,
-      mode: newMode,
-      isV4: isV4 ?? false,
-    });
-  };
+  const { mode, onModeChange } = useCategoricalFilterMode({
+    filterKey,
+    tableName,
+    isV4: isV4 ?? false,
+    textFilters,
+  });
 
   return (
     <FilterAccordionItem
@@ -1563,43 +1525,27 @@ export function CategoricalFacet({
           {disabledReason}
         </p>
       ) : (
-        <div className="flex flex-col">
-          {/* Tab switcher - only show when text filtering is supported */}
-          {onTextFilterAdd && (
-            <FilterModeTabs mode={filterMode} onModeChange={handleModeChange} />
-          )}
-
-          {/* SELECT MODE: checkboxes with optional counts */}
-          {filterMode === "select" && (
-            <CategoricalFilterSelect
-              tableName={tableName}
-              filterKey={filterKey}
-              loading={loading}
-              options={options}
-              counts={counts}
-              displayByValue={displayByValue}
-              value={value}
-              onChange={onChange}
-              onOnlyChange={onOnlyChange}
-              renderIcon={renderIcon}
-              renderOptionSuffix={renderOptionSuffix}
-              getOptionTitle={getOptionTitle}
-              operator={operator}
-              onOperatorChange={onOperatorChange}
-            />
-          )}
-
-          {/* TEXT MODE: Contains/Does Not Contain filters */}
-          {filterMode === "text" && onTextFilterAdd && (
-            <div className="py-1">
-              <TextFilterSection
-                allFilters={textFilters ?? []}
-                onAdd={onTextFilterAdd}
-                onRemove={onTextFilterRemove}
-              />
-            </div>
-          )}
-        </div>
+        <CategoricalFilterContent
+          filterKey={filterKey}
+          tableName={tableName}
+          loading={loading}
+          mode={mode}
+          onModeChange={onModeChange}
+          options={options}
+          counts={counts}
+          displayByValue={displayByValue}
+          value={value}
+          onChange={onChange}
+          onOnlyChange={onOnlyChange}
+          renderIcon={renderIcon}
+          renderOptionSuffix={renderOptionSuffix}
+          getOptionTitle={getOptionTitle}
+          operator={operator}
+          onOperatorChange={onOperatorChange}
+          textFilters={textFilters}
+          onTextFilterAdd={onTextFilterAdd}
+          onTextFilterRemove={onTextFilterRemove}
+        />
       )}
     </FilterAccordionItem>
   );
@@ -2088,134 +2034,5 @@ function StringKeyValueFacet({
         />
       )}
     </FilterAccordionItem>
-  );
-}
-
-// Filter mode tabs for switching between Select (checkboxes) and Text (contains) modes
-interface FilterModeTabsProps {
-  mode: "select" | "text";
-  onModeChange: (mode: "select" | "text") => void;
-}
-
-function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
-  return (
-    // px-3 = the header box's inset, so the toggle lines up with the facet rows.
-    <div className="mt-1 mb-2 px-3">
-      <Tabs
-        value={mode}
-        onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
-      >
-        <Tabs.List variant="inset" layout="full" size="sm">
-          <Tabs.Trigger value="select" label="Select" />
-          <Tabs.Trigger value="text" label="Text" />
-        </Tabs.List>
-      </Tabs>
-    </div>
-  );
-}
-
-// Text filter section for categorical filters
-// Single input with DOES/DOES NOT toggle, allows adding multiple filters
-function TextFilterSection({
-  allFilters,
-  onAdd,
-  onRemove,
-}: {
-  allFilters: TextFilterEntry[];
-  onAdd?: (op: "contains" | "does not contain", val: string) => void;
-  onRemove?: (op: "contains" | "does not contain", val: string) => void;
-}) {
-  const [inputValue, setInputValue] = useState("");
-  const [selectedOperator, setSelectedOperator] = useState<
-    "contains" | "does not contain"
-  >("contains");
-
-  const handleAdd = () => {
-    // people have filtered for a single " ", e.g. does not contain " " on sessionID to get all traces with a session id
-    if (inputValue.length > 0 && onAdd) {
-      onAdd(selectedOperator, inputValue);
-      setInputValue("");
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      {/* Operator picker */}
-      <div className="px-3">
-        <Select
-          value={selectedOperator}
-          onValueChange={(operator) =>
-            setSelectedOperator(operator as "contains" | "does not contain")
-          }
-        >
-          <SelectTrigger className="h-7 w-full text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="contains" className="text-xs">
-              contains
-            </SelectItem>
-            <SelectItem value="does not contain" className="text-xs">
-              does not contain
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Input + Add button */}
-      <div className="flex items-center gap-2 px-3">
-        <Input
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleAdd();
-            }
-          }}
-          placeholder="Enter value..."
-          className="h-7 flex-1 text-xs"
-        />
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handleAdd}
-          disabled={inputValue.length === 0}
-          className="h-7 shrink-0 px-2 text-xs"
-        >
-          Add
-        </Button>
-      </div>
-
-      {/* Active filters list */}
-      {allFilters.length > 0 && (
-        <div className="space-y-1 px-3">
-          {allFilters.map((f, idx) => (
-            <div
-              key={idx}
-              className="group/textfilter border-border/40 bg-muted/30 flex items-center gap-2 rounded border px-2 py-1 text-xs"
-            >
-              <span className="text-muted-foreground shrink-0 text-[11px] font-bold">
-                {f.operator === "contains" ? "contains" : "does not contain"}
-              </span>
-              <span
-                className="min-w-0 flex-1 truncate font-bold"
-                title={f.value}
-              >
-                {f.value}
-              </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => onRemove?.(f.operator, f.value)}
-                className="text-muted-foreground hover:text-foreground h-4 w-4 shrink-0 p-0 opacity-0 transition-opacity group-hover/textfilter:opacity-100"
-              >
-                ×
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }

@@ -456,8 +456,8 @@ function emptyFacetContent(filterKey: string, tableName: string): ReactNode {
         to learn how to add sessions to your {tableName}.
       </span>
     );
-  if (filterKey === "name")
-    return <span>No {tableName} names found in the given time range.</span>;
+  if (filterKey === "name" || filterKey === "traceName")
+    return "No names found in this time range.";
   if (filterKey === "tags")
     return (
       <span>
