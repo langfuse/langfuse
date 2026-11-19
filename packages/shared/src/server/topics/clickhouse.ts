@@ -636,7 +636,9 @@ export async function getSampledTopicClusteringSummaries(
   if (count === 0) return [];
   // k = limit / count * 2^64; without a cut every unit is read.
   const sampleBound =
-    count > limit ? ((BigInt(limit) << 64n) / BigInt(count)).toString() : null;
+    count > limit
+      ? ((BigInt(limit) * 2n ** 64n) / BigInt(count)).toString()
+      : null;
   const sampleSql = sampleBound ? " AND unit_hash < {sampleBound:UInt64}" : "";
   const keysSql = `${clusteringSummariesSql(
     "trace_id, unit_start_time, processed_at",
