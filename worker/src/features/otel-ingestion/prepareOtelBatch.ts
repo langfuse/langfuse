@@ -53,7 +53,11 @@ export async function prepareOtelBatch(params: {
     if (!isIngestionMaskingEnabled()) {
       if (retainNativeBatch) {
         codepath = "uv_dispatch";
-        const batch = await prepareOtelJson(bytes, extractMedia);
+        const batch = await measureOtelMainThread(
+          "input_handling",
+          () => prepareOtelJson(bytes, extractMedia),
+          { retain_native_batch: retainNativeBatch.toString() },
+        );
         outcome = "native";
         return { batch, sourceUnchanged: false };
       }
@@ -68,7 +72,11 @@ export async function prepareOtelBatch(params: {
       recordDistribution(
         "langfuse.ingestion.otel.main_thread_duration_ms",
         performance.now() - inputStartedAt,
-        { phase: "input_handling", media_path: "early" },
+        {
+          phase: "input_handling",
+          media_path: "early",
+          retain_native_batch: retainNativeBatch.toString(),
+        },
       );
       const batch = needsExtraction ? await extraction : null;
       outcome = batch ? "native" : "unchanged";
@@ -153,6 +161,7 @@ export async function prepareOtelBatch(params: {
           outcome,
           codepath,
           extract_media: extractMedia.toString(),
+          retain_native_batch: retainNativeBatch.toString(),
         };
         recordIncrement(
           "langfuse.ingestion.otel.early_media.preparation",
@@ -202,7 +211,11 @@ export async function parsePreparedOtelBatch(
 }
 
 // Measure synchronous result handling; awaited native work stays outside.
-function measureOtelMainThread<T>(phase: string, work: () => T): T {
+function measureOtelMainThread<T>(
+  phase: string,
+  work: () => T,
+  additionalTags: Record<string, string> = {},
+): T {
   const startedAt = performance.now();
   try {
     return work();
@@ -210,7 +223,7 @@ function measureOtelMainThread<T>(phase: string, work: () => T): T {
     recordDistribution(
       "langfuse.ingestion.otel.main_thread_duration_ms",
       performance.now() - startedAt,
-      { phase, media_path: "early" },
+      { phase, media_path: "early", ...additionalTags },
     );
   }
 }

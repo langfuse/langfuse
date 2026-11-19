@@ -863,12 +863,10 @@ const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
 const validateOtelDirectImplementationConfig = (parsed: ParsedEnv): void => {
   if (
     parsed.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
-    (parsed.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED !== "true" ||
-      parsed.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED !== "true" ||
-      !parsed.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)
+    parsed.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED !== "true"
   ) {
     throw new Error(
-      "Rust OTEL processing requires early media extraction and configured media uploads",
+      "Rust OTEL processing requires early media extraction to be enabled",
     );
   }
 };
