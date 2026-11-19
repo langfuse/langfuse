@@ -25,8 +25,8 @@ Examples:
   },
   {
     name: "Sentiment",
-    description: "How the end user felt about the interaction.",
-    prompt: `Describe how the end user felt about the assistant and how they expressed it. Do not describe what the conversation was about.
+    description: "How the end user felt about the responses they got.",
+    prompt: `Describe how the end user felt about the responses they got, from an assistant, agent or application, and how they expressed it. Do not describe what the conversation was about.
 
 Format: "<Label>: user <expression> <target>." with Label one of Negative, Positive, Mixed, Neutral.
 
@@ -46,12 +46,12 @@ Decide in this order, looking at what the end user wrote in this run, above all 
 Status: not_applicable when the run has no end-user text, as in automated pipelines. insufficient_input when user text exists but is unreadable.
 
 Examples:
-- Negative: user reported that a fix that did not work failed again.
+- Negative: user reported that a fix failed again.
 - Negative: user objected to an unwanted action.
-- Negative: user repeated an instruction after an ignored instruction.
+- Negative: user repeated an instruction the assistant ignored.
 - Positive: user approved the result.
 - Mixed: user praised the result but corrected a wrong answer.
-- Neutral: user gave a procedural instruction.`,
+- Neutral: user gave a procedural request.`,
   },
   {
     name: "Outcome",
