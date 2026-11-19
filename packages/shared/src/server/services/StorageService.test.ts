@@ -1,19 +1,17 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash, getFips } from "crypto";
-import { lookup } from "dns";
+import { subscribe, unsubscribe } from "node:diagnostics_channel";
 import { once } from "events";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import {
   createServer,
-  type Agent,
-  type AgentOptions,
+  type ClientRequest,
   type Server,
   type ServerResponse,
 } from "http";
 import { tmpdir } from "os";
 import { join } from "path";
 import { PassThrough, Readable } from "stream";
-import { setTimeout as delay } from "timers/promises";
 
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
@@ -1120,35 +1118,47 @@ describe("S3StorageService request handler socket pool", () => {
     );
   });
 
-  it("allows a queued download to open a replacement connection after slow DNS", async () => {
-    const firstResponse = Promise.withResolvers<ServerResponse>();
-    const server = createServer((req, res) => {
-      if (req.url?.includes("/first")) {
-        res.setHeader("Connection", "close");
-        firstResponse.resolve(res);
+  it("keeps a queued download alive when its replacement socket signals a timeout", async ({
+    onTestFinished,
+  }) => {
+    const server = createServer((request, response) => {
+      if (request.url?.includes("/first")) {
+        response.setHeader("Connection", "close");
       } else {
-        res.end("second");
+        response.end("second");
       }
     });
     await withLocalS3(server, async (service) => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const started = new Promise<ServerResponse>((resolve) =>
+        server.once("request", (_req, res) => resolve(res)),
+      );
       const first = service.download("first");
-      const held = await firstResponse.promise;
-      const client = (service as unknown as { client: S3Client }).client;
-      const handler = client.config.requestHandler as NodeHttpHandler;
-      const { httpAgent } = handler.httpHandlerConfigs() as {
-        httpAgent: Agent & { options: AgentOptions };
-      };
-      httpAgent.options.lookup = (hostname, options, callback) => {
-        setTimeout(
-          () => lookup(hostname, options, callback),
-          4 * idleTimeoutMs,
-        );
-      };
+      const held = await started;
+      const queued = new Promise<ClientRequest>((resolve) => {
+        const requestCreated = "http.client.request.created";
+        const capture = (message: unknown) => {
+          const { request } = message as { request: ClientRequest };
+          if (request.path.includes("/second")) resolve(request);
+        };
+        subscribe(requestCreated, capture);
+        onTestFinished(() => {
+          unsubscribe(requestCreated, capture);
+        });
+      });
       const downloads = Promise.all([first, service.download("second")]);
-      await expect.poll(() => Object.keys(httpAgent.requests)).toHaveLength(1);
-      // Exercise Smithy's three-second deferral before the replacement lookup starts.
-      await delay(3100);
+      const request = await queued;
+      expect(request.socket).toBeNull();
+      vi.runOnlyPendingTimers();
+      const assigned = once(request, "socket");
       held.end("first");
+      const [socket] = await assigned;
+      // A connecting socket can signal inactivity while its DNS lookup is pending.
+      expect(socket.connecting).toBe(true);
+      socket.emit("timeout");
       await expect(downloads).resolves.toEqual(["first", "second"]);
     });
   });
