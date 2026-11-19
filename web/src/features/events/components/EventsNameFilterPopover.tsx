@@ -33,22 +33,28 @@ export function EventsNameFilterPopover({
       }}
       renderContent={() => (
         <div className="py-2">
-          <CategoricalFilterContent
-            {...mode}
-            tableName={tableName}
-            filterKey={filter.column}
-            options={filter.options}
-            counts={filter.counts}
-            loading={filter.loading}
-            value={filter.value}
-            onChange={filter.onChange}
-            onOnlyChange={filter.onOnlyChange}
-            operator={filter.operator}
-            onOperatorChange={filter.onOperatorChange}
-            textFilters={filter.textFilters}
-            onTextFilterAdd={filter.onTextFilterAdd}
-            onTextFilterRemove={filter.onTextFilterRemove}
-          />
+          {filter.conditionCount !== undefined ? (
+            <p className="text-muted-foreground px-3 py-1 text-xs">
+              {filter.disabledReason}
+            </p>
+          ) : (
+            <CategoricalFilterContent
+              {...mode}
+              tableName={tableName}
+              filterKey={filter.column}
+              options={filter.options}
+              counts={filter.counts}
+              loading={filter.loading}
+              value={filter.value}
+              onChange={filter.onChange}
+              onOnlyChange={filter.onOnlyChange}
+              operator={filter.operator}
+              onOperatorChange={filter.onOperatorChange}
+              textFilters={filter.textFilters}
+              onTextFilterAdd={filter.onTextFilterAdd}
+              onTextFilterRemove={filter.onTextFilterRemove}
+            />
+          )}
           {filter.isActive && (
             <div className="flex justify-end px-3 pt-2">
               <Button

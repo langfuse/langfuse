@@ -4,7 +4,6 @@ import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
 import {
-  InvalidRequestError,
   type RateLimitResult,
   type RateLimitResource,
   type RateLimitConfig,
@@ -20,6 +19,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiResponse } from "next";
+import { McpQueryCooldownError } from "@/src/features/mcp/core/errors";
 import {
   createStructuredPublicApiRateLimitError,
   sendStructuredPublicApiErrorResponse,
@@ -200,9 +200,7 @@ export class RateLimitService {
 
     const key = `${this.rateLimitPrefix("mcp-query-cooldown")}:${projectId}`;
     const cooldownError = (seconds: number) =>
-      new InvalidRequestError(
-        `MCP observation searches for this project are paused after a query exceeded resource limits. Retry in ${Math.max(1, seconds)}s with a shorter date range or more specific filters, and run searches sequentially.`,
-      );
+      new McpQueryCooldownError(seconds);
     const onRedisError = (error: unknown) => {
       logger.warn("MCP query cooldown Redis operation failed", error);
       return null;
@@ -407,6 +405,8 @@ const getPlanBasedRateLimitConfig = (
           return { resource, points: 100, durationInSec: 60 };
         case "ai-gateway-request-bytes":
           return { resource, points: 64 * MiB, durationInSec: 60 };
+        case "coupon-redemption":
+          return { resource, points: 5, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -515,6 +515,8 @@ const getPlanBasedRateLimitConfig = (
           return { resource, points: 500, durationInSec: 60 };
         case "ai-gateway-request-bytes":
           return { resource, points: 256 * MiB, durationInSec: 60 };
+        case "coupon-redemption":
+          return { resource, points: 5, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -617,6 +619,8 @@ const getPlanBasedRateLimitConfig = (
           return { resource, points: 10_000, durationInSec: 60 };
         case "ai-gateway-request-bytes":
           return { resource, points: 5 * GiB, durationInSec: 60 };
+        case "coupon-redemption":
+          return { resource, points: 5, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);

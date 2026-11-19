@@ -4,6 +4,7 @@
 
 - performance of the `/resolve` API path is critical - ideally stays under 10ms
 - no tautological frontend component tests that check stuff like height / width
+- never read or write the gateway's spend Redis keyspace (`gateway-spend:*`); it belongs to the Rust gateway. Spend shown in the control plane comes from ClickHouse.
 
 ### Testing
 

@@ -30,7 +30,10 @@ import {
 } from "../clickhouse/client";
 import { instrumentAsync, recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
-import { AI_GATEWAY_SERVICE_NAME } from "../../features/ai-gateway/constants";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "../../features/ai-gateway/constants";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import type { ClickHouseDatabase } from "../query-ast/schema";
@@ -205,6 +208,7 @@ import {
 } from "../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "./constants";
 import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
+import { traceDeleteCutoffFilter } from "../../features/batchAction/traceDeletePredicate";
 import {
   findUiColumnMapping,
   type UiColumnMappings,
@@ -382,7 +386,7 @@ async function enrichObservationsWithModelData(
                 id: {
                   in: uniqueModels,
                 },
-                OR: [{ projectId: projectId }, { projectId: null }],
+                OR: [{ projectId: projectId }, { scope: "LANGFUSE" }],
               },
               include: {
                 Price: {
@@ -888,12 +892,7 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
     projectId: props.projectId,
     filter: [
       ...props.filter,
-      {
-        column: "startTime",
-        operator: "<" as const,
-        value: props.cutoffCreatedAt,
-        type: "datetime" as const,
-      },
+      traceDeleteCutoffFilter("events", props.cutoffCreatedAt),
     ],
     searchQuery: props.searchQuery,
     searchType: props.searchType,
@@ -4440,6 +4439,64 @@ export const getLatestEvaluatorRunCost = async (
   });
 
   return rows[0] ? Number(rows[0].trace_total_cost) : null;
+};
+
+/** Gateway ingestion stamps the calling key's owner on every generation. */
+const GATEWAY_KEY_OWNER_USER_ID_EXPRESSION = `e.metadata_values[indexOf(e.metadata_names, '${AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY}')]`;
+
+/** The column that identifies a spend limit's subject on gateway generations. */
+const GATEWAY_SPEND_SUBJECT_COLUMNS = {
+  API_KEY: "e.ingestion_api_key",
+  USER: GATEWAY_KEY_OWNER_USER_ID_EXPRESSION,
+} as const;
+
+/**
+ * USD each gateway key, or each user's gateway keys, spent since the subject's
+ * own `since`, in one scan from the earliest. Subjects without spend in their
+ * window are absent from the result.
+ */
+export const getGatewaySpendSinceFromEvents = async (params: {
+  projectId: string;
+  scope: keyof typeof GATEWAY_SPEND_SUBJECT_COLUMNS;
+  subjects: { id: string; since: Date }[];
+}): Promise<{ id: string; spendUsd: number }[]> => {
+  if (params.subjects.length === 0) return [];
+
+  const column = GATEWAY_SPEND_SUBJECT_COLUMNS[params.scope];
+  const earliest = new Date(
+    Math.min(...params.subjects.map(({ since }) => since.getTime())),
+  );
+  const { query, params: queryParams } = new EventsAggQueryBuilder({
+    projectId: params.projectId,
+    groupByColumn: column,
+    selectExpression: `${column} as subject_id, toString(sum(e.total_cost)) as spend`,
+  })
+    .whereRaw("e.start_time >= {earliest: DateTime64(3)}", {
+      earliest: convertDateToClickhouseDateTime(earliest),
+    })
+    .whereRaw("e.service_name = {gatewayServiceName: String}", {
+      gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
+    })
+    .whereRaw(`${column} IN {subjectIds: Array(String)}`, {
+      subjectIds: params.subjects.map(({ id }) => id),
+    })
+    .whereRaw(
+      `toUnixTimestamp64Milli(e.start_time) >= arrayElement({sinceMs: Array(Int64)}, indexOf({subjectIds: Array(String)}, ${column}))`,
+      { sinceMs: params.subjects.map(({ since }) => since.getTime()) },
+    )
+    .buildWithParams();
+
+  const rows = await queryClickhouse<{ subject_id: string; spend: string }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    id: row.subject_id,
+    spendUsd: Number(row.spend),
+  }));
 };
 
 const EVALUATOR_HEALTH_RECENT_EXECUTIONS = 50;

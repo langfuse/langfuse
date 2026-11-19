@@ -3,6 +3,7 @@ import {
   getValidAggregationsForMeasureType,
   metricAggregations,
   validateQuery,
+  MAX_TIME_SERIES_BREAKDOWN_VALUES,
   type QueryType,
 } from "@langfuse/shared/query";
 import {
@@ -4583,6 +4584,32 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result).toEqual({ valid: true });
+  });
+
+  it("allows a high cardinality time series breakdown only while a same-field filter bounds it to few values", () => {
+    const breakdown = (count: number): QueryType => ({
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }],
+      timeDimension: { granularity: "day" },
+      filters: [
+        {
+          column: "traceId",
+          operator: "any of",
+          value: Array.from({ length: count }, (_, index) => `trace-${index}`),
+          type: "stringOptions",
+        },
+      ],
+    });
+
+    expect(
+      validateQuery(breakdown(MAX_TIME_SERIES_BREAKDOWN_VALUES), "v2"),
+    ).toEqual({ valid: true });
+    expect(
+      validateQuery(breakdown(MAX_TIME_SERIES_BREAKDOWN_VALUES + 1), "v2"),
+    ).toMatchObject({
+      valid: false,
+      highCardinality: { code: "time_dimension", dimensions: ["traceId"] },
+    });
   });
 
   it("should return invalid when high cardinality entityDimension is unbounded", () => {

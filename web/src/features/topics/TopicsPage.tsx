@@ -551,6 +551,9 @@ function TopicsWorkspaceContent({
                 outcome: analysisFacet?.outcome,
               }
             : null;
+        // Onboarding hides both picker placements.
+        const mapPickerShown =
+          !showOnboarding && Boolean(maps.data && mapSelection);
         const actions = prepareTopicsActions({
           automaticProcessing,
           canWrite,
@@ -562,31 +565,29 @@ function TopicsWorkspaceContent({
             selectedRule && !showOnboarding
               ? () => openSliceDialog({ kind: "rule", rule: selectedRule })
               : undefined,
-          refreshMap:
-            selectedRule && !showOnboarding
-              ? {
-                  onSelect: () =>
-                    openSliceDialog({
-                      kind: "refresh",
-                      rule: selectedRule,
-                    }),
-                  disabledReason: refreshMapDisabledReason({
-                    canWrite,
-                    state: automaticProcessing.state,
-                    rule: selectedRule,
-                    setupActive: Boolean(setup?.active),
-                    now: Date.now(),
-                  }),
-                }
-              : undefined,
+          refreshMap: (rule) => ({
+            onSelect: () => openSliceDialog({ kind: "refresh", rule }),
+            disabledReason: refreshMapDisabledReason({
+              canWrite,
+              state: automaticProcessing.state,
+              rule,
+              // Setup progress is only loaded for the selected map; another map without a fit is still building.
+              setupActive:
+                rule.id === setupRuleId
+                  ? Boolean(setup?.active)
+                  : !rule.lastRefitAt,
+              now: Date.now(),
+            }),
+          }),
           onNewMap: () => openSliceDialog({ kind: "map" }),
           onNewSnapshot: () => openSliceDialog({ kind: "snapshot" }),
           mapDisabledReason: mapLimitReason,
+          mapPickerShown,
           showUnassigned,
           onShowUnassignedChange: setShowUnassigned,
         });
         const mapPicker =
-          maps.data && mapSelection ? (
+          maps.data && mapSelection && mapPickerShown ? (
             <TopicsMapPicker
               projectId={projectId}
               overview={maps.data}
@@ -599,6 +600,7 @@ function TopicsWorkspaceContent({
                 map: actions.newMap,
                 snapshot: actions.newSnapshot,
               }}
+              refresh={actions.refreshMap}
             />
           ) : null;
         const now = Date.now();
@@ -754,7 +756,8 @@ function TopicsWorkspaceContent({
                     itemType="TRACE"
                     projectId={projectId}
                     defaultWidthTarget={tracePanel}
-                    widthStorageKey="topicsPeekViewWidthFraction"
+                    // v2 drops widths saved before the peek matched the list, so it opens beside the map.
+                    widthStorageKey="topicsPeekViewWidthFraction-v2"
                   />
                   {showBuilding && selectedRule ? (
                     <TopicRuleBuildingState

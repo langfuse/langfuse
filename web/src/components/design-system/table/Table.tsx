@@ -56,6 +56,11 @@ export interface TableProps<TData> {
   topBorder?: boolean;
 }
 
+// A new empty array on every loading render counts as new data, and TanStack
+// then resets pagination in a microtask, which renders again: an endless loop
+// once a column reads the row model while loading.
+const NO_ROWS: never[] = [];
+
 export function Table<TData extends object>({
   tableName,
   columns,
@@ -150,7 +155,7 @@ export function Table<TData extends object>({
     ];
   }, [actions, actionsDisabledReason, actionsVisibility, columns]);
   const table = useReactTable({
-    data: data.status === "success" ? data.data : [],
+    data: data.status === "success" ? data.data : NO_ROWS,
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row, index) =>

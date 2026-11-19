@@ -12,13 +12,11 @@
  * - Server discarded after request completes
  */
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
-  ListToolsRequestSchema,
-  CallToolRequestSchema,
-  McpError,
-  ErrorCode,
-} from "@modelcontextprotocol/sdk/types.js";
+  Server,
+  ProtocolError,
+  ProtocolErrorCode,
+} from "@modelcontextprotocol/server";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { formatErrorForUser } from "../core/error-formatting";
@@ -87,7 +85,7 @@ export function createMcpServer(context: ServerContext): Server {
   registerSkillResources(server);
 
   // ListTools handler - dynamically load from registry
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
+  server.setRequestHandler("tools/list", async () => {
     const tools = await toolRegistry.getToolDefinitions(context);
 
     logger.debug("MCP ListTools", {
@@ -100,7 +98,7 @@ export function createMcpServer(context: ServerContext): Server {
   });
 
   // CallTool handler - route to registered tool handlers
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler("tools/call", async (request) => {
     const { name, arguments: args } = request.params;
 
     logger.debug("MCP CallTool", {
@@ -113,7 +111,10 @@ export function createMcpServer(context: ServerContext): Server {
     const registeredTool = await toolRegistry.getEnabledTool(name, context);
 
     if (!registeredTool) {
-      throw new McpError(ErrorCode.InvalidParams, `Unknown tool: ${name}`);
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        `Unknown tool: ${name}`,
+      );
     }
 
     assertToolAuthorized(registeredTool.definition, context);
@@ -172,7 +173,7 @@ function assertToolAuthorized(
   });
   if (!decision.success) {
     const { code, message } = formatErrorForUser(decision.error);
-    throw new McpError(code, message);
+    throw new ProtocolError(code, message);
   }
 }
 

@@ -38,7 +38,7 @@ type EventsDispatchConsumer = {
 const TOPICS_CONSUMER: EventsDispatchConsumer = {
   name: "topics",
   evaluatorTypes: [EvalTemplateType.FACET],
-  enqueue: async (reference, ruleIds, { batchActionId }) => {
+  enqueue: async (reference, ruleIds, { transcriptS3Path, batchActionId }) => {
     const queue = TopicsTraceQueue.getInstance({
       shardingKey: `${reference.projectId}-${reference.traceId}`,
     });
@@ -49,7 +49,7 @@ const TOPICS_CONSUMER: EventsDispatchConsumer = {
         name: QueueJobs.TopicsTraceJob,
         id: randomUUID(),
         timestamp: new Date(),
-        payload: { ...reference, ruleIds, batchActionId },
+        payload: { ...reference, transcriptS3Path, ruleIds, batchActionId },
       },
       {
         // A retried job within its lifetime never enqueues a trace revision twice.

@@ -1,12 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { env } from "../../../../env";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../../../interfaces/customLLMProviderConfigSchemas";
+import {
+  BEDROCK_ROLE_PERMISSION_POLICY,
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
+} from "../../../../interfaces/customLLMProviderConfigSchemas";
 
 const fromNodeProviderChain = vi.hoisted(() => vi.fn(() => vi.fn()));
+const findProject = vi.hoisted(() => vi.fn());
+const getStorageRoleCredentialsProvider = vi.hoisted(() =>
+  vi.fn(() => async () => ({
+    accessKeyId: "ASIA123",
+    secretAccessKey: "secret",
+    sessionToken: "session",
+  })),
+);
 
 vi.mock("@aws-sdk/credential-providers", () => ({
   fromNodeProviderChain,
+}));
+vi.mock("../../../../db", () => ({
+  prisma: { project: { findUnique: findProject } },
+}));
+vi.mock("../../../../encryption", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../../encryption")>()),
+  decrypt: (value: string) => value.replace(/^encrypted:/, ""),
+}));
+vi.mock("../../../ee/storageRoleAuth/storageRoleCredentials", () => ({
+  getStorageRoleCredentialsProvider,
 }));
 
 import { OutboundUrlValidationError } from "../../../outbound-url/validation";
@@ -190,6 +211,54 @@ describe("resolveBedrockProviderAuth", () => {
         allowDefaultCredentials: false,
       }),
     ).toThrow("Invalid Bedrock credentials");
+  });
+
+  it("assumes an IAM role with the connection's external ID, limited to model invocation", async () => {
+    const roleArn = "arn:aws:iam::123456789012:role/langfuse-bedrock";
+    findProject.mockResolvedValue({ orgId: "org-1" });
+
+    const auth = resolveBedrockProviderAuth({
+      secretKey: JSON.stringify({ roleArn }),
+      allowDefaultCredentials: false,
+      projectId: "project-1",
+      externalId: "encrypted:lf-external-id",
+    });
+
+    expect(auth.apiKey).toBe("");
+    await expect(auth.credentialProvider?.()).resolves.toMatchObject({
+      sessionToken: "session",
+    });
+    expect(getStorageRoleCredentialsProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roleArn,
+        externalId: "lf-external-id",
+        projectId: "project-1",
+        orgId: "org-1",
+        sessionPolicy: JSON.stringify(BEDROCK_ROLE_PERMISSION_POLICY),
+      }),
+    );
+  });
+
+  it("assumes an IAM role for an organization without a project", async () => {
+    findProject.mockClear();
+    getStorageRoleCredentialsProvider.mockClear();
+
+    const auth = resolveBedrockProviderAuth({
+      secretKey: JSON.stringify({
+        roleArn: "arn:aws:iam::123456789012:role/langfuse-bedrock",
+      }),
+      allowDefaultCredentials: false,
+      organizationId: "org-1",
+      externalId: "encrypted:lf-external-id",
+    });
+
+    await expect(auth.credentialProvider?.()).resolves.toMatchObject({
+      sessionToken: "session",
+    });
+    expect(findProject).not.toHaveBeenCalled();
+    expect(getStorageRoleCredentialsProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: undefined, orgId: "org-1" }),
+    );
   });
 });
 

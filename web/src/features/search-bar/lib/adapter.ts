@@ -48,6 +48,7 @@ import {
   type FieldRegistry,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
+import type { Diagnostic } from "./langQ";
 
 /**
  * Emitted when a top-level OR between conditions can't collapse to a same-field
@@ -59,6 +60,7 @@ export const OR_NOT_SUPPORTED_MESSAGE =
   "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values";
 
 type SingleEventsFilter = FilterState[number];
+type ErrorCodes = Map<string, NonNullable<Diagnostic["code"]>>;
 
 export type AstToFilterStateResult = {
   filters: FilterState;
@@ -69,6 +71,7 @@ export type AstToFilterStateResult = {
    */
   searchType: TracingSearchType[] | null;
   errors: string[];
+  errorCodes?: ReadonlyMap<string, NonNullable<Diagnostic["code"]>>;
   /** `filters` and the search phrase as one predicate; see `predicateOf`. */
   predicate: PredicateResult;
 };
@@ -164,6 +167,7 @@ type LowerContext = {
   filters: SingleEventsFilter[];
   searchTerms: string[];
   errors: string[];
+  errorCodes: ErrorCodes;
   scoreTypes?: ScoreTypeContext;
   registry: FieldRegistry;
   scopedSearch?: { query: string; searchType: readonly TracingSearchType[] };
@@ -179,6 +183,7 @@ export function astToFilterState(
     filters: [],
     searchTerms: [],
     errors: [],
+    errorCodes: new Map(),
     scoreTypes,
     registry,
   };
@@ -218,6 +223,7 @@ export function astToFilterState(
     searchQuery,
     searchType,
     errors: ctx.errors,
+    ...(ctx.errorCodes.size > 0 ? { errorCodes: ctx.errorCodes } : {}),
     predicate: predicateOf(ctx.filters, searchQuery, searchType, registry),
   };
 }
@@ -437,6 +443,7 @@ function lowerFilterNode(
     ctx.errors,
     ctx.scoreTypes,
     ctx.registry,
+    ctx.errorCodes,
   );
 }
 
@@ -447,6 +454,7 @@ function lowerFilter(
   errors: string[],
   scoreTypes?: ScoreTypeContext,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+  errorCodes?: ErrorCodes,
 ): void {
   const target = resolveAttachedTarget(node, registry);
   if (target && "error" in target) {
@@ -465,7 +473,9 @@ function lowerFilter(
 
   const ref = registry.resolveField(node.key);
   if (ref === null) {
-    errors.push(`Unknown field "${node.key}"`);
+    const message = `Unknown field "${node.key}"`;
+    errors.push(message);
+    errorCodes?.set(message, "unknown-field");
     return;
   }
 

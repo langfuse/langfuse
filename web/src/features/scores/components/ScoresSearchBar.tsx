@@ -3,6 +3,7 @@ import { useMemo, type ComponentProps } from "react";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import type { ManagedEnvironmentPolicyConfig } from "@/src/features/filters/lib/managedEnvironmentPolicy";
 
 import { scoresFieldRegistry } from "@/src/features/scores/constants/scoresSearchRegistry";
 
@@ -11,21 +12,25 @@ export function ScoresSearchBar({
   isV4,
   filterConfig,
   filterState,
+  managedEnvironmentPolicy,
   setFilterState,
   filterOptions,
   isLoading,
   inset = false,
   size = "default",
+  spacing,
 }: {
   projectId: string;
   isV4: boolean;
   filterConfig: FilterConfig;
   filterState: FilterState;
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig;
   setFilterState: (filters: FilterState) => void;
   filterOptions: Parameters<typeof toObservedOptions>[0];
   isLoading: boolean;
   inset?: boolean;
   size?: ComponentProps<typeof TableSearchBar>["size"];
+  spacing?: ComponentProps<typeof TableSearchBar>["spacing"];
 }) {
   const registry = useMemo(
     () => scoresFieldRegistry(filterConfig),
@@ -38,11 +43,13 @@ export function ScoresSearchBar({
       tableName="scores"
       isV4={isV4}
       filterState={filterState}
+      managedEnvironmentPolicy={managedEnvironmentPolicy}
       setFilterState={setFilterState}
       observed={observed}
       registry={registry}
       inset={inset}
       size={size}
+      spacing={spacing}
     />
   );
 }

@@ -118,6 +118,8 @@ function SelectionRowCheckbox<TData>({
       const next = { ...previous };
       for (const rowId of rowIds) {
         if (nextSelected) {
+          // Data can change between a click and React running this updater.
+          if (!table.getRowModel().rowsById[rowId]) continue;
           next[rowId] = true;
         } else {
           delete next[rowId];
@@ -182,8 +184,7 @@ function SelectionRowCheckbox<TData>({
             return;
           }
 
-          row.toggleSelected(!!value);
-          if (!value) setSelectAll(false);
+          applyToRows([row.id], nextChecked);
         }}
         aria-label="Select row"
       />
