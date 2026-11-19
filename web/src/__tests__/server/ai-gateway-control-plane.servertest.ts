@@ -2857,6 +2857,179 @@ describe("AI gateway control plane", () => {
     ]);
   });
 
+  it("rejects budget reads and changes from another organization and from callers without the gateway scope they need", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const spendLimit = { interval: "MONTHLY" as const, limitUsd: 1 };
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+      spendLimit: { interval: "DAILY", limitUsd: 5 },
+    });
+    const unbudgetedKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Unbudgeted key",
+      metadata: {},
+    });
+    await owner.caller.aiGateway.setSpendLimits({
+      orgId: owner.org.id,
+      scope: "USER",
+      subjects: { type: "ids", subjectIds: [owner.user.id] },
+      spendLimit: { interval: "MONTHLY", limitUsd: 20 },
+    });
+    await owner.caller.aiGateway.setDefaultSpendLimit({
+      orgId: owner.org.id,
+      scope: "API_KEY",
+      spendLimit: { interval: "MONTHLY", limitUsd: 10 },
+    });
+    await owner.caller.aiGateway.setOrganizationSpendLimit({
+      orgId: owner.org.id,
+      spendLimit: { interval: "MONTHLY", limitUsd: 5000 },
+    });
+    const ownerLimits = () =>
+      prisma.gatewaySpendLimit.findMany({
+        where: { organizationId: owner.org.id },
+        orderBy: { id: "asc" },
+      });
+    const limitsBefore = await ownerLimits();
+
+    type Caller = typeof member;
+    const keyIds = { type: "ids" as const, subjectIds: [ownerKey.id] };
+    const userIds = { type: "ids" as const, subjectIds: [owner.user.id] };
+    const matchingAll = { type: "matching" as const, status: "all" as const };
+    const keyBudgetRequests = (caller: Caller, orgId: string) => [
+      caller.aiGateway.getApiKeysSpend({ orgId, apiKeyIds: [ownerKey.id] }),
+      caller.aiGateway.listBudgets({ orgId, scope: "API_KEY" }),
+      caller.aiGateway.listMatchingBudgetSubjects({ orgId, scope: "API_KEY" }),
+      caller.aiGateway.createSpendLimits({
+        orgId,
+        scope: "API_KEY",
+        subjectIds: [unbudgetedKey.id],
+        spendLimit,
+      }),
+      caller.aiGateway.setSpendLimits({
+        orgId,
+        scope: "API_KEY",
+        subjects: keyIds,
+        spendLimit: null,
+      }),
+      caller.aiGateway.setSpendLimits({
+        orgId,
+        scope: "API_KEY",
+        subjects: matchingAll,
+        spendLimit: null,
+      }),
+      caller.aiGateway.getDefaultSpendLimits({ orgId }),
+    ];
+    const managerBudgetRequests = (caller: Caller, orgId: string) => [
+      caller.aiGateway.listBudgets({ orgId, scope: "USER" }),
+      caller.aiGateway.listMatchingBudgetSubjects({ orgId, scope: "USER" }),
+      caller.aiGateway.createSpendLimits({
+        orgId,
+        scope: "USER",
+        subjectIds: [owner.user.id],
+        spendLimit,
+      }),
+      caller.aiGateway.setSpendLimits({
+        orgId,
+        scope: "USER",
+        subjects: userIds,
+        spendLimit: null,
+      }),
+      caller.aiGateway.setSpendLimits({
+        orgId,
+        scope: "USER",
+        subjects: matchingAll,
+        spendLimit: null,
+      }),
+      ...(["API_KEY", "USER"] as const).map((scope) =>
+        caller.aiGateway.setDefaultSpendLimit({
+          orgId,
+          scope,
+          spendLimit: null,
+        }),
+      ),
+      caller.aiGateway.getOrganizationSpendLimit({ orgId }),
+      caller.aiGateway.setOrganizationSpendLimit({ orgId, spendLimit: null }),
+    ];
+    const expectAllRejected = (
+      requests: Promise<unknown>[],
+      error: { code: string; message?: string },
+    ) =>
+      Promise.all(
+        requests.map((request) => expect(request).rejects.toMatchObject(error)),
+      );
+
+    await expectAllRejected(
+      [
+        ...keyBudgetRequests(other.caller, owner.org.id),
+        ...managerBudgetRequests(other.caller, owner.org.id),
+      ],
+      {
+        code: "UNAUTHORIZED",
+        message: "User is not a member of this organization",
+      },
+    );
+    await expectAllRejected(keyBudgetRequests(viewer, owner.org.id), {
+      code: "FORBIDDEN",
+    });
+    await expectAllRejected(
+      [
+        ...managerBudgetRequests(viewer, owner.org.id),
+        ...managerBudgetRequests(member, owner.org.id),
+      ],
+      { code: "FORBIDDEN" },
+    );
+
+    // In their own organization, a foreign manager can neither see nor change the owner's keys and users.
+    expect(
+      await other.caller.aiGateway.getApiKeysSpend({
+        orgId: other.org.id,
+        apiKeyIds: [ownerKey.id],
+      }),
+    ).toMatchObject({ apiKeys: [] });
+    await expect(
+      other.caller.aiGateway.setSpendLimits({
+        orgId: other.org.id,
+        scope: "API_KEY",
+        subjects: keyIds,
+        spendLimit: null,
+      }),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Gateway key not found",
+    });
+    await expect(
+      other.caller.aiGateway.createSpendLimits({
+        orgId: other.org.id,
+        scope: "API_KEY",
+        subjectIds: [unbudgetedKey.id],
+        spendLimit,
+      }),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Gateway key not found",
+    });
+    await expect(
+      other.caller.aiGateway.setSpendLimits({
+        orgId: other.org.id,
+        scope: "USER",
+        subjects: userIds,
+        spendLimit: null,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", message: "User not found" });
+
+    expect(await ownerLimits()).toEqual(limitsBefore);
+  });
+
   it("rejects key edits from another organization and from members without gateway:invoke", async () => {
     const owner = await prepare();
     const other = await prepare();
