@@ -1,7 +1,16 @@
 import { createHash } from "crypto";
+import { subscribe, unsubscribe } from "node:diagnostics_channel";
+import { once } from "node:events";
+import {
+  createServer,
+  type ClientRequest,
+  type Server,
+  type ServerResponse,
+} from "node:http";
+import type { AddressInfo } from "node:net";
 import { PassThrough, Readable } from "stream";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { S3Client } from "@aws-sdk/client-s3";
 
@@ -439,4 +448,130 @@ describe("S3StorageService DeleteObjects checksum", () => {
     expect(findHeader(request, "content-md5")).toBe(expectedMd5);
     expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
   });
+});
+
+describe("S3 keep-alive sockets", () => {
+  const idleTimeoutMs = 25;
+  const originalTimeout = env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS;
+  const originalLimit = env.LANGFUSE_S3_CONCURRENT_WRITES;
+  const connectionValidation = {
+    logContext: "S3 socket pool test",
+    whitelist: { hosts: ["localhost"], ips: [], ip_ranges: [] },
+  };
+
+  beforeEach(() => {
+    env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS = idleTimeoutMs;
+    env.LANGFUSE_S3_CONCURRENT_WRITES = 1;
+    vi.stubEnv("AWS_MAX_ATTEMPTS", "1");
+  });
+  afterEach(() => {
+    env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS = originalTimeout;
+    env.LANGFUSE_S3_CONCURRENT_WRITES = originalLimit;
+    vi.unstubAllEnvs();
+  });
+
+  const withLocalS3 = async (
+    server: Server,
+    validated: boolean,
+    run: (
+      service: ReturnType<typeof StorageServiceFactory.getInstance>,
+    ) => Promise<void>,
+  ) => {
+    server.keepAliveTimeout = 0;
+    await new Promise<void>((resolve) =>
+      server.listen(0, "localhost", resolve),
+    );
+    try {
+      const { port } = server.address() as AddressInfo;
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: `http://localhost:${port}`,
+        region: "us-east-1",
+        forcePathStyle: true,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+        connectionValidation: validated ? connectionValidation : undefined,
+      });
+      await run(service);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  };
+
+  it("keeps a queued download alive when its replacement socket signals a timeout", async ({
+    onTestFinished,
+  }) => {
+    const server = createServer((request, response) => {
+      if (request.url?.includes("/first")) {
+        response.setHeader("Connection", "close");
+      } else {
+        response.end("second");
+      }
+    });
+    await withLocalS3(server, true, async (service) => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const started = new Promise<ServerResponse>((resolve) =>
+        server.once("request", (_req, res) => resolve(res)),
+      );
+      const first = service.download("first");
+      const held = await started;
+      const queued = new Promise<ClientRequest>((resolve) => {
+        const requestCreated = "http.client.request.created";
+        const capture = (message: unknown) => {
+          const { request } = message as { request: ClientRequest };
+          if (request.path.includes("/second")) resolve(request);
+        };
+        subscribe(requestCreated, capture);
+        onTestFinished(() => {
+          unsubscribe(requestCreated, capture);
+        });
+      });
+      const downloads = Promise.all([first, service.download("second")]);
+      const request = await queued;
+      expect(request.socket).toBeNull();
+      vi.runOnlyPendingTimers();
+      const assigned = once(request, "socket");
+      held.end("first");
+      const [socket] = await assigned;
+      // A connecting socket can signal inactivity while its DNS lookup is pending.
+      expect(socket.connecting).toBe(true);
+      socket.emit("timeout");
+      await expect(downloads).resolves.toEqual(["first", "second"]);
+    });
+  });
+
+  it.each([
+    { transport: "plain", validated: false },
+    { transport: "connection-validated", validated: true },
+  ])(
+    "retires idle $transport sockets after a slow download",
+    async ({ validated }) => {
+      const server = createServer((_request, response) => {
+        response.write("first");
+        setTimeout(() => response.end("second"), idleTimeoutMs * 3);
+      });
+      let socketClosed = false;
+      server.once("connection", (socket) => {
+        socket.once("close", () => {
+          socketClosed = true;
+        });
+      });
+
+      await withLocalS3(server, validated, async (service) => {
+        expect(await service.download("events/test.json")).toBe("firstsecond");
+        await vi.waitFor(() => expect(socketClosed).toBe(true), {
+          timeout: 1_000,
+        });
+      });
+    },
+  );
 });

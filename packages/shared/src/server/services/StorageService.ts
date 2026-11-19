@@ -125,16 +125,18 @@ function createS3RequestHandler(
   connectionValidation?: OutboundUrlConnectionValidationOptions,
 ): NodeHttpHandler {
   const maxSockets = env.LANGFUSE_S3_CONCURRENT_WRITES;
+  const timeout = env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS;
 
   if (!connectionValidation) {
     return new NodeHttpHandler({
-      httpsAgent: { maxSockets },
+      httpAgent: { timeout },
+      httpsAgent: { maxSockets, timeout },
     });
   }
 
   const { httpAgent, httpsAgent } = getSecureOutboundHttpAgents(
     connectionValidation,
-    { maxSockets },
+    { maxSockets, timeout },
   );
 
   return new NodeHttpHandler({
