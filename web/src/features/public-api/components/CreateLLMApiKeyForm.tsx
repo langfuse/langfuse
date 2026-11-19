@@ -845,7 +845,9 @@ export function CreateLLMApiKeyForm({
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
       showSaveError(
-        error instanceof Error ? error.message : "Could not verify the API key.",
+        error instanceof Error
+          ? error.message
+          : "Could not verify the API key.",
       );
       return;
     }
