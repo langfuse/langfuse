@@ -146,8 +146,9 @@ export interface StorageClient {
  * Delete media link rows for a project. Project deletion cannot rely on
  * project/media cascades for these rows because media link tables deliberately
  * do not have foreign keys to projects or media on the ingestion hot path.
- * Deletes in batches of `batchSize` rows along the (project_id, media_id)
- * index, each batch resuming at the last media_id of the previous one.
+ * Each batch deletes all rows of the next `batchSize` media ids along the
+ * (project_id, media_id) index, resuming after the last media id of the
+ * previous batch, so every index entry is visited once.
  */
 export async function deleteMediaLinkRowsByProjectId(params: {
   projectId: string;
@@ -165,12 +166,14 @@ export async function deleteMediaLinkRowsByProjectId(params: {
         Array<{ selected: number; lastSelectedMediaId: string | null }>
       >(Prisma.sql`
         WITH batch AS (
-          SELECT id, media_id FROM ${table}
-          WHERE project_id = ${projectId} AND media_id >= ${lastMediaId}
+          SELECT DISTINCT media_id FROM ${table}
+          WHERE project_id = ${projectId} AND media_id > ${lastMediaId}
           ORDER BY media_id
           LIMIT ${batchSize}
         ), deleted AS (
-          DELETE FROM ${table} WHERE id IN (SELECT id FROM batch)
+          DELETE FROM ${table}
+          WHERE project_id = ${projectId}
+            AND media_id IN (SELECT media_id FROM batch)
         )
         SELECT
           (SELECT count(*)::int FROM batch) AS selected,
@@ -276,6 +279,18 @@ export async function deleteMediaFiles(params: {
   }
 
   return deletedCount;
+}
+
+/**
+ * Delete all dataset links of the given media, claimed or pending.
+ */
+export async function deleteDatasetMediaLinksByMediaIds(params: {
+  projectId: string;
+  mediaIds: string[];
+}): Promise<void> {
+  await prisma.datasetItemMedia.deleteMany({
+    where: { projectId: params.projectId, mediaId: { in: params.mediaIds } },
+  });
 }
 
 /**

@@ -1,4 +1,5 @@
 import {
+  deleteDatasetMediaLinksByMediaIds,
   deleteMediaLinkRowsByProjectId,
   deleteMediaFiles,
   findAllMediaByProjectId,
@@ -8,7 +9,6 @@ import {
   recordGauge,
   recordIncrement,
 } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
@@ -116,8 +116,9 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
 
     // Claimed dataset links protect media from deleteMediaFiles; in a deleted
     // project they no longer should.
-    await prisma.datasetItemMedia.deleteMany({
-      where: { projectId, mediaId: { in: mediaFiles.map((f) => f.id) } },
+    await deleteDatasetMediaLinksByMediaIds({
+      projectId,
+      mediaIds: mediaFiles.map((f) => f.id),
     });
 
     const deletedCount = await deleteMediaFiles({
