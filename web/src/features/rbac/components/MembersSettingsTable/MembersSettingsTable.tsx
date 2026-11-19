@@ -296,7 +296,6 @@ export function MembersSettingsTable({
             } satisfies LangfuseColumnDef<MembersSettingsTableRow>,
           ]
         : directRoleColumns({
-            orgId,
             project,
             orgRoles: allRoles.filter(
               (role) => isAiGatewayEnabled || role !== "AI_GATEWAY",

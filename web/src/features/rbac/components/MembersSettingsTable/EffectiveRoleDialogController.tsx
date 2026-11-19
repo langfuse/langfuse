@@ -10,6 +10,7 @@ import {
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
+import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
@@ -143,6 +144,8 @@ export const belowGroupFloor =
 type RoleReason = {
   key: string;
   label: string;
+  /** Hover text: the group's level, size and role. */
+  title?: string;
   /** The group behind this reason, to list each group once per role. */
   groupId?: string;
   /** "org" or "project" when the same group grants different roles at the two levels. */
@@ -210,6 +213,7 @@ export function heldRoles(
       reason: {
         key: `${grant.groupId}-${grant.level}`,
         label: grant.groupName,
+        title: `${grant.groupName} · ${grant.level === "project" ? "project group" : "organization group"} · ${grant.memberCount} ${grant.memberCount === 1 ? "member" : "members"} · ${roleName(grant.role)}`,
         groupId: grant.groupId,
         levelNote: effective.grants.some(
           (other) =>
@@ -254,19 +258,11 @@ function omittedNote(
   { orgRole, projectId }: { orgRole: Role; projectId?: string },
 ) {
   if (!projectId) return null;
-  // A set project role replaces the org role; a None or AI Gateway org role
-  // gives nothing on a project either way, so there is nothing to explain.
-  if (
-    !effective.directIsOrgDefault &&
-    (orgRole === "NONE" || orgRole === "AI_GATEWAY")
-  )
-    return null;
-  if (orgRole === "AI_GATEWAY")
-    return "Organization role is AI Gateway, which gives no project access.";
-  if (!effective.directIsOrgDefault && orgRole !== "NONE")
+  // A None or AI Gateway org role gives nothing on a project; the picker's
+  // "Inherit from organization" option already says so, so no note here.
+  if (orgRole === "NONE" || orgRole === "AI_GATEWAY") return null;
+  if (!effective.directIsOrgDefault)
     return `Organization role (${roleName(orgRole)}) doesn't apply here because a project role is set.`;
-  if (orgRole === "NONE")
-    return "Organization role is None, so it adds nothing here.";
   return null;
 }
 
@@ -356,6 +352,13 @@ type EffectiveRoleSourceProps = {
   editor: DirectRoleEditor;
 };
 
+/** Tags for non-group reasons; on a project they say how the role got there. */
+const DIRECT_TAG: Record<string, string> = {
+  direct: "Direct",
+  project: "Set on this project",
+  organization: "Inherited from organization",
+};
+
 /** A small tag that says what kind of source a role comes from. */
 function SourceTag({ children }: { children: React.ReactNode }) {
   return (
@@ -377,9 +380,7 @@ function ReasonList({ reasons }: { reasons: RoleReason[] }) {
     <span className="flex min-w-0 flex-col gap-1">
       {direct.map((reason) => (
         <span key={reason.key} className="flex items-baseline gap-2">
-          <SourceTag>
-            {reason.key === "organization" ? "Inherited" : "Direct"}
-          </SourceTag>
+          <SourceTag>{DIRECT_TAG[reason.key] ?? "Direct"}</SourceTag>
         </span>
       ))}
       {groups.length > 0 && (
@@ -391,14 +392,9 @@ function ReasonList({ reasons }: { reasons: RoleReason[] }) {
                 {index > 0 && <span className="text-muted-foreground">, </span>}
                 <Link
                   href={reason.href ?? "#"}
-                  className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+                  title={reason.title}
+                  className="underline-offset-2 hover:underline"
                 >
-                  {reason.scim && (
-                    <Lock
-                      size="sm"
-                      aria-label="Synced from your identity provider"
-                    />
-                  )}
                   {reason.label}
                 </Link>
                 {reason.levelNote && (
@@ -435,8 +431,13 @@ function RoleDialog({
   const fieldId = useId();
   const onProject = Boolean(projectId);
   const [selected, setSelected] = useState<Role>(editor.value);
+  const [permissionsRole, setPermissionsRole] = useState<Role | null>(null);
   const held = heldRoles(effective, { orgRole, orgId, projectId });
   const omitted = omittedNote(effective, { orgRole, projectId });
+  // One direct role and nothing from groups: the picker below says it all, so
+  // the effective-role card and the roles list would only repeat it.
+  const explain =
+    held.length > 1 || held.some(({ reasons }) => reasons.some((r) => r.group));
   const fromGroup = effective.raisedByGroup;
   const displayName = member.name ?? member.email ?? "this member";
   const firstName = displayName.split(" ")[0] ?? displayName;
@@ -463,7 +464,7 @@ function RoleDialog({
     >
       <Dialog.Body spacing="compact">
         <div className="flex flex-col gap-3 text-sm">
-          {held.length > 0 && (
+          {explain && (
             <div className="flex flex-col rounded-md border">
               <div className="bg-muted text-muted-foreground rounded-t-md border-b px-3 py-2 text-xs">
                 Effective role ·{" "}
@@ -483,8 +484,16 @@ function RoleDialog({
                     <span className="text-muted-foreground">
                       {systemRoleAccessRights[role].description}
                     </span>
-                    <span className="text-muted-foreground text-right text-xs">
-                      {role !== "NONE" && rolePermissionCountLabel(role)}
+                    <span className="text-right text-xs">
+                      {role !== "NONE" && (
+                        <button
+                          type="button"
+                          onClick={() => setPermissionsRole(role)}
+                          className="text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                        >
+                          {rolePermissionCountLabel(role)}
+                        </button>
+                      )}
                     </span>
                   </li>
                 ))}
@@ -492,7 +501,7 @@ function RoleDialog({
             </div>
           )}
 
-          {held.length > 0 && (
+          {explain && (
             <div className="flex flex-col gap-1">
               <p className="text-muted-foreground text-xs">
                 Roles {firstName} holds {scopeLabel}
@@ -559,6 +568,13 @@ function RoleDialog({
           )}
         </div>
       </Dialog.Body>
+      <RolePermissionPopup
+        open={permissionsRole !== null}
+        onOpenChange={(next) => {
+          if (!next) setPermissionsRole(null);
+        }}
+        role={permissionsRole}
+      />
     </Dialog>
   );
 }

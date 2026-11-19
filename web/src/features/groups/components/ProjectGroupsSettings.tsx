@@ -8,6 +8,8 @@ import Header from "@/src/components/layouts/header";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { GroupMemberStack } from "@/src/features/groups/components/GroupMemberStack";
 import { GroupName } from "@/src/features/groups/components/GroupName";
 import {
@@ -147,6 +149,13 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
   const session = useSession();
   const hasAdminApi = useHasEntitlement("admin-api");
   const hasProjectRoles = useHasEntitlement("rbac-project-roles");
+  // Groups are created and their members managed in the organization
+  // settings; org admins get a way there from this page.
+  const { organization } = useQueryProject();
+  const canManageOrgGroups = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationMembers:CUD",
+  });
   const canRead = useHasProjectAccess({
     projectId,
     scope: "projectMembers:read",
@@ -301,6 +310,18 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
           placeholder: "Search name",
           onChange: setSearch,
         }}
+        toolbarActions={
+          canManageOrgGroups && organization
+            ? [
+                {
+                  id: "org-groups",
+                  label: "Organization groups",
+                  variant: "outline" as const,
+                  href: `/organization/${organization.id}/settings/groups`,
+                },
+              ]
+            : undefined
+        }
       />
     </div>
   );

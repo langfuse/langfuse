@@ -1,11 +1,11 @@
 import { useId, useState } from "react";
-import { Lock } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
 import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
+import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
@@ -238,6 +238,28 @@ function GroupRoleDialog({
           {/* Same tag style as the Members dialog: each role the group has
               here, where it is set, and whether it counts. At organization
               level there is only one source, which the description names. */}
+          {/* The role the group's members actually get here, as in the
+              Members dialog, so the list below reads as its sources. */}
+          {onProject && resolved.role !== "NONE" && (
+            <div className="flex flex-col rounded-md border">
+              <div className="bg-muted text-muted-foreground rounded-t-md border-b px-3 py-2 text-xs">
+                Effective role · combined permissions of inherited and project
+                roles
+              </div>
+              <div className="grid grid-cols-[7.5rem_minmax(0,1fr)_6.5rem] items-baseline gap-3 px-3 py-2">
+                <span className="font-bold">
+                  <RoleWithIcon role={resolved.role} />
+                </span>
+                <span className="text-muted-foreground">
+                  {systemRoleAccessRights[resolved.role].description}
+                </span>
+                <span className="text-muted-foreground text-right text-xs">
+                  {rolePermissionCountLabel(resolved.role)}
+                </span>
+              </div>
+            </div>
+          )}
+
           {onProject &&
             resolved.sources.some(
               (source) => source.role && source.role !== "NONE",
@@ -249,30 +271,40 @@ function GroupRoleDialog({
                 <ul className="flex flex-col divide-y rounded-md border">
                   {resolved.sources
                     .filter((source) => source.role && source.role !== "NONE")
-                    .map((source) => (
-                      <li
-                        key={source.key}
-                        className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 px-3 py-2"
-                      >
-                        <span
-                          className={`font-bold ${source.status === "No effect" ? "text-muted-foreground" : ""}`}
+                    .toSorted(
+                      (x, y) =>
+                        orderedRoles[y.role ?? "NONE"] -
+                        orderedRoles[x.role ?? "NONE"],
+                    )
+                    .map((source) => {
+                      const unused = source.status === "No effect";
+                      return (
+                        <li
+                          key={source.key}
+                          className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 px-3 py-2"
                         >
-                          {source.role && <RoleWithIcon role={source.role} />}
-                        </span>
-                        <span className="flex items-baseline gap-2">
-                          <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-                            {source.key === "project"
-                              ? "Project"
-                              : "Organization"}
+                          <span
+                            className={`font-bold ${unused ? "text-muted-foreground" : ""}`}
+                          >
+                            {source.role && <RoleWithIcon role={source.role} />}
                           </span>
-                          {source.status === "No effect" && (
-                            <span className="text-muted-foreground text-xs">
-                              no effect
+                          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                            <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
+                              {source.key === "project"
+                                ? "Set on this project"
+                                : "Inherited from organization"}
                             </span>
-                          )}
-                        </span>
-                      </li>
-                    ))}
+                            {unused && (
+                              <span className="text-muted-foreground text-xs">
+                                {source.role === levelOrgRole
+                                  ? "same as inherited"
+                                  : `${roleName(levelOrgRole)} is higher, so this has no effect`}
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
                 </ul>
               </div>
             )}
@@ -315,17 +347,6 @@ function GroupRoleDialog({
                   return undefined;
                 }}
               />
-            )}
-            {noEffect && (
-              <p className="text-muted-foreground flex items-start gap-2 text-xs">
-                <Lock size="sm" aria-hidden="true" __rawClassName="mt-0.5" />
-                <span>
-                  Anything at or below <Em>{roleName(levelOrgRole)}</Em> has no
-                  effect: <Em>{groupName}</Em> already gives{" "}
-                  {roleName(levelOrgRole)} in the organization. Pick a higher
-                  role, or inherit from the organization.
-                </span>
-              </p>
             )}
             {!onProject && !noEffect && (
               <p className="text-muted-foreground text-xs">

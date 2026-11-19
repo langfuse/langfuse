@@ -1,14 +1,12 @@
-import Link from "next/link";
 import { type Role } from "@langfuse/shared";
+import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
-import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
 import { type MembersSettingsTableRow } from "./MembersSettingsTable";
 
 type DirectRoleColumnsContext = {
-  orgId: string;
   project?: { id: string };
   orgRoles: Role[];
   projectRoles: Role[];
@@ -26,11 +24,10 @@ type DirectRoleColumnsContext = {
 
 /**
  * The role columns for organizations without Groups: the role pickers as they
- * were before groups, edited in place. On a project the organization role is
- * shown read-only next to the project role.
+ * were before groups, edited in place. On a project only the project role is
+ * shown; "None (keep default role)" means the organization role applies.
  */
 export function directRoleColumns({
-  orgId,
   project,
   orgRoles,
   projectRoles,
@@ -46,79 +43,56 @@ export function directRoleColumns({
   onUpdateProjectRole,
 }: DirectRoleColumnsContext): LangfuseColumnDef<MembersSettingsTableRow>[] {
   return [
-    {
-      accessorKey: "orgRole",
-      header: "Organization Role",
-      headerTooltip: {
-        description:
-          "The organization role is the default role for this user across the organization and its projects.",
-        href: "https://langfuse.com/docs/administration/rbac",
-      },
-      size: 160,
-      cell: ({ row }) => {
-        const isOwnerLocked =
-          row.original.orgRole === "OWNER" && !canManageOrgOwnership;
-        const select = (
-          <RoleSelect
-            roles={orgRoles}
-            canManageOwnership={canManageOrgOwnership}
-            value={row.original.orgRole}
-            size="compact"
-            disabled={
-              !hasOrgCudAccess ||
-              Boolean(project) ||
-              isOwnerLocked ||
-              updatingOrgRoleMembershipIds.has(
-                row.original.meta.orgMembershipId,
-              )
-            }
-            onValueChange={(role) => onUpdateOrgRole(row.original, role)}
-          />
-        );
+    // On a project the organization role is not shown as its own column: the
+    // project role column says when it is inherited instead.
+    ...(project
+      ? []
+      : [
+          {
+            accessorKey: "orgRole",
+            header: "Organization Role",
+            headerTooltip: {
+              description:
+                "The organization role is the default role for this user across the organization and its projects.",
+              href: "https://langfuse.com/docs/administration/rbac",
+            },
+            size: 160,
+            cell: ({ row }) => {
+              const isOwnerLocked =
+                row.original.orgRole === "OWNER" && !canManageOrgOwnership;
+              const select = (
+                <RoleSelect
+                  roles={orgRoles}
+                  canManageOwnership={canManageOrgOwnership}
+                  value={row.original.orgRole}
+                  size="compact"
+                  disabled={
+                    !hasOrgCudAccess ||
+                    isOwnerLocked ||
+                    updatingOrgRoleMembershipIds.has(
+                      row.original.meta.orgMembershipId,
+                    )
+                  }
+                  onValueChange={(role) => onUpdateOrgRole(row.original, role)}
+                />
+              );
 
-        if (!project && hasOrgCudAccess && isOwnerLocked) {
-          return (
-            <Tooltip label={ownerLockedLabel}>
-              {({ getTriggerProps }) => (
-                <span className="inline-flex" {...getTriggerProps()}>
-                  {select}
-                </span>
-              )}
-            </Tooltip>
-          );
-        }
+              if (hasOrgCudAccess && isOwnerLocked) {
+                return (
+                  <Tooltip label={ownerLockedLabel}>
+                    {({ getTriggerProps }) => (
+                      <span className="inline-flex" {...getTriggerProps()}>
+                        {select}
+                      </span>
+                    )}
+                  </Tooltip>
+                );
+              }
 
-        if (!project || !hasOrgCudAccess) return select;
-
-        return (
-          <HoverCard
-            openDelay={0}
-            closeDelay={0}
-            placement="right"
-            content={
-              <div className="w-64 p-3">
-                <p className="text-xs">
-                  The organization-level role can be edited in the{" "}
-                  <Link
-                    href={`/organization/${orgId}/settings/members`}
-                    className="underline"
-                  >
-                    organization settings
-                  </Link>
-                  .
-                </p>
-              </div>
-            }
-          >
-            {({ getTriggerProps }) => (
-              <span className="inline-flex" {...getTriggerProps()}>
-                {select}
-              </span>
-            )}
-          </HoverCard>
-        );
-      },
-    },
+              return select;
+            },
+          },
+        ]),
     ...(project
       ? ([
           {
@@ -129,9 +103,26 @@ export function directRoleColumns({
                 "The project role applies to this project and overrides the default organization role.",
               href: "https://langfuse.com/docs/administration/rbac",
             },
-            size: 160,
+            size: 220,
             cell: ({ row }) => {
-              if (!projectRolesEntitlement) return "N/A on plan";
+              // Without project roles on the plan, members get their
+              // organization role here: show it, read-only, and say why.
+              if (!projectRolesEntitlement)
+                return (
+                  <span className="inline-flex min-w-0 flex-col gap-0.5">
+                    <RoleSelect
+                      roles={[row.original.orgRole]}
+                      canManageOwnership={false}
+                      value={row.original.orgRole}
+                      size="compact"
+                      disabled
+                      onValueChange={() => undefined}
+                    />
+                    <span className="text-muted-foreground text-xs">
+                      From organization · not on this plan
+                    </span>
+                  </span>
+                );
               const hasRoleAccess = hasOrgCudAccess || hasProjectCudAccess;
               const isOwnerLocked =
                 (row.original.projectRole === "OWNER" &&
