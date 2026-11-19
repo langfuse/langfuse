@@ -1184,6 +1184,7 @@ describe("call site: createProjectMembershipsOnSignup", () => {
     prismaMock.project.findFirst.mockResolvedValueOnce({ id: "proj-9" });
     prismaMock.$queryRaw
       .mockResolvedValueOnce([{ id: "proj-9" }])
+      .mockResolvedValueOnce([{ id: "org-membership-9" }])
       .mockResolvedValueOnce([{ id: "proj-9" }]);
 
     await createProjectMembershipsOnSignup(

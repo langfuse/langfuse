@@ -1,6 +1,7 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import { afterEach, describe, expect, it } from "vitest";
@@ -30,9 +31,7 @@ async function setup({ role, plan }: { role: Role; plan: Plan }) {
       name: "Access Audit Test User",
     },
   });
-  await prisma.organizationMembership.create({
-    data: { userId, orgId, role },
-  });
+  await createOrgMembership(prisma, { userId, orgId, role });
 
   const session: Session = {
     expires: "1",

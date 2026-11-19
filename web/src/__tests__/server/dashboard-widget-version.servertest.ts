@@ -5,6 +5,7 @@ import {
   DashboardService,
 } from "@langfuse/shared/src/server";
 import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,
@@ -39,12 +40,10 @@ describe("dashboard widget minVersion", () => {
     });
     userId = user.id;
 
-    await prisma.organizationMembership.create({
-      data: {
-        orgId,
-        userId: user.id,
-        role: "OWNER",
-      },
+    await createOrgMembership(prisma, {
+      orgId,
+      userId: user.id,
+      role: "OWNER",
     });
   });
 

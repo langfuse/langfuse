@@ -2,6 +2,7 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { Role } from "@langfuse/shared";
@@ -96,9 +97,7 @@ async function prepareWithRole(
   plan: "cloud:enterprise" | "cloud:hobby" = "cloud:enterprise",
 ) {
   const { org, user } = await createTestOrg();
-  await prisma.organizationMembership.create({
-    data: { userId: user.id, orgId: org.id, role },
-  });
+  await createOrgMembership(prisma, { userId: user.id, orgId: org.id, role });
   const session = createSession(user, org, role, plan);
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

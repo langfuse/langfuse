@@ -92,16 +92,17 @@ import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGa
 import { getModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/modelDiscoveryRegistry";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
+import {
+  createOrgMembership,
+  deleteOrgMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
   createApiKey,
   createShaHash,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
-import {
-  replaceRolesForPrincipal,
-  revokeRolesForPrincipal,
-} from "@langfuse/shared/rbac/server";
 import {
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
@@ -204,9 +205,7 @@ async function prepare(role: Role = Role.OWNER) {
   const project = await prisma.project.create({
     data: { name: "Gateway ingestion", orgId: org.id },
   });
-  await prisma.organizationMembership.create({
-    data: { orgId: org.id, userId: user.id, role },
-  });
+  await createOrgMembership(prisma, { orgId: org.id, userId: user.id, role });
   cleanupOrganizations.push(org.id);
   cleanupUsers.push(user.id);
   env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
@@ -273,8 +272,10 @@ async function createCallerForOrganizationRole(
       name: `Gateway ${role.toLowerCase()}`,
     },
   });
-  await prisma.organizationMembership.create({
-    data: { orgId: setup.org.id, userId: user.id, role },
+  await createOrgMembership(prisma, {
+    orgId: setup.org.id,
+    userId: user.id,
+    role,
   });
   cleanupUsers.push(user.id);
 
@@ -4527,9 +4528,10 @@ describe("AI gateway control plane", () => {
         authenticator.authenticateModelsRequest(request),
       ).resolves.toMatchObject({ organizationId: org.id });
 
-      await prisma.roleAssignment.updateMany({
-        where: { userId: user.id, orgId: org.id },
-        data: { systemRole: "VIEWER", roleId: "system/VIEWER" },
+      await updateOrgMembership(prisma, {
+        orgId: org.id,
+        userId: user.id,
+        role: Role.VIEWER,
       });
       await expect(
         authenticator.authenticateModelsRequest(request),
@@ -4550,30 +4552,18 @@ describe("AI gateway control plane", () => {
         fastHashedSecretKey: createShaHash(secretKey, env.SALT),
         apiFormat: "openai.responses",
       });
-    // Changes the owner's org role without the app's cache invalidation.
-    const setOwnerRole = (orgId: string, userId: string, role: Role | null) =>
-      prisma.$transaction(async (tx) => {
-        const tenantId = OrganizationId(orgId);
-        const principalId = UserId(userId);
-        if (!role) {
-          await tx.organizationMembership.delete({
-            where: { orgId_userId: { orgId, userId } },
-          });
-          await revokeRolesForPrincipal(tx, { tenantId, principalId });
-          return;
-        }
-        await tx.organizationMembership.update({
-          where: { orgId_userId: { orgId, userId } },
-          data: { role },
-        });
-        await replaceRolesForPrincipal(tx, {
-          tenantId,
-          ownerId: tenantId,
-          principalId,
-          roleId: SystemRoleId(role),
-          tags: [],
-        });
-      });
+    // Changes the owner's org role without evicting the gateway resolve cache.
+    const setOwnerRole = async (
+      orgId: string,
+      userId: string,
+      role: Role | null,
+    ) => {
+      if (!role) {
+        await deleteOrgMembership(prisma, { orgId, userId });
+        return;
+      }
+      await updateOrgMembership(prisma, { orgId, userId, role });
+    };
     const keyNotAllowed = {
       status: 403,
       message: "API key is not allowed to invoke the gateway",
@@ -4678,8 +4668,10 @@ describe("AI gateway control plane", () => {
         data: { email: `gateway-owner-${randomUUID()}@example.test` },
       });
       cleanupUsers.push(otherOwner.id);
-      await prisma.organizationMembership.create({
-        data: { orgId: org.id, userId: otherOwner.id, role: Role.OWNER },
+      await createOrgMembership(prisma, {
+        orgId: org.id,
+        userId: otherOwner.id,
+        role: Role.OWNER,
       });
       const membership = await prisma.organizationMembership.findUniqueOrThrow({
         where: { orgId_userId: { orgId: org.id, userId: user.id } },

@@ -3,6 +3,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import { describe, expect, it } from "vitest";
@@ -20,9 +21,7 @@ async function createOwnerCaller() {
       name: "Test User",
     },
   });
-  await prisma.organizationMembership.create({
-    data: { userId, orgId, role: Role.OWNER },
-  });
+  await createOrgMembership(prisma, { userId, orgId, role: Role.OWNER });
 
   const session: Session = {
     expires: "1",

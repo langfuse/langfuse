@@ -1,6 +1,10 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,10 +24,7 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
-import {
-  assignRole,
-  getRoleAssignmentsForPrincipal,
-} from "@langfuse/shared/rbac/server";
+import { getRoleAssignmentsForPrincipal } from "@langfuse/shared/rbac/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -57,8 +58,10 @@ async function createUserInOrgs(orgIds: string[]) {
     },
   });
   for (const orgId of orgIds) {
-    await prisma.organizationMembership.create({
-      data: { userId: user.id, orgId, role: Role.OWNER },
+    await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId,
+      role: Role.OWNER,
     });
   }
   return user;
@@ -206,12 +209,19 @@ describe("projectsRouter system role assignments", () => {
       }),
     ).resolves.toBe(1);
 
-    const assignment = await assignRole(prisma, {
-      tenantId: OrganizationId(orgId),
-      ownerId: ProjectId(projectId),
-      principalId: UserId(user.id),
-      roleId: SystemRoleId("VIEWER"),
-      tags: [],
+    const { id: orgMembershipId } =
+      await prisma.organizationMembership.findUniqueOrThrow({
+        where: { orgId_userId: { orgId, userId: user.id } },
+      });
+    await createProjectMembership(prisma, {
+      orgId,
+      orgMembershipId,
+      projectId,
+      userId: user.id,
+      role: Role.VIEWER,
+    });
+    const assignment = await prisma.roleAssignment.findFirstOrThrow({
+      where: { userId: user.id, ownerId: ProjectId(projectId) },
     });
 
     await caller.projects.delete({ projectId });
@@ -234,13 +244,13 @@ describe("projectsRouter system role assignments", () => {
     });
     await expect(
       getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
-    ).resolves.toEqual([
+    ).resolves.toContainEqual(
       expect.objectContaining({
         id: assignment.id,
         projectId: projectId,
         systemRole: "VIEWER",
       }),
-    ]);
+    );
   });
 
   it("re-tags a project key's assignment orgId on transfer", async () => {
