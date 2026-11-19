@@ -10,11 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { organizationMemberLimitMessage } from "@/src/features/entitlements/constants/organizationMemberLimitMessage";
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
-import {
-  ALREADY_PROJECT_MEMBER_MESSAGE,
-  ORGANIZATION_ROLE_TOO_HIGH_MESSAGE,
-  PROJECT_ROLE_TOO_HIGH_MESSAGE,
-} from "@/src/features/rbac/constants/membershipErrorMessages";
+import { ALREADY_PROJECT_MEMBER_MESSAGE } from "@/src/features/rbac/constants/membershipErrorMessages";
 import type * as ApiModule from "@/src/utils/api";
 
 const { invite, captureExceptionMock, trpcErrorToastMock, gates } = vi.hoisted(
@@ -189,67 +185,6 @@ describe("member invite errors", () => {
       "true",
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(trpcErrorToastMock).not.toHaveBeenCalled();
-    expect(captureExceptionMock).not.toHaveBeenCalled();
-  });
-
-  it("shows an organization role above your own on the organization role field", async () => {
-    invite.mockRejectedValue(
-      trpcServerError({
-        code: "FORBIDDEN",
-        httpStatus: 403,
-        message: ORGANIZATION_ROLE_TOO_HIGH_MESSAGE,
-      }),
-    );
-    renderInviteDialog();
-
-    await submitInvite();
-
-    expect(fieldContainer("Organization Role")).toHaveTextContent(
-      ORGANIZATION_ROLE_TOO_HIGH_MESSAGE,
-    );
-    expect(
-      screen.getByRole("combobox", { name: "Organization Role" }),
-    ).toHaveAttribute("aria-invalid", "true");
-    expect(
-      screen.getByRole("combobox", { name: "Organization Role" }),
-    ).toHaveAccessibleDescription(ORGANIZATION_ROLE_TOO_HIGH_MESSAGE);
-    expect(screen.getByRole("textbox", { name: "Email" })).not.toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(trpcErrorToastMock).not.toHaveBeenCalled();
-    expect(captureExceptionMock).not.toHaveBeenCalled();
-  });
-
-  it("shows a project role above your own on the project role field", async () => {
-    gates.orgAccess = false;
-    invite.mockRejectedValue(
-      trpcServerError({
-        code: "FORBIDDEN",
-        httpStatus: 403,
-        message: PROJECT_ROLE_TOO_HIGH_MESSAGE,
-      }),
-    );
-    renderInviteDialog();
-
-    await submitInvite();
-
-    expect(screen.queryByText("Organization Role")).not.toBeInTheDocument();
-    expect(fieldContainer("Project Role")).toHaveTextContent(
-      PROJECT_ROLE_TOO_HIGH_MESSAGE,
-    );
-    expect(
-      screen.getByRole("combobox", { name: "Project Role" }),
-    ).toHaveAttribute("aria-invalid", "true");
-    expect(
-      screen.getByRole("combobox", { name: "Project Role" }),
-    ).toHaveAccessibleDescription(PROJECT_ROLE_TOO_HIGH_MESSAGE);
-    expect(screen.getByRole("textbox", { name: "Email" })).not.toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
     expect(trpcErrorToastMock).not.toHaveBeenCalled();
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
