@@ -288,9 +288,11 @@ export async function deleteDatasetMediaLinksByMediaIds(params: {
   projectId: string;
   mediaIds: string[];
 }): Promise<void> {
-  await prisma.datasetItemMedia.deleteMany({
-    where: { projectId: params.projectId, mediaId: { in: params.mediaIds } },
-  });
+  for (const mediaIds of chunk(params.mediaIds, BATCH_SIZE)) {
+    await prisma.datasetItemMedia.deleteMany({
+      where: { projectId: params.projectId, mediaId: { in: mediaIds } },
+    });
+  }
 }
 
 /**
