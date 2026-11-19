@@ -6,9 +6,9 @@ import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { AddTracesToAnnotationQueueSelectDialogContent } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueSelectDialogContent";
-import { AnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogController";
+import { ConnectedAnnotationQueueFormDialogController } from "@/src/features/annotation-queues/components/ConnectedAnnotationQueueFormDialogController";
 
-type AddTracesToAnnotationQueueDialogControllerProps = {
+type ConnectedAddTracesToAnnotationQueueDialogControllerProps = {
   projectId: string;
   onSuccess: () => void;
   description: string;
@@ -26,7 +26,7 @@ type AddTracesToAnnotationQueueDialogControllerProps = {
   }) => ReactNode;
 };
 
-export function AddTracesToAnnotationQueueDialogController({
+export function ConnectedAddTracesToAnnotationQueueDialogController({
   projectId,
   onSuccess,
   description,
@@ -36,7 +36,7 @@ export function AddTracesToAnnotationQueueDialogController({
   objectLabel = "traces",
   onAddToQueue,
   children,
-}: AddTracesToAnnotationQueueDialogControllerProps) {
+}: ConnectedAddTracesToAnnotationQueueDialogControllerProps) {
   const [open, setOpen] = useState(false);
   const [newQueueId, setNewQueueId] = useState<string>();
 
@@ -121,7 +121,7 @@ export function AddTracesToAnnotationQueueDialogController({
     newQueueId ?? (queueOptions.length === 1 ? queueOptions[0].id : "");
 
   return (
-    <AnnotationQueueFormDialogController
+    <ConnectedAnnotationQueueFormDialogController
       mode="create"
       projectId={projectId}
       onSuccess={setNewQueueId}
@@ -163,6 +163,6 @@ export function AddTracesToAnnotationQueueDialogController({
           </DialogContent>
         </Dialog>
       )}
-    </AnnotationQueueFormDialogController>
+    </ConnectedAnnotationQueueFormDialogController>
   );
 }

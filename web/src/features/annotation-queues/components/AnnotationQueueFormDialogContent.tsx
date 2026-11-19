@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from "react";
+import { type ComponentProps, type ReactNode, useId } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -8,14 +8,12 @@ import {
 } from "@langfuse/shared";
 
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
-import { ConnectedAnnotationQueueSessionViewSettings } from "./ConnectedAnnotationQueueSessionViewSettings";
-import { ConnectedAnnotationQueueSessionViewDialogController } from "./ConnectedAnnotationQueueSessionViewDialogController";
+import { AnnotationQueueSessionViewSettings } from "./AnnotationQueueSessionViewSettings/AnnotationQueueSessionViewSettings";
+import { UserAssignmentSection } from "./UserAssignmentSection";
 
 type AnnotationQueueFormDialogContentProps = {
   mode: "create" | "edit";
@@ -24,8 +22,24 @@ type AnnotationQueueFormDialogContentProps = {
     value: string[];
     onChange: (ids: string[]) => void;
   }) => ReactNode;
-  projectId: string;
-  queueId?: string;
+  sessionViewSettings: Pick<
+    ComponentProps<typeof AnnotationQueueSessionViewSettings>,
+    "viewsState" | "value" | "onChange" | "canSaveViews" | "onCreate" | "onEdit"
+  > | null;
+  userAssignments: Pick<
+    ComponentProps<typeof UserAssignmentSection>,
+    | "users"
+    | "assignedUsers"
+    | "totalAssignedUsers"
+    | "searchQuery"
+    | "onSearchChange"
+    | "searchResults"
+    | "isLoading"
+    | "hasMoreResults"
+    | "canWrite"
+    | "isRemoving"
+    | "onRemove"
+  >;
   queueNames: string[];
   hasQueueAssignmentsReadAccess: boolean;
   isSubmitting: boolean;
@@ -43,8 +57,8 @@ export function AnnotationQueueFormDialogContent({
   mode,
   initialValues,
   children,
-  projectId,
-  queueId,
+  sessionViewSettings,
+  userAssignments,
   queueNames,
   hasQueueAssignmentsReadAccess,
   isSubmitting,
@@ -96,7 +110,18 @@ export function AnnotationQueueFormDialogContent({
       ]}
     >
       <Dialog.Body>
-        <Form id={formId} actions={[]} onSubmit={form.handleSubmit(onSubmit)}>
+        <Form
+          id={formId}
+          actions={[]}
+          onSubmit={form.handleSubmit((data) =>
+            onSubmit({
+              ...data,
+              sessionViewId: sessionViewSettings
+                ? sessionViewSettings.value
+                : initialValues.sessionViewId,
+            }),
+          )}
+        >
           <Form.Field control={form.control} name="name" label="Name">
             {(field) => (
               <Input
@@ -152,53 +177,12 @@ export function AnnotationQueueFormDialogContent({
               )}
             </Form.Field>
           )}
-          <Controller
-            control={form.control}
-            name="sessionViewId"
-            render={({ field }) => (
-              <ConnectedAnnotationQueueSessionViewDialogController
-                projectId={projectId}
-                onChange={field.onChange}
-                disabled={isSubmitting}
-              >
-                {({ openDialog }) => (
-                  <ConnectedAnnotationQueueSessionViewSettings
-                    projectId={projectId}
-                    value={field.value ?? null}
-                    onChange={field.onChange}
-                    disabled={isSubmitting}
-                  >
-                    {({ selectedView, canReadViews, canSaveViews }) => (
-                      <>
-                        <Button
-                          text="Create view"
-                          variant="secondary"
-                          disabled={
-                            isSubmitting || !canSaveViews || !canReadViews
-                          }
-                          onClick={() => openDialog({ type: "create" })}
-                        />
-                        {selectedView && (
-                          <Button
-                            text="Edit view"
-                            variant="ghost"
-                            disabled={
-                              isSubmitting ||
-                              !canSaveViews ||
-                              !selectedView.canEdit
-                            }
-                            onClick={() =>
-                              openDialog({ type: "edit", view: selectedView })
-                            }
-                          />
-                        )}
-                      </>
-                    )}
-                  </ConnectedAnnotationQueueSessionViewSettings>
-                )}
-              </ConnectedAnnotationQueueSessionViewDialogController>
-            )}
-          />
+          {sessionViewSettings && (
+            <AnnotationQueueSessionViewSettings
+              {...sessionViewSettings}
+              disabled={isSubmitting}
+            />
+          )}
           {hasQueueAssignmentsReadAccess ? (
             <Controller
               control={form.control}
@@ -212,8 +196,7 @@ export function AnnotationQueueFormDialogContent({
                     <Accordion.Content>
                       <div className="py-3">
                         <UserAssignmentSection
-                          projectId={projectId}
-                          queueId={queueId}
+                          {...userAssignments}
                           selectedUserIds={field.value}
                           onChange={field.onChange}
                         />

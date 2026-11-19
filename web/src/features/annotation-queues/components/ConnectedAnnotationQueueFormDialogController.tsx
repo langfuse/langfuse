@@ -11,9 +11,11 @@ import { QueueScoreConfigFields } from "./QueueScoreConfigFields";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { useQueueUserAssignments } from "../hooks/useQueueUserAssignments";
+import { ConnectedAnnotationQueueSessionViewSettings } from "./ConnectedAnnotationQueueSessionViewSettings";
 
-export function AnnotationQueueFormDialogController(
-  props: AnnotationQueueFormDialogControllerProps,
+export function ConnectedAnnotationQueueFormDialogController(
+  props: ConnectedAnnotationQueueFormDialogControllerProps,
 ) {
   const { projectId, onSuccess, mode, children } = props;
   const hasQueueAccess = useHasProjectAccess({
@@ -27,7 +29,7 @@ export function AnnotationQueueFormDialogController(
     <DialogController
       renderDialog={({ closeDialog, isOpen }) =>
         hasQueueAccess ? (
-          <AnnotationQueueDialogData
+          <ConnectedAnnotationQueueDialogData
             projectId={projectId}
             queueId={mode === "edit" ? props.queueId : undefined}
             mode={mode}
@@ -50,7 +52,7 @@ export function AnnotationQueueFormDialogController(
   );
 }
 
-function AnnotationQueueDialogData({
+function ConnectedAnnotationQueueDialogData({
   projectId,
   queueId,
   mode,
@@ -66,6 +68,13 @@ function AnnotationQueueDialogData({
   closeDialog: () => void;
 }) {
   const [createdQueueId, setCreatedQueueId] = useState<string>();
+  const [selectedSessionViewId, setSelectedSessionViewId] = useState<
+    string | null | undefined
+  >();
+  const userAssignments = useQueueUserAssignments({
+    projectId,
+    queueId: queueId ?? createdQueueId,
+  });
   const hasQueueAssignmentsReadAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueueAssignments:read",
@@ -138,30 +147,43 @@ function AnnotationQueueDialogData({
     );
   }
   return (
-    <AnnotationQueueFormDialogContent
-      mode={mode}
-      initialValues={initialValues}
+    <ConnectedAnnotationQueueSessionViewSettings
       projectId={projectId}
-      queueId={queueId ?? createdQueueId}
-      queueNames={queues
-        .filter((queue) => queue.id !== (queueId ?? createdQueueId))
-        .map((queue) => queue.name)}
-      hasQueueAssignmentsReadAccess={hasQueueAssignmentsReadAccess}
-      isSubmitting={isSubmitting}
-      onSubmit={handleSubmit}
-      submitLabel={mode === "edit" ? "Save queue" : "Create queue"}
+      value={
+        selectedSessionViewId === undefined
+          ? (initialValues.sessionViewId ?? null)
+          : selectedSessionViewId
+      }
+      onChange={setSelectedSessionViewId}
+      disabled={isSubmitting}
     >
-      {({ value, onChange }) => (
-        <QueueScoreConfigFields
-          projectId={projectId}
-          configs={configs ?? []}
-          value={value}
-          onChange={onChange}
-          disabled={isSubmitting}
-          warnOnRemoval={false}
-        />
+      {(sessionViewSettings) => (
+        <AnnotationQueueFormDialogContent
+          mode={mode}
+          initialValues={initialValues}
+          sessionViewSettings={sessionViewSettings}
+          userAssignments={userAssignments}
+          queueNames={queues
+            .filter((queue) => queue.id !== (queueId ?? createdQueueId))
+            .map((queue) => queue.name)}
+          hasQueueAssignmentsReadAccess={hasQueueAssignmentsReadAccess}
+          isSubmitting={isSubmitting}
+          onSubmit={handleSubmit}
+          submitLabel={mode === "edit" ? "Save queue" : "Create queue"}
+        >
+          {({ value, onChange }) => (
+            <QueueScoreConfigFields
+              projectId={projectId}
+              configs={configs ?? []}
+              value={value}
+              onChange={onChange}
+              disabled={isSubmitting}
+              warnOnRemoval={false}
+            />
+          )}
+        </AnnotationQueueFormDialogContent>
       )}
-    </AnnotationQueueFormDialogContent>
+    </ConnectedAnnotationQueueSessionViewSettings>
   );
 }
 
@@ -266,7 +288,7 @@ async function saveQueueWithAssignments({
   return targetQueueId;
 }
 
-type AnnotationQueueFormDialogControllerProps = {
+type ConnectedAnnotationQueueFormDialogControllerProps = {
   projectId: string;
   onSuccess: (queueId: string) => void;
   children: (control: {

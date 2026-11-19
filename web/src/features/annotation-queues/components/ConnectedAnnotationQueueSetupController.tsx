@@ -12,10 +12,11 @@ import {
 } from "./AnnotationQueueSetupForm";
 import { QueueScoreConfigFields } from "./QueueScoreConfigFields";
 import { UserAssignmentSection } from "./UserAssignmentSection";
+import { useQueueUserAssignments } from "../hooks/useQueueUserAssignments";
 import { ConnectedAnnotationQueueSessionViewSettings } from "./ConnectedAnnotationQueueSessionViewSettings";
-import { ConnectedAnnotationQueueSessionViewDialogController } from "./ConnectedAnnotationQueueSessionViewDialogController";
+import { AnnotationQueueSessionViewSettings } from "./AnnotationQueueSessionViewSettings/AnnotationQueueSessionViewSettings";
 
-export function AnnotationQueueSetupController({
+export function ConnectedAnnotationQueueSetupController({
   projectId,
   queueId,
   renderLayout,
@@ -49,6 +50,7 @@ export function AnnotationQueueSetupController({
     { enabled: canEdit },
   );
   const utils = api.useUtils();
+  const userAssignments = useQueueUserAssignments({ projectId, queueId });
   const capture = usePostHogClientCapture();
   const update = api.annotationQueues.update.useMutation();
   const assign = api.annotationQueueAssignments.createMany.useMutation();
@@ -110,43 +112,21 @@ export function AnnotationQueueSetupController({
       hasAssignments={hasAssignments}
       renderLayout={renderLayout}
       renderSessionViewSettings={({ value, onChange, disabled }) => (
-        <ConnectedAnnotationQueueSessionViewDialogController
+        <ConnectedAnnotationQueueSessionViewSettings
           projectId={projectId}
+          value={value ?? null}
           onChange={onChange}
           disabled={disabled}
         >
-          {({ openDialog }) => (
-            <ConnectedAnnotationQueueSessionViewSettings
-              projectId={projectId}
-              value={value ?? null}
-              onChange={onChange}
-              disabled={disabled}
-            >
-              {({ selectedView, canReadViews, canSaveViews }) => (
-                <>
-                  <Button
-                    text="Create view"
-                    variant="secondary"
-                    disabled={disabled || !canSaveViews || !canReadViews}
-                    onClick={() => openDialog({ type: "create" })}
-                  />
-                  {selectedView && (
-                    <Button
-                      text="Edit view"
-                      variant="ghost"
-                      disabled={
-                        disabled || !canSaveViews || !selectedView.canEdit
-                      }
-                      onClick={() =>
-                        openDialog({ type: "edit", view: selectedView })
-                      }
-                    />
-                  )}
-                </>
-              )}
-            </ConnectedAnnotationQueueSessionViewSettings>
-          )}
-        </ConnectedAnnotationQueueSessionViewDialogController>
+          {(settings) =>
+            settings && (
+              <AnnotationQueueSessionViewSettings
+                {...settings}
+                disabled={disabled}
+              />
+            )
+          }
+        </ConnectedAnnotationQueueSessionViewSettings>
       )}
       onSubmit={(values, dirty) =>
         saveQueueSetup({
@@ -170,8 +150,7 @@ export function AnnotationQueueSetupController({
       }
       renderAssignments={({ value, onChange }) => (
         <UserAssignmentSection
-          projectId={projectId}
-          queueId={queueId}
+          {...userAssignments}
           selectedUserIds={value}
           onChange={onChange}
         />

@@ -1,10 +1,10 @@
-import { type ReactNode } from "react";
-import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
-import { Button } from "@/src/components/design-system/Button/Button";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { type ComponentProps, type ReactNode } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
+import { type AnnotationQueueSessionViewSettings } from "./AnnotationQueueSessionViewSettings/AnnotationQueueSessionViewSettings";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { ConnectedAnnotationQueueSessionViewDialogController } from "./ConnectedAnnotationQueueSessionViewDialogController";
 
 export function ConnectedAnnotationQueueSessionViewSettings({
   projectId,
@@ -17,12 +17,23 @@ export function ConnectedAnnotationQueueSessionViewSettings({
   value: string | null;
   onChange: (value: string | null) => void;
   disabled: boolean;
-  children: (controls: {
-    selectedView: RouterOutputs["sessionViews"]["list"][number] | undefined;
-    canReadViews: boolean;
-    canSaveViews: boolean;
-  }) => ReactNode;
+  children: (
+    settings: Pick<
+      ComponentProps<typeof AnnotationQueueSessionViewSettings>,
+      | "viewsState"
+      | "value"
+      | "onChange"
+      | "canSaveViews"
+      | "onCreate"
+      | "onEdit"
+    > | null,
+  ) => ReactNode;
 }) {
+  const { isV4 } = useReadPath();
+  const isTimelineEnabled = useIsFeatureEnabled("sessionViewV2Timeline", {
+    projectId,
+  });
+  const enabled = isV4 && isTimelineEnabled;
   const canReadViews = useHasProjectAccess({
     projectId,
     scope: "SessionViews:read",
@@ -33,75 +44,40 @@ export function ConnectedAnnotationQueueSessionViewSettings({
   });
   const views = api.sessionViews.list.useQuery(
     { projectId },
-    { enabled: canReadViews },
+    { enabled: enabled && canReadViews },
   );
-  const projectViews = views.data?.filter(
-    (view) => view.ownership === "PROJECT",
-  );
-  const selectedView = projectViews?.find((view) => view.id === value);
+  const viewsState = (() => {
+    if (!canReadViews) return { status: "forbidden" } as const;
+    if (views.isPending) return { status: "pending" } as const;
+    if (views.isError) {
+      return {
+        status: "error",
+        onRetry: () => {
+          views.refetch();
+        },
+      } as const;
+    }
+    return { status: "success", views: views.data } as const;
+  })();
+
+  if (!enabled) return children(null);
 
   return (
-    <Accordion type="single" collapsible>
-      <Accordion.Item value="session-view">
-        <Accordion.Trigger size="sm">Session view</Accordion.Trigger>
-        <Accordion.Content>
-          <div className="flex flex-col gap-3 py-3">
-            <p className="text-muted-foreground text-xs">
-              Choose a project view for everyone annotating this queue. Private
-              views cannot be used by queues.
-            </p>
-            {!canReadViews && (
-              <p className="text-muted-foreground text-xs">
-                You don&apos;t have permission to choose saved views.
-              </p>
-            )}
-            {canReadViews && views.isPending && (
-              <Skeleton className="h-9 w-full" />
-            )}
-            {canReadViews && views.isError && (
-              <div className="flex items-center gap-2">
-                <p role="alert" className="text-destructive text-xs">
-                  Could not load saved views.
-                </p>
-                <Button
-                  text="Retry"
-                  variant="ghost"
-                  onClick={() => views.refetch()}
-                />
-              </div>
-            )}
-            {canReadViews && views.isSuccess && (
-              <div className="ph-no-capture">
-                <SelectInput
-                  aria-label="Session view"
-                  placeholder="Select a session view"
-                  value={value ?? "default"}
-                  options={[
-                    { value: "default", label: "Default session view" },
-                    ...(projectViews ?? []).map((view) => ({
-                      value: view.id,
-                      label: view.name,
-                    })),
-                  ]}
-                  onValueChange={(viewId) =>
-                    onChange(viewId === "default" ? null : viewId)
-                  }
-                  disabled={disabled}
-                  noCapture
-                />
-              </div>
-            )}
-            {selectedView && (
-              <p className="text-muted-foreground text-xs">
-                Changes to this saved view apply everywhere it is used.
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {children({ selectedView, canReadViews, canSaveViews })}
-            </div>
-          </div>
-        </Accordion.Content>
-      </Accordion.Item>
-    </Accordion>
+    <ConnectedAnnotationQueueSessionViewDialogController
+      projectId={projectId}
+      onChange={onChange}
+      disabled={disabled}
+    >
+      {({ openDialog }) =>
+        children({
+          viewsState,
+          value,
+          onChange,
+          canSaveViews,
+          onCreate: () => openDialog({ type: "create" }),
+          onEdit: (view) => openDialog({ type: "edit", view }),
+        })
+      }
+    </ConnectedAnnotationQueueSessionViewDialogController>
   );
 }

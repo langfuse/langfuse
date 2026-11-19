@@ -4,6 +4,9 @@ import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import {
   Prisma,
+  InvalidRequestError,
+  LangfuseConflictError,
+  ForbiddenError,
   SessionViewInputSchema,
   SessionViewPreferencesSchema,
 } from "@langfuse/shared";
@@ -131,10 +134,7 @@ export const sessionViewsRouter = createTRPCRouter({
           message: "Session view not found.",
         });
       if (ownership === "PRIVATE" && existing.ownership === "PROJECT") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Project views cannot be made private.",
-        });
+        throw new InvalidRequestError("Project views cannot be made private.");
       }
       if (
         !canManageSessionView({
@@ -223,10 +223,9 @@ export const sessionViewsRouter = createTRPCRouter({
           orderBy: { name: "asc" },
         });
         if (queues.length > 0) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: `This session view is used by annotation queues: ${queues.map(({ name }) => name).join(", ")}. Choose another view for these queues before deleting it.`,
-          });
+          throw new LangfuseConflictError(
+            `This session view is used by annotation queues: ${queues.map(({ name }) => name).join(", ")}. Choose another view for these queues before deleting it.`,
+          );
         }
         return tx.sessionView.deleteMany({
           where: { ...input, createdBy: view.createdBy },
@@ -373,11 +372,9 @@ export const sessionViewsRouter = createTRPCRouter({
         });
       if (view.ownership === "PRIVATE") {
         if (!promoteToProject || !isPinnedByDefaultForProject) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message:
-              "Convert this private view to a project view before pinning it by default.",
-          });
+          throw new InvalidRequestError(
+            "Convert this private view to a project view before pinning it by default.",
+          );
         }
         if (
           !canManageSessionView({
@@ -387,10 +384,9 @@ export const sessionViewsRouter = createTRPCRouter({
             ownership: view.ownership,
           })
         ) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "You do not have permission to edit this view.",
-          });
+          throw new ForbiddenError(
+            "You do not have permission to edit this view.",
+          );
         }
       }
       await ctx.prisma.sessionView.update({

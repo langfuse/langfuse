@@ -191,7 +191,7 @@ import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { ConnectedAddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/ConnectedAddTracesToAnnotationQueueDialogController";
 
 export type EventsTableRow = {
   // Identity fields
@@ -2304,7 +2304,7 @@ export default function ObservationsEventsTable({
                   ) : null,
                   !chartActive &&
                   (selectedObservationIds.length > 0 || selectAll) ? (
-                    <AddTracesToAnnotationQueueDialogController
+                    <ConnectedAddTracesToAnnotationQueueDialogController
                       key="observations-multi-select-actions"
                       projectId={projectId}
                       actionId={ActionId.ObservationAddToAnnotationQueue}
@@ -2348,7 +2348,7 @@ export default function ObservationsEventsTable({
                           }}
                         />
                       )}
-                    </AddTracesToAnnotationQueueDialogController>
+                    </ConnectedAddTracesToAnnotationQueueDialogController>
                   ) : null,
                 ]}
                 // No row selection in chart mode — the table (and its select-all

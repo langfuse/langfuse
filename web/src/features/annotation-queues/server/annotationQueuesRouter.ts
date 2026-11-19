@@ -10,6 +10,7 @@ import {
   AnnotationQueueStatus,
   type AnnotationQueue,
   CreateQueueData,
+  InvalidRequestError,
   filterAndValidateDbScoreConfigList,
   isBaseError,
   isPresent,
@@ -453,20 +454,18 @@ export const queueRouter = createTRPCRouter({
 
         return await withSessionViewConfig(ctx.prisma, queue);
       } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || isBaseError(error)) {
           throw error;
         }
+        logger.error(error);
 
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2003"
         ) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message:
-              "The selected session view no longer exists in this project.",
-          });
+          throw new InvalidRequestError(
+            "The selected session view no longer exists in this project.",
+          );
         }
 
         if (
@@ -583,11 +582,9 @@ export const queueRouter = createTRPCRouter({
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2003"
         ) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message:
-              "The selected session view no longer exists in this project.",
-          });
+          throw new InvalidRequestError(
+            "The selected session view no longer exists in this project.",
+          );
         }
 
         if (
@@ -753,10 +750,8 @@ async function validateProjectSessionView(
     select: { id: true },
   });
   if (!view) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message:
-        "The selected session view must belong to this project and be a project view.",
-    });
+    throw new InvalidRequestError(
+      "The selected session view must belong to this project and be a project view.",
+    );
   }
 }

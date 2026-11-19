@@ -124,15 +124,19 @@ export const OptInPinning = meta.story({
 export const OwnershipFilters = meta.story({
   name: "(Test) Ownership filters",
   args: { onSetDefaultPin: fn() },
-  play: async () => {
+  play: async ({ args }) => {
     const body = within(document.body);
     await expect(body.getByText("Ben")).toBeInTheDocument();
     await expect(body.getByText("Alex")).toBeInTheDocument();
     await userEvent.click(body.getByRole("tab", { name: "Private views" }));
     await expect(body.getByText("Generations")).toBeInTheDocument();
     await expect(
-      body.queryByRole("button", { name: "Pin Generations by default" }),
-    ).not.toBeInTheDocument();
+      body.getByRole("button", { name: "Pin Generations by default" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      body.getByRole("button", { name: "Pin Generations by default" }),
+    );
+    await expect(args.onSetDefaultPin).toHaveBeenCalledWith("one", true);
     await expect(body.queryByText("Messages")).not.toBeInTheDocument();
     await expect(body.queryByText("Errors")).not.toBeInTheDocument();
     await userEvent.click(body.getByRole("tab", { name: "Project views" }));
