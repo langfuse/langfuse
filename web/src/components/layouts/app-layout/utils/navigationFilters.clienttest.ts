@@ -121,7 +121,7 @@ it.each([
     title: "Settings",
     role: "AI_GATEWAY",
     projects: [{ id: "project-1" }],
-    visible: true,
+    visible: false,
   },
   { title: "Settings", role: "NONE", projects: [], visible: true },
 ])(

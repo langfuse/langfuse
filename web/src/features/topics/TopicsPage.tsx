@@ -1,7 +1,13 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { useEffect, useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
-import { type UseQueryResult } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
+import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
@@ -52,7 +58,12 @@ import { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { TopicRunDetails } from "./TopicRunDetails";
 import { TopicRunHistoryList } from "./TopicRunHistoryList";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
-import { busy, runLabel } from "./topic-run-labels";
+import {
+  busy,
+  createsSummaries,
+  runLabel,
+  type TopicRunWithCost,
+} from "./topic-run-labels";
 import {
   resolveTopicMapSelection,
   topicMapQuery,
@@ -61,11 +72,7 @@ import {
 } from "./topic-maps";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
-import {
-  TopicMapStrip,
-  topicAnalysisStatus,
-  topicRuleStatus,
-} from "./TopicMapStrip";
+import { TopicMapStrip, topicRuleStatus } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { TopicAnalysisState } from "./TopicAnalysisState";
 import { TopicSliceDialogController } from "./TopicSliceDialogController";
@@ -223,7 +230,7 @@ function TopicsWorkspaceContent({
   const router = useRouter();
   const utils = api.useUtils();
   const executions = api.topics.executions.useQuery(
-    { projectId },
+    { projectId, includeCosts: false },
     {
       refetchInterval: (query) =>
         (query.state.data ?? []).some((execution) => busy(execution.status))
@@ -239,7 +246,7 @@ function TopicsWorkspaceContent({
       ? router.query.executionId
       : null;
   const selectedExecution = api.topics.execution.useQuery(
-    { projectId, executionId: executionId ?? "" },
+    { projectId, executionId: executionId ?? "", includeCosts: false },
     {
       enabled: executionId !== null,
       // The list already has this run, so the panel renders without a loading flash.
@@ -334,6 +341,21 @@ function TopicsWorkspaceContent({
       ? maps.data?.analyses.find((analysis) => analysis.id === mapSelection.id)
       : undefined;
   const analysisId = mapSelection?.kind === "analysis" ? mapSelection.id : null;
+  const historyRuns =
+    historyOpen && !executionId ? (executions.data ?? []) : [];
+  const pricedRuns: RunCostStatus[] = historyRuns.filter((run) =>
+    createsSummaries(run.input),
+  );
+  if (selectedAnalysis?.summarize) {
+    // The execution list reconciles interrupted runs the map overview can still report as running.
+    const snapshot = executions.data?.find(
+      (run) => run.id === selectedAnalysis.id,
+    );
+    pricedRuns.push(snapshot ?? selectedAnalysis);
+  }
+  if (selectedExecution.data && createsSummaries(selectedExecution.data.input))
+    pricedRuns.push(selectedExecution.data);
+  const costFor = useVisibleRunCosts(projectId, pricedRuns);
   // Onboarding has no selection yet; the first rule is the one setup created.
   const setupRuleId = analysisId
     ? undefined
@@ -630,11 +652,10 @@ function TopicsWorkspaceContent({
           ) : null;
         const now = Date.now();
         const mapShown = shownFacets.some((facet) => facet.map);
-        // Handheld hides the strip, so its status line sits beside the title instead.
-        let mapStatus = "";
-        if (selectedAnalysis) mapStatus = topicAnalysisStatus(selectedAnalysis);
-        else if (!showOnboarding && selectedRule)
-          mapStatus = topicRuleStatus(selectedRule, now, mapShown);
+        const mapStatus =
+          !showOnboarding && selectedRule
+            ? topicRuleStatus(selectedRule, now, mapShown)
+            : "";
         return (
           <Page
             headerProps={{
@@ -671,13 +692,6 @@ function TopicsWorkspaceContent({
                   options={unassignedSwitch}
                 />
               ) : null}
-              {selectedAnalysis ? (
-                <TopicMapStrip.Analysis
-                  analysis={selectedAnalysis}
-                  controls={viewControls}
-                  options={unassignedSwitch}
-                />
-              ) : null}
               <div
                 className={cn(
                   "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
@@ -695,6 +709,15 @@ function TopicsWorkspaceContent({
                       />
                     )}
                   </div>
+                )}
+                {selectedAnalysis && (
+                  <TopicMapStrip.Analysis
+                    analysis={selectedAnalysis}
+                    estimatedCost={costFor(selectedAnalysis.id)}
+                    onViewRun={() => openExecution(selectedAnalysis.id)}
+                    controls={viewControls}
+                    options={unassignedSwitch}
+                  />
                 )}
                 <TopicSetupNotice
                   notice={modelSettings.notice}
@@ -753,13 +776,17 @@ function TopicsWorkspaceContent({
                           projectId={projectId}
                           executionId={executionId}
                           query={selectedExecution}
+                          estimatedCost={costFor(executionId)}
                           facets={facets.data ?? []}
                           canWrite={canWrite}
                           onBack={() => showExecutionList(true)}
                         />
                       ) : (
                         <TopicRunHistoryList
-                          executions={executions.data ?? []}
+                          executions={historyRuns.map((run) => ({
+                            ...run,
+                            estimatedCost: costFor(run.id),
+                          }))}
                           errorMessage={executions.error?.message}
                           onOpen={openExecution}
                           onRetry={() => executions.refetch()}
@@ -851,10 +878,77 @@ function TopicsWorkspaceContent({
   );
 }
 
+type RunCostStatus = Pick<TopicRunWithCost, "id" | "status" | "updatedAt">;
+
+/** Only visible estimates read ClickHouse. Each terminal revision fetches a final estimate, including after a retry. */
+function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
+  const utils = api.useUtils();
+  const queryClient = useQueryClient();
+  const revisions = Object.fromEntries(
+    runs.map((run) => [run.id, busy(run.status) ? null : run.updatedAt]),
+  );
+  const executionIds = Object.keys(revisions).sort();
+  const input = { projectId, executionIds };
+  const pollInterval = 30_000;
+  const staleTime = 60_000;
+  const runKey = (id: string) =>
+    ["topics-run-cost", projectId, id, revisions[id]] as const;
+  const { data, isError } = useQuery({
+    queryKey: [
+      ...getQueryKey(api.topics.executionCosts, input, "query"),
+      revisions,
+    ],
+    queryFn: async ({ signal }) => {
+      const estimates: Record<string, number | null> = {};
+      const due: string[] = [];
+      for (const id of executionIds) {
+        const cached = queryClient.getQueryState<number | null>(runKey(id));
+        const maxAge = revisions[id] === null ? pollInterval : staleTime;
+        if (
+          cached?.data !== undefined &&
+          Date.now() - cached.dataUpdatedAt < maxAge
+        ) {
+          estimates[id] = cached.data;
+        } else {
+          due.push(id);
+        }
+      }
+      if (due.length) {
+        const amounts = await utils.client.topics.executionCosts.query(
+          { projectId, executionIds: due },
+          { signal },
+        );
+        signal.throwIfAborted();
+        for (const id of due) {
+          estimates[id] = amounts[id] ?? null;
+          queryClient.setQueryData(runKey(id), estimates[id]);
+        }
+      }
+      return { projectId, revisions, estimates };
+    },
+    enabled: executionIds.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime,
+    refetchInterval: Object.values(revisions).includes(null)
+      ? pollInterval
+      : false,
+    meta: { silentAllErrors: true },
+  });
+  return (id: string) => {
+    const cost = queryClient.getQueryData<number | null>(runKey(id));
+    if (cost !== undefined) return cost;
+    // The last visible batch can still be on screen after the individual cache entries expire.
+    if (data?.projectId === projectId && data.revisions[id] === revisions[id])
+      return data.estimates[id];
+    return isError ? null : undefined;
+  };
+}
+
 function ExecutionPanel({
   projectId,
   executionId,
   query,
+  estimatedCost,
   facets,
   canWrite,
   onBack,
@@ -865,6 +959,7 @@ function ExecutionPanel({
     RouterOutputs["topics"]["execution"],
     { message: string }
   >;
+  estimatedCost: number | null | undefined;
   facets: TopicFacet[];
   canWrite: boolean;
   onBack: () => void;
@@ -902,7 +997,7 @@ function ExecutionPanel({
   }
   return (
     <TopicRunDetails
-      execution={execution}
+      execution={{ ...execution, estimatedCost }}
       facets={facets}
       canWrite={canWrite}
       retry={{
