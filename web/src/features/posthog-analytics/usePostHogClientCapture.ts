@@ -452,6 +452,8 @@ const events = {
     "setup_opened",
     "setup_step_saved",
     "setup_started",
+    // Tracing pulse chart topic stripe. Props: isV4, isSelected, topicCount; never topic names.
+    "stripe_toggle",
   ],
   in_app_agent: [
     "activity_opened",
