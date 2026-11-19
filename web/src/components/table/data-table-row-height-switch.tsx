@@ -459,11 +459,14 @@ export const DataTableRowHeightSwitch = ({
   tableName = "unknown",
   isV4 = false,
   customRowHeight,
+  size = "default",
 }: {
   rowHeight: RowHeight;
   setRowHeight: (e: RowHeight) => void;
   tableName?: string;
   isV4?: boolean;
+  /** `sm` matches small buttons beside it (28px). */
+  size?: "default" | "sm";
   /**
    * Pass this wherever the switch is shown. Custom stays hidden until a row
    * has been dragged.
@@ -521,6 +524,7 @@ export const DataTableRowHeightSwitch = ({
           {...getTriggerProps()}
           variant="ghost"
           size="icon"
+          className={size === "sm" ? "h-7 w-7" : undefined}
           title={customActive ? "Row height: Custom" : "Row height"}
         >
           <Rows3 size="base" color="default" />
