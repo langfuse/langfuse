@@ -203,6 +203,7 @@ export function useFilteredNavigation(
         url: route.id === "ai-gateway" ? (gatewayEntryHref ?? "") : url,
         disabledReason:
           route.gatewayPage === GATEWAY_PAGE_SLUGS.models ||
+          route.gatewayPage === GATEWAY_PAGE_SLUGS.budgets ||
           route.gatewayPage === GATEWAY_PAGE_SLUGS.apiKeys
             ? gatewaySetupRequiredReason
             : undefined,

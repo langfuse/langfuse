@@ -61,7 +61,7 @@ export async function handleGatewaySpendLimitNotification({
       })),
       receiverEmail: to,
       receiverName,
-      link: `${baseUrl}/organization/${orgId}/ai-gateway/api-keys`,
+      link: `${baseUrl}/organization/${orgId}/ai-gateway/${scope.type === "USER" ? "budgets" : "api-keys"}`,
       emailFromAddress: env.EMAIL_FROM_ADDRESS,
     }),
   );

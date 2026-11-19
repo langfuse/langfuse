@@ -405,6 +405,8 @@ const getPlanBasedRateLimitConfig = (
           return { resource, points: 100, durationInSec: 60 };
         case "ai-gateway-request-bytes":
           return { resource, points: 64 * MiB, durationInSec: 60 };
+        case "coupon-redemption":
+          return { resource, points: 5, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -513,6 +515,8 @@ const getPlanBasedRateLimitConfig = (
           return { resource, points: 500, durationInSec: 60 };
         case "ai-gateway-request-bytes":
           return { resource, points: 256 * MiB, durationInSec: 60 };
+        case "coupon-redemption":
+          return { resource, points: 5, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -615,6 +619,8 @@ const getPlanBasedRateLimitConfig = (
           return { resource, points: 10_000, durationInSec: 60 };
         case "ai-gateway-request-bytes":
           return { resource, points: 5 * GiB, durationInSec: 60 };
+        case "coupon-redemption":
+          return { resource, points: 5, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);

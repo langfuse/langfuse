@@ -209,7 +209,7 @@ export class GatewayApiKeyRepository {
 }
 
 /** gatewayApiKeyWhere scopes gateway keys to the organization and, when set, to the user the keys are bound to. */
-function gatewayApiKeyWhere(params: {
+export function gatewayApiKeyWhere(params: {
   organizationId: string;
   ownerUserId?: string;
 }) {
@@ -221,7 +221,7 @@ function gatewayApiKeyWhere(params: {
 }
 
 /** gatewayApiKeySearch matches the key name or the name or email of the user the key is bound to. */
-function gatewayApiKeySearch(searchQuery: string) {
+export function gatewayApiKeySearch(searchQuery: string) {
   const contains = {
     contains: escapeSqlLikePattern(searchQuery),
     mode: "insensitive",

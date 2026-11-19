@@ -7,9 +7,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * week, or the 1st of the month. A total limit never refreshes, so its one
  * window starts at the Unix epoch.
  *
- * The gateway computes the same windows in `ai-gateway/src/spend/window.rs`
- * and only applies a stored baseline while the window containing the limit's
- * counting start is current.
+ * The gateway computes the same windows in `ai-gateway/src/spend/window.rs`.
  */
 export function getGatewaySpendLimitWindowStart(
   interval: GatewaySpendLimitInterval,

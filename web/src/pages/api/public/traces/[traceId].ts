@@ -116,7 +116,7 @@ export default withMiddlewares(
                   },
                   OR: [
                     { projectId: auth.scope.projectId },
-                    { projectId: null },
+                    { scope: "LANGFUSE" },
                   ],
                 },
                 include: {

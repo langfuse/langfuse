@@ -85,6 +85,7 @@ const row = (overrides: {
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
   gatewaySpendLimits: [],
   organization: {
+    gatewaySpendLimits: [],
     gatewayConfig: {
       defaultIngestionProjectId: overrides.withoutProject ? null : "project-1",
       ingestionMode: overrides.ingestionMode ?? "USAGE",
@@ -356,7 +357,11 @@ describe("GatewayResolveService", () => {
           expiresAt: null,
           gatewayAssociation: null,
           gatewaySpendLimits: [],
-          organization: { gatewayConfig: null, gatewayAiConnections: [] },
+          organization: {
+            gatewaySpendLimits: [],
+            gatewayConfig: null,
+            gatewayAiConnections: [],
+          },
         }),
       "org-not-allowed",
     );

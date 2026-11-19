@@ -758,6 +758,7 @@ describe("Clickhouse Events Repository Test", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName: `gpt-4-${modelId}`,
           matchPattern: `(?i)^(gpt-?4-${modelId})$`,
@@ -4497,6 +4498,7 @@ describe("Clickhouse Events Repository Test", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId: projectId,
           modelName: `test-model-${modelId}`,
           matchPattern: `(?i)^(test-model-${modelId})$`,
