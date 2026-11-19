@@ -14,7 +14,7 @@ export const CreateAnnotationQueueItemToolSchema = z
   })
   .extend(CreateAnnotationQueueItemBody.shape);
 
-export const MAX_BATCH_CREATE_ANNOTATION_QUEUE_ITEMS = 100;
+export const MAX_BATCH_CREATE_ANNOTATION_QUEUE_ITEMS = 10;
 
 export const BatchCreateAnnotationQueueItemsToolSchema = z.object({
   queueId: z.string(),
