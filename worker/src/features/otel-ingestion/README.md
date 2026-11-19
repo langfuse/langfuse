@@ -15,22 +15,9 @@ environment variables. The configured user needs to read the `events_full`
 schema and create, insert into, select from, and drop the test tables. An
 unavailable ClickHouse server fails the run.
 
-The corpus, integration, and property suites replay identical stored JSON bytes
-through the original TypeScript, early-media TypeScript, and early-media Rust paths.
-The Rust path also performs normalization, enrichment, and remaining
-media detection in Rust. Model and prompt lookups, media uploads, and evaluation
-scheduling use test doubles.
+The corpus, integration, and property suites replay identical stored JSON bytes through the original TypeScript, early-media TypeScript, and early-media Rust paths. The Rust path also performs normalization, enrichment, and remaining media detection in Rust. Model and prompt lookups, media uploads, and evaluation scheduling use test doubles.
 
-Each replay creates isolated Memory tables from the live schema and uses the
-production JSON and Native writer singletons. A thin client adapter substitutes the
-temporary destination table for production table names and rejects unmapped
-inserts. Blob-storage file logging and background trace evaluation jobs are
-disabled. The harness drains the writer before reading persisted rows. The
-integration suite also covers dual writes by draining only its queued legacy
-jobs into isolated trace and observation tables and removing those jobs even
-when legacy processing fails. The suites keep generated seeds reproducible and
-disable retries. Memory tables cover ClickHouse types, defaults, and serialization;
-MergeTree deduplication and production materialized views are outside the run.
+Each replay creates isolated Memory tables from the live schema and uses the production JSON and Native writer singletons. A thin client adapter substitutes the temporary destination table for production table names and rejects unmapped inserts. Blob-storage file logging and background trace evaluation jobs are disabled. The harness drains the writer before reading persisted rows. The integration suite also covers dual writes by draining only its queued legacy jobs into isolated trace and observation tables and removing those jobs even when legacy processing fails. The suites keep generated seeds reproducible and disable retries. Memory tables cover ClickHouse types, defaults, and serialization; MergeTree deduplication and production materialized views are outside the run.
 
 ## Scope and caveats
 
@@ -70,11 +57,6 @@ Raw ingress limits and byte-length telemetry remain pre-media measurements. Trac
 
 ## Rust direct processing
 
-`LANGFUSE_OTEL_DIRECT_IMPLEMENTATION=rust` selects Rust for direct events-table
-writes in projects admitted by the early-media selector. It requires early
-extraction and configured media uploads. Unselected projects keep the original
-TypeScript path. Legacy writes remain in TypeScript in dual-write mode;
-events-only Rust jobs skip constructing the TypeScript span graph. The Rust
-path retains the native media registry through normalization and service calls.
+`LANGFUSE_OTEL_DIRECT_IMPLEMENTATION=rust` selects Rust for direct events-table writes in projects admitted by the early-media selector. It requires early extraction and configured media uploads. Unselected projects keep the original TypeScript path. Legacy writes remain in TypeScript in dual-write mode; events-only Rust jobs skip constructing the TypeScript span graph. The Rust path retains the native media registry through normalization and service calls.
 
 Native errors reject the job without falling back to TypeScript processing.

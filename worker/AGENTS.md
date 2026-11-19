@@ -49,12 +49,7 @@
 - `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain both singletons. `IngestionService.writeEventRecord()` returns the accepted post-overflow row, including `event_bytes` in legacy sizing mode. Trace-dispatch recording reuses that estimate or measures JSON size only when enabled, to preserve its read-capacity guard. When v4 event writes are enabled, startup detects the `events_full` `byteSize` DEFAULT with `DESCRIBE TABLE` before queue consumers load. TypeScript writers use the DEFAULT only when confirmed; otherwise they preserve legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native always omits `event_bytes` and requires the migration.
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
-- Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the
-  original TypeScript, early-media TypeScript, and early-media Rust paths from
-  identical raw S3 JSON through the production OTEL queue and their production
-  writers into isolated ClickHouse tables, including retained legacy writes in
-  dual-write mode. Setup and scope:
-  `src/features/otel-ingestion/README.md`.
+- Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the original TypeScript, early-media TypeScript, and early-media Rust paths from identical raw S3 JSON through the production OTEL queue and their production writers into isolated ClickHouse tables, including retained legacy writes in dual-write mode. Setup and scope: `src/features/otel-ingestion/README.md`.
 - Native codec checks: `pnpm --filter worker run test:native-codec` selects
   `nativeCodec` suites. Build the addon first; the command requires ClickHouse
   whenever the live parity suite is present.

@@ -860,7 +860,7 @@ export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
 const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
-const validateV4Flags = (parsed: ParsedEnv): void => {
+const validateOtelDirectImplementationConfig = (parsed: ParsedEnv): void => {
   if (
     parsed.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
     (parsed.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED !== "true" ||
@@ -871,6 +871,9 @@ const validateV4Flags = (parsed: ParsedEnv): void => {
       "Rust OTEL processing requires early media extraction and configured media uploads",
     );
   }
+};
+
+const validateV4Flags = (parsed: ParsedEnv): void => {
   const mode = parsed.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   const otel = parsed.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR;
 
@@ -918,6 +921,7 @@ const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
 const parseEnv = (): ParsedEnv => {
   const source = { ...removeEmptyEnvVariables(process.env) };
   const parsed = EnvSchema.parse(source);
+  validateOtelDirectImplementationConfig(parsed);
   validateV4Flags(parsed);
   validateInAppAgentSandboxConfig(parsed);
   return parsed;
