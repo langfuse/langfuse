@@ -265,7 +265,6 @@ export function TopicTraceList({
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <DataTableRowHeightSwitch
-              size="sm"
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
               tableName="topics-trace-list"
@@ -276,7 +275,6 @@ export function TopicTraceList({
                 href={tracingHref}
                 text="Open in Tracing"
                 variant="ghost"
-                size="sm"
                 icon={ExternalLink}
               />
             )}
