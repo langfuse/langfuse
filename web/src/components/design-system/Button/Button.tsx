@@ -25,8 +25,6 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         /** Inline text action: muted, underlined, no box. */
         text: "text-muted-foreground hover:text-foreground underline",
-        /** Inline link action: bold, takes the surrounding text color, no box. */
-        link: "font-bold hover:underline",
       },
       size: {
         default: "h-8 px-3 py-1 text-sm",
@@ -34,7 +32,7 @@ const buttonVariants = cva(
       },
     },
     compoundVariants: [
-      { variant: ["text", "link"], class: "h-auto px-0 py-0" },
+      { variant: "text", class: "h-auto px-0 py-0" },
       {
         variant: "outline",
         class: "aria-pressed:border-primary aria-pressed:bg-primary/5",
@@ -55,8 +53,7 @@ type ButtonProps = {
     | "outline"
     | "destructive"
     | "ghost"
-    | "text"
-    | "link";
+    | "text";
   size?: "default" | "sm";
 } & (
   | {

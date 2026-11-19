@@ -267,7 +267,7 @@ export function TopicRunDetails({
                 ? [
                     {
                       text: "Resume run",
-                      loading: retry.isPending,
+                      disabled: retry.isPending,
                       onClick: () => retry.onRetry(),
                     },
                   ]

@@ -271,7 +271,6 @@ export default function NewEvaluatorPage() {
                 actions={[
                   {
                     text: "Use updated evaluator",
-                    type: "button",
                     onClick: handleUseUpdatedEvaluator,
                   },
                 ]}
