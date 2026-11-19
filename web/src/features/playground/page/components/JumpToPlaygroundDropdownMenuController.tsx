@@ -348,14 +348,21 @@ const parseGeneration = (
     };
   }
 
-  let input = generation.input?.valueOf();
+  let input: unknown = generation.input?.valueOf();
 
   if (!input) return null;
 
   // parse string inputs as JSON or treat as text prompt
   if (typeof input === "string") {
+    const textInput = input;
     try {
-      input = JSON.parse(input);
+      const parsedInput: unknown = JSON.parse(input);
+      if (
+        typeof parsedInput === "string" ||
+        (parsedInput !== null && typeof parsedInput === "object")
+      ) {
+        input = parsedInput;
+      }
     } catch {
       // Parse failed, treat as text prompt
       return {
@@ -363,7 +370,7 @@ const parseGeneration = (
           createEmptyMessage({
             type: ChatMessageType.System,
             role: ChatMessageRole.System,
-            content: input?.toString() ?? "",
+            content: textInput,
           }),
         ],
         modelParams,
