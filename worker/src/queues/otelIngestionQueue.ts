@@ -432,6 +432,101 @@ export function checkSdkVersionRequirements(
   }
 }
 
+async function prepareTypeScriptOtelEvents(params: {
+  processor: OtelIngestionProcessor;
+  resourceSpans: ResourceSpan[];
+  isLangfuseInternal: boolean;
+  earlyBatch?: EarlyOtelBatch;
+  writesToLegacyTables: boolean;
+  projectId: string;
+  fileKey: string;
+  span: ReturnType<typeof getCurrentSpan>;
+}): Promise<{
+  traces: IngestionEventType[];
+  observations: IngestionEventType[];
+}> {
+  const {
+    processor,
+    resourceSpans,
+    isLangfuseInternal,
+    earlyBatch,
+    writesToLegacyTables,
+    projectId,
+    fileKey,
+    span,
+  } = params;
+
+  // Generate events via OtelIngestionProcessor
+  const events: IngestionEventType[] =
+    await processor.processToIngestionEvents(resourceSpans);
+  if (earlyBatch && writesToLegacyTables) {
+    await restoreInlineMedia(
+      earlyBatch,
+      events.map((event) => event.body),
+    );
+  }
+
+  // Here, we split the events into observations and non-observations.
+  // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
+  const traces = events.filter(
+    (e) => getClickhouseEntityType(e.type) !== "observation",
+  );
+  // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
+  const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
+  const candidateObservations = events.filter(
+    (e) => getClickhouseEntityType(e.type) === "observation",
+  );
+  let firstParseError: z.ZodError | undefined;
+  const observations = candidateObservations
+    .map((o) => ingestionSchema.safeParse(o))
+    .flatMap((o) => {
+      if (!o.success) {
+        if (firstParseError === undefined) {
+          firstParseError = o.error;
+        }
+        return [];
+      }
+      return [o.data];
+    });
+
+  // Per-observation parse failures are near-pure noise (customer-sent data
+  // that fails our schema). Aggregate to one metric + one sample warn per
+  // file instead of one line per observation.
+  const parseFailureCount = candidateObservations.length - observations.length;
+  if (parseFailureCount > 0) {
+    recordIncrement(
+      "langfuse.ingestion.otel.observation_parse_failure",
+      parseFailureCount,
+    );
+    logger.warn(
+      `Failed to parse ${parseFailureCount}/${candidateObservations.length} otel observations for project ${projectId} in ${fileKey}: ${firstParseError}`,
+      {
+        error: firstParseError,
+        fileKey,
+        parseFailureCount,
+      },
+    );
+  }
+
+  // In the next row, we only consider observations. The traces will be recorded in processEventBatch.
+  recordIncrement("langfuse.ingestion.event", observations.length, {
+    source: "otel",
+  });
+  // Record more stats specific to the Otel processing
+  recordDistribution("langfuse.ingestion.otel.trace_count", traces.length);
+  recordDistribution(
+    "langfuse.ingestion.otel.observation_count",
+    observations.length,
+  );
+  span?.setAttribute("langfuse.ingestion.otel.trace_count", traces.length);
+  span?.setAttribute(
+    "langfuse.ingestion.otel.observation_count",
+    observations.length,
+  );
+
+  return { traces, observations };
+}
+
 export const otelIngestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
 ): Processor => {
@@ -606,74 +701,17 @@ export const otelIngestionQueueProcessorBuilder = (
         fileKey,
         isLangfuseInternal,
       });
-      const events: IngestionEventType[] =
-        await processor.processToIngestionEvents(parsedSpans);
       const writesToLegacyTables = v4WritesToLegacyTables(env);
-      if (earlyBatch && writesToLegacyTables) {
-        await restoreInlineMedia(
-          earlyBatch,
-          events.map((event) => event.body),
-        );
-      }
-
-      // Here, we split the events into observations and non-observations.
-      // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
-      const traces = events.filter(
-        (e) => getClickhouseEntityType(e.type) !== "observation",
-      );
-      // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
-      const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
-      const candidateObservations = events.filter(
-        (e) => getClickhouseEntityType(e.type) === "observation",
-      );
-      let firstParseError: z.ZodError | undefined;
-      const observations = candidateObservations
-        .map((o) => ingestionSchema.safeParse(o))
-        .flatMap((o) => {
-          if (!o.success) {
-            if (firstParseError === undefined) {
-              firstParseError = o.error;
-            }
-            return [];
-          }
-          return [o.data];
-        });
-
-      // Per-observation parse failures are near-pure noise (customer-sent data
-      // that fails our schema). Aggregate to one metric + one sample warn per
-      // file instead of one line per observation.
-      const parseFailureCount =
-        candidateObservations.length - observations.length;
-      if (parseFailureCount > 0) {
-        recordIncrement(
-          "langfuse.ingestion.otel.observation_parse_failure",
-          parseFailureCount,
-        );
-        logger.warn(
-          `Failed to parse ${parseFailureCount}/${candidateObservations.length} otel observations for project ${projectId} in ${fileKey}: ${firstParseError}`,
-          {
-            error: firstParseError,
-            fileKey,
-            parseFailureCount,
-          },
-        );
-      }
-
-      // In the next row, we only consider observations. The traces will be recorded in processEventBatch.
-      recordIncrement("langfuse.ingestion.event", observations.length, {
-        source: "otel",
+      const { traces, observations } = await prepareTypeScriptOtelEvents({
+        processor,
+        resourceSpans: parsedSpans,
+        isLangfuseInternal,
+        earlyBatch,
+        writesToLegacyTables,
+        projectId,
+        fileKey,
+        span,
       });
-      // Record more stats specific to the Otel processing
-      recordDistribution("langfuse.ingestion.otel.trace_count", traces.length);
-      recordDistribution(
-        "langfuse.ingestion.otel.observation_count",
-        observations.length,
-      );
-      span?.setAttribute("langfuse.ingestion.otel.trace_count", traces.length);
-      span?.setAttribute(
-        "langfuse.ingestion.otel.observation_count",
-        observations.length,
-      );
 
       // Ensure required infra config is present
       if (!redis) throw new Error("Redis not available");
