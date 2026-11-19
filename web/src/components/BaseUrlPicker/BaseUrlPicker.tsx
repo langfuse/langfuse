@@ -6,6 +6,11 @@ import { findBaseUrlPreset } from "@/src/components/BaseUrlPicker/fns/findBaseUr
 import type { BaseUrlPreset } from "@/src/types/baseUrlPreset";
 
 const CUSTOM_OPTION = "custom";
+const CUSTOM_URL_OPTION = {
+  value: CUSTOM_OPTION,
+  label: "Custom URL",
+  badges: [{ text: "Proxy or other endpoint", color: "outline" as const }],
+};
 
 export type BaseUrlPickerProps = {
   id?: string;
@@ -51,20 +56,6 @@ export function BaseUrlPicker({
         badges: [{ text: preset.url, color: "filled" as const }],
       })),
     },
-    {
-      type: "group" as const,
-      id: "custom",
-      label: "Other",
-      options: [
-        {
-          value: CUSTOM_OPTION,
-          label: "Custom URL",
-          badges: [
-            { text: "Proxy or other endpoint", color: "outline" as const },
-          ],
-        },
-      ],
-    },
   ];
 
   const handleOptionChange = (option: string) => {
@@ -88,6 +79,7 @@ export function BaseUrlPicker({
         id={id}
         value={isCustom ? CUSTOM_OPTION : matchedPreset.url}
         options={options}
+        customOption={CUSTOM_URL_OPTION}
         onValueChange={handleOptionChange}
         placeholder="Select a base URL"
         noCapture

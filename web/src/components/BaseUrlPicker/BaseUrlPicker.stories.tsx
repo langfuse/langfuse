@@ -12,7 +12,7 @@ const meta = preview.meta({
   },
 });
 
-/** A blank base URL is the provider default. Open the select to see the Regions and Other sections. */
+/** A blank base URL is the provider default. Open the select to see the Regions presets and the Custom URL option below them. */
 export const Default = meta.story({
   args: { value: "" },
 });
