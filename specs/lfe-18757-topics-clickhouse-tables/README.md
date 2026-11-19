@@ -29,7 +29,6 @@ On a 1M traces/day project this reads 5x to 1,000x less than main for counts, to
 | [05-options.md](05-options.md) | main, pre-review draft, meeting and proposal layouts, and how they differ |
 | [migrations/](migrations/) | `meeting.up.sql`, `proposal.up.sql` and a shared `down.sql` in canonical template syntax (checked on 25.12 and 26.4, unclustered) |
 | [queries/](queries/) | Generated SQL for each configuration, one file per query, with the source function on main |
-| [main-query-catalogue.md](main-query-catalogue.md) | All 36 Topics query shapes on main, helpers inlined |
 | [harness/](harness/) | DDL, data generators, seed scripts and the replay runner |
 | [results/](results/) | Raw benchmark output |
 

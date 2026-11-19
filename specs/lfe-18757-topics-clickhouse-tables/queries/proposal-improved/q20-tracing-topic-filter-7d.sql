@@ -1,5 +1,5 @@
 -- Q20 tracing topic filter (7d)
--- Built on main by currentTopicTraceIdsCondition (packages/shared/src/server/topics/clickhouse.ts:1256); use case: Tracing table topic filter (inside events query)
+-- Built on main by currentTopicTraceIdsCondition (packages/shared/src/server/topics/clickhouse.ts:1256); use case: Tracing table topic filter
 -- Configuration: 4 proposal + improved
 
 SELECT count() FROM (SELECT trace_id FROM (SELECT trace_id, facet_id, topic_id, topic_version_id, clustering_run_id FROM topic_assignments

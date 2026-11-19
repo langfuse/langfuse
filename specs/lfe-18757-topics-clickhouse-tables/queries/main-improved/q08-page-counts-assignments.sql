@@ -1,5 +1,5 @@
 -- Q08 page counts: assignments
--- Built on main by getTopicResultCounts assignments (packages/shared/src/server/repositories/topic-results.ts:730); use case: Same as Q07, in parallel
+-- Built on main by getTopicResultCounts (assignments) (packages/shared/src/server/repositories/topic-results.ts:730); use case: Topics page counts per topic
 -- Configuration: 2 main + improved
 
 SELECT facet_id, topic_id, grouping(topic_id) AS is_facet_total, uniqCombined(trace_id) AS count, uniqCombinedIf(trace_id, topic_id != '') AS assigned

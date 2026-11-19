@@ -1,5 +1,5 @@
 -- Q10 list resolve (200 candidates)
--- Built on main by listCurrentRows resolve (packages/shared/src/server/repositories/topic-results.ts:512); use case: Same as Q09
+-- Built on main by listCurrentRows resolve (packages/shared/src/server/repositories/topic-results.ts:512); use case: Trace list and topic page
 -- Configuration: 2 main + improved
 
 WITH summaries AS (

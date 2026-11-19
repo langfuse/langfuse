@@ -1,4 +1,4 @@
-# Topics read queries as main builds them (see ../main-query-catalogue.md), with table names templated per layout.
+# Topics read queries as main builds them (see ../02-queries.md), with table names templated per layout.
 ENV = "AND NOT startsWith(environment, {internalEnvironmentPrefix:String}) AND environment != {publicLlmJudgeEnvironment:String}"
 W = "unit_start_time >= {from:DateTime64(3)} AND unit_start_time < {to:DateTime64(3)}"
 def latest(S, scope):

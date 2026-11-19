@@ -1,6 +1,6 @@
 # Queries: main today, improvements, per-layout rewrites
 
-Every benchmarked query, the code on `main` that builds it, and what changes. The full SQL of every configuration is in [queries/](queries/): `main-main-queries/` is the SQL as `main` builds it today, `main-improved/` is the same schema with the fixes below, and `meeting-improved/` and `proposal-improved/` add the layout rewrites. File headers name the source function and line. [main-query-catalogue.md](main-query-catalogue.md) has all 36 Topics query shapes with every helper inlined (writes, setup and deletion included).
+Every benchmarked query, the code on `main` that builds it, and what changes. The full SQL of every configuration is in [queries/](queries/): `main-main-queries/` is the SQL as `main` builds it today, `main-improved/` is the same schema with the fixes below, and `meeting-improved/` and `proposal-improved/` add the layout rewrites. File headers name the source function and line. Writes, rule setup queries on `events_core` and project deletion were not benchmarked: they don't depend on these sort keys.
 
 Paths are relative to the repo root, at `main` as of 2026-11-19.
 

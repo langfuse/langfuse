@@ -1,5 +1,5 @@
 -- Q15 refit today: newest 16k, 7d step
--- Built on main by getNewestTopicClusteringSummaries (packages/shared/src/server/topics/clickhouse.ts:580); use case: Nightly refit, rule setup fit, manual refresh
+-- Built on main by getNewestTopicClusteringSummaries (packages/shared/src/server/topics/clickhouse.ts:580); use case: Nightly refit
 -- Configuration: 2 main + improved
 
 SELECT project_id AS projectId, facet_id AS facetId, facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId, trigger_type AS triggerType,

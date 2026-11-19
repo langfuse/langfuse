@@ -1,5 +1,5 @@
 -- Q21 scatter assignments
--- Built on main by readTopicMapAssignments (packages/shared/src/server/topics/clickhouse.ts:1123); use case: Scatter plot; worker resume of a completed run
+-- Built on main by readTopicMapAssignments (packages/shared/src/server/topics/clickhouse.ts:1123); use case: Scatter plot points
 -- Configuration: 1 main + main queries
 
 SELECT project_id AS projectId, facet_id AS facetId, facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId, environment, trace_name AS traceName,

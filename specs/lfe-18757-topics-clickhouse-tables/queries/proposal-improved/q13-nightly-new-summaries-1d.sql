@@ -1,5 +1,5 @@
 -- Q13 nightly: new summaries? (1d)
--- Built on main by getTopicSummaryCounts (packages/shared/src/server/topics/clickhouse.ts:765); use case: Snapshot preview, snapshot fit precheck, nightly refit check
+-- Built on main by getTopicSummaryCounts (packages/shared/src/server/topics/clickhouse.ts:765); use case: Nightly new-summaries check
 -- Configuration: 4 proposal + improved
 
 SELECT facet_id, facet_version, count() FROM (SELECT facet_id, facet_version, trace_id FROM (

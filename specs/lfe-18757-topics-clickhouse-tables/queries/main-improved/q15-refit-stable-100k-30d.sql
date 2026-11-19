@@ -1,5 +1,5 @@
 -- Q15' refit stable 100k / 30d
--- Built on main by getNewestTopicClusteringSummaries (packages/shared/src/server/topics/clickhouse.ts:580); use case: Nightly refit, rule setup fit, manual refresh
+-- Built on main by getNewestTopicClusteringSummaries (packages/shared/src/server/topics/clickhouse.ts:580); use case: Nightly refit
 -- Configuration: 2 main + improved
 -- New query: stable 100k hash sample for the nightly refit (not on main).
 

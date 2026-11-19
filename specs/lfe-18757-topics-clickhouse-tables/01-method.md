@@ -25,7 +25,7 @@ One deterministic generator ([harness/gen_sum.sql](harness/gen_sum.sql), [harnes
 
 ## Queries
 
-Twenty read query shapes, Q07 to Q33 in [main-query-catalogue.md](main-query-catalogue.md). Each runs with the SQL that `main` builds today, with only the table names swapped. [02-queries.md](02-queries.md) lists the improvements and the per-layout rewrites. The generated SQL for every configuration is in [queries/](queries/).
+Twenty read query shapes (Q07 to Q33, listed with their source in [02-queries.md](02-queries.md)). Each runs with the SQL that `main` builds today, with only the table names swapped. [02-queries.md](02-queries.md) lists the improvements and the per-layout rewrites. The generated SQL for every configuration is in [queries/](queries/).
 
 Parameters follow the code: page batches of 200, 1,000-id lookups, 7/14/30-day refit steps, a 16k refit limit, and windows from the published map. Inputs such as candidate ids, scatter ids and trace pages are drawn from the data the same way the app gets them.
 

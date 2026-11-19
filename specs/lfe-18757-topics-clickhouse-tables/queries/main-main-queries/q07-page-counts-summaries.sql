@@ -1,5 +1,5 @@
 -- Q07 page counts: summaries
--- Built on main by getTopicResultCounts summaries (packages/shared/src/server/repositories/topic-results.ts:711); use case: Topics page counts, public API/MCP topics list
+-- Built on main by getTopicResultCounts (summaries) (packages/shared/src/server/repositories/topic-results.ts:711); use case: Topics page counts
 -- Configuration: 1 main + main queries
 
 SELECT facet_id, uniqCombined(trace_id) AS total, uniqCombinedIf(trace_id, processing_state = 'complete') AS complete,

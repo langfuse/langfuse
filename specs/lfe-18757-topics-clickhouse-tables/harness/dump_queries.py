@@ -1,22 +1,30 @@
 # Writes every benchmarked query, per configuration, to ../queries/<config>/<id>.sql with a header that points at
-# the code on main that builds it (from ../main-query-catalogue.md). Placeholders stay as {name:Type}.
+# the code on main that builds it. Placeholders stay as {name:Type}.
 import os, re, sys
 here = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, here)
 import queries
 import importlib.util
 spec = importlib.util.spec_from_file_location("run_final", os.path.join(here, "run_final.py")); rf = importlib.util.module_from_spec(spec); spec.loader.exec_module(rf)
-catalogue = open(os.path.join(here, "..", "main-query-catalogue.md")).read()
-source = {}
-for m in re.finditer(r"^\| (Q\d\d) \| (.+?) \| (.+?) \|", catalogue, re.M):
-    cell = m.group(2)
-    loc = re.search(r"\(([^)]*\.ts:\d+)\)", cell)
-    source[m.group(1)] = (re.sub(r"\s*\([^)]*\.ts:\d+\)", "", cell).replace("`", "").strip(), loc.group(1) if loc else "", m.group(3).strip())
-CODE = {"topics/clickhouse.ts": "packages/shared/src/server/topics/clickhouse.ts", "topic-results.ts": "packages/shared/src/server/repositories/topic-results.ts"}
+T = "packages/shared/src/server/topics/clickhouse.ts"; R = "packages/shared/src/server/repositories/topic-results.ts"
+source = {  # query id -> (function on main, file:line, use case)
+    "Q07": ("getTopicResultCounts (summaries)", f"{R}:711", "Topics page counts"),
+    "Q08": ("getTopicResultCounts (assignments)", f"{R}:730", "Topics page counts per topic"),
+    "Q09": ("listCurrentRows candidates", f"{R}:314", "Trace list and topic page"),
+    "Q10": ("listCurrentRows resolve", f"{R}:512", "Trace list and topic page"),
+    "Q11": ("getLatestFacetSummaries", f"{T}:371", "Scatter plot, trace header"),
+    "Q12": ("getTopicTraceUnitTimeRange", f"{T}:1316", "Trace header, public API trace lookup"),
+    "Q13": ("getTopicSummaryCounts", f"{T}:765", "Nightly new-summaries check"),
+    "Q15": ("getNewestTopicClusteringSummaries", f"{T}:580", "Nightly refit"),
+    "Q18": ("readLatestTopicAssignments", f"{T}:1182", "Trace header topics"),
+    "Q19": ("readCurrentTraceTopics", f"{T}:1210", "Tracing table topic column"),
+    "Q20": ("currentTopicTraceIdsCondition", f"{T}:1256", "Tracing table topic filter"),
+    "Q21": ("readTopicMapAssignments", f"{T}:1123", "Scatter plot points"),
+    "Q22": ("readTopicRunTraceIds", f"{T}:1085", "Refit: previous run's traces"),
+    "Q23": ("readTopicAssignments", f"{T}:1149", "Fit write readback"),
+    "Q33": ("deleteTopicResultsForTraces", "worker/src/features/traces/processClickhouseTraceDelete.ts:30", "Trace deletion"),
+}
 def where(qid):
-    fn, loc, use = source.get(qid, ("", "", ""))
-    for short, full in CODE.items():
-        loc = loc.replace(short, full)
-    return fn, loc, use
+    return source.get(qid, ("", "", ""))
 TABLES = {"topics_schema_exp.sum_main": "topic_facet_summaries", "topics_schema_exp.asg_main": "topic_assignments",
           "topics_schema_exp.sum_M": "topic_facet_summaries", "topics_schema_exp.asg_M": "topic_assignments", "topics_schema_exp.sum_M_ptr": "topic_facet_summary_pointers",
           "topics_schema_exp.sum_A": "topic_facet_summaries", "topics_schema_exp.asg_AB": "topic_assignments", "topics_schema_exp.asg_AB_by_time": "topic_assignments_by_trace"}

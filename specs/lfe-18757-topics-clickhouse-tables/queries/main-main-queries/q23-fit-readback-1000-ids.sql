@@ -1,5 +1,5 @@
 -- Q23 fit readback (1000 ids)
--- Built on main by readTopicAssignments (packages/shared/src/server/topics/clickhouse.ts:1149); use case: Fit: write readback, previous memberships
+-- Built on main by readTopicAssignments (packages/shared/src/server/topics/clickhouse.ts:1149); use case: Fit write readback
 -- Configuration: 1 main + main queries
 
 SELECT project_id AS projectId, facet_id AS facetId, facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId, environment, trace_name AS traceName,

@@ -1,5 +1,5 @@
 -- Q09 topic page candidates
--- Built on main by listCurrentRows candidates (topic-results.ts:314, 459) (); use case: Topics page trace list / topic page, public API/MCP summaries and assignments
+-- Built on main by listCurrentRows candidates (packages/shared/src/server/repositories/topic-results.ts:314); use case: Trace list and topic page
 -- Configuration: 2 main + improved
 
 SELECT facet_id, trace_id, unit_start_time FROM topic_assignments WHERE project_id = {projectId:String} AND unit_start_time >= {from:DateTime64(3)} AND unit_start_time < {to:DateTime64(3)}
