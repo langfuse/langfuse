@@ -47,6 +47,8 @@ const buttonVariants = cva(
 
 type ButtonProps = {
   text: string;
+  /** Stretch to the width of the parent. Used by dialog footer actions. */
+  fill?: boolean;
   variant?:
     | "primary"
     | "secondary"
@@ -93,6 +95,7 @@ export function Button(props: ButtonProps) {
       variant: props.variant,
       size: props.size,
     }),
+    props.fill && "w-full",
   );
   const iconColor = props.variant === "ghost" ? "default" : "inherit";
 

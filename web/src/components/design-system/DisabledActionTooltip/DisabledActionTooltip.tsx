@@ -1,30 +1,33 @@
 "use client";
 
+import { type ReactElement } from "react";
+
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
-// Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
+// A disabled button is not a pointer target, so the tooltip trigger is a
+// transparent layer above it rather than a style applied to the button.
 export function DisabledActionTooltip({
   label,
   fill = false,
   children,
 }: {
   label: string;
-  /** Stretch the wrapped button the way a dialog footer action does. */
+  /** Match a dialog footer action that stretches on narrow screens. */
   fill?: boolean;
-  children: React.ReactElement;
+  children: ReactElement;
 }) {
   return (
     <Tooltip label={label}>
       {({ getTriggerProps }) => (
         <span
-          {...getTriggerProps()}
-          className={cn(
-            "inline-flex cursor-not-allowed [&>button]:pointer-events-none",
-            fill && "w-full sm:w-auto [&>button]:w-full",
-          )}
+          className={cn("relative inline-flex", fill && "w-full sm:w-auto")}
         >
           {children}
+          <span
+            {...getTriggerProps()}
+            className="absolute inset-0 cursor-not-allowed"
+          />
         </span>
       )}
     </Tooltip>

@@ -129,7 +129,6 @@ function deleteOrganizationDialogBody({
             path={ORGANIZATION_DELETION_DOCS_URL}
             value="Deleting an organization"
             external
-            variant="inline"
           />
         </p>
       </Dialog.Body>

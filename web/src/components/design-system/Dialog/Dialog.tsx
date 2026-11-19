@@ -229,6 +229,7 @@ function DialogRoot({
                       }}
                       text={label}
                       {...buttonProps}
+                      fill={Boolean(buttonProps.disabled && disabledReason)}
                       variant={
                         variant === undefined || variant === "default"
                           ? "primary"
