@@ -8,23 +8,22 @@ import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import { cn } from "@/src/utils/tailwind";
 
 /**
- * A role table cell that looks like the role select: icon, role name and a
- * dropdown arrow. `groupHint` adds a group icon with that text on hover, for a
+ * A role table cell that looks like the role select: each effective role with
+ * its icon, and a dropdown arrow. `groupHint` adds a group icon with that text on hover, for a
  * role a group sets. Clicking it opens the role dialog.
  */
 export function RoleCellTrigger({
-  role,
+  roles,
   label,
   groupHint,
   onClick,
 }: {
-  role: Role;
+  roles: Role[];
   /** Accessible name, e.g. "Admin, from Platform Admins. Open role details". */
   label: string;
   groupHint?: string;
   onClick: () => void;
 }) {
-  const Icon = roleIcons[role];
   return (
     <button
       type="button"
@@ -35,9 +34,21 @@ export function RoleCellTrigger({
       aria-label={label}
       onClick={onClick}
     >
-      <span className="flex shrink-0 items-center gap-2">
-        <Icon size="base" aria-hidden="true" />
-        {systemRoleAccessRights[role].name}
+      <span className="flex min-w-0 items-center gap-2">
+        {roles.map((role, index) => {
+          const Icon = roleIcons[role];
+          return (
+            <span key={role} className="flex shrink-0 items-center gap-2">
+              {index > 0 && (
+                <span className="text-muted-foreground" aria-hidden="true">
+                  +
+                </span>
+              )}
+              <Icon size="base" aria-hidden="true" />
+              {systemRoleAccessRights[role].name}
+            </span>
+          );
+        })}
       </span>
       {groupHint && (
         <span className="text-muted-foreground inline-flex" title={groupHint}>

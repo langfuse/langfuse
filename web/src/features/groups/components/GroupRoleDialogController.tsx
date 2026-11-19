@@ -315,7 +315,7 @@ export function describeGroupRoleCell(props: {
   );
   const roleKind = props.level === "project" ? "project" : "organization";
   return {
-    role: resolved.role,
+    roles: [resolved.role],
     label: `${roleName(resolved.role)}, ${resolved.tag}. Change the ${roleKind} role of ${props.groupName}`,
   };
 }
