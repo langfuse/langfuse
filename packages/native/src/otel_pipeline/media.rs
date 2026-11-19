@@ -53,6 +53,9 @@ pub(super) fn collect_media_requests(state: &mut Pipeline) -> NativeResult<Vec<O
     let BatchRows::Prepared(events) = &mut state.rows else {
         unreachable!("media discovery precedes completion")
     };
+    if !state.source.extract_media {
+        return Ok(Vec::new());
+    }
     // Save references already present in the normalized events. Reject newly generated
     // temporary references that collide with them before returning upload requests.
     let existing_references = events

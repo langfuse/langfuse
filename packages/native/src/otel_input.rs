@@ -73,6 +73,7 @@ impl ValidatedOtelJson {
 pub(crate) struct ExtractedBatch {
     pub(crate) json: Mutex<Option<String>>,
     pub(crate) media: Vec<ExtractedMedia>,
+    pub(crate) extract_media: bool,
     _memory: NativeMemory,
 }
 
@@ -140,13 +141,14 @@ impl EarlyOtelBatch {
                 media: Vec::new(),
             }
         };
-        Ok(Self::new(result, memory))
+        Ok(Self::new(result, memory, extract_media))
     }
 
-    fn new(result: EarlyMediaResult, memory: NativeMemory) -> Self {
+    fn new(result: EarlyMediaResult, memory: NativeMemory, extract_media: bool) -> Self {
         let batch = ExtractedBatch {
             json: Mutex::new(Some(result.compact_json)),
             media: result.media,
+            extract_media,
             _memory: memory,
         };
         batch._memory.resize(batch.retained_bytes());
@@ -426,6 +428,6 @@ pub fn extract_otel_media(
         if result.media.is_empty() && !normalized {
             return Ok(None);
         }
-        Ok(Some(EarlyOtelBatch::new(result, memory)))
+        Ok(Some(EarlyOtelBatch::new(result, memory, true)))
     }))
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateOtelJson } from "@langfuse/native";
+import { prepareOtelJson, validateOtelJson } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
 
 const nativeContext = {
@@ -15,6 +15,40 @@ const nativeContext = {
 const spanId = (index: number) => (index + 1).toString(16).padStart(16, "0");
 
 describe("Native OTEL batch NAPI boundary", () => {
+  it("keeps inline media through completion when extraction is disabled", async () => {
+    const input = "data:image/png;base64,aGk=";
+    const span = {
+      traceId: "a".repeat(32),
+      spanId: spanId(0),
+      name: "disabled-media",
+      attributes: [
+        { key: "langfuse.observation.input", value: { stringValue: input } },
+      ],
+    };
+    const batch = await prepareOtelJson(
+      Buffer.from(JSON.stringify([{ scopeSpans: [{ spans: [span] }] }])),
+      false,
+    );
+    try {
+      const { batch: processing, mediaRequests } =
+        await batch.process(nativeContext);
+      try {
+        expect(mediaRequests).toEqual([]);
+        const { finalized } = await processing.complete(
+          [],
+          [],
+          undefined,
+          true,
+        );
+        expect(finalized?.evaluationRows).toMatchObject([{ input }]);
+      } finally {
+        await processing.dispose();
+      }
+    } finally {
+      await batch.dispose();
+    }
+  });
+
   it.each([undefined, 1])(
     "retains raw evaluation types across completion with overflow limit %s",
     async (limit) => {

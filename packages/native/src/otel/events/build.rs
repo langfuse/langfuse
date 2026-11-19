@@ -305,18 +305,19 @@ impl<'a> EventSource<'a> {
             scope_version,
             self.span_name(),
         );
+        let mut evaluation_fields = None;
         let name = extract_name(
-            self.span_name(),
+            self.span.name.as_deref(),
             &self.attributes,
             &event_type,
             self.scope_name,
+            &mut evaluation_fields,
         );
         let (start_time, end_time) = resolve_timestamps(
             self.span.start_time.as_deref(),
             self.span.end_time.as_deref(),
             &config.fallback_time,
         );
-        let mut evaluation_fields = None;
         let mut attributes = EventAttributes {
             span: &self.attributes,
             resource,
