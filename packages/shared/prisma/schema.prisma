@@ -416,6 +416,8 @@ enum GatewaySpendLimitScope {
   // The organization's fallback for keys or users without a limit of their own; no subject column is set. One per organization and scope (partial unique index in the migration).
   API_KEY_DEFAULT
   USER_DEFAULT
+  // Caps the whole organization's gateway spend; no subject column is set. One per organization, by the defaults' partial unique index.
+  ORGANIZATION
 }
 
 enum GatewaySpendLimitInterval {

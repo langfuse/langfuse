@@ -51,6 +51,8 @@ type SettingsTableFilter =
       value: string;
       onChange: (value: string) => void;
       muted?: boolean;
+      /** The trigger's minimum width in px; the open menu is as wide as the trigger, so this also widens the menu. */
+      minWidth?: number;
     });
 
 type SettingsTableFilterBase = {
@@ -269,7 +271,7 @@ function SettingsTableFilterInput({ filter }: { filter: SettingsTableFilter }) {
 
   if (filter.type === "select") {
     return (
-      <div className="grid shrink-0">
+      <div className="grid shrink-0" style={{ minWidth: filter.minWidth }}>
         {/* The open menu is as wide as the trigger, so the trigger is sized to
             its longest option rather than to the current selection. */}
         {filter.options.map((option) => (

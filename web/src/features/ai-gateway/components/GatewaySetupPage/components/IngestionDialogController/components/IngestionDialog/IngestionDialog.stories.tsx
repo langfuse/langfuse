@@ -118,12 +118,12 @@ export const TestNoAccessWarningWithoutRecording = meta.story({
 });
 
 export const TestSpendLimitsWarningWithoutRecording = meta.story({
-  name: "(Test) Warns that spend limits stop applying when nothing is recorded",
+  name: "(Test) Warns that budgets stop applying when nothing is recorded",
   args: { ...NotRecording.input.args, hasSpendLimits: true },
   play: async () => {
     const dialog = within(document.body).getByRole("dialog");
     await expect(within(dialog).getByRole("alert")).toHaveTextContent(
-      "Spend limits stop applying",
+      "Budgets stop applying",
     );
   },
 });

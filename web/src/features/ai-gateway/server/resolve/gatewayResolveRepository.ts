@@ -2,6 +2,7 @@ import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "@/src/features/ai-gateway/server/spendLimits/gatewayDefaultSpendLimits";
+import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "@/src/features/ai-gateway/server/spendLimits/gatewayOrganizationSpendLimitScope";
 
 export class GatewayResolveRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -59,13 +60,17 @@ export class GatewayResolveRepository {
         organization: {
           select: {
             cloudConfig: true,
-            // Apply to the key or its user when they have no limit of their own.
-            // The null subjects match the partial index of the defaults, so
-            // this reads at most two rows however many limits the org has.
+            // The defaults apply to the key or its user when they have no limit
+            // of their own; the organization's limit applies to every key. The
+            // null subjects match the partial index of these, so this reads at
+            // most three rows however many limits the org has.
             gatewaySpendLimits: {
               where: {
                 scope: {
-                  in: Object.values(GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES),
+                  in: [
+                    ...Object.values(GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES),
+                    GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
+                  ],
                 },
                 apiKeyId: null,
                 userId: null,

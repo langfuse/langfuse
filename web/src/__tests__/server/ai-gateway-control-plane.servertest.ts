@@ -2750,6 +2750,113 @@ describe("AI gateway control plane", () => {
     ]);
   });
 
+  it("applies the organization's budget to every key on top of key and user budgets", async () => {
+    configureGatewayJwtSigning();
+    const owner = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    await owner.caller.aiGateway.createConnection({
+      orgId: owner.org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const laptop = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Laptop",
+      metadata: {},
+      spendLimit: { interval: "DAILY", limitUsd: 5 },
+    });
+    const service = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Service",
+      metadata: {},
+      issuedAs: "serviceAccount",
+    });
+    const resolved = async (secretKey: string) =>
+      (
+        await authenticateRequest({
+          fastHashedSecretKey: createShaHash(secretKey, env.SALT),
+          apiFormat: "openai.chat-completions",
+          model: "OpenAI:gpt-4o-mini",
+        })
+      ).spend_limits.map(({ id, scope, interval, limit_usd }) => ({
+        id,
+        scope,
+        interval,
+        limit_usd,
+      }));
+    const setBudget = (
+      caller: typeof member,
+      spendLimit: {
+        interval: "DAILY" | "WEEKLY" | "MONTHLY";
+        limitUsd: number;
+      } | null,
+    ) =>
+      caller.aiGateway.setOrganizationSpendLimit({
+        orgId: owner.org.id,
+        spendLimit,
+      });
+
+    await expect(
+      setBudget(member, { interval: "MONTHLY", limitUsd: 5000 }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    // Resolve first, so the budget must drop the cached context.
+    expect(await resolved(service.secretKey)).toEqual([]);
+    await setBudget(owner.caller, { interval: "MONTHLY", limitUsd: 5000 });
+    // Organization budgets have no subject, like defaults, and share their one-per-scope index.
+    await owner.caller.aiGateway.setDefaultSpendLimit({
+      orgId: owner.org.id,
+      scope: "API_KEY",
+      spendLimit: { interval: "MONTHLY", limitUsd: 10 },
+    });
+    expect(
+      await owner.caller.aiGateway.getOrganizationSpendLimit({
+        orgId: owner.org.id,
+      }),
+    ).toEqual({
+      spendLimit: { interval: "MONTHLY", limitUsd: 5000 },
+      spentUsd: 0,
+    });
+    const { id } = await prisma.gatewaySpendLimit.findFirstOrThrow({
+      where: { organizationId: owner.org.id, scope: "ORGANIZATION" },
+    });
+    // One id for every key, so all of them add to the same counter.
+    const organizationLimit = {
+      id,
+      scope: "organization",
+      interval: "monthly",
+      limit_usd: 5000,
+    };
+    expect(await resolved(laptop.secretKey)).toEqual([
+      expect.objectContaining({ scope: "api_key", limit_usd: 5 }),
+      organizationLimit,
+    ]);
+    expect(await resolved(service.secretKey)).toEqual([
+      expect.objectContaining({ scope: "api_key", limit_usd: 10 }),
+      organizationLimit,
+    ]);
+
+    // A new interval replaces the budget; there is only ever one.
+    await setBudget(owner.caller, { interval: "DAILY", limitUsd: 250 });
+    expect(await resolved(service.secretKey)).toEqual([
+      expect.objectContaining({ scope: "api_key", limit_usd: 10 }),
+      expect.objectContaining({
+        scope: "organization",
+        interval: "daily",
+        limit_usd: 250,
+      }),
+    ]);
+    await setBudget(owner.caller, null);
+    expect(await resolved(service.secretKey)).toEqual([
+      expect.objectContaining({ scope: "api_key", limit_usd: 10 }),
+    ]);
+  });
+
   it("rejects key edits from another organization and from members without gateway:invoke", async () => {
     const owner = await prepare();
     const other = await prepare();
