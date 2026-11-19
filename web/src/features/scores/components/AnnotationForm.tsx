@@ -32,7 +32,7 @@ import { createAnnotationFormActions } from "@/src/features/scores/actions/annot
 import { AnnotationScoreRow } from "@/src/features/scores/components/AnnotationScoreRow";
 import { ScoreConfigRowTooltip } from "@/src/features/scores/components/ScoreConfigRowTooltip";
 import { AnnotationSaveStatus } from "@/src/features/scores/components/AnnotationSaveStatus";
-import { CreateScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
+import { CreateScoreConfigDialogController } from "@/src/features/score-configs/components/CreateScoreConfigDialogController";
 import type {
   AnnotateFormSchemaType,
   AnnotationScoreSchemaType,

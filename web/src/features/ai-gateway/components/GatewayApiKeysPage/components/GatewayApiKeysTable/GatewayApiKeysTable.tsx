@@ -18,15 +18,18 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
-import { GatewayApiKeyBudgetBadge } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyBudgetBadge/GatewayApiKeyBudgetBadge";
+import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
+import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import { GatewayApiKeyModelsCell } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyModelsCell/GatewayApiKeyModelsCell";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
-import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 type GatewayApiKey = {
   metadata: unknown;
   allowedModels: unknown;
-  spendLimit: { interval: GatewaySpendBudgetInterval; limitUsd: number } | null;
+  spendLimit: GatewaySpendLimit | null;
+  /** The organization's default key budget, which caps the key while it has no `spendLimit` of its own. */
+  defaultSpendLimit?: GatewaySpendLimit | null;
   hasSeveralSpendLimits: boolean;
   apiKey: {
     id: string;
@@ -43,7 +46,7 @@ type GatewayApiKey = {
   };
   /** Absent until the last-used query resolves, and when the key had no gateway traffic in the window. */
   lastUsedAt?: Date;
-  /** Spend against `spendLimit` in its current window; absent until the spend query resolves. */
+  /** Spend against `spendLimit`, or else `defaultSpendLimit`, in its current window; absent until the spend query resolves. */
   spentUsd?: number;
 };
 
@@ -133,15 +136,20 @@ export function GatewayApiKeysTable({
       enableResizing: false,
       loadingCell: budgetSkeleton,
       renderCell: (spendLimit, { row }) => {
-        if (!spendLimit) {
+        const applied = spendLimit ?? row.original.defaultSpendLimit;
+        if (!applied) {
           return <span className="text-muted-foreground">No budget</span>;
         }
         if (spend.status === "loading") return budgetSkeleton;
         return (
-          <GatewayApiKeyBudgetBadge
-            spendLimit={spendLimit}
-            spentUsd={row.original.spentUsd}
-          />
+          <span className="inline-flex items-center gap-2">
+            <GatewaySpendBudgetBadge
+              subject="key"
+              spendLimit={applied}
+              spentUsd={row.original.spentUsd}
+            />
+            {!spendLimit && <GatewayDefaultBudgetTag subject="key" />}
+          </span>
         );
       },
     }),

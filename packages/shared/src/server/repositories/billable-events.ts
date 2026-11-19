@@ -1,7 +1,11 @@
 import { queryClickhouse } from "./clickhouse";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
-export type BillableEventType = "observation" | "trace" | "score";
+export type BillableEventType =
+  | "observation"
+  | "trace"
+  | "score"
+  | "topic_facet_summary";
 
 const BILLING_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 

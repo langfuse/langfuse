@@ -7,9 +7,9 @@ import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
   MetricStripBand,
-  MetricStripHeaderRow,
   type MetricStripStatus,
 } from "@/src/components/metric-strip/MetricStripBand";
+import { MetricStripHeaderRow } from "@/src/components/metric-strip/MetricStripHeaderRow";
 import {
   MetricStripTrigger,
   usePointerSelectionFocusGuard,

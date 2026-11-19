@@ -24,7 +24,7 @@ function selectedTopicId(filters: FilterState) {
 /** Results remain complete even when a topic is too small to label on a chart. */
 export function prepareMobileTopics(
   facet: Facet,
-  view: "treemap" | "map" | "grid",
+  view: "treemap" | "map",
   filters: FilterState,
   searchQuery: string | null,
   showUnassigned: boolean,

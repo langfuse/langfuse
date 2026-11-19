@@ -62,13 +62,13 @@ const gatewayProviderIds = [
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
-/** Also the cached shape, so resolve passes the key's limits through unchanged. */
+/** Also the cached shape, so resolve passes the request's limits through unchanged. */
 export const GatewayResolveSpendLimitsSchema = z.array(
   z
     .object({
       id: z.string(),
       // Resolve returns only the limits that apply to the request.
-      scope: z.enum(["api_key"]),
+      scope: z.enum(["api_key", "user"]),
       interval: z.enum(["daily", "weekly", "monthly", "total"]),
       limit_usd: z.number(),
       // Unix milliseconds; part of the gateway's usage counter key.

@@ -1,6 +1,8 @@
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
+import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "@/src/features/ai-gateway/server/spendLimits/gatewayDefaultSpendLimits";
+
 export class GatewayResolveRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -29,6 +31,18 @@ export class GatewayResolveRepository {
             name: true,
             email: true,
             organizationMemberships: { select: { orgId: true, role: true } },
+            // Across the user's organizations; the caller keeps the key's.
+            gatewaySpendLimits: {
+              orderBy: { interval: "asc" },
+              select: {
+                id: true,
+                organizationId: true,
+                scope: true,
+                interval: true,
+                limitUsd: true,
+                countingStartedAt: true,
+              },
+            },
           },
         },
         gatewayAssociation: { select: { metadata: true, allowedModels: true } },
@@ -45,6 +59,25 @@ export class GatewayResolveRepository {
         organization: {
           select: {
             cloudConfig: true,
+            // Apply to the key or its user when they have no limit of their own.
+            // The null subjects match the partial index of the defaults, so
+            // this reads at most two rows however many limits the org has.
+            gatewaySpendLimits: {
+              where: {
+                scope: {
+                  in: Object.values(GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES),
+                },
+                apiKeyId: null,
+                userId: null,
+              },
+              select: {
+                id: true,
+                scope: true,
+                interval: true,
+                limitUsd: true,
+                countingStartedAt: true,
+              },
+            },
             gatewayConfig: {
               select: {
                 defaultIngestionProjectId: true,

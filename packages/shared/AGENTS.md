@@ -103,6 +103,7 @@
   units; the reader validates the stored version and restores message dates, and
   throws `UnsupportedTraceBatchInputVersionError` for a newer version, which
   callers treat as retryable. Same-revision PUTs may overwrite.
+  Objects live under `TRACE_BATCH_INPUT_PREFIX` for `TRACE_BATCH_INPUT_RETENTION_MS` (three days). The worker events-dispatch transcript cleaner deletes expired objects; trace and project deletion do not.
   `src/server/traceBatch/versions/v1.ts` freezes the complete envelope, including
   transcript and trace context, without importing live schemas; `serialization.ts` owns the typed
   transcript adapters and `storage-schema.ts` only probes the version. Compatible
@@ -132,6 +133,7 @@
   `projectId`: Cloud Bedrock runtime auth checks it against
   `LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS`. Raw credential
   tests omit this identity; only operator-provisioned stored secrets qualify.
+  Bedrock IAM role connections (`{ roleArn }` secret, kept out of `BedrockCredentialSchema`) assume the role with the encrypted external ID stored on their row (`LLMConnection.externalId`); see `@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials`.
 - `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
   ClickHouse clients and helpers without loading the full server barrel. Use this
   entry point for test cleanup so built and source-aliased clients retain the same

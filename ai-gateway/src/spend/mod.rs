@@ -1,10 +1,11 @@
-//! Per-key spend limits. Before forwarding, a key's counters for the current
-//! windows are checked against its limits; after the response, the request's
-//! cost is added to them. Requests are not reserved, so concurrent requests
-//! can overshoot a limit by what they cost. A request for a model Langfuse has
-//! no price for is rejected before it is forwarded; a response that still adds
-//! nothing is counted in `gateway.spend.uncharged`. Web is told when a key
-//! reaches a limit, so it can email the key's owners.
+//! Spend limits of a key and of its owner. Before forwarding, the counters
+//! for the current windows are checked against every limit; after the
+//! response, the request's cost is added to them. Requests are not reserved,
+//! so concurrent requests can overshoot a limit by what they cost. A request
+//! for a model Langfuse has no price for is rejected before it is forwarded; a
+//! response that still adds nothing is counted in `gateway.spend.uncharged`.
+//! Web is told when a limit is reached, so it can email the people it applies
+//! to.
 mod alert;
 mod cost;
 mod store;
@@ -51,12 +52,16 @@ const COUNTER_WRITE_RETRY_DELAYS: [Duration; 3] = [
 #[serde(rename_all = "snake_case")]
 pub(crate) enum SpendLimitScope {
     ApiKey,
+    /// Caps the key owner's spend across all their keys in the organization.
+    /// Its counter is keyed by the limit, so every key of the user adds to it.
+    User,
 }
 
 impl SpendLimitScope {
     pub(crate) fn subject(self) -> &'static str {
         match self {
             Self::ApiKey => "This API key",
+            Self::User => "This key's user",
         }
     }
 }

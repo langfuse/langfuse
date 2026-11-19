@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
+  type CSSProperties,
   useEffect,
   useMemo,
   useRef,
@@ -295,19 +296,7 @@ export function TopicMapExplorer({
       return;
     }
     const hovered = hitMapNode(frame, at);
-    const traceLabel =
-      event.target instanceof Element
-        ? event.target.closest<HTMLElement>(
-            '[data-topic-trace]:not([data-active="false"])',
-          )
-        : null;
-    setTopicMapHover(
-      store,
-      traceLabel?.dataset.topicTrace ?? hovered?.traceId ?? null,
-      null,
-      pointer,
-      pointerAt,
-    );
+    setTopicMapHover(store, hovered?.traceId ?? null, null, pointer, pointerAt);
   };
   const handleStageClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -451,7 +440,6 @@ export function TopicMapExplorer({
             onClick={handleToggleFullscreen}
           />
         </div>
-        <MapBackgroundLabels store={store} />
         <TopicMapCanvas
           model={model}
           size={size}
@@ -461,6 +449,7 @@ export function TopicMapExplorer({
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
         />
+        <MapBackgroundLabels store={store} />
         <MapLabels
           model={model}
           size={size}
@@ -468,7 +457,6 @@ export function TopicMapExplorer({
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
-          onSelectTrace={selectTrace}
           previewOnSelect={previewOnSelect}
           pinSelection={pinSelection}
         />
@@ -564,7 +552,6 @@ function MapLabels({
   selectedTopic,
   selectedTraceId,
   matchingTraceIds,
-  onSelectTrace,
   previewOnSelect,
   pinSelection,
 }: MapLabelsProps) {
@@ -600,10 +587,6 @@ function MapLabels({
     frame.size.height === size.height &&
     frame.readingTopic === selectedTopic &&
     frame.matchingTraceIds === matchingTraceIds;
-  const handleTraceClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
-    const traceId = event.currentTarget.dataset.traceId;
-    if (traceId) onSelectTrace(traceId);
-  };
   const handleHoverTransitionEnd = (
     event: ReactTransitionEvent<HTMLDivElement>,
   ) => {
@@ -618,36 +601,6 @@ function MapLabels({
   };
   return (
     <div className="pointer-events-none absolute inset-0">
-      {current &&
-        frame!.nodes
-          .filter((node) => node.textOpacity > 0.001)
-          .map((node) => (
-            <button
-              key={node.point.traceId}
-              type="button"
-              data-topic-node=""
-              data-topic-trace={node.point.traceId}
-              data-trace-id={node.point.traceId}
-              data-testid="topic-map-trace-card"
-              data-hovered={node.point.traceId === hover.hoveredId}
-              data-text-opacity={node.textOpacity}
-              tabIndex={node.textOpacity >= 0.9 ? 0 : -1}
-              aria-pressed={node.point.traceId === selectedTraceId}
-              aria-label={`Select trace: ${node.point.summary}`}
-              onClick={handleTraceClick}
-              className="text-foreground focus-visible:outline-ring pointer-events-auto absolute cursor-pointer overflow-hidden rounded-lg px-2 py-1.5 text-left leading-relaxed focus-visible:outline-2"
-              style={{
-                left: node.rect.x,
-                top: node.rect.y,
-                width: node.rect.width,
-                height: node.rect.height,
-                opacity: node.textOpacity,
-                fontSize: node.fontSize,
-              }}
-            >
-              <span className="block">{node.excerpt}</span>
-            </button>
-          ))}
       {labels.map((label) => {
         if (!frame || frame.model !== model) return null;
         const active =
@@ -658,14 +611,13 @@ function MapLabels({
             : hover.hoveredZoneId === label.id) &&
           (previewOnSelect ||
             label.kind !== "trace" ||
-            (frame.nodeById.get(label.id)?.textOpacity ?? 1) < 0.65);
+            frame.nodeById.has(label.id));
         const source = active ? frame : label.frame;
         if (!source) return null;
         const hints = prepareMapHover(
           source,
           label.kind === "trace" ? label.id : null,
           label.kind === "zone" ? label.id : null,
-          previewOnSelect,
         );
         const trace = hints.traces[0];
         const zone = hints.zones[0];
@@ -765,11 +717,14 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
               className={cn(
                 "line-clamp-2 block leading-[1.2]",
                 label.kind === "zone" && "font-bold",
+                styles.labelTitle,
               )}
-              style={{
-                fontSize: label.fontSize,
-                color: `color-mix(in srgb, ${label.color} 35%, hsl(var(--foreground)))`,
-              }}
+              style={
+                {
+                  fontSize: label.fontSize,
+                  "--label-color": label.color,
+                } as CSSProperties
+              }
             >
               {label.title}
             </span>
@@ -842,7 +797,6 @@ type MapLabelsProps = {
   selectedTopic: string | null;
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
-  onSelectTrace: (id: string) => void;
   previewOnSelect: boolean;
   pinSelection: boolean;
 };
