@@ -28,7 +28,7 @@ import { countRows, escapeLike } from "./verify";
  * --days with a growth trend, quiet weekends and a few heavy users, so daily,
  * weekly and monthly spend all differ. A handful of the busiest keys and
  * users get spend limits sized from their seeded spend, from barely used to
- * over the limit, and the organization gets limits sized from all of it.
+ * over the limit, and the organization gets a limit sized from all of it.
  */
 
 const DAY_MS = 86_400_000;
@@ -118,14 +118,11 @@ const USER_BUDGETS: ReadonlyArray<{
   { rank: 8, interval: "TOTAL", usage: 0.2 },
 ];
 
-/** The organization's own limits, one per interval, sized from all seeded spend in their window. */
-const ORGANIZATION_BUDGETS: ReadonlyArray<{
+/** The organization's own limit, sized from all seeded spend in its window. */
+const ORGANIZATION_BUDGET: {
   interval: GatewaySpendLimitInterval;
   usage: number;
-}> = [
-  { interval: "MONTHLY", usage: 0.77 },
-  { interval: "DAILY", usage: 0.85 },
-];
+} = { interval: "MONTHLY", usage: 0.92 };
 
 /** Limit for a key whose window has no spend yet, e.g. on the first day of a month. */
 const FALLBACK_LIMIT_USD = 100;
@@ -348,8 +345,7 @@ const run = async (
     counts: {
       users: userCount,
       keys: userCount + 1,
-      spendLimits:
-        BUDGETS.length + USER_BUDGETS.length + ORGANIZATION_BUDGETS.length,
+      spendLimits: BUDGETS.length + USER_BUDGETS.length + 1,
       events,
     },
     links: [`${ctx.baseUrl}/organization/${project.orgId}/ai-gateway/budgets`],
@@ -498,18 +494,18 @@ const run = async (
     });
   }
 
-  // One per interval by a partial unique index, which Prisma cannot upsert on.
+  // One per organization by a partial unique index, which Prisma cannot upsert on.
   await prisma.gatewaySpendLimit.deleteMany({
     where: { organizationId: project.orgId, scope: "ORGANIZATION" },
   });
-  await prisma.gatewaySpendLimit.createMany({
-    data: ORGANIZATION_BUDGETS.map((budget) => ({
+  await prisma.gatewaySpendLimit.create({
+    data: {
       organizationId: project.orgId,
-      scope: "ORGANIZATION" as const,
-      interval: budget.interval,
-      limitUsd: limitUsdFor(budget, undefined),
+      scope: "ORGANIZATION",
+      interval: ORGANIZATION_BUDGET.interval,
+      limitUsd: limitUsdFor(ORGANIZATION_BUDGET, undefined),
       countingStartedAt,
-    })),
+    },
   });
 
   const verified = {

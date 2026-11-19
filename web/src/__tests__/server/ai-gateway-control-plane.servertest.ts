@@ -2748,7 +2748,7 @@ describe("AI gateway control plane", () => {
     ]);
   });
 
-  it("applies the organization's budgets, one per interval, to every key on top of key and user budgets", async () => {
+  it("applies the organization's budget to every key on top of key and user budgets", async () => {
     configureGatewayJwtSigning();
     const owner = await prepare();
     await owner.caller.aiGateway.updateConfig({
@@ -2790,89 +2790,68 @@ describe("AI gateway control plane", () => {
       }));
     const setBudget = (
       caller: typeof member,
-      id: string | null,
       spendLimit: {
         interval: "DAILY" | "WEEKLY" | "MONTHLY";
         limitUsd: number;
-      },
+      } | null,
     ) =>
       caller.aiGateway.setOrganizationSpendLimit({
         orgId: owner.org.id,
-        id,
         spendLimit,
       });
 
     await expect(
-      setBudget(member, null, { interval: "MONTHLY", limitUsd: 5000 }),
+      setBudget(member, { interval: "MONTHLY", limitUsd: 5000 }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    // Resolve first, so the budgets must drop the cached context.
+    // Resolve first, so the budget must drop the cached context.
     expect(await resolved(service.secretKey)).toEqual([]);
-    await setBudget(owner.caller, null, {
-      interval: "MONTHLY",
-      limitUsd: 5000,
-    });
-    await setBudget(owner.caller, null, { interval: "DAILY", limitUsd: 250 });
-    await expect(
-      setBudget(owner.caller, null, { interval: "DAILY", limitUsd: 100 }),
-    ).rejects.toMatchObject({ code: "CONFLICT" });
-    // Organization budgets have no subject, like defaults, and still allow one default per scope.
+    await setBudget(owner.caller, { interval: "MONTHLY", limitUsd: 5000 });
+    // Organization budgets have no subject, like defaults, and share their one-per-scope index.
     await owner.caller.aiGateway.setDefaultSpendLimit({
       orgId: owner.org.id,
       scope: "API_KEY",
       spendLimit: { interval: "MONTHLY", limitUsd: 10 },
     });
-
-    const budgets = await owner.caller.aiGateway.listOrganizationSpendLimits({
-      orgId: owner.org.id,
+    expect(
+      await owner.caller.aiGateway.getOrganizationSpendLimit({
+        orgId: owner.org.id,
+      }),
+    ).toEqual({
+      spendLimit: { interval: "MONTHLY", limitUsd: 5000 },
+      spentUsd: 0,
     });
-    expect(budgets).toEqual([
-      {
-        id: expect.any(String),
-        spendLimit: { interval: "MONTHLY", limitUsd: 5000 },
-        spentUsd: 0,
-      },
-      {
-        id: expect.any(String),
-        spendLimit: { interval: "DAILY", limitUsd: 250 },
-        spentUsd: 0,
-      },
-    ]);
-    const [monthly, daily] = budgets.map(({ id }) => id);
-    // One id per budget, so every key adds to the same counter.
-    const organizationLimits = [
-      { id: daily, scope: "organization", interval: "daily", limit_usd: 250 },
-      {
-        id: monthly,
-        scope: "organization",
-        interval: "monthly",
-        limit_usd: 5000,
-      },
-    ];
+    const { id } = await prisma.gatewaySpendLimit.findFirstOrThrow({
+      where: { organizationId: owner.org.id, scope: "ORGANIZATION" },
+    });
+    // One id for every key, so all of them add to the same counter.
+    const organizationLimit = {
+      id,
+      scope: "organization",
+      interval: "monthly",
+      limit_usd: 5000,
+    };
     expect(await resolved(laptop.secretKey)).toEqual([
       expect.objectContaining({ scope: "api_key", limit_usd: 5 }),
-      ...organizationLimits,
+      organizationLimit,
     ]);
     expect(await resolved(service.secretKey)).toEqual([
       expect.objectContaining({ scope: "api_key", limit_usd: 10 }),
-      ...organizationLimits,
+      organizationLimit,
     ]);
 
-    await setBudget(owner.caller, daily!, {
-      interval: "WEEKLY",
-      limitUsd: 1000,
-    });
-    await owner.caller.aiGateway.setOrganizationSpendLimit({
-      orgId: owner.org.id,
-      id: monthly!,
-      spendLimit: null,
-    });
+    // A new interval replaces the budget; there is only ever one.
+    await setBudget(owner.caller, { interval: "DAILY", limitUsd: 250 });
     expect(await resolved(service.secretKey)).toEqual([
       expect.objectContaining({ scope: "api_key", limit_usd: 10 }),
       expect.objectContaining({
         scope: "organization",
-        interval: "weekly",
-        limit_usd: 1000,
+        interval: "daily",
+        limit_usd: 250,
       }),
+    ]);
+    await setBudget(owner.caller, null);
+    expect(await resolved(service.secretKey)).toEqual([
+      expect.objectContaining({ scope: "api_key", limit_usd: 10 }),
     ]);
   });
 

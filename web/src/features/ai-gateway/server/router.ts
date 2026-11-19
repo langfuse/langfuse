@@ -814,21 +814,20 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
-  /** The organization's own budgets, capping all of its gateway spend, with their spend. */
-  listOrganizationSpendLimits: protectedOrganizationProcedure
+  /** The organization's own budget, capping all of its gateway spend, with its spend; null when none is set. */
+  getOrganizationSpendLimit: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewaySpendLimitService(ctx.prisma).listOrganizationBudgets(
+      return new GatewaySpendLimitService(ctx.prisma).getOrganizationBudget(
         input.orgId,
       );
     }),
 
-  /** Adds an organization budget, or with `id` replaces that one; a null spendLimit removes it. */
+  /** Sets or removes (null) the organization's own budget. */
   setOrganizationSpendLimit: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
-        id: z.string().nullable(),
         spendLimit: gatewaySpendLimitInput.nullable(),
       }),
     )
@@ -836,7 +835,6 @@ export const aiGatewayRouter = createTRPCRouter({
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       await new GatewaySpendLimitService(ctx.prisma).setOrganizationBudget({
         organizationId: input.orgId,
-        id: input.id,
         limit: input.spendLimit,
         session: ctx.session,
       });

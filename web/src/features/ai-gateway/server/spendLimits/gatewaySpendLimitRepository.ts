@@ -10,7 +10,7 @@ import {
   gatewayApiKeyWhere,
 } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "./gatewayDefaultSpendLimits";
-import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
+import type { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
 import {
   type GatewaySpendLimitScope,
   toScopeColumns,
@@ -29,12 +29,17 @@ const GATEWAY_SPEND_LIMIT_SELECT = {
   updatedAt: true,
 } as const;
 
-/** Defaults have no subject. */
+/** Defaults and organization limits have no subject; filtering on it lets Postgres use their partial unique index. */
 const DEFAULT_SPEND_LIMIT_SUBJECT = { apiKeyId: null, userId: null } as const;
 
 const BUDGET_USER_SELECT = {
   select: { id: true, name: true, email: true, image: true },
 } as const;
+
+/** The scopes without a subject column, each with at most one limit per organization. */
+export type GatewaySubjectlessSpendLimitScope =
+  | (typeof GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES)[keyof typeof GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES]
+  | typeof GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE;
 
 export type GatewaySpendLimitRecord = Prisma.GatewaySpendLimitGetPayload<{
   select: typeof GATEWAY_SPEND_LIMIT_SELECT;
@@ -69,12 +74,19 @@ export class GatewaySpendLimitRepository {
     organizationId: string;
     scope: GatewaySpendLimitScope["type"];
   }) {
+    return this.findSubjectless({
+      organizationId: params.organizationId,
+      scope: GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[params.scope],
+    });
+  }
+
+  /** The organization's one limit of a scope without a subject: a default, or its own limit. */
+  findSubjectless(params: {
+    organizationId: string;
+    scope: GatewaySubjectlessSpendLimitScope;
+  }) {
     return this.prisma.gatewaySpendLimit.findFirst({
-      where: {
-        organizationId: params.organizationId,
-        scope: GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[params.scope],
-        ...DEFAULT_SPEND_LIMIT_SUBJECT,
-      },
+      where: { ...params, ...DEFAULT_SPEND_LIMIT_SUBJECT },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }
@@ -85,26 +97,6 @@ export class GatewaySpendLimitRepository {
         organizationId,
         scope: { in: Object.values(GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES) },
         ...DEFAULT_SPEND_LIMIT_SUBJECT,
-      },
-      select: GATEWAY_SPEND_LIMIT_SELECT,
-    });
-  }
-
-  /** The organization's own limits, which cap all of its gateway spend, oldest first. */
-  listForOrganization(organizationId: string) {
-    return this.prisma.gatewaySpendLimit.findMany({
-      where: { organizationId, scope: GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE },
-      select: GATEWAY_SPEND_LIMIT_SELECT,
-      orderBy: { createdAt: "asc" },
-    });
-  }
-
-  findForOrganization(params: { organizationId: string; id: string }) {
-    return this.prisma.gatewaySpendLimit.findFirst({
-      where: {
-        id: params.id,
-        organizationId: params.organizationId,
-        scope: GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
       },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
@@ -271,32 +263,16 @@ export class GatewaySpendLimitRepository {
     });
   }
 
-  createDefault({
-    scope,
-    ...params
-  }: {
+  createSubjectless(data: {
     organizationId: string;
-    scope: GatewaySpendLimitScope["type"];
+    scope: GatewaySubjectlessSpendLimitScope;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
     countingStartedAt: Date;
     ownerUserId: string;
   }) {
     return this.prisma.gatewaySpendLimit.create({
-      data: { ...params, scope: GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[scope] },
-      select: GATEWAY_SPEND_LIMIT_SELECT,
-    });
-  }
-
-  createForOrganization(params: {
-    organizationId: string;
-    interval: GatewaySpendLimitInterval;
-    limitUsd: number;
-    countingStartedAt: Date;
-    ownerUserId: string;
-  }) {
-    return this.prisma.gatewaySpendLimit.create({
-      data: { ...params, scope: GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE },
+      data,
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }

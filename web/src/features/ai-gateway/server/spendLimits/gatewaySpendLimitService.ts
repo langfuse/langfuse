@@ -31,8 +31,10 @@ import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewa
 import {
   GatewaySpendLimitRepository,
   type GatewaySpendLimitRecord,
+  type GatewaySubjectlessSpendLimitScope,
 } from "./gatewaySpendLimitRepository";
 import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "./gatewayDefaultSpendLimits";
+import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
 import {
   type GatewaySpendLimitScope,
   toSpendLimitScope,
@@ -467,10 +469,7 @@ export class GatewaySpendLimitService {
 
   /**
    * Makes `limit` the organization's default budget for keys or users, or
-   * removes it when null. Like a budget of one key or user, an unchanged
-   * default keeps counting, a new amount keeps counting and a new interval
-   * starts counting afresh. Every key of the organization may resolve it, so
-   * all of them are dropped from the resolve cache.
+   * removes it when null. Every key of the organization may resolve it.
    */
   async setDefault(params: {
     organizationId: string;
@@ -478,14 +477,81 @@ export class GatewaySpendLimitService {
     limit: SpendLimitInput | null;
     session: OrgAuthedContext["session"];
   }) {
+    await this.setSubjectless({
+      ...params,
+      scope: GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[params.scope],
+      conflictMessage:
+        "The default budget was changed at the same time. Reload and try again.",
+    });
+  }
+
+  /**
+   * The organization's own budget, which caps all of its gateway spend on top
+   * of key and user budgets, with what ClickHouse has recorded against it in
+   * its current window; `spentUsd` is absent while spend is not recorded.
+   */
+  async getOrganizationBudget(organizationId: string) {
+    const limit = await this.repository.findSubjectless({
+      organizationId,
+      scope: GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
+    });
+    if (!limit) return null;
+    const recordingProjectId = await this.getRecordingProjectId(organizationId);
+    const spentUsd = recordingProjectId
+      ? ((
+          await readSpend(recordingProjectId, "ORGANIZATION", [
+            { subjectId: recordingProjectId, limit },
+          ])
+        ).get(recordingProjectId) ?? 0)
+      : undefined;
+    return {
+      spendLimit: {
+        interval: limit.interval,
+        limitUsd: limit.limitUsd.toNumber(),
+      },
+      spentUsd,
+    };
+  }
+
+  /** Makes `limit` the organization's own budget, or removes it when null. */
+  async setOrganizationBudget(params: {
+    organizationId: string;
+    limit: SpendLimitInput | null;
+    session: OrgAuthedContext["session"];
+  }) {
+    await this.setSubjectless({
+      ...params,
+      scope: GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
+      conflictMessage:
+        "The organization budget was changed at the same time. Reload and try again.",
+    });
+  }
+
+  /**
+   * Makes `limit` the organization's one limit of a scope without a subject,
+   * or removes it when null. Like a budget of one key or user, an unchanged
+   * limit keeps counting, a new amount keeps counting and a new interval
+   * starts counting afresh. Every key of the organization may resolve it, so
+   * all of them are dropped from the resolve cache.
+   */
+  private async setSubjectless(params: {
+    organizationId: string;
+    scope: GatewaySubjectlessSpendLimitScope;
+    limit: SpendLimitInput | null;
+    session: OrgAuthedContext["session"];
+    conflictMessage: string;
+  }) {
     const { organizationId, scope, limit, session } = params;
-    const existing = await this.repository.findDefault(params);
+    const existing = await this.repository.findSubjectless({
+      organizationId,
+      scope,
+    });
     const kept = existing?.interval === limit?.interval ? existing : null;
     if (kept && kept.limitUsd.toNumber() === limit?.limitUsd) return;
     if (!limit && !existing) return;
     if (limit) await this.requireRecordingProjectId(organizationId);
 
-    // One default per scope, so a replaced one goes first, in the same
+    // One limit per scope, so a replaced one goes first, in the same
     // transaction so that a failed write keeps it.
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -499,101 +565,24 @@ export class GatewaySpendLimitService {
         }
         if (existing) await remove(tx, { before: existing, session });
         if (limit) {
-          await createDefault(tx, { organizationId, scope, ...limit, session });
+          await createSubjectless(tx, {
+            organizationId,
+            scope,
+            ...limit,
+            session,
+          });
         }
       });
     } catch (error) {
-      // Another save of the same default won: one created it (P2002) or removed the replaced one (P2025).
+      // Another save of the same limit won: one created it (P2002) or removed the replaced one (P2025).
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         (error.code === "P2002" || error.code === "P2025")
       ) {
-        throw new LangfuseConflictError(
-          "The default budget was changed at the same time. Reload and try again.",
-        );
+        throw new LangfuseConflictError(params.conflictMessage);
       }
       throw error;
     }
-    await invalidateGatewayResolveCacheForOrganization(organizationId);
-  }
-
-  /**
-   * The organization's own budgets, at most one per interval, each with what
-   * ClickHouse has recorded against it in its current window; `spentUsd` is
-   * absent while spend is not recorded. They cap all of the organization's
-   * gateway spend, on top of key and user budgets.
-   */
-  async listOrganizationBudgets(organizationId: string) {
-    const limits = await this.repository.listForOrganization(organizationId);
-    const recordingProjectId =
-      limits.length > 0
-        ? await this.getRecordingProjectId(organizationId)
-        : null;
-    // One read per budget: each counts from its own window start.
-    const spend = recordingProjectId
-      ? await Promise.all(
-          limits.map(async (limit) =>
-            (
-              await readSpend(recordingProjectId, "ORGANIZATION", [
-                { subjectId: recordingProjectId, limit },
-              ])
-            ).get(recordingProjectId),
-          ),
-        )
-      : null;
-    return limits.map((limit, index) => ({
-      id: limit.id,
-      spendLimit: {
-        interval: limit.interval,
-        limitUsd: limit.limitUsd.toNumber(),
-      },
-      spentUsd: spend ? (spend[index] ?? 0) : undefined,
-    }));
-  }
-
-  /**
-   * Adds an organization budget, or with `id` replaces that one, or removes
-   * it when `limit` is null. Like other budgets, a new amount keeps counting
-   * and a new interval starts afresh. Every key of the organization resolves
-   * them, so all are dropped from the resolve cache.
-   */
-  async setOrganizationBudget(params: {
-    organizationId: string;
-    id: string | null;
-    limit: SpendLimitInput | null;
-    session: OrgAuthedContext["session"];
-  }) {
-    const { organizationId, limit, session } = params;
-    const existing = params.id
-      ? await this.repository.findForOrganization({
-          organizationId,
-          id: params.id,
-        })
-      : null;
-    if (params.id && !existing) {
-      throw new LangfuseNotFoundError("Budget not found");
-    }
-    const isSameInterval = existing?.interval === limit?.interval;
-    if (isSameInterval && existing?.limitUsd.toNumber() === limit?.limitUsd) {
-      return;
-    }
-    if (limit) await this.requireRecordingProjectId(organizationId);
-
-    // A replaced budget goes first, in the same transaction so that a failed write keeps it.
-    await this.prisma.$transaction(async (tx) => {
-      if (existing && limit && isSameInterval) {
-        await update(tx, {
-          before: existing,
-          limitUsd: limit.limitUsd,
-          session,
-        });
-        return;
-      }
-      if (existing) await remove(tx, { before: existing, session });
-      if (limit) {
-        await createForOrganization(tx, { organizationId, ...limit, session });
-      }
-    });
     await invalidateGatewayResolveCacheForOrganization(organizationId);
   }
 
@@ -695,46 +684,16 @@ async function create(
     session: OrgAuthedContext["session"];
   },
 ) {
-  const limit = await withIntervalConflict(() =>
-    new GatewaySpendLimitRepository(tx).create({
+  let limit: GatewaySpendLimitRecord;
+  try {
+    limit = await new GatewaySpendLimitRepository(tx).create({
       organizationId: params.organizationId,
       scope: params.scope,
       interval: params.interval,
       limitUsd: params.limitUsd,
       countingStartedAt: new Date(),
       ownerUserId: params.session.user.id,
-    }),
-  );
-  await audit(tx, { session: params.session, action: "create", after: limit });
-}
-
-async function createForOrganization(
-  tx: Prisma.TransactionClient,
-  params: {
-    organizationId: string;
-    interval: GatewaySpendLimitInterval;
-    limitUsd: number;
-    session: OrgAuthedContext["session"];
-  },
-) {
-  const limit = await withIntervalConflict(() =>
-    new GatewaySpendLimitRepository(tx).createForOrganization({
-      organizationId: params.organizationId,
-      interval: params.interval,
-      limitUsd: params.limitUsd,
-      countingStartedAt: new Date(),
-      ownerUserId: params.session.user.id,
-    }),
-  );
-  await audit(tx, { session: params.session, action: "create", after: limit });
-}
-
-/** A scope has at most one limit per interval, which the database enforces. */
-async function withIntervalConflict(
-  write: () => Promise<GatewaySpendLimitRecord>,
-) {
-  try {
-    return await write();
+    });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -746,19 +705,20 @@ async function withIntervalConflict(
     }
     throw error;
   }
+  await audit(tx, { session: params.session, action: "create", after: limit });
 }
 
-async function createDefault(
+async function createSubjectless(
   tx: Prisma.TransactionClient,
   params: {
     organizationId: string;
-    scope: GatewaySpendLimitScope["type"];
+    scope: GatewaySubjectlessSpendLimitScope;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
     session: OrgAuthedContext["session"];
   },
 ) {
-  const limit = await new GatewaySpendLimitRepository(tx).createDefault({
+  const limit = await new GatewaySpendLimitRepository(tx).createSubjectless({
     organizationId: params.organizationId,
     scope: params.scope,
     interval: params.interval,

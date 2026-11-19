@@ -1,6 +1,9 @@
 import { Pencil } from "@langfuse/icons";
 
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import {
+  SettingsTable,
+  type SettingsTableProps,
+} from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -46,6 +49,8 @@ type GatewayBudgetsTableProps = Pick<
   selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
   multiSelect: MultiSelect;
   onEditBudget: (row: GatewayBudgetRow) => void;
+  /** Right of the search and filter, e.g. the default budget. */
+  toolbarActions?: SettingsTableProps<GatewayBudgetRow>["toolbarActions"];
 };
 
 const statusOptions: { value: GatewayBudgetStatus; label: string }[] = [
@@ -176,6 +181,7 @@ export function GatewayBudgetsTable({
   selectColumn,
   multiSelect,
   onEditBudget,
+  toolbarActions,
 }: GatewayBudgetsTableProps) {
   const copy = copyByTab[tab];
   const isFiltered = search.value.trim().length > 0 || status.value !== "all";
@@ -214,6 +220,7 @@ export function GatewayBudgetsTable({
           minWidth: STATUS_FILTER_MIN_WIDTH_PX,
         },
       ]}
+      toolbarActions={toolbarActions}
       noResultsMessage={isFiltered ? copy.noMatches : copy.noBudgets}
     />
   );

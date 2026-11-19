@@ -34,7 +34,6 @@ export class GatewayResolveRepository {
             organizationMemberships: { select: { orgId: true, role: true } },
             // Across the user's organizations; the caller keeps the key's.
             gatewaySpendLimits: {
-              orderBy: { interval: "asc" },
               select: {
                 id: true,
                 organizationId: true,
@@ -61,9 +60,9 @@ export class GatewayResolveRepository {
           select: {
             cloudConfig: true,
             // The defaults apply to the key or its user when they have no limit
-            // of their own; the organization's limits apply to every key. Rows
-            // without a subject are only these, at most one per default scope
-            // and one per interval, however many limits the org has.
+            // of their own; the organization's limit applies to every key. The
+            // null subjects match the partial index of these, so this reads at
+            // most three rows however many limits the org has.
             gatewaySpendLimits: {
               where: {
                 scope: {
@@ -75,7 +74,6 @@ export class GatewayResolveRepository {
                 apiKeyId: null,
                 userId: null,
               },
-              orderBy: { interval: "asc" },
               select: {
                 id: true,
                 scope: true,
