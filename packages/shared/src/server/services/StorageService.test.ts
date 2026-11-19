@@ -1,10 +1,19 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash, getFips } from "crypto";
+import { lookup } from "dns";
+import { once } from "events";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
-import { createServer } from "http";
+import {
+  createServer,
+  type Agent,
+  type AgentOptions,
+  type Server,
+  type ServerResponse,
+} from "http";
 import { tmpdir } from "os";
 import { join } from "path";
 import { PassThrough, Readable } from "stream";
+import { setTimeout as delay } from "timers/promises";
 
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +23,7 @@ import type { NodeHttpHandler } from "@smithy/node-http-handler";
 import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
 import { logger } from "../logger";
+import type { OutboundUrlConnectionValidationOptions } from "../outbound-url/connection";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory, storageKeys } from "./StorageService";
 
@@ -1007,17 +1017,14 @@ describe("S3StorageService SlowDown logging", () => {
   });
 });
 
-describe("S3StorageService request handler socket limit", () => {
-  const originalConcurrentWrites = env.LANGFUSE_S3_CONCURRENT_WRITES;
-
-  const setConcurrentWrites = (value: number) => {
-    (
-      env as { LANGFUSE_S3_CONCURRENT_WRITES: number }
-    ).LANGFUSE_S3_CONCURRENT_WRITES = value;
+describe("S3StorageService request handler socket pool", () => {
+  const idleTimeoutMs = 25;
+  const originalPoolSettings = {
+    LANGFUSE_S3_CONCURRENT_WRITES: env.LANGFUSE_S3_CONCURRENT_WRITES,
+    LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS,
   };
-
   afterEach(() => {
-    setConcurrentWrites(originalConcurrentWrites);
+    Object.assign(env, originalPoolSettings);
   });
 
   type ResolvedHandlerConfig = {
@@ -1025,36 +1032,124 @@ describe("S3StorageService request handler socket limit", () => {
     httpsAgent: { maxSockets: number };
   };
 
-  const resolveHandlerConfig = (endpoint: string) => {
-    const service = StorageServiceFactory.getInstance({
+  const makeService = (
+    endpoint: string,
+    connectionValidation?: OutboundUrlConnectionValidationOptions,
+  ) =>
+    StorageServiceFactory.getInstance({
       credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint,
       region: "us-east-1",
       forcePathStyle: true,
+      connectionValidation,
       useAzureBlob: false,
       useGoogleCloudStorage: false,
       useOCIObjectStorage: false,
       awsSse: undefined,
       awsSseKmsKeyId: undefined,
+      maxAttempts: 1,
     });
 
+  const withLocalS3 = async (
+    server: Server,
+    run: (service: ReturnType<typeof makeService>) => Promise<void>,
+    connectionValidation?: OutboundUrlConnectionValidationOptions,
+  ) => {
+    Object.assign(env, {
+      LANGFUSE_S3_CONCURRENT_WRITES: 1,
+      LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: idleTimeoutMs,
+    });
+    // Only the client can retire the free socket in these tests.
+    server.keepAliveTimeout = 0;
+    await new Promise<void>((resolve) =>
+      server.listen(0, "localhost", resolve),
+    );
+    try {
+      const address = server.address();
+      if (!address || typeof address === "string")
+        throw new Error("Expected a local HTTP port");
+      await run(
+        makeService(`http://localhost:${address.port}`, connectionValidation),
+      );
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  };
+
+  it("applies LANGFUSE_S3_CONCURRENT_WRITES to plain-HTTP endpoints such as MinIO", async () => {
+    Object.assign(env, { LANGFUSE_S3_CONCURRENT_WRITES: 123 });
+
+    const service = makeService("http://127.0.0.1:9000");
     const client = (service as unknown as { client: S3Client }).client;
     const handler = client.config.requestHandler as unknown as {
       configProvider: Promise<ResolvedHandlerConfig>;
     };
-
-    return handler.configProvider;
-  };
-
-  it("applies LANGFUSE_S3_CONCURRENT_WRITES to plain-HTTP endpoints such as MinIO", async () => {
-    setConcurrentWrites(123);
-
-    const config = await resolveHandlerConfig("http://127.0.0.1:9000");
+    const config = await handler.configProvider;
 
     // The HTTP agent is created lazily on the first non-TLS request.
     const httpAgent = await config.httpAgentProvider();
     expect(httpAgent.maxSockets).toBe(123);
     expect(config.httpsAgent.maxSockets).toBe(123);
+  });
+
+  it("reuses a validated connection for queued downloads and closes it once idle", async () => {
+    const server = createServer((_req, res) => {
+      res.write("first ");
+      setTimeout(() => res.end("last"), 3 * idleTimeoutMs);
+    });
+    let connections = 0;
+    let closedConnections = 0;
+    server.on("connection", (socket) => {
+      connections++;
+      socket.once("close", () => closedConnections++);
+    });
+    await withLocalS3(
+      server,
+      async (service) => {
+        const started = once(server, "request");
+        const first = service.download("a");
+        await started;
+        const downloads = await Promise.all([first, service.download("b")]);
+        expect(downloads).toEqual(["first last", "first last"]);
+        expect(connections).toBe(1);
+        await expect.poll(() => closedConnections, { timeout: 1000 }).toBe(1);
+      },
+      { whitelist: { hosts: ["localhost"], ips: [], ip_ranges: [] } },
+    );
+  });
+
+  it("allows a queued download to open a replacement connection after slow DNS", async () => {
+    const firstResponse = Promise.withResolvers<ServerResponse>();
+    const server = createServer((req, res) => {
+      if (req.url?.includes("/first")) {
+        res.setHeader("Connection", "close");
+        firstResponse.resolve(res);
+      } else {
+        res.end("second");
+      }
+    });
+    await withLocalS3(server, async (service) => {
+      const first = service.download("first");
+      const held = await firstResponse.promise;
+      const client = (service as unknown as { client: S3Client }).client;
+      const handler = client.config.requestHandler as NodeHttpHandler;
+      const { httpAgent } = handler.httpHandlerConfigs() as {
+        httpAgent: Agent & { options: AgentOptions };
+      };
+      httpAgent.options.lookup = (hostname, options, callback) => {
+        setTimeout(
+          () => lookup(hostname, options, callback),
+          4 * idleTimeoutMs,
+        );
+      };
+      const downloads = Promise.all([first, service.download("second")]);
+      await expect.poll(() => Object.keys(httpAgent.requests)).toHaveLength(1);
+      // Exercise Smithy's three-second deferral before the replacement lookup starts.
+      await delay(3100);
+      held.end("first");
+      await expect(downloads).resolves.toEqual(["first", "second"]);
+    });
   });
 });
