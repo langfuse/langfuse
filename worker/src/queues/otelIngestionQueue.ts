@@ -615,8 +615,18 @@ export const otelIngestionQueueProcessorBuilder = (
       const eventStorage = getS3EventStorageClient(
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
+      const retainNativeBatch =
+        earlyMediaEnabled &&
+        env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
+        v4WritesToEventsTable(env);
+      const writesToLegacyTables = v4WritesToLegacyTables(env);
+      // Priority 0: deployment-level override.
+      //   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct forces every batch
+      //   onto the direct events_full path regardless of SDK headers/scopes.
+      const envForcesDirect = v4ForceDirectOtelWrite(env);
+      const needsTypeScriptSpans =
+        !retainNativeBatch || writesToLegacyTables || !envForcesDirect;
       let parsedSpans: ResourceSpan[] | undefined;
-      let rustEventsOnly = false;
       if (earlyMediaEnabled) {
         const bytes = await eventStorage.downloadBytes(fileKey);
         const preparationStartedAt = performance.now();
@@ -631,9 +641,7 @@ export const otelIngestionQueueProcessorBuilder = (
           projectId,
           orgId: job.data.payload.authCheck.scope.orgId,
           propagatedHeaders: job.data.payload.propagatedHeaders,
-          retainNativeBatch:
-            env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
-            v4WritesToEventsTable(env),
+          retainNativeBatch,
           extractMedia:
             env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
             Boolean(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
@@ -648,18 +656,12 @@ export const otelIngestionQueueProcessorBuilder = (
           });
           return;
         }
-        if (
-          env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
-          v4WritesToEventsTable(env)
-        ) {
+        if (retainNativeBatch) {
           earlyBatch = prepared.batch;
           if (!earlyBatch) {
             throw new Error("Rust processing requires a native batch");
           }
-          rustEventsOnly = Boolean(
-            !v4WritesToLegacyTables(env) && v4ForceDirectOtelWrite(env),
-          );
-          if (!rustEventsOnly) {
+          if (needsTypeScriptSpans) {
             // TODO: When dual writes are removed, drop this copy/parse and fuse
             // media extraction with native normalization in one worker task.
             parsedSpans = JSON.parse(
@@ -719,7 +721,6 @@ export const otelIngestionQueueProcessorBuilder = (
         inputPreparationDurationMs = performance.now() - preparationStartedAt;
       }
 
-      const writesToLegacyTables = v4WritesToLegacyTables(env);
       const processor = new OtelIngestionProcessor({
         projectId,
         publicKey: attribution.ingestionApiKey,
@@ -731,12 +732,7 @@ export const otelIngestionQueueProcessorBuilder = (
       let traces: IngestionEventType[] = [];
       let observations: IngestionEventType[] = [];
 
-      if (!rustEventsOnly) {
-        if (!parsedSpans) {
-          throw new Error(
-            "OTEL resource spans missing before TypeScript processing",
-          );
-        }
+      if (parsedSpans) {
         ({ traces, observations } = await prepareTypeScriptOtelEvents({
           processor,
           resourceSpans: parsedSpans,
@@ -747,6 +743,10 @@ export const otelIngestionQueueProcessorBuilder = (
           fileKey,
           span,
         }));
+      } else if (needsTypeScriptSpans) {
+        throw new Error(
+          "OTEL resource spans missing before TypeScript processing",
+        );
       }
 
       // Ensure required infra config is present
@@ -785,11 +785,6 @@ export const otelIngestionQueueProcessorBuilder = (
         sdkVersion: job.data.payload.sdkVersion,
         ingestionVersion: job.data.payload.ingestionVersion,
       });
-
-      // Priority 0: deployment-level override.
-      //   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct forces every batch
-      //   onto the direct events_full path regardless of SDK headers/scopes.
-      const envForcesDirect = v4ForceDirectOtelWrite(env);
 
       // Evaluated whenever the higher-precedence header/env signals did not
       // already qualify, so the write_path label can attribute the decision
@@ -932,11 +927,7 @@ export const otelIngestionQueueProcessorBuilder = (
       // Determine what processing is needed
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
-      if (
-        env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
-        earlyBatch &&
-        shouldWriteToEventsTable
-      ) {
+      if (retainNativeBatch && earlyBatch && shouldWriteToEventsTable) {
         const directMediaPresence = await processRustOtelEvents({
           batch: earlyBatch,
           context: {
