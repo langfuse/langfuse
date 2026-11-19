@@ -39,7 +39,10 @@ export const projectDeleteProcessor: Processor = async (
 
   logger.info(`Deleting ${projectId} in org ${orgId}`);
 
-  await deleteMediaLinkRowsByProjectId({ projectId });
+  await deleteMediaLinkRowsByProjectId({
+    projectId,
+    batchSize: env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE,
+  });
 
   // Delete media data from S3 and PG for project
   if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
