@@ -4,6 +4,7 @@ import {
   normalizeInput,
   normalizeOutput,
   extractAdditionalInput,
+  selectAdapter,
 } from "@langfuse/shared";
 
 describe("OpenAI Adapter", () => {
@@ -592,6 +593,195 @@ describe("OpenAI Adapter", () => {
   });
 
   describe("Chat Completions API", () => {
+    it("preserves reasoning through default OpenAI-compatible array routing", () => {
+      const reasoning = "Check the result before calling the tool.";
+      const messages = [
+        {
+          role: "assistant",
+          content: "391",
+          reasoning_content: reasoning,
+          provider_specific_fields: { reasoning },
+          tool_calls: [
+            {
+              id: "call_check",
+              type: "function",
+              function: { name: "check_result", arguments: '{"value":391}' },
+            },
+          ],
+        },
+      ];
+
+      for (const result of [
+        normalizeInput(messages),
+        normalizeOutput(messages),
+        normalizeInput({ messages }),
+        normalizeOutput({ messages }),
+      ]) {
+        expect(result.success).toBe(true);
+        expect(result.data?.[0]).toMatchObject({
+          content: "391",
+          thinking: [{ type: "thinking", content: reasoning }],
+          tool_calls: [
+            {
+              id: "call_check",
+              name: "check_result",
+              arguments: '{"value":391}',
+            },
+          ],
+        });
+      }
+
+      const plainMessages = messages.map(
+        ({
+          reasoning_content: _reasoning,
+          provider_specific_fields: _provider,
+          ...message
+        }) => message,
+      );
+      for (const value of [plainMessages, { messages: plainMessages }]) {
+        expect(selectAdapter({ metadata: value, data: value }).id).toBe(
+          "langgraph",
+        );
+      }
+      expect(
+        selectAdapter({
+          metadata: { langgraph_node: "agent" },
+          data: messages,
+        }).id,
+      ).toBe("langgraph");
+      for (const langchainMessages of [
+        messages.map((message) => ({ ...message, additional_kwargs: {} })),
+        messages.map((message) => ({ ...message, type: "ai" })),
+      ]) {
+        expect(
+          selectAdapter({
+            metadata: langchainMessages,
+            data: langchainMessages,
+          }).id,
+        ).toBe("langgraph");
+      }
+    });
+
+    it("preserves message-level reasoning alongside content, thinking, and tool calls", () => {
+      const reasoning = "17 × 20 = 340, 17 × 3 = 51, 340 + 51 = 391.";
+      const existingThinking = {
+        type: "thinking",
+        content: "Check the arithmetic.",
+        signature: "sig_existing",
+      };
+      const messages = [
+        {
+          role: "assistant",
+          content: "391",
+          reasoning_content: reasoning,
+          reasoning: "The result is positive.",
+          provider_specific_fields: { reasoning },
+          thinking: [existingThinking],
+          refusal: "I cannot answer the other request.",
+          tool_calls: [
+            {
+              id: "call_check",
+              type: "function",
+              function: { name: "check_result", arguments: '{"value":391}' },
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          content: null,
+          provider_specific_fields: {
+            reasoning: "Only reasoning is available.",
+          },
+        },
+        {
+          role: "assistant",
+          content: "Already normalized.",
+          reasoning_content: existingThinking.content,
+          reasoning: existingThinking.content,
+          provider_specific_fields: { reasoning: existingThinking.content },
+          thinking: [existingThinking],
+        },
+        {
+          role: "assistant",
+          content: "Ordinary content.",
+          reasoning_content: "",
+          reasoning: { effort: "high" },
+          provider_specific_fields: { reasoning: ["not a reasoning string"] },
+        },
+      ];
+
+      for (const result of [
+        normalizeInput({ messages }),
+        normalizeOutput(messages),
+      ]) {
+        expect(result.success).toBe(true);
+        expect(result.data).toMatchObject([
+          {
+            content: "391",
+            thinking: [
+              existingThinking,
+              { type: "thinking", content: reasoning },
+              { type: "thinking", content: "The result is positive." },
+            ],
+            tool_calls: [
+              {
+                id: "call_check",
+                name: "check_result",
+                arguments: '{"value":391}',
+                type: "function",
+              },
+            ],
+          },
+          {
+            content: "",
+            thinking: [
+              { type: "thinking", content: "Only reasoning is available." },
+            ],
+          },
+          {
+            content: "Already normalized.",
+            thinking: [existingThinking],
+          },
+          { content: "Ordinary content." },
+        ]);
+        expect(result.data?.[3].thinking).toBeUndefined();
+      }
+
+      const completion = normalizeOutput({
+        model: "deepseek-reasoner",
+        choices: [{ message: messages[0] }],
+      });
+      expect(completion.data?.[0].thinking).toHaveLength(3);
+      expect(completion.data?.[0].json).toMatchObject({
+        refusal: "I cannot answer the other request.",
+      });
+      for (const fields of [
+        { reasoning_content: reasoning },
+        { reasoning },
+        { provider_specific_fields: { reasoning } },
+      ]) {
+        const bareMessage = normalizeOutput({
+          role: "assistant",
+          content: "391",
+          ...fields,
+        });
+        expect(bareMessage.data?.[0]).toMatchObject({
+          content: "391",
+          thinking: [{ type: "thinking", content: reasoning }],
+        });
+      }
+      expect(
+        openAIAdapter.detect({
+          data: {
+            role: "assistant",
+            parts: [{ type: "text", content: "Different message format." }],
+            reasoning,
+          },
+        }),
+      ).toBe(false);
+      expect(messages[0].thinking).toEqual([existingThinking]);
+    });
+
     it("should handle request format with tools and flatten tool_calls", () => {
       const input = {
         tools: [

@@ -210,6 +210,25 @@ function extractReasoningContent(item: Record<string, unknown>): {
   };
 }
 
+function getChatCompletionReasoningTexts(value: unknown): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const message = value as Record<string, unknown>;
+  if (
+    message.role !== "assistant" ||
+    message.type === "reasoning" ||
+    Array.isArray(message.parts)
+  ) {
+    return [];
+  }
+  return [
+    message.reasoning_content,
+    message.reasoning,
+    getNestedProperty(message, "provider_specific_fields", "reasoning"),
+  ].filter(
+    (text): text is string => typeof text === "string" && text.length > 0,
+  );
+}
+
 function normalizeMessage(msg: unknown): Record<string, unknown> {
   if (!msg || typeof msg !== "object") return {};
 
@@ -226,6 +245,26 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       content: "",
       ...reasoningContent,
     };
+  }
+
+  const reasoningTexts = getChatCompletionReasoningTexts(working);
+  if (reasoningTexts.length > 0) {
+    const thinking: unknown[] = Array.isArray(working.thinking)
+      ? [...working.thinking]
+      : [];
+    const seen = new Set(
+      thinking.flatMap((part) =>
+        typeof part === "object" && part !== null && "content" in part
+          ? [part.content]
+          : [],
+      ),
+    );
+    for (const content of reasoningTexts) {
+      if (seen.has(content)) continue;
+      seen.add(content);
+      thinking.push({ type: "thinking", content });
+    }
+    working = { ...working, content: working.content ?? "", thinking };
   }
 
   // Convert direct function call message to tool_calls array format
@@ -614,6 +653,7 @@ export const openAIAdapter: ProviderAdapter = {
     if (OpenAIOutputChoicesSchema.safeParse(ctx.metadata).success) return true;
     if (OpenAIOutputSingleMessageSchema.safeParse(ctx.metadata).success)
       return true;
+    if (getChatCompletionReasoningTexts(ctx.metadata).length > 0) return true;
 
     // finally, test on data if available. we might've done this already if we passed
     // data into metadata. we only do this last due to performance concerns.
@@ -625,6 +665,7 @@ export const openAIAdapter: ProviderAdapter = {
     if (OpenAIOutputChoicesSchema.safeParse(ctx.data).success) return true;
     if (OpenAIOutputSingleMessageSchema.safeParse(ctx.data).success)
       return true;
+    if (getChatCompletionReasoningTexts(ctx.data).length > 0) return true;
 
     return false;
   },
