@@ -1,5 +1,4 @@
 import { useState, type ChangeEvent, type Ref } from "react";
-import { PlusIcon } from "@langfuse/icons";
 
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -45,6 +44,7 @@ export function BaseUrlPicker({
     {
       type: "group" as const,
       id: "presets",
+      label: "Regions",
       options: presets.map((preset) => ({
         value: preset.url,
         label: preset.label,
@@ -54,11 +54,11 @@ export function BaseUrlPicker({
     {
       type: "group" as const,
       id: "custom",
+      label: "Other",
       options: [
         {
           value: CUSTOM_OPTION,
           label: "Custom URL",
-          icon: PlusIcon,
           badges: [
             { text: "Proxy or other endpoint", color: "outline" as const },
           ],
