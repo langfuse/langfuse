@@ -429,42 +429,6 @@ export const getAnnotationQueueItemForApi = async ({
   return toAnnotationQueueItemApi(item);
 };
 
-const toAnnotationQueueItemCreateData = ({
-  projectId,
-  queueId,
-  input,
-}: {
-  projectId: string;
-  queueId: string;
-  input: CreateAnnotationQueueItemInput;
-}) => {
-  // Status defaults to PENDING; COMPLETED items get a completedAt timestamp.
-  const status = input.status || AnnotationQueueStatus.PENDING;
-
-  return {
-    queueId,
-    objectId: input.objectId,
-    objectType: input.objectType,
-    status,
-    completedAt: status === AnnotationQueueStatus.COMPLETED ? new Date() : null,
-    projectId,
-  };
-};
-
-const auditAnnotationQueueItemCreate = async (
-  item: { id: string },
-  auditScope: AnnotationQueueScope,
-) =>
-  auditLog({
-    action: "create",
-    resourceType: "annotationQueueItem",
-    resourceId: item.id,
-    projectId: auditScope.projectId,
-    orgId: auditScope.orgId,
-    apiKeyId: auditScope.apiKeyId,
-    after: item,
-  });
-
 export const createAnnotationQueueItemForApi = async ({
   projectId,
   queueId,
@@ -478,12 +442,34 @@ export const createAnnotationQueueItemForApi = async ({
   // Check if the queue exists
   await getAnnotationQueueRecordOrThrow({ projectId, queueId });
 
+  // Create the queue item with status defaulting to PENDING if not provided
+  const status = input.status || AnnotationQueueStatus.PENDING;
+
+  // Set completedAt if status is COMPLETED
+  const completedAt =
+    status === AnnotationQueueStatus.COMPLETED ? new Date() : null;
+
   const item = await prisma.annotationQueueItem.create({
-    data: toAnnotationQueueItemCreateData({ projectId, queueId, input }),
+    data: {
+      queueId,
+      objectId: input.objectId,
+      objectType: input.objectType,
+      status,
+      completedAt,
+      projectId,
+    },
   });
 
   if (auditScope) {
-    await auditAnnotationQueueItemCreate(item, auditScope);
+    await auditLog({
+      action: "create",
+      resourceType: "annotationQueueItem",
+      resourceId: item.id,
+      projectId: auditScope.projectId,
+      orgId: auditScope.orgId,
+      apiKeyId: auditScope.apiKeyId,
+      after: item,
+    });
   }
 
   return toAnnotationQueueItemApi(item);
@@ -503,15 +489,33 @@ export const createAnnotationQueueItemsForApi = async ({
   await getAnnotationQueueRecordOrThrow({ projectId, queueId });
 
   const items = await prisma.annotationQueueItem.createManyAndReturn({
-    data: inputs.map((input) =>
-      toAnnotationQueueItemCreateData({ projectId, queueId, input }),
-    ),
+    data: inputs.map((input) => {
+      const status = input.status || AnnotationQueueStatus.PENDING;
+
+      return {
+        queueId,
+        objectId: input.objectId,
+        objectType: input.objectType,
+        status,
+        completedAt:
+          status === AnnotationQueueStatus.COMPLETED ? new Date() : null,
+        projectId,
+      };
+    }),
   });
 
   if (auditScope) {
     // One at a time to bound concurrent database work.
     for (const item of items) {
-      await auditAnnotationQueueItemCreate(item, auditScope);
+      await auditLog({
+        action: "create",
+        resourceType: "annotationQueueItem",
+        resourceId: item.id,
+        projectId: auditScope.projectId,
+        orgId: auditScope.orgId,
+        apiKeyId: auditScope.apiKeyId,
+        after: item,
+      });
     }
   }
 
