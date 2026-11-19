@@ -4,7 +4,6 @@ import {
   Eye,
   History,
   Plus,
-  RefreshCw,
   Settings,
   type IconComponent,
 } from "@langfuse/icons";
@@ -16,7 +15,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "new-map" | "new-snapshot" | "refresh" | "configure" | "history";
+  id: "new-map" | "new-snapshot" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -63,7 +62,12 @@ export function refreshMapDisabledReason({
   return undefined;
 }
 
-/** One action policy for the Edit map button and both overflow-menu presentations. */
+/**
+ * One action policy for the Edit map button, the map picker and both
+ * overflow-menu presentations. Creating and refreshing maps live in the map
+ * picker, so the overflow menu keeps page-wide actions; it offers creating
+ * only while the picker is hidden, e.g. during onboarding.
+ */
 export function prepareTopicsActions({
   automaticProcessing,
   canWrite,
@@ -75,6 +79,7 @@ export function prepareTopicsActions({
   mapDisabledReason,
   onEditRun,
   refreshMap,
+  mapPickerShown,
   showUnassigned,
   onShowUnassignedChange,
 }: {
@@ -90,23 +95,19 @@ export function prepareTopicsActions({
   mapDisabledReason?: string;
   /** Opens the selected map's settings; absent for snapshots. */
   onEditRun?: () => void;
-  /** Refreshes the selected map; absent for snapshots. */
-  refreshMap?: { onSelect: () => void; disabledReason?: string };
+  /** Refreshes a live map, e.g. the one the map picker previews. */
+  refreshMap?: (rule: TopicRuleMap) => {
+    onSelect: () => void;
+    disabledReason?: string;
+  };
+  /** The map picker, which carries New map and New snapshot, is on screen. */
+  mapPickerShown: boolean;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
 }) {
   const { state } = automaticProcessing;
   const editDisabledReason = canWrite ? undefined : NO_WRITE_ACCESS;
-  const menu: TopicAction[] = [];
-  if (refreshMap)
-    menu.push({
-      id: "refresh",
-      label: "Refresh map",
-      icon: RefreshCw,
-      disabledReason: refreshMap.disabledReason,
-      onSelect: refreshMap.onSelect,
-    });
-  menu.push(
+  const menu: TopicAction[] = [
     {
       id: "history",
       label: "History",
@@ -122,7 +123,7 @@ export function prepareTopicsActions({
         : "Topics settings are still loading.",
       onSelect: onConfigure,
     },
-  );
+  ];
   const display = {
     id: "show-unassigned",
     label: "Show unassigned",
@@ -146,20 +147,24 @@ export function prepareTopicsActions({
           : createDisabledReason(state),
       }
     : null;
-  if (newSnapshot)
-    menu.unshift({
-      id: "new-snapshot",
-      label: "New snapshot",
-      icon: CalendarRange,
-      ...newSnapshot,
-    });
-  if (newMap)
-    menu.unshift({
-      id: "new-map",
-      label: "New live map",
-      icon: Plus,
-      ...newMap,
-    });
+  if (!mapPickerShown) {
+    const create: TopicAction[] = [];
+    if (newMap)
+      create.push({
+        id: "new-map",
+        label: "New live map",
+        icon: Plus,
+        ...newMap,
+      });
+    if (newSnapshot)
+      create.push({
+        id: "new-snapshot",
+        label: "New snapshot",
+        icon: CalendarRange,
+        ...newSnapshot,
+      });
+    menu.unshift(...create);
+  }
   const editRun = onEditRun
     ? { onSelect: onEditRun, disabledReason: editDisabledReason }
     : null;
@@ -167,6 +172,7 @@ export function prepareTopicsActions({
     editRun,
     newMap,
     newSnapshot,
+    refreshMap: refreshMap ?? null,
     menu,
     display,
   };

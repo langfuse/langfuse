@@ -5,6 +5,7 @@ import preview from "../../../.storybook/preview";
 import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
+import { refreshMapDisabledReason } from "./prepare-topics-actions";
 import { type TopicMapSelection, type TopicMapsOverview } from "./topic-maps";
 
 const now = Date.parse("2026-11-05T12:00:00.000Z");
@@ -117,7 +118,16 @@ const useStoryPreviewTopics: UsePreviewTopics = (_projectId, map) => ({
 });
 
 /** The Topics page header flow: pick a map, see its strip, or the building state of a new map. */
-function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
+function MapSwitcher({
+  initial,
+  refreshDisabledReason,
+  onRefresh,
+}: {
+  initial: TopicMapSelection;
+  /** Why a live map can't be refreshed now. */
+  refreshDisabledReason?: string;
+  onRefresh?: (ruleId: string) => void;
+}) {
   const [selection, setSelection] = useState(initial);
   const selectedRule =
     selection.kind === "rule"
@@ -142,6 +152,10 @@ function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
             map: { onSelect: fn() },
             snapshot: { onSelect: fn() },
           }}
+          refresh={(rule) => ({
+            onSelect: () => onRefresh?.(rule.id),
+            disabledReason: refreshDisabledReason,
+          })}
         />
       </div>
       {selectedRule ? (
@@ -267,5 +281,55 @@ export const TestPausedLast = meta.story({
       )
       .map((text) => text.split(/\d| ·/)[0]!.trim());
     await expect(names.at(-1)).toMatch(/^Legacy RAG/);
+  },
+});
+
+export const TestRefreshPreviewedMap = meta.story({
+  name: "(Test) Refresh acts on the previewed map",
+  args: { onRefresh: fn() },
+  play: async ({ args, canvasElement }) => {
+    const picker = await openPicker(canvasElement);
+    await userEvent.hover(
+      picker.getByRole("button", { name: /^Support agent/ }),
+    );
+    await waitFor(() =>
+      expect(
+        picker.getByText("Support agent", { selector: ".font-bold" }),
+      ).toBeVisible(),
+    );
+    await userEvent.click(picker.getByRole("button", { name: "Refresh" }));
+    await expect(args.onRefresh).toHaveBeenCalledWith("rule-support");
+  },
+});
+
+export const TestRefreshCooldown = meta.story({
+  name: "(Test) Refresh waits out its cooldown",
+  args: {
+    refreshDisabledReason: refreshMapDisabledReason({
+      canWrite: true,
+      state: { status: "on" },
+      rule: {
+        enabled: true,
+        refresh: {
+          availableAt: new Date(now + 10 * 60_000).toISOString(),
+          running: false,
+        },
+      },
+      setupActive: false,
+      now,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const picker = await openPicker(canvasElement);
+    // The preview card's top right; phones get a footer entry instead.
+    await expect(
+      picker.getByRole("button", { name: "Refresh" }),
+    ).toBeDisabled();
+    // Touch screens show no tooltip, so the reason must be on screen.
+    await expect(
+      picker.getByText("Refreshed recently. Available again in 10 min.", {
+        selector: "p",
+      }),
+    ).toBeVisible();
   },
 });
