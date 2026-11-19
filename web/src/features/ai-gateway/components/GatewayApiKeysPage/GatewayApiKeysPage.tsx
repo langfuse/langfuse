@@ -34,15 +34,6 @@ export function GatewayApiKeysPage({
       />
     </p>
   );
-  if (canManageGateway) {
-    return (
-      <ConnectedGatewayApiKeysTable
-        key={organizationId}
-        organizationId={organizationId}
-        description={description}
-      />
-    );
-  }
   // Above the table, so the new key's dialog stays open when the placeholder gives way.
   return (
     <CreateGatewayApiKeyDialogController organizationId={organizationId}>
@@ -51,11 +42,14 @@ export function GatewayApiKeysPage({
           key={organizationId}
           organizationId={organizationId}
           description={description}
+          onCreateKey={openDialog}
           emptyState={
-            <ConnectedGatewayCreateFirstKeyPlaceholder
-              organizationId={organizationId}
-              onCreateKey={openDialog}
-            />
+            canManageGateway ? undefined : (
+              <ConnectedGatewayCreateFirstKeyPlaceholder
+                organizationId={organizationId}
+                onCreateKey={openDialog}
+              />
+            )
           }
         />
       )}
