@@ -236,7 +236,9 @@ function TopicSetupSession({
       ),
       filter: draft.filter,
       traceIdleMs: draft.waitMinutes * 60_000,
-      ...(savedRuleId ? { ruleId: savedRuleId } : { name: DEFAULT_TOPIC_RULE_NAME }),
+      ...(savedRuleId
+        ? { ruleId: savedRuleId }
+        : { name: DEFAULT_TOPIC_RULE_NAME }),
     });
     if (saved) setSavedRuleId(saved.id);
     return saved?.id ?? savedRuleId;
