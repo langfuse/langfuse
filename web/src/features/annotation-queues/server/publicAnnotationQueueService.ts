@@ -475,7 +475,7 @@ export const createAnnotationQueueItemForApi = async ({
   return toAnnotationQueueItemApi(item);
 };
 
-/** Creates all items in one insert: either every item is created or none. */
+/** Creates all items in one transaction: either every item is created or none. */
 export const createAnnotationQueueItemsForApi = async ({
   projectId,
   queueId,
@@ -488,36 +488,44 @@ export const createAnnotationQueueItemsForApi = async ({
 } & OptionalAuditScope) => {
   await getAnnotationQueueRecordOrThrow({ projectId, queueId });
 
-  const items = await prisma.annotationQueueItem.createManyAndReturn({
-    data: inputs.map((input) => {
-      const status = input.status || AnnotationQueueStatus.PENDING;
+  // Items and their audit logs commit together, so a failed audit write
+  // leaves the queue unchanged.
+  const items = await prisma.$transaction(async (tx) => {
+    const createdItems = await tx.annotationQueueItem.createManyAndReturn({
+      data: inputs.map((input) => {
+        const status = input.status || AnnotationQueueStatus.PENDING;
 
-      return {
-        queueId,
-        objectId: input.objectId,
-        objectType: input.objectType,
-        status,
-        completedAt:
-          status === AnnotationQueueStatus.COMPLETED ? new Date() : null,
-        projectId,
-      };
-    }),
-  });
+        return {
+          queueId,
+          objectId: input.objectId,
+          objectType: input.objectType,
+          status,
+          completedAt:
+            status === AnnotationQueueStatus.COMPLETED ? new Date() : null,
+          projectId,
+        };
+      }),
+    });
 
-  if (auditScope) {
-    // One at a time to bound concurrent database work.
-    for (const item of items) {
-      await auditLog({
-        action: "create",
-        resourceType: "annotationQueueItem",
-        resourceId: item.id,
-        projectId: auditScope.projectId,
-        orgId: auditScope.orgId,
-        apiKeyId: auditScope.apiKeyId,
-        after: item,
-      });
+    if (auditScope) {
+      for (const item of createdItems) {
+        await auditLog(
+          {
+            action: "create",
+            resourceType: "annotationQueueItem",
+            resourceId: item.id,
+            projectId: auditScope.projectId,
+            orgId: auditScope.orgId,
+            apiKeyId: auditScope.apiKeyId,
+            after: item,
+          },
+          tx,
+        );
+      }
     }
-  }
+
+    return createdItems;
+  });
 
   return items.map((item) => toAnnotationQueueItemApi(item));
 };
