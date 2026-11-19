@@ -1,6 +1,8 @@
 import { PostScoreBodyV1 } from "@langfuse/shared";
+import { idSchema } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
+import { formatErrorForUser } from "../../../core/error-formatting";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { CreateScoreBaseSchema, handleCreateScore } from "./createScore";
 
@@ -18,7 +20,15 @@ const BatchCreateScoresInputSchema = z.object({
     .superRefine((scores, ctx) => {
       const seenIds = new Set<string>();
       for (const [index, score] of scores.entries()) {
-        if (!score.id) continue;
+        if (score.id === undefined || score.id === null) continue;
+        // Ingestion checks ids per score, which would fail mid-batch.
+        for (const issue of idSchema.safeParse(score.id).error?.issues ?? []) {
+          ctx.addIssue({
+            code: "custom",
+            message: issue.message,
+            path: [index, "id"],
+          });
+        }
         if (seenIds.has(score.id)) {
           ctx.addIssue({
             code: "custom",
@@ -61,13 +71,7 @@ export const [batchCreateScoresTool, handleBatchCreateScores] = defineTool({
             const created = await handleCreateScore(score, context);
             data.push({ index, ...(created as { id: string; url?: string }) });
           } catch (error) {
-            errors.push({
-              index,
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "Failed to create score",
-            });
+            errors.push({ index, message: formatErrorForUser(error).message });
           }
         }
 
