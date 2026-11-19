@@ -12,6 +12,64 @@ Exact keys: [0-overview.md](0-overview.md#the-four-versions) and [1-migrations/]
 
 The raw benchmark output (TSV per run) is kept out of the PR; the tables below are taken from it. Configurations 1 and 2 ran before the main-layout summaries table was dropped for disk space, configurations 3 and 4 in the final harness run. Result row counts match across all four.
 
+## Realistic insert cadence (final test)
+
+The earlier rounds bulk-loaded neatly sorted parts. This test inserts the way prod does:
+- **Cadence:** 14 days of traffic, each row inserted at its `processed_at` in 1-minute flushes mixed across projects (20k flushes, about 3k summaries and 3k assignments each).
+- **Lag:** 90% of rows processed within 10 minutes of the trace start, 9% within 6 hours, 1% late up to 3 days. Plus reprocessed rows.
+- **Refit:** a nightly refit per rule and facet on a stable 100k sample from the **last 7 days**, read the way the proposed refit reads and written in 1,000-row batches.
+- **Merges:** time is compressed about 135x, so merges get less wall time than in prod. They still kept up. When queried, each summary table had about 116 parts, 7 to 9 of them small.
+- **Write path:** every layout is fed by MVs from one ingest stream, and write time per MV comes from `system.query_views_log`.
+
+Harness: [6-harness/cadence/](6-harness/cadence/).
+
+**Summaries, 1M traces/day project, one facet**
+
+| Query | minute (review call) | **hour (proposal)** | day |
+|---|---|---|---|
+| Refit, stable 100k sample, 7 days | 56.6 GiB | **3.4 GiB** | 0.9 GiB |
+| Counts by state, 7 / 14 days | 2.6 / 5.3 GiB | **0.9 / 1.8 GiB** | 0.7 / 1.4 GiB |
+| Newest 200, last day | 376 MiB | **125 MiB** | 97 MiB |
+| Newest 200, last hour | 15 MiB | **5 MiB** | 7 MiB |
+| Summaries in a 1-hour window | 35 MiB | **12 MiB** | 114 MiB |
+| Scatter summaries, 1,000 ids, 7 days | 660 MiB | **232 MiB** | 93 MiB |
+| List resolve, 200 traces from 10 minutes | 1.4 MiB | **1.9 MiB** | 2.9 MiB |
+| Trace header, one trace, 93 days / delete lookup, 10 ids | 1.8 / 7.2 MiB | **3.3 / 10.2 MiB** | 2.4 / 6.5 MiB |
+| Parts touched, 7-day counts | 66 | **63** | 64 |
+| Write time for 14 days (per MV) | 497 s, +92 s pointer MV | **524 s** | 471 s |
+
+**Assignments, same data**
+
+| Query | review call `(project, facet, minute, run, hash)` | **proposal `(project, facet, run, topic, hour, hash)`** |
+|---|---|---|
+| Map counts, current run | 444 MiB | **115 MiB** |
+| Topic page, newest 200 of a topic | 508 MiB | **11 MiB** |
+| Tracing table topic filter, 7 days | 547 MiB | **12 MiB** |
+| Scatter points | 383 MiB | **57 MiB** |
+| Refit: previous run's traces | 317 MiB | **17 MiB** |
+| Fit readback, 1,000 ids | 326 MiB | **57 MiB** |
+| Topic growth, 7 runs | 803 MiB | 786 MiB |
+| Trace header topics, one trace | **0.25 MiB** | 1.1 MiB |
+| Tracing table topic column, newest / 3-day-old page | 5.5 / 17.8 MiB | **3.5 / 9.9 MiB** (lookup MV) |
+| Parts touched | 14 to 20 | 13 to 18 |
+| Write time for 14 days (per MV) | 131 s | 129 s, +112 s lookup MV |
+
+The 10k traces/day project shows the same ranking at a fraction of the bytes. Result rows match across layouts. The one exception differs by under 0.1%: without `FINAL`, reprocessed rows collapse in different places per bucket.
+
+**What it shows**
+
+- **Part pruning doesn't depend on the bucket.** Every layout opens the same parts. ClickHouse picks parts by their min/max of `unit_start_time`, the partition column, not by the sort key. The bucket only decides how many granules are read inside those parts.
+- **Minute:** cheap only for very short windows. It can't prune on facet or the sampling hash, so the refit is a full scan.
+- **Day:** cheapest for windows of a week or more, but a 1-hour window reads the whole day of a facet.
+- **Hour:** never far from the best of the other two. It gives up about 3.8x on the refit and about 1.3x on 7-day counts against the day bucket, and wins up to 9x on windows of an hour or less. That's why the proposal uses it: robust to access patterns we don't know yet, at a nightly batch cost of a few GiB.
+- **Assignments:** run before time still wins 4x to 46x with a 7-day refit window (the 30-day gap was bigger, as expected). Writes are equal.
+- **Bugs found and fixed in my own harness:** a refit query that deduplicated before sampling, a stdin leak in the ingest loop, and shifted assignment columns. Everything shown was re-run after the fixes.
+- **Not covered:** one local node (Cloud's shared storage changes latency, not bytes), 14 days instead of 30, no project above 1M traces/day, simplified list and topic page queries (the earlier rounds ran `main`'s full SQL), and the refit's LLM naming calls.
+
+## Bulk-load rounds (earlier)
+
+Same queries on neatly bulk-loaded data, before the cadence test. The proposal below still used a day bucket for summaries.
+
 ## Large project: 1M traces/day, 30 days
 
 | Query | 1 main today | 2 main + query fixes | 3 review-call version | 4 proposal |

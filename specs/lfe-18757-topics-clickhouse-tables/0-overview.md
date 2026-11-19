@@ -26,14 +26,30 @@ Keys at a glance:
 |---|---|---|
 | 1, 2 | `(project_id, toStartOfMinute(t), facet_id, facet_version, trace_id, ...)` plus a projection | `(project_id, toStartOfMinute(t), facet_id, facet_version, trace_id, ...)` |
 | 3 | PK `(project_id, toStartOfMinute(t), facet_id)`, ORDER BY adds `facet_version, unit_hash`; pointer MV (trace to time) | PK `(project_id, facet_id, toStartOfMinute(t))`, ORDER BY adds `run, unit_hash`; bloom on `rule_id` |
-| 4 | `(project_id, toDate(t), facet_id, facet_version, unit_hash)` | `(project_id, facet_id, run, topic_id, toStartOfHour(t), unit_hash)`; MV into a time-ordered trace-to-topic lookup |
+| 4 | `(project_id, toStartOfHour(t), facet_id, facet_version, unit_hash)` | `(project_id, facet_id, run, topic_id, toStartOfHour(t), unit_hash)`; MV into a time-ordered trace-to-topic lookup |
 
 Versions 3 and 4 share most review points: time first for summaries, a 64-bit hash of the trace or session id, no projections, rule ids not LowCardinality. They differ in three places:
-- the summaries' time bucket (minute vs day)
+- the summaries' time bucket (minute vs hour)
 - where the run sits in the assignments key (after vs before time)
 - what the MV serves (summary pointers vs trace-to-topic lookup)
 
-## Outcome
+## Outcome under realistic inserts
+
+The final test inserts 14 days of traffic the way prod does: 1-minute flushes, processing lag, late arrivals, nightly refits on a 7-day sample. Full numbers are in [3-results.md](3-results.md#realistic-insert-cadence-final-test).
+
+| Query (1M traces/day project) | review-call version | proposal |
+|---|---|---|
+| Refit, stable 100k sample, 7 days | 56.6 GiB | 3.4 GiB |
+| Counts by state, 7 days | 2.6 GiB | 0.9 GiB |
+| Summaries in a 1-hour window | 35 MiB | 12 MiB |
+| Topic page / tracing table topic filter | 508 / 547 MiB | 11 / 12 MiB |
+| Map counts, current run | 444 MiB | 115 MiB |
+| Parts touched (7-day counts) | 66 | 63 |
+
+- **Both layouts open the same parts.** A coarser time bucket doesn't cost part pruning, because parts are picked by their min/max of `unit_start_time`.
+- **The proposal moved from a day to an hour bucket after this test.** Day reads a little less on week-long windows, hour much less on windows of an hour or less.
+
+## Outcome (bulk-loaded rounds)
 
 Bytes read on a 1M traces/day project over 30 days (140M summaries, 174M assignments). The 10k/day project ranks the same at about a hundredth of the bytes.
 

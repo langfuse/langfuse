@@ -15,7 +15,7 @@ It started from the pre-review draft, `(project_id, facet_id, toDate(t), xxHash3
   - bloom granularity 1
   - a materialized view for lookups by trace
 - **Changed against version 3, each measured:**
-  - **A day bucket instead of a minute bucket.** One (day, facet) group spans many granules, so facet filters and the hash sample prune.
+  - **An hour bucket instead of a minute bucket.** For a large project, one (hour, facet) group spans several granules, so facet filters and the hash sample prune. Windows of an hour or less stay cheap. We first used a day bucket; the realistic-cadence test showed hour is the more robust middle ground (see [../3-results.md](../3-results.md#realistic-insert-cadence-final-test)).
   - **The hash in the primary key.** `unit_hash < k` only prunes on primary key columns.
   - **Run (and topic) before time for assignments.** Every map read filters on one run, and a run's rows span the whole window.
   - **The MV serves trace to topic,** instead of summary pointers.
@@ -25,7 +25,7 @@ It started from the pre-review draft, `(project_id, facet_id, toDate(t), xxHash3
 
 | Table | Primary key | Sort key | Extras |
 |---|---|---|---|
-| `topic_facet_summaries` | `(project_id, toDate(unit_start_time), facet_id, facet_version, unit_hash)` | same | blooms on `trace_id`, `session_id`; `rule_ids Array(String)`; no projection |
+| `topic_facet_summaries` | `(project_id, toStartOfHour(unit_start_time), facet_id, facet_version, unit_hash)` | same | blooms on `trace_id`, `session_id`; `rule_ids Array(String)`; no projection |
 | `topic_assignments` | `(project_id, facet_id, clustering_run_id, topic_id, toStartOfHour(unit_start_time))` | adds `unit_hash` | blooms on `trace_id`, `session_id`; `rule_id` is a plain column |
 | `topic_assignments_by_trace` | `(project_id, toStartOfMinute(unit_start_time), facet_id)` | adds `trace_id, session_id, rule_id, clustering_run_id` | bloom on `trace_id`; fed by `topic_assignments_by_trace_mv`; narrow (topic columns only) |
 

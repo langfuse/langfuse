@@ -7,8 +7,9 @@
 DROP TABLE IF EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE} SYNC;
 DROP TABLE IF EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE} SYNC;
 
--- Time first with a day bucket, then facet and version, then the unit hash: one (day, facet) group spans many
--- granules, so facet filters and a stable `unit_hash < k` sample both prune. The hash must be in the primary key.
+-- Time first with an hour bucket, then facet and version, then the unit hash: one (hour, facet) group of a large
+-- project spans several granules, so facet filters and a stable `unit_hash < k` sample both prune, while windows of an
+-- hour or less stay cheap. The hash must be in the primary key.
 CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
 (
     project_id String,
@@ -46,8 +47,8 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(processed_at)
 PARTITION BY toYYYYMM(unit_start_time)
-PRIMARY KEY (project_id, toDate(unit_start_time), facet_id, facet_version, unit_hash)
-ORDER BY (project_id, toDate(unit_start_time), facet_id, facet_version, unit_hash);
+PRIMARY KEY (project_id, toStartOfHour(unit_start_time), facet_id, facet_version, unit_hash)
+ORDER BY (project_id, toStartOfHour(unit_start_time), facet_id, facet_version, unit_hash);
 
 -- Every map read filters on one run, and a run's clustered rows span the whole window, so the run (and topic)
 -- come before time. The run implies the rule, so rule_id is a plain column, not part of the key. Reads by trace across runs go through the lookup below.

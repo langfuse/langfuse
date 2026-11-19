@@ -12,7 +12,7 @@ Points raised in the design review of these tables (issue thread and a review ca
 - **Doesn't hold:**
   - Time pruning across parts comes from each part's min/max of `unit_start_time`, the partition key column, whatever the key order. A 1-day filter on a facet-first table kept 7 of 55 parts.
   - Merges are picked by part size (`merge_selector_algorithm = Simple`), not by key, so part counts match across layouts.
-- **What we did:** summaries keep time first (with a day bucket). Assignments put the run first, because every map read filters on one run, and a run's clustered rows span the whole window. Meeting layout vs proposal: scatter 1.3 GiB vs 35 MiB, previous-run lookup 1.2 GiB vs 25 MiB.
+- **What we did:** summaries keep time first, with an hour bucket. Assignments put the run first, because every map read filters on one run, and a run's clustered rows span the whole window. Meeting layout vs proposal: scatter 1.3 GiB vs 35 MiB, previous-run lookup 1.2 GiB vs 25 MiB.
 
 **"Don't put a higher-cardinality prefix before time than `events_full` has."**
 
@@ -20,7 +20,7 @@ The rule matches the docs (low cardinality first, `toDate(...)` second). Per pro
 - Topics page counts read every facet (11.7 GiB vs 2.9 GiB).
 - A stable refit sample is a full scan (258 GiB vs 1.4 GiB).
 
-The day bucket is the compliant version of this rule.
+A coarser bucket (hour or day) is the compliant version of this rule. We picked hour after the realistic-cadence test.
 
 **"Use materialized views that only store pointers, (project, facet, trace) to timestamp, for lookups by facet or trace and for the stable sample; partition them by month."**
 
@@ -43,6 +43,29 @@ The premise is about runs per day, but what matters is where a run's rows sit. A
 **"Changing the key later realistically means a backfill."** (Also raised: "not easily for self-hosters without a major release.")
 
 This is why the key is decided before Topics leaves closed beta. Both migrations drop and recreate the tables.
+
+**"Where exactly do the gains come from? Could it be just a better MV shape?"** (follow-up)
+
+From the sort keys:
+- **Summaries:** counts, the refit sample and facet reads are cheaper because facet and hash can prune within an hour (or day) bucket, not within a minute.
+- **Assignments:** map, topic and run reads are cheaper because the run and topic come before time.
+- **The only MV in the proposal** serves the tracing table topic column, and on its own it only brings that query level with the review-call layout.
+
+**"Benchmark with a realistic insert cadence and late arrivals; bulk loads produce neatly packed parts."** (follow-up)
+
+Done: [3-results.md](3-results.md#realistic-insert-cadence-final-test).
+- **Setup:** 14 days in 1-minute flushes with processing lag, late arrivals and nightly 7-day refits. Merges had less time than in prod.
+- **Result:** the ranking held. The assignment gaps shrank from the bulk numbers (4x to 46x instead of up to 1,000x), partly because of the 7-day refit window.
+
+**"Coarser is better for sub-part pruning, finer for part pruning. Worried about SELECTs that touch 100+ parts with `toDate`."** (follow-up)
+
+Measured directly. All layouts opened the same parts (for example 63 to 66 for 7-day counts, and about 116 for a 93-day trace lookup). Part pruning comes from each part's min/max of `unit_start_time`, the partition key column, not from the sort key's time bucket.
+
+The bucket only changes the granules read inside those parts:
+- 7-day counts: 6,619 granules (minute) vs 2,354 (hour) vs 1,753 (day).
+- A 1-hour window: day reads 9x more than hour.
+
+That's why the proposal now uses `toStartOfHour`, the middle ground suggested in the thread.
 
 ## Primary key, sampling and indexes
 
@@ -79,7 +102,7 @@ Dedupe is still needed: facet versions coexist, and reprocessed or late rows exi
 - List resolve: 2.7 GiB to 318 MiB.
 - Nightly check: 3.3 GiB to 1.05 GiB.
 
-With the day bucket, ReplacingMergeTree also merges same-day reprocessing on its own.
+With a coarser bucket, ReplacingMergeTree also merges reprocessing within the same bucket on its own.
 
 **"Is BFloat16 available on 25.12, any setting gotchas?"**
 

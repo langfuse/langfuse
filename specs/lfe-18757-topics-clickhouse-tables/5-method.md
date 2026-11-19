@@ -29,6 +29,21 @@ Twenty read query shapes (Q07 to Q33, listed with their source in [2-versions/1-
 
 Parameters follow the code: page batches of 200, 1,000-id lookups, 7/14/30-day refit steps, a 16k refit limit, and windows from the published map. Inputs such as candidate ids, scatter ids and trace pages are drawn from the data the same way the app gets them.
 
+## Realistic insert cadence
+
+The final test (see [3-results.md](3-results.md#realistic-insert-cadence-final-test)) replaces the bulk load:
+- **Rows:** an arrivals index gives every summary a `processed_at` from a lag distribution: 90% within 10 minutes, 9% within 6 hours, 1% up to 3 days, plus reprocessed rows 1 to 2 hours later.
+- **Flushes:** each minute of `processed_at` is one flush of summaries and their online assignments into Null ingest tables, fanned out by MVs to every layout. This is like one writer feeding several tables.
+- **Refit:** at 02:00 a refit per (project, rule, facet) samples `unit_hash < k` from the hour or day table over the last 7 days (only rows processed by then), and writes 1,000-row batches.
+- **Merges:** 14 days run in about 2.5 hours, so merges get roughly 135x less wall time than in prod.
+- **Reads:** come from `system.query_log` (bytes, rows, `SelectedParts`, `SelectedMarks`). Write time per MV comes from `system.query_views_log`.
+
+Scripts are in [6-harness/cadence/](6-harness/cadence/), run from the spec directory:
+1. `arrivals.sql` and `arrivals_loop.sh`
+2. `ddl.sql` and `view.sql`
+3. `ingest.sh` (summaries and online assignments) and `ingest_asg.sh` (assignments only, with refits)
+4. `suite.py <label>`
+
 ## Known gaps
 
 - **Single local node.** Prod runs on shared storage with several replicas. Bytes read compare; latency does not. Before sign-off, replay the `main` queries on a read-only prod replica against real Topics data and compare bytes per row.
