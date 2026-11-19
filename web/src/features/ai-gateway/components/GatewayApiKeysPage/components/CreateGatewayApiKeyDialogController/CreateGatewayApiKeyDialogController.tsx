@@ -56,6 +56,7 @@ export function CreateGatewayApiKeyDialogController({
         metadataCount,
         hasDescription: input.name.length > 0,
         expiryPreset,
+        spendBudgetInterval: input.spendLimit?.interval ?? null,
       });
       setGeneratedSecretKey(created.secretKey);
       await Promise.all([

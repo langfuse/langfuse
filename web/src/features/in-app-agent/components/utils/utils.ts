@@ -54,6 +54,8 @@ export function getInAppAgentToolDisplayName(toolName: string): string {
 const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   addDashboardPlacement: "Adding widget to dashboard",
   bash: "Running command",
+  batchCreateAnnotationQueueItems: "Adding to annotation queue",
+  batchCreateScores: "Creating scores",
   batchUpsertDatasetItems: "Saving dataset items",
   configureExternalMediaStorage: "Configuring external media storage",
   createAnnotationQueueAssignment: "Assigning annotation queue",

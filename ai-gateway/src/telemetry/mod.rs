@@ -85,6 +85,10 @@ impl DeliveryContext {
         })
     }
 
+    pub(crate) fn observation_metadata(&self, facts: &InferenceFacts) -> Map<String, Value> {
+        mapping::observation_metadata(facts, &self.generation)
+    }
+
     pub(crate) fn generation_ids(&self) -> crate::correlation::GenerationIds {
         crate::correlation::GenerationIds {
             trace_id: self.generation.trace_id.clone(),
@@ -208,25 +212,26 @@ impl Telemetry {
             let permits = u32::try_from(bytes + credentials).ok()?;
             self.0.retained.clone().try_acquire_many_owned(permits).ok()
         };
-        let mut size = serialized_size(&span, limit);
-        if size.is_none() && mapping::omit_input(&mut span, InputOmissionReason::RecordLimit) {
-            size = serialized_size(&span, limit);
-        }
-        let Some(mut bytes) = size else {
-            self.0.stats.record_dropped(1, "size");
-            return;
+        // A record that does not fit loses its input, then its output, so usage and
+        // cost are still delivered.
+        let omit_content = |span: &mut Value, reason| {
+            mapping::omit_input(span, reason) || mapping::omit_output(span, reason)
         };
-        let mut retained = acquire(bytes);
-        if retained.is_none()
-            && mapping::omit_input(&mut span, InputOmissionReason::TelemetryBuffer)
-            && let Some(reduced) = serialized_size(&span, limit)
-        {
-            bytes = reduced;
-            retained = acquire(bytes);
-        }
-        let Some(retained) = retained else {
-            self.0.stats.record_dropped(1, "bytes");
-            return;
+        let (bytes, retained) = loop {
+            let Some(bytes) = serialized_size(&span, limit) else {
+                if omit_content(&mut span, InputOmissionReason::RecordLimit) {
+                    continue;
+                }
+                self.0.stats.record_dropped(1, "size");
+                return;
+            };
+            if let Some(retained) = acquire(bytes) {
+                break (bytes, retained);
+            }
+            if !omit_content(&mut span, InputOmissionReason::TelemetryBuffer) {
+                self.0.stats.record_dropped(1, "bytes");
+                return;
+            }
         };
         let item = Pending::new(span, bytes, link, retained);
         match self.0.queue.try_send(Message::Record(context.grant, item)) {

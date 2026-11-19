@@ -180,6 +180,7 @@ export default {
             reportGlobalThis: false,
           },
         ],
+        "array-callback-return": "warn",
         "no-void": "warn",
         "no-else-return": "warn",
         "no-unneeded-ternary": "warn",

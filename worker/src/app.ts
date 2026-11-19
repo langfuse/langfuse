@@ -111,6 +111,7 @@ import { InAppAgentRetentionCleaner } from "./features/in-app-agent-retention-cl
 import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
+import { EventsDispatchTranscriptCleaner } from "./features/eventsDispatch/transcriptCleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
@@ -863,6 +864,16 @@ if (
 ) {
   batchProjectBlobCleaner = new BatchProjectBlobCleaner();
   batchProjectBlobCleaner.start();
+}
+
+// Stored transcripts are not blob references, so project deletion does not
+// remove them.
+export let eventsDispatchTranscriptCleaner: EventsDispatchTranscriptCleaner | null =
+  null;
+
+if (env.LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED === "true") {
+  eventsDispatchTranscriptCleaner = new EventsDispatchTranscriptCleaner();
+  eventsDispatchTranscriptCleaner.start();
 }
 
 // Batch trace deletion cleaner for supplementary trace deletion

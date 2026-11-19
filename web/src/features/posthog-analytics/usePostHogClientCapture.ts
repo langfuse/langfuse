@@ -452,6 +452,8 @@ const events = {
     "setup_opened",
     "setup_step_saved",
     "setup_started",
+    // Tracing pulse chart topic stripe. Props: isV4, isSelected, topicCount; never topic names.
+    "stripe_toggle",
   ],
   in_app_agent: [
     "activity_opened",
@@ -484,6 +486,7 @@ const events = {
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  billing_coupon: ["submitted"],
   // Launch surfaces answer "which entry point and state lead people into
   // gateway setup or key creation?" Props are state enums and counts only.
   ai_gateway_launch: [

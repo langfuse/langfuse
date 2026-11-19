@@ -97,6 +97,7 @@ export const TestLegacyMetadata = meta.story({
           description: false,
           scoreConfigIds: true,
           newAssignmentUserIds: false,
+          sessionViewId: false,
         },
       ),
     );
@@ -140,6 +141,7 @@ export const TestSaveAndDiscard = meta.story({
           description: false,
           scoreConfigIds: false,
           newAssignmentUserIds: false,
+          sessionViewId: false,
         },
       ),
     );
@@ -215,6 +217,7 @@ export const TestTabsKeepDraft = meta.story({
           description: false,
           scoreConfigIds: true,
           newAssignmentUserIds: false,
+          sessionViewId: false,
         },
       ),
     );

@@ -174,6 +174,8 @@ const storedExecutionIssueV1Schema = z.object({
   level: z.enum(["ERROR", "WARNING"]),
   statusMessage: z.string().nullable(),
   startTime: isoTimestampSchema,
+  /** Optional addition: objects written before it was added read as absent. */
+  parentObservationId: z.string().nullable().optional(),
 }) satisfies z.ZodType<JsonValue>;
 
 export type StoredExecutionIssueV1 = z.infer<

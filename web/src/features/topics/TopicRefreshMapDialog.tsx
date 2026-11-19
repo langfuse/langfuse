@@ -1,6 +1,6 @@
-import type { TopicRule } from "@langfuse/shared/topics";
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { api } from "@/src/utils/api";
+import { TopicRefreshMapDialogView } from "./TopicRefreshMapDialogView";
+import { type TopicRuleMap } from "./topic-maps";
 
 /** Confirms reclustering a map now, outside the nightly refit. */
 export function TopicRefreshMapDialog({
@@ -9,7 +9,7 @@ export function TopicRefreshMapDialog({
   closeDialog,
 }: {
   projectId: string;
-  rule: TopicRule;
+  rule: TopicRuleMap;
   closeDialog: () => void;
 }) {
   const utils = api.useUtils();
@@ -20,16 +20,11 @@ export function TopicRefreshMapDialog({
     },
   });
   return (
-    <Dialog
-      title="Refresh map"
-      text="Topics may be renamed, merged or split. Naming uses your clustering model as defined in topic settings."
-      actions={[
-        {
-          label: "Refresh",
-          loading: refresh.isPending,
-          onClick: () => refresh.mutate({ projectId, ruleId: rule.id }),
-        },
-      ]}
+    <TopicRefreshMapDialogView
+      rule={rule}
+      now={Date.now()}
+      refreshing={refresh.isPending}
+      onRefresh={() => refresh.mutate({ projectId, ruleId: rule.id })}
     />
   );
 }

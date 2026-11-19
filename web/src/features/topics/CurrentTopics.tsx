@@ -7,7 +7,6 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { CurrentTopicsView } from "./CurrentTopicsView";
 import { ScatterTopicsView } from "./scatter/ScatterTopicsView";
 import { TopicTreemapView } from "./TopicTreemapView";
 import {
@@ -145,21 +144,6 @@ function CurrentFacet({
           mapActions={mapActions}
         />
       );
-    if (view === "map")
-      return (
-        <CurrentTopicsView
-          key={facet.facetId}
-          projectId={projectId}
-          facet={facet}
-          mapResult={mapResult}
-          tracePanelRef={tracePanelRef}
-          traceFilters={traceFilters}
-          onOpenTrace={peekNavigation.openPeek}
-          peekView={peekView}
-          useTraces={useFacetTopicTraces}
-          showUnassigned={showUnassigned}
-        />
-      );
     if (view === "scatter")
       return (
         <ScatterTopicsView
@@ -182,6 +166,7 @@ function CurrentFacet({
         facet={facet}
         peekView={peekView}
         useTraces={useFacetTopicTraces}
+        showUnassigned={showUnassigned}
       />
     );
   }

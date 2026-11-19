@@ -11,7 +11,7 @@ import {
   SidePanelContent,
   SidePanelHeader,
 } from "@/src/components/ui/side-panel";
-import { AnnotationQueueSetupController } from "@/src/features/annotation-queues/components/AnnotationQueueSetupController";
+import { ConnectedAnnotationQueueSetupController } from "@/src/features/annotation-queues/components/ConnectedAnnotationQueueSetupController";
 
 export default function QueueItems({
   projectId,
@@ -66,7 +66,7 @@ export default function QueueItems({
         <div className="flex h-full min-w-0 flex-col overflow-hidden">
           <AnnotationQueueItemsTable projectId={projectId} queueId={queueId} />
         </div>
-        <AnnotationQueueSetupController
+        <ConnectedAnnotationQueueSetupController
           key={`${projectId}:${queueId}`}
           projectId={projectId}
           queueId={queueId}

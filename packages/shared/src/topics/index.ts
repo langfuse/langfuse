@@ -30,6 +30,8 @@ export const topicIdSchema = z
 export const TOPICS_MAX_TIME_RANGE_MS = 93 * 86_400_000;
 /** One-off runs select traces from at most 30 days; larger windows get slow on high-volume projects. */
 export const TOPICS_MAX_SELECTION_RANGE_MS = 30 * 86_400_000;
+/** How long a live map waits after a manual refresh before the next one may start. */
+export const TOPIC_RULE_REFRESH_COOLDOWN_MS = 15 * 60_000;
 export const topicTimeRangeSchema = z
   .object({ from: z.coerce.date(), to: z.coerce.date() })
   .refine(({ from, to }) => from < to, {
@@ -128,6 +130,8 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
 
 /** A project runs at most this many continuous Topics rules. */
 export const TOPICS_MAX_RULES = 5;
+/** Name of the map the first Topics setup creates. */
+export const DEFAULT_TOPIC_RULE_NAME = "Default";
 /** Largest random cohort a one-off analysis selects. */
 export const TOPICS_SLICE_MAX_TRACES = 20_000;
 /** An analysis needs this many summarized traces before it can cluster. */

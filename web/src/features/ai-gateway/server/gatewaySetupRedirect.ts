@@ -9,11 +9,12 @@ import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/
 
 const SETUP_GATED_PAGE_SLUGS = new Set<string>([
   GATEWAY_PAGE_SLUGS.models,
+  GATEWAY_PAGE_SLUGS.budgets,
   GATEWAY_PAGE_SLUGS.apiKeys,
 ]);
 
 /**
- * Gateway managers cannot open the Models or Gateway keys pages before an
+ * Gateway managers cannot open the Models, Budgets or Gateway keys pages before an
  * ingestion project is configured; they are sent to the setup on Overview.
  * Other members are not redirected because their Models and API key pages
  * explain the state.

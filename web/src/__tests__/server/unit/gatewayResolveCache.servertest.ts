@@ -22,6 +22,7 @@ const context: CachedResolveContext = {
   userEmail: "alice@example.com",
   keyMetadata: {},
   keyAllowedModels: null,
+  spendLimits: [],
   ingestionProjectId: null,
   ingestionMode: null,
   plan: "cloud:hobby",
@@ -120,6 +121,7 @@ describe("GatewayResolveCache", () => {
       userId: "user-1",
       keyMetadata: {},
       keyAllowedModels: null,
+      spendLimits: [],
       ingestionProjectId: null,
       ingestionMode: null,
       plan: "cloud:hobby",
@@ -153,6 +155,24 @@ describe("GatewayResolveCache", () => {
       fastHashedSecretKey: "hashed-key",
       apiFormat: "openai.responses",
       context: withoutPatterns as unknown as CachedResolveContext,
+    });
+
+    await expect(
+      cache.get({
+        fastHashedSecretKey: "hashed-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("refetches entries cached before spend limits existed", async () => {
+    const redis = createStatefulRedis();
+    const cache = new GatewayResolveCache(redis);
+    const { spendLimits: _spendLimits, ...withoutSpendLimits } = context;
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context: withoutSpendLimits as unknown as CachedResolveContext,
     });
 
     await expect(

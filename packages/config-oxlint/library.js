@@ -29,6 +29,7 @@ export default {
     {
       files: ["**/*"],
       rules: {
+        "array-callback-return": "warn",
         "constructor-super": "warn",
         "for-direction": "warn",
         "getter-return": "warn",

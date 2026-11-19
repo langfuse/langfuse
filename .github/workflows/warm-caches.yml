@@ -2,15 +2,14 @@ name: Warm CI caches
 
 # Main-branch cache entries can be restored by other refs. Since the main
 # pipeline skips commits already tested by the merge queue, build these
-# profiles periodically so other branches can reuse their task artifacts.
+# profiles on main pushes and periodically so other branches can reuse them.
 on:
   schedule:
     # Every 6 hours, offset from the top of the hour to dodge runner-pool
     # congestion. Frequency chosen to stay under the observed hours-scale
     # cache lifetime.
     - cron: "23 */6 * * *"
-  # Only the nextjs-e2e job runs on push; it needs a cache built from the
-  # commit PRs and merge-queue runs are based on, not one up to 6h old.
+  # Warm caches from the main commit PRs and merge-queue runs are based on.
   push:
     branches:
       - "main"
@@ -30,7 +29,7 @@ env:
 
 jobs:
   warm:
-    if: github.event_name != 'push'
+    if: github.ref == 'refs/heads/main'
     # Match the pipeline's runner provider for cache compatibility.
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
