@@ -40,7 +40,7 @@ vi.mock("@/src/env.mjs", () => ({
 }));
 
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
-import { ProtocolErrorCode } from "@modelcontextprotocol/server";
+import { inputRequired, ProtocolErrorCode } from "@modelcontextprotocol/server";
 
 const context: ServerContext = {
   projectId: "project-id",
@@ -92,6 +92,19 @@ describe("runMcpTool outcome telemetry", () => {
       name: "successful execution",
       execute: async () => "ok",
       expectedOutcome: "success",
+    },
+    {
+      name: "request for client input",
+      execute: async () =>
+        inputRequired({
+          inputRequests: {
+            step: inputRequired.elicitUrl({
+              message: "Continue in Langfuse",
+              url: "https://cloud.langfuse.com",
+            }),
+          },
+        }),
+      expectedOutcome: "input_required",
     },
     {
       name: "actionable request error",

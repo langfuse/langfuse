@@ -11,15 +11,22 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import {
   CreateLLMApiKeyForm,
   type LlmConnectionFormOwner,
+  type NewLlmConnectionPrefill,
 } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function CreateLLMApiKeyDialogController({
   owner,
+  initialPrefill,
+  onClose,
   children,
 }: {
   owner: LlmConnectionFormOwner;
+  /** Opens the dialog on mount with these values, if the user may create. */
+  initialPrefill?: NewLlmConnectionPrefill;
+  /** Called when the dialog closes, dismissed or saved. */
+  onClose?: () => void;
   children: (control: {
     hasAccess: boolean;
     openDialog: () => void;
@@ -38,11 +45,18 @@ export function CreateLLMApiKeyDialogController({
     owner.scope === "project" ? hasProjectAccess : hasOrganizationAccess;
   const uiCustomization = useUiCustomization();
   const [formKey, setFormKey] = useState(0);
+  const openPrefill = hasAccess ? initialPrefill : undefined;
 
   return (
-    <DialogController
-      onDismiss={() => setFormKey((currentKey) => currentKey + 1)}
-      renderDialog={({ closeDialog }) => (
+    <DialogController<NewLlmConnectionPrefill>
+      // Remounts once access is known, so a prefilled dialog opens.
+      key={openPrefill ? "prefilled" : "empty"}
+      initialState={() => openPrefill}
+      onDismiss={() => {
+        setFormKey((currentKey) => currentKey + 1);
+        onClose?.();
+      }}
+      renderDialog={({ state: prefill, closeDialog }) => (
         <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
           <DialogHeader>
             <DialogTitle>New LLM Connection</DialogTitle>
@@ -50,13 +64,19 @@ export function CreateLLMApiKeyDialogController({
           <CreateLLMApiKeyForm
             key={formKey}
             owner={owner}
-            onSuccess={closeDialog}
+            onSuccess={() => {
+              closeDialog();
+              onClose?.();
+            }}
             customization={uiCustomization}
+            prefill={prefill}
           />
         </DialogContent>
       )}
     >
-      {({ openDialog }) => children({ hasAccess, openDialog })}
+      {({ openDialog }) =>
+        children({ hasAccess, openDialog: () => openDialog({}) })
+      }
     </DialogController>
   );
 }
