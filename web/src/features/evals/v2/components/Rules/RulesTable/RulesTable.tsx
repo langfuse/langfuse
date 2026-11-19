@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, react/no-unstable-nested-components -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
@@ -42,11 +42,7 @@ import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFi
 import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import type { RuleTableRow } from "@/src/features/evals/v2/types/rules";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { api, type RouterInputs } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -100,13 +96,16 @@ function RuleEvaluatorsCell({
         <Badge color="filled" text={assignment.evaluator.name} />
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge color="filled" text={`+${overflowItemCount}`} />
-          </TooltipTrigger>
-          <TooltipContent>
-            {hiddenItems.map(({ evaluator }) => evaluator.name).join(", ")}
-          </TooltipContent>
+        <Tooltip
+          label={hiddenItems.map(({ evaluator }) => evaluator.name).join(", ")}
+        >
+          {({ getTriggerProps }) => (
+            <Badge
+              color="filled"
+              text={`+${overflowItemCount}`}
+              {...getTriggerProps()}
+            />
+          )}
         </Tooltip>
       )}
     />

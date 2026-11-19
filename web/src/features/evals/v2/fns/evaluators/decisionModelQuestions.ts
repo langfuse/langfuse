@@ -1,3 +1,4 @@
+/* eslint-disable array-callback-return */
 import {
   DECISION_MODEL_LIMITS,
   DecisionModelQuestionType,

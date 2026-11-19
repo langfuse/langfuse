@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
-import { AnnotationQueueFormDialogController } from "./AnnotationQueueFormDialogController";
+import { ConnectedAnnotationQueueFormDialogController } from "./ConnectedAnnotationQueueFormDialogController";
+import { type ReactNode } from "react";
 
 const { create, update, assign, notify, draft } = vi.hoisted(() => ({
   create: vi.fn(),
@@ -12,11 +13,22 @@ const { create, update, assign, notify, draft } = vi.hoisted(() => ({
     description: "Initial description",
     scoreConfigIds: ["first-config"],
     newAssignmentUserIds: ["reviewer"],
+    sessionViewId: "first-view",
   },
 }));
 
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => true,
+}));
+vi.mock("../hooks/useQueueUserAssignments", () => ({
+  useQueueUserAssignments: () => ({}),
+}));
+vi.mock("./ConnectedAnnotationQueueSessionViewSettings", () => ({
+  ConnectedAnnotationQueueSessionViewSettings: ({
+    children,
+  }: {
+    children: (settings: null) => ReactNode;
+  }) => children(null),
 }));
 vi.mock("@/src/features/notifications/showErrorToast", () => ({
   showErrorToast: notify,
@@ -67,13 +79,13 @@ it("saves edited queue fields when retrying a failed assignment without duplicat
     .mockResolvedValue(undefined);
   const onSuccess = vi.fn();
   render(
-    <AnnotationQueueFormDialogController
+    <ConnectedAnnotationQueueFormDialogController
       projectId="project"
       mode="create"
       onSuccess={onSuccess}
     >
       {({ openDialog }) => <button onClick={openDialog}>Open</button>}
-    </AnnotationQueueFormDialogController>,
+    </ConnectedAnnotationQueueFormDialogController>,
   );
   fireEvent.click(screen.getByRole("button", { name: "Open" }));
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -85,6 +97,7 @@ it("saves edited queue fields when retrying a failed assignment without duplicat
     name: "Edited name",
     description: "Edited description",
     scoreConfigIds: ["second-config"],
+    sessionViewId: "second-view",
   });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(onSuccess).toHaveBeenCalledWith("created-queue"));
@@ -95,6 +108,7 @@ it("saves edited queue fields when retrying a failed assignment without duplicat
     name: "Edited name",
     description: "Edited description",
     scoreConfigIds: ["second-config"],
+    sessionViewId: "second-view",
   });
   expect(assign).toHaveBeenCalledTimes(2);
 });

@@ -4,7 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { SidePanel } from "@/src/components/ui/side-panel";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { AnnotationQueueSetupController } from "./AnnotationQueueSetupController";
+import { ConnectedAnnotationQueueSetupController } from "./ConnectedAnnotationQueueSetupController";
 
 const mocks = vi.hoisted(() => ({
   update: vi.fn(),
@@ -54,6 +54,12 @@ vi.mock("./QueueScoreConfigFields", () => ({
 }));
 vi.mock("./UserAssignmentSection", () => ({
   UserAssignmentSection: () => null,
+}));
+vi.mock("../hooks/useQueueUserAssignments", () => ({
+  useQueueUserAssignments: () => ({}),
+}));
+vi.mock("./ConnectedAnnotationQueueSessionViewSettings", () => ({
+  ConnectedAnnotationQueueSessionViewSettings: () => null,
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -282,7 +288,7 @@ function MobileSetupPanel() {
   return (
     <LayerProvider>
       <TooltipProvider>
-        <AnnotationQueueSetupController
+        <ConnectedAnnotationQueueSetupController
           projectId="project"
           queueId="queue"
           renderLayout={(content) => (
@@ -309,7 +315,7 @@ function SetupPanel() {
         <button onClick={() => setVisible(!visible)}>
           {visible ? "Hide setup" : "Show setup"}
         </button>
-        <AnnotationQueueSetupController
+        <ConnectedAnnotationQueueSetupController
           projectId="project"
           queueId="queue"
           renderLayout={(content) => (visible ? content : null)}
