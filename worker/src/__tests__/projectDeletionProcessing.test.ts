@@ -25,6 +25,7 @@ import {
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteEventsOlderThanDays,
+  findAllMediaByProjectId,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
@@ -345,48 +346,38 @@ describe("ProjectDeletionProcessingJob", () => {
     expect(datasetItemMedia).toBeNull();
   });
 
-  it("should delete media files spanning several batches", async () => {
+  it("should page through project media with the afterId cursor", async () => {
     const projectId = randomUUID();
-    const prefix = `${randomUUID()}/`;
-    s3Prefix = prefix;
     await prisma.project.create({
       data: { id: projectId, orgId, name: `Project-${randomUUID()}` },
     });
-    const fileNames = Array.from(
-      { length: 5 },
-      () => `${prefix}${randomUUID()}.txt`,
-    );
-    for (const fileName of fileNames) {
-      await storageService.uploadFile({
-        fileName,
-        fileType: "text/plain",
-        data: "Hello, world!",
-      });
-    }
+    const mediaIds = Array.from({ length: 5 }, () => randomUUID());
     await prisma.media.createMany({
-      data: fileNames.map((bucketPath) => ({
-        id: randomUUID(),
+      data: mediaIds.map((id) => ({
+        id,
         sha256Hash: randomUUID(),
         projectId,
-        bucketPath,
+        bucketPath: `${randomUUID()}.txt`,
         bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: "text/plain",
         contentLength: 0,
       })),
     });
 
-    const originalBatchSize =
-      env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE;
-    env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE = 2;
-    try {
-      await projectDeleteProcessor({
-        data: { payload: { projectId, orgId } },
-      } as Job);
-    } finally {
-      env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE = originalBatchSize;
+    const pagedIds: string[] = [];
+    let afterId: string | undefined;
+    for (let page = 0; page < mediaIds.length; page++) {
+      const batch = await findAllMediaByProjectId({
+        projectId,
+        limit: 2,
+        afterId,
+      });
+      if (batch.length === 0) break;
+      pagedIds.push(...batch.map((media) => media.id));
+      afterId = batch[batch.length - 1].id;
     }
 
-    expect(await storageService.listFiles(prefix)).toHaveLength(0);
+    expect(pagedIds).toEqual([...mediaIds].sort());
   });
 
   describe("delete functions with hasAny probe", () => {

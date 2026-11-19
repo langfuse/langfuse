@@ -19,6 +19,27 @@ import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@prisma/client";
 import { env, v4WritesToEventsTable } from "../env";
 
+async function deleteProjectMediaInBatches(params: {
+  projectId: string;
+  bucket: string;
+}): Promise<void> {
+  const { projectId } = params;
+  const storageClient = getS3MediaStorageClient(params.bucket);
+  // Each batch commits, so a retried job resumes. The cursor moves past
+  // rows that deleteMediaFiles skips, so the loop always terminates.
+  let afterId: string | undefined;
+  while (true) {
+    const mediaFiles = await findAllMediaByProjectId({
+      projectId,
+      limit: env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE,
+      afterId,
+    });
+    if (mediaFiles.length === 0) return;
+    await deleteMediaFiles({ projectId, mediaFiles, storageClient });
+    afterId = mediaFiles[mediaFiles.length - 1].id;
+  }
+}
+
 export const projectDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.ProjectDelete]>,
 ): Promise<void> => {
@@ -44,22 +65,10 @@ export const projectDeleteProcessor: Processor = async (
   // Delete media data from S3 and PG for project
   if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
     logger.info(`Deleting media for ${projectId} in org ${orgId}`);
-    const storageClient = getS3MediaStorageClient(
-      env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-    );
-    // Each batch commits, so a retried job resumes. The cursor moves past
-    // rows that deleteMediaFiles skips, so the loop always terminates.
-    let afterId: string | undefined;
-    while (true) {
-      const mediaFiles = await findAllMediaByProjectId({
-        projectId,
-        limit: env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE,
-        afterId,
-      });
-      if (mediaFiles.length === 0) break;
-      await deleteMediaFiles({ projectId, mediaFiles, storageClient });
-      afterId = mediaFiles[mediaFiles.length - 1].id;
-    }
+    await deleteProjectMediaInBatches({
+      projectId,
+      bucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+    });
   }
 
   logger.info(
