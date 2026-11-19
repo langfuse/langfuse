@@ -16,6 +16,11 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
+import {
+  ALREADY_ORGANIZATION_MEMBER_MESSAGE,
+  ALREADY_PROJECT_MEMBER_MESSAGE,
+  PENDING_MEMBERSHIP_INVITE_MESSAGE,
+} from "@/src/features/rbac/constants/membershipErrorMessages";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
@@ -209,7 +214,7 @@ export async function inviteOrganizationMember({
       }
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "User is already a member of this organization",
+        message: ALREADY_ORGANIZATION_MEMBER_MESSAGE,
       });
     }
 
@@ -229,7 +234,7 @@ export async function inviteOrganizationMember({
     ) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "User is already a member of this project",
+        message: ALREADY_PROJECT_MEMBER_MESSAGE,
       });
     }
 
@@ -345,8 +350,7 @@ export async function inviteOrganizationMember({
       ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message:
-            "A pending membership invitation with this email and organization already exists",
+          message: PENDING_MEMBERSHIP_INVITE_MESSAGE,
         });
       } else {
         throw error;

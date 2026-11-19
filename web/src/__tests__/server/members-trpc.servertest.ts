@@ -200,7 +200,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
           email: user2.email!,
           orgRole: Role.MEMBER,
         }),
-      ).rejects.toThrow(/exceeds the limit/i);
+      ).rejects.toThrow(/at its member limit/i);
     });
 
     it("does not admit more members than the limit under concurrent requests", async () => {
@@ -234,7 +234,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       expect(results.length - rejected.length).toBe(1);
       // every loser lost to the limit check, not to an incidental error
       for (const result of rejected) {
-        expect(String(result.reason)).toMatch(/exceeds the limit/i);
+        expect(String(result.reason)).toMatch(/at its member limit/i);
       }
     }, 25_000);
 
@@ -267,7 +267,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       const rejected = results.filter((r) => r.status === "rejected");
       expect(results.length - rejected.length).toBe(1);
       for (const result of rejected) {
-        expect(String(result.reason)).toMatch(/exceeds the limit/i);
+        expect(String(result.reason)).toMatch(/at its member limit/i);
       }
     }, 25_000);
 
@@ -293,7 +293,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
           email: newEmail,
           orgRole: Role.MEMBER,
         }),
-      ).rejects.toThrow(/exceeds the limit/i);
+      ).rejects.toThrow(/at its member limit/i);
     });
   });
 
