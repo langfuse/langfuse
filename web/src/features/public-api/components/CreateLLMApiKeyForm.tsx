@@ -11,6 +11,8 @@ import {
   type VertexAIConfig,
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  getInvalidLlmBaseUrlReason,
+  getLlmBaseUrlFormatError,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   resolveTypeSafeUpstream,
@@ -32,6 +34,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import {
   Select,
@@ -121,6 +124,7 @@ const getInitialBedrockAuthMethod = (params: {
 const createFormSchema = (params: {
   mode: "create" | "update";
   existingAuthMethod?: BedrockAuthMethod;
+  existingBaseURL?: string | null;
 }) =>
   z
     .object({
@@ -133,7 +137,13 @@ const createFormSchema = (params: {
           "Provider name cannot contain colons. Use a format like 'OpenRouter_Mistral' instead.",
         ),
       adapter: z.enum(LLMAdapter),
-      baseURL: z.union([z.literal(""), z.url()]),
+      baseURL: z.string().superRefine((baseURL, ctx) => {
+        // The server skips an unchanged base URL on update, so a URL saved
+        // under older rules must not block other edits.
+        if (baseURL === "" || baseURL === params.existingBaseURL) return;
+        const message = getLlmBaseUrlFormatError(baseURL, isLangfuseCloud);
+        if (message) ctx.addIssue({ code: "custom", message });
+      }),
       typeSafeUpstream: z.enum(
         TYPESAFE_UPSTREAMS.map(
           (upstream): TypeSafeUpstream["id"] => upstream.id,
@@ -424,6 +434,7 @@ export function CreateLLMApiKeyForm({
   const formSchema = createFormSchema({
     mode,
     existingAuthMethod: existingKey?.authMethod,
+    existingBaseURL: existingKey?.baseURL,
   });
 
   const form = useForm({
@@ -527,6 +538,14 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.VertexAI ||
     adapter === LLMAdapter.GoogleAIStudio ||
     adapter === LLMAdapter.TypeSafe;
+  const isBaseURLInAdvancedSettings =
+    hasAdvancedSettings(currentAdapter) &&
+    currentAdapter !== LLMAdapter.TypeSafe;
+  const isBaseURLFieldShown =
+    isBaseURLInAdvancedSettings ||
+    currentAdapter === LLMAdapter.Azure ||
+    (currentAdapter === LLMAdapter.TypeSafe &&
+      currentTypeSafeUpstream.id === "custom");
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -664,6 +683,22 @@ export function CreateLLMApiKeyForm({
   const isFieldDisabled = (fieldName: string) => {
     if (mode !== "update") return false;
     return ["provider", "adapter"].includes(fieldName);
+  };
+
+  const showSaveError = (message: string) => {
+    const baseURLReason = getInvalidLlmBaseUrlReason(message);
+    if (baseURLReason === null || !isBaseURLFieldShown) {
+      form.setError("root", { type: "manual", message });
+      return;
+    }
+    form.setError("baseURL", { type: "server", message: baseURLReason });
+    if (isBaseURLInAdvancedSettings) setShowAdvancedSettings(true);
+  };
+
+  const handleInvalidSubmit = (errors: typeof form.formState.errors) => {
+    if (errors.baseURL && isBaseURLInAdvancedSettings) {
+      setShowAdvancedSettings(true);
+    }
   };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -809,14 +844,9 @@ export function CreateLLMApiKeyForm({
 
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
-      form.setError("root", {
-        type: "manual",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not verify the API key.",
-      });
-
+      showSaveError(
+        error instanceof Error ? error.message : "Could not verify the API key.",
+      );
       return;
     }
 
@@ -866,13 +896,11 @@ export function CreateLLMApiKeyForm({
       })
       .catch((error) => {
         reportTrpcErrorWithoutToast(error, "llm-api-keys");
-        form.setError("root", {
-          type: "manual",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Could not save the connection.",
-        });
+        showSaveError(
+          error instanceof Error
+            ? error.message
+            : "Could not save the connection.",
+        );
       });
   }
 
@@ -882,7 +910,7 @@ export function CreateLLMApiKeyForm({
         className="flex flex-col gap-4 overflow-auto"
         onSubmit={(e) => {
           e.stopPropagation(); // Prevent event bubbling to parent forms
-          form.handleSubmit(onSubmit)(e);
+          form.handleSubmit(onSubmit, handleInvalidSubmit)(e);
         }}
       >
         <DialogBody>
@@ -1043,7 +1071,7 @@ export function CreateLLMApiKeyForm({
                   <FormField
                     control={form.control}
                     name="baseURL"
-                    render={({ field }) => (
+                    render={({ field, fieldState }) => (
                       <FormItem>
                         <FormLabel>Custom base URL</FormLabel>
                         <FormDescription>
@@ -1053,8 +1081,9 @@ export function CreateLLMApiKeyForm({
                           out.
                         </FormDescription>
                         <FormControl>
-                          <Input
+                          <DesignSystemInput
                             {...field}
+                            error={Boolean(fieldState.error)}
                             placeholder="https://gateway.example.com/v1"
                           />
                         </FormControl>
@@ -1527,7 +1556,7 @@ export function CreateLLMApiKeyForm({
                 <FormField
                   control={form.control}
                   name="baseURL"
-                  render={({ field }) => (
+                  render={({ field, fieldState }) => (
                     <FormItem>
                       <FormLabel>API Base URL</FormLabel>
                       <FormDescription>
@@ -1536,8 +1565,9 @@ export function CreateLLMApiKeyForm({
                         https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
                       </FormDescription>
                       <FormControl>
-                        <Input
+                        <DesignSystemInput
                           {...field}
+                          error={Boolean(fieldState.error)}
                           placeholder="https://your-instance.openai.azure.com/openai/deployments"
                         />
                       </FormControl>
@@ -1585,7 +1615,7 @@ export function CreateLLMApiKeyForm({
                     <FormField
                       control={form.control}
                       name="baseURL"
-                      render={({ field }) => (
+                      render={({ field, fieldState }) => (
                         <FormItem>
                           <FormLabel>API Base URL</FormLabel>
                           <FormDescription>
@@ -1605,7 +1635,11 @@ export function CreateLLMApiKeyForm({
                           </FormDescription>
 
                           <FormControl>
-                            <Input {...field} placeholder="default" />
+                            <DesignSystemInput
+                              {...field}
+                              error={Boolean(fieldState.error)}
+                              placeholder="default"
+                            />
                           </FormControl>
 
                           <FormMessage />

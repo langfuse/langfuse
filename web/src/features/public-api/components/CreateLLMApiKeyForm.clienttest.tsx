@@ -133,4 +133,35 @@ describe("CreateLLMApiKeyForm", () => {
     );
     expect(mocks.reportNonTrpcError).not.toHaveBeenCalled();
   });
+
+  it("shows a base URL save error on the base URL field", async () => {
+    mocks.createProject.mockRejectedValue(
+      new Error("Invalid base URL: Blocked hostname detected"),
+    );
+
+    render(
+      <CreateLLMApiKeyForm
+        owner={{ scope: "project", projectId: "project" }}
+        onSuccess={vi.fn()}
+        customization={null}
+      />,
+      { wrapper: LayerProvider },
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Provider name" }), {
+      target: { value: "openai" },
+    });
+    fireEvent.change(screen.getByLabelText("API Key"), {
+      target: { value: "secret-key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create connection" }));
+
+    expect(
+      await screen.findByRole("textbox", { name: "API Base URL" }),
+    ).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("Blocked hostname detected")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Invalid base URL: Blocked hostname detected"),
+    ).not.toBeInTheDocument();
+  });
 });

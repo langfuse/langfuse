@@ -20,6 +20,7 @@ const defaultBaseUrls: Record<GatewayCustomEndpointProvider, string> = {
 export function AdvancedSettings({
   provider,
   baseURL,
+  baseURLError,
   headers,
   storedHeaderKeys,
   isEditing,
@@ -28,6 +29,7 @@ export function AdvancedSettings({
 }: {
   provider: GatewayCustomEndpointProvider;
   baseURL: string;
+  baseURLError: string | null;
   headers: ExtraHeaderRow[];
   /** Names whose values are stored; their rows may stay blank to keep the value. */
   storedHeaderKeys: string[];
@@ -36,6 +38,8 @@ export function AdvancedSettings({
   onHeadersChange: (headers: ExtraHeaderRow[]) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  // Stays open while the base URL has an error, so the error is never hidden.
+  const isOpen = isExpanded || Boolean(baseURLError);
 
   const handleBaseURLChange = (event: ChangeEvent<HTMLInputElement>) => {
     onBaseURLChange(event.target.value);
@@ -44,7 +48,7 @@ export function AdvancedSettings({
   return (
     <div className="space-y-6">
       <ExpandToggle
-        expanded={isExpanded}
+        expanded={isOpen}
         onExpandedChange={setIsExpanded}
         label="Show advanced settings"
         expandedLabel="Hide advanced settings"
@@ -53,7 +57,7 @@ export function AdvancedSettings({
         size="sm"
         controls="gateway-advanced-settings"
       />
-      {isExpanded ? (
+      {isOpen ? (
         <div id="gateway-advanced-settings" className="space-y-6 border-t pt-6">
           <div className="ph-no-capture">
             <FieldHeader
@@ -67,12 +71,28 @@ export function AdvancedSettings({
                 </>
               }
             />
-            <Input
-              id="gateway-base-url"
-              placeholder="default"
-              value={baseURL}
-              onChange={handleBaseURLChange}
-            />
+            <div className="space-y-1">
+              <Input
+                id="gateway-base-url"
+                placeholder="default"
+                value={baseURL}
+                aria-invalid={Boolean(baseURLError)}
+                aria-describedby={
+                  baseURLError ? "gateway-base-url-error" : undefined
+                }
+                error={Boolean(baseURLError)}
+                onChange={handleBaseURLChange}
+              />
+              {baseURLError ? (
+                <p
+                  id="gateway-base-url-error"
+                  role="alert"
+                  className="text-destructive text-sm"
+                >
+                  {baseURLError}
+                </p>
+              ) : null}
+            </div>
           </div>
           <ExtraHeadersSettings
             headers={headers}
