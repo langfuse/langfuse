@@ -40,6 +40,7 @@ const view = {
   id: "saved",
   projectId: "project",
   name: "Saved view",
+  ownership: "PROJECT" as const,
   createdBy: "user",
   createdByUser: null,
   createdAt: new Date("2026-01-01"),

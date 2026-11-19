@@ -41,6 +41,7 @@ import Page from "@/src/components/layouts/Page";
 import {
   type ColumnDefinition,
   type FilterState,
+  type SessionViewInputSchema,
   TableViewPresetTableName,
   normalizeLegacySessionPositionInTraceFilters,
   assertUnreachable,
@@ -92,6 +93,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { ConnectedSessionCustomizationDialog } from "@/src/features/sessions/SessionCustomizationDialog/ConnectedSessionCustomizationDialog";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { useSessionHeaderMenuItems } from "@/src/features/sessions/useSessionHeaderMenuItems";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
@@ -109,6 +111,9 @@ import {
   type LegacySessionTrace,
 } from "@/src/features/sessions/sessionDetailPageTypes";
 import { getSessionFilterOptionsStartTimeFilters } from "@/src/features/sessions/sessionFilterOptions";
+import { type z } from "zod";
+
+type SessionViewInput = z.infer<typeof SessionViewInputSchema>;
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.
@@ -653,6 +658,7 @@ function SessionEventsLoadingPage({
         <SessionReviewWorkspace projectId={projectId}>
           <div className="flex h-full min-h-0 flex-col overflow-hidden">
             <ConnectedModernSessionBodyTimeline
+              sidebarMode="fixed"
               tracesState={{ type: "loading" }}
               projectId={projectId}
               sessionId={sessionId}
@@ -707,7 +713,7 @@ const LoadedSessionEventsPage: React.FC<{
   const pendingPreferenceUpdates = useRef(0);
   const canSetDefaultPin = useHasProjectAccess({
     projectId,
-    scope: "projectMembers:CUD",
+    scope: "SessionViews:CUD",
   });
   const setDefaultPin = api.sessionViews.setDefaultPin.useMutation({
     onSuccess: async () => {
@@ -751,11 +757,23 @@ const LoadedSessionEventsPage: React.FC<{
     },
   );
   const isMessagesPinned = pinnedSessionViewIds.includes("messages");
-  const canSaveSessionView = useHasProjectAccess({
+  const canSavePrivateSessionView = useHasProjectAccess({
     projectId,
     scope: "TableViewPresets:CUD",
   });
-  const updateSessionView = api.sessionViews.update.useMutation();
+  const canSaveProjectSessionView = useHasProjectAccess({
+    projectId,
+    scope: "SessionViews:CUD",
+  });
+  const canSaveSessionView =
+    canSavePrivateSessionView || canSaveProjectSessionView;
+  const allowedSessionViewOwnerships: SessionViewInput["ownership"][] = [
+    ...(canSavePrivateSessionView ? ["PRIVATE" as const] : []),
+    ...(canSaveProjectSessionView ? ["PROJECT" as const] : []),
+  ];
+  const updateSessionView = api.sessionViews.update.useMutation({
+    onSuccess: () => viewUtils.annotationQueues.invalidate(),
+  });
   const deleteSessionView = api.sessionViews.delete.useMutation();
   const duplicateSessionView = api.sessionViews.create.useMutation();
   const createSessionView = api.sessionViews.create.useMutation({
@@ -1426,8 +1444,9 @@ const LoadedSessionEventsPage: React.FC<{
                 | "viewMode"
                 | "unmatchedTraces"
                 | "canEdit"
+                | "ownership"
               >;
-              action: "edit" | "delete" | "duplicate";
+              action: "edit" | "delete" | "duplicate" | "promote-and-pin";
             }
         >
           key={`view-action:${projectId}:${sessionId}`}
@@ -1453,6 +1472,44 @@ const LoadedSessionEventsPage: React.FC<{
                     });
                     closeDialog();
                   }}
+                />
+              );
+            }
+            if (state.action === "promote-and-pin") {
+              return (
+                <Dialog
+                  title="Convert to a project view and pin by default?"
+                  text={
+                    setDefaultPin.error?.message
+                      ? `Could not convert and pin this view: ${setDefaultPin.error.message}`
+                      : "This view will become visible to everyone with project-view access and pinned by default for the project. Personal pin choices are kept. It cannot be made private again."
+                  }
+                  actions={[
+                    {
+                      label: "Convert and pin by default",
+                      loading: setDefaultPin.isPending,
+                      disabled: !canSetDefaultPin || !state.view.canEdit,
+                      onClick: async () => {
+                        if (
+                          !canSetDefaultPin ||
+                          !state.view.canEdit ||
+                          setDefaultPin.isPending
+                        )
+                          return;
+                        try {
+                          await setDefaultPin.mutateAsync({
+                            projectId,
+                            id: state.view.id,
+                            isPinnedByDefaultForProject: true,
+                            promoteToProject: true,
+                          });
+                          closeDialog();
+                        } catch {
+                          // Keep the confirmation open so conversion can be retried.
+                        }
+                      },
+                    },
+                  ]}
                 />
               );
             }
@@ -1510,9 +1567,10 @@ const LoadedSessionEventsPage: React.FC<{
                 <SessionDuplicateViewDialog
                   view={state.view}
                   canEdit={canSaveSessionView}
+                  allowedOwnerships={allowedSessionViewOwnerships}
                   isPending={duplicateSessionView.isPending}
                   error={duplicateSessionView.error?.message}
-                  onSubmit={async (name) => {
+                  onSubmit={async (name, ownership) => {
                     if (
                       !canSaveSessionView ||
                       duplicateSessionView.isPending ||
@@ -1523,6 +1581,7 @@ const LoadedSessionEventsPage: React.FC<{
                       const result = await duplicateSessionView.mutateAsync({
                         projectId,
                         name: name.trim(),
+                        ownership,
                         filters: state.view.filters,
                         viewMode: state.view.viewMode,
                         unmatchedTraces: state.view.unmatchedTraces,
@@ -1566,6 +1625,8 @@ const LoadedSessionEventsPage: React.FC<{
                   variant={{
                     type: "edit",
                     initialName: state.view.name,
+                    ownership: state.view.ownership,
+                    canPromoteToProject: canSaveProjectSessionView,
                     pending: updateSessionView.isPending,
                     disabled: !canSaveSessionView || !state.view.canEdit,
                     error: updateSessionView.error?.message,
@@ -1575,6 +1636,7 @@ const LoadedSessionEventsPage: React.FC<{
                     filters,
                     unmatchedTraces,
                     viewMode,
+                    ownership,
                   }) => {
                     if (
                       !canSaveSessionView ||
@@ -1590,6 +1652,7 @@ const LoadedSessionEventsPage: React.FC<{
                         filters,
                         viewMode,
                         unmatchedTraces,
+                        ownership,
                       });
                       capture("saved_views:update_config", {
                         tableName: "session-detail",
@@ -1622,7 +1685,26 @@ const LoadedSessionEventsPage: React.FC<{
               updateSessionView.reset();
               deleteSessionView.reset();
               duplicateSessionView.reset();
+              setDefaultPin.reset();
               openDialog(state);
+            };
+            const handleSetDefaultPin = (
+              id: string,
+              isPinnedByDefaultForProject: boolean,
+            ) => {
+              if (!canSetDefaultPin) return;
+              const view = customSessionViews.find((view) => view.id === id);
+              if (!view) return;
+              if (view.ownership === "PRIVATE") {
+                if (!view.canEdit || !isPinnedByDefaultForProject) return;
+                openViewAction({ action: "promote-and-pin", view });
+                return;
+              }
+              setDefaultPin.mutate({
+                projectId,
+                id,
+                isPinnedByDefaultForProject,
+              });
             };
             return (
               <DialogController<{ type: "save" } | { type: "manage" }>
@@ -1640,6 +1722,10 @@ const LoadedSessionEventsPage: React.FC<{
                       }
                       onPin={pinSessionView}
                       onUnpin={unpinSessionView}
+                      error={setDefaultPin.error?.message}
+                      onSetDefaultPin={
+                        canSetDefaultPin ? handleSetDefaultPin : undefined
+                      }
                       onEditView={(id) => {
                         if (!canSaveSessionView) return;
                         const view = customSessionViews.find(
@@ -1659,13 +1745,16 @@ const LoadedSessionEventsPage: React.FC<{
                     />
                   ) : (
                     <ModernSessionSaveViewDialogContent
+                      showOwnership
                       isSaving={createSessionView.isPending}
                       error={createSessionView.error?.message}
-                      onSave={(name) =>
+                      allowedOwnerships={allowedSessionViewOwnerships}
+                      onSave={(name, ownership) =>
                         createSessionView.mutate(
                           {
                             projectId,
                             name,
+                            ownership,
                             filters: traceFilters,
                             viewMode,
                             unmatchedTraces,
@@ -1960,12 +2049,7 @@ const LoadedSessionEventsPage: React.FC<{
                               viewTabs={{
                                 canManageViews: canSaveSessionView,
                                 onSetDefaultPin: canSetDefaultPin
-                                  ? (id, isPinnedByDefaultForProject) =>
-                                      setDefaultPin.mutate({
-                                        projectId,
-                                        id,
-                                        isPinnedByDefaultForProject,
-                                      })
+                                  ? handleSetDefaultPin
                                   : undefined,
                                 onViewAction: (id, action) => {
                                   if (!canSaveSessionView) return;
@@ -1980,6 +2064,7 @@ const LoadedSessionEventsPage: React.FC<{
                                         viewMode: "conversational",
                                         unmatchedTraces: "show",
                                         canEdit: false,
+                                        ownership: "PROJECT",
                                       },
                                     });
                                     return;

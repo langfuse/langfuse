@@ -3650,8 +3650,8 @@ export const streamObservationIOFieldFromEventsTable = (
 
 /**
  * Full raw I/O + metadata for ONE observation, scoped to a session (the
- * session-detail download fallback for payloads too large to render inline,
- * LFE-10958). Callers are session-authorized (public sessions included), so
+ * session-detail download fallback for payloads too large to render inline).
+ * Callers are session-authorized (public sessions included), so
  * the session_id predicate is part of the authorization: the query itself
  * guarantees the observation belongs to that session — never widen it.
  */
