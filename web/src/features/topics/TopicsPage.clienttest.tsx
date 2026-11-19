@@ -376,7 +376,7 @@ it("names the shown facet in the URL only from the selected map's own results", 
   state.rules = [{ facetIds: ["intent"] }];
   state.resultFacets = [{ facetId: "intent", name: "Intent" }];
   state.resultsPlaceholder = true;
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
+  const view = renderTopicsPage();
   const query = () => state.replace.mock.lastCall?.[0].query;
   expect(query()).toMatchObject({ map: "rule:rule-0" });
   expect(query()).not.toHaveProperty("topicFacet");
