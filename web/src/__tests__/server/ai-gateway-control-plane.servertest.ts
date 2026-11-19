@@ -2981,15 +2981,22 @@ describe("AI gateway control plane", () => {
         message: "User is not a member of this organization",
       },
     );
-    await expectAllRejected(keyBudgetRequests(viewer, owner.org.id), {
+    // The scope check's own message, since the service also refuses changes to budgets a manager set.
+    const missingScope = {
       code: "FORBIDDEN",
-    });
+      message:
+        "Forbidden, user does not have access to this resource or action",
+    };
+    await expectAllRejected(
+      keyBudgetRequests(viewer, owner.org.id),
+      missingScope,
+    );
     await expectAllRejected(
       [
         ...managerBudgetRequests(viewer, owner.org.id),
         ...managerBudgetRequests(member, owner.org.id),
       ],
-      { code: "FORBIDDEN" },
+      missingScope,
     );
 
     // In their own organization, a foreign manager can neither see nor change the owner's keys and users.
