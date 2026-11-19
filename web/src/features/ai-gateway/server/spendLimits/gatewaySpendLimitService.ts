@@ -700,7 +700,7 @@ async function create(
       error.code === "P2002"
     ) {
       throw new LangfuseConflictError(
-        "A spend limit for this interval already exists",
+        "A budget for this interval already exists",
       );
     }
     throw error;

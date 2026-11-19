@@ -98,8 +98,8 @@ function useSpendBudget<T extends GatewaySpendBudgetFormValues>(
   const description =
     disabledReason ??
     (interval === "TOTAL"
-      ? `${requests} are rejected once the limit is reached.`
-      : `${requests} are rejected once the limit is reached, until it resets.`);
+      ? `${requests} are rejected once the budget is reached.`
+      : `${requests} are rejected once the budget is reached, until it resets.`);
 
   return {
     control,

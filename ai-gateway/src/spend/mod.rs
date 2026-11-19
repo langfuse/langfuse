@@ -261,7 +261,7 @@ impl<'a> LimitUsage<'a> {
 
     fn rejection(&self, now: DateTime<Utc>) -> SpendLimitExceeded {
         let spent = format!(
-            "{} has spent ${:.2} of its ${:.2} {} spend limit.",
+            "{} has spent ${:.2} of its ${:.2} {} budget.",
             self.limit.scope.subject(),
             self.spent,
             self.limit.limit_usd,
@@ -270,13 +270,13 @@ impl<'a> LimitUsage<'a> {
         match self.window.end {
             Some(end) => SpendLimitExceeded::new(
                 format!(
-                    "{spent} The limit resets at {}.",
+                    "{spent} The budget resets at {}.",
                     end.to_rfc3339_opts(SecondsFormat::Secs, true)
                 ),
                 u64::try_from((end - now).num_seconds().max(1)).ok(),
             ),
             None => SpendLimitExceeded::new(
-                format!("{spent} An admin can raise or remove the limit."),
+                format!("{spent} An admin can raise or remove the budget."),
                 None,
             ),
         }

@@ -150,7 +150,7 @@ fn a_spent_user_limit_rejects_the_key_and_counts_across_the_users_keys() {
     assert_eq!(exceeded.limit.id, "user-limit");
     assert_eq!(
         exceeded.rejection(now).message(),
-        "This key's user has spent $12.00 of its $10.00 total spend limit. An admin can raise or remove the limit."
+        "This key's user has spent $12.00 of its $10.00 total budget. An admin can raise or remove the budget."
     );
 }
 
@@ -171,7 +171,7 @@ fn a_spent_organization_limit_rejects_every_key_of_the_organization() {
     assert!(usage.is_exceeded());
     assert_eq!(
         usage.rejection(now).message(),
-        "This organization has spent $10.00 of its $10.00 total spend limit. An admin can raise or remove the limit."
+        "This organization has spent $10.00 of its $10.00 total budget. An admin can raise or remove the budget."
     );
 }
 

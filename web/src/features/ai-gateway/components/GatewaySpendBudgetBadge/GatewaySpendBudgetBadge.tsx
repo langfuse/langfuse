@@ -26,7 +26,7 @@ type GatewaySpendBudgetBadgeProps = {
   /** What the budget caps: one key, all keys of a user, or the whole organization. */
   subject: keyof typeof requestsBySubject;
   spendLimit: GatewaySpendLimit;
-  /** Undefined while spend is not recorded, so only the limit is shown. */
+  /** Undefined while spend is not recorded, so only the budget is shown. */
   spentUsd: number | undefined;
   /** "amounts" leaves out the interval, for tables that show it in a column of its own. */
   format?: "withInterval" | "amounts";
@@ -87,7 +87,7 @@ function describeBudget(
     return {
       title: "Spend unavailable",
       description:
-        "Spend is counted only while gateway requests are recorded, so only the limit is shown.",
+        "Spend is counted only while gateway requests are recorded, so only the budget is shown.",
     };
   }
   const resetsAt = formatResetsAt(interval);

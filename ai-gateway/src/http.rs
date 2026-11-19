@@ -761,13 +761,13 @@ type Classification = (StatusCode, &'static str, &'static str, &'static str);
 /// `OpenAI`'s type for an exhausted budget; the message names the limit.
 const SPEND_LIMIT_EXCEEDED: Classification = (
     StatusCode::TOO_MANY_REQUESTS,
-    "Spend limit exceeded",
+    "Budget exceeded",
     "insufficient_quota",
     "spend_limit_exceeded",
 );
 const SPEND_LIMIT_UNPRICED_MODEL: Classification = (
     StatusCode::BAD_REQUEST,
-    "This API key has a spend limit, and Langfuse has no price for this model. Add a model price in Langfuse to use the model with this key.",
+    "This API key has a budget, and Langfuse has no price for this model. Add a model price in Langfuse to use the model with this key.",
     "invalid_request_error",
     "spend_limit_unpriced_model",
 );
