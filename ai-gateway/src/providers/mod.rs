@@ -1,6 +1,7 @@
 mod chat_completions;
 pub(crate) mod model_list;
 mod outbound;
+pub(crate) mod usage;
 
 use std::{ops::Range, sync::Arc, time::Duration};
 
@@ -32,6 +33,7 @@ pub(crate) enum Route {
     OpenAiResponsesCompact,
     OpenAiChatCompletions,
     OpenAiDecisions,
+    OpenAiEmbeddings,
     AnthropicMessages,
     AnthropicCountTokens,
 }
@@ -42,6 +44,7 @@ impl Route {
             Self::OpenAiResponses | Self::OpenAiResponsesCompact => ApiFormat::OpenAiResponses,
             Self::OpenAiChatCompletions => ApiFormat::OpenAiChatCompletions,
             Self::OpenAiDecisions => ApiFormat::OpenAiDecisions,
+            Self::OpenAiEmbeddings => ApiFormat::OpenAiEmbeddings,
             Self::AnthropicMessages | Self::AnthropicCountTokens => ApiFormat::AnthropicMessages,
         }
     }
@@ -52,6 +55,7 @@ impl Route {
             Self::OpenAiResponsesCompact => "/responses/compact",
             Self::OpenAiChatCompletions => "/chat/completions",
             Self::OpenAiDecisions => "/decisions",
+            Self::OpenAiEmbeddings => "/embeddings",
             Self::AnthropicMessages => "/messages",
             Self::AnthropicCountTokens => "/messages/count_tokens",
         }
@@ -64,6 +68,7 @@ impl Route {
                 | Self::OpenAiResponsesCompact
                 | Self::OpenAiChatCompletions
                 | Self::OpenAiDecisions
+                | Self::OpenAiEmbeddings
                 | Self::AnthropicMessages
         )
     }
@@ -79,6 +84,14 @@ pub(crate) struct ProviderLimits {
 pub struct RequestPermit {
     _active: crate::observability::Active,
     deadline: Instant,
+    spend_limits: Option<crate::spend::SpendRecording>,
+}
+
+impl RequestPermit {
+    /// The execution's cost counts toward spend limits.
+    pub(crate) fn charges_spend(&self) -> bool {
+        self.spend_limits.is_some()
+    }
 }
 
 /// The validated caller body and the facts the relay needs about it.
@@ -89,6 +102,8 @@ pub(crate) struct RequestBody {
     pub streaming: bool,
     /// Capacity held for the body, released with the execution once the response ends.
     pub reservation: Option<BodyReservation>,
+    /// Grows the capacity when a response charged to spend limits needs a larger parse.
+    pub parse_growth: Option<crate::capture::ResponseParseGrowth>,
 }
 
 pub(crate) type BodyReservation = Box<dyn Send + Sync>;
@@ -136,11 +151,16 @@ impl ProviderTransport {
         self
     }
 
-    /// Start the execution deadline.
-    pub fn admit(&self) -> RequestPermit {
+    /// Start the execution deadline. The execution's cost counts toward `spend_limits`
+    /// once it finishes.
+    pub(crate) fn admit(
+        &self,
+        spend_limits: Option<crate::spend::SpendRecording>,
+    ) -> RequestPermit {
         RequestPermit {
             _active: crate::observability::Active::new("execution"),
             deadline: Instant::now() + self.limits.execution.max_execution_time,
+            spend_limits,
         }
     }
 
@@ -166,6 +186,7 @@ impl ProviderTransport {
                 model_range,
                 streaming: true,
                 reservation: None,
+                parse_growth: None,
             },
             Route::OpenAiResponses,
             &mut RequestCorrelation::from_headers(headers),
@@ -175,7 +196,7 @@ impl ProviderTransport {
 
     pub(crate) async fn forward_route(
         &self,
-        permit: RequestPermit,
+        mut permit: RequestPermit,
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         request: RequestBody,
@@ -187,6 +208,7 @@ impl ProviderTransport {
             model_range,
             streaming,
             reservation,
+            parse_growth,
         } = request;
         let api_format = route.api_format();
         let provider_model = context.connection().provider_model();
@@ -217,6 +239,7 @@ impl ProviderTransport {
             }
             _ => rewrite_model(body, model_range, provider_model)?,
         };
+        capture.charge_on_finish(permit.spend_limits.take(), parse_growth);
         capture.set_provider_model(provider_model);
         correlation.record_upstream(UpstreamTarget::for_connection(
             context.connection(),

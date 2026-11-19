@@ -5,10 +5,20 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 
-export const operationLabels: Record<TopicOperation, string> = {
+const operationLabels: Record<TopicOperation, string> = {
   process: "Analyze traces",
   update: "Regenerate topics",
 };
+
+/** A run's name in History: snapshots carry their own name. */
+export function runLabel(input: {
+  operation: TopicOperation;
+  analysis?: { label: string };
+}) {
+  return input.operation === "update" && input.analysis
+    ? `Snapshot · ${input.analysis.label}`
+    : operationLabels[input.operation];
+}
 
 export const executionLabels: Record<TopicExecutionStatus, string> = {
   queued: "Queued",

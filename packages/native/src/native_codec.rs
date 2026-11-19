@@ -1,6 +1,6 @@
 //! Rust-only encoding for prepared v4 `events_full` rows.
 //!
-//! Encoding receives typed, owned fields from the direct JS adapter in `native_js`.
+//! Encoding receives typed, owned fields finalized by the Rust ingestion pipeline.
 
 use std::sync::Arc;
 
@@ -22,19 +22,19 @@ pub(crate) struct DateTime64Micros(pub(crate) i64);
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Decimal64(pub(crate) i64);
 
-#[derive(Debug)]
-pub(crate) struct SkillReference {
-    pub(crate) langfuse_skill_id: Option<String>,
-    pub(crate) skill_version: Option<u32>,
-    pub(crate) skill_name: String,
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct SkillReference {
+    pub langfuse_skill_id: Option<String>,
+    pub skill_version: Option<u32>,
+    pub skill_name: String,
 }
 
-#[derive(Debug)]
-pub(crate) struct SkillResourceLoaded {
-    pub(crate) langfuse_skill_id: Option<String>,
-    pub(crate) skill_version: Option<u32>,
-    pub(crate) skill_name: String,
-    pub(crate) file_path: String,
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct SkillResourceLoaded {
+    pub langfuse_skill_id: Option<String>,
+    pub skill_version: Option<u32>,
+    pub skill_name: String,
+    pub file_path: String,
 }
 
 /// An owned ClickHouse Native-format block and its row count.

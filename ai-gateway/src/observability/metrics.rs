@@ -26,6 +26,7 @@ struct Metrics {
     rejections: Counter<u64>,
     delivery: Counter<u64>,
     executions: Counter<u64>,
+    spend_uncharged: Counter<u64>,
 }
 
 static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
@@ -73,6 +74,7 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
         rejections: meter.u64_counter("gateway.admission.rejected").build(),
         delivery: meter.u64_counter("gateway.telemetry.records").build(),
         executions: meter.u64_counter("gateway.executions").build(),
+        spend_uncharged: meter.u64_counter("gateway.spend.uncharged").build(),
     }
 });
 
@@ -236,6 +238,17 @@ pub(crate) fn phase_finished(phase: &'static str, duration: Duration) {
 
 pub(crate) fn rejected(phase: &'static str) {
     METRICS.rejections.add(1, &[KeyValue::new("phase", phase)]);
+}
+
+/// A request on a spend-limited key that added nothing to its counters.
+pub(crate) fn spend_uncharged(reason: &'static str, provider: &'static str) {
+    METRICS.spend_uncharged.add(
+        1,
+        &[
+            KeyValue::new("reason", reason),
+            KeyValue::new("gateway.provider", provider),
+        ],
+    );
 }
 
 pub(crate) fn delivery(outcome: &'static str, reason: &'static str, records: u64) {

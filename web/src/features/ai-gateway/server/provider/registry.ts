@@ -1,13 +1,24 @@
 import { z } from "zod/v4";
 import {
+  PricingTierAttributeConditionSchema,
+  PricingTierUsageConditionSchema,
+} from "@langfuse/shared";
+import {
   bedrockRuntimeOrigin,
+  decodeBedrockApiKey,
   GatewayBedrockConfigSchema,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
+import {
+  GatewayVertexConfigSchema,
+  getVertexAccessToken,
+  vertexOpenAICompatibleBaseUrl,
+} from "@/src/features/ai-gateway/server/provider/vertex";
 
 export const gatewayApiFormats = [
   "openai.responses",
   "openai.chat-completions",
   "openai.decisions",
+  "openai.embeddings",
   "anthropic.messages",
 ] as const;
 
@@ -18,6 +29,9 @@ export const gatewayProviders = [
   "OPENROUTER",
   "XAI",
   "VERCEL",
+  "AZURE",
+  "GOOGLE_AI_STUDIO",
+  "VERTEX",
 ] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
@@ -28,6 +42,13 @@ const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
 export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
 
+// Bedrock keeps its region and Vertex AI its location; other providers have no config.
+export const GatewayProviderConfigSchema = z.union([
+  GatewayBedrockConfigSchema,
+  GatewayVertexConfigSchema,
+]);
+export type GatewayProviderConfig = z.infer<typeof GatewayProviderConfigSchema>;
+
 const gatewayProviderIds = [
   "openai",
   "anthropic",
@@ -35,8 +56,26 @@ const gatewayProviderIds = [
   "openrouter",
   "xai",
   "vercel",
+  "azure",
+  "google_ai_studio",
+  "vertex",
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
+
+/** Also the cached shape, so resolve passes the request's limits through unchanged. */
+export const GatewayResolveSpendLimitsSchema = z.array(
+  z
+    .object({
+      id: z.string(),
+      // Resolve returns only the limits that apply to the request.
+      scope: z.enum(["api_key", "user"]),
+      interval: z.enum(["daily", "weekly", "monthly", "total"]),
+      limit_usd: z.number(),
+      // Unix milliseconds; part of the gateway's usage counter key.
+      counting_started_at: z.number().int().nonnegative(),
+    })
+    .strict(),
+);
 
 export const GatewayResolveResponseSchema = z
   .object({
@@ -88,6 +127,46 @@ export const GatewayResolveResponseSchema = z
       })
       .strict()
       .nullable(),
+    // Empty in "none" mode, where spend is not recorded.
+    spend_limits: GatewayResolveSpendLimitsSchema,
+    // Prices of the model the request is priced with; null without spend
+    // limits or when no model in the ingestion project matches.
+    pricing: z
+      .object({
+        model_id: z.string(),
+        tiers: z.array(
+          z
+            .object({
+              id: z.string(),
+              name: z.string(),
+              is_default: z.boolean(),
+              priority: z.number().int(),
+              conditions: z.array(
+                z.union([
+                  z
+                    .object({
+                      usage_detail_pattern: z.string(),
+                      operator: PricingTierUsageConditionSchema.shape.operator,
+                      value: z.number(),
+                      case_sensitive: z.boolean(),
+                    })
+                    .strict(),
+                  z
+                    .object({
+                      source: PricingTierAttributeConditionSchema.shape.source,
+                      key: z.string(),
+                      values: z.array(z.string()),
+                    })
+                    .strict(),
+                ]),
+              ),
+              prices: z.record(z.string(), z.number()),
+            })
+            .strict(),
+        ),
+      })
+      .strict()
+      .nullable(),
   })
   .strict();
 export type GatewayResolveResponse = z.infer<
@@ -123,7 +202,10 @@ type ProviderDefinition = {
   apiFormats: readonly GatewayApiFormat[];
 };
 
-type HostedGatewayProviderName = Exclude<GatewayProviderName, "BEDROCK">;
+type HostedGatewayProviderName = Exclude<
+  GatewayProviderName,
+  "BEDROCK" | "AZURE" | "VERTEX"
+>;
 type GatewayUpstream = Pick<ProviderDefinition, "baseUrl" | "authType">;
 
 const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
@@ -137,6 +219,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
         "openai.responses",
         "openai.chat-completions",
         "openai.decisions",
+        "openai.embeddings",
       ],
     },
     ANTHROPIC: {
@@ -158,6 +241,7 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       apiFormats: [
         "openai.responses",
         "openai.chat-completions",
+        "openai.embeddings",
         "anthropic.messages",
       ],
     },
@@ -184,6 +268,17 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       credentialCheck: { path: "/credits" },
       apiFormats: gatewayApiFormats,
     },
+    // Gemini API's OpenAI-compatible endpoint, which has no Responses route:
+    // https://ai.google.dev/gemini-api/docs/openai
+    GOOGLE_AI_STUDIO: {
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      modelsPath: "/models",
+      authType: "bearer",
+      // A test completion fails for valid keys whose project lacks access to
+      // or quota for the test model.
+      credentialCheck: { path: "/models" },
+      apiFormats: ["openai.chat-completions", "openai.embeddings"],
+    },
   };
 
 export function getGatewayProviderDefinition(
@@ -196,21 +291,49 @@ export function providerSupportsApiFormat(
   provider: GatewayProviderName,
   apiFormat: GatewayApiFormat,
 ): boolean {
-  if (provider === "BEDROCK") return apiFormat !== "openai.decisions";
+  if (provider === "BEDROCK") {
+    return (
+      apiFormat !== "openai.decisions" && apiFormat !== "openai.embeddings"
+    );
+  }
+  if (provider === "AZURE") return apiFormat !== "openai.decisions";
+  if (provider === "VERTEX") return apiFormat === "openai.chat-completions";
   return PROVIDER_REGISTRY[provider].apiFormats.includes(apiFormat);
 }
 
-// Bedrock serves each API format but Decisions natively under its own path and
-// auth header.
-// Throws if a Bedrock connection has no valid region config. OpenAI and
-// Anthropic connections may override the official base URL; OpenRouter, xAI
-// and Vercel never store one.
+// Bedrock and Azure serve each supported API format natively under its own path
+// and auth header, Bedrock on its regional runtime and Azure on the origin of
+// the resource stored as the connection's base URL. Vertex AI serves Chat
+// Completions on an OpenAI-compatible endpoint of the key's project in the
+// connection's location.
+// Throws if a Bedrock or Vertex AI connection has no valid config or an Azure
+// connection has no endpoint. OpenAI, Anthropic and OpenRouter connections may
+// override the official base URL; xAI, Vercel and Google AI Studio never store
+// one.
 export function getGatewayUpstream(params: {
   provider: GatewayProviderName;
   apiFormat: GatewayApiFormat;
   config: unknown;
   baseURL: string | null;
+  /** The stored credential, decrypted. */
+  credential: string;
 }): GatewayUpstream {
+  if (params.provider === "AZURE") {
+    if (!params.baseURL) throw new Error("Azure connection has no endpoint.");
+    return getPerFormatUpstream(
+      new URL(params.baseURL).origin,
+      params.apiFormat,
+    );
+  }
+  if (params.provider === "VERTEX") {
+    return {
+      baseUrl: vertexOpenAICompatibleBaseUrl({
+        config: GatewayVertexConfigSchema.parse(params.config),
+        credential: params.credential,
+      }),
+      authType: "bearer",
+    };
+  }
   if (params.provider !== "BEDROCK") {
     const { baseUrl, authType } = PROVIDER_REGISTRY[params.provider];
     return { baseUrl: params.baseURL ?? baseUrl, authType };
@@ -219,10 +342,31 @@ export function getGatewayUpstream(params: {
   const origin = bedrockRuntimeOrigin(
     GatewayBedrockConfigSchema.parse(params.config),
   );
-  if (params.apiFormat === "anthropic.messages") {
+  return getPerFormatUpstream(origin, params.apiFormat);
+}
+
+function getPerFormatUpstream(
+  origin: string,
+  apiFormat: GatewayApiFormat,
+): GatewayUpstream {
+  if (apiFormat === "anthropic.messages") {
     return { baseUrl: `${origin}/anthropic/v1`, authType: "x-api-key" };
   }
   return { baseUrl: `${origin}/openai/v1`, authType: "bearer" };
+}
+
+/** The secret sent upstream for a decrypted stored credential. Vertex AI keys are exchanged for an access token. */
+export async function getGatewayUpstreamSecret(params: {
+  provider: GatewayProviderName;
+  credential: string;
+}): Promise<string> {
+  if (params.provider === "BEDROCK") {
+    return decodeBedrockApiKey(params.credential);
+  }
+  if (params.provider === "VERTEX") {
+    return getVertexAccessToken(params.credential);
+  }
+  return params.credential;
 }
 
 const xaiApiKeySchema = z.object({

@@ -7,16 +7,16 @@ const loadErrorCopy = {
     description: "Retry the request to continue setting up the gateway.",
   },
   providers: {
-    title: "Providers could not be loaded",
-    description: "Retry to see the gateway providers.",
+    title: "Connections could not be loaded",
+    description: "Retry to see the gateway connections.",
   },
   connection: {
-    title: "Provider connection could not be loaded",
+    title: "Connection could not be loaded",
     description: "Retry to manage model access for this connection.",
   },
   models: {
-    title: "Provider models could not be loaded",
-    description: "Retry to load the models of this provider.",
+    title: "Connection models could not be loaded",
+    description: "Retry to load the models of this connection.",
   },
 } as const;
 

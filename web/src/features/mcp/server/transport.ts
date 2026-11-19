@@ -1,46 +1,118 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Keep the MCP low-level Server API for now; migration to McpServer needs endpoint-level coverage. */
 /**
  * MCP Streamable HTTP Transport
  *
- * Implements the Streamable HTTP transport for the Model Context Protocol (2025-03-26 spec).
- * This transport allows MCP communication over HTTP with JSON-RPC messages.
+ * Serves both MCP protocol eras from one stateless endpoint:
+ * - 2025-era clients (2025-11-25 and earlier) negotiate via `initialize` and are
+ *   served by a per-request NodeStreamableHTTPServerTransport with JSON responses.
+ * - 2026-07-28 clients send a `_meta` envelope on every request (no `initialize`;
+ *   `server/discover` instead) and are served by the SDK's createMcpHandler.
  *
+ * Both paths build the same per-request server via createMcpServer(context).
  */
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { type Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import {
+  NodeStreamableHTTPServerTransport,
+  toNodeHandler,
+  toWebRequest,
+} from "@modelcontextprotocol/node";
+import {
+  createMcpHandler,
+  isLegacyRequest,
+} from "@modelcontextprotocol/server";
 import { formatErrorForUser } from "../core/error-formatting";
-import { logger } from "@langfuse/shared/src/server";
+import type { ServerContext } from "../types";
+import { createMcpServer } from "./mcpServer";
+import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
 
 /**
- * Handle MCP request using Streamable HTTP transport.
+ * Returns whether the request is 2025-era (no 2026-07-28 `_meta` envelope
+ * claim) and records the era and the `MCP-Protocol-Version` header, when
+ * present, on the current span.
+ */
+async function classifyAndTagProtocolEra(
+  req: NextApiRequest,
+): Promise<boolean> {
+  const webRequest = await toWebRequest(req, req.body);
+  const isLegacy = await isLegacyRequest(webRequest, req.body);
+  const protocolVersion = req.headers["mcp-protocol-version"];
+  getCurrentSpan()?.setAttributes({
+    "mcp.protocol.era": isLegacy ? "legacy" : "modern",
+    ...(protocolVersion !== undefined && {
+      "mcp.protocol.version": protocolVersion,
+    }),
+  });
+  return isLegacy;
+}
+
+async function handleRequest(
+  context: ServerContext,
+  req: NextApiRequest,
+  res: NextApiResponse,
+): Promise<void> {
+  const handler = createMcpHandler(() => createMcpServer(context), {
+    legacy: "reject",
+    onerror: (error) => {
+      logger.warn("MCP 2026-07-28 request error", {
+        message: error.message,
+        name: error.name,
+      });
+    },
+  });
+  await toNodeHandler(handler)(req, res, req.body);
+}
+
+async function handleLegacyRequest(
+  context: ServerContext,
+  req: NextApiRequest,
+  res: NextApiResponse,
+): Promise<void> {
+  const server = createMcpServer(context);
+  const transport = new NodeStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined, // Stateless mode
+    enableJsonResponse: true,
+  });
+
+  try {
+    await server.connect(transport);
+
+    logger.debug("MCP server connected via Streamable HTTP transport", {
+      method: req.method,
+    });
+
+    // The transport writes and ends the response (JSON or SSE).
+    await transport.handleRequest(req, res, req.body);
+  } finally {
+    // server.close() also closes the transport.
+    await server.close().catch((err) => {
+      logger.warn("Error closing MCP server", {
+        error: err instanceof Error ? err.message : "Unknown",
+      });
+    });
+  }
+}
+
+/**
+ * Handle an authenticated MCP request.
  *
- * This function:
- * 1. Validates request headers
- * 2. Creates a StreamableHTTPServerTransport (stateless mode)
- * 3. Connects the server to the transport
- * 4. Routes the request to the transport handler
- * 5. Transport handles the response lifecycle
+ * Request validation, CORS headers, OPTIONS handling, and authentication
+ * happen in the API route before this is called.
  *
  * Supports:
- * - POST: JSON-RPC requests (initialize, tool calls, etc.)
- * - GET: SSE stream for server-initiated messages (optional)
+ * - POST: JSON-RPC requests of either protocol era
+ * - GET: SSE stream for server-initiated messages (2025 era, optional)
  * - DELETE: Session termination (returns 405 for stateless)
- * - OPTIONS: CORS preflight
  *
- * @param server - MCP Server instance (created per-request)
- * @param req - Next.js API request
+ * @param context - Server context from the authenticated request
+ * @param req - Next.js API request (body already parsed)
  * @param res - Next.js API response
  */
 export async function handleMcpRequest(
-  server: Server,
+  context: ServerContext,
   req: NextApiRequest,
   res: NextApiResponse,
 ): Promise<void> {
   try {
-    // Note: request validation, CORS headers, and OPTIONS handling happen in index.ts
-
     // Validate Accept header for POST requests (per spec)
     if (req.method === "POST") {
       const acceptHeader = req.headers.accept || "";
@@ -62,37 +134,14 @@ export async function handleMcpRequest(
       }
     }
 
-    // Create Streamable HTTP transport (stateless mode - no sessionIdGenerator)
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // Stateless mode
-      enableJsonResponse: true, // Use JSON response (simpler for stateless mode)
-    });
-
-    try {
-      // Connect server to transport
-      await server.connect(transport);
-
-      logger.debug("MCP server connected via Streamable HTTP transport", {
-        method: req.method,
-      });
-
-      // Handle the request through the transport
-      // IMPORTANT: The transport manages the response lifecycle internally.
-      // It will send the response and end it when appropriate.
-      // Do NOT call res.end() after this - the transport handles it.
-      await transport.handleRequest(req, res, req.body);
-
-      // Note: Do NOT end the response here. The transport has already
-      // sent the response (JSON or SSE) and ended it appropriately.
-    } finally {
-      // Clean up server and transport to prevent memory leaks
-      // server.close() internally calls transport.close()
-      await server.close().catch((err) => {
-        logger.warn("Error closing MCP server", {
-          error: err instanceof Error ? err.message : "Unknown",
-        });
-      });
+    const isLegacy = await classifyAndTagProtocolEra(req);
+    if (isLegacy) {
+      // dedicated path to keep json response for legacy requests
+      await handleLegacyRequest(context, req, res);
+      return;
     }
+
+    await handleRequest(context, req, res);
   } catch (error) {
     logger.error("MCP transport error", {
       message: error instanceof Error ? error.message : "Unknown error",

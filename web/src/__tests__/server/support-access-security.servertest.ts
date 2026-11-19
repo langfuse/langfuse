@@ -150,9 +150,13 @@ async function readSupportAccess(userId: string) {
 async function sessionFor(email: string): Promise<Session> {
   const sessionCallback = (await getAuthOptions()).callbacks
     ?.session as (params: { session: Session; token: JWT }) => Promise<Session>;
+  const { id } = await prisma.user.findUniqueOrThrow({
+    where: { email },
+    select: { id: true },
+  });
   return sessionCallback({
     session: { expires: "1", user: null } as unknown as Session,
-    token: { email, loginAt: Date.now() },
+    token: { email, sub: id, loginAt: Date.now() },
   });
 }
 

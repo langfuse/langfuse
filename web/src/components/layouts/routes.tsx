@@ -23,8 +23,8 @@ import {
   Beaker,
   Waypoints,
   Box,
+  Gauge,
   KeyRound,
-  ArrowUpRight,
 } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { type ReactNode } from "react";
@@ -75,6 +75,8 @@ export type Route = {
   menuNode?: ReactNode;
   featureFlag?: Flag;
   label?: string | ReactNode;
+  /** Leaves the current app area; the title shows a trailing ↗. */
+  external?: boolean;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
   organizationRbacScope?: OrganizationScope;
   icon?: IconComponent; // ignored for nested routes
@@ -127,9 +129,14 @@ export const ROUTES: Route[] = [
         icon: Home,
       },
       {
-        title: "Providers & Models",
+        title: "Connections & Models",
         slug: GATEWAY_PAGE_SLUGS.models,
         icon: Box,
+      },
+      {
+        title: "Budgets",
+        slug: GATEWAY_PAGE_SLUGS.budgets,
+        icon: Gauge,
       },
       {
         title: "Gateway keys",
@@ -137,25 +144,23 @@ export const ROUTES: Route[] = [
         icon: KeyRound,
       },
     ] as const
-  ).map(
-    ({ title, slug, icon }): Route => ({
-      title,
-      href:
-        slug === GATEWAY_PAGE_SLUGS.overview
-          ? "/organization/[organizationId]/ai-gateway"
-          : `/organization/[organizationId]/ai-gateway/${slug}`,
-      icon,
-      gatewayPage: slug,
-      show: ({ visibleGatewayPages }) => visibleGatewayPages[slug],
-      isActive: (_, asPath) => gatewayPageSlugFromPath(asPath) === slug,
-      label:
-        slug === GATEWAY_PAGE_SLUGS.apiKeys ? (
-          <GatewayKeyReminderDot />
-        ) : undefined,
-      group: RouteGroup.AiGateway,
-      section: RouteSection.Main,
-    }),
-  ),
+  ).map(({ title, slug, icon }): Route => ({
+    title,
+    href:
+      slug === GATEWAY_PAGE_SLUGS.overview
+        ? "/organization/[organizationId]/ai-gateway"
+        : `/organization/[organizationId]/ai-gateway/${slug}`,
+    icon,
+    gatewayPage: slug,
+    show: ({ visibleGatewayPages }) => visibleGatewayPages[slug],
+    isActive: (_, asPath) => gatewayPageSlugFromPath(asPath) === slug,
+    label:
+      slug === GATEWAY_PAGE_SLUGS.apiKeys ? (
+        <GatewayKeyReminderDot />
+      ) : undefined,
+    group: RouteGroup.AiGateway,
+    section: RouteSection.Main,
+  })),
   {
     // The URL is filled in from the gateway config; see useFilteredNavigation.
     title: "Tracing",
@@ -164,7 +169,7 @@ export const ROUTES: Route[] = [
     icon: ListTree,
     show: ({ visibleGatewayPages }) =>
       visibleGatewayPages[GATEWAY_PAGE_SLUGS.models],
-    label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+    external: true,
     group: RouteGroup.AiGateway,
     section: RouteSection.Main,
   },
@@ -255,7 +260,7 @@ export const ROUTES: Route[] = [
     href: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
-    group: RouteGroup.ContextManagement,
+    group: RouteGroup.Evaluation,
     section: RouteSection.Main,
   },
   {
@@ -307,7 +312,7 @@ export const ROUTES: Route[] = [
     href: "",
     icon: Waypoints,
     show: ({ projectId }) => projectId !== undefined,
-    label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+    external: true,
     group: RouteGroup.Infrastructure,
     section: RouteSection.Main,
   },

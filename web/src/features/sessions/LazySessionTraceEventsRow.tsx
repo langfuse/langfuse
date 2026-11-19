@@ -23,7 +23,7 @@ type LazySessionTraceEventsRowProps = {
   surface?: TraceEventsSurface;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
-  onCustomizeView?: () => void;
+  onCustomizeView?: (() => void) | null;
 };
 
 const LazySessionTraceEventsRowInner = (

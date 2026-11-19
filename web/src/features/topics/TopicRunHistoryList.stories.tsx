@@ -77,8 +77,6 @@ function processRun(
       requestId: `request-${id}`,
       facets: facetRefs,
       embeddingConfig: { embeddingDimensions: 1024 },
-      reuseExistingSummaries: false,
-      processingConfig: { maxInputTokens: 120_000, maxOutputTokens: 512 },
     },
   };
 }
@@ -118,11 +116,22 @@ function updateRun(
   };
 }
 
+// A snapshot that summarizes before it groups shows a progress bar while running.
+function summarizingSnapshot(id: string, createdAt: string): Run {
+  const run = updateRun(id, "running", createdAt);
+  return {
+    ...run,
+    phase: "summarizing",
+    facets: run.facets.map((facet) => ({
+      ...facet,
+      outcome: "pending",
+      counts: { ...facet.counts, requested: 1_280, complete: 640 },
+    })),
+  };
+}
+
 const runs: Run[] = [
-  processRun("run-9", "running", hoursAgo(0.4), 1.84, {
-    requested: 1_280,
-    complete: 640,
-  }),
+  summarizingSnapshot("run-9", hoursAgo(0.4)),
   updateRun("run-8", "queued", hoursAgo(0.3)),
   processRun("run-7", "completed", hoursAgo(17), 4.2, { requested: 1_412 }),
   processRun("run-6", "completed_with_errors", hoursAgo(46), 3.95, {
@@ -168,10 +177,7 @@ export const PinsRunningAndGroupsByDay = meta.story({
   args: {
     executions: [
       updateRun("regenerate-done", "completed", atDaysAgo(4, 10)),
-      processRun("analyze-running", "running", atDaysAgo(0, 9), 1.84, {
-        requested: 1_280,
-        complete: 640,
-      }),
+      summarizingSnapshot("snapshot-running", atDaysAgo(0, 9)),
       processRun("analyze-done", "completed", atDaysAgo(1, 10), 4.2, {
         requested: 1_412,
       }),
@@ -193,10 +199,10 @@ export const PinsRunningAndGroupsByDay = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const active = canvas.getByRole("status");
-    await expect(active).toHaveTextContent("Analyze traces");
+    await expect(active).toHaveTextContent("Regenerate topics");
     await expect(active).toHaveTextContent("640 / 1,280");
-    await expect(active).toHaveTextContent("Estimated cost so far");
-    await expect(active).toHaveTextContent("~$1.84");
+    await expect(active).toHaveTextContent("Estimated cost");
+    await expect(active).toHaveTextContent("Not tracked");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
     ).toBeVisible();
@@ -206,9 +212,9 @@ export const PinsRunningAndGroupsByDay = meta.story({
     ).toEqual(["Yesterday", dayLabel(2), dayLabel(3), dayLabel(4)]);
 
     await userEvent.click(
-      within(active).getByRole("button", { name: /Analyze traces/ }),
+      within(active).getByRole("button", { name: /Regenerate topics/ }),
     );
-    await expect(args.onOpen).toHaveBeenCalledWith("analyze-running");
+    await expect(args.onOpen).toHaveBeenCalledWith("snapshot-running");
 
     const rows = canvas
       .getAllByRole("button")

@@ -16,8 +16,10 @@ const ruleTester = new RuleTester({
 
 ruleTester.run("no-raw-font-weight", rule, {
   valid: [
-    // The two allowed weights.
+    // The three allowed weights.
     `<div className="font-bold" />`,
+    `<div className="font-medium" />`,
+    `<div className="text-sm font-medium text-muted-foreground" />`,
     `<div className="text-sm font-normal" />`,
     `<div className="hover:font-bold dark:font-normal" />`,
     // Font-family utilities are not weights.
@@ -31,10 +33,6 @@ ruleTester.run("no-raw-font-weight", rule, {
     `<div className="peer/font-medium-picker" />`,
   ],
   invalid: [
-    {
-      code: `<div className="font-medium" />`,
-      errors: [{ messageId: "unexpected", data: { utility: "font-medium" } }],
-    },
     {
       code: `<div className="font-semibold" />`,
       errors: [{ messageId: "unexpected", data: { utility: "font-semibold" } }],
@@ -70,8 +68,8 @@ ruleTester.run("no-raw-font-weight", rule, {
     },
     // Variant-prefixed forms.
     {
-      code: `<div className="hover:font-medium" />`,
-      errors: [{ messageId: "unexpected", data: { utility: "font-medium" } }],
+      code: `<div className="hover:font-semibold" />`,
+      errors: [{ messageId: "unexpected", data: { utility: "font-semibold" } }],
     },
     {
       code: `<div className="dark:md:font-semibold" />`,
@@ -83,8 +81,8 @@ ruleTester.run("no-raw-font-weight", rule, {
     },
     // Important-marked forms.
     {
-      code: `<div className="!font-medium" />`,
-      errors: [{ messageId: "unexpected", data: { utility: "font-medium" } }],
+      code: `<div className="!font-semibold" />`,
+      errors: [{ messageId: "unexpected", data: { utility: "font-semibold" } }],
     },
     {
       code: `<div className="md:font-semibold!" />`,
@@ -92,8 +90,8 @@ ruleTester.run("no-raw-font-weight", rule, {
     },
     // Inside longer class strings, cn(...) calls, and template literals.
     {
-      code: `<div className="text-sm font-medium text-muted-foreground" />`,
-      errors: [{ messageId: "unexpected", data: { utility: "font-medium" } }],
+      code: `<div className="text-sm font-semibold text-muted-foreground" />`,
+      errors: [{ messageId: "unexpected", data: { utility: "font-semibold" } }],
     },
     {
       code: `const className = cn("flex font-semibold", className);`,

@@ -162,10 +162,17 @@ export { toEvalRecord } from "./normalized-io/projections/eval-record";
 export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
-export { renderTranscript } from "./transcript/topics-renderer";
+export {
+  redactModelPayload,
+  renderTranscript,
+} from "./transcript/topics-renderer";
 export { renderTranscriptFromObservations } from "./transcript/topics-renderer";
+export {
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
+  TOPICS_TEXT_VERSION,
+} from "./transcript/topics-model-input";
 export { transcriptBlockTypes } from "./transcript/topics-renderer";
-export { renderGenericTranscript } from "./transcript/generic-renderer";
 export { topicsTranscriptConfig } from "./transcript/topics-renderer-config";
 export { transcriptRenderConfigSchema } from "./transcript/topics-renderer-config";
 export { type TranscriptRenderConfig } from "./transcript/topics-renderer-config";
@@ -178,6 +185,8 @@ export { type Thread } from "./transcript/types";
 export { type Transcript } from "./transcript/types";
 export { createTraceBatchInputStorage } from "./traceBatch/storage";
 export { TRACE_BATCH_INPUT_MAX_CHARACTERS } from "./traceBatch/storage";
+export { TRACE_BATCH_INPUT_PREFIX } from "./traceBatch/storage";
+export { TRACE_BATCH_INPUT_RETENTION_MS } from "./traceBatch/storage";
 export { UnsupportedTraceBatchInputVersionError } from "./traceBatch/storage";
 export { type TraceBatchInputReference } from "./traceBatch/storage";
 export { type TraceBatchInputData } from "./traceBatch/storage";
@@ -200,7 +209,6 @@ export * from "./redis/webhookQueue";
 export * from "./redis/monitorQueue";
 export * from "./redis/inAppAgentRunQueue";
 export * from "./redis/traceDelete";
-export * from "./redis/traceBatch";
 export * from "./redis/sharding";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
@@ -555,6 +563,7 @@ export { getAvgCostByEvaluatorIds } from "./repositories/events";
 export { getTotalCostByRule } from "./repositories/events";
 export { getTotalCostByEvaluatorIds } from "./repositories/events";
 export { getLatestEvaluatorRunCost } from "./repositories/events";
+export { getGatewaySpendSinceFromEvents } from "./repositories/events";
 export { getEvaluatorExecutionSummaries } from "./repositories/events";
 export { getSessionMetricsFromEvents } from "./repositories/events";
 export { type SdkMetadata } from "./repositories/events";
@@ -609,7 +618,10 @@ export { clickhouseCompliantRandomCharacters } from "./repositories/clickhouse";
 export { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "./repositories/constants";
 export { OBSERVATIONS_TO_TRACE_INTERVAL } from "./repositories/constants";
 export { TRACE_TO_OBSERVATIONS_INTERVAL } from "./repositories/constants";
-export { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./repositories/constants";
+export {
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
+} from "./repositories/constants";
 export { isStorableTraceSessionId } from "./repositories/trace-sessions";
 export { storableTraceSessionIds } from "./repositories/trace-sessions";
 export { getPublicSessionsFilter } from "./repositories/trace-sessions";
@@ -708,6 +720,7 @@ export { getExperimentItemsCountFromEvents } from "./repositories/experiments";
 export { getExperimentItemsFilterOptions } from "./repositories/experiments";
 export { getExperimentScoreOptions } from "./repositories/experiments";
 export { getExperimentItemsFromEvents } from "./repositories/experiments";
+export { getExperimentsStartTime } from "./repositories/experiments";
 export { type ExperimentOutputData } from "./repositories/experiments";
 export { type ExperimentItemBatchIO } from "./repositories/experiments";
 export { getExperimentItemsBatchIO } from "./repositories/experiments";
@@ -723,10 +736,22 @@ export { type StageAuditLogEventInput } from "./repositories/auditLogs";
 export { stageAuditLogEvents } from "./repositories/auditLogs";
 export { deriveAuditLogEventId } from "./repositories/auditLogs";
 export { convertAuditLogStagingRowToClickhouse } from "./repositories/auditLogs";
+export { type AuditLogEntry } from "./repositories/auditLogs";
+export { getAuditLogs } from "./repositories/auditLogs";
+export { getAuditLogsCount } from "./repositories/auditLogs";
+export { getAuditLogsForExport } from "./repositories/auditLogs";
+export { convertPostgresAuditLogToClickhouse } from "./repositories/auditLogs";
+export { getAuditLogResourceRefs } from "./repositories/auditLogs";
+export { getSystemAuditLogActorForUserId } from "./repositories/auditLogs";
+export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
-export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
-export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
+export {
+  getTopicSetupTraceBounds,
+  getTopicSetupTraceIds,
+  TOPIC_SETUP_WINDOW_DAYS,
+} from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
   getTopicResultCounts,
@@ -876,6 +901,7 @@ export { createObservationsCh } from "./test-utils/clickhouse-helpers";
 export { createEventsCh } from "./test-utils/clickhouse-helpers";
 export { createScoresCh } from "./test-utils/clickhouse-helpers";
 export { createDatasetRunItemsCh } from "./test-utils/clickhouse-helpers";
+export { createAuditLogsCh } from "./test-utils/clickhouse-helpers";
 export { createBasicAuthHeader } from "./test-utils/org-factory";
 export { type CreateOrgProjectAndApiKeyOptions } from "./test-utils/org-factory";
 export { createOrgProjectAndApiKey } from "./test-utils/org-factory";

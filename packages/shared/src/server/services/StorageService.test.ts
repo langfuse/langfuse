@@ -615,6 +615,33 @@ describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
   });
 });
 
+describe("GoogleCloudStorageService.listFilePage", () => {
+  it("ends pagination when the client returns no next query on the last page", async () => {
+    const service = StorageServiceFactory.getInstance({
+      credentials: storageKeys(undefined, undefined),
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const createdAt = "2026-01-01T00:00:00.000Z";
+    (service as unknown as { bucket: { getFiles: () => unknown } }).bucket = {
+      getFiles: async () => [
+        [{ name: "a.json", metadata: { timeCreated: createdAt } }],
+        null,
+      ],
+    };
+
+    await expect(service.listFilePage({ prefix: "p/" })).resolves.toEqual({
+      files: [{ file: "a.json", createdAt: new Date(createdAt) }],
+      continuationToken: undefined,
+    });
+  });
+});
+
 /**
  * Regression tests for the DeleteObjects checksum sent to S3-compatible
  * stores.
@@ -630,7 +657,7 @@ describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
  * algorithm the store accepts ("MD5" maps to the Content-MD5 header); it is
  * unset by default because MD5 is unavailable on FIPS runtimes.
  */
-describe("S3StorageService DeleteObjects checksum", () => {
+describe("S3StorageService request checksums", () => {
   const EMPTY_DELETE_RESULT_XML = `<?xml version="1.0" encoding="UTF-8"?><DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"></DeleteResult>`;
 
   const setChecksumAlgorithm = (value: string | undefined) => {
@@ -645,6 +672,7 @@ describe("S3StorageService DeleteObjects checksum", () => {
 
   type CapturedRequest = {
     method: string;
+    query?: Record<string, string>;
     headers: Record<string, string>;
     body?: unknown;
   };
@@ -653,8 +681,14 @@ describe("S3StorageService DeleteObjects checksum", () => {
   // (serialization, flexible checksums, signing) but short-circuits right
   // before the HTTP handler, capturing the final outgoing request and
   // returning a canned success response. No network I/O happens.
-  const makeServiceWithCapture = (responseXml: string) => {
+  type CannedResponse = { headers?: Record<string, string>; xml?: string };
+
+  const makeServiceWithCapture = (
+    respond: string | ((request: CapturedRequest) => CannedResponse),
+    options: { sendContentMd5?: boolean } = {},
+  ) => {
     const service = StorageServiceFactory.getInstance({
+      ...options,
       credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint: "http://127.0.0.1:9000",
@@ -671,13 +705,16 @@ describe("S3StorageService DeleteObjects checksum", () => {
     const captured: CapturedRequest[] = [];
 
     const captureMiddleware = () => async (args: { request: unknown }) => {
-      captured.push(args.request as CapturedRequest);
+      const request = args.request as CapturedRequest;
+      captured.push(request);
+      const canned =
+        typeof respond === "string" ? { xml: respond } : respond(request);
       return {
         response: {
           statusCode: 200,
           reason: "OK",
-          headers: { "content-type": "application/xml" },
-          body: Readable.from([Buffer.from(responseXml)]),
+          headers: { "content-type": "application/xml", ...canned.headers },
+          body: Readable.from([Buffer.from(canned.xml ?? "")]),
         },
       };
     };
@@ -748,6 +785,94 @@ describe("S3StorageService DeleteObjects checksum", () => {
       expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
     },
   );
+
+  // Object Lock buckets reject parts without Content-MD5 or x-amz-checksum-*;
+  // GCS rejects a composite checksum on CompleteMultipartUpload (412).
+  it.skipIf(getFips() === 1)(
+    "sends Content-MD5 on every streamed part and no checksum on create/complete",
+    async () => {
+      const bufferedKey = "LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED" as const;
+      const originalBuffered = env[bufferedKey];
+      (env as Record<string, unknown>)[bufferedKey] = "true";
+
+      try {
+        const { service, captured } = makeServiceWithCapture(
+          (request) => {
+            if (request.query && "uploads" in request.query) {
+              return {
+                xml: `<InitiateMultipartUploadResult><Bucket>test-bucket</Bucket><Key>k</Key><UploadId>upload-1</UploadId></InitiateMultipartUploadResult>`,
+              };
+            }
+            if (request.query?.partNumber) {
+              return {
+                headers: { etag: `"etag-${request.query.partNumber}"` },
+              };
+            }
+            return {
+              xml: `<CompleteMultipartUploadResult><Bucket>test-bucket</Bucket><Key>k</Key><ETag>"final"</ETag></CompleteMultipartUploadResult>`,
+            };
+          },
+          { sendContentMd5: true },
+        );
+
+        // Stream chunks straddle part boundaries, so parts are sliced views;
+        // parts also exceed the middleware's internal hash slice size.
+        const MiB = 1024 * 1024;
+        const chunks = Array.from({ length: 4 }, (_, i) =>
+          Buffer.alloc(3 * MiB, i + 1),
+        );
+        await service.uploadFileBuffered({
+          fileName: "exports/observations.parquet",
+          fileType: "application/vnd.apache.parquet",
+          data: Readable.from(chunks),
+          partSizeBytes: 5 * MiB,
+          maxConcurrentParts: 1,
+        });
+
+        const parts = captured.filter((r) => r.query?.partNumber);
+        const others = captured.filter((r) => !r.query?.partNumber);
+        expect(parts).toHaveLength(3);
+        expect(others).toHaveLength(2);
+
+        const streamed = Buffer.concat(chunks);
+        let offset = 0;
+        for (const part of parts) {
+          const body = part.body as Uint8Array;
+          expect(
+            Buffer.from(body).equals(
+              streamed.subarray(offset, offset + body.byteLength),
+            ),
+          ).toBe(true);
+          offset += body.byteLength;
+          expect(findHeader(part, "content-md5")).toBe(
+            createHash("md5").update(body).digest("base64"),
+          );
+        }
+        expect(offset).toBe(streamed.byteLength);
+
+        for (const request of others) {
+          expect(
+            Object.keys(request.headers).filter((h) =>
+              h.toLowerCase().startsWith("x-amz-checksum"),
+            ),
+          ).toEqual([]);
+          expect(findHeader(request, "content-md5")).toBeUndefined();
+        }
+      } finally {
+        (env as Record<string, unknown>)[bufferedKey] = originalBuffered;
+      }
+    },
+  );
+
+  // Ingestion writes go through default clients; they must not pay for MD5.
+  it("does not send Content-MD5 unless the client opts in", async () => {
+    const { service, captured } = makeServiceWithCapture("");
+
+    await service.uploadJson("events/project-1/event.json", [{ id: "e1" }]);
+
+    expect(captured).toHaveLength(1);
+    expect(findHeader(captured[0], "content-md5")).toBeUndefined();
+  });
 });
 
 describe("S3StorageService non-buffered upload part size", () => {

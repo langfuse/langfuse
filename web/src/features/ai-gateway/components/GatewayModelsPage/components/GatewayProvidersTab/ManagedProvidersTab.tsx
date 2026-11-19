@@ -103,7 +103,7 @@ export function ManagedProvidersTab({
               />
             </p>
             <ConfirmationDialogController<GatewayConnection>
-              title="Delete provider connection"
+              title="Delete connection"
               text="Requests will immediately stop using this connection."
               confirmLabel="Delete connection"
               variant="destructive"

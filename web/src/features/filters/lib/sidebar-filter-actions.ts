@@ -2,6 +2,7 @@
 import type {
   ColumnDefinition,
   FilterState,
+  filterOperators,
   SingleValueOption,
 } from "@langfuse/shared";
 import type { FilterConfig } from "./filter-config";
@@ -87,15 +88,59 @@ export type BooleanKeyValueFilterEntry = {
   value: boolean | "";
 };
 
-// Represents one active string filter row in the string key-value facet UI
-// Example: key="environment", operator="=", value="production". `is set` /
-// `is not set` are value-less key-presence operators (value stays "").
-export type StringKeyValueFilterEntry = {
+// Represents one active row in the string key-value facet UI (metadata).
+// - A text row (`valueType` absent): key="environment", operator="=",
+//   value="production". `is set` / `is not set` are value-less key-presence
+//   operators (value stays "").
+// - A numeric row (`valueType: "number"`, only on facets with
+//   `numericValues`): key="attempt", operator=">", value="2". The value stays
+//   the typed text; it becomes a `numberObject` filter once it parses as a
+//   finite number.
+type StringKeyValueTextEntry = {
   target?: string;
   key: string;
-  operator: "=" | "contains" | "does not contain" | "is set" | "is not set";
+  valueType?: undefined;
+  // Every stringObject operator: a filter written outside the facet (URL,
+  // search bar) can carry `starts with` / `ends with`.
+  operator: (typeof filterOperators.stringObject)[number];
   value: string;
 };
+
+export type StringKeyValueFilterEntry =
+  | StringKeyValueTextEntry
+  | {
+      target?: string;
+      key: string;
+      valueType: "number";
+      operator: NumericKeyValueFilterEntry["operator"];
+      value: string;
+    };
+
+export const isStringKeyValueTextEntry = (
+  entry: StringKeyValueFilterEntry,
+): entry is StringKeyValueTextEntry => entry.valueType !== "number";
+
+/** `value` as a finite number, or null when it is blank or does not parse. */
+export const parseNumericEntryValue = (value: string): number | null => {
+  // Number("") and Number(" ") are 0, so blank text is checked first.
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+/**
+ * The text a numeric row's input shows: what the user typed while it still
+ * parses to the applied value (`"2."` for an applied `"2"`, so a decimal can
+ * be typed key by key), else the applied value.
+ */
+export const numericRowText = (
+  applied: string,
+  typed: string | undefined,
+): string =>
+  typed !== undefined &&
+  parseNumericEntryValue(typed) === parseNumericEntryValue(applied)
+    ? typed
+    : applied;
 
 // `is set` / `is not set` filter on key presence, so a row is complete without a
 // value — unlike the value operators, whose empty-value rows are still drafts.
@@ -200,7 +245,7 @@ export function resolveCheckboxOperator(params: {
 }
 
 /** A single checkbox selection cannot represent conditions for different targets. */
-export function hasMultipleFilterTargets(
+function hasMultipleFilterTargets(
   filters: FilterState,
   column: string,
 ): boolean {
@@ -211,6 +256,48 @@ export function hasMultipleFilterTargets(
         .map((filter) => filter.target),
     ).size > 1
   );
+}
+
+/** A categorical sidebar edits one membership predicate, or its text mode. */
+export function categoricalFilterEditingReason(
+  current: FilterState,
+  column: string,
+): string | undefined {
+  if (hasMultipleFilterTargets(current, column)) {
+    return "Edit filters for different targets individually in the filter bar.";
+  }
+  const conditions = current.filter((filter) => filter.column === column);
+  const checkboxConditions = conditions.filter(
+    (filter) =>
+      filter.type === "stringOptions" || filter.type === "arrayOptions",
+  );
+  if (conditions.length === 0) return undefined;
+  if (conditions.length === 1 && checkboxConditions.length === 1)
+    return undefined;
+  if (
+    conditions.every(
+      (filter) =>
+        filter.type === "string" &&
+        (filter.operator === "contains" ||
+          filter.operator === "does not contain"),
+    )
+  )
+    return undefined;
+
+  // The legacy empty selection is an any-of and none-of of the same set.
+  // Its checkbox reset clears both halves as one selection.
+  const [first, second] = checkboxConditions;
+  if (
+    conditions.length === 2 &&
+    first &&
+    second &&
+    hasEmptyCheckboxSelection(conditions, column) &&
+    first.value.every((value) => second.value.includes(value)) &&
+    second.value.every((value) => first.value.includes(value))
+  )
+    return undefined;
+
+  return "Edit these conditions in the filter bar.";
 }
 
 /**
@@ -242,6 +329,11 @@ export function applySelection(
 
   const facet = ctx.facets.find((f) => f.column === column);
   if (!facet) return current;
+  if (
+    facet.type === "categorical" &&
+    categoricalFilterEditingReason(current, column)
+  )
+    return current;
 
   const colDef = ctx.columnDefinitions.find(
     (c) => c.id === column || c.name === column,
@@ -300,13 +392,27 @@ export function applySelection(
     colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
 
   if (operator === undefined && values.length === 0) {
+    // Unchecking the last value of a positive selection (Only, or any-of /
+    // all-of) returns to the implicit-all default. Turning that empty
+    // selection into `none of` every loaded value is a different gesture:
+    // it is what unchecking from the all-checked default, or from an active
+    // exclusion, means. Unlisted values may still match those exclusions;
+    // this is not match-nothing.
+    const positiveSelection =
+      (existingFilter?.type === "stringOptions" ||
+        existingFilter?.type === "arrayOptions") &&
+      (existingFilter.operator === "any of" ||
+        existingFilter.operator === "all of");
+    if (positiveSelection) {
+      // An exact legacy empty pair is also one selection; both halves reset.
+      return other;
+    }
+
     const previousValues =
       existingFilter?.type === "stringOptions" ||
       existingFilter?.type === "arrayOptions"
         ? existingFilter.value
         : [];
-    // Exclude unchecked options, including values no longer in the loaded
-    // option list. Unlisted values may still match; this is not match-nothing.
     const excludedValues = [
       ...new Set([...availableValues, ...previousValues]),
     ];
@@ -343,6 +449,11 @@ export function applySelection(
       existingFilter?.type === "stringOptions" &&
       existingFilter.operator === "none of" &&
       !isManagedEnvironmentColumn);
+  const preservePositiveOperator =
+    (existingFilter?.type === "stringOptions" ||
+      existingFilter?.type === "arrayOptions") &&
+    (existingFilter.operator === "any of" ||
+      existingFilter.operator === "all of");
 
   if (operator !== undefined) {
     // Explicit operator provided (e.g., from "Only" button or operator toggle) - use as-is
@@ -357,10 +468,11 @@ export function applySelection(
       return other;
     }
   } else {
-    // If all items are selected, remove the filter.
-    // (only for implicit/checkbox-based selection, not when operator is explicitly set)
+    // All loaded options need not be every value in this column. An explicit
+    // positive membership set stays finite when all loaded options are checked.
     if (
       !preserveNoneOfOperator &&
+      !preservePositiveOperator &&
       values.length > 0 &&
       values.length === availableValues.length &&
       availableValues.every((v) => values.includes(v))
@@ -462,6 +574,13 @@ export function applyCheckboxSelection(
   operator?: CheckboxOperator,
 ): FilterState {
   if (hasMultipleFilterTargets(current, column)) return current;
+  if (
+    ctx.facets.some(
+      (facet) => facet.column === column && facet.type === "categorical",
+    ) &&
+    categoricalFilterEditingReason(current, column)
+  )
+    return current;
   const withoutTextFilters = current.filter(
     (f) =>
       !(
@@ -502,6 +621,11 @@ export function buildOnlySelection(
 ): { values: string[]; operator?: CheckboxOperator } | null {
   const facet = ctx.facets.find((f) => f.column === column);
   if (!facet) return null;
+  if (
+    facet.type === "categorical" &&
+    categoricalFilterEditingReason(current, column)
+  )
+    return null;
 
   // Boolean facets take the plain single-value path (no operator).
   if (facet.type === "boolean") {
@@ -537,6 +661,7 @@ export function deriveOperatorChange(
   current: FilterState,
   column: string,
 ): { values: string[]; fromOperator?: string } | null {
+  if (categoricalFilterEditingReason(current, column)) return null;
   const existingFilter = current.find((f) => f.column === column);
   if (!existingFilter) {
     // Without selected values there is no valid persisted filter yet.
@@ -627,7 +752,8 @@ export function addTextFilterEntry(
   operator: TextFilterOperator,
   value: string,
 ): FilterState | null {
-  if (!value.trim() || hasMultipleFilterTargets(current, column)) return null;
+  if (!value.trim() || categoricalFilterEditingReason(current, column))
+    return null;
   const target = current.find((filter) => filter.column === column)?.target;
 
   const withoutCheckboxFilters = current.filter(
@@ -657,7 +783,7 @@ export function removeTextFilterEntry(
   operator: TextFilterOperator,
   value: string,
 ): FilterState {
-  if (hasMultipleFilterTargets(current, column)) return current;
+  if (categoricalFilterEditingReason(current, column)) return current;
   return current.filter(
     (f) =>
       !(
@@ -675,20 +801,26 @@ export type KeyedFilterKind =
   | "booleanObject"
   | "stringObject";
 
-/** Removes every filter of the given type on the column (keyed facet reset). */
+/** Removes every filter of the given types on the column (keyed facet reset). */
 export function removeColumnFiltersOfType(
   current: FilterState,
   column: string,
-  type: KeyedFilterKind,
+  type: KeyedFilterKind | readonly KeyedFilterKind[],
 ): FilterState {
-  return current.filter((f) => !(f.column === column && f.type === type));
+  const types: readonly string[] = typeof type === "string" ? [type] : type;
+  return current.filter(
+    (f) => !(f.column === column && types.includes(f.type)),
+  );
 }
 
 /**
  * Replaces a keyed facet's rows (metadata, categorical/numeric/boolean
  * scores): drops the column's existing filters of that kind and appends the
  * COMPLETE rows — entries still missing a key or value are UI drafts and are
- * filtered out here, not persisted.
+ * filtered out here, not persisted. A `stringObject` update with
+ * `numericValues` owns the column's `numberObject` filters too: its numeric
+ * rows replace them, and a numeric row whose value does not parse is a draft.
+ * Without `numericValues` the entries are text rows only.
  */
 export function applyKeyedFilterEntries(
   current: FilterState,
@@ -697,9 +829,24 @@ export function applyKeyedFilterEntries(
     | { kind: "categoryOptions"; entries: KeyValueFilterEntry[] }
     | { kind: "numberObject"; entries: NumericKeyValueFilterEntry[] }
     | { kind: "booleanObject"; entries: BooleanKeyValueFilterEntry[] }
-    | { kind: "stringObject"; entries: StringKeyValueFilterEntry[] },
+    | {
+        kind: "stringObject";
+        numericValues?: false;
+        entries: StringKeyValueTextEntry[];
+      }
+    | {
+        kind: "stringObject";
+        numericValues: true;
+        entries: StringKeyValueFilterEntry[];
+      },
 ): FilterState {
-  const without = removeColumnFiltersOfType(current, column, update.kind);
+  const without = removeColumnFiltersOfType(
+    current,
+    column,
+    update.kind === "stringObject" && update.numericValues
+      ? ["stringObject", "numberObject"]
+      : update.kind,
+  );
 
   switch (update.kind) {
     case "categoryOptions":
@@ -747,24 +894,82 @@ export function applyKeyedFilterEntries(
     case "stringObject":
       return [
         ...without,
-        ...update.entries
-          .filter(
-            (entry) =>
-              entry.key &&
-              (isStringPresenceOperator(entry.operator) ||
-                entry.value.trim() !== ""),
-          )
-          .map((entry) => ({
-            column,
-            type: "stringObject" as const,
-            operator: entry.operator,
-            key: entry.key,
-            ...(entry.target ? { target: entry.target } : {}),
-            // Presence operators carry no value.
-            value: isStringPresenceOperator(entry.operator) ? "" : entry.value,
-          })),
+        ...update.entries.flatMap((entry: StringKeyValueFilterEntry) =>
+          stringFacetRowToFilters(column, entry),
+        ),
       ];
   }
+}
+
+/**
+ * One string facet row as its filter: `[]` for a draft (no key, no value, or
+ * a numeric value that does not parse), a `numberObject` filter for a numeric
+ * row, a `stringObject` filter otherwise.
+ */
+function stringFacetRowToFilters(
+  column: string,
+  entry: StringKeyValueFilterEntry,
+): FilterState {
+  if (!entry.key) return [];
+  const target = entry.target ? { target: entry.target } : {};
+  if (entry.valueType === "number") {
+    const value = parseNumericEntryValue(entry.value);
+    if (value === null) return [];
+    return [
+      {
+        column,
+        type: "numberObject",
+        operator: entry.operator,
+        key: entry.key,
+        ...target,
+        value,
+      },
+    ];
+  }
+  const isPresence = isStringPresenceOperator(entry.operator);
+  if (!isPresence && entry.value.trim() === "") return [];
+  return [
+    {
+      column,
+      type: "stringObject",
+      operator: entry.operator,
+      key: entry.key,
+      ...target,
+      // Presence operators carry no value.
+      value: isPresence ? "" : entry.value,
+    },
+  ];
+}
+
+/**
+ * The inverse of `stringFacetRowToFilters`: the column's `stringObject`
+ * filters, plus its `numberObject` filters on a `numericValues` facet, as
+ * rows in filter-state order.
+ */
+export function stringFacetRowsOf(
+  current: FilterState,
+  column: string,
+  numericValues: boolean,
+): StringKeyValueFilterEntry[] {
+  return current.flatMap((f): StringKeyValueFilterEntry[] => {
+    if (f.column !== column) return [];
+    const target = f.target ? { target: f.target } : {};
+    if (f.type === "stringObject") {
+      return [{ key: f.key, ...target, operator: f.operator, value: f.value }];
+    }
+    if (numericValues && f.type === "numberObject") {
+      return [
+        {
+          key: f.key,
+          ...target,
+          valueType: "number",
+          operator: f.operator,
+          value: String(f.value),
+        },
+      ];
+    }
+    return [];
+  });
 }
 
 /**

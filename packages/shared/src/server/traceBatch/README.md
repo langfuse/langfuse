@@ -1,8 +1,8 @@
 # Trace-batch input storage
 
-`createTraceBatchInputStorage()` provides `put` and `get` for versioned inputs,
-using a project/trace/revision reference and one lazily initialized provider
-client shared across factory calls. The live inputs contain a nullable transcript,
+`createTraceBatchInputStorage()` provides `put` and `get`. `put` returns the
+stored object key. `get` reads that key. One lazily initialized provider
+client is shared across factory calls. The live inputs contain a nullable transcript,
 its execution issues (empty without a transcript) and required trace context. Session ID and trace name are nullable; context
 timestamps stay ISO strings.
 
@@ -29,6 +29,8 @@ must treat as retryable. Retries can resolve temporary deployment skew once a
 compatible reader is available. Retain old-version readers until old objects
 have expired; no rewrite of existing objects is required. Schema versions and
 trace-readiness revisions are independent.
+
+Objects live under `trace-batch/trace/` (after the event-upload prefix) and expire after three days (`TRACE_BATCH_INPUT_RETENTION_MS`). The worker events-dispatch transcript cleaner deletes expired objects. Trace and project deletion do not.
 
 The serialization suite round-trips the live transcript fixtures through V1.
 The storage suite retains a literal V1 JSON fixture to pin the saved format:

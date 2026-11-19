@@ -203,7 +203,7 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
         let recording = Recording::start();
         let response = provider
             .forward(
-                provider.admit(),
+                provider.admit(None),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested"}"#),

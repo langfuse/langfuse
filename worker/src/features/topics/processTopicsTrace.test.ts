@@ -9,10 +9,11 @@ import type {
 import {
   listTopicFacets,
   listTopicRules,
+  readTopicExecutionSummary,
 } from "@langfuse/shared/topics/server";
 import { processTopicsTrace } from "./processTopicsTrace";
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
-import { getServingTopicRun } from "./servingRuns";
+import { getRuleTopicRun } from "./servingRuns";
 import {
   pauseForRejectedConnection,
   TopicsProviderUnavailable,
@@ -20,12 +21,16 @@ import {
 
 const mocks = vi.hoisted(() => ({
   getInputs: vi.fn(),
+  getStoredInputs: vi.fn(),
   addToQueue: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
-  createTraceBatchInputStorage: () => ({ get: mocks.getInputs }),
+  createTraceBatchInputStorage: () => ({
+    legacyGet: mocks.getInputs,
+    get: mocks.getStoredInputs,
+  }),
   recordIncrement: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
@@ -36,6 +41,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   isValidTopicSummary: () => true,
   listTopicFacets: vi.fn(),
   listTopicRules: vi.fn(),
+  readTopicExecutionSummary: vi.fn(),
   topicSummaryRecord: (row: unknown) => ({ summary: row }),
   topicAssignmentRecord: (row: unknown) => ({ assignment: row }),
 }));
@@ -49,9 +55,11 @@ vi.mock("../../services/ClickhouseWriter", () => ({
 vi.mock("./summarizeAssembledTrace", () => ({
   summarizeAssembledTrace: vi.fn(),
 }));
-vi.mock("./servingRuns", () => ({ getServingTopicRun: vi.fn() }));
+vi.mock("./servingRuns", () => ({ getRuleTopicRun: vi.fn() }));
 vi.mock("./assignments", () => ({
-  topicAssignmentRows: () => [{ topicId: "billing" }],
+  topicAssignmentRows: ({ run }: { run: { id: string } }) => [
+    { topicId: "billing", runId: run.id },
+  ],
 }));
 vi.mock("./models", () => ({ TopicInputTooLarge: class extends Error {} }));
 vi.mock("./provider-error", async (importOriginal) => ({
@@ -92,6 +100,17 @@ const event = {
   ruleIds: ["rule"],
 };
 
+const storedInputs = {
+  transcript: null,
+  executionIssues: [],
+  traceContext: {
+    sessionId: null,
+    traceTimestamp: "2026-10-14T00:00:00.000Z",
+    environment: "default",
+    traceName: null,
+  },
+};
+
 const scheduleRetry = vi.fn(
   async (): Promise<"scheduled" | "skipped" | "queue_unavailable"> =>
     "scheduled",
@@ -110,33 +129,31 @@ describe("processTopicsTrace", () => {
       facet("intent", 2),
       facet("tone", 2),
     ]);
-    mocks.getInputs.mockResolvedValue({
-      transcript: null,
-      executionIssues: [],
-      traceContext: {
-        sessionId: null,
-        traceTimestamp: "2026-10-14T00:00:00.000Z",
-        environment: "default",
-        traceName: null,
-      },
-    });
+    mocks.getInputs.mockResolvedValue(storedInputs);
   });
 
-  it("summarizes each facet its rules select once and assigns to the serving map, leaving the summary unassigned without one", async () => {
+  it("summarizes each facet its rules select once and assigns it to the map of every matched rule that has one", async () => {
     vi.mocked(listTopicRules).mockResolvedValue([
       rule("rule", ["intent"]),
       rule("other", ["intent", "deleted-facet"]),
-      rule("unselected", ["tone"]),
+      rule("mapped", ["intent"]),
+      rule("unmatched", ["intent", "tone"]),
     ]);
     vi.mocked(summarizeAssembledTrace).mockResolvedValue({
       outcome: "summarized",
       rows: [row("intent", "complete")],
     });
-    vi.mocked(getServingTopicRun).mockResolvedValueOnce(null);
-    const twoRules = { ...event, ruleIds: ["rule", "other", "deleted-rule"] };
+    vi.mocked(getRuleTopicRun).mockImplementation(
+      async (_project, ruleId) =>
+        (ruleId === "other" ? null : { id: `${ruleId}-map` }) as never,
+    );
+    const matched = {
+      ...event,
+      ruleIds: ["rule", "other", "mapped", "deleted-rule"],
+    };
 
     await expect(
-      processTopicsTrace(twoRules, { scheduleRetry }),
+      processTopicsTrace(matched, { scheduleRetry }),
     ).resolves.toEqual({ outcome: "summarized" });
     expect(vi.mocked(summarizeAssembledTrace).mock.calls[0][0].facets).toEqual([
       expect.objectContaining({ name: "intent" }),
@@ -145,17 +162,39 @@ describe("processTopicsTrace", () => {
       "topic_facet_summaries",
       expect.anything(),
     );
-    expect(mocks.addToQueue).not.toHaveBeenCalledWith(
-      "topic_assignments",
-      expect.anything(),
-    );
+    // "other" has no map yet; "unmatched" has one but the trace didn't match it.
+    const assigned = mocks.addToQueue.mock.calls
+      .filter(([table]) => table === "topic_assignments")
+      .map(([, record]) => record.assignment.runId);
+    expect(assigned).toEqual(["rule-map", "mapped-map"]);
+  });
 
-    vi.mocked(getServingTopicRun).mockResolvedValueOnce({ id: "run" } as never);
-    mocks.addToQueue.mockClear();
-    await processTopicsTrace(event, { scheduleRetry });
-    expect(mocks.addToQueue).toHaveBeenCalledWith("topic_assignments", {
-      assignment: { topicId: "billing" },
+  it("summarizes a snapshot's facets without a rule and tags the summaries with the snapshot", async () => {
+    vi.mocked(readTopicExecutionSummary).mockResolvedValue({
+      status: "running",
+      input: { operation: "update", facets: [{ facetId: "tone", version: 2 }] },
+    } as never);
+    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
+      outcome: "summarized",
+      rows: [row("tone", "complete")],
     });
+
+    await expect(
+      processTopicsTrace(
+        { ...event, ruleIds: [], batchActionId: "snapshot" },
+        { scheduleRetry },
+      ),
+    ).resolves.toEqual({ outcome: "summarized" });
+    expect(vi.mocked(summarizeAssembledTrace).mock.calls[0][0]).toMatchObject({
+      facets: [expect.objectContaining({ name: "tone" })],
+      executionId: "snapshot",
+    });
+    // No rule matched, so nothing is assigned online; the snapshot's fit assigns.
+    expect(
+      mocks.addToQueue.mock.calls.filter(
+        ([table]) => table === "topic_assignments",
+      ),
+    ).toEqual([]);
   });
 
   it("skips the trace when its rules no longer select a facet", async () => {
@@ -230,6 +269,23 @@ describe("processTopicsTrace", () => {
     );
     expect(pauseForRejectedConnection).toHaveBeenCalledOnce();
     expect(scheduleRetry).not.toHaveBeenCalled();
+  });
+
+  it("reads the transcript by the stored key when the job carries one", async () => {
+    mocks.getStoredInputs.mockResolvedValueOnce(storedInputs);
+    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
+      outcome: "summarized",
+      rows: [],
+    });
+
+    await processTopicsTrace(
+      { ...event, transcriptS3Path: "stored.json" },
+      { scheduleRetry },
+    );
+
+    expect(mocks.getStoredInputs).toHaveBeenCalledWith("stored.json");
+    expect(mocks.getInputs).not.toHaveBeenCalled();
+    expect(summarizeAssembledTrace).toHaveBeenCalledOnce();
   });
 
   it("drops invalid stored input but rethrows a failed read", async () => {

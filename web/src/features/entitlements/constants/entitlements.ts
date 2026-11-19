@@ -19,6 +19,7 @@ const entitlements = [
   "self-host-telemetry-opt-out",
   "external-media-storage",
   "storage-iam-role-auth",
+  "bedrock-iam-role-auth",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -46,6 +47,7 @@ const selfHostedEnterpriseEntitlements: Entitlement[] = [
   "admin-api",
   "external-media-storage",
   "storage-iam-role-auth",
+  "bedrock-iam-role-auth",
 ];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used
@@ -142,6 +144,7 @@ export const entitlementAccess: Record<
       "cloud-spend-alerts",
       "external-media-storage",
       "storage-iam-role-auth",
+      "bedrock-iam-role-auth",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

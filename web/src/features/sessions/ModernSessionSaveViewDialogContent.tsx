@@ -1,26 +1,51 @@
 import { useState } from "react";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { type z } from "zod";
+import { type SessionViewInputSchema } from "@langfuse/shared";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { RadioCardGroup } from "@/src/components/design-system/RadioCardGroup/RadioCardGroup";
+
+type SessionViewInput = z.infer<typeof SessionViewInputSchema>;
 
 type ModernSessionSaveViewDialogContentProps = {
   isSaving: boolean;
-  onCancel: () => void;
-  onSave: (viewName: string) => void;
+  onSave: (viewName: string, ownership: SessionViewInput["ownership"]) => void;
+  allowedOwnerships: SessionViewInput["ownership"][];
+  showOwnership: boolean;
   error?: string;
 };
 
 export function ModernSessionSaveViewDialogContent({
   isSaving,
-  onCancel,
   onSave,
   error,
+  allowedOwnerships,
+  showOwnership,
 }: ModernSessionSaveViewDialogContentProps) {
+  const canSavePrivate = allowedOwnerships.includes("PRIVATE");
+  const canSaveProject = allowedOwnerships.includes("PROJECT");
   const [viewName, setViewName] = useState("");
-  const saveView = () => onSave(viewName.trim());
+  const [ownership, setOwnership] = useState<SessionViewInput["ownership"]>(
+    canSavePrivate ? "PRIVATE" : "PROJECT",
+  );
+  const canSave = ownership === "PRIVATE" ? canSavePrivate : canSaveProject;
+  const saveView = () => {
+    if (!canSave || isSaving || !viewName.trim()) return;
+    onSave(viewName.trim(), ownership);
+  };
 
   return (
-    <Dialog title="Save as new view">
+    <Dialog
+      title="Save as new view"
+      actions={[
+        {
+          label: "Save view",
+          loading: isSaving,
+          disabled: !viewName.trim() || isSaving || !canSave,
+          onClick: saveView,
+        },
+      ]}
+    >
       <Dialog.Body>
         <div>
           <label
@@ -42,20 +67,33 @@ export function ModernSessionSaveViewDialogContent({
             }}
           />
         </div>
+        {showOwnership && (
+          <>
+            <RadioCardGroup<SessionViewInput["ownership"]>
+              aria-label="View ownership"
+              value={ownership}
+              onValueChange={setOwnership}
+              options={[
+                ...(canSavePrivate
+                  ? [{ value: "PRIVATE" as const, label: "Private view" }]
+                  : []),
+                ...(canSaveProject
+                  ? [{ value: "PROJECT" as const, label: "Project view" }]
+                  : []),
+              ]}
+            />
+            <p className="text-muted-foreground text-sm">
+              {ownership === "PRIVATE"
+                ? "Only you can see and edit this view. Private views cannot be used by annotation queues."
+                : "Shared with the project. Anyone with project-view write permission can edit it, including for all queues using it."}
+            </p>
+          </>
+        )}
         {error ? (
           <p role="alert" className="text-destructive">
             {error}
           </p>
         ) : null}
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" text="Cancel" onClick={onCancel} />
-          <Button
-            text="Save view"
-            loading={isSaving}
-            disabled={!viewName.trim()}
-            onClick={saveView}
-          />
-        </div>
       </Dialog.Body>
     </Dialog>
   );

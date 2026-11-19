@@ -1,0 +1,990 @@
+{
+  "cases": [
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "infers input and output costs from the default tier",
+      "usage_details": {
+        "input": 100,
+        "output": 200,
+        "total": 300
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01,
+            "output": 0.02
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 1,
+          "output": 4,
+          "total": 5
+        },
+        "total_cost": 5,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": {
+        "total": 0
+      },
+      "model_parameters": null,
+      "metadata": null,
+      "name": "provided total cost of zero wins over inferred costs",
+      "usage_details": {
+        "input": 100,
+        "output": 200,
+        "total": 300
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01,
+            "output": 0.02
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "total": 0
+        },
+        "total_cost": 0,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": {
+        "input": 2,
+        "output": 0.5
+      },
+      "model_parameters": null,
+      "metadata": null,
+      "name": "provided input and output costs sum to the total",
+      "usage_details": {
+        "input": 100,
+        "output": 200,
+        "total": 300
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01,
+            "output": 0.02
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 2,
+          "output": 0.5,
+          "total": 2.5
+        },
+        "total_cost": 2.5,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": {
+        "custom": 2
+      },
+      "model_parameters": null,
+      "metadata": null,
+      "name": "provided custom cost leaves the total unknown",
+      "usage_details": {
+        "input": 100,
+        "output": 200,
+        "total": 300
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01,
+            "output": 0.02
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "custom": 2
+        },
+        "total_cost": null,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "priced total is used without adding components",
+      "usage_details": {
+        "input": 100,
+        "output": 200,
+        "total": 300
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01,
+            "total": 0.03
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 1,
+          "total": 9
+        },
+        "total_cost": 9,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "empty usage selects no tier",
+      "usage_details": {},
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {},
+        "total_cost": null,
+        "usage_pricing_tier_id": null,
+        "usage_pricing_tier_name": null
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "unpriced total-only usage stays unknown",
+      "usage_details": {
+        "total": 300
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {},
+        "total_cost": null,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "zero price yields a known zero cost",
+      "usage_details": {
+        "input": 100,
+        "output": 0,
+        "total": 100
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 0,
+          "total": 0
+        },
+        "total_cost": 0,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "TTL cache writes fall back to the aggregate cache-write price",
+      "usage_details": {
+        "input_cache_creation_5m": 2000,
+        "input_cache_creation_1h": 10256
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "cache_creation_input_tokens": 0.00000375,
+            "input_cache_creation_1h": 0.000006
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input_cache_creation_5m": 0.0075,
+          "input_cache_creation_1h": 0.061536,
+          "total": 0.069036
+        },
+        "total_cost": 0.069036,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "usage condition above the threshold selects the long-context tier",
+      "usage_details": {
+        "input": 150,
+        "input_cached_tokens": 60,
+        "output": 10
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01,
+            "output": 0.02
+          }
+        },
+        {
+          "id": "long-context",
+          "name": "Long context",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "usage_detail_pattern": "^input",
+              "operator": "gt",
+              "value": 200,
+              "case_sensitive": false
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 6,
+          "output": 0.8,
+          "total": 6.8
+        },
+        "total_cost": 6.8,
+        "usage_pricing_tier_id": "long-context",
+        "usage_pricing_tier_name": "Long context"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "usage condition at the threshold falls back to the default tier",
+      "usage_details": {
+        "input": 150,
+        "input_cached_tokens": 50,
+        "output": 10
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01,
+            "output": 0.02
+          }
+        },
+        {
+          "id": "long-context",
+          "name": "Long context",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "usage_detail_pattern": "^input",
+              "operator": "gt",
+              "value": 200,
+              "case_sensitive": false
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 1.5,
+          "output": 0.2,
+          "total": 1.7
+        },
+        "total_cost": 1.7,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "case-sensitive usage pattern ignores differently cased keys",
+      "usage_details": {
+        "INPUT": 300,
+        "output": 10
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "INPUT": 0.01,
+            "output": 0.02
+          }
+        },
+        {
+          "id": "long-context",
+          "name": "Long context",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "usage_detail_pattern": "^input",
+              "operator": "gt",
+              "value": 200,
+              "case_sensitive": true
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "INPUT": 3,
+          "output": 0.2,
+          "total": 3.2
+        },
+        "total_cost": 3.2,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "case-insensitive usage pattern matches differently cased keys",
+      "usage_details": {
+        "INPUT": 300,
+        "output": 10
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "INPUT": 0.01,
+            "output": 0.02
+          }
+        },
+        {
+          "id": "long-context",
+          "name": "Long context",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "usage_detail_pattern": "^input",
+              "operator": "gt",
+              "value": 200,
+              "case_sensitive": false
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "output": 0.8,
+          "total": 0.8
+        },
+        "total_cost": 0.8,
+        "usage_pricing_tier_id": "long-context",
+        "usage_pricing_tier_name": "Long context"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "invalid usage pattern fails the condition",
+      "usage_details": {
+        "input": 300
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01
+          }
+        },
+        {
+          "id": "long-context",
+          "name": "Long context",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "usage_detail_pattern": "(",
+              "operator": "gt",
+              "value": 0,
+              "case_sensitive": false
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 3,
+          "total": 3
+        },
+        "total_cost": 3,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "remaining operators compare the summed usage",
+      "usage_details": {
+        "input": 100,
+        "output": 50
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01
+          }
+        },
+        {
+          "id": "long-context",
+          "name": "Long context",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "usage_detail_pattern": ".*",
+              "operator": "gte",
+              "value": 150,
+              "case_sensitive": false
+            },
+            {
+              "usage_detail_pattern": "^output$",
+              "operator": "lte",
+              "value": 50,
+              "case_sensitive": false
+            },
+            {
+              "usage_detail_pattern": "^output$",
+              "operator": "lt",
+              "value": 51,
+              "case_sensitive": false
+            },
+            {
+              "usage_detail_pattern": "^input$",
+              "operator": "neq",
+              "value": 99,
+              "case_sensitive": false
+            },
+            {
+              "usage_detail_pattern": "^input$",
+              "operator": "eq",
+              "value": 100,
+              "case_sensitive": false
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 4,
+          "output": 4,
+          "total": 8
+        },
+        "total_cost": 8,
+        "usage_pricing_tier_id": "long-context",
+        "usage_pricing_tier_name": "Long context"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "lowest priority wins among matching tiers",
+      "usage_details": {
+        "input": 300
+      },
+      "tiers": [
+        {
+          "id": "later",
+          "name": "Later",
+          "is_default": false,
+          "priority": 5,
+          "conditions": [
+            {
+              "usage_detail_pattern": "^input",
+              "operator": "gt",
+              "value": 100,
+              "case_sensitive": false
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        },
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01
+          }
+        },
+        {
+          "id": "first",
+          "name": "First",
+          "is_default": false,
+          "priority": 2,
+          "conditions": [
+            {
+              "usage_detail_pattern": "^input",
+              "operator": "gt",
+              "value": 100,
+              "case_sensitive": false
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 12,
+          "total": 12
+        },
+        "total_cost": 12,
+        "usage_pricing_tier_id": "first",
+        "usage_pricing_tier_name": "First"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "no default tier and no match prices nothing",
+      "usage_details": {
+        "input": 300
+      },
+      "tiers": [
+        {
+          "id": "long-context",
+          "name": "Long context",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "usage_detail_pattern": "^input",
+              "operator": "gt",
+              "value": 1000,
+              "case_sensitive": false
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {},
+        "total_cost": null,
+        "usage_pricing_tier_id": null,
+        "usage_pricing_tier_name": null
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": {
+        "service_tier": "priority",
+        "temperature": 1
+      },
+      "metadata": {
+        "enabled": true,
+        "nested": {
+          "a": 1
+        }
+      },
+      "name": "attribute conditions match stringified parameters and metadata",
+      "usage_details": {
+        "input": 150.5
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01
+          }
+        },
+        {
+          "id": "long-context",
+          "name": "Long context",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "source": "model_parameters",
+              "key": "service_tier",
+              "values": [
+                "priority"
+              ]
+            },
+            {
+              "source": "model_parameters",
+              "key": "temperature",
+              "values": [
+                "1"
+              ]
+            },
+            {
+              "source": "metadata",
+              "key": "enabled",
+              "values": [
+                "true"
+              ]
+            },
+            {
+              "usage_detail_pattern": "^input",
+              "operator": "gt",
+              "value": 100,
+              "case_sensitive": false
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 6.02,
+          "total": 6.02
+        },
+        "total_cost": 6.02,
+        "usage_pricing_tier_id": "long-context",
+        "usage_pricing_tier_name": "Long context"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": "{\"service_tier\":\"priority\"}",
+      "metadata": null,
+      "name": "attribute values stored as JSON strings are parsed",
+      "usage_details": {
+        "input": 10
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01
+          }
+        },
+        {
+          "id": "long-context",
+          "name": "Long context",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "source": "model_parameters",
+              "key": "service_tier",
+              "values": [
+                "priority"
+              ]
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 0.4,
+          "total": 0.4
+        },
+        "total_cost": 0.4,
+        "usage_pricing_tier_id": "long-context",
+        "usage_pricing_tier_name": "Long context"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": {
+        "nested": {
+          "a": 1
+        }
+      },
+      "name": "missing and nested attributes fail the condition",
+      "usage_details": {
+        "input": 10
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01
+          }
+        },
+        {
+          "id": "long-context",
+          "name": "Long context",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "source": "metadata",
+              "key": "nested",
+              "values": [
+                ""
+              ]
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        },
+        {
+          "id": "absent",
+          "name": "Absent",
+          "is_default": false,
+          "priority": 2,
+          "conditions": [
+            {
+              "source": "metadata",
+              "key": "absent",
+              "values": [
+                ""
+              ]
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 0.1,
+          "total": 0.1
+        },
+        "total_cost": 0.1,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
+      "name": "non-BMP keys are excluded from tier conditions but still priced",
+      "usage_details": {
+        "input": 100,
+        "😀": 50,
+        "𐀀": 1,
+        "entrée": 1
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.01,
+            "😀": 0.01
+          }
+        },
+        {
+          "id": "non-bmp",
+          "name": "Non-BMP usage",
+          "is_default": false,
+          "priority": 1,
+          "conditions": [
+            {
+              "usage_detail_pattern": "^😀$",
+              "operator": "eq",
+              "value": 50,
+              "case_sensitive": true
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "output": 0.08
+          }
+        },
+        {
+          "id": "bmp",
+          "name": "BMP usage",
+          "is_default": false,
+          "priority": 2,
+          "conditions": [
+            {
+              "usage_detail_pattern": ".*",
+              "operator": "eq",
+              "value": 101,
+              "case_sensitive": false
+            }
+          ],
+          "prices": {
+            "input": 0.04,
+            "😀": 0.02
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 4,
+          "😀": 1,
+          "total": 5
+        },
+        "total_cost": 5,
+        "usage_pricing_tier_id": "bmp",
+        "usage_pricing_tier_name": "BMP usage"
+      }
+    }
+  ]
+}

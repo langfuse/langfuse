@@ -48,13 +48,22 @@ const newsletterSignupConnectSrc =
 const assetPrefixSrc = env.NEXT_PUBLIC_ASSET_PREFIX
   ? `${new URL(env.NEXT_PUBLIC_ASSET_PREFIX).origin} `
   : "";
+// ClickHouse's Marketo instance (MARKETO_ORIGIN in
+// src/ee/features/billing/utils/marketoCreditForm.ts) serves the coupon
+// credit-request form: its script and form definition, its stylesheets, and
+// the frame it submits through. Client-side navigation keeps the policy of the
+// first document, so the allowance cannot be scoped to the coupon page.
+const marketoCreditFormSrc =
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
+    ? "https://discover.clickhouse.com "
+    : "";
 const cspHeader = `
   default-src 'self' ${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://*.posthog.com https://*.sentry.io;
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' ${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
-  style-src 'self' 'unsafe-inline' ${assetPrefixSrc}https://fonts.googleapis.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' ${assetPrefixSrc}${marketoCreditFormSrc}https://*.langfuse.com https://*.langfuse.dev https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
+  style-src 'self' 'unsafe-inline' ${assetPrefixSrc}${marketoCreditFormSrc}https://fonts.googleapis.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   img-src 'self' https: blob: data: http://localhost:* https://prod-uk-services-workspac-workspacefilespublicbuck-vs4gjqpqjkh6.s3.amazonaws.com https://prod-uk-services-attachm-attachmentsbucket28b3ccf-uwfssb4vt2us.s3.eu-west-2.amazonaws.com https://i0.wp.com;
   font-src ${assetPrefixSrc}'self';
-  frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
+  frame-src 'self' ${marketoCreditFormSrc}https://challenges.cloudflare.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   worker-src 'self' blob:;
   object-src 'none';
   base-uri 'self';
@@ -85,6 +94,10 @@ const reportToHeader = {
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  // Every platform build of one image must share the same build ID. Otherwise
+  // replicas on different CPU architectures 404 on each other's /_next/static
+  // assets. Falls back to Next.js's random ID when no build ID is provided.
+  generateBuildId: async () => process.env.NEXT_PUBLIC_BUILD_ID || null,
   // Emit and serve browser source maps in production. Langfuse is open source,
   // so there is nothing to hide by shipping maps, and browser devtools then
   // de-minify client stacks automatically. NOTE: this alone does NOT make Sentry

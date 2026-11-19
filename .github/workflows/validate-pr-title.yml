@@ -11,9 +11,14 @@ on:
       - synchronize
       - reopened
 
+# Cancel superseded PR runs; keep other events independent with a unique group per run.
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
+
 jobs:
   validate-pr-title:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       statuses: write
       pull-requests: read

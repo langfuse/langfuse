@@ -24,10 +24,19 @@ import {
   aggregationSlot,
   eventsObservationsScoresJoin,
 } from "./eventsObservationsRegistry";
+import { isNgramSubstringTarget } from "../../../server/queries/clickhouse-sql/fts";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 
+// The string builder reads each dimension and measure of
+// `eventsObservationsView` as a SQL string (`dataModel.ts`); the AST builder
+// reads the typed expression of the same name in
+// `EVENTS_OBSERVATIONS_DIMENSIONS` / `EVENTS_OBSERVATIONS_MEASURES`. These
+// tests check that each pair says the same thing: same keys and metadata,
+// same filter behavior, and (with ClickHouse) the same parse tree.
+
 // select … from events_truncated as e left join scores on <join>
-// (`events_truncated` always routes to `events_core`, the view's `baseCte`)
+// (with no WHERE filter, `events_truncated` routes to `events_core`, the
+// view's `baseCte`)
 const baseQuery = () =>
   getClickhouseKysely()
     .selectFrom("events_truncated as e")
@@ -82,11 +91,12 @@ function registryCases(): Case[] {
       legacy: legacy.sql,
       build: (eb) => entry.expression(eb),
     });
-    if ("pairExpand" in entry) {
+    const pairExpand = "pairExpand" in entry ? entry.pairExpand : undefined;
+    if (pairExpand) {
       cases.push({
         key: `pair_values_${name}`,
         legacy: legacy.pairExpand?.valuesSql ?? "missing_pair_expand",
-        build: (eb) => entry.pairExpand.values(eb),
+        build: (eb) => pairExpand.values(eb),
       });
     }
   }
@@ -153,13 +163,34 @@ describe("v2 observations registry", () => {
       EVENTS_OBSERVATIONS_DIMENSIONS,
     )) {
       expect(
-        "pairExpand" in entry ? entry.pairExpand.valueAlias : undefined,
+        "pairExpand" in entry ? entry.pairExpand?.valueAlias : undefined,
         name,
       ).toEqual(view.dimensions[name].pairExpand?.valueAlias);
     }
   });
 
+  it("types every exploded or pair-expanded dimension as an array, and lowers a filter for every other", () => {
+    // A check that does not apply to a dimension reads `true`, so every
+    // dimension must come out `{ array: true, filter: true }`.
+    for (const [name, entry] of Object.entries(
+      EVENTS_OBSERVATIONS_DIMENSIONS,
+    )) {
+      const { explodeArray, pairExpand } = view.dimensions[name];
+      expect(
+        {
+          array: explodeArray || pairExpand ? entry.array : true,
+          filter: pairExpand
+            ? true
+            : "filter" in entry && entry.filter !== undefined,
+        },
+        name,
+      ).toEqual({ array: true, filter: true });
+    }
+  });
+
   it("keeps nullIf(column, '') recognisable for the filter path", () => {
+    // Legacy `nullIf(events_observations.x, '')` must render as
+    // `nullIf(e.x, '')`; a dimension without the wrapper matches on neither.
     const rendered = renderCases(registryCases());
     for (const name of Object.keys(EVENTS_OBSERVATIONS_DIMENSIONS)) {
       const legacyMatch = NULL_IF_EMPTY_RE.exec(view.dimensions[name].sql);
@@ -167,6 +198,50 @@ describe("v2 observations registry", () => {
       expect(match?.[1], name).toEqual(
         legacyMatch?.[1].replace(`${LEGACY_ALIAS}.`, "e."),
       );
+    }
+  });
+
+  // The string builder's `mapFilters` compares the column inside a
+  // `nullIf(column, '')` dimension with `''` and NULL as one value, any other
+  // dimension as its `sql`, and adds the ngram conjunct by column name.
+  // Example: `name` is `events_observations.name`, so a filter compares
+  // `e.name` with the ngram conjunct; `nullIf(events_observations.environment,
+  // '')` compares `e.environment`, `''` read as NULL, no ngram conjunct.
+  it("lowers each dimension's filter as the string builder's mapFilters does", () => {
+    const eb: QueryBuilder = expressionBuilder(baseQuery());
+    const rendered = renderCases(registryCases());
+    for (const [name, entry] of Object.entries(
+      EVENTS_OBSERVATIONS_DIMENSIONS,
+    )) {
+      const filter = "filter" in entry ? entry.filter : undefined;
+      // Pair-expanded dimensions have no filter (checked above).
+      if (!filter) continue;
+      // `x` of a legacy `nullIf(x, '')` dimension, else undefined.
+      const legacyColumn = NULL_IF_EMPTY_RE.exec(
+        view.dimensions[name].sql,
+      )?.[1];
+      const registryValue = rendered[`dimension_${name}`];
+      // Left: what the registry's filter lowering declares. Right: what
+      // `mapFilters` derives from the legacy string, with the compared
+      // value taken from the registry's own dimension SQL.
+      expect(
+        {
+          emptyEqualsNull: filter.emptyEqualsNull ?? false,
+          ngramIndexed:
+            filter.kind === "string" ? (filter.ngramIndexed ?? false) : false,
+          value: renderClickhouseExpression(filter.value(eb)),
+        },
+        name,
+      ).toEqual({
+        emptyEqualsNull: legacyColumn !== undefined,
+        ngramIndexed: isNgramSubstringTarget(
+          "events_core",
+          legacyColumn ?? view.dimensions[name].sql,
+        ),
+        value: legacyColumn
+          ? NULL_IF_EMPTY_RE.exec(registryValue)?.[1]
+          : registryValue,
+      });
     }
   });
 
@@ -252,6 +327,8 @@ function normalizeTree(tree: string, caseInsensitive: Set<string>) {
 }
 
 describeWithClickhouse("v2 observations registry SQL", () => {
+  // Legacy string and registry SQL differ in spelling, so the check compares
+  // ClickHouse's parse trees after `normalizeTree` instead of the text.
   // One `clickhouse local` run for all cases: each start takes seconds on the CI binary.
   it(
     "parses to the same tree as the view's SQL, entry by entry",

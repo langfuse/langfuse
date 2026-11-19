@@ -15,7 +15,9 @@ import { astToFilterState, type ScoreTypeContext } from "./adapter";
 import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
-const MAX_QUERY_LENGTH = 2048;
+export const MAX_QUERY_LENGTH = 64 * 1024;
+export const MAX_QUERY_DIAGNOSTICS = 100;
+const MAX_SEARCH_QUERY_LENGTH = 2048;
 
 function nodeSpan(node: ASTNode, textLength: number): Span {
   if (node.kind === "and" || node.kind === "or") {
@@ -219,11 +221,11 @@ export function semanticDiagnostics(
   const termRegistry = registry.filterStateErrors
     ? { ...registry, filterStateErrors: undefined }
     : registry;
-  const { errors: wholeQueryErrors } = astToFilterState(
-    ast,
-    scoreTypes,
-    registry,
-  );
+  const {
+    errors: wholeQueryErrors,
+    errorCodes: wholeQueryErrorCodes,
+    searchQuery,
+  } = astToFilterState(ast, scoreTypes, registry);
   let firstCompatibilityScope: ASTNode | undefined;
   for (const node of topLevel) {
     const ref = node.kind === "filter" ? registry.resolveField(node.key) : null;
@@ -234,7 +236,7 @@ export function semanticDiagnostics(
       isCompatibilityScope && firstCompatibilityScope
         ? { kind: "and", children: [firstCompatibilityScope, node] }
         : node;
-    const { errors, searchType } = astToFilterState(
+    const { errors, errorCodes, searchType } = astToFilterState(
       term,
       scoreTypes,
       termRegistry,
@@ -249,7 +251,14 @@ export function semanticDiagnostics(
       // A compatibility scope uses a phrase elsewhere in the query. Keep its
       // precise error span only when the complete query confirms the error.
       if (isCompatibilityScope && !wholeQueryErrors.includes(message)) continue;
-      out.push({ from: span.from, to: span.to, severity: "error", message });
+      const code = errorCodes?.get(message);
+      out.push({
+        from: span.from,
+        to: span.to,
+        severity: "error",
+        message,
+        ...(code ? { code } : {}),
+      });
     }
     hasFilterWarnings(node, textLength, out, false, registry);
   }
@@ -259,9 +268,24 @@ export function semanticDiagnostics(
   // draft validation and commit validation share the same backend boundary.
   {
     const span = nodeSpan(ast, textLength);
+    // Search text is stored directly in the URL, independently of the
+    // structured filters' long-value storage fallback.
+    if (searchQuery !== null && searchQuery.length > MAX_SEARCH_QUERY_LENGTH) {
+      out.push({
+        ...span,
+        severity: "error",
+        message: `Search text is too long (${searchQuery.length} chars, max ${MAX_SEARCH_QUERY_LENGTH})`,
+      });
+    }
     for (const message of wholeQueryErrors) {
       if (!out.some((diagnostic) => diagnostic.message === message)) {
-        out.push({ ...span, severity: "error", message });
+        const code = wholeQueryErrorCodes?.get(message);
+        out.push({
+          ...span,
+          severity: "error",
+          message,
+          ...(code ? { code } : {}),
+        });
       }
     }
   }
@@ -283,7 +307,8 @@ export function semanticDiagnostics(
  */
 function dedupeMergedDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
   const kept: Diagnostic[] = [];
-  for (const d of diagnostics) {
+  for (let index = 0; index < diagnostics.length; index++) {
+    const d = diagnostics[index]!;
     const dup = kept.some(
       (k) =>
         k.severity === d.severity &&
@@ -291,7 +316,30 @@ function dedupeMergedDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
         k.from < d.to &&
         d.from < k.to,
     );
-    if (!dup) kept.push(d);
+    if (dup) continue;
+    // Bound overlap comparisons and UI output without hiding a later error
+    // behind an initial run of warnings.
+    if (kept.length === MAX_QUERY_DIAGNOSTICS) {
+      let { from, to, severity } = d;
+      for (
+        let hiddenIndex = index + 1;
+        hiddenIndex < diagnostics.length;
+        hiddenIndex++
+      ) {
+        const hidden = diagnostics[hiddenIndex]!;
+        from = Math.min(from, hidden.from);
+        to = Math.max(to, hidden.to);
+        if (hidden.severity === "error") severity = "error";
+      }
+      kept.push({
+        from,
+        to,
+        severity,
+        message: `Only the first ${MAX_QUERY_DIAGNOSTICS} query diagnostics are shown.`,
+      });
+      break;
+    }
+    kept.push(d);
   }
   return kept;
 }
@@ -307,18 +355,18 @@ export function validateQuery(
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): ParseResult {
   const res = parse(text, registry);
-  const diagnostics = dedupeMergedDiagnostics([
-    ...res.diagnostics,
-    ...semanticDiagnostics(res.ast, text.length, scoreTypes, registry),
-  ]);
+  const unmergedDiagnostics = res.diagnostics.concat(
+    semanticDiagnostics(res.ast, text.length, scoreTypes, registry),
+  );
   if (text.length > MAX_QUERY_LENGTH) {
-    diagnostics.push({
+    unmergedDiagnostics.push({
       from: 0,
       to: text.length,
       severity: "error",
       message: `Query is too long (${text.length} chars, max ${MAX_QUERY_LENGTH})`,
     });
   }
+  const diagnostics = dedupeMergedDiagnostics(unmergedDiagnostics);
   return {
     ast: res.ast,
     diagnostics,

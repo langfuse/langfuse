@@ -1,13 +1,18 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import {
+  createEvent,
+  createEventsCh,
+  getTopicSetupTraceBounds,
+  getTopicSetupTraceIds,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  loadTopicTranscript,
+  getNewestTopicClusteringSummaries,
   selectTopicTraceRows,
+  summarizedTopicMatchesQuery,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
-import { matchRefitWindow } from "./refitFilter";
 
 const selection = {
   filter: [],
@@ -53,11 +58,8 @@ describe("Topics trace selection", () => {
   });
   it("deduplicates, orders and scopes matches to the project, window and public environments", async () => {
     const input = { ...selection, projectId };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
-    expect(ids).toEqual([{ id: "trace-new" }, { id: "trace-old" }]);
+    const preview = await selectTopicTraceRows(input, prisma);
+    expect(preview.map(({ id }) => id)).toEqual(["trace-new", "trace-old"]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
   });
 
@@ -81,15 +83,12 @@ describe("Topics trace selection", () => {
         },
       ],
     };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
-    expect(ids).toEqual([{ id: "trace-new" }]);
+    const preview = await selectTopicTraceRows(input, prisma);
+    expect(preview.map(({ id }) => id)).toEqual(["trace-new"]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
   });
 
-  it("keeps a refit to summarized traces that meet the rule's filter, beyond the newest week", async () => {
+  it("loads the newest summaries of traces that meet a rule's filter, filtering before the limit", async () => {
     await createEventsCh(
       [
         ["trace-unmatched", "2026-09-23T09:30:00Z", "plan"],
@@ -140,31 +139,49 @@ describe("Topics trace selection", () => {
         metadata: {},
       })),
     );
-    const from = new Date("2026-09-01T00:00:00.000Z");
+    const facet = { facetId: "facet", version: 1 };
+    const timeRange = {
+      from: new Date("2026-09-01T00:00:00.000Z"),
+      to: selection.to,
+    };
 
-    const matched = await matchRefitWindow({
-      projectId,
-      ruleId: "rule",
-      runId: "run",
-      facet: { facetId: "facet", version: 1 },
-      filter: [
-        {
-          column: "name",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["fetch_context"],
-        },
-      ],
-      timeRange: { from, to: selection.to },
-    });
+    const newest = (limits: { maxRows: number; maxBytes: number }) =>
+      getNewestTopicClusteringSummaries(
+        projectId,
+        facet,
+        { embeddingModel: "embed", embeddingDimensions: 2 },
+        timeRange,
+        limits,
+        (slice) =>
+          summarizedTopicMatchesQuery(
+            {
+              projectId,
+              facet,
+              filter: [
+                {
+                  column: "name",
+                  type: "stringOptions",
+                  operator: "any of",
+                  value: ["fetch_context"],
+                },
+              ],
+              ...slice,
+            },
+            prisma,
+          ),
+      ).then((rows) => rows.map(({ traceId }) => traceId));
 
-    expect([...matched.traceIds].sort()).toEqual([
-      "trace-earlier",
+    // The newest summary does not match; the oldest match is past the limit.
+    await expect(newest({ maxRows: 3, maxBytes: 1_000_000 })).resolves.toEqual([
+      "trace-new",
+      "trace-old",
       "trace-long",
+    ]);
+    // A step that fills its byte-estimated limit ends the read, so no older slice follows.
+    await expect(newest({ maxRows: 3, maxBytes: 6000 })).resolves.toEqual([
       "trace-new",
       "trace-old",
     ]);
-    expect(matched.timeRange).toEqual({ from, to: selection.to });
   });
 
   it("filters latest matching environments before counting and limiting", async () => {
@@ -218,10 +235,7 @@ describe("Topics trace selection", () => {
         ),
     );
     const input = { ...selection, projectId: mixedProject, limit: 1 };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
+    const preview = await selectTopicTraceRows(input, prisma);
     expect(preview).toEqual([
       expect.objectContaining({
         id: "equal-timestamp",
@@ -229,20 +243,9 @@ describe("Topics trace selection", () => {
       }),
     ]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
-    expect(ids).toEqual([{ id: "equal-timestamp" }]);
-    for (const [traceId, environment] of [
-      ["public-root", "langfuse-topics"],
-      ["internal-root", "production"],
-      ["equal-timestamp", "langfuse-topics"],
-      ["updated-root", "langfuse-topics"],
-    ]) {
-      expect(
-        await loadTopicTranscript({ projectId: mixedProject, traceId }),
-      ).toMatchObject({ environment });
-    }
   });
 
-  it("keeps preview and ID-only trigger sampling aligned", async () => {
+  it("samples a random preview across every matched trace", async () => {
     const input = {
       ...selection,
       projectId,
@@ -263,16 +266,144 @@ describe("Topics trace selection", () => {
         },
       ],
     };
-    const [preview, ids] = await Promise.all([
-      selectTopicTraceRows(input, prisma, "preview"),
-      selectTopicTraceRows(input, prisma, "ids"),
-    ]);
+    const preview = await selectTopicTraceRows(input, prisma);
     expect(preview).toHaveLength(1);
     expect(preview[0]).toMatchObject({
       name: "agent-turn",
       environment: "test",
     });
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
-    expect(ids).toEqual([{ id: preview[0].id }]);
+  });
+});
+
+describe("Topics setup backfill selection", () => {
+  const DAY_MS = 86_400_000;
+  const summary = (
+    projectId: string,
+    traceId: string,
+    facetId: string,
+    unitStartTime: Date,
+    state: "complete" | "not_applicable",
+    embeddingModel = "embed",
+  ) => ({
+    projectId,
+    facetId,
+    facetVersion: 1,
+    traceId,
+    sessionId: null,
+    triggerType: "manual_poc" as const,
+    environment: "test",
+    traceName: "agent-turn",
+    unitStartTime: unitStartTime.toISOString(),
+    state,
+    summary: state === "complete" ? "summary" : null,
+    embedding: state === "complete" ? [1, 0] : [],
+    transcriptId: "transcript",
+    transcriptVersion: "v1",
+    summaryModel: "summary",
+    embeddingModel,
+    providedUsageDetails: {},
+    usageDetails: {},
+    providedCostDetails: {},
+    costDetails: {},
+    processedAt: new Date().toISOString(),
+    metadata: {},
+  });
+  const select = (
+    projectId: string,
+    now: Date,
+    input: { limit: number; seed?: string },
+  ) =>
+    getTopicSetupTraceIds({
+      projectId,
+      idleMs: 60_000,
+      now,
+      days: 7,
+      sampling: 1,
+      seed: "rule",
+      summarized: {
+        facets: [
+          { facetId: "intent", version: 1 },
+          { facetId: "outcome", version: 1 },
+        ],
+        embeddingConfig: { embeddingModel: "embed", embeddingDimensions: 2 },
+      },
+      ...input,
+    });
+
+  it("selects every unsummarized finished trace, and a repeatable sample beyond the limit", async () => {
+    const projectId = randomUUID();
+    const now = new Date();
+    const start = new Date(now.getTime() - 2 * 60 * 60_000);
+    const fresh = Array.from({ length: 6 }, (_, index) => `fresh-${index}`);
+    await createEventsCh(
+      [
+        ...["summarized", "one-facet", "other-embedding", ...fresh].map(
+          (traceId) => [traceId, start, start],
+        ),
+        // Still active within the idle wait, and older than the window.
+        ["active", start, new Date(now.getTime() - 10_000)],
+        ["old", new Date(now.getTime() - 8 * DAY_MS), start],
+      ].map(([traceId, startTime, eventTs]) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId as string,
+          start_time: startTime as Date,
+          event_ts: eventTs as Date,
+          environment: "test",
+        }),
+      ),
+    );
+    await writeTopicSummaries([
+      summary(projectId, "summarized", "intent", start, "complete"),
+      summary(projectId, "summarized", "outcome", start, "not_applicable"),
+      summary(projectId, "one-facet", "intent", start, "complete"),
+      summary(projectId, "other-embedding", "intent", start, "complete", "old"),
+      summary(projectId, "other-embedding", "outcome", start, "complete"),
+    ]);
+
+    // Below the limit, every match: a missing facet or embedding counts as unsummarized.
+    expect((await select(projectId, now, { limit: 500 })).toSorted()).toEqual(
+      ["one-facet", "other-embedding", ...fresh].toSorted(),
+    );
+    // Beyond it, a sample of the limit's size that the same seed repeats.
+    const sample = await select(projectId, now, { limit: 3 });
+    expect(sample).toHaveLength(3);
+    expect(await select(projectId, now, { limit: 3 })).toEqual(sample);
+  });
+
+  it("reads each selected trace's whole extent and bytes for trace dispatch", async () => {
+    const projectId = randomUUID();
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 7 * DAY_MS);
+    // The first span predates the window by a day; the trace still counts as one.
+    const starts = [
+      new Date(windowStart.getTime() - DAY_MS),
+      new Date(now.getTime() - 2 * 60 * 60_000),
+    ];
+    await createEventsCh(
+      starts.map((startTime) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: "long",
+          start_time: startTime,
+          event_ts: startTime,
+          environment: "test",
+        }),
+      ),
+    );
+
+    const [bounds] = await getTopicSetupTraceBounds({
+      projectId,
+      traceIds: ["long", "missing"],
+      from: windowStart,
+    });
+
+    expect(bounds).toMatchObject({
+      traceId: "long",
+      minStart: starts[0].getTime(),
+      maxStart: starts[1].getTime(),
+    });
+    expect(bounds.serializedEventBytes).toBeGreaterThan(0);
   });
 });

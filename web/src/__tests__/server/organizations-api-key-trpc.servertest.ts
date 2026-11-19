@@ -461,6 +461,8 @@ describe("organization API keys trpc", () => {
           userName: null,
           userEmail: null,
           keyMetadata: {},
+          keyAllowedModels: null,
+          spendLimits: [],
           ingestionProjectId: null,
           ingestionMode: null,
           plan: "cloud:hobby",
@@ -630,6 +632,8 @@ describe("organization API keys trpc", () => {
           userName: null,
           userEmail: null,
           keyMetadata: {},
+          keyAllowedModels: null,
+          spendLimits: [],
           ingestionProjectId: null,
           ingestionMode: null,
           plan: "cloud:hobby",
@@ -788,7 +792,7 @@ describe("organization API keys trpc", () => {
     it.each([
       "ADMIN",
       "VIEWER",
-      "INGEST",
+      "APPLICATION",
       "SCORES_INGEST",
       "AI_GATEWAY",
     ] as const)(
@@ -882,6 +886,7 @@ describe("organization API keys trpc", () => {
           });
           const caller = ownerCallerForOrg(orgId);
           const rejectedRoles = [
+            "INGEST",
             "LEGACY_PROJECT_API_KEY",
             "LEGACY_ORGANIZATION_API_KEY",
             "",
@@ -892,7 +897,7 @@ describe("organization API keys trpc", () => {
             rejectedRoles.push(
               "ADMIN",
               "VIEWER",
-              "INGEST",
+              "APPLICATION",
               "SCORES_INGEST",
               "AI_GATEWAY",
             );

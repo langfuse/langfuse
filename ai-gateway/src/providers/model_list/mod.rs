@@ -38,7 +38,8 @@ pub(crate) fn provider_response(
     let provider = match api_format {
         ApiFormat::OpenAiResponses
         | ApiFormat::OpenAiChatCompletions
-        | ApiFormat::OpenAiDecisions => CatalogProvider::OpenAi,
+        | ApiFormat::OpenAiDecisions
+        | ApiFormat::OpenAiEmbeddings => CatalogProvider::OpenAi,
         ApiFormat::AnthropicMessages => CatalogProvider::Anthropic,
     };
     if catalog.data.iter().any(|entry| entry.provider != provider) {

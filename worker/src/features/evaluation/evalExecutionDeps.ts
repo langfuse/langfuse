@@ -1,3 +1,4 @@
+/* eslint-disable array-callback-return */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { JobExecutionStatus } from "@prisma/client";
@@ -24,6 +25,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { getEvalScoreS3StorageClient } from "./s3StorageClient";
+import { withLLMConnectionCooldown } from "./llmConnectionCooldown";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import {
   llmRequestEgressBytes,
@@ -45,6 +47,7 @@ type ModelConfigResult =
         provider: string;
         model: string;
         apiKey: {
+          id: string;
           adapter: string;
           [key: string]: unknown;
         };
@@ -242,27 +245,34 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         typeof mapLegacyLLMCompletionParams
       >[0]["modelParams"]["adapter"];
 
-      const result = await generateLlmEvaluatorOutput({
-        projectId: params.traceSinkParams.targetProjectId,
-        connection,
-        modelParams: {
-          provider: params.modelConfig.provider,
+      const result = await withLLMConnectionCooldown(
+        {
+          llmApiKeyId: params.modelConfig.apiKey.id,
           model: params.modelConfig.model,
-          adapter,
-          ...params.modelConfig.modelParams,
         },
-        messages: params.messages,
-        outputResultSchema: params.structuredOutputSchema,
-        trace: {
-          targetProjectId: params.traceSinkParams.targetProjectId,
-          traceId: params.traceSinkParams.traceId,
-          traceName: params.traceSinkParams.traceName,
-          environment: params.traceSinkParams.environment,
-          metadata: params.traceSinkParams.metadata,
-          evaluationContext: params.traceSinkParams.evaluationContext,
-          eventsWriter: createInternalEventsWriter(),
-        },
-      });
+        () =>
+          generateLlmEvaluatorOutput({
+            projectId: params.traceSinkParams.targetProjectId,
+            connection,
+            modelParams: {
+              provider: params.modelConfig.provider,
+              model: params.modelConfig.model,
+              adapter,
+              ...params.modelConfig.modelParams,
+            },
+            messages: params.messages,
+            outputResultSchema: params.structuredOutputSchema,
+            trace: {
+              targetProjectId: params.traceSinkParams.targetProjectId,
+              traceId: params.traceSinkParams.traceId,
+              traceName: params.traceSinkParams.traceName,
+              environment: params.traceSinkParams.environment,
+              metadata: params.traceSinkParams.metadata,
+              evaluationContext: params.traceSinkParams.evaluationContext,
+              eventsWriter: createInternalEventsWriter(),
+            },
+          }),
+      );
 
       // llmaj egress: provider-bound messages (including base64-expanded inline
       // media) plus schema, uncompressed. Recorded only after a successful
@@ -321,7 +331,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         extraHeaders,
       });
 
-      return client.evaluate(params.request);
+      return withLLMConnectionCooldown(
+        { llmApiKeyId: apiKey.id, model: params.modelConfig.model },
+        () => client.evaluate(params.request),
+      );
     },
 
     writeInternalTrace: (trace) => writeInternalTraceViaOtelIngestion(trace),

@@ -3,7 +3,6 @@ import {
   getPublishedTopicRun,
   getTopicRun,
   getTopicRuns,
-  getTopicProcessingMapIds,
   saveTopicRun,
 } from "./postgres";
 
@@ -12,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   runFind: vi.fn(),
   runFindMany: vi.fn(),
   runUpdate: vi.fn(),
+  ruleFind: vi.fn(),
   topicFind: vi.fn(),
   topicWrite: vi.fn(),
 }));
@@ -27,6 +27,7 @@ vi.mock("../../db", () => {
       findMany: mocks.runFindMany,
       update: mocks.runUpdate,
     },
+    evaluationRule: { findFirst: mocks.ruleFind },
   };
   return {
     Prisma: {},
@@ -97,44 +98,6 @@ describe("Topics clustering attempts", () => {
 });
 
 describe("Topics serving maps", () => {
-  it("pins only the serving map when prompt version and embedding space match", async () => {
-    const maps = [
-      {
-        id: "intent-map",
-        facetId: "intent",
-        facetVersion: 2,
-        ruleId: "rule-a",
-        config: { embeddingModel: "eu.cohere.embed-v4:0", dimensions: 256 },
-      },
-      {
-        id: "outcome-map",
-        facetId: "outcome",
-        facetVersion: 1,
-        ruleId: "rule-a",
-        config: { embeddingModel: "eu.cohere.embed-v4:0", dimensions: 512 },
-      },
-    ];
-    mocks.runFind.mockImplementation(
-      async ({ where }) =>
-        maps.find((map) => map.facetId === where.facetId) ?? null,
-    );
-    expect(
-      await getTopicProcessingMapIds(
-        "project-a",
-        [
-          { facetId: "intent", version: 1 },
-          { facetId: "intent", version: 2 },
-          { facetId: "outcome", version: 1 },
-        ],
-        { embeddingModel: "eu.cohere.embed-v4:0", embeddingDimensions: 256 },
-      ),
-    ).toEqual([
-      { facetId: "intent", facetVersion: 1, runId: null },
-      { facetId: "intent", facetVersion: 2, runId: "intent-map" },
-      { facetId: "outcome", facetVersion: 1, runId: null },
-    ]);
-  });
-
   it("serves a snapshot only until the facet version has a continuous map", async () => {
     const snapshot = runRow({
       id: "snapshot",

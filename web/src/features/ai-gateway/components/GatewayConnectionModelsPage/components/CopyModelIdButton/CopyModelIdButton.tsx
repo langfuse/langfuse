@@ -1,6 +1,7 @@
 import { Check, Copy } from "@langfuse/icons";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
 
@@ -24,12 +25,17 @@ export function CopyModelIdButton({
   };
 
   return (
-    <IconButton
-      icon={isCopied ? Check : Copy}
-      label={isCopied ? `Copied ${slug}` : `Copy ${slug}`}
-      variant="toolbar"
-      size="xs"
-      onClick={handleCopy}
-    />
+    <Tooltip label={isCopied ? "Copied" : "Copy model ID"}>
+      {({ getTriggerProps }) => (
+        <IconButton
+          {...getTriggerProps()}
+          icon={isCopied ? Check : Copy}
+          label={isCopied ? `Copied ${slug}` : `Copy ${slug}`}
+          variant="toolbar"
+          size="xs"
+          onClick={handleCopy}
+        />
+      )}
+    </Tooltip>
   );
 }

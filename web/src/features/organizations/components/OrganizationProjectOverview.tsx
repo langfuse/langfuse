@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   LockIcon,
   Settings,
@@ -44,6 +43,8 @@ import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOn
 import { OrganizationSettingsTile } from "@/src/features/organizations/components/OrganizationSettingsTile/OrganizationSettingsTile";
 import { useGatewayMemberStatus } from "@/src/features/organizations/hooks/useGatewayMemberStatus";
 import { DemoOrganizationTile } from "@/src/features/organizations/components/DemoOrganizationTile";
+
+type Organization = NonNullable<Session["user"]>["organizations"][number];
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt
@@ -210,16 +211,6 @@ const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
 
   return (
     <>
-      {!gatewayOnly && (
-        <Button asChild variant="ghost">
-          <Link
-            href={`/organization/${orgId}/settings`}
-            aria-label="Organization settings"
-          >
-            <Settings size="base" color="default" />
-          </Link>
-        </Button>
-      )}
       {membersViewAccess && (
         <Button asChild variant="ghost">
           <Link href={`/organization/${orgId}/settings/members`}>
@@ -243,6 +234,55 @@ const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
       )}
     </>
   );
+};
+
+/** ConnectedGatewayMemberTile loads the member's gateway status into the tile */
+const ConnectedGatewayMemberTile = ({ org }: { org: Organization }) => {
+  const state = useGatewayMemberStatus(org.id);
+  return (
+    <OrganizationSettingsTile orgId={org.id} orgName={org.name} state={state} />
+  );
+};
+
+/** OrganizationProjects lists the org's projects, or points to its settings (gateway-only members: the gateway) when the user has none */
+const OrganizationProjects = ({
+  org,
+  search,
+}: {
+  org: Organization;
+  search?: string;
+}) => {
+  const session = useSession();
+  const canCreateProject = useHasOrganizationAccess({
+    organizationId: org.id,
+    scope: "projects:create",
+  });
+
+  if (org.projects.length > 0) {
+    return <OrganizationProjectTiles org={org} search={search} />;
+  }
+  if (gatewayOnlyLanding(session.data, org.id)?.canUseGateway === true) {
+    return <ConnectedGatewayMemberTile org={org} />;
+  }
+  return (
+    <OrganizationSettingsTile
+      orgId={org.id}
+      orgName={org.name}
+      state={canCreateProject ? "noProjects" : "noProjectAccess"}
+    />
+  );
+};
+
+/** One banner at a time: the gateway launch, else the agent-tools pitch. */
+const pageBanner = ({
+  v4UpgradeUiEnabled,
+  gatewayBanner,
+}: {
+  v4UpgradeUiEnabled: boolean;
+  gatewayBanner: ReactNode;
+}): ReactNode => {
+  if (gatewayBanner) return gatewayBanner;
+  return v4UpgradeUiEnabled ? null : <AgentToolsBanner />;
 };
 
 const SingleOrganizationPage = ({
@@ -280,43 +320,6 @@ const SingleOrganizationPage = ({
       {banner}
       <OrganizationProjects org={org} search={search} />
     </ContainerPage>
-  );
-};
-
-/** OrganizationProjects lists the org's projects, or points to its settings (gateway-only members: the gateway) when the user has none */
-const OrganizationProjects = ({
-  org,
-  search,
-}: {
-  org: Organization;
-  search?: string;
-}) => {
-  const session = useSession();
-  const canCreateProject = useHasOrganizationAccess({
-    organizationId: org.id,
-    scope: "projects:create",
-  });
-
-  if (org.projects.length > 0) {
-    return <OrganizationProjectTiles org={org} search={search} />;
-  }
-  if (gatewayOnlyLanding(session.data, org.id)?.canUseGateway === true) {
-    return <ConnectedGatewayMemberTile org={org} />;
-  }
-  return (
-    <OrganizationSettingsTile
-      orgId={org.id}
-      orgName={org.name}
-      state={canCreateProject ? "noProjects" : "noProjectAccess"}
-    />
-  );
-};
-
-/** ConnectedGatewayMemberTile loads the member's gateway status into the tile */
-const ConnectedGatewayMemberTile = ({ org }: { org: Organization }) => {
-  const state = useGatewayMemberStatus(org.id);
-  return (
-    <OrganizationSettingsTile orgId={org.id} orgName={org.name} state={state} />
   );
 };
 
@@ -391,17 +394,3 @@ export const OrganizationProjectOverview = () => {
     />
   );
 };
-
-/** One banner at a time: the gateway launch, else the agent-tools pitch. */
-const pageBanner = ({
-  v4UpgradeUiEnabled,
-  gatewayBanner,
-}: {
-  v4UpgradeUiEnabled: boolean;
-  gatewayBanner: ReactNode;
-}): ReactNode => {
-  if (gatewayBanner) return gatewayBanner;
-  return v4UpgradeUiEnabled ? null : <AgentToolsBanner />;
-};
-
-type Organization = NonNullable<Session["user"]>["organizations"][number];

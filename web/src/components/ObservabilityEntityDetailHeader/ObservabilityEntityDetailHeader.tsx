@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import type PageHeader from "@/src/components/layouts/page-header";
 import {
   DropdownMenu,
@@ -21,6 +21,7 @@ import {
 import { assertUnreachable } from "@/src/utils/types";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Metric } from "@/src/components/design-system/Metric/Metric";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
@@ -92,15 +93,21 @@ export type HeaderMetric = {
       | {
           type: "details";
           text: string;
+          /** Renders the trigger as a coloured `Badge` instead of a `Metric`. */
+          color?: React.ComponentProps<typeof Badge>["color"];
           title: string;
           href: string;
           linkText: string;
           rows: {
             id: string;
             label: string;
-            value: string;
+            /** One badge per value; a caption names its source when there are several. */
+            values: {
+              text: string;
+              caption?: string;
+              color?: React.ComponentProps<typeof Badge>["color"];
+            }[];
             description?: string;
-            color?: React.ComponentProps<typeof Badge>["color"];
           }[];
         }
     ))
@@ -182,12 +189,15 @@ export type ObservabilityEntityDetailHeaderProps =
     metrics: readonly HeaderMetric[];
     isPlaceholderData?: boolean;
     isLoading?: boolean;
+    /** A one-line status shown between the title and the metrics. */
+    notice?: React.ReactNode;
   };
 
 export function ObservabilityEntityDetailHeader({
   metrics,
   isPlaceholderData = false,
   isLoading = false,
+  notice,
   ...header
 }: ObservabilityEntityDetailHeaderProps) {
   const stale = staleProps(isPlaceholderData);
@@ -209,9 +219,19 @@ export function ObservabilityEntityDetailHeader({
       )}
     </div>
   );
+  const hasMetrics = isLoading || metrics.length > 0;
   return (
     <EntityDetailHeaderChrome {...header}>
-      {isLoading || metrics.length > 0 ? content : undefined}
+      {notice != null || hasMetrics ? (
+        <>
+          {notice != null && (
+            <div className={cn("px-4", hasMetrics ? "pb-1.5" : "pb-2")}>
+              {notice}
+            </div>
+          )}
+          {hasMetrics ? content : undefined}
+        </>
+      ) : undefined}
     </EntityDetailHeaderChrome>
   );
 }
@@ -678,32 +698,66 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
           <div className="ph-no-capture flex max-h-[70vh] w-120 flex-col overflow-y-auto px-4">
             <div className="flex items-center justify-between gap-2 border-b py-2.5">
               <span className="text-sm font-bold">{metric.title}</span>
-              <Metric href={metric.href} value={metric.linkText} />
+              <TextLink path={metric.href} value={metric.linkText} />
             </div>
-            {metric.rows.map((row) => (
-              <div
-                key={row.id}
-                className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground text-sm">
-                    {row.label}
-                  </span>
-                  <Badge text={row.value} color={row.color} />
+            {metric.rows.map((row) => {
+              // Several or captioned values get a line each under the label.
+              const isGrouped =
+                row.values.length > 1 ||
+                row.values.some((value) => value.caption);
+              return (
+                <div
+                  key={row.id}
+                  className="flex flex-col gap-1.5 border-b py-3 last:border-b-0"
+                >
+                  <div className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
+                    <span
+                      className={cn(
+                        // `anywhere`, unlike `break-word`, lowers the min-content width the column sizes to.
+                        "text-muted-foreground text-sm wrap-anywhere",
+                        isGrouped && "col-span-2",
+                      )}
+                    >
+                      {row.label}
+                    </span>
+                    {row.values.map((value) => (
+                      <Fragment key={`${value.caption ?? ""}:${value.text}`}>
+                        {isGrouped && (
+                          <span className="text-muted-foreground text-xs wrap-anywhere">
+                            {value.caption}
+                          </span>
+                        )}
+                        <span className="flex min-w-0 justify-end">
+                          <Badge
+                            text={value.text}
+                            color={value.color}
+                            shouldWrap
+                          />
+                        </span>
+                      </Fragment>
+                    ))}
+                  </div>
+                  {row.description && (
+                    <p className="text-sm text-pretty">{row.description}</p>
+                  )}
                 </div>
-                {row.description && (
-                  <p className="text-sm text-pretty">{row.description}</p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         }
       >
-        {({ getTriggerProps }) => (
-          <span {...getTriggerProps()}>
-            <Metric interactive value={metric.text} />
-          </span>
-        )}
+        {({ getTriggerProps }) =>
+          metric.color ? (
+            <Badge
+              {...getTriggerProps()}
+              interactive
+              text={metric.text}
+              color={metric.color}
+            />
+          ) : (
+            <Metric {...getTriggerProps()} interactive value={metric.text} />
+          )
+        }
       </HoverCard>
     );
   return assertUnreachable(metric);

@@ -3,7 +3,66 @@
 import { describe, expect, it } from "vitest";
 
 import { parse, serialize } from "./langQ";
-import { semanticDiagnostics, validateQuery } from "./validate";
+import {
+  MAX_QUERY_DIAGNOSTICS,
+  semanticDiagnostics,
+  validateQuery,
+} from "./validate";
+
+describe("validateQuery — large value groups", () => {
+  it("accepts a thousand IDs in one value group", () => {
+    const values = Array.from(
+      { length: 1000 },
+      (_, index) =>
+        `${index.toString(16).padStart(8, "0")}-aaaa-4bbb-8ccc-dddddddddddd`,
+    );
+    expect(validateQuery(`id:(${values.join(" OR ")})`).valid).toBe(true);
+  });
+
+  it("bounds malformed-group diagnostics without truncating source or hiding errors after warnings", () => {
+    const query = `name:(${"a ".repeat(20000)})`;
+    const result = validateQuery(query);
+    expect(result.valid).toBe(false);
+    expect(result.diagnostics).toHaveLength(MAX_QUERY_DIAGNOSTICS + 1);
+    expect(result.diagnostics.at(-1)).toMatchObject({
+      severity: "error",
+      message: `Only the first ${MAX_QUERY_DIAGNOSTICS} query diagnostics are shown.`,
+    });
+    expect(result.ast).toMatchObject({
+      kind: "filter",
+      key: "name",
+      span: { from: 0, to: query.length },
+    });
+    if (result.ast?.kind !== "filter") throw new Error("Expected filter AST");
+    expect(result.ast.values).toHaveLength(20000);
+    expect(query.slice(result.ast.span!.from, result.ast.span!.to)).toBe(query);
+
+    const warningQuery = "has:level ".repeat(MAX_QUERY_DIAGNOSTICS + 10);
+    const warningOnly = validateQuery(warningQuery);
+    expect(warningOnly.valid).toBe(true);
+    expect(warningOnly.diagnostics).toHaveLength(MAX_QUERY_DIAGNOSTICS + 1);
+    expect(warningOnly.diagnostics.at(-1)?.severity).toBe("warning");
+    const laterError = validateQuery(`${warningQuery}metadata.region:(a OR b)`);
+    expect(laterError.valid).toBe(false);
+    expect(laterError.diagnostics).toHaveLength(MAX_QUERY_DIAGNOSTICS + 1);
+    expect(laterError.diagnostics.at(-1)?.severity).toBe("error");
+  });
+
+  it("keeps URL-backed search text bounded across search scopes", () => {
+    const phrase = "x".repeat(2048);
+    for (const prefix of ["", "content:", "all:", "in:id "]) {
+      expect(validateQuery(`${prefix}${phrase}`).valid).toBe(true);
+      const result = validateQuery(`${prefix}${phrase}x`);
+      expect(result.valid).toBe(false);
+      expect(result.diagnostics).toContainEqual({
+        from: 0,
+        to: prefix.length + phrase.length + 1,
+        severity: "error",
+        message: "Search text is too long (2049 chars, max 2048)",
+      });
+    }
+  });
+});
 
 function warnings(query: string): string[] {
   const { ast } = parse(query);
@@ -52,7 +111,7 @@ describe("validateQuery — merged-diagnostic dedup", () => {
       .map((d) => d.message);
   }
 
-  it.each(["metadata.region:>5", "level:>5", "traceTags:*tag*", "xyz:1"])(
+  it.each(["-metadata.region:>5", "level:>5", "traceTags:*tag*", "xyz:1"])(
     "emits each error message once for %s",
     (query) => {
       const messages = errorMessages(query);

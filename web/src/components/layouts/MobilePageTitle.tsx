@@ -1,20 +1,14 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { EntityTitleTabs } from "@/src/components/EntityTitleTabs";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/MobilePageActionsContent";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { PageTabs } from "@/src/components/layouts/PageTabs";
 import { type PageHeaderProps } from "@/src/components/layouts/page-header";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { cn } from "@/src/utils/tailwind";
 import { MoreHorizontal } from "@langfuse/icons";
 import { useRef, useState } from "react";
@@ -113,16 +107,16 @@ export const MobilePageTitle = ({
             className="text-primary min-w-0 truncate text-base leading-tight font-bold"
           >
             {titleTooltip ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="cursor-help">{title}</span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-xs">
-                    {titleTooltip}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <CustomTooltip
+                placement="bottom"
+                content={<span>{titleTooltip}</span>}
+              >
+                {({ getTriggerProps }) => (
+                  <span {...getTriggerProps()} className="cursor-help">
+                    {title}
+                  </span>
+                )}
+              </CustomTooltip>
             ) : (
               <span title={title}>{title}</span>
             )}
@@ -137,7 +131,11 @@ export const MobilePageTitle = ({
                 description={help.description}
                 href={help.href}
                 className={help.className}
-              />
+              >
+                {({ getTriggerProps }) => (
+                  <DocPopupTrigger triggerProps={getTriggerProps()} />
+                )}
+              </DocPopup>
             </span>
           )}
           {titleBadges && (
@@ -171,7 +169,7 @@ export const MobilePageTitle = ({
                   size="icon"
                   ref={menuTriggerRef}
                   aria-label="More actions"
-                  className="ml-auto shrink-0"
+                  className={cn("shrink-0", !mobileActionButtons && "ml-auto")}
                 >
                   <MoreHorizontal size="base" color="default" />
                 </Button>
