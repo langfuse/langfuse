@@ -775,7 +775,9 @@ export function CreateLLMApiKeyForm({
       adapter: values.adapter,
       baseURL:
         values.baseURL ||
-        (mode === "update" && currentAdapter === LLMAdapter.TypeSafe
+        (mode === "update" &&
+        (currentAdapter === LLMAdapter.TypeSafe ||
+          currentAdapter === LLMAdapter.OpenAI)
           ? null
           : undefined),
       withDefaultModels: isCustomModelsRequired(currentAdapter)
