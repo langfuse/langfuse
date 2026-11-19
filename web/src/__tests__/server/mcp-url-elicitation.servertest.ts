@@ -40,36 +40,64 @@ describe("MCP URL elicitation", () => {
     await new Promise((resolve) => httpServer.close(resolve));
   });
 
-  /** Calls the tool from a client that accepts every URL elicitation. */
-  async function setDefaultModel(provider: string) {
+  /** Calls the tool from a client that accepts every elicitation it gets. */
+  async function setDefaultModel(
+    provider: string,
+    client: {
+      pin?: "2026-07-28";
+      elicitation: { url?: object; form?: object };
+    } = { pin: "2026-07-28", elicitation: { url: {} } },
+  ) {
     const requests: { message: string; url: string }[] = [];
-    const client = new Client(
+    const mcpClient = new Client(
       { name: "url-elicitation-test", version: "1.0.0" },
       {
-        capabilities: { elicitation: { url: {} } },
-        versionNegotiation: { mode: { pin: "2026-07-28" } },
+        capabilities: { elicitation: client.elicitation },
+        ...(client.pin && {
+          versionNegotiation: { mode: { pin: client.pin } },
+        }),
       },
     );
-    client.setRequestHandler("elicitation/create", async (request) => {
-      if (request.params.mode === "url") {
-        requests.push({
-          message: request.params.message,
-          url: request.params.url,
-        });
-      }
+    mcpClient.setRequestHandler("elicitation/create", async (request) => {
+      requests.push({
+        message: request.params.message,
+        url: request.params.mode === "url" ? request.params.url : "",
+      });
       return { action: "accept" };
     });
-    await client.connect(new StreamableHTTPClientTransport(url));
+    await mcpClient.connect(new StreamableHTTPClientTransport(url));
     try {
-      const result = await client.callTool({
+      const result = await mcpClient.callTool({
         name: "setDefaultEvaluationModel",
         arguments: { provider, model: "gpt-4o-mini" },
       });
       return { requests, result };
     } finally {
-      await client.close();
+      await mcpClient.close();
     }
   }
+
+  it.each([
+    {
+      label: "2025-era clients",
+      client: { elicitation: { url: {} } },
+    },
+    {
+      label: "2026-07-28 clients without URL elicitation",
+      client: { pin: "2026-07-28" as const, elicitation: { form: {} } },
+    },
+  ])("returns the original error to $label", async ({ client }) => {
+    const provider = `mcp-url-${randomUUID()}`;
+    const { requests, result } = await setDefaultModel(provider, client);
+
+    expect(requests).toEqual([]);
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([
+      expect.objectContaining({
+        text: expect.stringContaining(`API key for provider ${provider}`),
+      }),
+    ]);
+  });
 
   it("opens the create dialog with the name for a missing connection", async () => {
     const provider = `mcp-url-${randomUUID()}`;
