@@ -334,12 +334,23 @@ export type LlmConnectionFormOwner =
 // React Query default that would show the same error in a toast.
 const suppressSaveErrorToast = () => undefined;
 
+/**
+ * Prefill for a new connection, e.g. from a link. Limited to fields that do
+ * not decide where the API key is sent: a link must never set the base URL
+ * or headers.
+ */
+export type NewLlmConnectionPrefill = {
+  provider?: string;
+  adapter?: LLMAdapter;
+};
+
 interface CreateLLMApiKeyFormProps {
   owner: LlmConnectionFormOwner;
   onSuccess: () => void;
   customization: ReturnType<typeof useUiCustomization>;
   mode?: "create" | "update";
   existingKey?: LlmApiKeyListItem;
+  prefill?: NewLlmConnectionPrefill;
 }
 
 export function CreateLLMApiKeyForm({
@@ -348,6 +359,7 @@ export function CreateLLMApiKeyForm({
   customization,
   mode = "create",
   existingKey,
+  prefill,
 }: CreateLLMApiKeyFormProps) {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   // When the "Other model" option is selected we hide the form fields and show
@@ -417,9 +429,11 @@ export function CreateLLMApiKeyForm({
   const mutTestUpdateOrganizationLlmApiKey =
     api.organizationLlmApiKey.testUpdate.useMutation();
 
-  const defaultAdapter: LLMAdapter = customization?.defaultModelAdapter
-    ? LLMAdapter[customization.defaultModelAdapter]
-    : LLMAdapter.OpenAI;
+  const defaultAdapter: LLMAdapter =
+    prefill?.adapter ??
+    (customization?.defaultModelAdapter
+      ? LLMAdapter[customization.defaultModelAdapter]
+      : LLMAdapter.OpenAI);
 
   const getCustomizedBaseURL = (adapter: LLMAdapter) => {
     switch (adapter) {
@@ -488,7 +502,7 @@ export function CreateLLMApiKeyForm({
           }
         : {
             adapter: defaultAdapter,
-            provider: "",
+            provider: prefill?.provider ?? "",
             secretKey: "",
             baseURL: getCustomizedBaseURL(defaultAdapter),
             typeSafeUpstream: TYPESAFE_UPSTREAMS[0].id,

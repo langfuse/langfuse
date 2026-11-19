@@ -1,4 +1,7 @@
 import { useMemo, type ReactNode } from "react";
+import { StringParam, useQueryParam, useQueryParams } from "use-query-params";
+import { z } from "zod";
+import { LLMAdapter } from "@langfuse/shared";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -107,6 +110,45 @@ export function ConnectedLLMApiKeySettingsTable({
     };
   }, [overriddenProviders, tableData]);
 
+  // `?editConnection=<id>` opens the edit dialog of that connection, e.g. from
+  // a link that asks the user to replace a rejected API key.
+  const [editConnectionId, setEditConnectionId] = useQueryParam(
+    "editConnection",
+    StringParam,
+  );
+  const editTarget =
+    canUpdate && tableDataWithOverrides.status === "success"
+      ? tableDataWithOverrides.data.find(
+          (apiKey) => apiKey.id === editConnectionId,
+        )
+      : undefined;
+  const clearEditConnection = () => {
+    if (editConnectionId) setEditConnectionId(undefined, "replaceIn");
+  };
+
+  // `?createConnection=<name>&adapter=<adapter>` opens the create dialog of
+  // the project table with that name, e.g. from a link that asks the user to
+  // add a missing connection.
+  const [createConnection, setCreateConnection] = useQueryParams({
+    createConnection: StringParam,
+    adapter: StringParam,
+  });
+  const createPrefill =
+    owner.scope === "project" && createConnection.createConnection
+      ? {
+          provider: createConnection.createConnection,
+          adapter: z.enum(LLMAdapter).safeParse(createConnection.adapter).data,
+        }
+      : undefined;
+  const clearCreateConnection = () => {
+    if (createPrefill) {
+      setCreateConnection(
+        { createConnection: undefined, adapter: undefined },
+        "replaceIn",
+      );
+    }
+  };
+
   const handleDeleteDismiss = () => {
     deleteProjectApiKey.reset();
     deleteOrganizationApiKey.reset();
@@ -134,9 +176,19 @@ export function ConnectedLLMApiKeySettingsTable({
   };
 
   return (
-    <CreateLLMApiKeyDialogController owner={owner}>
+    <CreateLLMApiKeyDialogController
+      owner={owner}
+      initialPrefill={createPrefill}
+      onAfterClose={clearCreateConnection}
+    >
       {({ hasAccess: hasCreateAccess, openDialog: openCreateDialog }) => (
-        <UpdateLLMApiKeyDialog owner={owner}>
+        <UpdateLLMApiKeyDialog
+          // Remounts once the linked connection has loaded, so it opens.
+          key={editTarget?.id}
+          owner={owner}
+          initialApiKey={editTarget}
+          onAfterClose={clearEditConnection}
+        >
           {({ openDialog: openUpdateDialog }) => (
             <ConfirmationDialogController<{ id: string }>
               title="Delete LLM Connection"
