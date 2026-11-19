@@ -1202,6 +1202,30 @@ describe("planInputCompletions", () => {
       ).toContain("type:GENERATION");
       expect(fromColumns?.loading).toBe(false);
     });
+
+    it("ranks an observed value ahead of an unseen closed-enum value", () => {
+      // `type:G` prefix-matches both the rows that exist (GENERATION) and
+      // closed-enum values that do not (GUARDRAIL). Enter highlights the
+      // first value, so the observed one has to lead.
+      const p = plan("type:G", "type:G".length, {
+        observed: { type: [{ value: "GENERATION", count: 4 }] },
+      });
+      expect(p?.autoHighlight).toBe(true);
+      expect(flattenOptions(p)[0]).toMatchObject({
+        kind: "value",
+        value: "GENERATION",
+      });
+    });
+
+    it("settles a failed facet load instead of leaving a loading row", () => {
+      // A query that is no longer pending and returned no payload is settled
+      // empty, not still loading. A bare word must not spin forever.
+      expect(toObservedOptions(undefined, true)).toBeUndefined();
+      const settled = toObservedOptions(undefined, false);
+      expect(settled).toEqual({});
+      const p = plan("production", "production".length, { observed: settled });
+      expect(p?.loading).toBe(false);
+    });
   });
 });
 

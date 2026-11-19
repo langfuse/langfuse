@@ -1274,7 +1274,6 @@ function valueStageSections(input: ValueStageInput): {
         return { sections: [], loading: true, requestColumns: [f.id] };
       }
       const all = [
-        ...known,
         ...observedList.map((o) => ({
           id: `value:${o.value}`,
           kind: "value" as const,
@@ -1286,6 +1285,7 @@ function valueStageSections(input: ValueStageInput): {
               ? `=${serializeValue(o.value)}`
               : undefined,
         })),
+        ...known,
       ];
       const values = valueOptions(all, typed);
       // Array fields reject match operators — operatorIssue routes them to
