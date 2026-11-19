@@ -40,6 +40,10 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
     "annotationQueues",
     "annotationQueueItems",
   ],
+  langfuse_batchCreateAnnotationQueueItems: [
+    "annotationQueues",
+    "annotationQueueItems",
+  ],
   langfuse_updateAnnotationQueueItem: [
     "annotationQueues",
     "annotationQueueItems",
@@ -139,6 +143,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listScores: [],
   langfuse_getScore: [],
   langfuse_createScore: ["scores", "scoreAnalytics"],
+  langfuse_batchCreateScores: ["scores", "scoreAnalytics"],
   langfuse_listScoreConfigs: [],
   langfuse_getScoreConfig: [],
   langfuse_createScoreConfig: ["scoreConfigs"],
