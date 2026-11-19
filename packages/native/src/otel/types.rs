@@ -62,6 +62,8 @@ pub struct StorageContext {
 pub struct OwnedEvent {
     pub row: crate::native_schema::OtelStorageRow,
     pub prompt_version_lookup: Option<f64>,
+    /// Preserve pre-storage types so the worker can reject invalid evaluation fields.
+    pub evaluation_fields: Option<Box<JsonObject>>,
     pub model_parameters: Option<Value>,
     pub provided_usage_details: IndexMap<String, Value>,
     pub provided_cost_details: BTreeMap<String, Value>,
@@ -95,6 +97,7 @@ impl Default for OwnedEvent {
                 ..Default::default()
             },
             prompt_version_lookup: None,
+            evaluation_fields: None,
             model_parameters: None,
             input: None,
             output: None,
