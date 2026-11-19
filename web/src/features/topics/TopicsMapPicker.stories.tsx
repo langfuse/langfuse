@@ -264,6 +264,45 @@ export const TestExplainsNewEntries = meta.story({
   },
 });
 
+export const TestKeepsHeightWhilePreviewing = meta.story({
+  name: "(Test) Keeps its height while previewing",
+  play: async ({ canvasElement }) => {
+    // The preview pane only shows from the `sm` breakpoint up, wider than Vitest's default viewport.
+    const vitestPage =
+      "__vitest_browser__" in globalThis
+        ? (await import("vitest/browser")).page
+        : null;
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    await vitestPage?.viewport(1024, 768);
+    try {
+      const picker = await openPicker(canvasElement);
+      // A short list, so the preview pane sets the popover's height.
+      await userEvent.type(
+        picker.getByRole("searchbox", { name: "Search maps" }),
+        "Support",
+      );
+      const dialog = within(canvasElement.ownerDocument.body).getByRole(
+        "dialog",
+        { name: "Topic maps" },
+      );
+      // The selected live map: three top topics, a one-line filter, and Refresh available.
+      await expect(
+        picker.getByRole("button", { name: "Refresh" }),
+      ).toBeEnabled();
+      const height = dialog.getBoundingClientRect().height;
+      await userEvent.hover(
+        picker.getByRole("button", { name: "New snapshot" }),
+      );
+      await expect(
+        picker.getByText(/A snapshot doesn’t change afterwards/),
+      ).toBeVisible();
+      await expect(dialog.getBoundingClientRect().height).toBe(height);
+    } finally {
+      await vitestPage?.viewport(viewport.width, viewport.height);
+    }
+  },
+});
+
 export const TestPausedLast = meta.story({
   name: "(Test) Paused maps sort below active ones",
   play: async ({ canvasElement }) => {
