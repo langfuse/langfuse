@@ -284,21 +284,20 @@ export function ProviderDialogController({
     test.reset();
     try {
       let saved;
-      const endpoint = getEndpoint(selectedConnection);
       if (selectedConnection) {
         saved = await update.mutateAsync({
           orgId: organizationId,
           id: selectedConnection.id,
           name,
           ...(credential ? { credential } : {}),
-          ...endpoint,
+          ...getEndpoint(selectedConnection),
         });
         capture("ai_gateway:provider_credential_updated", {
           orgId: organizationId,
           provider: selectedConnection.provider,
           isRenamed: name.trim() !== selectedConnection.name,
           isCredentialReplaced: Boolean(credential),
-          ...toEndpointUsage(selectedConnection.provider, endpoint),
+          ...toEndpointUsage(saved),
         });
       } else {
         saved = await create.mutateAsync({
@@ -307,14 +306,14 @@ export function ProviderDialogController({
           name,
           credential,
           config: getConfig(null),
-          ...endpoint,
+          ...getEndpoint(null),
         });
         capture("ai_gateway:provider_credential_added", {
           orgId: organizationId,
           surface,
           provider,
           isFirstCredential: existingNames.length === 0,
-          ...toEndpointUsage(provider, endpoint),
+          ...toEndpointUsage(saved),
         });
         onAfterCreate?.({ provider });
       }
@@ -577,15 +576,21 @@ export function ProviderDialogController({
   );
 }
 
-/** Azure's endpoint is its resource, not a custom base URL, so it never counts. */
+/**
+ * Reads the saved connection, as the server drops blank header rows it has no
+ * value for. Azure's endpoint is its resource, not a custom base URL.
+ */
 function toEndpointUsage(
-  provider: GatewayProvider,
-  endpoint: { baseURL?: string | null; extraHeaders?: Record<string, string> },
+  connection: Pick<
+    GatewayConnection,
+    "provider" | "baseURL" | "extraHeaderKeys"
+  >,
 ) {
   return {
     hasCustomBaseUrl:
-      supportsCustomEndpoint(provider) && Boolean(endpoint.baseURL),
-    extraHeaderCount: Object.keys(endpoint.extraHeaders ?? {}).length,
+      supportsCustomEndpoint(connection.provider) &&
+      Boolean(connection.baseURL),
+    extraHeaderCount: connection.extraHeaderKeys.length,
   };
 }
 

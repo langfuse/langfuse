@@ -80,9 +80,10 @@ export function ConnectedGatewaySetupGuide({
   }
 
   async function handleSaveBudgets(nextBudgets: GatewaySetupBudgets) {
-    if (!(await saveBudgets(nextBudgets))) return;
+    const saved = await saveBudgets(nextBudgets);
     // Both budgets are saved together, so only those the user changed are captured.
     for (const budget of ["organization", "user"] as const) {
+      if (!saved[budget]) continue;
       const change = toGatewaySpendLimitUpdate({
         loaded: budgets?.[budget] ?? null,
         hasSeveralSpendLimits: false,
@@ -96,7 +97,7 @@ export function ConnectedGatewaySetupGuide({
         spendLimit: change,
       });
     }
-    finishBudgets({ isSkipped: false });
+    if (saved.organization && saved.user) finishBudgets({ isSkipped: false });
   }
 
   function finishSetup({ isSkipped }: { isSkipped: boolean }) {
