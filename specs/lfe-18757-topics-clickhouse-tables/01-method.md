@@ -38,9 +38,9 @@ Parameters follow the code: page batches of 200, 1,000-id lookups, 7/14/30-day r
 ## Re-running
 
 ```sh
-# 1. tables in the scratch database topics_schema_exp (main layout, proposal, meeting)
+# 1. tables in the scratch database topics_schema_exp (main today, proposal, review-call version)
 clickhouse-client -n < harness/ddl_main_and_proposal.sql
-clickhouse-client -n < harness/ddl_meeting.sql
+clickhouse-client -n < harness/ddl_review_call.sql
 # 2. summary text pool: any ~1,000 real summaries, e.g. from a local test project
 clickhouse-client -q "INSERT INTO topics_schema_exp.pool SELECT summary FROM topic_facet_summaries WHERE project_id = '<local project>' AND summary != ''"
 # 3. summaries, then the per-map counts the assignment generator uses, then assignments and the lookup copy
@@ -48,10 +48,10 @@ harness/seed_summaries.sh
 clickhouse-client -q "INSERT INTO topics_schema_exp.map_counts SELECT project_id, facet_id, rule, count() / 30 FROM topics_schema_exp.sum_A ARRAY JOIN rule_ids AS rule WHERE processing_state = 'complete' GROUP BY ALL"
 harness/seed_assignments.sh
 clickhouse-client -q "INSERT INTO topics_schema_exp.asg_AB_by_time SELECT project_id, unit_start_time, facet_id, rule_id, trace_id, session_id, clustering_run_id, topic_id, topic_version_id, assigned_at, origin FROM topics_schema_exp.asg_AB"
-# 4. all configurations for one project: bytes, rows, ms, memory and result rows per query
+# 4. all four versions for one project: bytes, rows, ms, memory and result rows per query
 python3 harness/run_final.py cmlarge000000000000000001
 python3 harness/run_final.py cmsmall000000000000000001
 python3 harness/dump_queries.py   # regenerates queries/
 ```
 
-All three summary layouts together need about 800 GB of disk. The local run dropped the main-layout summaries table after configurations 1 and 2 to make room for the meeting layout.
+All three summary layouts together need about 800 GB of disk. The local run dropped the main-layout summaries table after versions 1 and 2 to make room for the review-call version.

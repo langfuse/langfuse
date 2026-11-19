@@ -3,16 +3,18 @@
 Bytes read per query, from `system.query_log` ([01-method.md](01-method.md)). Bold marks the cheapest configuration. Result row counts match across configurations unless a cell says otherwise.
 
 Configurations:
-1. main schema with the queries `main` runs today
-2. main schema with the improved queries ([02-queries.md](02-queries.md))
-3. the meeting structure with improved queries
-4. the proposal with improved queries
+1. **main today**: today's tables and queries
+2. **main + query fixes**: today's tables with the fixed queries ([02-queries.md](02-queries.md))
+3. **review-call version**: the structure discussed in the 2026-11-18 review call, with the fixed queries
+4. **proposal**: our alternative, compared against 3, with the fixed queries
 
-Raw output: [results/](results/). `*-configs-1-2.tsv` ran before the main-layout summaries table was dropped for disk space. `*-all-configs.tsv` is the final harness run: its configuration 1 and 2 summary rows are errors, and their assignment rows are valid.
+See [05-options.md](05-options.md) for the exact keys.
+
+Raw output: [results/](results/). `*-configs-1-2.tsv` ran before the main-layout summaries table was dropped for disk space. `*-all-configs.tsv` is the final harness run: its configuration 1 and 2 summary rows are errors, and their assignment rows are valid. The TSVs use the harness's earlier labels (`meeting` = review-call version, `improved` = query fixes).
 
 ## Large project: 1M traces/day, 30 days
 
-| Query | 1 main | 2 main, improved | 3 meeting | 4 proposal |
+| Query | 1 main today | 2 main + query fixes | 3 review-call version | 4 proposal |
 |---|---|---|---|---|
 | Q07 Topics page counts, summaries | 11.7 GiB | 11.7 GiB | 11.7 GiB | **2.9 GiB** |
 | Q08 Topics page counts, assignments | 9.5 GiB | 9.5 GiB | 2.1 GiB | **2.1 GiB** |
@@ -37,7 +39,7 @@ Raw output: [results/](results/). `*-configs-1-2.tsv` ran before the main-layout
 
 **Writes and disk (30 days, all projects)**
 
-| | main | meeting | proposal |
+| | main today | review-call version | proposal |
 |---|---|---|---|
 | Summaries write time | **944 s** | 1,675 s (+77%, pointer MV) | 1,059 s (+12%) |
 | Summaries disk | 254 GiB | 248 GiB + 5.7 GiB pointers | 255 GiB |
@@ -48,7 +50,7 @@ Raw output: [results/](results/). `*-configs-1-2.tsv` ran before the main-layout
 
 Same ranking at about a hundredth of the bytes. The new layouts also read the small project's data more selectively, because the large project's rows no longer share its granules.
 
-| Query | 1 main | 2 main, improved | 3 meeting | 4 proposal |
+| Query | 1 main today | 2 main + query fixes | 3 review-call version | 4 proposal |
 |---|---|---|---|---|
 | Q07 / Q08 Topics page counts | 122 / 901 MiB | same | 122 / 208 MiB | **39 / 206 MiB** |
 | Q09 topic page candidates | 724 MiB | 724 MiB | 163 MiB | **6 MiB** |
@@ -65,6 +67,6 @@ Same ranking at about a hundredth of the bytes. The new layouts also read the sm
 ## Reading it
 
 - **Query fixes alone (2)** remove the refit's out-of-memory failure and cut list resolve and the nightly check 3x to 8x. Counts, topic pages, the tracing table filter, run reads and the stable refit sample stay at GiBs, because they need the hash, run or topic in the key.
-- **The meeting structure (3)** brings assignments to about 1 GiB for run reads, 4x better than main. A run's clustered rows still spread across the window. Its summaries keep the minute bucket, so counts and the refit read as on main. Today's refit reads about twice main's bytes, and the pointer MV costs 77% more summary write time.
+- **The review-call version (3)** brings assignments to about 1 GiB for run reads, 4x better than main. A run's clustered rows still spread across the window. Its summaries keep the minute bucket, so counts and the refit read as on main. Today's refit reads about twice main's bytes, and the pointer MV costs 77% more summary write time.
 - **The proposal (4)** is cheapest or close on every query. Its weak spot, the tracing table topic column, is covered by the lookup table: 28 MiB vs 199 MiB through the run-ordered table.
 - **Refit window:** a stable 100k sample costs about the same per row over 7 or 30 days on the proposal (0.7 vs 1.4 GiB). Choosing 30 days for a steadier map costs little.

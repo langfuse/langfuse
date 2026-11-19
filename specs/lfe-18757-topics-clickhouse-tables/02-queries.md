@@ -1,20 +1,20 @@
 # Queries: main today, improvements, per-layout rewrites
 
-Every benchmarked query, the code on `main` that builds it, and what changes. The full SQL of every configuration is in [queries/](queries/): `main-main-queries/` is the SQL as `main` builds it today, `main-improved/` is the same schema with the fixes below, and `meeting-improved/` and `proposal-improved/` add the layout rewrites. File headers name the source function and line. Writes, rule setup queries on `events_core` and project deletion were not benchmarked: they don't depend on these sort keys.
+Every benchmarked query, the code on `main` that builds it, and what changes. The full SQL of every configuration is in [queries/](queries/): `1-main-today/` is the SQL as `main` builds it today, `2-main-query-fixes/` is the same schema with the fixes below, and `3-review-call-version/` and `4-proposal/` add the layout rewrites. File headers name the source function and line. Writes, rule setup queries on `events_core` and project deletion were not benchmarked: they don't depend on these sort keys.
 
 Paths are relative to the repo root, at `main` as of 2026-11-19.
 
 | Id | Built by (main) | Use case | Improvement (all layouts) | Layout rewrite |
 |---|---|---|---|---|
 | Q07 | `getTopicResultCounts` summaries, `packages/shared/src/server/repositories/topic-results.ts:711` | Topics page counts | none | none |
-| Q08 | `getTopicResultCounts` assignments, `topic-results.ts:730` | Topics page counts per topic | none | meeting, proposal: `AND rule_id IN (...)` (rule from the run in Postgres) |
+| Q08 | `getTopicResultCounts` assignments, `topic-results.ts:730` | Topics page counts per topic | none | review-call version, proposal: `AND rule_id IN (...)` (rule from the run in Postgres) |
 | Q09 | `listCurrentRows` candidates, `topic-results.ts:314` | Trace list, topic page | Newest first: read the last day, widen only if a batch is short | proposal: rule filter on the topic page variant |
 | Q10 | `listCurrentRows` resolve, `topic-results.ts:512` | Trace list, topic page | Bound the "latest version" dedupe by the window ±2 days | rule filter on the assignments CTE |
 | Q11 | `getLatestFacetSummaries`, `packages/shared/src/server/topics/clickhouse.ts:371` | Scatter plot, trace header | Scatter: one `LIMIT 1 BY` level (the run pins the facet version). On main the original nested form reads less, so main keeps it. | none |
-| Q12 | `getTopicTraceUnitTimeRange`, `clickhouse.ts:1316` | Trace header, public API trace lookup | none | meeting: read the pointer table |
+| Q12 | `getTopicTraceUnitTimeRange`, `clickhouse.ts:1316` | Trace header, public API trace lookup | none | review-call version: read the pointer table |
 | Q13 | `getTopicSummaryCounts`, `clickhouse.ts:765` | Nightly "new summaries?" check | `embedding.size0` instead of `length(embedding)`; bounded dedupe | none |
 | Q15 | `getNewestTopicClusteringSummaries`, `clickhouse.ts:580` | Nightly refit, today: newest 16k in 7/14/30-day steps | `embedding.size0` (fixes out-of-memory at 1M traces/day); bounded dedupe | none |
-| Q15' | new | Nightly refit: stable 100k hash sample over 30 or 7 days | `unit_hash < k` with `k = target / count * 2^64` | main, meeting: computed on the fly (no hash in the key) |
+| Q15' | new | Nightly refit: stable 100k hash sample over 30 or 7 days | `unit_hash < k` with `k = target / count * 2^64` | main, review-call version: computed on the fly (no hash in the key) |
 | Q18 | `readLatestTopicAssignments`, `clickhouse.ts:1182` | Trace header topics | none | rule filter |
 | Q19 | `readCurrentTraceTopics`, `clickhouse.ts:1210` | Tracing table topic column (current run only) | none | rule filter |
 | Q19L | new | Tracing table topic column, latest placement in any run | (new semantics, see below) | proposal: read `topic_assignments_by_trace` |
@@ -22,7 +22,7 @@ Paths are relative to the repo root, at `main` as of 2026-11-19.
 | Q21 | `readTopicMapAssignments`, `clickhouse.ts:1123` | Scatter plot points | none | rule filter |
 | Q22 | `readTopicRunTraceIds`, `clickhouse.ts:1085` | Refit: previous run's traces | none | rule filter |
 | Q23 | `readTopicAssignments`, `clickhouse.ts:1149` | Fit write readback | none | rule filter |
-| Q33 | trace delete bounds, `worker/src/features/traces/processClickhouseTraceDelete.ts:30` | Trace deletion (no time known) | none | meeting: read the pointer table |
+| Q33 | trace delete bounds, `worker/src/features/traces/processClickhouseTraceDelete.ts:30` | Trace deletion (no time known) | none | review-call version: read the pointer table |
 
 ## The improvements
 

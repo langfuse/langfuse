@@ -32,7 +32,7 @@ out_root = os.path.join(here, "..", "queries")
 for cn, o in rf.CONFIGS.items():
     q = queries.build(o)
     q = rf.improve(o, q) if o["improved"] else q
-    d = os.path.join(out_root, cn.split(" ", 1)[1].replace(" + ", "-").replace(" ", "-"))
+    d = os.path.join(out_root, cn.replace(" + ", "-").replace(" ", "-"))
     os.makedirs(d, exist_ok=True)
     for name, sql in q.items():
         if o["name"] in ("main", "M") and name.startswith("Q15'"):

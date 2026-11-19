@@ -1,4 +1,5 @@
--- Option "proposal": the layout this evaluation recommends, written as a canonical migration template.
+-- Version 4, "proposal": our alternative to the review-call version and the layout this evaluation recommends,
+-- written as a canonical migration template.
 -- Not applied anywhere yet. Topics is still cloud-only and in closed beta, so the two tables are dropped and
 -- recreated without a backfill. `topics` stays unchanged.
 

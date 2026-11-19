@@ -1,5 +1,5 @@
 -- Benchmark tables in the scratch database topics_schema_exp: main layout (sum_main, asg_main) and the proposal
--- (sum_A, asg_AB, asg_AB_by_time). The meeting layout is in ddl_meeting.sql.
+-- (sum_A, asg_AB, asg_AB_by_time). The review-call version is in ddl_review_call.sql.
 CREATE DATABASE IF NOT EXISTS topics_schema_exp;
 -- 1,066 real summaries from local test projects; the generator samples summary text from them
 CREATE TABLE IF NOT EXISTS topics_schema_exp.pool (summary String) ENGINE = MergeTree ORDER BY tuple();

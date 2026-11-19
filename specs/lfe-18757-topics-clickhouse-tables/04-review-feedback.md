@@ -36,7 +36,7 @@ Agreed and done in both options. Lightweight deletes of 500 units without a time
 **"If clustering run id has only a couple of values per day, there is no reason to put it before the timestamp."**
 
 The premise is about runs per day, but what matters is where a run's rows sit. A run's clustered rows are hash-sampled from the whole 30-day window, and every map read filters on one run.
-- **With the run after time** (meeting layout), run reads cost 1.1 to 1.9 GiB. The bloom filter on the run id saved about 30% (round 1).
+- **With the run after time** (review-call version), run reads cost 1.1 to 1.9 GiB. The bloom filter on the run id saved about 30% (round 1).
 - **With the run before time:** 25 to 60 MiB.
 
 **"Changing the key later realistically means a backfill."** (Also raised: "not easily for self-hosters without a major release.")
@@ -62,7 +62,7 @@ Tested:
 
 **"A bloom filter on rule_id may be better than having it in the key."**
 
-Measured on the meeting layout: the bloom filter skipped 2 of 2,208 granules for a 10% rule (1.56 GiB read). With `rule_id` in the key: 13 MiB. Rules interleave inside every granule, so the filter can't skip.
+Measured on the review-call version: the bloom filter skipped 2 of 2,208 granules for a 10% rule (1.56 GiB read). With `rule_id` in the key: 13 MiB. Rules interleave inside every granule, so the filter can't skip.
 
 **"LowCardinality must stay under about 1,000 values across the whole table."**
 

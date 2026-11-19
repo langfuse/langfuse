@@ -2,6 +2,22 @@
 
 Evaluation for finalizing `topic_facet_summaries` and `topic_assignments` before Topics leaves closed beta and self-hosters get the tables. Changing a sort key later means a new table and a backfill, so the keys are decided now.
 
+## Versions at a glance
+
+The same names are used in every file, query folder and results table.
+
+| Version | What it is | Tables | Queries |
+|---|---|---|---|
+| **1. main today** | What runs in production now | today's (`0051` + `0055`) | as `main` builds them |
+| **2. main + query fixes** | Today's tables, better queries. Shows what we gain without a migration. | today's | fixed ([02-queries.md](02-queries.md)) |
+| **3. review-call version** | The structure discussed in the 2026-11-18 review call: time first with a minute bucket, hash instead of trace id, a pointer MV instead of the projection, facet before time for assignments, `rule_id` as a bloom filter | [migrations/review-call.up.sql](migrations/review-call.up.sql) | fixed |
+| **4. proposal** | Our alternative, compared against 3. It started from the pre-review draft and keeps the review's points where they held up: time first for summaries, but a day bucket; run and topic before time for assignments; a lookup MV for trace to topic | [migrations/proposal.up.sql](migrations/proposal.up.sql) | fixed |
+
+Versions 3 and 4 differ in three places, each tested in [04-review-feedback.md](04-review-feedback.md):
+- **Summaries' time bucket:** minute vs day.
+- **Where the run sits in the assignments key:** after vs before time.
+- **What the MV serves:** summary pointers vs trace-to-topic lookup.
+
 ## Recommendation
 
 Adopt the **proposal** ([migrations/proposal.up.sql](migrations/proposal.up.sql)) together with the query fixes in [02-queries.md](02-queries.md).
@@ -24,11 +40,11 @@ On a 1M traces/day project this reads 5x to 1,000x less than main for counts, to
 |---|---|
 | [01-method.md](01-method.md) | Test data, engine settings, known gaps, how to re-run |
 | [02-queries.md](02-queries.md) | Every benchmarked query: the code on main that builds it, the improvement, the per-layout rewrite |
-| [03-results.md](03-results.md) | Bytes read for four configurations on a 1M/day and a 10k/day project; writes and disk |
+| [03-results.md](03-results.md) | Bytes read for the four versions on a 1M/day and a 10k/day project; writes and disk |
 | [04-review-feedback.md](04-review-feedback.md) | Each point raised in review, with what we measured |
-| [05-options.md](05-options.md) | main, pre-review draft, meeting and proposal layouts, and how they differ |
-| [migrations/](migrations/) | `meeting.up.sql`, `proposal.up.sql` and a shared `down.sql` in canonical template syntax (checked on 25.12 and 26.4, unclustered) |
-| [queries/](queries/) | Generated SQL for each configuration, one file per query, with the source function on main |
+| [05-options.md](05-options.md) | The exact keys of each version and how they differ |
+| [migrations/](migrations/) | `review-call.up.sql` (version 3), `proposal.up.sql` (version 4) and a shared `down.sql` in canonical template syntax (checked on 25.12 and 26.4, unclustered) |
+| [queries/](queries/) | Generated SQL for each version, one file per query, with the source function on main |
 | [harness/](harness/) | DDL, data generators, seed scripts and the replay runner |
 | [results/](results/) | Raw benchmark output |
 

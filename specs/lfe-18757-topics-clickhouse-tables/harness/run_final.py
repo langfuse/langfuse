@@ -1,15 +1,14 @@
-# Four configurations x two projects: main schema + main queries, main schema + improved queries,
-# meeting schema + improved queries, proposal (option A) + improved queries.
+# Four versions x two projects: (1) main today, (2) main + query fixes, (3) review-call version, (4) proposal.
 import sys, uuid, importlib.util
 import os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import queries
 spec = importlib.util.spec_from_file_location("rp", os.path.join(os.path.dirname(os.path.abspath(__file__)), "replay_lib.py")); rp = importlib.util.module_from_spec(spec); spec.loader.exec_module(rp)
 X = "topics_schema_exp."
 CONFIGS = {
-  "1 main + main queries":   dict(name="main", S=X+"sum_main", A=X+"asg_main", E=X+"sum_main", rule=False, improved=False),
-  "2 main + improved":       dict(name="main", S=X+"sum_main", A=X+"asg_main", E=X+"sum_main", rule=False, improved=True),
-  "3 meeting + improved":    dict(name="M",    S=X+"sum_M",    A=X+"asg_M",    E=X+"sum_M",    rule=True,  improved=True, ptr=X+"sum_M_ptr"),
-  "4 proposal + improved":   dict(name="A",    S=X+"sum_A",    A=X+"asg_AB",   E=X+"sum_A",    rule=True,  improved=True, lookup=X+"asg_AB_by_time")}
+  "1 main today":   dict(name="main", S=X+"sum_main", A=X+"asg_main", E=X+"sum_main", rule=False, improved=False),
+  "2 main + query fixes":       dict(name="main", S=X+"sum_main", A=X+"asg_main", E=X+"sum_main", rule=False, improved=True),
+  "3 review-call version":    dict(name="M",    S=X+"sum_M",    A=X+"asg_M",    E=X+"sum_M",    rule=True,  improved=True, ptr=X+"sum_M_ptr"),
+  "4 proposal":   dict(name="A",    S=X+"sum_A",    A=X+"asg_AB",   E=X+"sum_A",    rule=True,  improved=True, lookup=X+"asg_AB_by_time")}
 MIDDLE = "WHERE project_id = {projectId:String}\n        AND (facet_id, trace_id"
 def bound(sql, lo, hi):  # bound the dedupe's middle level by the query window (+2 days for late arrivals)
     return sql.replace(MIDDLE, f"WHERE project_id = {{projectId:String}} AND unit_start_time >= {{{lo}:DateTime64(3)}} - INTERVAL 2 DAY AND unit_start_time < {{{hi}:DateTime64(3)}} + INTERVAL 2 DAY\n        AND (facet_id, trace_id")
