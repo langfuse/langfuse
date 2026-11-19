@@ -12,7 +12,7 @@ const meta = preview.meta({
   },
 });
 
-/** A blank base URL is the provider default. */
+/** A blank base URL is the provider default. Open the select to see the presets, the Custom URL section, and the check on the selected row. */
 export const Default = meta.story({
   args: { value: "" },
 });

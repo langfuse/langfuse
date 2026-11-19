@@ -42,16 +42,28 @@ export function BaseUrlPicker({
   );
   const isCustom = isCustomSelected || !matchedPreset;
   const options = [
-    ...presets.map((preset) => ({
-      value: preset.url,
-      label: preset.label,
-      badges: [{ text: preset.url, color: "filled" as const }],
-    })),
     {
-      value: CUSTOM_OPTION,
-      label: "Custom URL",
-      icon: PlusIcon,
-      badges: [{ text: "Proxy or other endpoint", color: "outline" as const }],
+      type: "group" as const,
+      id: "presets",
+      options: presets.map((preset) => ({
+        value: preset.url,
+        label: preset.label,
+        badges: [{ text: preset.url, color: "filled" as const }],
+      })),
+    },
+    {
+      type: "group" as const,
+      id: "custom",
+      options: [
+        {
+          value: CUSTOM_OPTION,
+          label: "Custom URL",
+          icon: PlusIcon,
+          badges: [
+            { text: "Proxy or other endpoint", color: "outline" as const },
+          ],
+        },
+      ],
     },
   ];
 
@@ -78,6 +90,7 @@ export function BaseUrlPicker({
         options={options}
         onValueChange={handleOptionChange}
         placeholder="Select a base URL"
+        indicator="checkmark"
         noCapture
         disabled={disabled}
         aria-describedby={ariaDescribedBy}
