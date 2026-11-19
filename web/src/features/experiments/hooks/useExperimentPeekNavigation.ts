@@ -18,7 +18,9 @@ type ExperimentTarget = {
  */
 export function useExperimentPeekNavigation() {
   const router = useRouter();
-  const { allExperimentIds } = useExperimentResultsState();
+  const { allExperimentIds } = useExperimentResultsState(
+    router.query.projectId as string | undefined,
+  );
   const { detailPagelists } = useDetailPageLists();
   const [peekExperimentId] = useQueryParam("peekExperimentId", StringParam);
 

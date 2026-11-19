@@ -95,6 +95,7 @@ export function HomeDashboardSelect({
       emptyText="No dashboards found"
       className="my-0 w-auto max-w-60"
       name="home-dashboard"
+      align="end"
     />
   );
 }

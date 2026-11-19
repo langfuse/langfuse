@@ -11,6 +11,7 @@ import {
   FilePlus,
   FlaskConical,
   GitCompareArrows,
+  Layers,
   LayoutDashboard,
   Lightbulb,
   ListChecks,
@@ -22,6 +23,7 @@ import {
   Sparkles,
   SquarePercent,
   TrendingDown,
+  TrendingUp,
   WandSparkles,
   type IconComponent,
 } from "@langfuse/icons";
@@ -71,6 +73,7 @@ export type InAppAgentSubmitOptions = {
   entryPoint?:
     | "chat"
     | "add-widget-modal"
+    | "command_menu"
     | "evaluators-empty-state"
     | "skill-editor";
 };
@@ -319,6 +322,32 @@ const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
         "Review this dataset's items for coverage, diversity, and quality, and recommend improvements before I run experiments or evaluations on it.",
     },
   ],
+  topics: [
+    {
+      id: "summarize-topics",
+      label: "Summarize topics",
+      description: "See the largest topics and what they cover",
+      icon: Layers,
+      prompt:
+        "Summarize the live topics of the facet selected in the current URL (or all active facets if none is selected): list the largest topics by trace count over the last seven days, describe what each covers based on a sample of its trace summaries, and say how many traces are outliers or still awaiting a map. If the URL selects a snapshot (map=analysis:...), first say that you can only read live topic maps, not snapshots, and ask whether to continue with the live topics.",
+    },
+    {
+      id: "spot-trending-topics",
+      label: "Spot trending topics",
+      description: "Compare topic volume with the previous week",
+      icon: TrendingUp,
+      prompt:
+        "Compare the live topics' trace counts for the facet selected in the current URL (or all active facets if none is selected) over the last seven days against the seven days before, highlight topics that are new, growing, or shrinking, and explain what drives the biggest changes based on a sample of their trace summaries. If the URL selects a snapshot (map=analysis:...), first say that you can only read live topic maps, not snapshots, and ask whether to continue with the live topics.",
+    },
+    {
+      id: "create-dataset-from-topic",
+      label: "Build a dataset from a topic",
+      description: "Cover a production topic in your evaluations",
+      icon: Database,
+      prompt:
+        "Help me build a dataset (up to 10 items) from a topic's traces so that topic is covered when I evaluate and run experiments. First suggest the largest live topics of the facet selected in the current URL (or of all active facets), ask which one to use and what to name the dataset, then add up to ten representative traces assigned to that topic as items with inputs and expected outputs.",
+    },
+  ],
   experimentRun: [
     {
       id: "summarize-this-experiment-run",
@@ -359,6 +388,7 @@ const QUICK_ACTION_CONTEXT_BY_PROJECT_SECTION: Record<
   sessions: "observability",
   users: "observability",
   alerts: "observability",
+  topics: "observability",
   dashboards: "dashboards",
   widgets: "dashboards",
   prompts: "prompts",

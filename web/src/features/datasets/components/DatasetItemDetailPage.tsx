@@ -17,12 +17,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { DatasetStatus } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   Popover,
   PopoverContent,
@@ -151,6 +146,15 @@ export const DatasetItemDetailPage = ({
       }
     : null;
 
+  const actionDisabledReason = (() => {
+    if (!hasAccess)
+      return "You do not have permission to modify dataset items.";
+    if (isViewingOldVersion)
+      return "Select the latest version to modify this item.";
+    if (!item.data) return "Dataset item is not available.";
+    return undefined;
+  })();
+
   return (
     <Page
       withPadding={withPadding}
@@ -261,34 +265,45 @@ export const DatasetItemDetailPage = ({
                 <Skeleton className="h-5 w-5" />
               </Button>
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
+            <DropdownMenu
+              items={[
+                {
+                  type: "item",
+                  id: "edit",
+                  title: "Edit",
+                  icon: Pencil,
+                  onClick: () => setEditDialogOpen(true),
+                  disabled: actionDisabledReason
+                    ? { reason: actionDisabledReason }
+                    : undefined,
+                },
+                {
+                  type: "item",
+                  id: "delete",
+                  title: mutDelete.isPending ? "Deleting..." : "Delete",
+                  icon: Trash2,
+                  variant: "destructive",
+                  onClick: handleDelete,
+                  disabled:
+                    actionDisabledReason || mutDelete.isPending
+                      ? {
+                          reason:
+                            actionDisabledReason ?? "Deletion in progress.",
+                        }
+                      : undefined,
+                },
+              ]}
+            >
+              {({ getTriggerProps }) => (
+                <Button
+                  {...getTriggerProps()}
+                  variant="outline"
+                  size="icon"
+                  aria-label="Item actions"
+                >
                   <MoreVertical size="base" color="default" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                <DropdownMenuItem
-                  onClick={() => setEditDialogOpen(true)}
-                  disabled={!hasAccess || isViewingOldVersion || !item.data}
-                >
-                  <Pencil size="base" color="default" __rawClassName="mr-2" />
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={handleDelete}
-                  disabled={
-                    !hasAccess ||
-                    mutDelete.isPending ||
-                    isViewingOldVersion ||
-                    !item.data
-                  }
-                  className="text-destructive"
-                >
-                  <Trash2 size="base" color="default" __rawClassName="mr-2" />
-                  {mutDelete.isPending ? "Deleting..." : "Delete"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
+              )}
             </DropdownMenu>
           </>
         ),

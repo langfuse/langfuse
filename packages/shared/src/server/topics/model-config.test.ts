@@ -126,6 +126,34 @@ describe("prepareTopicsModelSettings", () => {
     expect(mocks.upsert).toHaveBeenCalledOnce();
   });
 
+  it("tests an inherited organization connection as the saving project", async () => {
+    mocks.candidates.mockResolvedValue({
+      LlmApiKeys: [],
+      organization: {
+        organizationLlmApiKeys: [
+          {
+            ...connection("bedrock", LLMAdapter.Bedrock),
+            projectId: null,
+            organizationId: "target-org",
+          },
+        ],
+      },
+    });
+    await saveTopicsModelSettings("project", {
+      summary: slot("bedrock", "claude-sonnet"),
+      embedding: null,
+      embeddingDimensions: 1024,
+      clustering: null,
+    });
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({
+          connection: expect.objectContaining({ projectId: "project" }),
+        }),
+      }),
+    );
+  });
+
   it("saves a partial setup only while automatic processing is off", async () => {
     await saveTopicsModelSettings("project", {
       ...settings,

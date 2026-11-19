@@ -1206,17 +1206,19 @@ export async function readLatestTopicAssignments(
   return rows.map(assignmentResult);
 }
 
-/** Current topic per facet for a page of traces; empty topic ids are outliers. */
+/** Current topic per facet for a page of traces; outliers, with an empty topic id, only when asked. */
 export async function readCurrentTraceTopics(
   projectId: string,
   {
     traces,
     facetIds,
     publishedRunIds,
+    includeOutliers = false,
   }: {
     traces: { traceId: string; timestamp: Date }[];
     facetIds: string[];
     publishedRunIds: string[];
+    includeOutliers?: boolean;
   },
 ) {
   const times = traces.map((trace) => trace.timestamp.getTime());
@@ -1246,7 +1248,7 @@ export async function readCurrentTraceTopics(
     },
     tags: { route: "topics-trace-topics", projectId },
   });
-  return rows.filter((row) => row.topicId !== "");
+  return includeOutliers ? rows : rows.filter((row) => row.topicId !== "");
 }
 
 /**

@@ -36,13 +36,7 @@
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Audit snapshots and replay: `src/server/repositories/auditLogs.ts`; `getAuditLogResourceRefs` derives bulk trace refs from the persisted snapshot for live staging and backfill.
-- Billing ledger: the append-only `billable_events` table (created by
-  `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
-  migration-managed) read via `src/server/repositories/billable-events.ts`.
-  Keep it out of every delete, retention and cleaner path.
-  `src/server/billing/billingLedgerShadow.ts` compares legacy billing counts
-  with the ledger and only reports (metrics plus one log line); it never
-  throws. Callers gate it on `LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED`.
+- Billing ledger: the append-only `billable_events` table (ClickHouse migration `0057_create_billable_events`, with its materialized views) read via `src/server/repositories/billable-events.ts`. Keep it out of every delete, retention and cleaner path.
 - Queue payload schemas: `src/server/queues.ts`. `EvalJobExecutionEventSchema`
   is a union on `type`. Observation jobs carry `observationS3Path`.
   Trace-transcript jobs carry `traceId`, `revision`, and `transcriptS3Path`
@@ -94,7 +88,7 @@
   `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
   with `put` and `get`, and one lazily initialized provider client across
   factory calls. `put` returns the object key when the envelope is stored.
-  `get` reads that key. Topics still rebuilds the key through `legacyGet`.
+  `get` reads that key. Topics and trace-transcript eval jobs carry it as `transcriptS3Path`; readers never rebuild it.
   Consumers
   receive the storage object. The writer takes `TraceBatchInputData` with transcript,
   `executionIssues` (empty without a transcript) and required `traceContext`; session ID and trace name are nullable. The reader
@@ -103,6 +97,7 @@
   units; the reader validates the stored version and restores message dates, and
   throws `UnsupportedTraceBatchInputVersionError` for a newer version, which
   callers treat as retryable. Same-revision PUTs may overwrite.
+  Objects live under `TRACE_BATCH_INPUT_PREFIX` for `TRACE_BATCH_INPUT_RETENTION_MS` (three days). The worker events-dispatch transcript cleaner deletes expired objects; trace and project deletion do not.
   `src/server/traceBatch/versions/v1.ts` freezes the complete envelope, including
   transcript and trace context, without importing live schemas; `serialization.ts` owns the typed
   transcript adapters and `storage-schema.ts` only probes the version. Compatible
@@ -132,6 +127,7 @@
   `projectId`: Cloud Bedrock runtime auth checks it against
   `LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS`. Raw credential
   tests omit this identity; only operator-provisioned stored secrets qualify.
+  Bedrock IAM role connections (`{ roleArn }` secret, kept out of `BedrockCredentialSchema`) assume the role with the encrypted external ID stored on their row (`LLMConnection.externalId`); see `@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials`.
 - `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
   ClickHouse clients and helpers without loading the full server barrel. Use this
   entry point for test cleanup so built and source-aliased clients retain the same
@@ -217,7 +213,7 @@ the same PR.
 2. Add migration in `prisma/migrations/*`.
 3. Regenerate client/types via `db:generate`.
 4. Update affected repository/query code under `src/server/repositories/*`.
-5. Add/adjust `web` and/or `worker` tests for changed behavior.
+5. Whether to add a test follows root [`AGENTS.md`](../../AGENTS.md). Place a warranted `web` and/or `worker` test for changed behavior.
 
 ### ClickHouse schema change
 
@@ -254,7 +250,7 @@ the same PR.
 2. Update queue helpers in `src/server/redis/*` if queue names/payload
    handling changed.
 3. Update producer and consumer code in `web`/`worker`.
-4. Add or update regression tests in affected packages.
+4. Whether to add a test follows root [`AGENTS.md`](../../AGENTS.md). Place a warranted regression test in the affected package.
 
 - If a queue becomes sharded, add its shard-count env in `src/env.ts` and keep
   the shard-aware queue callers in `web` and `worker` aligned with the shared

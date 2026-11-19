@@ -12,7 +12,10 @@ import {
   type AccessAuditRecorder,
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { recordMcpAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
-import type { Tool } from "@modelcontextprotocol/server";
+import type {
+  Tool,
+  ServerContext as McpRequestContext,
+} from "@modelcontextprotocol/server";
 import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
 
@@ -22,6 +25,8 @@ import type { ServerContext } from "../types";
 export type ToolHandler<TInput> = (
   input: TInput,
   context: ServerContext,
+  /** The SDK's context of the tools/call request; absent in direct calls. */
+  mcpRequest?: McpRequestContext,
 ) => Promise<unknown>;
 
 type StringKeys<T> = {
@@ -222,11 +227,13 @@ export function defineTool<TInput, const TName extends string>(
   const wrappedHandler: ToolHandler<TInput> = async (
     rawInput: unknown,
     context: ServerContext,
+    mcpRequest?: McpRequestContext,
   ) => {
     // Validate input with the full schema (including refinements)
     const validatedInput = inputSchema.parse(rawInput);
+
     if (!("accessAudit" in options)) {
-      return await options.handler(validatedInput, context);
+      return await options.handler(validatedInput, context, mcpRequest);
     }
 
     const { audit, toRead } = collectAccessRead(options.accessAudit);

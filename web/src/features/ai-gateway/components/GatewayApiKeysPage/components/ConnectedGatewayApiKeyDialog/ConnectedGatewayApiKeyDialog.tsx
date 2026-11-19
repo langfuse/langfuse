@@ -6,20 +6,25 @@ import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGat
 
 type ConnectedGatewayApiKeyDialogProps = Omit<
   ComponentProps<typeof GatewayApiKeyDialog>,
-  "enabledModels"
+  "enabledModels" | "spendBudgetUnavailableReason"
 > & {
   organizationId: string;
   /** The dialog controller keeps closed content mounted, so queries also wait for this. */
   isOpen: boolean;
 };
 
-/** Loads the enabled models for the preview only while the dialog is open, and only for members who may see them. */
+/**
+ * Loads the enabled models for the preview only while the dialog is open, and
+ * only for members who may see them. Spend budgets are counted from recorded
+ * gateway requests, so they cannot be set while requests are not recorded.
+ */
 export function ConnectedGatewayApiKeyDialog({
   organizationId,
   isOpen,
   ...props
 }: ConnectedGatewayApiKeyDialogProps) {
-  const { showModels } = useGatewaySettingsAccess(organizationId);
+  const { showModels, spendBudgetUnavailableReason } =
+    useGatewaySettingsAccess(organizationId);
   const enabledModels = useGatewayEnabledModels(organizationId, {
     enabled: showModels && isOpen,
   });
@@ -28,6 +33,7 @@ export function ConnectedGatewayApiKeyDialog({
     <GatewayApiKeyDialog
       {...props}
       enabledModels={showModels ? enabledModels : undefined}
+      spendBudgetUnavailableReason={spendBudgetUnavailableReason}
     />
   );
 }

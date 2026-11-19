@@ -56,6 +56,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { createsSummaries } from "../topic-run-labels";
 import {
   previewTopicTraces,
   countTopicSetupTraces,
@@ -66,7 +67,6 @@ import {
   analysisTopicResults,
   currentTopicResults,
   listTopicTraces,
-  topicMapCost,
   traceFacetResults,
 } from "./currentResults";
 import {
@@ -74,10 +74,15 @@ import {
   startTopicAnalysis,
   topicMapsOverview,
 } from "./slices";
-import { topicFilterOptions, tracesTopics } from "./traceTopics";
+import {
+  topicFilterOptions,
+  topicStripeMap,
+  tracesTopics,
+} from "./traceTopics";
 
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
+const includeCosts = z.boolean().default(true);
 const mapInput = projectInput.extend({ runId: topicIdSchema });
 // Snapshots offer 7 or 14 days; longer windows risk an out-of-memory fit.
 const SNAPSHOT_MAX_WINDOW_MS = 14 * 86_400_000;
@@ -363,20 +368,6 @@ export const topicsRouter = createTRPCRouter({
         ruleId: input.ruleId,
       }),
     ),
-  /** Approximate summary cost of a rule's or analysis's maps so far. */
-  mapCost: topicsProcedure
-    .input(
-      projectInput.extend({
-        ruleId: topicIdSchema.optional(),
-        analysisId: topicIdSchema.optional(),
-      }),
-    )
-    .query(({ input }) =>
-      topicMapCost(input.projectId, {
-        ruleId: input.ruleId,
-        analysisId: input.analysisId,
-      }),
-    ),
   /** One page of a facet's traces; filters and paging run in ClickHouse. */
   traces: topicsProcedure
     .input(tracesInput)
@@ -395,6 +386,10 @@ export const topicsRouter = createTRPCRouter({
   filterOptions: topicsProcedure.query(({ input }) =>
     topicFilterOptions(input.projectId),
   ),
+  /** Tracing topic stripe: the facet's default map and its topics in the Topics page ranking. */
+  stripeMap: topicsProcedure
+    .input(projectInput.extend({ facet: z.string().min(1).max(200) }))
+    .query(({ input }) => topicStripeMap(input.projectId, input.facet)),
   /** Rule maps and one-off analyses for the map picker and the Rules page. */
   maps: topicsProcedure.query(({ input }) =>
     topicMapsOverview(input.projectId),
@@ -548,33 +543,49 @@ export const topicsRouter = createTRPCRouter({
         });
       return { enabled: input.enabled, sampling: ruleAfter?.sampling ?? null };
     }),
-  executions: topicsProcedure.query(async ({ input }) => {
-    const listed = await listTopicExecutions(input.projectId);
-    const [executions, costs] = await Promise.all([
-      Promise.all(listed.map(recoverExecutionState)),
-      getTopicExecutionCosts(
+  executions: topicsProcedure
+    .input(projectInput.extend({ includeCosts }))
+    .query(async ({ input }) => {
+      const listed = await listTopicExecutions(input.projectId);
+      const [executions, costs] = await Promise.all([
+        Promise.all(listed.map(recoverExecutionState)),
+        input.includeCosts
+          ? getTopicExecutionCosts(
+              input.projectId,
+              listed
+                .filter((execution) => createsSummaries(execution.input))
+                .map((execution) => execution.id),
+            )
+          : null,
+      ]);
+      return executions.map((execution) => ({
+        ...execution,
+        estimatedCost: costs?.[execution.id] ?? null,
+      }));
+    }),
+  execution: topicsProcedure
+    .input(executionInput.extend({ includeCosts }))
+    .query(async ({ input }) => {
+      const execution = await executionWithRecovery(
         input.projectId,
-        listed
-          .filter((execution) => execution.input.operation === "process")
-          .map((execution) => execution.id),
-      ),
-    ]);
-    return executions.map((execution) => ({
-      ...execution,
-      estimatedCost: costs[execution.id] ?? null,
-    }));
-  }),
-  execution: topicsProcedure.input(executionInput).query(async ({ input }) => {
-    const execution = await executionWithRecovery(
-      input.projectId,
-      input.executionId,
-    );
-    const costs = await getTopicExecutionCosts(
-      input.projectId,
-      execution.input.operation === "process" ? [execution.id] : [],
-    );
-    return { ...execution, estimatedCost: costs[execution.id] ?? null };
-  }),
+        input.executionId,
+      );
+      const costs =
+        input.includeCosts && createsSummaries(execution.input)
+          ? await getTopicExecutionCosts(input.projectId, [execution.id])
+          : null;
+      return { ...execution, estimatedCost: costs?.[execution.id] ?? null };
+    }),
+  executionCosts: topicsProcedure
+    .input(
+      projectInput.extend({
+        // A history page plus the selected snapshot and an open run detail.
+        executionIds: z.array(topicIdSchema).max(102),
+      }),
+    )
+    .query(({ input }) =>
+      getTopicExecutionCosts(input.projectId, input.executionIds),
+    ),
   setupTraceCounts: topicsProcedure
     .input(
       projectInput.extend({

@@ -38,6 +38,9 @@ const state = vi.hoisted(() => ({
   maps: undefined as unknown,
 }));
 
+vi.mock("./useOpenTopicsFeedback", () => ({
+  useOpenTopicsFeedback: () => vi.fn(),
+}));
 vi.mock("use-query-params", () => ({
   StringParam: {},
   useQueryParam: () => [undefined, vi.fn()],
@@ -237,6 +240,8 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       analysisResults: { useQuery: () => ({}) },
+      // The map picker's preview pane.
+      currentResults: { useQuery: () => ({ isLoading: false }) },
       retry: {
         useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
           mutate: (input: unknown) => {
@@ -431,16 +436,12 @@ it.each([
   },
 );
 
-it("puts New live map and New snapshot first in the menu", async () => {
+it("leaves creating and refreshing maps to the map picker, not the menu", async () => {
   withSummaries();
   render(<TopicsPage />, { wrapper: LayerProvider });
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
-  // The selected live map adds Refresh map after the create entries.
   expect(items.map((item) => item.textContent)).toEqual([
-    "New live map",
-    "New snapshot",
-    expect.stringMatching(/^Refresh map/),
     "History",
     "Settings",
   ]);
@@ -477,21 +478,60 @@ it.each([
   expect(items.some((item) => item.textContent?.startsWith("Edit map"))).toBe(
     false,
   );
-  // Every action stays visible; without write access it is disabled with a reason.
-  for (const label of ["New live map", "New snapshot"]) {
-    const item = items.find((candidate) =>
-      candidate.textContent?.startsWith(label),
-    );
-    expect(item).toBeDefined();
-    expect(item!.getAttribute("aria-disabled")).toBe(canWrite ? null : "true");
-    expect(item!.getAttribute("title")).toBe(
-      canWrite ? null : "You need permission to edit Topics.",
-    );
-    expect(item!.textContent).toBe(
-      canWrite ? label : `${label}You need permission to edit Topics.`,
-    );
-  }
 });
+
+it("offers creating maps in the menu while onboarding hides the map picker", async () => {
+  withSummaries();
+  // Configured but off, and no summaries stored yet.
+  state.settings = { ...state.settings, enabled: false };
+  state.hasStoredSummaries = false;
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  expect(screen.queryByRole("button", { name: /Topic map:/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  const items = await screen.findAllByRole("menuitem");
+  expect(items.map((item) => item.textContent)).toEqual([
+    "New live map",
+    "New snapshot",
+    "History",
+    "Settings",
+  ]);
+});
+
+it.each([
+  { access: "with topics:CUD", canWrite: true },
+  { access: "without topics:CUD", canWrite: false },
+])(
+  "offers refreshing and creating maps in the map picker $access",
+  async ({ canWrite }) => {
+    withSummaries();
+    state.canWrite = canWrite;
+    // A refresh needs automatic processing on.
+    state.settings = { ...state.settings, enabled: true };
+    render(<TopicsPage />, { wrapper: LayerProvider });
+    fireEvent.click(screen.getByRole("button", { name: "Topic map: Rule" }));
+    const picker = within(
+      await screen.findByRole("dialog", { name: "Topic maps" }),
+    );
+    // Every entry stays visible; without write access it is disabled and says why on screen.
+    for (const name of [/^New live map/, /^New snapshot/]) {
+      const entry = picker.getByRole("button", { name });
+      expect(entry).toHaveProperty("disabled", !canWrite);
+      expect(
+        entry.textContent?.includes("You need permission to edit Topics."),
+      ).toBe(!canWrite);
+    }
+    // The preview card's Refresh, at its top right.
+    expect(picker.getByRole("button", { name: "Refresh" })).toHaveProperty(
+      "disabled",
+      !canWrite,
+    );
+    expect(
+      picker
+        .queryAllByText("You need permission to edit Topics.")
+        .some((element) => element.tagName === "P"),
+    ).toBe(!canWrite);
+  },
+);
 
 it("shows the setup landing until the project's first stored summary exists", () => {
   state.hasStoredSummaries = false;

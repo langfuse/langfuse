@@ -9,7 +9,19 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async () => ({
+    ...(await vi.importActual(
+      "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+    )),
+    getCrossAccountRoleArn: vi.fn().mockReturnValue(null),
+  }),
+);
+
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import { deriveBedrockExternalId } from "@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials";
 import * as auditLogs from "@/src/features/audit-logs/auditLog";
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
@@ -1044,6 +1056,298 @@ describe("llmApiKey.all RPC", () => {
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
     }
+  });
+
+  describe("Bedrock IAM role auth", () => {
+    const roleSecret = JSON.stringify({
+      roleArn: "arn:aws:iam::123456789012:role/langfuse-bedrock",
+    });
+    const connectionInput = () => ({
+      projectId,
+      provider: "bedrock-role",
+      adapter: LLMAdapter.Bedrock,
+      secretKey: roleSecret,
+      customModels: ["eu.anthropic.claude-sonnet-4-6"],
+      config: { region: "eu-central-1" },
+    });
+    const callerWithPlan = (
+      plan: "cloud:hobby" | "cloud:enterprise",
+      organization: Partial<
+        NonNullable<Session["user"]>["organizations"][number]
+      > = {},
+    ) => {
+      const planSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          organizations: [
+            { ...session.user!.organizations[0], ...organization, plan },
+          ],
+        },
+      };
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({ session: planSession, headers: {} }),
+        prisma,
+      });
+    };
+
+    beforeEach(() => {
+      vi.mocked(getCrossAccountRoleArn).mockReturnValue(
+        "arn:aws:iam::210987654321:role/langfuse-cross-account",
+      );
+    });
+    afterEach(() => {
+      vi.mocked(getCrossAccountRoleArn).mockReturnValue(null);
+    });
+
+    it("is offered to Enterprise plans only, and stores the external ID shown in the form on the connection", async () => {
+      const nonce = randomUUID();
+      const hobby = callerWithPlan("cloud:hobby");
+      await expect(
+        hobby.llmApiKey.bedrockIamRoleAuth({ projectId }),
+      ).resolves.toEqual({ crossAccountRoleArn: null });
+      await expect(
+        hobby.llmApiKey.bedrockExternalId({ projectId, nonce }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: expect.stringContaining("not available"),
+      });
+      await expect(
+        hobby.llmApiKey.create({
+          ...connectionInput(),
+          bedrockExternalIdNonce: nonce,
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining("Enterprise plan"),
+      });
+
+      const enterprise = callerWithPlan("cloud:enterprise");
+      const { externalId } = await enterprise.llmApiKey.bedrockExternalId({
+        projectId,
+        nonce,
+      });
+      expect(externalId).toMatch(/^lf-[0-9a-f]{32}$/);
+      await expect(
+        enterprise.llmApiKey.bedrockExternalId({ projectId, nonce }),
+      ).resolves.toEqual({ externalId });
+      expect(
+        deriveBedrockExternalId({
+          owner: { type: "project", projectId: "another-project" },
+          nonce,
+        }),
+      ).not.toBe(externalId);
+      await expect(
+        enterprise.llmApiKey.create(connectionInput()),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(
+          "external ID for IAM role auth is missing",
+        ),
+      });
+
+      await expect(
+        enterprise.llmApiKey.test({
+          ...connectionInput(),
+          bedrockExternalIdNonce: nonce,
+        }),
+      ).resolves.toEqual({ success: true });
+      const testedConnection = mockGenerateLLMText.mock.calls.at(-1)?.[0]
+        .connection as { projectId?: string; externalId?: string };
+      expect(testedConnection.projectId).toBe(projectId);
+      expect(decrypt(testedConnection.externalId!)).toBe(externalId);
+
+      await enterprise.llmApiKey.create({
+        ...connectionInput(),
+        bedrockExternalIdNonce: nonce,
+      });
+      const stored = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: "bedrock-role" },
+      });
+      expect(decrypt(stored.externalId!)).toBe(externalId);
+      const { data } = await enterprise.llmApiKey.all({ projectId });
+      expect(data).toEqual([
+        expect.objectContaining({
+          provider: "bedrock-role",
+          authMethod: AuthMethod.IamRole,
+          displaySecretKey: "arn:aws:iam::123456789012:role/langfuse-bedrock",
+        }),
+      ]);
+
+      // Editing in a new form session keeps the external ID the role trusts.
+      const editNonce = randomUUID();
+      await expect(
+        enterprise.llmApiKey.bedrockExternalId({
+          projectId,
+          nonce: editNonce,
+          connectionId: stored.id,
+        }),
+      ).resolves.toEqual({ externalId });
+      await enterprise.llmApiKey.update({
+        ...connectionInput(),
+        id: stored.id,
+        secretKey: JSON.stringify({
+          roleArn: "arn:aws:iam::123456789012:role/langfuse-bedrock-2",
+        }),
+        bedrockExternalIdNonce: editNonce,
+      });
+      const updated = await prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: stored.id },
+      });
+      expect(decrypt(updated.externalId!)).toBe(externalId);
+    });
+
+    it("stores the external ID shown in the form on organization connections", async () => {
+      const nonce = randomUUID();
+      const { projectId: _projectId, ...input } = connectionInput();
+      const enterprise = callerWithPlan("cloud:enterprise");
+      const { externalId } =
+        await enterprise.organizationLlmApiKey.bedrockExternalId({
+          orgId,
+          nonce,
+        });
+
+      await expect(
+        enterprise.organizationLlmApiKey.test({
+          ...input,
+          orgId,
+          bedrockExternalIdNonce: nonce,
+        }),
+      ).resolves.toEqual({ success: true });
+      const testedConnection = mockGenerateLLMText.mock.calls.at(-1)?.[0]
+        .connection as { organizationId?: string; externalId?: string };
+      expect(testedConnection.organizationId).toBe(orgId);
+      expect(decrypt(testedConnection.externalId!)).toBe(externalId);
+
+      await enterprise.organizationLlmApiKey.create({
+        ...input,
+        orgId,
+        bedrockExternalIdNonce: nonce,
+      });
+      const stored = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { organizationId: orgId, provider: "bedrock-role" },
+      });
+      expect(decrypt(stored.externalId!)).toBe(externalId);
+    });
+
+    describe("bedrockExternalId access", () => {
+      const storedExternalId = `lf-${"a".repeat(32)}`;
+      const createRoleConnection = (
+        owner: { projectId: string } | { organizationId: string },
+      ) =>
+        prisma.llmApiKeys.create({
+          data: {
+            ...owner,
+            provider: "bedrock-role",
+            adapter: LLMAdapter.Bedrock,
+            secretKey: encrypt(roleSecret),
+            displaySecretKey: "arn:aws:iam::123456789012:role/langfuse-bedrock",
+            externalId: encrypt(storedExternalId),
+          },
+        });
+
+      it("does not return another project's external ID", async () => {
+        const connection = await createRoleConnection({ projectId });
+        const tenantB = await createOrgProjectAndApiKey();
+        const callerB = callerWithPlan("cloud:enterprise", {
+          id: tenantB.orgId,
+          projects: [
+            {
+              ...session.user!.organizations[0].projects[0],
+              id: tenantB.projectId,
+            },
+          ],
+        });
+        const nonce = randomUUID();
+
+        await expect(
+          callerB.llmApiKey.bedrockExternalId({
+            projectId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        const ownExternalId = await callerB.llmApiKey.bedrockExternalId({
+          projectId: tenantB.projectId,
+          nonce,
+        });
+        expect(ownExternalId.externalId).not.toBe(storedExternalId);
+        await expect(
+          callerB.llmApiKey.bedrockExternalId({
+            projectId: tenantB.projectId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).resolves.toEqual(ownExternalId);
+      });
+
+      it("requires llmApiKeys:create within the project", async () => {
+        const member = callerWithPlan("cloud:enterprise", {
+          role: "MEMBER",
+          projects: [
+            { ...session.user!.organizations[0].projects[0], role: "MEMBER" },
+          ],
+        });
+
+        await expect(
+          member.llmApiKey.bedrockExternalId({
+            projectId,
+            nonce: randomUUID(),
+          }),
+        ).rejects.toMatchObject({
+          code: "FORBIDDEN",
+          message: "User does not have access to this resource or action",
+        });
+      });
+
+      it("does not return another organization's external ID", async () => {
+        const connection = await createRoleConnection({
+          organizationId: orgId,
+        });
+        const tenantB = await createOrgProjectAndApiKey();
+        const callerB = callerWithPlan("cloud:enterprise", {
+          id: tenantB.orgId,
+          projects: [],
+        });
+        const nonce = randomUUID();
+
+        await expect(
+          callerB.organizationLlmApiKey.bedrockExternalId({
+            orgId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        const ownExternalId =
+          await callerB.organizationLlmApiKey.bedrockExternalId({
+            orgId: tenantB.orgId,
+            nonce,
+          });
+        expect(ownExternalId.externalId).not.toBe(storedExternalId);
+        await expect(
+          callerB.organizationLlmApiKey.bedrockExternalId({
+            orgId: tenantB.orgId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).resolves.toEqual(ownExternalId);
+      });
+
+      it("requires organizationLlmApiKeys:CUD within the organization", async () => {
+        const member = callerWithPlan("cloud:enterprise", { role: "MEMBER" });
+
+        await expect(
+          member.organizationLlmApiKey.bedrockExternalId({
+            orgId,
+            nonce: randomUUID(),
+          }),
+        ).rejects.toMatchObject({
+          code: "FORBIDDEN",
+          message:
+            "Forbidden, user does not have access to this resource or action",
+        });
+      });
+    });
   });
 
   it("should fill masked header values from the stored headers in testUpdate", async () => {

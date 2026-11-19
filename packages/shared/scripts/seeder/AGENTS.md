@@ -26,6 +26,7 @@ pnpm run seed -- session-shapes --shape all        # chat / coding-agent / mixed
 pnpm run seed -- session-shapes --shape media      # messages carrying @@@langfuseMedia:...@@@ refs (needs MinIO)
 pnpm run seed -- session-variety --sessions 120 --days 14  # many sessions for the sessions TABLE + its filters/search bar (topic ids, multi user/tag, 4 envs, session metadata, numeric+categorical+boolean scores, comments)
 pnpm run seed -- many-traces --count 100000 --days 14
+pnpm run seed -- filter-variety --traces 1200 --names 240 --v4  # readable root names with common/rare counts, varied types/envs/tags/levels/models/users/sessions
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 pnpm run seed -- score-distributions  # numeric distribution shapes: 0–1, 0.91–0.94, negative, near zero, span across zero
@@ -57,7 +58,10 @@ progress output. Full usage and the need→command table live in the
 - `scenarios/` — one file per scenario plus shared `rng.ts`, `payload.ts`,
   `event-mirror.ts` (v3 observation → v4 `events_full` row), `verify.ts`
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing
-  `pnpm run dx` seed path (unchanged by the CLI)
+  `pnpm run dx` seed path; `seed-clickhouse.ts` also runs the
+  `gateway-budgets` scenario, so local dx gets AI Gateway spend (PR previews
+  seed only `many-traces`; run `gateway-budgets` there via the
+  `langfuse-previews` skill)
 - `README.md` — design rationale, contract, and roadmap
 
 ## Rules for changes

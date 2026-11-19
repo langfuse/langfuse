@@ -7,7 +7,6 @@ import {
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import {
-  getTopicMapCost,
   getTopicResultCounts,
   listCurrentTopicAssignments,
   listCurrentTopicSummaries,
@@ -422,11 +421,7 @@ describe("current Topics results with several rules sharing a facet", () => {
       });
       runIds.push(run.id);
     }
-    const summary = (
-      traceId: string,
-      day: number,
-      cost: number,
-    ): TopicSummary => ({
+    const summary = (traceId: string, day: number): TopicSummary => ({
       projectId,
       facetId,
       facetVersion: 1,
@@ -446,7 +441,7 @@ describe("current Topics results with several rules sharing a facet", () => {
       providedUsageDetails: {},
       usageDetails: {},
       providedCostDetails: {},
-      costDetails: { total: cost },
+      costDetails: {},
       processedAt: `2026-10-0${day}T13:00:00.000Z`,
       metadata: {},
     });
@@ -474,8 +469,8 @@ describe("current Topics results with several rules sharing a facet", () => {
       assignedAt: "2026-10-07T00:00:00.000Z",
     });
     const [bothSummary, firstOnlySummary] = [
-      summary(both, 6, 0.3),
-      summary(firstOnly, 5, 0.2),
+      summary(both, 6),
+      summary(firstOnly, 5),
     ];
     await writeTopicSummaries([bothSummary, firstOnlySummary]);
     await writeTopicAssignments([
@@ -595,20 +590,5 @@ describe("current Topics results with several rules sharing a facet", () => {
         },
       ]),
     ).toEqual([]);
-  });
-
-  it("costs each rule's map by the summaries it assigned, counting shared ones in each", async () => {
-    const cost = async (runId: string | null, membersOnly: boolean) =>
-      (
-        await getTopicMapCost({
-          projectId,
-          window,
-          maps: [{ facetId, runId, membersOnly }],
-        })
-      ).cost;
-    expect(await cost(runIds[0], true)).toBeCloseTo(0.5);
-    // Billing's map holds an older summary of the second trace, not the one costed.
-    expect(await cost(runIds[1], true)).toBeCloseTo(0.3);
-    expect(await cost(null, false)).toBeCloseTo(0.5);
   });
 });
