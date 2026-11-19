@@ -46,7 +46,7 @@ export const RoleSelectItem = ({
           <span className="font-bold">
             {label}
             {keepDefaultNote ? " (keep default role)" : ""}
-            {showPermissionCount && (
+            {showPermissionCount && role !== "NONE" && (
               <span className="text-muted-foreground text-xs font-normal">
                 {" "}
                 · {rolePermissionCountLabel(role)}

@@ -8,16 +8,18 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 
 type GroupRole = "ADMIN" | "MEMBER" | "VIEWER" | "AI_GATEWAY";
 
 const OPTIONS: Role[] = ["NONE", "ADMIN", "MEMBER", "VIEWER"];
 
-/** Role options for a group here: AI Gateway is org-wide only, behind its flag. */
+/** Role options for a group here, most permissions first as on Members: AI Gateway is org-wide only, behind its flag. */
 const optionsFor = (level: Level, isAiGatewayEnabled: boolean): Role[] =>
-  level === "organization" && isAiGatewayEnabled
-    ? [...OPTIONS, "AI_GATEWAY"]
-    : OPTIONS;
+  (level === "organization" && isAiGatewayEnabled
+    ? [...OPTIONS, "AI_GATEWAY" as Role]
+    : OPTIONS
+  ).toSorted(byPermissionCount);
 
 /** AI Gateway grants no project permissions, so on a project it counts as no role. */
 const onProjectLevel = (role: Role): Role =>
@@ -77,7 +79,9 @@ function resolveGroupRole(
       tag:
         orgRole === "NONE"
           ? "No organization role"
-          : "Applies in every project",
+          : orgRole === "AI_GATEWAY"
+            ? "Organization only"
+            : "Applies in every project",
       sources,
       editing: orgRole,
     };
@@ -162,7 +166,12 @@ function groupRoleAnswer({
     </>
   );
   if (level === "organization")
-    return <>{lead} in this organization and every project.</>;
+    return (
+      <>
+        {lead} in this organization
+        {role === "AI_GATEWAY" ? "" : " and every project"}.
+      </>
+    );
   return (
     <>
       {lead} on this project,{" "}
@@ -289,14 +298,25 @@ function GroupRoleDialog({
                     ? `Keep the group's organization role (${roleName(levelOrgRole)}) on this project.`
                     : "The group gives no organization role."
                 }
-                optionDisabledReason={(role) =>
-                  grantableRoles &&
-                  role !== "NONE" &&
-                  !grantableRoles.includes(role) &&
-                  role !== resolved.editing
-                    ? "You cannot grant this role"
-                    : undefined
-                }
+                optionDisabledReason={(role) => {
+                  if (
+                    grantableRoles &&
+                    role !== "NONE" &&
+                    !grantableRoles.includes(role) &&
+                    role !== resolved.editing
+                  )
+                    return "You cannot grant this role";
+                  // On a project, a role at or below the group's organization
+                  // role adds nothing, as on the Members page.
+                  if (
+                    onProject &&
+                    role !== "NONE" &&
+                    levelOrgRole !== "NONE" &&
+                    orderedRoles[role] <= orderedRoles[levelOrgRole]
+                  )
+                    return `No effect: ${groupName} already gives ${roleName(levelOrgRole)} in the organization`;
+                  return undefined;
+                }}
               />
             )}
             {noEffect && (
@@ -312,7 +332,9 @@ function GroupRoleDialog({
             )}
             {!onProject && !noEffect && (
               <p className="text-muted-foreground text-xs">
-                Members keep their own role when it is higher.
+                {selected === "AI_GATEWAY"
+                  ? "Members keep their own role and also get AI Gateway access."
+                  : "Members keep their own role when it is higher."}
               </p>
             )}
           </div>

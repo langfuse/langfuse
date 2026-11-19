@@ -12,6 +12,7 @@ import {
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
+import { roleDisplay } from "@/src/features/rbac/components/roleDisplay";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
 /**
@@ -74,12 +75,15 @@ export function RoleField({
             </div>
           </div>
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-w-(--radix-select-trigger-width)">
           {roles.map((role) => (
             <RoleSelectItem
               key={role}
               role={role}
-              transformName={nameOf}
+              display={(r) => ({
+                ...roleDisplay(r),
+                name: nameOf(roleDisplay(r).name),
+              })}
               description={describe(role)}
               disabledReason={optionDisabledReason?.(role)}
               showPermissionCount
@@ -92,7 +96,7 @@ export function RoleField({
         <button
           type="button"
           onClick={() => setPermissionsRole(value)}
-          className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
+          className="text-muted-foreground hover:text-foreground w-fit text-xs"
         >
           View{" "}
           <span className="inline-flex items-center gap-0.5 underline">
