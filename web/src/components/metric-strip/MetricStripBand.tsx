@@ -1,6 +1,7 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { forwardRef, type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
+
+import { MetricStripMessage } from "./MetricStripMessage";
 
 /**
  * The band chrome shared by every table strip ("Pulse"): the ruled band, the
@@ -22,23 +23,6 @@ import { cn } from "@/src/utils/tailwind";
 const DEFAULT_CONTENT_HEIGHT_CLASS = "h-[76px]";
 
 export type MetricStripStatus = "loading" | "empty" | "ready";
-
-/**
- * A band-height message. Thin by construction: a strip's "nothing to show"
- * must never be a box taller than the band, which clips its own text.
- */
-export function MetricStripMessage({ message }: { message: string }) {
-  return (
-    <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-      {message}
-    </div>
-  );
-}
-
-/** The controls row above the plot: metric dropdown, then its annotations. */
-export function MetricStripHeaderRow({ children }: { children: ReactNode }) {
-  return <div className="flex items-baseline gap-1.5">{children}</div>;
-}
 
 export const MetricStripBand = forwardRef<
   HTMLDivElement,
@@ -85,13 +69,13 @@ export const MetricStripBand = forwardRef<
         // pt-2.5 keeps the metric switcher off the top rule; the label then
         // sits closer to its chart than to the band's edge.
         <div className="relative px-2 pt-2.5 pb-1">
-          {status === "loading" ? (
-            <div className={contentHeightClass} />
-          ) : status === "empty" ? (
+          {status === "loading" && <div className={contentHeightClass} />}
+          {status === "empty" && (
             <div className={contentHeightClass}>
               <MetricStripMessage message={emptyMessage} />
             </div>
-          ) : (
+          )}
+          {status === "ready" && (
             <div
               className={cn(
                 "min-w-0 transition-opacity",

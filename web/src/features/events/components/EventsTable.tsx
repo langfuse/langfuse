@@ -2213,7 +2213,7 @@ export default function ObservationsEventsTable({
                     onRequestColumns={requestColumns}
                     aiDataContext={aiDataContext}
                     aiScoreNames={aiScoreNames}
-                    className="px-3 pt-3"
+                    spacing="page"
                   />
                 </div>
               </div>

@@ -56,6 +56,8 @@ export interface ComboboxProps<
   className?: string;
   name?: string;
   footer?: (args: { search: string; close: () => void }) => React.ReactNode;
+  /** Edge of the trigger the list lines up with. Use "end" for triggers near the right edge. */
+  align?: "start" | "end";
 }
 
 function isGroupedOptions<T extends string | number | boolean | { id: string }>(
@@ -97,6 +99,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
   className,
   name,
   footer,
+  align = "start",
 }: ComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
@@ -163,6 +166,8 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        align={align}
+        collisionPadding={8}
         className="w-(--radix-popover-trigger-width) p-0"
         onCloseAutoFocus={(event) => {
           if (disabled) event.preventDefault();

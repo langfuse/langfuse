@@ -280,6 +280,7 @@ export async function findModelInPostgres(
       id,
       created_at AS "createdAt",
       updated_at AS "updatedAt",
+      scope,
       project_id AS "projectId",
       model_name AS "modelName",
       match_pattern AS "matchPattern",
@@ -293,7 +294,7 @@ export async function findModelInPostgres(
     FROM
       models
       WHERE (project_id = ${projectId}
-      OR project_id IS NULL)
+      OR scope = 'LANGFUSE')
     ${modelCondition}
     ORDER BY
       project_id ASC,
@@ -370,9 +371,13 @@ const getModelMatchKeyPrefix = () => {
   return "model-price-tiers";
 };
 
-export const redisModelToPrismaModel = (redisModel: Model): Model => {
+export const redisModelToPrismaModel = (
+  redisModel: Omit<Model, "scope"> & { scope?: Model["scope"] },
+): Model => {
   return {
     ...redisModel,
+    // Entries cached before models had a scope column only ever held project or Langfuse rows.
+    scope: redisModel.scope ?? (redisModel.projectId ? "PROJECT" : "LANGFUSE"),
     createdAt: new Date(redisModel.createdAt),
     updatedAt: new Date(redisModel.updatedAt),
     inputPrice:

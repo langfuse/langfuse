@@ -8,7 +8,9 @@ import {
   BedrockConfigSchema,
   BedrockCredentialSchema,
   type LLMConnectionConfig,
+  parseBedrockIamRole,
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
+import { createBedrockRoleCredentialProvider } from "../../../ee/bedrockRoleAuth/bedrockRoleCredentials";
 import { parseOutboundUrl } from "../../../outbound-url/validation";
 import {
   assertLlmProviderHostAllowed,
@@ -143,10 +145,19 @@ export function canUseBedrockDefaultCredentials(projectId?: string): boolean {
   );
 }
 
-/** Resolves a default-credential sentinel, AWS access key JSON, or Bedrock API key. */
+/**
+ * Resolves a default-credential sentinel, an IAM role, AWS access key JSON, or
+ * a Bedrock API key. An IAM role needs the project that runs the model, or
+ * the organization when an organization connection is tested outside a
+ * project, and the connection's external ID, which the role trusts.
+ */
 export function resolveBedrockProviderAuth(params: {
   secretKey: string;
   allowDefaultCredentials: boolean;
+  projectId?: string | null;
+  organizationId?: string | null;
+  /** Encrypted, from the connection row. */
+  externalId?: string | null;
   profile?: string;
 }): Pick<
   Parameters<typeof createAmazonBedrock>[0] & object,
@@ -161,6 +172,31 @@ export function resolveBedrockProviderAuth(params: {
     // Unlike the AI SDK's built-in env-only fallback, the node provider chain
     // includes env, profile, IMDS, IRSA, and the remaining AWS defaults.
     return createDefaultBedrockProviderAuth({ profile: params.profile });
+  }
+
+  const iamRole = parseBedrockIamRole(secretKey);
+  if (iamRole) {
+    if (!params.projectId && !params.organizationId) {
+      throw new Error(
+        "Bedrock IAM role auth needs the project or organization that uses the connection.",
+      );
+    }
+    const caller = params.projectId
+      ? { projectId: params.projectId }
+      : { organizationId: params.organizationId! };
+    if (!params.externalId) {
+      throw new Error(
+        "Bedrock IAM role auth: the LLM connection has no external ID.",
+      );
+    }
+    return {
+      credentialProvider: createBedrockRoleCredentialProvider({
+        caller,
+        roleArn: iamRole.roleArn,
+        externalId: params.externalId,
+      }),
+      ...SUPPRESS_BEARER_TOKEN_ENV_FALLBACK,
+    };
   }
 
   try {
@@ -237,6 +273,8 @@ function assertBedrockHostAllowed(region: string | undefined): void {
  */
 function createBedrockProvider(params: {
   projectId?: string;
+  organizationId?: string;
+  externalId?: string | null;
   apiKey: string;
   config?: LLMConnectionConfig | null;
   credentialSource: LLMCredentialSource;
@@ -255,6 +293,9 @@ function createBedrockProvider(params: {
     allowDefaultCredentials:
       shouldUseLangfuseAPIKey ||
       canUseBedrockDefaultCredentials(params.projectId),
+    projectId: shouldUseLangfuseAPIKey ? undefined : params.projectId,
+    organizationId: shouldUseLangfuseAPIKey ? undefined : params.organizationId,
+    externalId: shouldUseLangfuseAPIKey ? undefined : params.externalId,
     profile: shouldUseLangfuseAPIKey ? getLangfuseAIAwsProfile() : undefined,
   });
 
@@ -266,6 +307,8 @@ function createBedrockProvider(params: {
 
 export function buildBedrockModel(params: {
   projectId?: string;
+  organizationId?: string;
+  externalId?: string | null;
   modelId: string;
   apiKey: string;
   config?: LLMConnectionConfig | null;
@@ -276,6 +319,8 @@ export function buildBedrockModel(params: {
 
 export function buildBedrockEmbeddingModel(params: {
   projectId?: string;
+  organizationId?: string;
+  externalId?: string | null;
   modelId: string;
   apiKey: string;
   config?: LLMConnectionConfig | null;

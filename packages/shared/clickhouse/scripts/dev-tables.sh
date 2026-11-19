@@ -123,10 +123,10 @@ SELECT
     byteSize(*) AS total_size
 FROM traces;
 
--- Billing ledger: one row per billable unit (observation, trace, score) each
--- time it is ingested. A unit is billed once in a billing window of
--- ingested_at when its id appears there and not in the 24 hours before the
--- window starts (getBillableUnitCountsByProjectInWindow).
+-- Billing ledger: one row per billable unit (observation, trace, score, Topics
+-- facet summary) each time it is ingested. A unit is billed once in a billing
+-- window of ingested_at when its id appears there and not in the 24 hours
+-- before the window starts (getBillableUnitCountsByProjectInWindow).
 -- Most reads are scoped to a project or an org, so project_id leads the key.
 -- Weekly partitions bound what a cross-project window scan reads: granules
 -- where one project ends and the next begins cannot be skipped by time.
@@ -138,7 +138,8 @@ CREATE TABLE IF NOT EXISTS billable_events (
     event_type LowCardinality(String),
     event_id String,
     event_time DateTime64(3),
-    event_bytes UInt64
+    event_bytes UInt64,
+    environment LowCardinality(String) DEFAULT ''
 ) ENGINE = MergeTree
 PARTITION BY toMonday(ingested_at)
 PRIMARY KEY (project_id, toStartOfFifteenMinutes(ingested_at))
@@ -206,6 +207,31 @@ SELECT
 FROM scores
 WHERE is_deleted = 0
   AND created_at >= now() - INTERVAL 48 HOUR;
+
+-- MV: topic_facet_summaries -> billable_events, one row per summary write.
+-- A summary is one facet version over a trace or a session. Facet ids only
+-- allow [a-zA-Z0-9_-] and trace ids are client-chosen, so event_id is
+-- '<facet_id>:<facet_version>:<length(trace_id)>:<trace_id>:<session_id>',
+-- with session_id only for session summaries, as in the table's sorting key.
+-- insufficient_input rows never reach the model, so they are not usage.
+-- event_bytes stays 0 until summaries record their transcript size.
+CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_topic_facet_summaries_mv
+TO billable_events AS
+SELECT
+    now() AS ingested_at,
+    project_id,
+    'topic_facet_summary' AS event_type,
+    concat(
+        facet_id, ':', toString(facet_version), ':',
+        toString(length(trace_id)), ':', trace_id, ':',
+        if(trace_id = '', session_id, '')
+    ) AS event_id,
+    unit_start_time AS event_time,
+    toUInt64(0) AS event_bytes,
+    environment
+FROM topic_facet_summaries
+WHERE processing_state != 'insufficient_input'
+  AND processed_at >= now() - INTERVAL 48 HOUR;
 
 -- PROD ROLLOUT: unlike analytics_scores (managed via numbered migrations),
 -- this view is NOT migration-managed because it is a Cloud-only diagnostic

@@ -631,9 +631,16 @@ export function renderTranscript(
     let activeThread: number | null = null;
     for (const { event, text } of events) {
       const thread = event.thread;
-      if (threads.length > 1 && thread !== null && thread !== activeThread) {
+      // An error without a thread (run-level, or placed by time across threads) belongs to no thread block.
+      // Operation markers without a thread stay inside the active thread.
+      const leavesThread = thread === null && event.kind === "error";
+      if (
+        threads.length > 1 &&
+        thread !== activeThread &&
+        (thread !== null || leavesThread)
+      ) {
         if (activeThread !== null) header("</thread>");
-        header(`<thread n="${thread + 1}">`);
+        if (thread !== null) header(`<thread n="${thread + 1}">`);
         activeThread = thread;
       }
       lines.push({

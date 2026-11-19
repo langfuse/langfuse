@@ -34,7 +34,7 @@
   recording preserves Topics' exclusion of internal environments, including prompt
   experiments. The direct internal writer retains its root-only ready callback.
 - Trace batching: `src/features/traceBatching/traceBatching.ts` and `src/features/traceBatching/traceRuleRecording.ts`. Read `src/features/traceBatching/README.md` before changing recording/Redis state, dispatch or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement. The dispatcher enqueues ready traces only to `events-dispatch-queue`.
-- Events dispatch: `src/features/eventsDispatch/`, consumed only on worker-cpu, enabled by `LANGFUSE_EVENTS_DISPATCH_ENABLED`; a failed stream must not assemble its partial final trace. It routes each trace's recorded rule IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only for routed traces, stores the transcript once and enqueues one job per consumer; consumers resolve their rule definitions themselves. The trace-transcript-eval consumer schedules LLM-as-a-judge and decision-model executions from the stored object key on `llm-as-a-judge-execution-queue`. Topics is unchanged and still receives only the project, trace, and revision. Per-trace failures return to the `{trace-dispatch:N}` maps via `RESTORE_RECORDING_SCRIPT` (backoff 5/15/45 min, then dropped); a failed read retries the whole job once. New names use events-dispatch; the Redis maps keep trace-dispatch.
+- Events dispatch: `src/features/eventsDispatch/`, consumed only on worker-cpu, enabled by `LANGFUSE_EVENTS_DISPATCH_ENABLED`; a failed stream must not assemble its partial final trace. It routes each trace's recorded rule IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only for routed traces, stores the transcript once and enqueues one job per consumer; consumers resolve their rule definitions themselves. The trace-transcript-eval consumer schedules LLM-as-a-judge and decision-model executions from the stored object key on `llm-as-a-judge-execution-queue`. Topics is unchanged and still receives only the project, trace, and revision. Per-trace failures return to the `{trace-dispatch:N}` maps via `RESTORE_RECORDING_SCRIPT` (backoff 5/15/45 min, then dropped); a failed read retries the whole job once. `transcriptCleaner.ts` deletes stored transcripts older than three days when `LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED=true`. New names use events-dispatch; the Redis maps keep trace-dispatch.
 - Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
   `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
   after ClickHouse acknowledged the insert. It starts where audit logs are
@@ -88,7 +88,7 @@
    `../packages/shared/src/server/redis/*` when needed.
 3. Implement/update processor in `src/queues/*`.
 4. Register/gate worker in `src/app.ts` (env flags, concurrency, limiter).
-5. Add/adjust tests in `src/__tests__/*` or `src/queues/__tests__/*`.
+5. Whether to add a test follows root [`AGENTS.md`](../AGENTS.md). Place a warranted test in `src/__tests__/*` or `src/queues/__tests__/*`.
 
 - If a queue is sharded, also update shard-aware resolution in
   `src/queues/workerManager.ts`,

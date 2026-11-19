@@ -83,7 +83,7 @@ export async function syncOrgPlanChangeToSfdc(args: {
   });
 
   // Member bridges need the Account, so they wait for its 2xx. Not awaited:
-  // the Stripe webhook must not wait on per-member Mulesoft calls.
+  // a billing webhook must not wait on per-member Mulesoft calls.
   if (
     accountOk &&
     planBefore === "cloud:hobby" &&

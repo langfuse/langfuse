@@ -619,7 +619,7 @@ export const getObservationsTableWithModelData = async (
             id: {
               in: uniqueModels,
             },
-            OR: [{ projectId: opts.projectId }, { projectId: null }],
+            OR: [{ projectId: opts.projectId }, { scope: "LANGFUSE" }],
           },
           include: {
             Price: {

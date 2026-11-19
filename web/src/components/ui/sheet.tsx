@@ -89,11 +89,13 @@ const SheetContent = React.forwardRef<
         onEscapeKeyDown={(event) => {
           onEscapeKeyDown?.(event);
           // Nested menus handle Escape after the Sheet's capture listener.
+          // Non-search menus can keep focus on their trigger inside the Sheet.
           // Let them dismiss without closing the surrounding editing surface.
           if (
             popoverContainer?.contains(
               popoverContainer.ownerDocument.activeElement,
-            )
+            ) ||
+            popoverContainer?.querySelector('[role="menu"]')
           ) {
             event.preventDefault();
           }

@@ -188,7 +188,14 @@ pub(super) fn is_supported_content_type(value: &str) -> bool {
 }
 
 pub(super) fn is_media_reference(value: &str) -> bool {
-    value.starts_with(MEDIA_REFERENCE_PREFIX) && value.ends_with(MEDIA_REFERENCE_SUFFIX)
+    // Only one whole reference is opaque; mixed text can still contain inline media.
+    value
+        .strip_prefix(MEDIA_REFERENCE_PREFIX)
+        .is_some_and(|body| {
+            body.ends_with(MEDIA_REFERENCE_SUFFIX)
+                && body.find(MEDIA_REFERENCE_SUFFIX)
+                    == Some(body.len() - MEDIA_REFERENCE_SUFFIX.len())
+        })
 }
 
 pub(super) fn may_contain_serialized_media(value: &str) -> bool {
