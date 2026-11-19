@@ -64,6 +64,14 @@ Same ranking at about a hundredth of the bytes. The new layouts also read the sm
 | Q21 / Q22 / Q23 run reads | 595 to 637 MiB | same | 146 to 148 MiB | **25 to 38 MiB** |
 | Q33 delete lookup, summaries | 81 MiB | 81 MiB | 37 MiB | **3 MiB** |
 
+## After the follow-up tests
+
+The tables above were measured with `rule_id` in the proposal's assignments key and bloom filters at 0.001. The final proposal drops `rule_id` from the key and uses 0.0001. Both changes only lower its numbers:
+- Assignment reads: equal or up to 2x less.
+- Trace lookups: 3x to 5x less on the large project.
+
+See [0-overview.md](0-overview.md#follow-up-tests).
+
 ## Reading it
 
 - **Query fixes alone (2)** remove the refit's out-of-memory failure and cut list resolve and the nightly check 3x to 8x. Counts, topic pages, the tracing table filter, run reads and the stable refit sample stay at GiBs, because they need the hash, run or topic in the key.

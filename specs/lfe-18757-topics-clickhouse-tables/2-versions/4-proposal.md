@@ -19,13 +19,14 @@ It started from the pre-review draft, `(project_id, facet_id, toDate(t), xxHash3
   - **The hash in the primary key.** `unit_hash < k` only prunes on primary key columns.
   - **Run (and topic) before time for assignments.** Every map read filters on one run, and a run's rows span the whole window.
   - **The MV serves trace to topic,** instead of summary pointers.
+  - **No `rule_id` in the key, and bloom filters at 0.0001.** Both were tested after the call (see [../0-overview.md](../0-overview.md#follow-up-tests)).
 
 ## Tables
 
 | Table | Primary key | Sort key | Extras |
 |---|---|---|---|
 | `topic_facet_summaries` | `(project_id, toDate(unit_start_time), facet_id, facet_version, unit_hash)` | same | blooms on `trace_id`, `session_id`; `rule_ids Array(String)`; no projection |
-| `topic_assignments` | `(project_id, facet_id, rule_id, clustering_run_id, topic_id, toStartOfHour(unit_start_time))` | adds `unit_hash` | blooms on `trace_id`, `session_id` |
+| `topic_assignments` | `(project_id, facet_id, clustering_run_id, topic_id, toStartOfHour(unit_start_time))` | adds `unit_hash` | blooms on `trace_id`, `session_id`; `rule_id` is a plain column |
 | `topic_assignments_by_trace` | `(project_id, toStartOfMinute(unit_start_time), facet_id)` | adds `trace_id, session_id, rule_id, clustering_run_id` | bloom on `trace_id`; fed by `topic_assignments_by_trace_mv`; narrow (topic columns only) |
 
 `unit_hash` is `UInt64 MATERIALIZED cityHash64(if(trace_id = '', session_id, trace_id))`. It covers traces and sessions, and it has to be a stored column: as a key expression it isn't used for pruning.
@@ -45,11 +46,7 @@ ORDER BY processed_at DESC LIMIT 1 BY trace_id, if(trace_id = '', session_id, ''
 
 `unit_hash < k` reads less than `SAMPLE` (457 MiB vs 1.07 GiB in round 1), and `SAMPLE` would need `SAMPLE BY`.
 
-**Rule filter on assignment reads.** The rule comes from the run row in Postgres:
-
-```sql
-... AND clustering_run_id IN {publishedRunIds:Array(String)} AND rule_id IN {ruleIds:Array(String)} ...
-```
+No rule filter is needed on assignment reads: the run already implies the rule. With `rule_id` in the key and without, the same queries read the same or less (follow-up test).
 
 <a id="tracing-table-topic-column"></a>**Tracing table topic column, latest placement in any run** (new semantics, see below):
 
@@ -86,7 +83,6 @@ The lookup table keeps this cheap (28 MiB per page vs 199 MiB through the run-or
 
 - The tracing table topic column semantics (above).
 - How self-hosters with data in today's tables are handled (both migrations drop the tables).
-- Bloom filter false-positive rates.
 - A calibration run of `main`'s queries on a read-only prod replica.
 - **The implementation PR:**
   - writers: `rule_ids` on summaries, `rule_id` on assignments

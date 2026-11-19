@@ -41,8 +41,8 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     total_cost Decimal(18,12) ALIAS cost_details['total'],
     processed_at DateTime64(3, 'UTC'),
     metadata String CODEC(ZSTD(3)),
-    INDEX idx_trace_id trace_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1
+    INDEX idx_trace_id trace_id TYPE bloom_filter(0.0001) GRANULARITY 1,
+    INDEX idx_session_id session_id TYPE bloom_filter(0.0001) GRANULARITY 1
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(processed_at)
 PARTITION BY toYYYYMM(unit_start_time)
@@ -50,7 +50,7 @@ PRIMARY KEY (project_id, toDate(unit_start_time), facet_id, facet_version, unit_
 ORDER BY (project_id, toDate(unit_start_time), facet_id, facet_version, unit_hash);
 
 -- Every map read filters on one run, and a run's clustered rows span the whole window, so the run (and topic)
--- come before time. Reads by trace across runs go through the lookup below.
+-- come before time. The run implies the rule, so rule_id is a plain column, not part of the key. Reads by trace across runs go through the lookup below.
 CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
 (
     project_id String,
@@ -75,13 +75,13 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
     origin Enum8('initial' = 1, 'online' = 2),
     coordinates Array(Float32) DEFAULT [],
     assigned_at DateTime64(3, 'UTC'),
-    INDEX idx_trace_id trace_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1
+    INDEX idx_trace_id trace_id TYPE bloom_filter(0.0001) GRANULARITY 1,
+    INDEX idx_session_id session_id TYPE bloom_filter(0.0001) GRANULARITY 1
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(assigned_at)
 PARTITION BY toYYYYMM(unit_start_time)
-PRIMARY KEY (project_id, facet_id, rule_id, clustering_run_id, topic_id, toStartOfHour(unit_start_time))
-ORDER BY (project_id, facet_id, rule_id, clustering_run_id, topic_id, toStartOfHour(unit_start_time), unit_hash);
+PRIMARY KEY (project_id, facet_id, clustering_run_id, topic_id, toStartOfHour(unit_start_time))
+ORDER BY (project_id, facet_id, clustering_run_id, topic_id, toStartOfHour(unit_start_time), unit_hash);
 
 -- Narrow time-ordered copy for "which topic does this trace have" (tracing table, trace header), fed by a
 -- materialized view: this is where the pointer view from the review call pays off.
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS topic_assignments_by_trace {CLICKHOUSE_CLUSTER_CLAUSE
     topic_version_id String,
     origin Enum8('initial' = 1, 'online' = 2),
     assigned_at DateTime64(3, 'UTC'),
-    INDEX idx_trace_id trace_id TYPE bloom_filter(0.001) GRANULARITY 1
+    INDEX idx_trace_id trace_id TYPE bloom_filter(0.0001) GRANULARITY 1
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(assigned_at)
 PARTITION BY toYYYYMM(unit_start_time)

@@ -40,8 +40,8 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     total_cost Decimal(18,12) ALIAS cost_details['total'],
     processed_at DateTime64(3, 'UTC'),
     metadata String CODEC(ZSTD(3)),
-    INDEX idx_trace_id trace_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1
+    INDEX idx_trace_id trace_id TYPE bloom_filter(0.0001) GRANULARITY 1,
+    INDEX idx_session_id session_id TYPE bloom_filter(0.0001) GRANULARITY 1
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(processed_at)
 PARTITION BY toYYYYMM(unit_start_time)
@@ -93,8 +93,8 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
     origin Enum8('initial' = 1, 'online' = 2),
     coordinates Array(Float32) DEFAULT [],
     assigned_at DateTime64(3, 'UTC'),
-    INDEX idx_trace_id trace_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_trace_id trace_id TYPE bloom_filter(0.0001) GRANULARITY 1,
+    INDEX idx_session_id session_id TYPE bloom_filter(0.0001) GRANULARITY 1,
     INDEX idx_rule_id rule_id TYPE bloom_filter(0.01) GRANULARITY 1
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(assigned_at)

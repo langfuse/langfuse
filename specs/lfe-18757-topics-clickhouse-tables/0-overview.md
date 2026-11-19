@@ -17,7 +17,7 @@ Read top to bottom. Each step goes one level deeper:
 |---|---|---|---|
 | **1. main today** | What runs in production now | [1-main-today.sql](1-migrations/1-main-today.sql) | [1-main-today.md](2-versions/1-main-today.md) |
 | **2. main + query fixes** | Today's tables with fixed queries: what we gain without a migration | same as 1 | [2-main-query-fixes.md](2-versions/2-main-query-fixes.md) |
-| **3. review-call version** | The structure discussed in the 2026-11-18 review call | [3-review-call-version.up.sql](1-migrations/3-review-call-version.up.sql) | [3-review-call-version.md](2-versions/3-review-call-version.md) |
+| **3. review-call version** | The layout from the 2026-11-18 review call, written down as we understood it (exact keys below; what we filled in ourselves is listed on its page) | [3-review-call-version.up.sql](1-migrations/3-review-call-version.up.sql) | [3-review-call-version.md](2-versions/3-review-call-version.md) |
 | **4. proposal** | Our alternative, compared against 3: the pre-review draft, revised with the review's points that held up | [4-proposal.up.sql](1-migrations/4-proposal.up.sql) | [4-proposal.md](2-versions/4-proposal.md) |
 
 Keys at a glance:
@@ -26,7 +26,7 @@ Keys at a glance:
 |---|---|---|
 | 1, 2 | `(project_id, toStartOfMinute(t), facet_id, facet_version, trace_id, ...)` plus a projection | `(project_id, toStartOfMinute(t), facet_id, facet_version, trace_id, ...)` |
 | 3 | PK `(project_id, toStartOfMinute(t), facet_id)`, ORDER BY adds `facet_version, unit_hash`; pointer MV (trace to time) | PK `(project_id, facet_id, toStartOfMinute(t))`, ORDER BY adds `run, unit_hash`; bloom on `rule_id` |
-| 4 | `(project_id, toDate(t), facet_id, facet_version, unit_hash)` | `(project_id, facet_id, rule_id, run, topic_id, toStartOfHour(t), unit_hash)`; MV into a time-ordered trace-to-topic lookup |
+| 4 | `(project_id, toDate(t), facet_id, facet_version, unit_hash)` | `(project_id, facet_id, run, topic_id, toStartOfHour(t), unit_hash)`; MV into a time-ordered trace-to-topic lookup |
 
 Versions 3 and 4 share most review points: time first for summaries, a 64-bit hash of the trace or session id, no projections, rule ids not LowCardinality. They differ in three places:
 - the summaries' time bucket (minute vs day)
@@ -52,10 +52,19 @@ Bytes read on a 1M traces/day project over 30 days (140M summaries, 174M assignm
 - **The review-call version (3)** makes assignments 4x cheaper. Its minute bucket keeps summaries as expensive as today, and the stable refit sample stays a full scan. Run reads stay around 1 GiB, and the pointer MV adds 77% write time.
 - **The proposal (4)** is cheapest or close on every measured query. It costs 12% more summary write time and more assignment disk.
 
+## Follow-up tests
+
+Three open points from the call, tested afterwards. Details are on the version pages.
+
+| Test | Result | Applied |
+|---|---|---|
+| A sample-copy MV for the review-call layout: a 1/16 hash slice of summaries with embeddings, ordered by (project, day, facet, hash) | The large project's 30-day refit reads 919 MiB (proposal: 1.44 GiB), for +6% disk and writes. Projects under about 50k traces/day need more than the slice holds, and fall back to scanning every facet (2.65 GiB at 10k/day, proposal 303 MiB). | Documented on [3-review-call-version.md](2-versions/3-review-call-version.md#follow-up-a-sample-copy-mv) |
+| `rule_id` in the proposal's assignments key | Same or fewer bytes without it: the run already implies the rule | Removed from the key |
+| Bloom filter false-positive rate, 0.001 vs 0.0001 | 0.0001 reads 3x to 5x less on trace lookups (delete lookup 8 vs 44 MiB, tracing table page 13 vs 66 MiB) for about 27% more index (+60 MiB on 255 GiB) | 0.0001 in both migrations |
+
 ## Recommendation
 
 Adopt version 4 together with the version 2 query fixes. Open before the implementation PR:
 - What the tracing table topic column should show for older traces ([4-proposal.md](2-versions/4-proposal.md#tracing-table-topic-column)).
 - How self-hosters with data in today's tables are handled.
-- Bloom filter false-positive rates.
 - A calibration run of `main`'s queries on a read-only prod replica.

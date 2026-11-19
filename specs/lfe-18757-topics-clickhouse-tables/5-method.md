@@ -33,7 +33,7 @@ Parameters follow the code: page batches of 200, 1,000-id lookups, 7/14/30-day r
 
 - **Single local node.** Prod runs on shared storage with several replicas. Bytes read compare; latency does not. Before sign-off, replay the `main` queries on a read-only prod replica against real Topics data and compare bytes per row.
 - **Writes** were measured as bulk inserts of 100k-row blocks. Prod writes through the batching ClickHouse writer, which creates more small parts before they merge.
-- **Not evaluated:** bloom filter false-positive rates (0.001 vs 0.0001), vector search indexes, and the `topics` table.
+- **Not evaluated:** vector search indexes and the `topics` table.
 
 ## Re-running
 

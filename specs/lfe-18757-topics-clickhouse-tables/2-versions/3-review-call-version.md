@@ -1,6 +1,6 @@
 # Version 3: review-call version
 
-The structure discussed in the 2026-11-18 review call, written down as we understood it. DDL: [../1-migrations/3-review-call-version.up.sql](../1-migrations/3-review-call-version.up.sql). Queries use the version 2 fixes.
+The layout from the 2026-11-18 review call, written down as we understood it. Where the call left something open, the choice we made is listed under [Filled in by us](#filled-in-by-us). DDL: [../1-migrations/3-review-call-version.up.sql](../1-migrations/3-review-call-version.up.sql). Queries use the version 2 fixes.
 
 ## What the call agreed
 
@@ -20,6 +20,13 @@ The structure discussed in the 2026-11-18 review call, written down as we unders
   - Bloom filter granularity 1; tune the false-positive rate instead.
   - LowCardinality only for columns with under about 1,000 values across the table, so not `facet_id` or rule ids.
 - **To check:** the `SAMPLE` clause for the stable sample, and how `xxHash32` handles the trace/session condition.
+
+## Filled in by us
+
+- **Hash:** 64-bit `cityHash64`. The call said "city hash" without a width; the pre-review draft had `xxHash32`, which would collide inside the dedup key at our volumes.
+- **One pointer MV,** on summaries (trace to time). The call also mentioned pointers for the stable sample and one MV shared by both tables. The sample variant is tested below.
+- **`rule_id` as a bloom filter only.** The call leaned that way; the edited draft still had `rule_id` after time in the sort key. After a minute bucket it can't prune either way.
+- **Bloom filters at 0.0001** (the pre-review draft's rate; tested below), plus one on `session_id` for session units.
 
 ## Tables as written
 
@@ -61,5 +68,21 @@ The structure discussed in the 2026-11-18 review call, written down as we unders
   - **The pointer view finds the sample in 14 MiB,** but fetching its embeddings still touches nearly every granule (65.8 GiB).
   - **A run's clustered rows are sampled from the whole window,** so with the run after time, every run read covers the window (about 1 GiB). The `rule_id` bloom filter skipped 2 of 2,208 granules.
   - **The pointer view adds 77% to summary write time.**
+
+## Follow-up: a sample-copy MV
+
+The pointer view finds the sample but doesn't make reading it cheaper. ClickHouse reads whole granules, about 4k wide rows (roughly 10 MB of embeddings), not single rows. In the minute-first table one granule mixes a few minutes of all facets, and a 0.4% sample puts 3 to 4 sampled rows in nearly every granule. So fetching the sample reads the whole window.
+
+An MV that copies a fixed hash slice *with* its embeddings, ordered so the slice sits together, does make it cheap. Tested with the lowest 1/16 of the hash space, ordered by `(project_id, toDate(t), facet_id, facet_version, unit_hash)`:
+
+| Refit, stable 100k sample | review-call layout, on the fly | + sample-copy MV | proposal |
+|---|---|---|---|
+| 1M traces/day, 30 days | 234 GiB | 919 MiB | 1.44 GiB |
+| 1M traces/day, 7 days | 62 GiB | 409 MiB | 499 MiB |
+| 10k traces/day, 30 days | 2.65 GiB | not enough rows in the slice: full scan | 303 MiB |
+
+- **Cost:** +6% disk (15.8 GiB for 7.7M rows) and about 6% more summary writes.
+- **The size cliff:** a fixed slice only holds 100k rows for projects with more than about 1.6M summaries per facet in the window (about 50k traces/day). Smaller projects fall back to scanning the minute-first table, which reads every facet. That's about 13 GiB per refit just under the threshold.
+- **The way out:** several slices (more copies) fix the cliff, or ordering the main table the same way, which is the proposal.
 
 Each point is answered in detail in [../4-review-feedback.md](../4-review-feedback.md).

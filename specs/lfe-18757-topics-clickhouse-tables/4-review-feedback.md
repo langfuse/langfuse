@@ -27,6 +27,7 @@ The day bucket is the compliant version of this rule.
 - **Stable sample:** the pointers find it in 14 MiB, but fetching its embeddings from the time-ordered table still reads 65.8 GiB. The sampled rows stay scattered across nearly every granule (round 1).
 - **Trace lookups:** the pointer table brings the trace header lookup from 821 MiB to 33 MiB. A bloom filter on `trace_id` in the proposal reads 5 MiB without the extra table.
 - **Write cost:** the pointer MV adds 77% to summary write time.
+- **A sample-copy MV** (a hash slice stored with its embeddings) does make the refit cheap for large projects (919 MiB), but has a size cliff for projects under about 50k traces/day ([details](2-versions/3-review-call-version.md#follow-up-a-sample-copy-mv)).
 - **Where the idea does pay off:** "which topic does this trace have". The proposal adds a narrow time-ordered copy of assignments, fed by an MV, which reads 25 MiB per 100-trace page instead of about 250 MiB.
 
 **"Remove all projections; data retention with ALTER UPDATE would break ClickHouse."**
@@ -62,7 +63,7 @@ Tested:
 
 **"A bloom filter on rule_id may be better than having it in the key."**
 
-Measured on the review-call version: the bloom filter skipped 2 of 2,208 granules for a 10% rule (1.56 GiB read). With `rule_id` in the key: 13 MiB. Rules interleave inside every granule, so the filter can't skip.
+Measured on the review-call version: the bloom filter skipped 2 of 2,208 granules for a 10% rule (1.56 GiB read), because rules interleave inside every granule. In the proposal, `rule_id` turned out not to be needed in the key at all: the run already implies the rule, and the same queries read the same or less without it. So `rule_id` is a plain column in both cases where it can't help.
 
 **"LowCardinality must stay under about 1,000 values across the whole table."**
 
@@ -70,7 +71,7 @@ Agreed. `facet_id` stays `String`, and `rule_ids` is `Array(String)`.
 
 **"Bloom filter granularity should stay 1; tune the false-positive rate instead."**
 
-Agreed. Granularity is 1 everywhere. Rates (0.001 vs 0.0001) were not compared yet.
+Agreed. Granularity is 1 everywhere. On the rate, 0.0001 read 3x to 5x less than 0.001 on trace lookups for the 1M/day project (delete lookup 8 vs 44 MiB, trace header 1.5 vs 5.2 MiB, tracing table page 13 vs 66 MiB). It costs about 27% more index size (+60 MiB on a 255 GiB table), so both migrations use 0.0001.
 
 **"Can we simply not dedupe?"** (Also raised: "LIMIT 1 BY is inherently expensive.")
 
@@ -92,4 +93,4 @@ Not evaluated here, and `topics` is unchanged in both options. The review noted 
 
 - **Product decision for the tracing table topic column.** Today it shows a topic only for traces with a row in the current run. On a large project, a page of 3-day-old traces shows no topic at all (0 of 100), because the refit re-clusters a 0.4% sample. "Latest placement in any run" fixes that; the proposal serves it from its lookup table.
 - **Self-hosters** who set a cloud region or run a fork may have data in the current Topics tables. Both migrations drop them.
-- **Prod calibration** on a read-only prod replica, and **bloom filter false-positive rates**.
+- **Prod calibration** on a read-only prod replica.
