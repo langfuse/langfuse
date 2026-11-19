@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
@@ -167,15 +168,30 @@ const getOrganizationSettingsPages = ({
                 "Once you delete an organization, there is no going back. Please be certain.",
               button: (
                 <DeleteOrganizationDialogController>
-                  {({ disabled, openDialog }) => (
-                    <Button
-                      variant="destructive-secondary"
-                      disabled={disabled !== undefined}
-                      onClick={openDialog}
-                    >
-                      Delete Organization
-                    </Button>
-                  )}
+                  {({ disabled, openDialog }) => {
+                    const button = (
+                      <Button
+                        variant="destructive-secondary"
+                        disabled={disabled !== undefined}
+                        onClick={openDialog}
+                      >
+                        Delete Organization
+                      </Button>
+                    );
+                    if (!disabled) return button;
+                    return (
+                      <Tooltip label={disabled.reason}>
+                        {({ getTriggerProps }) => (
+                          <span
+                            {...getTriggerProps()}
+                            className="inline-flex cursor-not-allowed [&>button]:pointer-events-none"
+                          >
+                            {button}
+                          </span>
+                        )}
+                      </Tooltip>
+                    );
+                  }}
                 </DeleteOrganizationDialogController>
               ),
             },

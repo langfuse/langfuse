@@ -2,13 +2,24 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
+import { TRPCClientError } from "@trpc/client";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { DeleteOrganizationDialog } from "@/src/features/organizations/components/DeleteOrganizationDialog";
+import {
+  DeleteOrganizationDialog,
+  type DeleteOrganizationDialogStatus,
+} from "@/src/features/organizations/components/DeleteOrganizationDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { api, reportNonTrpcError } from "@/src/utils/api";
+import {
+  api,
+  reportNonTrpcError,
+  reportTrpcErrorWithoutToast,
+} from "@/src/utils/api";
+
+const ONLY_OWNERS_CAN_DELETE_ORGANIZATION =
+  "Only owners can delete the organization";
 
 type DeleteOrganizationDialogControllerProps = {
   children: (control: {
@@ -16,6 +27,45 @@ type DeleteOrganizationDialogControllerProps = {
     openDialog: () => void;
   }) => ReactNode;
 };
+
+/** organizations.delete throws this while soft-deleted projects are still purging. */
+function isProjectsStillDeletingError(error: unknown): boolean {
+  return (
+    error instanceof TRPCClientError &&
+    error.data?.code === "PRECONDITION_FAILED"
+  );
+}
+
+function mutationInlineError(error: unknown): string | undefined {
+  if (!error || isProjectsStillDeletingError(error)) return undefined;
+  if (error instanceof TRPCClientError) return error.message;
+  return "The organization could not be deleted.";
+}
+
+function deletionDialogStatus(input: {
+  hasAccess: boolean;
+  hasLiveProjects: boolean;
+  hasOrganization: boolean;
+  pendingDeletion: {
+    data: boolean | undefined;
+    isError: boolean;
+    isFetching: boolean;
+    isSuccess: boolean;
+  };
+  deleteError: unknown;
+}): DeleteOrganizationDialogStatus {
+  const projectsStillDeleting =
+    input.pendingDeletion.data === true ||
+    isProjectsStillDeletingError(input.deleteError);
+  if (input.hasLiveProjects) return "has-projects";
+  if (projectsStillDeleting) return "projects-deleting";
+  if (!input.hasAccess || !input.hasOrganization) return "confirm";
+  if (input.pendingDeletion.isError && !input.pendingDeletion.isFetching) {
+    return "check-failed";
+  }
+  if (!input.pendingDeletion.isSuccess) return "loading";
+  return "confirm";
+}
 
 export function DeleteOrganizationDialogController({
   children,
@@ -30,15 +80,36 @@ export function DeleteOrganizationDialogController({
     organizationId: organization?.id,
     scope: "organization:delete",
   });
-  const deleteOrganization = api.organizations.delete.useMutation();
-  const hasProjects = !!organization && organization.projects.length > 0;
+  const deleteOrganization = api.organizations.delete.useMutation({
+    // Local onError replaces the global mutation toast. Every failure stays
+    // in the dialog; unexpected codes are still reported from here.
+    onError: (error) => reportTrpcErrorWithoutToast(error, "organizations"),
+  });
+  const hasLiveProjects = !!organization && organization.projects.length > 0;
+  const checkPendingDeletion =
+    Boolean(organization?.id) && hasAccess && !hasLiveProjects;
+  const pendingDeletion = api.organizations.projectsPendingDeletion.useQuery(
+    { orgId: organization?.id ?? "" },
+    {
+      enabled: checkPendingDeletion,
+      meta: { silentAllErrors: true },
+    },
+  );
 
   const disabled = hasAccess
     ? undefined
-    : { reason: "You don't have permission to delete this organization." };
+    : { reason: ONLY_OWNERS_CAN_DELETE_ORGANIZATION };
+
+  const status = deletionDialogStatus({
+    hasAccess,
+    hasLiveProjects,
+    hasOrganization: Boolean(organization),
+    pendingDeletion,
+    deleteError: deleteOrganization.error,
+  });
 
   const onSubmit = async (closeDialog: () => void) => {
-    if (!organization || hasProjects) return;
+    if (!organization || status !== "confirm" || !hasAccess) return;
     try {
       await deleteOrganization.mutateAsync({
         orgId: organization.id,
@@ -54,20 +125,25 @@ export function DeleteOrganizationDialogController({
       await session.update();
       await router.push("/");
     } catch (error) {
-      // tRPC failures were already classified + toasted by the react-query
-      // default onError; only report failures of the post-success work here.
+      // tRPC failures are classified in the mutation onError, with the toast
+      // suppressed. Only report failures of the post-success work here.
       reportNonTrpcError(error, "organizations");
     }
   };
 
   return (
     <DialogController
+      onDismiss={() => {
+        deleteOrganization.reset();
+      }}
       renderDialog={({ closeDialog }) => (
         <DeleteOrganizationDialog
           confirmMessage={confirmMessage}
-          hasProjects={hasProjects}
-          isPending={deleteOrganization.isPending}
+          deleteDisabledReason={disabled?.reason}
+          inlineError={mutationInlineError(deleteOrganization.error)}
+          isSubmitting={deleteOrganization.isPending}
           onConfirm={() => onSubmit(closeDialog)}
+          status={status}
         />
       )}
     >
@@ -76,6 +152,9 @@ export function DeleteOrganizationDialogController({
           disabled,
           openDialog: () => {
             if (!hasAccess) return;
+            if (checkPendingDeletion) {
+              pendingDeletion.refetch().catch(() => undefined);
+            }
             openDialog();
           },
         })

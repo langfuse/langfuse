@@ -1041,12 +1041,10 @@ describe("reportTrpcErrorWithoutToast", () => {
     });
   });
 
-  it("suppresses expected codes (breadcrumb, no capture) — same policy as the seam", () => {
-    // The organizations.delete FORBIDDEN advice: previously console.error'd by
-    // the component (one Sentry event per retry), now classified as expected.
+  it("suppresses organization deletion while projects are still purging", () => {
     const error = trpcServerError({
-      code: "FORBIDDEN",
-      httpStatus: 403,
+      code: "PRECONDITION_FAILED",
+      httpStatus: 412,
       path: "organizations.delete",
       message:
         "Deletion of your projects is still being processed, please try deleting the organization later",
@@ -1057,7 +1055,7 @@ describe("reportTrpcErrorWithoutToast", () => {
     expect(captureExceptionMock).not.toHaveBeenCalled();
     expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
     expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
-      code: "FORBIDDEN",
+      code: "PRECONDITION_FAILED",
       path: "organizations.delete",
     });
   });
