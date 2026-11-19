@@ -3,12 +3,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import Stripe from "stripe";
 import { env } from "../../env";
 import {
+  BILLING_SETTLE_MS,
+  type BillableEventType,
   CloudUsageMeteringQueue,
   CloudSpendAlertQueue,
-  compareWithBillingLedger,
-  getObservationCountsByProjectInCreationInterval,
-  getScoreCountsByProjectInCreationInterval,
-  getTraceCountsByProjectInCreationInterval,
+  getBillableUnitCountsByProjectInWindow,
   logger,
 } from "@langfuse/shared/src/server";
 import {
@@ -23,7 +22,18 @@ import {
 import { Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 
-const delayFromStartOfInterval = 3600000 + 5 * 60 * 1000; // 5 minutes after the end of the interval
+// Rows stamped just before the interval ends can take a moment to become
+// readable.
+const delayFromStartOfInterval = 3600000 + BILLING_SETTLE_MS;
+
+type BillableUnits = Record<BillableEventType, number>;
+
+const zeroUnits = (): BillableUnits => ({
+  trace: 0,
+  observation: 0,
+  score: 0,
+  topic_facet_summary: 0,
+});
 
 // Stripe deduplicates meter events by identifier, so deriving it from the tuple
 // that defines the billable fact makes a replayed interval idempotent instead of
@@ -205,19 +215,24 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     `[CLOUD USAGE METERING] Job for ${organizations.length} organizations`,
   );
 
-  const observationCountsByProject =
-    await getObservationCountsByProjectInCreationInterval({
-      start: meterIntervalStart,
-      end: meterIntervalEnd,
-    });
-  const traceCountsByProject = await getTraceCountsByProjectInCreationInterval({
-    start: meterIntervalStart,
-    end: meterIntervalEnd,
-  });
-  const scoreCountsByProject = await getScoreCountsByProjectInCreationInterval({
-    start: meterIntervalStart,
-    end: meterIntervalEnd,
-  });
+  // The hour is one ledger window: a unit counts once when it appears in the
+  // hour and its id did not appear in the 24 hours before the hour starts.
+  const orgIdByProjectId = new Map(
+    organizations.flatMap((org) =>
+      org.projectIds.map((projectId) => [projectId, org.id] as const),
+    ),
+  );
+  const unitsByOrg = new Map<string, BillableUnits>();
+  for (const row of await getBillableUnitCountsByProjectInWindow({
+    windowFrom: meterIntervalStart,
+    windowTo: meterIntervalEnd,
+  })) {
+    const orgId = orgIdByProjectId.get(row.projectId);
+    if (!orgId) continue;
+    const units = unitsByOrg.get(orgId) ?? zeroUnits();
+    units[row.eventType] += row.count;
+    unitsByOrg.set(orgId, units);
+  }
 
   // setup stripe client
   const stripe = new Stripe(env.STRIPE_SECRET_KEY);
@@ -282,10 +297,10 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       continue;
     }
 
+    const orgUnits = unitsByOrg.get(org.id) ?? zeroUnits();
+
     // Observations (legacy)
-    const countObservations = observationCountsByProject
-      .filter((p) => org.projectIds.includes(p.projectId))
-      .reduce((sum, p) => sum + p.count, 0);
+    const countObservations = orgUnits.observation;
 
     logger.info(
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`,
@@ -306,14 +321,11 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       });
     }
 
-    // Events
-    const countScores = scoreCountsByProject
-      .filter((p) => org.projectIds.includes(p.projectId))
-      .reduce((sum, p) => sum + p.count, 0);
-    const countTraces = traceCountsByProject
-      .filter((p) => org.projectIds.includes(p.projectId))
-      .reduce((sum, p) => sum + p.count, 0);
-    const countEvents = countScores + countTraces + countObservations;
+    // Events: every billable unit, Topics facet summaries included
+    const countEvents = Object.values(orgUnits).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
     logger.info(
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countEvents} events`,
     );
@@ -433,27 +445,6 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       countProcessedEvents,
     },
   );
-
-  // Runs after the interval is metered and the lease released, and never
-  // throws, so it cannot delay or change what Stripe receives. It compares
-  // every project with usage, not only the Stripe-billed ones.
-  if (env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED === "true") {
-    await compareWithBillingLedger({
-      source: "stripe_metering",
-      from: meterIntervalStart,
-      to: meterIntervalEnd,
-      legacy: {
-        traces: traceCountsByProject,
-        observations: observationCountsByProject,
-        scores: scoreCountsByProject,
-      },
-      orgIdByProjectId: new Map(
-        organizations.flatMap((org) =>
-          org.projectIds.map((projectId) => [projectId, org.id] as const),
-        ),
-      ),
-    });
-  }
 
   if (meterIntervalEnd.getTime() + delayFromStartOfInterval < Date.now()) {
     logger.info(
