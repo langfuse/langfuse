@@ -3,13 +3,19 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import {
+  onboardingApiKeyCreateInput,
+  onboardingApiKeyHint,
+} from "@/src/features/apiKey/fns/onboardingApiKey";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { legacyApiKeyRoleForScope } from "@langfuse/shared/rbac";
 import { Check, Copy, LockIcon, Sparkles } from "@langfuse/icons";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useState } from "react";
 import { showToast } from "@/src/features/notifications/showToast";
@@ -19,6 +25,8 @@ const SKILLS_INSTALL_COMMAND =
   "Install the Langfuse AI skill from github.com/langfuse/skills and use it to add tracing to this application with Langfuse following best practices.";
 const MANUAL_TRACING_DOCS_URL =
   "https://langfuse.com/docs/observability/get-started";
+const CREATE_API_KEYS_DESCRIPTION =
+  "Your application needs API keys to send traces to Langfuse.";
 
 function CopyableSnippet({
   value,
@@ -81,6 +89,10 @@ export function TracesSetupOnboardingCard({
     projectId,
     scope: "apiKeys:CUD",
   });
+  const { data: session } = useSession();
+  const roleSelectionEnabled =
+    session?.environment?.apiKeyProjectRoleSelectionEnabled ?? false;
+  const keyHint = onboardingApiKeyHint(roleSelectionEnabled);
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["projectApiKeys"]["create"] | null
   >(null);
@@ -93,10 +105,13 @@ export function TracesSetupOnboardingCard({
   });
 
   const createApiKey = async () => {
-    capture("onboarding:tracing_api_key_create_clicked");
+    const input = onboardingApiKeyCreateInput(projectId, roleSelectionEnabled);
+    capture("onboarding:tracing_api_key_create_clicked", {
+      role: input.role ?? legacyApiKeyRoleForScope("project"),
+    });
 
     try {
-      await mutCreateApiKey.mutateAsync({ projectId });
+      await mutCreateApiKey.mutateAsync(input);
     } catch (error) {
       reportNonTrpcError(error, "setup");
       showToast({
@@ -117,8 +132,10 @@ export function TracesSetupOnboardingCard({
       steps={[
         {
           title: "Create API keys",
-          description:
-            "Your application needs API keys to send traces to Langfuse.",
+          description: hasApiKeyCreateAccess
+            ? `${CREATE_API_KEYS_DESCRIPTION} ${keyHint.sentence}`
+            : CREATE_API_KEYS_DESCRIPTION,
+          descriptionInfo: hasApiKeyCreateAccess ? keyHint.tooltip : undefined,
           content: apiKeys ? (
             <ApiKeyDetailContent
               scope="project"
