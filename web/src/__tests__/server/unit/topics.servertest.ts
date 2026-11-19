@@ -256,6 +256,10 @@ describe("Topics project allowlist", () => {
     ["model settings", () => outside().modelSettings({ projectId })],
     ["tracing filter options", () => outside().filterOptions({ projectId })],
     [
+      "tracing stripe map",
+      () => outside().stripeMap({ projectId, facet: "Intent" }),
+    ],
+    [
       "tracing column topics",
       () =>
         outside().forTraces({
@@ -911,6 +915,59 @@ describe("Topics current results", () => {
       map: { runId: "run-a" },
     });
     expect(JSON.stringify(result)).not.toMatch(/embedding|centroid/);
+  });
+
+  it("gives the stripe the oldest covering rule's map, topics in the page's ranking", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      {
+        id: facetId,
+        name: "Intent",
+        versions: [{ version: facetVersion }],
+      },
+    ]);
+    mocks.listTopicRules.mockResolvedValue([
+      { id: "rule-other", name: "Other", facetIds: ["other-facet"] },
+      { id: "rule-a", name: "All traces", facetIds: [facetId] },
+      { id: "rule-b", name: "Enterprise", facetIds: [facetId] },
+    ] as Awaited<ReturnType<typeof topicsServer.listTopicRules>>);
+    const topic = (id: string, name: string) => ({
+      ...run.topics[0],
+      topicId: id,
+      topicVersionId: `${id}-v1`,
+      name,
+    });
+    mocks.getTopicRuleMap.mockResolvedValue({
+      ...run,
+      ruleId: "rule-a",
+      topics: [
+        topic("topic-a", "Refunds"),
+        topic("topic-b", "Billing"),
+        topic("topic-c", "Exports"),
+      ],
+    });
+    mocks.getTopicResultCounts.mockResolvedValue([
+      {
+        ...counts([facetId])[0],
+        topics: [
+          { topicId: "topic-b", count: 9 },
+          { topicId: "topic-a", count: 4 },
+        ],
+      },
+    ]);
+    expect(
+      await caller("VIEWER").stripeMap({ projectId, facet: "Intent" }),
+    ).toEqual({
+      facetId,
+      ruleId: "rule-a",
+      mapName: "All traces",
+      runId: run.id,
+      topics: ["Billing", "Refunds", "Exports"],
+    });
+    expect(mocks.getTopicRuleMap).toHaveBeenCalledWith(
+      projectId,
+      "rule-a",
+      facetId,
+    );
   });
 });
 

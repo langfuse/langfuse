@@ -1,4 +1,7 @@
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   scatterSwatchColor,
@@ -18,6 +21,13 @@ export type TopicStripeProps = {
   segments: TopicStripeSegment[];
   selected: Set<string>;
   onToggle: (topic: string) => void;
+  /** The facet's hover card: traces its map analysed, and the link to that map. */
+  details: {
+    analysed: number;
+    total: number;
+    mapName: string | null;
+    href: string;
+  };
 };
 
 /** A thin stacked bar of one facet's topic shares; click a topic to filter by it. */
@@ -26,6 +36,7 @@ export function TopicStripe({
   segments,
   selected,
   onToggle,
+  details,
 }: TopicStripeProps) {
   const capture = usePostHogClientCapture();
   const topicCount = segments.reduce((sum, segment) => {
@@ -36,7 +47,31 @@ export function TopicStripe({
   const anySelected = selected.size > 0;
   return (
     <div className="ph-no-capture flex min-w-0 items-center gap-2">
-      <span className="text-muted-foreground shrink-0 text-xs">{facet}</span>
+      <span className="flex shrink-0 items-center">
+        <span className="text-muted-foreground text-xs">{facet}</span>
+        <HoverCard
+          placement="bottom-start"
+          content={
+            <div className="ph-no-capture flex w-64 flex-col gap-2 p-3">
+              <p className="text-sm">
+                {facet} · {details.analysed.toLocaleString()} of{" "}
+                {details.total.toLocaleString()} traces analysed
+              </p>
+              <span>
+                <TextLink
+                  path={details.href}
+                  value="Open in Topics →"
+                  title={details.mapName ? `${details.mapName} map` : undefined}
+                />
+              </span>
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <DocPopupTrigger triggerProps={getTriggerProps()} />
+          )}
+        </HoverCard>
+      </span>
       <div className="flex h-1.5 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
         {segments.map((segment) => {
           const topic = segment.kind === "topic" ? segment.name : null;

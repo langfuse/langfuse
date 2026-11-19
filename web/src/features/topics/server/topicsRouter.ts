@@ -73,7 +73,11 @@ import {
   startTopicAnalysis,
   topicMapsOverview,
 } from "./slices";
-import { topicFilterOptions, tracesTopics } from "./traceTopics";
+import {
+  topicFilterOptions,
+  topicStripeMap,
+  tracesTopics,
+} from "./traceTopics";
 
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
@@ -380,6 +384,10 @@ export const topicsRouter = createTRPCRouter({
   filterOptions: topicsProcedure.query(({ input }) =>
     topicFilterOptions(input.projectId),
   ),
+  /** Tracing topic stripe: the facet's default map and its topics in the Topics page ranking. */
+  stripeMap: topicsProcedure
+    .input(projectInput.extend({ facet: z.string().min(1) }))
+    .query(({ input }) => topicStripeMap(input.projectId, input.facet)),
   /** Rule maps and one-off analyses for the map picker and the Rules page. */
   maps: topicsProcedure.query(({ input }) =>
     topicMapsOverview(input.projectId),

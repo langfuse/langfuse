@@ -1,8 +1,10 @@
 import {
   getPublishedTopicMaps,
   listTopicFacets,
+  listTopicRules,
   readCurrentTraceTopics,
 } from "@langfuse/shared/topics/server";
+import { currentTopicResults } from "./currentResults";
 
 /** Sidebar and search bar options: facet name → topic names of its current published map. */
 export async function topicFilterOptions(projectId: string) {
@@ -26,7 +28,7 @@ export async function topicFilterOptions(projectId: string) {
   ) as Record<string, string[]>;
 }
 
-/** Current topics for a page of traces: one ClickHouse read across facets, one topic per rule's map. */
+/** Current topics for a page of traces: one ClickHouse read across facets, one topic or outlier per rule's map. */
 export async function tracesTopics(
   projectId: string,
   traces: { traceId: string; timestamp: Date }[],
@@ -41,26 +43,65 @@ export async function tracesTopics(
     traces,
     facetIds: facets.map((facet) => facet.id),
     publishedRunIds: runIds,
+    includeOutliers: true,
   });
   const topicNames = new Map(
     maps
       .flatMap((map) => map.topics)
       .map((topic) => [topic.topicVersionId, topic.name]),
   );
-  const result: Record<string, { facet: string; topic: string }[]> = {};
+  const result: Record<
+    string,
+    { facet: string; topic: string | null; runIds: string[] }[]
+  > = {};
   for (const facet of facets)
     for (const row of rows) {
-      const topic = topicNames.get(row.topicVersionId);
-      const current = result[row.traceId] ?? [];
-      // Rules can each assign a topic; a name another rule also assigned shows once.
-      if (row.facetId !== facet.id || !topic) continue;
-      if (
-        current.some(
-          (item) => item.facet === facet.name && item.topic === topic,
-        )
-      )
-        continue;
-      result[row.traceId] = [...current, { facet: facet.name, topic }];
+      // A null topic is an outlier: the map analysed the trace without assigning one.
+      const topic =
+        row.topicId === "" ? null : topicNames.get(row.topicVersionId);
+      if (row.facetId !== facet.id || topic === undefined) continue;
+      const items = result[row.traceId] ?? [];
+      result[row.traceId] = items;
+      // Rules can each assign a topic; a name several rules assigned shows once, listing each map.
+      const same = items.find(
+        (item) => item.facet === facet.name && item.topic === topic,
+      );
+      if (same) same.runIds.push(row.runId);
+      else items.push({ facet: facet.name, topic, runIds: [row.runId] });
     }
   return result;
+}
+
+/**
+ * The tracing stripe's map of a facet: the oldest rule's map covering it, which
+ * the Topics page opens for that rule, with topic names in the page's ranking.
+ */
+export async function topicStripeMap(projectId: string, facetName: string) {
+  const facet = (await listTopicFacets(projectId)).find(
+    (item) => item.name === facetName,
+  );
+  if (!facet) return null;
+  const rule = (await listTopicRules(projectId)).find((item) =>
+    item.facetIds.includes(facet.id),
+  );
+  const {
+    facets: [result],
+  } = await currentTopicResults(projectId, undefined, {
+    facetIds: [facet.id],
+    ruleId: rule?.id,
+  });
+  if (!result?.map) return null;
+  return {
+    facetId: facet.id,
+    ruleId: rule?.id ?? null,
+    mapName: rule?.name ?? null,
+    runId: result.map.runId,
+    // Map topics without traces in the page's window rank after the counted ones.
+    topics: [
+      ...new Set([
+        ...result.topics.map((topic) => topic.name),
+        ...result.map.topics.map((topic) => topic.name),
+      ]),
+    ],
+  };
 }
