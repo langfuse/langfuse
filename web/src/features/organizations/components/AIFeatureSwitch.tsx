@@ -146,20 +146,18 @@ export default function AIFeatureSwitch() {
           disabled={!hasAccess}
           locked={!hasAccess}
         />
-        {isLangfuseCloud &&
-          isAIFeatureSwitchEnabled &&
-          aiFeaturesTracingConfigured && (
-            <div className="mt-4 border-t pt-4">
-              <AIFeatureSettingRow
-                title="AI Data Use for Product/Service Improvement"
-                description="Share data about your use of AI with Langfuse for product and service improvement."
-                checked={isAITelemetrySwitchEnabled}
-                onCheckedChange={handleTelemetrySwitchChange}
-                disabled={!hasAccess || updateAITelemetry.isPending}
-                locked={!hasAccess}
-              />
-            </div>
-          )}
+        {isLangfuseCloud && aiFeaturesTracingConfigured && (
+          <div className="mt-4 border-t pt-4">
+            <AIFeatureSettingRow
+              title="AI Data Use for Product/Service Improvement"
+              description="Share data about your use of AI with Langfuse for product and service improvement."
+              checked={isAITelemetrySwitchEnabled}
+              onCheckedChange={handleTelemetrySwitchChange}
+              disabled={!hasAccess || updateAITelemetry.isPending}
+              locked={!hasAccess}
+            />
+          </div>
+        )}
       </Card>
 
       <Dialog
