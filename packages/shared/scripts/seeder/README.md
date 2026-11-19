@@ -36,6 +36,11 @@ Forty users, 32 models, skewed latency/cost/tokens, root spans with external
 parents, incomplete roots, and numeric/boolean/categorical scores at trace,
 root, child and session scope make semantic differences visible. Some scores
 arrive outside the observation window.
+If an older fixture has boolean scores without display labels, run the same
+prefix with `--repair-score-labels`. This repairs only missing `True`/`False`
+labels on its synthetic `accepted` scores, preserving score IDs, values and
+timestamps, all observations, and saved dashboards. `--dry-run` reports the
+number of affected scores without writing.
 Finite root spans enclose both children; intentionally incomplete roots retain
 a missing end time. Readback asserts zero parent/child timing violations.
 

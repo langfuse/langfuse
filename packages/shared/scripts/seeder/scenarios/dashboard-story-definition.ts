@@ -222,8 +222,8 @@ export const buildDashboardStoryDefinition = (
     14,
     0,
     config(
-      "Observation latency percentiles",
-      "The 10th, 50th and 90th percentile observation latency over the selected period.",
+      "Generation latency percentiles",
+      "The 10th, 50th and 90th percentiles of duration for observations with type GENERATION, in milliseconds over the selected period.",
       [
         query(
           "low",

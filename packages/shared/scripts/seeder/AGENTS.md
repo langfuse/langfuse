@@ -28,6 +28,8 @@ pnpm run seed -- session-variety --sessions 120 --days 14  # many sessions for t
 pnpm run seed -- many-traces --count 100000 --days 14
 LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED=true NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story  # dedicated project, 3000 native v4 observations, exact metadata cohorts, 12 before/after widget pairs
 LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED=true NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story --observations 300000 --id-prefix dashboard-story-300k  # separate scale tier; use a fresh prefix per size/window
+LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED=true NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story --id-prefix dashboard-story-300k --learning-report-only  # add the technical notebook using this fixture's saved window
+LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED=true NEXTAUTH_URL=http://localhost:3030 pnpm run seed -- dashboard-story --id-prefix dashboard-story-300k --repair-score-labels  # repair only omitted boolean display labels in this owned fixture
 pnpm run seed -- filter-variety --traces 1200 --names 240 --v4  # readable root names with common/rare counts, varied types/envs/tags/levels/models/users/sessions
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name

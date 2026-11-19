@@ -1,4 +1,5 @@
 import { prisma } from "../../../src/db";
+import { z } from "zod";
 import { rangeToString } from "../../../src/utils/dateRanges";
 import { env } from "../../../src/env";
 import { EventsAggQueryBuilder } from "../../../src/server/queries/clickhouse-sql/event-query-builder";
@@ -14,8 +15,12 @@ import {
 } from "../../../src/server";
 import { buildDashboardStoryDefinition } from "./dashboard-story-definition";
 import { buildDashboardResearchReport } from "./dashboard-research-report";
+import {
+  buildDashboardLearningReport,
+  learningReportTitle,
+} from "./dashboard-learning-report";
 import { jitter, utcDayStartMs } from "./rng";
-import { type ScenarioDefinition, SeedError } from "./types";
+import { type ScenarioDefinition, type SeedSummary, SeedError } from "./types";
 
 const DAY_MS = 86_400_000;
 const BATCH_SIZE = 10_000;
@@ -28,6 +33,44 @@ const names = [
   "Invoice extraction",
   "Code review",
 ];
+
+async function saveLearningReport(
+  projectId: string,
+  prefix: string,
+  observations: number,
+  from: number,
+  to: number,
+  seed: number,
+  report: ReturnType<typeof buildDashboardResearchReport>,
+) {
+  const days = Math.round((to - from) / DAY_MS);
+  const sampleTraceIndex = observations / 3000;
+  const traceTimestamp =
+    to -
+    (1 + (sampleTraceIndex % days)) * DAY_MS +
+    jitter(seed, sampleTraceIndex, DAY_MS - 120000);
+  const definition = buildDashboardLearningReport({
+    projectId,
+    prefix,
+    observations,
+    from,
+    to,
+    traceTimestamp,
+    report,
+  });
+  return prisma.dashboard.createMany({
+    skipDuplicates: true,
+    data: {
+      id: `${prefix}-learning`,
+      projectId,
+      name: learningReportTitle,
+      description:
+        "A field guide to traces, observations, scores and analytical queries, with worked examples you can run.",
+      definition,
+      filters: [],
+    },
+  });
+}
 
 const observationLatency = (seed: number, index: number) => {
   const traceIndex = Math.floor(index / 3);
@@ -137,8 +180,22 @@ export const dashboardStoryScenario: ScenarioDefinition = {
       default: true,
       description: "native v4 events; required for this scenario",
     },
+    {
+      flag: "learning-report-only",
+      type: "boolean",
+      default: false,
+      description:
+        "add the technical notebook to a previously seeded dashboard-story project using its original data and window",
+    },
+    {
+      flag: "repair-score-labels",
+      type: "boolean",
+      default: false,
+      description:
+        "repair missing boolean score labels in an existing owned fixture without changing observations or dashboards",
+    },
   ],
-  run: async (ctx, params) => {
+  run: async (ctx, params): Promise<SeedSummary> => {
     if (
       !ctx.dryRun &&
       env.LANGFUSE_EXPERIMENTAL_DASHBOARD_STUDIO_ENABLED !== "true"
@@ -170,6 +227,134 @@ export const dashboardStoryScenario: ScenarioDefinition = {
       ctx.projectId === DEFAULT_PROJECT_ID
         ? `${ctx.idPrefix}-project`
         : ctx.projectId;
+    if (params["learning-report-only"] || params["repair-score-labels"]) {
+      const original = await prisma.dashboard.findFirst({
+        where: { id: `${ctx.idPrefix}-report`, projectId },
+        select: { project: { select: { metadata: true } } },
+      });
+      const fixture = z
+        .object({
+          seedScenario: z.literal("dashboard-story"),
+          fixtureVersion: z.literal(FIXTURE_VERSION),
+          seed: z.number(),
+          environment: z.string(),
+          from: z.iso.datetime(),
+          to: z.iso.datetime(),
+          truth: z.object({ observations: z.number().int().positive() }),
+        })
+        .safeParse(original?.project?.metadata);
+      if (!fixture.success)
+        throw new SeedError(
+          "The learning notebook needs an existing dashboard-story fixture",
+          "use the same --id-prefix as the original run, or seed the full scenario",
+        );
+      const { seed, environment, truth } = fixture.data;
+      const from = Date.parse(fixture.data.from);
+      const to = Date.parse(fixture.data.to);
+      if (params["repair-score-labels"]) {
+        const query = {
+          query: `SELECT * FROM scores FINAL
+            WHERE project_id = {projectId:String}
+              AND timestamp >= fromUnixTimestamp64Milli({from:Int64})
+              AND timestamp < fromUnixTimestamp64Milli({to:Int64})
+              AND environment = {environment:String}
+              AND name = 'accepted' AND data_type = 'BOOLEAN'
+              AND config_id = {configId:String}
+              AND startsWith(id, {prefix:String}) AND endsWith(id, '-accepted')
+              AND metadata['scenario'] = 'dashboard-story'
+              AND string_value IS NULL AND value IN (0, 1) AND is_deleted = 0
+            LIMIT 1001`,
+          query_params: {
+            projectId,
+            from,
+            to,
+            environment,
+            configId: `${ctx.idPrefix}-accepted-config`,
+            prefix: `${ctx.idPrefix}-trace-`,
+          },
+          format: "JSONEachRow" as const,
+        };
+        const response = await clickhouseClient().query(query);
+        const scores = await response.json<ScoreRecordInsertType>();
+        if (scores.length > 1000)
+          throw new SeedError(
+            "The fixture has more boolean scores than this scenario creates",
+            "inspect the synthetic fixture before repairing it",
+          );
+        let remaining = scores.length;
+        if (!ctx.dryRun && scores.length) {
+          const repairedAt = new Date();
+          await createScoresCh(
+            scores.map((score) =>
+              createTraceScore({
+                ...score,
+                string_value: undefined,
+                updated_at: repairedAt,
+                event_ts: repairedAt,
+              }),
+            ),
+          );
+          const readback = await clickhouseClient().query(query);
+          remaining = (await readback.json()).length;
+          if (remaining)
+            throw new SeedError("Boolean score labels did not pass readback");
+        }
+        return {
+          scenario: "dashboard-story",
+          target: "clickhouse",
+          params,
+          projectId,
+          environment,
+          traceIds: [],
+          sessionIds: [],
+          counts: { scores: scores.length, observations: 0, dashboards: 0 },
+          verified: ctx.dryRun ? {} : { missingBooleanLabels: remaining },
+          links: [`${ctx.baseUrl}/project/${projectId}/scores`],
+          dryRun: ctx.dryRun,
+          durationMs: Date.now() - startedAt,
+        };
+      }
+      const reportUrl = `${ctx.baseUrl}/project/${projectId}/dashboards/${ctx.idPrefix}-learning/report?dateRange=${from}-${to}`;
+      const verified: Record<string, number> = ctx.dryRun
+        ? {}
+        : await readSeedTruth(projectId, from, to);
+      let created = 0;
+      if (!ctx.dryRun) {
+        if (verified.observations !== truth.observations)
+          throw new SeedError(
+            "Fixture observation count has changed; confirm the source project before creating its learning notebook.",
+          );
+        const source = buildDashboardStoryDefinition(
+          truth.observations,
+          Math.round((to - from) / DAY_MS),
+        );
+        created = (
+          await saveLearningReport(
+            projectId,
+            ctx.idPrefix,
+            truth.observations,
+            from,
+            to,
+            seed,
+            buildDashboardResearchReport(source),
+          )
+        ).count;
+      }
+      return {
+        scenario: "dashboard-story",
+        target: "clickhouse",
+        params,
+        projectId,
+        environment,
+        traceIds: [],
+        sessionIds: [],
+        counts: { observations: 0, dashboards: created },
+        verified,
+        links: [reportUrl],
+        dryRun: ctx.dryRun,
+        durationMs: Date.now() - startedAt,
+      };
+    }
     const dashboardId = `${ctx.idPrefix}-dashboard`;
     const reportId = `${ctx.idPrefix}-report`;
     const traceCount = observationCount / 3;
@@ -199,16 +384,20 @@ export const dashboardStoryScenario: ScenarioDefinition = {
       `${ctx.baseUrl}/project/${projectId}/traces?dateRange=${range}`,
       `${ctx.baseUrl}/project/${projectId}/scores?dateRange=${range}`,
       `${ctx.baseUrl}/project/${projectId}/dashboards/${reportId}/report?dateRange=${range}`,
+      `${ctx.baseUrl}/project/${projectId}/dashboards/${ctx.idPrefix}-learning/report?dateRange=${range}`,
     ];
     const counts = {
       ...truth,
       projects: projectId === ctx.projectId ? 0 : 1,
-      dashboards: 2,
+      dashboards: 3,
       sessions: 40,
       legacyComparisons: 12,
     };
     const definition = buildDashboardStoryDefinition(observationCount, days);
-    const report = buildDashboardResearchReport(definition);
+    const report = buildDashboardResearchReport(
+      definition,
+      `/project/${projectId}/dashboards/${ctx.idPrefix}-learning/report?dateRange=${range}`,
+    );
     if (ctx.dryRun)
       return {
         scenario: "dashboard-story",
@@ -627,6 +816,15 @@ export const dashboardStoryScenario: ScenarioDefinition = {
       },
       update: {},
     });
+    await saveLearningReport(
+      projectId,
+      ctx.idPrefix,
+      observationCount,
+      from,
+      end,
+      ctx.seed,
+      report,
+    );
     await prisma.project.update({
       where: { id: projectId },
       data: {
