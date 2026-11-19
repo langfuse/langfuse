@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 /**
  * JSONTableView - Generic virtualized table with customizable columns.
  *
@@ -12,7 +11,6 @@
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { cn } from "@/src/utils/tailwind";
 import { type JSONTableViewProps } from "./json-table-view-types";
 import { JSONTableViewHeader } from "./JSONTableViewHeader";
 import { JSONTableViewRow } from "./JSONTableViewRow";
@@ -39,7 +37,6 @@ export function JSONTableView<T>({
   onVisibleItemsChange,
   renderRowPrefix,
   overscan = 100,
-  className,
 }: JSONTableViewProps<T>) {
   // Internal expand state (uncontrolled mode)
   const [internalExpandedKeys, setInternalExpandedKeys] = useState<Set<string>>(
@@ -160,9 +157,7 @@ export function JSONTableView<T>({
   const hasExpandIcon = expandable;
 
   return (
-    <div
-      className={cn("flex h-full w-full flex-col overflow-hidden", className)}
-    >
+    <div className="flex h-full w-full flex-col overflow-hidden">
       {/* Sticky header showing topmost visible item */}
       {hasItems && stickyHeaderContent && (
         <div className="shrink-0">
