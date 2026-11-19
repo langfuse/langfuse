@@ -88,7 +88,7 @@ export const AnnotationDrawerSection: React.FC<
           <p className="text-muted-foreground text-xs">
             Eval, API, and annotation scores outside this queue. Read-only.
           </p>
-          <ul className="flex flex-col gap-2">
+          <ul className="ph-no-capture flex flex-col gap-2">
             {readOnlyScores.map((score) => (
               <li
                 key={score.id}
