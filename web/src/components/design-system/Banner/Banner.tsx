@@ -44,7 +44,7 @@ const iconVariants = cva("flex h-lh shrink-0 translate-y-px items-center", {
 const actionsVariants = cva("mt-2 flex flex-wrap gap-x-4 gap-y-1", {
   variants: {
     variant: {
-      neutral: "text-link",
+      neutral: "text-foreground",
       info: "text-dark-blue",
       success: "text-dark-green",
       warning: "text-dark-yellow",
