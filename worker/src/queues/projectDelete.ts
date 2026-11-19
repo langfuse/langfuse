@@ -81,8 +81,12 @@ export const projectDeleteProcessor: Processor = async (
 
   // Finally, delete the project itself which should delete all related
   // resources due to the referential actions defined via Prisma.
-  // The cascade removes every Postgres row of the project in one statement,
-  // so a large project holds one long transaction on the writer.
+  //
+  // WARNING: unbounded. The cascade removes every Postgres row of the project
+  // in a single statement and transaction. For large projects this holds one
+  // long transaction on the Postgres writer and can pin its CPU. Delete large
+  // child tables in bounded batches before this call rather than relying on
+  // the cascade.
   try {
     const existingProject = await prisma.project.findUnique({
       where: {
