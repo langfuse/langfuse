@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
@@ -8,11 +8,7 @@ import {
   useEvaluatorFormTemplate,
 } from "@/src/features/evals/components/EvaluatorForm";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { AlertTriangle, UserCircle2Icon } from "@langfuse/icons";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
@@ -180,17 +176,16 @@ const PeekViewEvaluatorConfigDetail = ({
           </span>
         )}
         {evalConfig.evalTemplate && (
-          <Tooltip>
-            <TooltipTrigger>
-              {evalConfig.evalTemplate.projectId === null ? (
-                <LangfuseIcon size={16} />
-              ) : (
-                <UserCircle2Icon size="base" />
-              )}
-            </TooltipTrigger>
-            <TooltipContent>
-              {evalConfig.evalTemplate.partner ?? "Langfuse"}
-            </TooltipContent>
+          <Tooltip label={evalConfig.evalTemplate.partner ?? "Langfuse"}>
+            {({ getTriggerProps }) => (
+              <button type="button" {...getTriggerProps()}>
+                {evalConfig.evalTemplate?.projectId === null ? (
+                  <LangfuseIcon size={16} />
+                ) : (
+                  <UserCircle2Icon size="base" />
+                )}
+              </button>
+            )}
           </Tooltip>
         )}
       </CardDescription>
