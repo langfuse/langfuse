@@ -93,20 +93,20 @@ Format: one sentence shaped "<what went wrong> in <kind of step>, so <consequenc
 
 Decide in this order:
 1. Find the result: the final answer the user received, or the final action the run took (an edit, a booking, a submitted change). If the run ends with no answer and no action although the request needed one, the issue is the missing result.
-2. Check the result against the request. It is wrong if it states something the run's own tool results or the user contradict, answers a different question, quantity or entity, or claims an action that did not happen. It is incomplete if a required part of the request is missing. It is unsupported only if it states a run-specific fact that no tool result or user input in this run provides.
-3. If the result is right and complete, return not_applicable, even when earlier steps failed and were recovered, a check was skipped, or the path was clumsy.
+2. Check the result against the request. It is wrong if it states something the run's own tool results or the user contradict, answers a different question, quantity or entity, or claims an action that did not happen. It is incomplete if a required part of the request is missing. It is unsupported only if it states a run-specific fact that no tool result or user input in this run provides. It is also wrong if it breaks a required output format or an explicit instruction from the system prompt or the user.
+3. If the result is right, complete and supported, return not_applicable, even when earlier steps failed and were recovered, an optional check was skipped, or the path was clumsy.
 4. If the result is wrong, incomplete or unsupported, work back to the step that caused it and report that cause with its consequence. When several problems contributed, report the one with the biggest effect.
 
 - Only problems in this run count; an error the user pastes for explanation or a problem in earlier conversation is not an issue here.
-- A clarifying question, a justified refusal, and a short answer are not issues.
-- When you cannot tell whether the result is right, return not_applicable.
+- A clarifying question, a justified refusal, a short answer, and an honest statement that a requested capability is not available are not issues. A capability gap is an issue only when the run mishandled it: it tried anyway and presented a wrong or partial result as complete, failed without telling the user, or claimed something is not possible that the run shows is possible.
+- When the result is supported but you cannot tell whether it is right, return not_applicable.
 
-Status: not_applicable when the run is complete enough to judge and its result is right and complete. insufficient_input when too much is missing to judge, for example only the first request survives.
+Status: not_applicable when the run is complete enough to judge and its result is right, complete and supported. insufficient_input when too much is missing to judge, for example only the first request survives.
 
 Examples:
-- Invented data after a file read failed, so the reported result in the final answer is made up.
-- Answered a different quantity than requested in the final answer, so the result misses the question.
-- Claimed an edit that the tool call did not make in the final answer, so the reported change is wrong.
-- Stopped after repeated tool call failures without a fallback, so no result was delivered.`,
+- Invented data in the final answer after a failed file read, so the reported result is unsupported.
+- Answered a different quantity than requested in the final answer, so the result is wrong.
+- Claimed an edit that did not happen in the final answer, so the reported change is wrong.
+- Stopped after repeated failures in a tool call without a fallback, so the result is missing.`,
   },
 ];
