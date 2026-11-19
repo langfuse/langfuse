@@ -56,6 +56,7 @@ import { busy, runLabel } from "./topic-run-labels";
 import {
   resolveTopicMapSelection,
   topicMapQuery,
+  topicsViewQueryPatch,
   type TopicMapSelection,
 } from "./topic-maps";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -421,6 +422,21 @@ function TopicsWorkspaceContent({
     shownResults.data?.facets ?? [],
   );
   const { selectedFacetId } = traceFilters;
+  const shownMap = mapSelection ? topicMapQuery(mapSelection).map : undefined;
+  // Halo and copied links only see the URL, so it names the map and facet the
+  // page fell back to. Replacing adds no history entry.
+  useEffect(() => {
+    const patch = topicsViewQueryPatch(router.query, {
+      map: shownMap,
+      facetId: selectedFacetId,
+    });
+    if (!patch) return;
+    router.replace(
+      { pathname: router.pathname, query: { ...router.query, ...patch } },
+      undefined,
+      { shallow: true },
+    );
+  }, [router, shownMap, selectedFacetId]);
   const openExecution = (id: string) => {
     router.push(
       {

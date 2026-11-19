@@ -53,6 +53,7 @@ vi.mock("next/router", () => ({
   useRouter: () => ({
     query: { projectId: "project", executionId: state.executionId },
     push: state.push,
+    replace: vi.fn(),
   }),
 }));
 vi.mock("@/src/components/layouts/Page", () => ({
