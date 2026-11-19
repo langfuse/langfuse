@@ -29,7 +29,10 @@ export function ReportMarkdown({
         {title && (
           <h3 className="mb-2 text-base font-bold tracking-tight">{title}</h3>
         )}
-        <MarkdownView markdown={content} />
+        <MarkdownView
+          markdown={content}
+          className="[&_p]:max-w-[88ch] [&_td]:px-2 [&_td]:align-top [&_td]:wrap-anywhere [&_td]:whitespace-normal sm:[&_td]:px-4 [&_th]:px-2 [&_th]:align-top sm:[&_th]:px-4"
+        />
       </div>
     </div>
   );

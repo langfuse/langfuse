@@ -196,40 +196,70 @@ describe("studio chart preparation", () => {
     }
   });
 
-  it("keeps histogram populations and breakdowns identifiable in equal bins", () => {
+  it("puts histogram intervals before population labels and compares populations by counted records", () => {
     const config = createStudioWidget();
-    config.display.chartType = "HISTOGRAM";
+    config.display = { chartType: "HISTOGRAM", histogramEdges: [0, 1000] };
     config.queries = ["a", "b"].map((id) => ({
       ...config.queries[0]!,
       id,
-      label: id === "a" ? "Production" : "Staging",
-      view: "scores-numeric",
-      metrics: [{ id: "scores", measure: "value", aggregation: "histogram" }],
-      dimensions: [{ field: "name" }],
+      label:
+        id === "a"
+          ? "Production observation latency"
+          : "Staging observation latency",
+      metrics: [
+        {
+          id: "latency",
+          label: "Latency",
+          measure: "latency",
+          aggregation: "histogram",
+        },
+        {
+          id: "first",
+          label: "First token",
+          measure: "timeToFirstToken",
+          aggregation: "histogram",
+        },
+      ],
+      dimensions: [{ field: "providedModelName" }],
     }));
     const populations = [
-      { queryId: "a", label: "Production · Accuracy", name: "Accuracy" },
-      { queryId: "a", label: "Production · Relevance", name: "Relevance" },
-      { queryId: "b", label: "Staging · Accuracy", name: "Accuracy" },
+      {
+        queryId: "a",
+        metricId: "latency",
+        aggregation: "histogram",
+        dimensions: { providedModelName: "Model one" },
+      },
+      {
+        queryId: "a",
+        metricId: "first",
+        aggregation: "histogram",
+        dimensions: { providedModelName: "Model one" },
+      },
+      {
+        queryId: "b",
+        metricId: "latency",
+        aggregation: "histogram",
+        dimensions: { providedModelName: "Model two" },
+      },
     ];
     const result: StudioResult = {
       status: "complete",
       series: populations.map((population) => ({
-        id: `${population.queryId}.scores:${population.name}`,
-        queryId: population.queryId,
-        metricId: "scores",
-        label: population.label,
-        dimensions: { name: population.name },
-        unit: "scores",
-        aggregation: "histogram",
+        ...population,
+        id: `${population.queryId}.${population.metricId}`,
+        label: "Observation latency that must not obscure the interval",
+        unit: "observations",
+        bucketUnit: "milliseconds",
       })),
       rows: populations.flatMap((population, index) =>
-        ["[0, 0.5)", "No value"].map((dimension) => ({
-          seriesId: `${population.queryId}.scores:${population.name}`,
-          queryId: population.queryId,
-          metricId: "scores",
-          label: population.label,
-          dimensions: { bin: dimension },
+        ["[0, 1000)", "No value"].map((dimension) => ({
+          ...population,
+          seriesId: `${population.queryId}.${population.metricId}`,
+          label: "Observation latency that must not obscure the interval",
+          dimensions: {
+            ...population.dimensions,
+            bin: dimension === "No value" ? "[null,null]" : "[0,1000]",
+          },
           dimension,
           time: null,
           value: index + 1,
@@ -239,18 +269,102 @@ describe("studio chart preparation", () => {
       diagnostics: [],
       warnings: [],
     };
-    const prepared = prepareStudioChart(result, config);
-    expect(prepared.data.map((point) => point.dimension)).toEqual([
-      "Production · Accuracy · [0, 0.5)",
-      "Production · Accuracy · No value",
-      "Production · Relevance · [0, 0.5)",
-      "Production · Relevance · No value",
-      "Staging · Accuracy · [0, 0.5)",
-      "Staging · Accuracy · No value",
+    const prepareVisualization = (input: StudioResult) => {
+      const prepared = prepareStudioChart(input, config);
+      const { result: chart } = renderHook(() => {
+        const chart = usePreparedWidgetChart({
+          chartType: "HISTOGRAM",
+          data: prepared.data,
+          active: true,
+        });
+        return applyStudioSeriesPresentation(chart.visualization, prepared);
+      });
+      return chart.current;
+    };
+    const single = prepareVisualization({
+      ...result,
+      series: result.series.slice(0, 1),
+      rows: result.rows.slice(0, 2),
+    });
+    expect(single.type).toBe("histogram");
+    if (single.type !== "histogram") throw new Error("Expected a histogram");
+    expect(single.data.map((bin) => bin.label)).toEqual([
+      "[0, 1) s",
+      "No value",
     ]);
-    expect(prepared.data.map((point) => point.metric)).toEqual([
-      1, 1, 2, 2, 3, 3,
+    expect(single.data.map((bin) => bin.value)).toEqual([1, 1]);
+    expect(single.tooltipHeading?.("[0, 1) s")).toContain("[0, 1000) ms");
+    expect(single.tooltipHeading?.("[0, 1) s")).toContain("Latency");
+    expect(single.valueFormatter?.(1500)).not.toContain("ms");
+    expect(single.tooltipValueLabel).toBe("Count (observations)");
+
+    const multiple = prepareVisualization(result);
+    expect(multiple.type).toBe("grouped-bar");
+    if (multiple.type !== "grouped-bar")
+      throw new Error("Expected population comparison");
+    expect(multiple.data).toEqual([
+      {
+        key: "[0, 1) s",
+        values: { "a.latency": 1, "a.first": 2, "b.latency": 3 },
+      },
+      {
+        key: "No value",
+        values: { "a.latency": 1, "a.first": 2, "b.latency": 3 },
+      },
     ]);
+    expect(multiple.series.map((series) => series.id)).toEqual([
+      "a.latency",
+      "a.first",
+      "b.latency",
+    ]);
+    expect(new Set(multiple.series.map((series) => series.label)).size).toBe(3);
+    expect(multiple.series[1]?.label).toContain("First token");
+    expect(multiple.series[2]?.label).toContain("Staging");
+    expect(multiple.valueFormatter?.(1500)).not.toContain("ms");
+    expect(multiple.tooltipFormatter?.("[0, 1) s")).toContain("[0, 1000) ms");
+    const mobilePrepared = prepareStudioChart(result, config);
+    const mobile = applyStudioSeriesPresentation(
+      multiple,
+      mobilePrepared,
+      undefined,
+      true,
+    );
+    expect(mobile.type).toBe("table");
+    if (mobile.type !== "table")
+      throw new Error("Expected readable mobile bands");
+    expect(mobile.columns.map((column) => column.label)).toEqual([
+      "Band",
+      "Count",
+    ]);
+    expect(
+      mobile.rows.map(
+        (row) => row.cells.find((cell) => cell.columnId === "band")?.value,
+      ),
+    ).toEqual([
+      mobilePrepared.visibleSeries[0]!.label,
+      "[0, 1) s",
+      "No value",
+      mobilePrepared.visibleSeries[1]!.label,
+      "[0, 1) s",
+      "No value",
+      mobilePrepared.visibleSeries[2]!.label,
+      "[0, 1) s",
+      "No value",
+    ]);
+    expect(
+      mobile.rows[1]?.cells.find((cell) => cell.columnId === "band")?.detail,
+    ).toContain("[0, 1000) ms");
+    expect(
+      mobile.rows[1]?.cells.find((cell) => cell.columnId === "count")?.value,
+    ).toBe("1");
+    expect(
+      prepareStudioData(result, config, {
+        scope: "rows",
+        reference: "all",
+        pageIndex: 0,
+        pageSize: 50,
+      }).rowCount,
+    ).toBe(6);
   });
   it("keeps equal display names independent and retains full-period summaries for a breakdown", () => {
     const config = createStudioWidget();

@@ -5,6 +5,7 @@ import {
   type DataCardActions,
 } from "@/src/components/design-system/DataCard/DataCard";
 import { type Visualization } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
+import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { usePreparedWidgetChart } from "@/src/features/widgets/components/usePreparedWidgetChart";
 import {
   type prepareStudioChart,
@@ -102,6 +103,13 @@ export function StudioWidgetResultPresentation({
           compact: isMobile,
         })
       : undefined;
+  const onLegendInteraction: ChartProps["onLegendInteraction"] = (event) =>
+    track("legend_interacted", {
+      interaction: event.action,
+      selectedCount: event.selectedCount,
+      scope: "display",
+      widgetKind: "query",
+    });
   const chart = usePreparedWidgetChart({
     sync: scoreBuckets.length
       ? { activeKey: focusedBucket, onActiveKeyChange: setFocusedBucket }
@@ -123,13 +131,7 @@ export function StudioWidgetResultPresentation({
     zeroBaseline: true,
     colorBarsByCategory: true,
     missingValue: "gap",
-    onLegendInteraction: (event) =>
-      track("legend_interacted", {
-        interaction: event.action,
-        selectedCount: event.selectedCount,
-        scope: "display",
-        widgetKind: "query",
-      }),
+    onLegendInteraction,
   });
   const content: Visualization = (() => {
     if (result.isPending)
@@ -235,7 +237,12 @@ export function StudioWidgetResultPresentation({
     }
     return (
       chart.confirmation ??
-      applyStudioSeriesPresentation(chart.visualization, prepared)
+      applyStudioSeriesPresentation(
+        chart.visualization,
+        prepared,
+        onLegendInteraction,
+        isMobile,
+      )
     );
   })();
   const headline = config.display.showHeadline ? prepared.headline : undefined;

@@ -72,7 +72,7 @@ function QueryOutput({
   const inputs = cell.config.queries.length;
   return (
     <figure className="min-w-0">
-      <div className="h-[21rem] min-w-0 sm:h-[23rem]">
+      <div className="h-[32rem] min-w-0 sm:h-[24rem]">
         <StudioQueryWidget
           projectId={context.projectId}
           readPath={context.readPath}
