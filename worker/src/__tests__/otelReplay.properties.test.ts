@@ -510,6 +510,8 @@ type ProviderScope = keyof typeof providerKeys;
 
 type ProviderReplaySeed = {
   scope: ProviderScope;
+  // Replaces the scope name with one outside the generated set.
+  scopeName?: string;
   spanName?: Json;
   events?: {
     name: string;
@@ -854,7 +856,7 @@ function buildProviderReplay(seeds: ProviderReplaySeed[]): Buffer {
       resource: resource.resource,
       scopeSpans: [
         {
-          scope: { name: seed.scope, version: "1.0.0" },
+          scope: { name: seed.scopeName ?? seed.scope, version: "1.0.0" },
           spans: [
             {
               ...spans[index]!,
@@ -1219,6 +1221,18 @@ function aiProviderSeed(
   };
 }
 
+function genericProviderSeed(
+  sources: ProviderReplaySeed["sources"],
+): ProviderReplaySeed {
+  return { ...aiProviderSeed(sources), scope: "other" };
+}
+
+// 120 levels of single-key objects around a string leaf.
+const deeplyNestedObject = Array.from({ length: 120 }).reduce<Json>(
+  (inner) => ({ x: inner }),
+  "leaf",
+);
+
 const declaredTypeExamples = [
   ["langfuse.observation.type", "generation"],
   ["openinference.span.kind", "LLM"],
@@ -1427,6 +1441,60 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
       {
         key: "langfuse.observation.model.parameters",
         value: JSON.stringify({ service_tier: "explicit-tier" }),
+      },
+    ]),
+  ],
+  // A data URI where media is never extracted: the scope name, then an
+  // attribute key.
+  [{ ...genericProviderSeed([]), scopeName: "data:text/plain;base64,aGk=" }],
+  [
+    genericProviderSeed([
+      { key: "data:text/plain;base64,aGk=", value: "attribute-value" },
+    ]),
+  ],
+  // JSON text that ingestion parses: many copies of a deep object beside a
+  // media marker, lone surrogates in keys and values, and numbers outside the
+  // double range in input, metadata and usage.
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: JSON.stringify({
+          marker: "data: ",
+          items: Array.from({ length: 32 }, () => deeplyNestedObject),
+        }),
+      },
+    ]),
+  ],
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: JSON.stringify({
+          text: "\ud800",
+          low: "\udfff",
+          pair: "\ud83d\ude00",
+          literal: "\\ud800",
+          "\ud800": 1,
+          "\ud801": 2,
+          "\ufffd": 3,
+        }),
+      },
+    ]),
+  ],
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: '{"positive":1e309,"negative":-1e309,"tiny":1e-9999}',
+      },
+      {
+        key: "langfuse.observation.metadata",
+        value: '{"positive":1e309,"negative":-1e309}',
+      },
+      {
+        key: "langfuse.observation.usage_details",
+        value: '{"input":1e309,"output":-1e309}',
       },
     ]),
   ],
@@ -1817,7 +1885,70 @@ const allDefaults = {
   promptName: true,
   promptVersion: true,
 };
+// Name sources in priority order; the span name itself is the last resort.
+const nameSourceKeys = [
+  "gen_ai.tool.name",
+  "genkit:name",
+  "logfire.msg",
+  "ai.toolCall.name",
+];
+const noDefaults = {
+  type: false,
+  model: false,
+  promptName: false,
+  promptVersion: false,
+};
+// Each kind of value as the span name, then on every name source above
+// lower-priority string aliases, under a valid override, and as the function
+// id that prefixes an operation name.
+const competingNameSources: WrongTypeSpanSeed[] = (
+  [
+    [{ intValue: "5" }, { intValue: "5" }],
+    [{ boolValue: false }, { boolValue: false }],
+    [
+      { arrayValue: { values: [textValue("tool")] } },
+      { arrayValue: { values: [textValue("tool")] } },
+    ],
+    [textValue("5"), textValue("5")],
+    [textValue(""), textValue("")],
+    // A null span name, and an attribute with no value set.
+    [null, {}],
+  ] satisfies [AnyValue, AnyValue][]
+).flatMap(([spanName, attribute]) => {
+  const named = (...attributes: [string, AnyValue][]): WrongTypeSpanSeed => ({
+    defaults: noDefaults,
+    overrides: [
+      { place: "spanField", key: "name", value: spanName },
+      ...attributes.map(([key, value]): WrongTypeOverride => ({
+        place: "span",
+        key,
+        value,
+      })),
+    ],
+  });
+  return [
+    named(),
+    ...nameSourceKeys.map((key, index) =>
+      named(
+        [key, attribute],
+        ...nameSourceKeys
+          .slice(index + 1)
+          .map((alias): [string, AnyValue] => [
+            alias,
+            textValue("lower priority"),
+          ]),
+      ),
+    ),
+    named(["genkit:name", textValue("valid override")]),
+    named(
+      ["ai.operationId", textValue("generate")],
+      ["ai.telemetry.functionId", attribute],
+    ),
+  ];
+});
+
 const directedWrongTypeExamples: WrongTypeSpanSeed[][] = [
+  competingNameSources,
   [
     {
       defaults: allDefaults,

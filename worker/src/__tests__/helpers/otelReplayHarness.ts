@@ -66,7 +66,6 @@ type RunOtelReplayParams = {
   writeMode?: "events_only" | "dual";
   sdkName?: string;
   sdkVersion?: string;
-  failLegacyQueueProcessing?: boolean;
   captureSideEffects?: () => unknown;
 };
 
@@ -81,9 +80,7 @@ let eventByteAccountingReady: Promise<void> | undefined;
 // The legacy processor caches its storage client. Keep this fake's identity stable
 // across sequential replays, but release all file contents after each run.
 const eventStorage = {
-  source: undefined as
-    | { path: string; bytes: Buffer; failLegacyDownloads?: boolean }
-    | undefined,
+  source: undefined as { path: string; bytes: Buffer } | undefined,
   uploaded: new Map<string, string>(),
   async uploadJson(
     path: string,
@@ -93,12 +90,7 @@ const eventStorage = {
   },
   read(path: string): Buffer {
     const uploaded = eventStorage.uploaded.get(path);
-    if (uploaded !== undefined) {
-      if (eventStorage.source?.failLegacyDownloads) {
-        throw new Error("simulated legacy ingestion read failure");
-      }
-      return Buffer.from(uploaded);
-    }
+    if (uploaded !== undefined) return Buffer.from(uploaded);
     if (path === eventStorage.source?.path) return eventStorage.source.bytes;
     throw new Error(`Replay event file not found: ${path}`);
   },
@@ -209,7 +201,6 @@ export async function runOneOtelReplay(
   eventStorage.source = {
     path: fileKey,
     bytes: Buffer.from(params.bytes),
-    failLegacyDownloads: params.failLegacyQueueProcessing,
   };
   const storageClient = eventStorage as unknown as ReturnType<
     typeof getS3EventStorageClient

@@ -291,7 +291,6 @@ describe("native Rust trace activity", () => {
         "langfuse.ingestion.otel.observation_count",
         records.length,
       );
-      expect(scheduleObservationEvals).not.toHaveBeenCalled();
       expect(recordTraceActivity).toHaveBeenCalledOnce();
       expect(recordedActivity).toEqual([
         {

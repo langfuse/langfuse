@@ -330,19 +330,9 @@ describe(
       }),
     ])("preserves raw provider field semantics: %s", expectMediaParity);
 
-    it.each(nativeMediaLifecycleCases)(
-      "matches processOtelMedia through native complete after $name succeeds",
-      async ({ source }) => expectNativeMediaLifecycleParity(source, true),
-    );
-
-    it.each(nativeMediaLifecycleCases)(
-      "restores $name through native complete after upload failure",
-      async ({ source }) => expectNativeMediaLifecycleParity(source, false),
-    );
-
-    it("matches extraction and restoration across generated URI spelling and JSON layers", async () => {
-      await fc.assert(
-        fc.asyncProperty(
+    it("matches extraction and restoration for named cases and generated URI spelling and JSON layers", async () => {
+      const generatedSource = fc
+        .tuple(
           fc.constantFrom(
             "",
             String.raw`;name=\u00e9`,
@@ -364,7 +354,9 @@ describe(
             "@@@langfuseMedia:unknown@@@",
           ),
           fc.uint8Array({ minLength: 1, maxLength: 32 }),
-          async (
+        )
+        .map(
+          ([
             header,
             prefix,
             withSibling,
@@ -373,7 +365,7 @@ describe(
             extraAts,
             trailingUnknownMarker,
             bytes,
-          ) => {
+          ]) => {
             const uri = `data:image/png${header};base64,${Buffer.from(bytes).toString("base64")}`;
             // Whitespace keeps the URI boundary valid even when surrounding quotes
             // acquire additional escapes in a containing JSON string.
@@ -382,12 +374,22 @@ describe(
             for (let layer = 0; layer < layers; layer++) {
               source = JSON.stringify({ nested: source });
             }
-            for (const uploadSucceeds of [true, false]) {
-              await expectNativeMediaLifecycleParity(source, uploadSucceeds);
-            }
+            return source;
           },
-        ),
-        { numRuns: 128, seed: 19965 },
+        );
+      await fc.assert(
+        fc.asyncProperty(generatedSource, async (source) => {
+          for (const uploadSucceeds of [true, false]) {
+            await expectNativeMediaLifecycleParity(source, uploadSucceeds);
+          }
+        }),
+        {
+          numRuns: 128,
+          seed: 19965,
+          // Shapes the generator does not build: provider objects, a URI as an
+          // object key, and bodies large enough for early extraction.
+          examples: nativeMediaLifecycleCases.map(({ source }) => [source]),
+        },
       );
     });
 
@@ -547,7 +549,13 @@ describe(
           encoded,
           fc.integer({ min: 0, max: 3 }),
           fc.oneof(
-            fc.constantFrom("", "data:malformed@", "data:broken "),
+            fc.constantFrom(
+              "",
+              "data:malformed@",
+              "data:broken ",
+              "data:bad,",
+              "data:",
+            ),
             // Keep both identifier boundaries and multibyte predecessors in
             // the differential contract. Lone surrogates are covered by the
             // separate intentionally-inline test below.
@@ -671,13 +679,23 @@ describe(
       }
     });
 
+    // Bodies are large enough for early extraction, so the documents stay
+    // untouched only because extraction is switched off.
     it.each([
       [
         "embedded media ambiguity",
         JSON.stringify({
           input: JSON.stringify([
-            { type: "file", mediaType: "image/png", data: "YQ==" },
-            { type: "file", mediaType: "image/png", data: "b'a'" },
+            {
+              type: "file",
+              mediaType: "image/png",
+              data: Buffer.alloc(1500, "a").toString("base64"),
+            },
+            {
+              type: "file",
+              mediaType: "image/png",
+              data: `b'${"a".repeat(1500)}'`,
+            },
           ]),
         }),
       ],
@@ -687,7 +705,7 @@ describe(
           input: JSON.stringify({
             type: "file",
             mediaType: "image/png",
-            data: "YQ==",
+            data: Buffer.alloc(1500, "a").toString("base64"),
             note: "\ud800",
           }),
         }),

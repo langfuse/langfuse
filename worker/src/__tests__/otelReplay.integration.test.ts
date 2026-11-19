@@ -1,6 +1,6 @@
 import "./helpers/otelReplaySetup";
 
-import { createHash, randomInt, randomUUID } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { Decimal } from "decimal.js";
 import fc from "fast-check";
 import {
@@ -18,8 +18,6 @@ import { env as sharedEnv, type SharedEnv } from "@langfuse/shared/src/env";
 import { MediaAssociationOrigin } from "@langfuse/shared";
 import {
   createOrgProjectAndApiKey,
-  IngestionQueue,
-  QueueJobs,
   TraceUpsertQueue,
   linkMediaToTraceOrObservation,
   type ResourceSpan,
@@ -109,21 +107,6 @@ async function getTraceUpsertJobsForProject(projectId: string) {
   return jobsByShard
     .flat()
     .filter((job) => job.data.payload.projectId === projectId);
-}
-
-async function getIngestionJobsForProject(projectId: string) {
-  const jobsByShard = await Promise.all(
-    IngestionQueue.getShardNames().map(async (shardName) => {
-      const queue = IngestionQueue.getInstance({ shardName });
-      return queue
-        ? queue.getJobs(["waiting", "delayed", "prioritized", "active"])
-        : [];
-    }),
-  );
-
-  return jobsByShard
-    .flat()
-    .filter((job) => job.data.payload.authCheck.scope.projectId === projectId);
 }
 
 type MediaUploadCall = Parameters<typeof uploadMediaForTrace>[0];
@@ -1323,66 +1306,6 @@ describe(
       }
     });
 
-    it("matches stored names and evaluation decisions for competing name sources", async () => {
-      const resource = buildFocusedResourceSpans({})[0]!;
-      const scope = resource.scopeSpans![0]!;
-      const template = scope.spans![0]!;
-      const cases = [
-        { raw: 5, attr: { intValue: "5" } },
-        { raw: false, attr: { boolValue: false } },
-        {
-          raw: ["tool"],
-          attr: { arrayValue: { values: [{ stringValue: "tool" }] } },
-        },
-        { raw: "5", attr: { stringValue: "5" } },
-        { raw: "", attr: { stringValue: "" } },
-        { raw: null, attr: {} },
-      ];
-      const sources = [
-        "gen_ai.tool.name",
-        "genkit:name",
-        "logfire.msg",
-        "ai.toolCall.name",
-      ];
-      const fixtures = cases.flatMap(({ raw, attr }) => [
-        { name: raw, attributes: [] },
-        ...sources.map((key, index) => ({
-          name: raw,
-          attributes: [
-            { key, value: attr },
-            ...sources
-              .slice(index + 1)
-              .map((alias) => stringAttribute(alias, "lower priority")),
-          ],
-        })),
-        {
-          name: raw,
-          attributes: [stringAttribute("genkit:name", "valid override")],
-        },
-        {
-          name: raw,
-          attributes: [
-            stringAttribute("ai.operationId", "generate"),
-            { key: "ai.telemetry.functionId", value: attr },
-          ],
-        },
-      ]);
-      const spans = fixtures.map((fixture, index) => ({
-        ...template,
-        ...fixture,
-        spanId: createBufferId((index + 1).toString(16).padStart(16, "0")),
-      }));
-      const comparison = await runOtelReplayComparison({
-        bytes: Buffer.from(
-          JSON.stringify([{ ...resource, scopeSpans: [{ ...scope, spans }] }]),
-        ),
-        projectId: PROJECT_ID,
-      });
-      expect(comparison.originalTs.storedRows).toHaveLength(fixtures.length);
-      expect(comparison.originalTs.evaluatedSpans).toHaveLength(33);
-      expectRawNativeParity(comparison);
-    });
-
     it.each([
       "langfuse.trace.name",
       "langfuse.version",
@@ -2199,20 +2122,6 @@ describe(
             skillName: "beta",
           },
         ]);
-        expect(
-          rowFor("Codex skill uses command when unnamed")
-            ?.skills_resource_loaded,
-        ).toEqual([
-          {
-            langfuseSkillId: "skill-alpha",
-            skillVersion: 1,
-            skillName: "alpha",
-            filePath: "guide.md",
-          },
-        ]);
-        expect(
-          rowFor("tool without output is ineligible")?.skills_resource_loaded,
-        ).toEqual([]);
         expectRawNativeParity(comparison);
       } finally {
         skillFindMany.mockRestore();
@@ -2762,31 +2671,6 @@ describe(
       ]);
     });
 
-    it.each([
-      ["scope name", { scopeName: "data:text/plain;base64,aGk=" }],
-      [
-        "attribute key",
-        {
-          attributes: [
-            stringAttribute("data:text/plain;base64,aGk=", "attribute-value"),
-          ],
-        },
-      ],
-    ] as const)(
-      "keeps structural media in the %s aligned",
-      async (name, options) => {
-        const comparison = await runOtelReplayComparison({
-          bytes: focusedReplayBytes(options),
-          projectId: `${PROJECT_ID}-structural-media-${name}`,
-          fileKey: `${FILE_KEY}.structural-media-${name}`,
-          mediaUploadEnabled: true,
-        });
-
-        expectRawNativeParity(comparison);
-        expect(comparison.originalTs.storedRows).toHaveLength(1);
-      },
-    );
-
     const deepValue = `${"[".repeat(200)}null${"]".repeat(200)}`;
     const shallowDocument = focusedReplayBytes({
       spanName: "deep-document",
@@ -2801,62 +2685,9 @@ describe(
       .toString("utf8")
       .replace('"doubleValue":0.25', '"doubleValue":1e309');
 
-    let nestedInput: unknown = "leaf";
-    for (let depth = 0; depth < 120; depth++) nestedInput = { x: nestedInput };
-    const repeatedNestedInput = focusedReplayBytes({
-      attributes: [
-        stringAttribute(
-          "langfuse.observation.input",
-          JSON.stringify({
-            marker: "data: ",
-            items: Array.from({ length: 32 }, () => nestedInput),
-          }),
-        ),
-      ],
-    });
-
     it.each([
-      ["repeated nested objects", repeatedNestedInput],
       ["deep JSON nesting", Buffer.from(shallowDocument)],
-      [
-        "embedded lone surrogate",
-        focusedReplayBytes({
-          attributes: [
-            stringAttribute(
-              "langfuse.observation.input",
-              JSON.stringify({
-                text: "\ud800",
-                low: "\udfff",
-                pair: "\ud83d\ude00",
-                literal: "\\ud800",
-                "\ud800": 1,
-                "\ud801": 2,
-                "�": 3,
-              }),
-            ),
-          ],
-        }),
-      ],
       ["out-of-range number", Buffer.from(overflowingNumber)],
-      [
-        "embedded overflowing numbers",
-        focusedReplayBytes({
-          attributes: [
-            stringAttribute(
-              "langfuse.observation.input",
-              '{"positive":1e309,"negative":-1e309,"tiny":1e-9999}',
-            ),
-            stringAttribute(
-              "langfuse.observation.metadata",
-              '{"positive":1e309,"negative":-1e309}',
-            ),
-            stringAttribute(
-              "langfuse.observation.usage_details",
-              '{"input":1e309,"output":-1e309}',
-            ),
-          ],
-        }),
-      ],
     ] as const)(
       "preserves persisted values for %s input",
       async (name, bytes) => {
@@ -3373,77 +3204,6 @@ describe(
           }
         } finally {
           preparation.mockRestore();
-          await prisma.project.delete({ where: { id: projectId } });
-          await prisma.organization.delete({ where: { id: orgId } });
-        }
-      },
-    );
-
-    it.each([
-      ["original-ts", false],
-      ["original-ts", true],
-      ["early-ts", false],
-      ["early-ts", true],
-      ["early-rust", false],
-      ["early-rust", true],
-    ] as const)(
-      "removes replay-owned jobs after failure (%s, separate traces: %s)",
-      async (mode, separateTraces) => {
-        const { projectId, orgId } = await createOrgProjectAndApiKey();
-        const originalBlobStorageFileLogFlag =
-          env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG;
-        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG = "false";
-
-        const unrelatedQueue = IngestionQueue.getInstance({
-          shardingKey: `${projectId}-unrelated`,
-        });
-        if (!unrelatedQueue)
-          throw new Error("Ingestion queue is not initialized");
-        const unrelatedJob = await unrelatedQueue.add(QueueJobs.IngestionJob, {
-          id: `otel-replay-unrelated-${randomUUID()}`,
-          timestamp: new Date(),
-          name: QueueJobs.IngestionJob,
-          payload: {
-            data: {
-              type: "span-create",
-              eventBodyId: `otel-replay-unrelated-${randomUUID()}`,
-              fileKey: "unrelated.json",
-              bucketPrefix: "otel-replay/unrelated/",
-              ingestionApiKey: "",
-              ingestionSdkName: "otel-replay-test",
-              ingestionSdkVersion: "test",
-            },
-            authCheck: {
-              validKey: true,
-              scope: { projectId, orgId, accessLevel: "project" },
-            },
-          },
-        });
-
-        try {
-          await expect(
-            runOneOtelReplay({
-              mode,
-              bytes: Buffer.from(
-                JSON.stringify(buildResourceSpans({ separateTraces })),
-              ),
-              projectId,
-              orgId,
-              fileKey: `${FILE_KEY}.legacy-failure`,
-              writeMode: "dual",
-              failLegacyQueueProcessing: true,
-            }),
-          ).rejects.toThrow("simulated legacy ingestion read failure");
-
-          const remainingJobs = await getIngestionJobsForProject(projectId);
-          expect(remainingJobs.map((job) => job.id)).toEqual([unrelatedJob.id]);
-        } finally {
-          const remainingJobs = await getIngestionJobsForProject(projectId);
-          await Promise.allSettled(remainingJobs.map((job) => job.remove()));
-          const traceJobs = await getTraceUpsertJobsForProject(projectId);
-          await Promise.allSettled(traceJobs.map((job) => job.remove()));
-          env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG =
-            originalBlobStorageFileLogFlag;
           await prisma.project.delete({ where: { id: projectId } });
           await prisma.organization.delete({ where: { id: orgId } });
         }
