@@ -345,6 +345,50 @@ describe("ProjectDeletionProcessingJob", () => {
     expect(datasetItemMedia).toBeNull();
   });
 
+  it("should delete media files spanning several batches", async () => {
+    const projectId = randomUUID();
+    const prefix = `${randomUUID()}/`;
+    s3Prefix = prefix;
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: `Project-${randomUUID()}` },
+    });
+    const fileNames = Array.from(
+      { length: 5 },
+      () => `${prefix}${randomUUID()}.txt`,
+    );
+    for (const fileName of fileNames) {
+      await storageService.uploadFile({
+        fileName,
+        fileType: "text/plain",
+        data: "Hello, world!",
+      });
+    }
+    await prisma.media.createMany({
+      data: fileNames.map((bucketPath) => ({
+        id: randomUUID(),
+        sha256Hash: randomUUID(),
+        projectId,
+        bucketPath,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: "text/plain",
+        contentLength: 0,
+      })),
+    });
+
+    const originalBatchSize =
+      env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE;
+    env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE = 2;
+    try {
+      await projectDeleteProcessor({
+        data: { payload: { projectId, orgId } },
+      } as Job);
+    } finally {
+      env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE = originalBatchSize;
+    }
+
+    expect(await storageService.listFiles(prefix)).toHaveLength(0);
+  });
+
   describe("delete functions with hasAny probe", () => {
     it("should return false when no traces exist for project", async () => {
       const emptyProjectId = randomUUID();

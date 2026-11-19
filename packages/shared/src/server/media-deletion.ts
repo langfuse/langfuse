@@ -49,16 +49,24 @@ const expiredMediaWorkCondition = (params: {
 `;
 
 /**
- * Find all media files for a project (for complete project deletion).
+ * Find media files for a project (for complete project deletion).
+ * With `limit`, rows come in id order; pass the last id as `afterId` to page.
  */
 export async function findAllMediaByProjectId(params: {
   projectId: string;
   limit?: number;
+  afterId?: string;
 }): Promise<MediaFileRef[]> {
   return prisma.media.findMany({
     select: { id: true, bucketPath: true },
-    where: { projectId: params.projectId },
-    ...(params.limit != null && { take: params.limit }),
+    where: {
+      projectId: params.projectId,
+      ...(params.afterId != null && { id: { gt: params.afterId } }),
+    },
+    ...(params.limit != null && {
+      orderBy: { id: "asc" },
+      take: params.limit,
+    }),
   });
 }
 
