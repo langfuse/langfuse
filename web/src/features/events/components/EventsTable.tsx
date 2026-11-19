@@ -1340,6 +1340,7 @@ export default function ObservationsEventsTable({
       <EventsNameFilterPopover
         key={queryFilter.draftResetKey}
         filter={filter}
+        tableName={eventsFilterConfig.tableName}
         onAfterOpen={() => {
           requestColumns([column]);
           capture("table:column_filter_header_click", {

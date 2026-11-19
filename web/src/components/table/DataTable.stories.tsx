@@ -2027,6 +2027,7 @@ export const NameFilteringPreservesRestoredSort = meta.story({
             headerBlock: true,
             headerContent: (
               <EventsNameFilterPopover
+                tableName="observations-events"
                 onAfterOpen={fn()}
                 filter={{
                   type: "categorical",
@@ -2042,6 +2043,7 @@ export const NameFilteringPreservesRestoredSort = meta.story({
                   onChange: setSelectedNames,
                   onOnlyChange: (name) => setSelectedNames([name]),
                   onReset: () => setSelectedNames(["alpha", "beta"]),
+                  onTextFilterAdd: fn(),
                 }}
               >
                 {({ Trigger, disabled }) => (
@@ -2085,6 +2087,10 @@ export const NameFilteringPreservesRestoredSort = meta.story({
       canvas.queryByRole("cell", { name: "beta" }),
     ).not.toBeInTheDocument();
     await expect(dialog).toBeVisible();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Clear filter" }),
+    );
+    await expect(canvas.getByRole("cell", { name: "beta" })).toBeVisible();
     await expect(header).toHaveTextContent("sorted ascending");
   },
 });

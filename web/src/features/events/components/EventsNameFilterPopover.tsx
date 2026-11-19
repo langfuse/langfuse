@@ -1,48 +1,65 @@
 import { type ComponentProps } from "react";
-import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
-import { CategoricalFacet } from "@/src/components/table/data-table-controls";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { CategoricalFilterContent } from "@/src/components/table/CategoricalFilterContent";
 import { PopoverController } from "@/src/components/ui/popover";
+import { useCategoricalFilterMode } from "@/src/features/filters/hooks/useCategoricalFilterMode";
 import { type CategoricalUIFilter } from "@/src/features/filters/hooks/useSidebarFilterState";
 
 export function EventsNameFilterPopover({
   filter,
+  tableName,
   onAfterOpen,
   children,
 }: {
   filter: CategoricalUIFilter;
+  tableName: string;
   onAfterOpen: () => void;
   children: ComponentProps<typeof PopoverController>["children"];
 }) {
+  const mode = useCategoricalFilterMode({
+    filterKey: filter.column,
+    tableName,
+    isV4: true,
+    textFilters: filter.textFilters,
+  });
   return (
     <PopoverController
       align="start"
-      contentClassName="ph-no-capture w-80 p-2"
+      contentClassName="ph-no-capture w-72 p-0"
       disabled={filter.isDisabled}
       modal={false}
       onOpenChange={(open) => {
         if (open) onAfterOpen();
       }}
       renderContent={() => (
-        <Accordion type="multiple" defaultValue={[filter.column]}>
-          <CategoricalFacet
+        <div className="py-2">
+          <CategoricalFilterContent
+            {...mode}
+            tableName={tableName}
             filterKey={filter.column}
-            label={filter.label}
-            isV4
             options={filter.options}
             counts={filter.counts}
             loading={filter.loading}
             value={filter.value}
             onChange={filter.onChange}
             onOnlyChange={filter.onOnlyChange}
-            isActive={filter.isActive}
-            onReset={filter.onReset}
             operator={filter.operator}
             onOperatorChange={filter.onOperatorChange}
             textFilters={filter.textFilters}
             onTextFilterAdd={filter.onTextFilterAdd}
             onTextFilterRemove={filter.onTextFilterRemove}
           />
-        </Accordion>
+          {filter.isActive && (
+            <div className="flex justify-end px-3 pt-2">
+              <Button
+                variant="text"
+                size="sm"
+                text="Clear filter"
+                onClick={filter.onReset}
+              />
+            </div>
+          )}
+        </div>
       )}
     >
       {children}
