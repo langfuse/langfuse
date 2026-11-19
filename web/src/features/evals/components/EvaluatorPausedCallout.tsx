@@ -1,3 +1,4 @@
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -12,7 +13,7 @@ import {
   getEvaluatorBlockMetadata,
   getEvaluatorBlockResolutionPath,
 } from "@langfuse/shared";
-import { AlertTriangle, ExternalLinkIcon, RefreshCcw } from "@langfuse/icons";
+import { ExternalLinkIcon, RefreshCcw } from "@langfuse/icons";
 import Link from "next/link";
 import { Fragment } from "react";
 
@@ -94,81 +95,60 @@ export function EvaluatorPausedCallout({
     : formatDistanceToNow(blockedAtDate, { addSuffix: true });
 
   return (
-    <section
-      id={calloutId}
-      role="alert"
-      aria-live="polite"
-      className="border-light-yellow bg-light-yellow rounded-lg border"
-    >
-      <div className="flex gap-3 p-4">
-        <AlertTriangle size="base" __rawClassName="text-dark-yellow mt-0.5" />
-
-        <div className="min-w-0 flex-1">
-          <h3 className="text-foreground text-base font-bold">
-            Evaluator paused
-          </h3>
-
-          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground font-bold">
-              {blockMetadata.shortLabel}
-            </span>
-            {blockedAtLabel ? (
-              <Fragment>
-                <span className="bg-border h-1 w-1 rounded-full" />
-                <span title={blockedAtDate.toLocaleString()}>
-                  Paused {blockedAtLabel}
-                </span>
-              </Fragment>
-            ) : null}
-          </div>
-
-          <p className="text-muted-foreground mt-2 max-w-3xl text-sm">
-            {blockMessage}
-          </p>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button asChild variant="outline" size="sm" className="h-8 px-3">
-              <Link
-                href={resolutionPath}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLinkIcon
-                  size="base"
-                  color="default"
-                  __rawClassName="mr-1.5"
-                />
-                {resolutionActionLabel}
-              </Link>
-            </Button>
-
-            {allowReactivation ? (
-              <Button
-                size="sm"
-                variant="outline"
-                loading={reactivateEvaluator.isPending}
-                onClick={() =>
-                  reactivateEvaluator.mutate({
-                    projectId,
-                    evalConfigId: evalConfig.id,
-                    config: {
-                      status: JobConfigState.ACTIVE,
-                    },
-                  })
-                }
-                className="h-8 px-3"
-              >
-                <RefreshCcw
-                  size="base"
-                  color="default"
-                  __rawClassName="mr-1.5"
-                />
-                Reactivate
-              </Button>
-            ) : null}
-          </div>
+    <div id={calloutId}>
+      <Banner variant="warning" title="Evaluator paused">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-bold">{blockMetadata.shortLabel}</span>
+          {blockedAtLabel ? (
+            <Fragment>
+              <span className="bg-border h-1 w-1 rounded-full" />
+              <span title={blockedAtDate.toLocaleString()}>
+                Paused {blockedAtLabel}
+              </span>
+            </Fragment>
+          ) : null}
         </div>
-      </div>
-    </section>
+
+        <p className="mt-2 max-w-3xl">{blockMessage}</p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="h-8 px-3">
+            <Link
+              href={resolutionPath}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLinkIcon
+                size="base"
+                color="default"
+                __rawClassName="mr-1.5"
+              />
+              {resolutionActionLabel}
+            </Link>
+          </Button>
+
+          {allowReactivation ? (
+            <Button
+              size="sm"
+              variant="outline"
+              loading={reactivateEvaluator.isPending}
+              onClick={() =>
+                reactivateEvaluator.mutate({
+                  projectId,
+                  evalConfigId: evalConfig.id,
+                  config: {
+                    status: JobConfigState.ACTIVE,
+                  },
+                })
+              }
+              className="h-8 px-3"
+            >
+              <RefreshCcw size="base" color="default" __rawClassName="mr-1.5" />
+              Reactivate
+            </Button>
+          ) : null}
+        </div>
+      </Banner>
+    </div>
   );
 }
