@@ -580,6 +580,8 @@ export const TopicsTraceEventSchema = z.object({
   projectId: z.string().min(1),
   traceId: z.string().min(1),
   revision: z.string().min(1),
+  // Key `put` returned for the stored transcript. Jobs without it read the revision's legacy key.
+  transcriptS3Path: z.string().min(1).optional(),
   // Rules that selected the trace; the job resolves their facets at the current version.
   ruleIds: z.array(z.string().min(1)),
   // A snapshot that seeded the trace: its facets are summarized, tagged with its ID.
