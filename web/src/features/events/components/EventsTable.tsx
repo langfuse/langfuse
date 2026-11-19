@@ -144,7 +144,11 @@ import {
   TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
 } from "@langfuse/shared/topics";
 import { TraceTopicsCell } from "@/src/features/topics/trace/TraceTopicsCell";
-import { useTopicFilterOptions } from "@/src/features/topics/trace/useTracingTopics";
+import { TopicStripe } from "@/src/features/topics/trace/TopicStripe";
+import {
+  useTopicFilterOptions,
+  useTopicStripe,
+} from "@/src/features/topics/trace/useTracingTopics";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 
 // Disabled for now because perhaps confusing
@@ -1041,6 +1045,19 @@ export default function ObservationsEventsTable({
       rowHeights.mode,
       rowHeights.activeHeightPx,
     ),
+  });
+
+  const showPulseStrip = outlierStripEnabled && chartViewMode !== "chart";
+  const topicStripe = useTopicStripe({
+    projectId,
+    enabled: showTopicFilter && showPulseStrip,
+    rows: observations.rows ?? [],
+    facetTopics: topicFilterOptions,
+    filters: queryFilter.explicitFilterState ?? [],
+    onFiltersChange: (filters) => {
+      setFiltersWrapper(filters);
+      resetSearchBarDraftRef.current?.(filters);
+    },
   });
 
   useApplyAppRootFallback({
@@ -2436,7 +2453,7 @@ export default function ObservationsEventsTable({
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Pulse strip (LFE-14451): table-width, so the facet sidebar keeps
                 its full height (design feedback); hidden in full chart mode. */}
-            {outlierStripEnabled && chartViewMode !== "chart" && (
+            {showPulseStrip && (
               <EventsOutlierStrip
                 projectId={projectId}
                 filterState={filterState}
@@ -2444,6 +2461,7 @@ export default function ObservationsEventsTable({
                 toTimestamp={chartTimeWindow.to}
                 searchIgnored={Boolean(searchQuery)}
                 onSelectRange={setTimeRangeTransient}
+                topicStripe={topicStripe && <TopicStripe {...topicStripe} />}
               />
             )}
             {chartEnabled && chartViewMode === "chart" ? (

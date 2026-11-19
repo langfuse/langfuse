@@ -165,6 +165,7 @@ export function EventsOutlierStrip({
   toTimestamp,
   searchIgnored = false,
   onSelectRange,
+  topicStripe,
 }: {
   projectId: string;
   filterState: FilterState;
@@ -173,6 +174,8 @@ export function EventsOutlierStrip({
   /** The table has an active free-text search the strip cannot apply. */
   searchIgnored?: boolean;
   onSelectRange: (range: { from: Date; to: Date }) => void;
+  /** Rendered at the end of the header row. */
+  topicStripe?: React.ReactNode;
 }) {
   const capture = usePostHogClientCapture();
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
@@ -416,6 +419,9 @@ export function EventsOutlierStrip({
               </span>
             )}
           </AggDropdownController>
+        )}
+        {topicStripe && (
+          <div className="ml-auto w-80 min-w-0 self-center">{topicStripe}</div>
         )}
       </MetricStripHeaderRow>
     </div>
