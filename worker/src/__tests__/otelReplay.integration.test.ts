@@ -1323,6 +1323,156 @@ describe(
       }
     });
 
+    it.each([
+      "langfuse.trace.name",
+      "langfuse.version",
+      "langfuse.release",
+      "langfuse.observation.status_message",
+    ])(
+      "matches evaluation eligibility before %s is stringified",
+      async (key) => {
+        const resource = buildFocusedResourceSpans({})[0]!;
+        const scope = resource.scopeSpans![0]!;
+        const template = scope.spans![0]!;
+        const values = [
+          { boolValue: false },
+          { intValue: "0" },
+          { arrayValue: { values: [{ stringValue: "text" }] } },
+          { stringValue: "false" },
+          { stringValue: "0" },
+          { stringValue: '["text"]' },
+          { stringValue: "" },
+          {},
+        ];
+        const ids = values.map((_, index) =>
+          (index + 1).toString(16).padStart(16, "0"),
+        );
+        scope.spans = values.map((value, index) => ({
+          ...template,
+          spanId: createBufferId(ids[index]!),
+          attributes: [{ key, value }],
+        }));
+        let cursor = 0;
+        const comparison = await runOtelReplayComparison({
+          bytes: Buffer.from(JSON.stringify([resource])),
+          projectId: PROJECT_ID,
+          captureSideEffects: () => {
+            const calls =
+              otelReplayMocks.scheduleObservationEvals.mock.calls.slice(cursor);
+            cursor = otelReplayMocks.scheduleObservationEvals.mock.calls.length;
+            return calls.map(([{ observation }]) => observation.span_id).sort();
+          },
+        });
+        expect(comparison.originalTs.storedRows).toHaveLength(values.length);
+        expectRawNativeParity(comparison);
+        expect(comparison.originalTs.sideEffects).toEqual(ids.slice(3));
+        expect(comparison.earlyTs.sideEffects).toEqual(
+          comparison.originalTs.sideEffects,
+        );
+        expect(comparison.earlyRust.sideEffects).toEqual(
+          comparison.originalTs.sideEffects,
+        );
+      },
+    );
+
+    it.each([false, true])(
+      "matches prompt lookup truthiness and alias precedence when lookups fail=%s",
+      async (failLookup) => {
+        const names = [false, 0, "", "false", "0", "named"];
+        const sources = [
+          "langfuse.observation.prompt.name",
+          "langfuse.prompt.name",
+          "ai.telemetry.metadata.langfusePrompt",
+        ];
+        const promptAttribute = (
+          key: string,
+          name: string | number | boolean,
+        ): RawOtelAttribute => {
+          if (typeof name === "boolean")
+            return { key, value: { boolValue: name } };
+          if (typeof name === "number") return intAttribute(key, name);
+          return stringAttribute(key, name);
+        };
+        const resource = buildFocusedResourceSpans({})[0]!;
+        const scope = resource.scopeSpans![0]!;
+        const template = scope.spans![0]!;
+        scope.spans = sources.flatMap((source, sourceIndex) =>
+          names.map((name, nameIndex) => ({
+            ...template,
+            spanId: createBufferId(
+              (sourceIndex * names.length + nameIndex + 1)
+                .toString(16)
+                .padStart(16, "0"),
+            ),
+            attributes: [
+              stringAttribute("langfuse.observation.type", "generation"),
+              intAttribute("langfuse.observation.prompt.version", 4),
+              ...(sourceIndex < 2 ? [promptAttribute(source, name)] : []),
+              ...(sourceIndex === 0
+                ? [stringAttribute("langfuse.prompt.name", "alias-fallback")]
+                : []),
+              stringAttribute(
+                "ai.telemetry.metadata.langfusePrompt",
+                JSON.stringify({
+                  name: sourceIndex === 2 ? name : "sdk-fallback",
+                  version: 4,
+                }),
+              ),
+            ],
+          })),
+        );
+        otelReplayMocks.getPrompt.mockImplementation(async () => {
+          if (failLookup) throw new Error("simulated prompt lookup failure");
+          return { id: "replay-prompt-id" };
+        });
+        let promptCursor = 0;
+        let evaluationCursor = 0;
+        const comparison = await runOtelReplayComparison({
+          bytes: Buffer.from(JSON.stringify([resource])),
+          projectId: PROJECT_ID,
+          captureSideEffects: () => {
+            const prompts =
+              otelReplayMocks.getPrompt.mock.calls.slice(promptCursor);
+            promptCursor = otelReplayMocks.getPrompt.mock.calls.length;
+            const evaluations =
+              otelReplayMocks.scheduleObservationEvals.mock.calls.slice(
+                evaluationCursor,
+              );
+            evaluationCursor =
+              otelReplayMocks.scheduleObservationEvals.mock.calls.length;
+            return {
+              prompts: prompts.map(([request]) => request.promptName).sort(),
+              evaluations: evaluations
+                .map(([{ observation }]) => observation.span_id)
+                .sort(),
+            };
+          },
+        });
+        const expectedLookups = sources
+          .flatMap(() => ["false", "0", "named"])
+          .sort();
+        expect(comparison.earlyRust.storedRows).toHaveLength(
+          failLookup ? 9 : 18,
+        );
+        expect(comparison.originalTs.sideEffects.prompts).toEqual(
+          expectedLookups,
+        );
+        expect(comparison.originalTs.sideEffects.evaluations).toHaveLength(
+          failLookup ? 3 : 12,
+        );
+        expect(comparison.earlyTs.sideEffects).toEqual(
+          comparison.originalTs.sideEffects,
+        );
+        expect(comparison.earlyRust.sideEffects).toEqual(
+          comparison.originalTs.sideEffects,
+        );
+        expect(comparison.originalTs.storedRows).toHaveLength(
+          failLookup ? 9 : 18,
+        );
+        expectRawNativeParity(comparison);
+      },
+    );
+
     it("writes both enriched observations and preserves accounting through readback", async () => {
       const comparison = await runOtelReplayComparison({
         bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
