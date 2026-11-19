@@ -38,8 +38,9 @@ export function AdvancedSettings({
   onHeadersChange: (headers: ExtraHeaderRow[]) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  // Stays open while the base URL has an error, so the error is never hidden.
-  const isOpen = isExpanded || Boolean(baseURLError);
+  // An error opens the section and it stays open, so the error is never hidden
+  // and fixing the URL doesn't unmount the field mid-edit.
+  if (baseURLError && !isExpanded) setIsExpanded(true);
 
   const handleBaseURLChange = (event: ChangeEvent<HTMLInputElement>) => {
     onBaseURLChange(event.target.value);
@@ -48,7 +49,7 @@ export function AdvancedSettings({
   return (
     <div className="space-y-6">
       <ExpandToggle
-        expanded={isOpen}
+        expanded={isExpanded}
         onExpandedChange={setIsExpanded}
         label="Show advanced settings"
         expandedLabel="Hide advanced settings"
@@ -57,7 +58,7 @@ export function AdvancedSettings({
         size="sm"
         controls="gateway-advanced-settings"
       />
-      {isOpen ? (
+      {isExpanded ? (
         <div id="gateway-advanced-settings" className="space-y-6 border-t pt-6">
           <div className="ph-no-capture">
             <FieldHeader
