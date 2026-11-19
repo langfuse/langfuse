@@ -9,6 +9,7 @@ import {
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
+  getTopicRanking,
   getTopicResultCounts,
   listCurrentTopicSummaries,
   OBSERVATIONS_TO_TRACE_INTERVAL_DAYS,
@@ -264,6 +265,39 @@ async function facetMapCounts(projectId: string, maps: FacetMap[]) {
       ...(outcome !== undefined ? { outcome } : {}),
     };
   });
+}
+
+/**
+ * The Tracing stripe's map of one facet, resolved like the Topics page for the
+ * rule, with topic names in the page's ranking; null without a map.
+ */
+export async function topicStripeRanking(
+  projectId: string,
+  facet: TopicFacet,
+  ruleId?: string,
+) {
+  if (!(await hasStoredTopicSummaries(projectId))) return null;
+  const [map] = await resolveFacetMaps(projectId, { ruleId }, [facet]);
+  if (!map?.run) return null;
+  const ranking = await getTopicRanking({
+    projectId,
+    window: map.window,
+    facetId: facet.id,
+    runId: map.run.id,
+  });
+  const names = new Map(
+    map.run.topics.map((topic) => [topic.topicId, topic.name]),
+  );
+  return {
+    runId: map.run.id,
+    // Topics without traces in the window rank after the counted ones.
+    topics: [
+      ...new Set([
+        ...ranking.flatMap((id) => names.get(id) ?? []),
+        ...map.run.topics.map((topic) => topic.name),
+      ]),
+    ],
+  };
 }
 
 /**

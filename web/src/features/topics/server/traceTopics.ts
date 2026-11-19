@@ -4,7 +4,7 @@ import {
   listTopicRules,
   readCurrentTraceTopics,
 } from "@langfuse/shared/topics/server";
-import { currentTopicResults } from "./currentResults";
+import { topicStripeRanking } from "./currentResults";
 
 /** Sidebar and search bar options: facet name → topic names of its current published map. */
 export async function topicFilterOptions(projectId: string) {
@@ -72,10 +72,7 @@ export async function tracesTopics(
   return result;
 }
 
-/**
- * The tracing stripe's map of a facet: the oldest rule's map covering it, which
- * the Topics page opens for that rule, with topic names in the page's ranking.
- */
+/** The Tracing stripe's map of a facet: the oldest covering rule's, as the Topics page opens it. */
 export async function topicStripeMap(projectId: string, facetName: string) {
   const facet = (await listTopicFacets(projectId)).find(
     (item) => item.name === facetName,
@@ -84,24 +81,12 @@ export async function topicStripeMap(projectId: string, facetName: string) {
   const rule = (await listTopicRules(projectId)).find((item) =>
     item.facetIds.includes(facet.id),
   );
-  const {
-    facets: [result],
-  } = await currentTopicResults(projectId, undefined, {
-    facetIds: [facet.id],
-    ruleId: rule?.id,
-  });
-  if (!result?.map) return null;
+  const ranking = await topicStripeRanking(projectId, facet, rule?.id);
+  if (!ranking) return null;
   return {
     facetId: facet.id,
     ruleId: rule?.id ?? null,
     mapName: rule?.name ?? null,
-    runId: result.map.runId,
-    // Map topics without traces in the page's window rank after the counted ones.
-    topics: [
-      ...new Set([
-        ...result.topics.map((topic) => topic.name),
-        ...result.map.topics.map((topic) => topic.name),
-      ]),
-    ],
+    ...ranking,
   };
 }

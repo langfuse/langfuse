@@ -386,7 +386,7 @@ export const topicsRouter = createTRPCRouter({
   ),
   /** Tracing topic stripe: the facet's default map and its topics in the Topics page ranking. */
   stripeMap: topicsProcedure
-    .input(projectInput.extend({ facet: z.string().min(1) }))
+    .input(projectInput.extend({ facet: z.string().min(1).max(200) }))
     .query(({ input }) => topicStripeMap(input.projectId, input.facet)),
   /** Rule maps and one-off analyses for the map picker and the Rules page. */
   maps: topicsProcedure.query(({ input }) =>

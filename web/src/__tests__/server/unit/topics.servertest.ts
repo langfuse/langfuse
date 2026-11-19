@@ -15,6 +15,7 @@ import {
 } from "@langfuse/shared/topics";
 
 const mocks = vi.hoisted(() => ({
+  getTopicRanking: vi.fn(),
   getTopicResultCounts: vi.fn(),
   listCurrentTopicSummaries: vi.fn(),
   createTopicExecution: vi.fn(),
@@ -75,6 +76,7 @@ vi.mock(
 );
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<object>()),
+  getTopicRanking: mocks.getTopicRanking,
   getTopicResultCounts: mocks.getTopicResultCounts,
   listCurrentTopicSummaries: mocks.listCurrentTopicSummaries,
 }));
@@ -945,15 +947,7 @@ describe("Topics current results", () => {
         topic("topic-c", "Exports"),
       ],
     });
-    mocks.getTopicResultCounts.mockResolvedValue([
-      {
-        ...counts([facetId])[0],
-        topics: [
-          { topicId: "topic-b", count: 9 },
-          { topicId: "topic-a", count: 4 },
-        ],
-      },
-    ]);
+    mocks.getTopicRanking.mockResolvedValue(["topic-b", "topic-a"]);
     expect(
       await caller("VIEWER").stripeMap({ projectId, facet: "Intent" }),
     ).toEqual({
@@ -968,6 +962,10 @@ describe("Topics current results", () => {
       "rule-a",
       facetId,
     );
+    expect(mocks.getTopicRanking).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId, facetId, runId: run.id }),
+    );
+    expect(mocks.getTopicResultCounts).not.toHaveBeenCalled();
   });
 });
 
