@@ -10,7 +10,6 @@ import { redis } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
 import {
-  legacyApiKeyRoleForScope,
   OrganizationId,
   ProjectId,
   SystemRoleId,
@@ -73,8 +72,7 @@ export const projectApiKeysRouter = createTRPCRouter({
 
       return apiKeys.map(({ roleAssignments, ...apiKey }) => ({
         ...apiKey,
-        role:
-          roleAssignments[0]?.systemRole ?? legacyApiKeyRoleForScope("project"),
+        role: roleAssignments[0]?.systemRole ?? null,
       }));
     }),
   create: protectedProjectProcedure
