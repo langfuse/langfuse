@@ -159,7 +159,7 @@ const ENTITY_GROUPS: Record<
     navHref: "/project/[projectId]/evals",
     scope: "evaluator:read",
     icon: Lightbulb,
-    keywords: ["evaluator", "eval"],
+    keywords: ["evaluator", "eval", "evaluators", "evals"],
     pathKey: "id",
     // Legacy projects list job configs, which live under other IDs.
     v4Only: true,
@@ -1414,7 +1414,7 @@ function useEntityGroups(
     {
       projectId,
       limit: ENTITY_LIMIT,
-      search: debouncedSearch.trim() || undefined,
+      search: getEvaluatorSearchTerm(debouncedSearch),
     },
     {
       enabled: open && evaluatorsUrl !== null,
@@ -1577,6 +1577,19 @@ export function getEntityBaseUrl({
   if (!projectId || !navItem?.url || !canRead(config.scope)) return null;
   if (config.v4Only && isLegacyNavItem(navItem, projectId)) return null;
   return navItem.url;
+}
+
+/**
+ * Strips group-level keywords ("eval", "evaluator") so typing the category name
+ * does not trigger a server-side name query that returns empty results.
+ */
+export function getEvaluatorSearchTerm(search: string): string | undefined {
+  const trimmed = search.trim();
+  const match = /^(evaluators?|evals?)(?:\s+(.*))?$/i.exec(trimmed);
+  if (match) {
+    return match[2]?.trim() || undefined;
+  }
+  return trimmed || undefined;
 }
 
 /** Caps the rows matching the search, so any row stays findable. */
