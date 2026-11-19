@@ -112,8 +112,6 @@ export function TracesSetupOnboardingCard({
       waitingFor="Waiting for first trace"
       title="Time to log your first trace, it only takes a minute"
       description="Get your API keys first, then ask your coding agent to add observability with Langfuse to your application."
-      videoSrc="https://static.langfuse.com/prod-assets/onboarding/traces-overview-v1.mp4"
-      videoPosition="bottom"
       steps={[
         {
           title: "Create API keys",
