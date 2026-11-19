@@ -4,10 +4,16 @@ import { isTopicFilter } from "@langfuse/shared/topics";
 /** Topics past this many fold into one grey segment. */
 export const TOPIC_STRIPE_SLOTS = 16;
 
-type TraceTopics = Record<string, { facet: string; topic: string }[]>;
+type TraceTopics = Record<
+  string,
+  { facet: string; topic: string | null; runIds: string[] }[]
+>;
+
+/** The one map the stripe counts. */
+export type TopicStripeMap = { runId: string };
 
 export type TopicStripeSegment =
-  /** `slot` is the topic's index in the facet's published topics, so colours stay stable across filters. */
+  /** `slot` is the topic's rank in the loaded rows, largest first; the colour follows it. */
   | { kind: "topic"; name: string; count: number; slot: number }
   | { kind: "more"; count: number; topicCount: number }
   | { kind: "unassigned"; count: number };
@@ -19,39 +25,67 @@ export function topicStripeFacet(facets: string[]) {
   );
 }
 
-/** Distinct traces per topic of one facet, largest first; then the folded tail and unassigned traces. */
-export function topicStripeSegments({
+const distinctTraceIds = (rows: { traceId?: string | null }[]) =>
+  new Set(rows.flatMap((row) => row.traceId ?? []));
+
+/** The trace's topic in the map, null for an outlier, undefined when the map never analysed it; other maps are ignored. */
+function mapResult(
+  topicsByTrace: TraceTopics,
+  traceId: string,
+  facet: string,
+  map: TopicStripeMap,
+) {
+  return topicsByTrace[traceId]?.find(
+    (item) => item.facet === facet && item.runIds.includes(map.runId),
+  )?.topic;
+}
+
+/** Distinct traces in the rows, and how many of them the map analysed, outliers included. */
+export function topicStripeCoverage({
   rows,
   topicsByTrace,
   facet,
-  facetTopics,
+  map,
 }: {
   rows: { traceId?: string | null }[];
   topicsByTrace: TraceTopics;
   facet: string;
-  facetTopics: string[];
+  map: TopicStripeMap;
+}) {
+  const traceIds = distinctTraceIds(rows);
+  const analysed = [...traceIds].filter(
+    (traceId) => mapResult(topicsByTrace, traceId, facet, map) !== undefined,
+  ).length;
+  return { analysed, total: traceIds.size };
+}
+
+/** Distinct traces per topic of one facet's map, largest first; then the folded tail and unassigned traces. */
+export function topicStripeSegments({
+  rows,
+  topicsByTrace,
+  facet,
+  map,
+}: {
+  rows: { traceId?: string | null }[];
+  topicsByTrace: TraceTopics;
+  facet: string;
+  map: TopicStripeMap;
 }): TopicStripeSegment[] {
-  const traceIds = new Set(rows.flatMap((row) => row.traceId ?? []));
   const counts = new Map<string, number>();
   let unassigned = 0;
-  for (const traceId of traceIds) {
-    // Several rule maps can each assign the facet a topic.
-    const names = new Set(
-      (topicsByTrace[traceId] ?? [])
-        .filter((item) => item.facet === facet)
-        .map((item) => item.topic),
-    );
-    if (names.size === 0) unassigned++;
-    for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
+  for (const traceId of distinctTraceIds(rows)) {
+    const name = mapResult(topicsByTrace, traceId, facet, map);
+    if (!name) unassigned++;
+    else counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   const topics = [...counts]
-    .map(([name, count]) => ({
+    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+    .map(([name, count], slot) => ({
       kind: "topic" as const,
       name,
       count,
-      slot: facetTopics.indexOf(name),
-    }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      slot,
+    }));
   const folded = topics.slice(TOPIC_STRIPE_SLOTS);
   return [
     ...topics.slice(0, TOPIC_STRIPE_SLOTS),
