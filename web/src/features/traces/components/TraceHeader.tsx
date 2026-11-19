@@ -12,6 +12,7 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { traceTopicRows } from "@/src/features/topics/trace/trace-topic-rows";
+import { treemapBadgeColor } from "@/src/features/topics/topic-map-colors";
 /** Trace totals, session/user links and tags, above the panels. */
 
 import { useMemo } from "react";
@@ -186,6 +187,7 @@ function LoadedTraceHeader({
       id: "topics",
       type: "details",
       text,
+      color: lead ? treemapBadgeColor(lead.topicIndex) : undefined,
       title: "Topics",
       href: `/project/${encodeURIComponent(trace.projectId)}/topics`,
       linkText: "Open in Topics →",
