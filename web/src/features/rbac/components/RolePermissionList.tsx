@@ -77,8 +77,15 @@ const entityLabels = {
 } satisfies Record<PermissionEntity, string>;
 
 /** RolePermissionList groups permissions by resource kind and entity. */
-export const RolePermissionList = ({ role }: { role: SystemRole }) => {
-  const { policies } = systemRoleAccessRights[role];
+export const RolePermissionList = ({
+  role,
+  resourceKinds = resourceKindOrder,
+}: {
+  role: SystemRole;
+  /** resourceKinds limits the list to the permission kinds that apply. */
+  resourceKinds?: ResourceKind[];
+}) => {
+  const policies = applicablePolicies(role, resourceKinds);
 
   if (policies.length === 0)
     return (
@@ -89,35 +96,37 @@ export const RolePermissionList = ({ role }: { role: SystemRole }) => {
 
   return (
     <div className="grid grid-cols-1 items-center gap-x-6 gap-y-1 pb-5 sm:grid-cols-[max-content_1fr] sm:gap-y-2">
-      {resourceKindOrder.map((kind) => {
-        const scopes = policies
-          .filter((policy) => policy.resourceKind === kind)
-          .flatMap((policy) => policy.actions);
-        if (scopes.length === 0) return null;
+      {resourceKindOrder
+        .filter((kind) => resourceKinds.includes(kind))
+        .map((kind) => {
+          const scopes = policies
+            .filter((policy) => policy.resourceKind === kind)
+            .flatMap((policy) => policy.actions);
+          if (scopes.length === 0) return null;
 
-        return (
-          <Fragment key={kind}>
-            <SectionHeader label={resourceKindLabels[kind]} />
-            {groupByEntity(scopes).map((group) => (
-              <div key={group.entity} className="contents">
-                <span className="pl-4 text-xs leading-tight font-bold whitespace-nowrap">
-                  {group.title}
-                </span>
-                <div className="flex flex-wrap gap-1 px-4 pb-2 sm:pb-0 sm:pl-0">
-                  {group.actions.map((action) => (
-                    <Badge
-                      key={action}
-                      color="outline"
-                      size="sm"
-                      text={action}
-                    />
-                  ))}
+          return (
+            <Fragment key={kind}>
+              <SectionHeader label={resourceKindLabels[kind]} />
+              {groupByEntity(scopes).map((group) => (
+                <div key={group.entity} className="contents">
+                  <span className="pl-4 text-xs leading-tight font-bold whitespace-nowrap">
+                    {group.title}
+                  </span>
+                  <div className="flex flex-wrap gap-1 px-4 pb-2 sm:pb-0 sm:pl-0">
+                    {group.actions.map((action) => (
+                      <Badge
+                        key={action}
+                        color="outline"
+                        size="sm"
+                        text={action}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </Fragment>
-        );
-      })}
+              ))}
+            </Fragment>
+          );
+        })}
     </div>
   );
 };
@@ -189,19 +198,37 @@ const compareActions = (a: string, b: string): number => {
   return rankA - rankB;
 };
 
-export const rolePermissionCountLabel = (role: SystemRole): string =>
-  `${rolePermissionCount(role)} ${rolePermissionNoun(role)}`;
+export const rolePermissionCountLabel = (
+  role: SystemRole,
+  resourceKinds: ResourceKind[] = resourceKindOrder,
+): string =>
+  `${rolePermissionCount(role, resourceKinds)} ${rolePermissionNoun(role, resourceKinds)}`;
 
-export const rolePermissionNoun = (role: SystemRole): string =>
-  rolePermissionCount(role) === 1 ? "permission" : "permissions";
+export const rolePermissionNoun = (
+  role: SystemRole,
+  resourceKinds: ResourceKind[] = resourceKindOrder,
+): string =>
+  rolePermissionCount(role, resourceKinds) === 1 ? "permission" : "permissions";
 
-export const rolePermissionCount = (role: SystemRole): number =>
-  systemRoleAccessRights[role].policies.reduce(
+export const rolePermissionCount = (
+  role: SystemRole,
+  resourceKinds: ResourceKind[] = resourceKindOrder,
+): number =>
+  applicablePolicies(role, resourceKinds).reduce(
     (total, policy) => total + policy.actions.length,
     0,
   );
 
-type ResourceKind = SystemRolePolicy["resourceKind"];
+/** applicablePolicies is a role's policies of the given resource kinds. */
+const applicablePolicies = (
+  role: SystemRole,
+  resourceKinds: ResourceKind[],
+): SystemRolePolicy[] =>
+  systemRoleAccessRights[role].policies.filter((policy) =>
+    resourceKinds.includes(policy.resourceKind),
+  );
+
+export type ResourceKind = SystemRolePolicy["resourceKind"];
 
 /** PermissionEntity is the entity prefix of every action in the vocabulary. */
 type PermissionEntity = Action extends `${infer Entity}:${string}`

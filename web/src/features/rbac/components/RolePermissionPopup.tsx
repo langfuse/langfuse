@@ -14,6 +14,7 @@ import { RolePermissionCountBadge } from "@/src/features/rbac/components/RolePer
 import {
   RolePermissionList,
   rolePermissionCount,
+  type ResourceKind,
 } from "@/src/features/rbac/components/RolePermissionList";
 import {
   roleDisplay,
@@ -26,6 +27,7 @@ export function RolePermissionPopup({
   onOpenChange,
   role,
   display = roleDisplay,
+  resourceKinds,
   emptyStateComment,
 }: {
   open: boolean;
@@ -33,6 +35,8 @@ export function RolePermissionPopup({
   role: SystemRole | null;
   /** display overrides how the role is presented. */
   display?: (role: SystemRole) => RolePermissionPopupDisplay;
+  /** resourceKinds limits the popup to the permission kinds that apply. */
+  resourceKinds?: ResourceKind[];
   emptyStateComment?: string;
 }) {
   const shown = role ? display(role) : undefined;
@@ -40,7 +44,7 @@ export function RolePermissionPopup({
   const showEmptyStateComment =
     role !== null &&
     emptyStateComment !== undefined &&
-    rolePermissionCount(role) === 0;
+    rolePermissionCount(role, resourceKinds) === 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -55,7 +59,10 @@ export function RolePermissionPopup({
                 {Icon && <Icon size="base" />}
                 <span>{shown?.name}</span>
                 <span className="ml-1 shrink-0 tabular-nums">
-                  <RolePermissionCountBadge role={role} />
+                  <RolePermissionCountBadge
+                    role={role}
+                    resourceKinds={resourceKinds}
+                  />
                 </span>
               </DialogTitle>
             </DialogHeader>
@@ -65,7 +72,7 @@ export function RolePermissionPopup({
                   {emptyStateComment}
                 </p>
               ) : (
-                <RolePermissionList role={role} />
+                <RolePermissionList role={role} resourceKinds={resourceKinds} />
               )}
             </DialogBody>
           </>

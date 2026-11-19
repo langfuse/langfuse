@@ -12,7 +12,10 @@ import { type AsyncTableData } from "@/src/components/design-system/table/Table"
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { filterApiKeysByName } from "@/src/features/public-api/components/ApiKeySettingsTable/fns/filterApiKeysByName";
-import { apiKeyPermissionSetDisplay } from "@/src/features/public-api/fns/apiKeyRoleDisplay";
+import {
+  apiKeyPermissionSetDisplay,
+  apiKeyResourceKinds,
+} from "@/src/features/public-api/fns/apiKeyRoleDisplay";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
@@ -126,6 +129,7 @@ export function ConnectedApiKeySettingsTable({
         onOpenChange={permissionsPopup.setOpen}
         role={permissionsPopup.role}
         display={(role) => apiKeyPermissionPopupDisplay(role, scope)}
+        resourceKinds={apiKeyResourceKinds(scope)}
       />
     </>
   );

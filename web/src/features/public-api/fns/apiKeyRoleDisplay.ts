@@ -4,7 +4,10 @@ import { type SystemRole } from "@langfuse/shared/src/db";
 import { apiKeyRolesForScope } from "@langfuse/shared/rbac";
 
 import { withoutGatewayRole } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
-import { rolePermissionCount } from "@/src/features/rbac/components/RolePermissionList";
+import {
+  rolePermissionCount,
+  type ResourceKind,
+} from "@/src/features/rbac/components/RolePermissionList";
 import {
   roleDisplay,
   type RoleDisplay,
@@ -28,7 +31,16 @@ export function apiKeyRoleDisplay(role: SystemRole): RoleDisplay {
 
 /** apiKeyRolesOfferedForScope lists the roles the create dialog offers for a scope, most permissions first. */
 export function apiKeyRolesOfferedForScope(scope: ApiKeyScope): SystemRole[] {
-  return sortApiKeyRoles(withoutGatewayRole(apiKeyRolesForScope(scope)));
+  return sortApiKeyRoles(
+    withoutGatewayRole(apiKeyRolesForScope(scope)),
+    apiKeyResourceKinds(scope),
+  );
+}
+
+/** apiKeyResourceKinds lists the permission kinds a key of a scope holds; project keys hold only project permissions. */
+export function apiKeyResourceKinds(scope: ApiKeyScope): ResourceKind[] {
+  if (scope === "project") return ["project"];
+  return ["organization", "project"];
 }
 
 /** apiKeyPermissionSetDisplay presents an offered role, or undefined for an unnamed legacy permission set. */
@@ -41,9 +53,14 @@ export function apiKeyPermissionSetDisplay(
 }
 
 /** sortApiKeyRoles orders roles by permission count, descending, keeping catalog order for ties. */
-function sortApiKeyRoles(roles: SystemRole[]): SystemRole[] {
+function sortApiKeyRoles(
+  roles: SystemRole[],
+  resourceKinds: ResourceKind[],
+): SystemRole[] {
   return [...roles].sort(
-    (a, b) => rolePermissionCount(b) - rolePermissionCount(a),
+    (a, b) =>
+      rolePermissionCount(b, resourceKinds) -
+      rolePermissionCount(a, resourceKinds),
   );
 }
 

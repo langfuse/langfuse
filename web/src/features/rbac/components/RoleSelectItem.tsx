@@ -3,7 +3,10 @@ import { type SystemRole } from "@langfuse/shared/src/db";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SelectItem } from "@/src/components/ui/select";
-import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
+import {
+  rolePermissionCountLabel,
+  type ResourceKind,
+} from "@/src/features/rbac/components/RolePermissionList";
 import { cn } from "@/src/utils/tailwind";
 import {
   roleDisplay,
@@ -17,6 +20,7 @@ export const RoleSelectItem = ({
   isProjectRole,
   disabledReason,
   showPermissionCount,
+  resourceKinds,
   onViewPermissions,
 }: {
   role: SystemRole;
@@ -27,6 +31,8 @@ export const RoleSelectItem = ({
   disabledReason?: string;
   /** showPermissionCount shows the permission count beside the view-permissions icon on hover. */
   showPermissionCount?: boolean;
+  /** resourceKinds limits the permission count to the kinds that apply. */
+  resourceKinds?: ResourceKind[];
   onViewPermissions: (role: SystemRole) => void;
 }) => {
   const { name: label, description, Icon } = display(role);
@@ -60,7 +66,7 @@ export const RoleSelectItem = ({
         >
           {showPermissionCount && (
             <span className="text-muted-foreground pointer-events-none absolute right-full pr-1 text-xs whitespace-nowrap tabular-nums opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100">
-              {rolePermissionCountLabel(role)}
+              {rolePermissionCountLabel(role, resourceKinds)}
             </span>
           )}
           <Tooltip label="View permissions" hoverableContent={false} delay={0}>

@@ -15,7 +15,10 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
-import { apiKeyPermissionSetDisplay } from "@/src/features/public-api/fns/apiKeyRoleDisplay";
+import {
+  apiKeyPermissionSetDisplay,
+  apiKeyResourceKinds,
+} from "@/src/features/public-api/fns/apiKeyRoleDisplay";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { type RoleDisplay } from "@/src/features/rbac/components/roleDisplay";
 import { type RouterOutput } from "@/src/utils/types";
@@ -163,14 +166,17 @@ function PermissionsCell({
     role,
     permissionsAction.scope,
   );
-  const countLabel = rolePermissionCountLabel(role);
+  const countLabel = rolePermissionCountLabel(
+    role,
+    apiKeyResourceKinds(permissionsAction.scope),
+  );
 
   return (
     <button
       type="button"
       onClick={() => permissionsAction.onClick(role)}
       aria-label={`View ${permissionSet?.name ?? countLabel}`}
-      className="group/permissions flex min-w-0 items-center gap-2 text-left focus-visible:outline-none"
+      className="group/permissions focus-visible:ring-ring flex min-w-0 items-center gap-2 rounded-sm text-left outline-none focus-visible:ring-2"
     >
       <span className="flex min-w-0 flex-col items-start gap-0.5 leading-tight">
         {permissionSet && <PermissionSetLabel permissionSet={permissionSet} />}
