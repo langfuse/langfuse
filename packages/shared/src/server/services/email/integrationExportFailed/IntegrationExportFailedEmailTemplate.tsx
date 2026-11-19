@@ -1,4 +1,4 @@
-import React, { type ReactNode } from "react";
+import React from "react";
 import {
   Body,
   Button,
@@ -21,23 +21,24 @@ export type IntegrationExportFailedEmailCopy = {
   headingLabel: string;
   /** Mid-sentence, for body prose and log lines: "The scheduled blob storage export …". */
   inlineLabel: string;
-  /** Shown when the export was turned off; the remediation is integration specific. */
-  disabledBody: (projectName: string) => ReactNode;
 };
 
 type IntegrationExportFailedEmailTemplateProps = {
   copy: IntegrationExportFailedEmailCopy;
   projectName: string;
   settingsUrl: string;
-  disabled?: boolean;
+  // Set when the export was turned off. The caller words it, because why the
+  // export stopped and how to restore it differ per cause.
+  disabledMessage?: string;
 };
 
 export const IntegrationExportFailedEmailTemplate = ({
   copy,
   projectName,
   settingsUrl,
-  disabled = false,
+  disabledMessage,
 }: IntegrationExportFailedEmailTemplateProps) => {
+  const disabled = disabledMessage !== undefined;
   const preview = disabled
     ? `${copy.subjectLabel} export disabled for project "${projectName}"`
     : `${copy.subjectLabel} export failed for project "${projectName}"`;
@@ -66,7 +67,7 @@ export const IntegrationExportFailedEmailTemplate = ({
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
                 {disabled ? (
-                  copy.disabledBody(projectName)
+                  disabledMessage
                 ) : (
                   <>
                     The scheduled {copy.inlineLabel} export for project &quot;

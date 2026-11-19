@@ -10,6 +10,7 @@ import { useRouter } from "next/router";
 import { BlobStorageIntegrationContainer } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationContainer";
 import { useBlobStorageIntegration } from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
 import { BlobStorageStatusSection } from "@/src/features/blobstorage-integration/components/BlobStorageStatusSection";
+import { api } from "@/src/utils/api";
 
 export default function BlobStorageIntegrationPage() {
   const router = useRouter();
@@ -50,9 +51,17 @@ export default function BlobStorageIntegrationPage() {
         Now&quot; button to trigger an immediate export.
       </p>
       {!hasEntitlement ? (
-        <p className="text-sm">
-          This feature is not available in your current plan.
-        </p>
+        <>
+          <p className="text-sm">
+            This feature is not available in your current plan.
+          </p>
+          {hasAccess && state.data?.config && (
+            <>
+              <BlobStorageStatusSection config={state.data.config} />
+              <DeleteIntegrationButton projectId={projectId} />
+            </>
+          )}
+        </>
       ) : !hasAccess ? (
         <p className="text-sm">
           Your current role does not grant you access to these settings, please
@@ -80,5 +89,31 @@ export default function BlobStorageIntegrationPage() {
         </>
       )}
     </ContainerPage>
+  );
+}
+
+// The only action left once the plan no longer includes scheduled exports:
+// removing the integration and its stored credentials.
+function DeleteIntegrationButton({ projectId }: { projectId: string }) {
+  const utils = api.useUtils();
+  const mutDelete = api.blobStorageIntegration.delete.useMutation({
+    onSuccess: () => utils.blobStorageIntegration.invalidate(),
+  });
+  return (
+    <Button
+      variant="destructive"
+      className="mt-4"
+      loading={mutDelete.isPending}
+      onClick={() => {
+        if (
+          confirm(
+            "Are you sure you want to delete the Blob Storage integration for this project?",
+          )
+        )
+          mutDelete.mutate({ projectId });
+      }}
+    >
+      Delete integration
+    </Button>
   );
 }
