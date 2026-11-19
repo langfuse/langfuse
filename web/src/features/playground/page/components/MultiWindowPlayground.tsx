@@ -7,7 +7,8 @@ import {
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { SourcePromptHeading } from "./SourcePromptHeading";
 import { Button } from "@/src/components/ui/button";
-import { Plus, X } from "@langfuse/icons";
+import { Plus, Save, X } from "@langfuse/icons";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { Messages } from "@/src/features/playground/page/components/Messages";
@@ -197,7 +198,31 @@ function PlaygroundWindowContent({
           </div>
 
           <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2">
-            <SaveToPromptButton />
+            <SaveToPromptButton>
+              <Tooltip label="Save as prompt" delay={300}>
+                {({ getTriggerProps }) => (
+                  <PopoverTrigger asChild>
+                    <Button
+                      {...getTriggerProps()}
+                      variant="outline"
+                      className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
+                    >
+                      <Save size="base" color="default" />
+                      <span className="sr-only">Save as prompt</span>
+                    </Button>
+                  </PopoverTrigger>
+                )}
+              </Tooltip>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
+                >
+                  <Save size="base" color="default" />
+                  <span>Save as prompt</span>
+                </Button>
+              </PopoverTrigger>
+            </SaveToPromptButton>
 
             {/* Hide copy button on mobile */}
             {!isMobile && (
