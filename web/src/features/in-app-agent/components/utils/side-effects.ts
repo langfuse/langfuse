@@ -40,6 +40,10 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
     "annotationQueues",
     "annotationQueueItems",
   ],
+  langfuse_batchCreateAnnotationQueueItems: [
+    "annotationQueues",
+    "annotationQueueItems",
+  ],
   langfuse_updateAnnotationQueueItem: [
     "annotationQueues",
     "annotationQueueItems",

@@ -56,6 +56,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "annotationQueues:CUD" },
   },
+  batchCreateAnnotationQueueItems: {
+    approval: "approval",
+    availability: { scope: "annotationQueues:CUD" },
+  },
   updateAnnotationQueueItem: {
     approval: "approval",
     availability: { scope: "annotationQueues:CUD" },
