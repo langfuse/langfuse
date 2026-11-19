@@ -157,7 +157,7 @@ const OUTLIER_REQUESTS = [
 export const topicsMapScenario: ScenarioDefinition = {
   name: "topics-map",
   description:
-    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, a second Intent map with its own topic names, long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project.",
+    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, a second Intent map with its own topic names, long topic names, outliers and traces awaiting a map. Most traces share a session with their neighbours. Needs Topics enabled for the project.",
   supportsV4: true,
   flags: [],
   run: async (ctx, params) => {
@@ -180,6 +180,21 @@ export const topicsMapScenario: ScenarioDefinition = {
     const traceIds = timestamps.map(
       (_, index) => `${ctx.idPrefix}-m${index.toString().padStart(3, "0")}`,
     );
+    // Neighbouring traces share a session, so topics have fewer sessions than traces; every fifth has none.
+    const sessionOf = (index: number) =>
+      index % 5 === 4
+        ? null
+        : `${ctx.idPrefix}-session-${Math.floor(index / 3)
+            .toString()
+            .padStart(2, "0")}`;
+    const sessionIds = [
+      ...new Set(
+        traceIds.flatMap((_, index) => {
+          const sessionId = sessionOf(index);
+          return sessionId ? [sessionId] : [];
+        }),
+      ),
+    ];
     const intentOf = topicIndexes(INTENT_TOPICS, OUTLIERS);
     const counts = {
       traces: traceCount,
@@ -197,7 +212,7 @@ export const topicsMapScenario: ScenarioDefinition = {
       projectId: ctx.projectId,
       environment: ctx.environment,
       traceIds,
-      sessionIds: [],
+      sessionIds,
       counts,
       links: [`${ctx.baseUrl}/project/${ctx.projectId}/topics`],
       dryRun: ctx.dryRun,
@@ -221,7 +236,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         environment: ctx.environment,
         timestamp: timestamps[index],
         name: "assistant-request",
-        session_id: null,
+        session_id: sessionOf(index),
         user_id: `${ctx.idPrefix}-user-${index % 9}`,
         public: false,
         bookmarked: false,
@@ -310,7 +325,7 @@ export const topicsMapScenario: ScenarioDefinition = {
     const processedAt = new Date(dayStart).toISOString();
     const source = (index: number) => ({
       traceId: traceIds[index]!,
-      sessionId: null,
+      sessionId: sessionOf(index),
       projectId: ctx.projectId,
       environment: ctx.environment,
       traceName: "assistant-request",
