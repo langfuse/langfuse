@@ -356,6 +356,12 @@ fn builds_owned_events_with_project_and_resource_fields() {
 }
 
 #[test]
+fn preserves_an_explicitly_empty_scope_name() {
+    let event = metadata_event(vec![], "sdk", "", "1", None);
+    assert_eq!(event.scope_name.as_deref(), Some(""));
+}
+
+#[test]
 fn trusted_gateway_attribution_uses_caller_key_and_scope_version() {
     let input = json!([{
         "resource": {"attributes": [
