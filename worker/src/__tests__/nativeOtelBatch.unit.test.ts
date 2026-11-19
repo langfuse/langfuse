@@ -153,9 +153,23 @@ describe("Native OTEL batch NAPI boundary", () => {
       await expect(
         processing.complete([], [], undefined, true),
       ).rejects.toThrow("incomplete OTEL lookup results");
+      const skillsAvailable = [
+        { skillName: "bar", skillVersion: 17 },
+        { skillName: "baz", langfuseSkillId: "skill-baz" },
+      ];
+      const skillsResourceLoaded = skillsAvailable.map((skill) => ({
+        ...skill,
+        filePath: "guide.md",
+      }));
       const { finalized } = await processing.complete(
         [],
-        [{ model: { id: "matched-model" } }],
+        [
+          {
+            model: { id: "matched-model" },
+            skillsAvailable,
+            skillsResourceLoaded,
+          },
+        ],
         undefined,
         true,
         [selectedTraceId],
@@ -166,6 +180,9 @@ describe("Native OTEL batch NAPI boundary", () => {
         { span_id: "0123456789abcde1", model_id: "matched-model" },
         { span_id: "0123456789abcde2", model_id: null },
       ]);
+      const skillRow = finalized!.evaluationRows[1] as Record<string, unknown>;
+      expect(skillRow.skills_available).toEqual(skillsAvailable);
+      expect(skillRow.skills_resource_loaded).toEqual(skillsResourceLoaded);
       expect(finalized!.events).toHaveLength(3);
       expect(finalized!.events[0]?.serializedEventBytes).toBeGreaterThan(
         Buffer.byteLength(spans[0].name),
