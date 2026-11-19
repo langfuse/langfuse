@@ -146,42 +146,61 @@ export interface StorageClient {
  * Delete media link rows for a project. Project deletion cannot rely on
  * project/media cascades for these rows because media link tables deliberately
  * do not have foreign keys to projects or media on the ingestion hot path.
- * Each batch deletes all rows of the next `batchSize` media ids along the
- * (project_id, media_id) index, resuming after the last media id of the
- * previous batch, so every index entry is visited once.
+ * Deletes each link table in pages of `batchSize` rows.
  */
 export async function deleteMediaLinkRowsByProjectId(params: {
   projectId: string;
   batchSize: number;
 }): Promise<void> {
   const { projectId, batchSize } = params;
-  for (const table of [
-    Prisma.raw("trace_media"),
-    Prisma.raw("observation_media"),
-    Prisma.raw("dataset_item_media"),
-  ]) {
-    let lastMediaId = "";
-    while (true) {
-      const [{ selected, lastSelectedMediaId }] = await prisma.$queryRaw<
-        Array<{ selected: number; lastSelectedMediaId: string | null }>
-      >(Prisma.sql`
-        WITH batch AS (
-          SELECT DISTINCT media_id FROM ${table}
-          WHERE project_id = ${projectId} AND media_id > ${lastMediaId}
-          ORDER BY media_id
-          LIMIT ${batchSize}
-        ), deleted AS (
-          DELETE FROM ${table}
-          WHERE project_id = ${projectId}
-            AND media_id IN (SELECT media_id FROM batch)
-        )
-        SELECT
-          (SELECT count(*)::int FROM batch) AS selected,
-          (SELECT max(media_id) FROM batch) AS "lastSelectedMediaId"
-      `);
-      if (selected < batchSize || lastSelectedMediaId == null) break;
-      lastMediaId = lastSelectedMediaId;
-    }
+  const page = (afterMediaId: string) => ({
+    select: { mediaId: true },
+    where: { projectId, mediaId: { gt: afterMediaId } },
+    orderBy: { mediaId: "asc" as const },
+    take: batchSize,
+  });
+  const byMediaIds = (mediaIds: string[]) => ({
+    where: { projectId, mediaId: { in: mediaIds } },
+  });
+
+  await deleteLinkRowsInMediaIdOrder({
+    batchSize,
+    findPage: (after) => prisma.traceMedia.findMany(page(after)),
+    deleteByMediaIds: (ids) => prisma.traceMedia.deleteMany(byMediaIds(ids)),
+  });
+  await deleteLinkRowsInMediaIdOrder({
+    batchSize,
+    findPage: (after) => prisma.observationMedia.findMany(page(after)),
+    deleteByMediaIds: (ids) =>
+      prisma.observationMedia.deleteMany(byMediaIds(ids)),
+  });
+  await deleteLinkRowsInMediaIdOrder({
+    batchSize,
+    findPage: (after) => prisma.datasetItemMedia.findMany(page(after)),
+    deleteByMediaIds: (ids) =>
+      prisma.datasetItemMedia.deleteMany(byMediaIds(ids)),
+  });
+}
+
+/**
+ * Pages link rows along the (project_id, media_id) index and deletes every
+ * row of each page's media ids. Each page resumes after the last media id of
+ * the previous one, so every index entry is read once, even for media linked
+ * from many rows.
+ */
+async function deleteLinkRowsInMediaIdOrder(params: {
+  batchSize: number;
+  findPage: (afterMediaId: string) => Promise<Array<{ mediaId: string }>>;
+  deleteByMediaIds: (mediaIds: string[]) => Promise<unknown>;
+}): Promise<void> {
+  let afterMediaId = "";
+  while (true) {
+    const rows = await params.findPage(afterMediaId);
+    if (rows.length === 0) return;
+    const mediaIds = [...new Set(rows.map((row) => row.mediaId))];
+    await params.deleteByMediaIds(mediaIds);
+    if (rows.length < params.batchSize) return;
+    afterMediaId = mediaIds[mediaIds.length - 1];
   }
 }
 
