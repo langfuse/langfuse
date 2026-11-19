@@ -7,6 +7,7 @@ import { GatewayOrganizationBudgetDialogController } from "@/src/features/ai-gat
 import type { useGatewayOrganizationBudget } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayOrganizationBudget";
 import { formatGatewayOrganizationBudgetLabel } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/formatGatewayOrganizationBudgetLabel";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTableState";
 import { GatewaySpendBudgetStatusDot } from "@/src/features/ai-gateway/components/GatewaySpendBudgetStatusDot/GatewaySpendBudgetStatusDot";
 import { getGatewaySpendBudgetStatus } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetStatus";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
@@ -23,6 +24,10 @@ export function GatewayBudgetsHeaderActions({
   tab,
 }: GatewayBudgetsHeaderActionsProps) {
   const { canManageGateway } = useGatewaySettingsAccess(organizationId);
+  const { selectedRows, selectAll } = useGatewayBudgetsTableState(
+    organizationId,
+    tab,
+  );
 
   return (
     <div className="flex items-center gap-2">
@@ -67,12 +72,20 @@ export function GatewayBudgetsHeaderActions({
         </GatewayOrganizationBudgetDialogController>
       )}
       <GatewayAddBudgetDialogController organizationId={organizationId}>
-        {({ openDialog }) => (
-          <Button onClick={() => openDialog(tab)}>
-            <Plus size="base" __rawClassName="mr-1.5" />
-            Add budget
-          </Button>
-        )}
+        {({ openDialog }) => {
+          // Under select-all the rows beyond this page aren't loaded, so none start selected.
+          const handleAddBudget = () =>
+            openDialog({
+              targetType: tab,
+              selectedRows: selectAll ? [] : selectedRows,
+            });
+          return (
+            <Button onClick={handleAddBudget}>
+              <Plus size="base" __rawClassName="mr-1.5" />
+              Add budget
+            </Button>
+          );
+        }}
       </GatewayAddBudgetDialogController>
     </div>
   );

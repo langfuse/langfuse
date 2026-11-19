@@ -56,6 +56,8 @@ type TargetPicker = {
 type GatewayAddBudgetDialogProps = {
   targetType: GatewaySpendTab;
   targetPicker: TargetPicker;
+  /** The keys or users the form starts with. */
+  initialTargets: GatewayAddBudgetFormValues["targets"];
   /** Why a budget cannot be added; undefined when it can. */
   unavailableReason?: string;
   errorMessage: string | null;
@@ -70,6 +72,7 @@ type GatewayAddBudgetDialogProps = {
 export function GatewayAddBudgetDialog({
   targetType,
   targetPicker,
+  initialTargets,
   unavailableReason,
   errorMessage,
   isSubmitting,
@@ -79,7 +82,7 @@ export function GatewayAddBudgetDialog({
   const form = useForm<GatewayAddBudgetFormValues>({
     resolver: zodResolver(gatewayAddBudgetFormSchema),
     defaultValues: {
-      targets: [],
+      targets: initialTargets,
       spendBudget: { interval: "MONTHLY", limitUsd: "" },
     },
     mode: "onChange",
