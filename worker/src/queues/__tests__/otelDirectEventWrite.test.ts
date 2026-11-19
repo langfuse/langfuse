@@ -137,12 +137,11 @@ describe("trace-rule recording at the evaluation stage", () => {
       vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
         topicsEnabled ? 1 : 0,
       );
-      env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 1;
       env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
         ? "true"
         : "false";
       const includeTraceTranscriptRules =
-        shouldWriteToEventsTable && ingestionEnabled;
+        shouldWriteToEventsTable && ingestionEnabled && topicsEnabled;
       env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
       const projectId = "recording-test";
       const observationRule = createTestEvalConfig({ projectId });
@@ -250,7 +249,7 @@ describe("trace-rule recording at the evaluation stage", () => {
                 {
                   traceId: "trace",
                   spanStartTimeISO: inputs[1].startTimeISO,
-                  ruleIds: ["__trace_batch_experiment__"],
+                  ruleIds: [],
                   serializedEventBytes: Buffer.byteLength(
                     JSON.stringify(persistedOther),
                   ),
@@ -305,12 +304,12 @@ describe("trace-rule recording at the evaluation stage", () => {
     { mode: "intake off", rate: 0.1, ingestionEnabled: false, cloud: true },
     { mode: "self-hosted", rate: 0.1, ingestionEnabled: true, cloud: false },
   ])(
-    "records the stable experiment cohort without evaluation rules ($mode)",
+    "records bounds for the stable Topics sample without transcript rules ($mode)",
     async ({ rate, ingestionEnabled, cloud }) => {
       const original = { ...env };
       const projectId = "sampled-recording-test";
       const normalize = vi.spyOn(observationForEvalSchema, "parse");
-      // Existing trace-batch sampler fixtures: 0.0593 is selected at 10%; 0.7116 is not.
+      // Deterministic sampler fixtures: 0.0593 is selected at 10%; 0.7116 is not.
       const selected = "00000000000000000000000000000001";
       const excluded = "00000000000000000000000000000002";
       const inputs = [selected, excluded, selected, selected].map(
@@ -329,7 +328,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
           ? "true"
           : "false";
-        env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = rate;
+        vi.mocked(getTopicsProcessingSampling).mockResolvedValue(rate);
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
         vi.mocked(fetchEvalRules).mockResolvedValue({
           observationRules: [],
@@ -374,7 +373,7 @@ describe("trace-rule recording at the evaluation stage", () => {
             [inputs[0], inputs[2]].map((input) => ({
               traceId: selected,
               spanStartTimeISO: input.startTimeISO,
-              ruleIds: ["__trace_batch_experiment__"],
+              ruleIds: [],
               serializedEventBytes: Buffer.byteLength(
                 JSON.stringify(persistedRecord),
               ),
@@ -386,6 +385,7 @@ describe("trace-rule recording at the evaluation stage", () => {
       } finally {
         normalize.mockRestore();
         Object.assign(env, original);
+        vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
         vi.clearAllMocks();
       }
     },

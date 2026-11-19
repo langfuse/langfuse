@@ -2,13 +2,12 @@
 
 Ingestion tracks when a trace goes idle, and a dispatcher enqueues ready traces in batches to `events-dispatch-queue`. The [events-dispatch consumer](../eventsDispatch/eventsDispatch.ts) reads each batch from ClickHouse, stores the transcript and enqueues one job per routed consumer (Topics, trace transcript evals). `LANGFUSE_EVENTS_DISPATCH_ENABLED` (cloud only, default off) turns on the whole pipeline; `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` picks the service that runs the consumer and the dispatcher (worker-cpu).
 
-- **Trace dispatch** tracks rule-matched traces in the `{trace-dispatch:<shard>}` maps: ingestion → Redis → dispatcher → events-dispatch jobs. A trace is admitted when it passes its project's rule sampling or the experiment sampling (`LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL`); both use the same deterministic trace-ID value.
+- **Trace dispatch** tracks rule-matched traces in the `{trace-dispatch:<shard>}` maps: ingestion → Redis → dispatcher → events-dispatch jobs. A trace is admitted when it passes its project's rule sampling, using a deterministic trace-ID value.
 
 ## Recording trace-rule selections
 
 Requires cloud, `LANGFUSE_EVENTS_DISPATCH_ENABLED=true` and direct events-table
-writes. `LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL` selects the experiment cohort by
-trace ID. Recording atomically updates keys under `{trace-dispatch:<shard>:<suffix>}`:
+writes. Recording atomically updates keys under `{trace-dispatch:<shard>:<suffix>}`:
 
 | Map              | Contents                                                                                                                                                   | Retention                                                                                            |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -26,25 +25,10 @@ start fresh and discard old selections. Dispatch removes pending entries whose
 bounds are missing.
 Calls clean up at most 100 expired pending entries, so sparse traffic can delay
 removal; key TTLs reclaim inactive maps.
-Env-sampled nonmatches use `__trace_batch_experiment__`, a storage-only sentinel
-that must never execute as an evaluator.
 
 Bytes measure accepted UTF-8 event rows after overflow, excluding the size field itself.
 Failed writes are unrecorded; retries may double-count. Acceptance precedes the
 ClickHouse flush. `eventUpdateCount` is a TypeScript measurement only, not Redis state.
-
-### Recording experiment
-
-Example (10% of traces; Topics projects additionally admit their rule's sample):
-
-```env
-LANGFUSE_EVENTS_DISPATCH_ENABLED=true
-LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL=0.1
-```
-
-Sampling defaults to zero.
-Sampled traces carry matched rule IDs or the storage-only sentinel; neither is
-executed by this experiment.
 
 The dispatcher reads at most 10,000 oldest due candidates per shard per run, hydrates 50 at a time, and reuses the existing batch selection and byte limits. Bounds contain no event count, so event-count budgets never apply. It enqueues before removing matching revisions, preserving newer ingestion and bounds. Excess candidates stay due for the next run. Cleanup uses bounded Lua calls but may repeat; there is no hard five-second deadline. The events-dispatch consumer reads ClickHouse only for traces with at least one routed consumer rule and counts every trace's outcome in `langfuse.events_dispatch.trace_outcomes`. Storage is required: a trace whose transcript cannot be stored is not enqueued to its consumers.
 
@@ -60,7 +44,7 @@ Metrics use `langfuse.trace_dispatch`:
   (`stage`). Use `langfuse.periodic_runner.duration_ms` with
   `runner:trace_batch_dispatcher` and `outcome:success|failed` for total runtime,
   excluding skipped lease attempts; compare with ready backlog and oldest due age.
-- `filter_outcomes` / `filter_duration_ms`: per-span rule selection, excluding the sentinel.
+- `filter_outcomes` / `filter_duration_ms`: per-span rule selection.
 - `recording_batches` / `recording_duration_ms`: flush outcome and duration. Recording failures warn without failing ingestion; metrics collection failures fail the `trace_batch_metrics` runner.
 
 Compare admitted volume with ingestion latency, worker CPU/RSS, Postgres load and
@@ -94,8 +78,6 @@ The gate and the tuning constants live in [eventsDispatch/config.ts](../eventsDi
 - `LANGFUSE_EVENTS_DISPATCH_ENABLED` turns on recording at ingestion, the dispatcher and the consumer.
 - `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (worker-cpu only) consumes `events-dispatch-queue`, one job at a time, and runs the dispatcher. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`.
 - `LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE` (default 120, at most 1,000) caps traces per events-dispatch job.
-- `LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL` also reads and stores traces without consumer rules, counted as `trace_outcomes{outcome:stored}`; consumers are still enqueued only where rules apply.
-- `LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL` admits an additional experiment cohort; it does not make those traces eligible for Topics or input capture.
 - A project's `tracing_readiness_settings.trace_idle_ms` overrides the default idle time (10 minutes, 2 in DEV). Saving refreshes its cache; failed reads fall back to the default.
 
 Cloud guards cover intake, dispatcher execution, worker registration, processing and shared queue access. Rule sampling is deterministic by trace ID. Consumers recheck active Topics settings and the rule's sample before reading ClickHouse.
@@ -247,7 +229,7 @@ Compare `langfuse.events_dispatch.dispatched_batches` (tag `fill`) and `event_ti
 The dispatcher caps candidates per shard and run. Batch size limits jobs, not all dispatcher memory. Watch memory alongside backlog growth.
 
 The worker enables Datadog Node runtime metrics. In Metrics Explorer, filter to
-the experiment environment and worker service, and inspect the maximum per
+the environment and worker service, and inspect the maximum per
 worker/container rather than a fleet average:
 
 - `runtime.node.mem.rss`: total process memory; compare with the container limit.
