@@ -1,5 +1,6 @@
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { type ComponentProps } from "react";
+import { ConnectedSafeImage } from "@/src/components/design-system/ConnectedSafeImage/ConnectedSafeImage";
 import { SessionConversationalView } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/SessionConversationalView";
 import {
   type SessionConversationTimelineController,
@@ -60,6 +61,7 @@ export function ConnectedSessionConversationTimeline(
           return { type: "transcript" as const, result };
         })();
         return {
+          renderImage: (imageProps) => <ConnectedSafeImage {...imageProps} />,
           trace,
           turnNumber,
           state,

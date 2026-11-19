@@ -1,4 +1,4 @@
-import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { getSafeLinkUrl } from "@/src/utils/safe-url";
 
 export type RenderedTable = {
   headers: string[];

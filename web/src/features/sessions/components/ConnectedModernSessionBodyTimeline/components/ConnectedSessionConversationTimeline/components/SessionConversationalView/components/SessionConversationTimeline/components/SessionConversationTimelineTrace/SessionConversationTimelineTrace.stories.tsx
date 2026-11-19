@@ -1,5 +1,7 @@
 import type { JsonValue } from "@langfuse/shared/src/utils/normalized-io";
 import preview from "@/.storybook/preview";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import icon from "@/public/icon.svg";
 import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
@@ -115,7 +117,12 @@ const result: Extract<Props["state"], { type: "transcript" }>["result"] = {
     ],
   },
 };
-const meta = preview.meta({ component: SessionConversationTimelineTrace });
+const meta = preview.meta({
+  component: SessionConversationTimelineTrace,
+  args: {
+    renderImage: (props) => <SafeImage {...props} src={icon} alt={props.alt} />,
+  },
+});
 export default meta;
 const commonArgs = {
   trace,

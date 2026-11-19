@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ComponentProps } from "react";
+import { ConnectedSafeImage } from "@/src/components/design-system/ConnectedSafeImage/ConnectedSafeImage";
 import { useRouter } from "next/router";
 import {
   InAppAgentWindow,
@@ -26,6 +27,10 @@ import {
   InAppAgentRunStatus,
   isUnsettledInAppAgentRunStatus,
 } from "@langfuse/shared/in-app-agent";
+
+const renderImage: ComponentProps<typeof InAppAgentWindow>["renderImage"] = (
+  imageProps,
+) => <ConnectedSafeImage {...imageProps} />;
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -191,6 +196,7 @@ export function ControlledInAppAgentWindow(
 
   return (
     <InAppAgentWindow
+      renderImage={renderImage}
       error={error}
       isAssistantTurnInProgress={isAssistantTurnInProgress}
       isRunUnsettled={isRunUnsettled}

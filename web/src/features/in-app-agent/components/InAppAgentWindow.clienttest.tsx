@@ -119,6 +119,7 @@ function windowElement(
   > = {},
 ) {
   const props: InAppAgentWindowProps = {
+    renderImage: vi.fn(),
     conversations: [],
     activityByConversationId: new Map(),
     error: null,

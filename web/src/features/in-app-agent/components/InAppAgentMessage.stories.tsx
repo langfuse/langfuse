@@ -1,12 +1,71 @@
 import preview from "../../../../.storybook/preview";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { InAppAgentMessage } from "./InAppAgentMessage";
+import { useState, type ComponentProps } from "react";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import { SafeImageController } from "@/src/components/design-system/SafeImageController/SafeImageController";
+import icon from "@/public/icon.svg";
+
+const renderImage: ComponentProps<typeof InAppAgentMessage>["renderImage"] = (
+  props,
+) => <SafeImage {...props} src={icon} alt={props.alt} />;
 
 const meta = preview.meta({
   component: InAppAgentMessage,
+  args: { renderImage },
 });
 
 const storyTimestamp = new Date("2026-08-06T11:49:13.000Z").getTime();
+
+const renderConsentImage: ComponentProps<
+  typeof InAppAgentMessage
+>["renderImage"] = ({ alt, className }) => (
+  <SafeImageController src={icon.src} isDefaultVisible={false}>
+    {(state) => <SafeImage alt={alt} className={className} state={state} />}
+  </SafeImageController>
+);
+
+export const ImageConsentSurvivesStreaming = meta.story({
+  name: "(Test) Image consent survives streaming",
+  args: {
+    role: "assistant",
+    content: { type: "text", text: "![Preview](/icon.svg) Streaming" },
+    renderImage: renderConsentImage,
+  },
+  render: function Render(args) {
+    const [suffix, setSuffix] = useState("");
+    return (
+      <>
+        <button onClick={() => setSuffix(" continued")}>
+          Continue streaming
+        </button>
+        <InAppAgentMessage
+          {...args}
+          content={{
+            type: "text",
+            text: `![Preview](/icon.svg) Streaming${suffix}`,
+          }}
+        />
+      </>
+    );
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Load Image" }),
+    );
+    await expect(canvas.getByRole("img", { name: "Preview" })).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Continue streaming" }),
+    );
+    await expect(
+      canvas.getByText("Streaming continued", { exact: false }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("img", { name: "Preview" })).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Load Image" }),
+    ).not.toBeInTheDocument();
+  },
+});
 
 function copySelectedNode(node: Node, document: Document) {
   const range = document.createRange();
@@ -191,6 +250,7 @@ export const VariantMatrix = meta.story({
     <div className="grid max-w-3xl grid-cols-[6rem_1fr] gap-x-4 gap-y-6 p-6">
       <p className="text-muted-foreground text-xs">User · default</p>
       <InAppAgentMessage
+        renderImage={renderImage}
         role="user"
         content={{
           type: "text",
@@ -200,6 +260,7 @@ export const VariantMatrix = meta.story({
       />
       <p className="text-muted-foreground text-xs">User · compact</p>
       <InAppAgentMessage
+        renderImage={renderImage}
         role="user"
         isCompact
         content={{ type: "text", text: "Only show production errors." }}
@@ -207,6 +268,7 @@ export const VariantMatrix = meta.story({
       />
       <p className="text-muted-foreground text-xs">Assistant · settled</p>
       <InAppAgentMessage
+        renderImage={renderImage}
         role="assistant"
         content={{
           type: "text",
@@ -217,6 +279,7 @@ export const VariantMatrix = meta.story({
       />
       <p className="text-muted-foreground text-xs">Assistant · streaming</p>
       <InAppAgentMessage
+        renderImage={renderImage}
         role="assistant"
         content={{
           type: "text",
@@ -227,6 +290,7 @@ export const VariantMatrix = meta.story({
       />
       <p className="text-muted-foreground text-xs">Assistant · long</p>
       <InAppAgentMessage
+        renderImage={renderImage}
         role="assistant"
         content={{
           type: "text",

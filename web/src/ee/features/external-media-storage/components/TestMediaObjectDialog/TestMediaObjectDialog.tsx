@@ -1,5 +1,6 @@
 import { parseS3Uri } from "@langfuse/shared";
-import Image from "next/image";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import { SafeImageController } from "@/src/components/design-system/SafeImageController/SafeImageController";
 import { useId, useState, type SyntheticEvent } from "react";
 
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
@@ -92,15 +93,18 @@ function MediaObjectPreview({
     switch (mediaType) {
       case "image":
         return (
-          <Image
-            className="max-h-80 max-w-full rounded border object-contain"
-            src={signedUrl}
-            alt={`Preview ${fileName}`}
-            width={640}
-            height={360}
-            unoptimized
-            onError={() => setHasLoadError(true)}
-          />
+          <SafeImageController src={signedUrl}>
+            {(state) => (
+              <SafeImage
+                state={state}
+                className="max-h-80 max-w-full rounded border object-contain"
+                alt={`Preview ${fileName}`}
+                width={640}
+                height={360}
+                onError={() => setHasLoadError(true)}
+              />
+            )}
+          </SafeImageController>
         );
       case "audio":
         return (

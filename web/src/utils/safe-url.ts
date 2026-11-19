@@ -89,7 +89,17 @@ export const getSafeLinkUrl = (
 
 export const getSafeImageUrl = (
   value: string | undefined | null,
-): string | null =>
-  getSafeUrl(value, {
+  { allowInlineMedia = false }: { allowInlineMedia?: boolean } = {},
+): string | null => {
+  // Only trusted media callers may opt into inline data/blob sources.
+  if (
+    allowInlineMedia &&
+    typeof value === "string" &&
+    /^(data:image\/|blob:)/i.test(value)
+  ) {
+    return value;
+  }
+  return getSafeUrl(value, {
     allowedProtocols: SAFE_IMAGE_PROTOCOLS,
   });
+};

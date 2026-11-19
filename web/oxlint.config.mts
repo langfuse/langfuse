@@ -33,6 +33,22 @@ export default defineConfig({
   overrides: [
     ...baseConfig.overrides,
     {
+      files: ["**/*"],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/no-raw-img": "error",
+      },
+    },
+    {
+      files: [
+        "src/components/design-system/SafeImageController/SafeImageController.tsx",
+      ],
+      rules: {
+        // The controller owns the private native-image renderer and checks every source before exposing it.
+        "@repo/no-raw-img": "off",
+      },
+    },
+    {
       files: [
         "**/*.clienttest.ts",
         "**/*.test.ts",

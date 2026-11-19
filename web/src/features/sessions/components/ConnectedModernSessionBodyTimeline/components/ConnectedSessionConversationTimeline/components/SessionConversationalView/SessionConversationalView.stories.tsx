@@ -2223,6 +2223,7 @@ const workflowTranscripts = new Map(
 
 const traces: TraceProps[] = [
   {
+    renderImage: () => null,
     trace: {
       id: "trace-1",
       name: "First turn",
@@ -2277,6 +2278,7 @@ const traces: TraceProps[] = [
     scrollTarget: null,
   },
   {
+    renderImage: () => null,
     trace: {
       id: "trace-2",
       name: "Next turn",
@@ -2400,8 +2402,12 @@ function SessionConversationalViewStory({
     : (transcriptTraces ?? traces);
   const loadedTraces = groupedTools ? toolTraces : workflowTraceProps;
   const displayedTraces: TraceProps[] = transcriptsLoaded
-    ? loadedTraces
-    : loadedTraces.map((item) => ({ ...item, state: { type: "loading" } }));
+    ? loadedTraces.map((item) => ({ renderImage: () => null, ...item }))
+    : loadedTraces.map((item) => ({
+        renderImage: () => null,
+        ...item,
+        state: { type: "loading" },
+      }));
   const entries = getSessionConversationEntries(
     displayedTraces.map((item) => ({
       trace: item.trace,

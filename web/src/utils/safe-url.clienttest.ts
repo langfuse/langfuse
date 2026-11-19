@@ -1,8 +1,24 @@
 // @vitest-environment node
 
-import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { getSafeImageUrl, getSafeLinkUrl } from "@/src/utils/safe-url";
 
 describe("safe URL helpers", () => {
+  it.each([
+    "data:image/png;base64,iVBORw0KGgo=",
+    "blob:https://example.com/123",
+    "/icon.svg",
+  ])("allows application-owned image source %s", (src) => {
+    expect(getSafeImageUrl(src, { allowInlineMedia: true })).toBe(src);
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+    "//attacker.example/image.png",
+    "/\\attacker.example/image.png",
+  ])("blocks unsafe application-owned image source %s", (src) => {
+    expect(getSafeImageUrl(src, { allowInlineMedia: true })).toBeNull();
+  });
   it.each([
     "javascript:alert(1)",
     "JaVaScRiPt:alert(1)",
@@ -10,6 +26,7 @@ describe("safe URL helpers", () => {
     "vbscript:msgbox(1)",
     "data:text/html,<svg/onload=alert(1)>",
     "data:image/png;base64,iVBORw0KGgo=",
+    "blob:https://example.com/123",
     "ftp://example.com/file.txt",
     "//attacker.example.com/path",
     "/\\attacker.example.com/path",
@@ -46,6 +63,7 @@ describe("safe URL helpers", () => {
     "tel:+49123456789",
     "#section",
     "data:image/png;base64,iVBORw0KGgo=",
+    "blob:https://example.com/123",
     "//attacker.example.com/path",
     "/\\attacker.example.com/path",
     "/\\\\attacker.example.com/path",
@@ -53,6 +71,7 @@ describe("safe URL helpers", () => {
     "relative\\path",
   ])("blocks non-image URL %s for image sources", (url) => {
     expect(getSafeImageUrl(url)).toBeNull();
+    expect(getSafeImageUrl(url, { allowInlineMedia: false })).toBeNull();
   });
 
   it.each([

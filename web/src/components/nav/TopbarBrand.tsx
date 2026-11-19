@@ -1,6 +1,8 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import { SafeImageController } from "@/src/components/design-system/SafeImageController/SafeImageController";
 import Link from "next/link";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { PlusIcon } from "@langfuse/icons";
@@ -42,16 +44,24 @@ export const TopbarBrand = ({
         // Custom logo (max aspect ratio 1:3 per docs) + the Langfuse mark,
         // matching LangfuseLogo's customized layout.
         <>
-          <img
-            src={logoLight}
-            alt="Logo"
-            className="max-h-5 max-w-16 dark:hidden"
-          />
-          <img
-            src={logoDark}
-            alt="Logo"
-            className="hidden max-h-5 max-w-16 dark:block"
-          />
+          <SafeImageController src={logoLight}>
+            {(state) => (
+              <SafeImage
+                state={state}
+                alt="Logo"
+                className="max-h-5 max-w-16 dark:hidden"
+              />
+            )}
+          </SafeImageController>
+          <SafeImageController src={logoDark}>
+            {(state) => (
+              <SafeImage
+                state={state}
+                alt="Logo"
+                className="hidden max-h-5 max-w-16 dark:block"
+              />
+            )}
+          </SafeImageController>
           <PlusIcon size="sm" color="muted" />
           <LangfuseIcon size={16} />
         </>

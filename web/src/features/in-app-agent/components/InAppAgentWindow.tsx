@@ -46,6 +46,7 @@ import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { formatApproximateDuration } from "@/src/utils/dates";
 import {
   InAppAgentMessage,
+  type InAppAgentMessageProps,
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
@@ -353,6 +354,7 @@ function getActivityGroupLabel({
 }
 
 function AssistantActivityGroup({
+  renderImage,
   endTimestamp,
   isAwaitingApproval,
   isCompact,
@@ -361,6 +363,7 @@ function AssistantActivityGroup({
   outcome,
   startTimestamp,
 }: {
+  renderImage: InAppAgentMessageProps["renderImage"];
   endTimestamp?: number;
   isAwaitingApproval: boolean;
   isCompact: boolean;
@@ -427,6 +430,7 @@ function AssistantActivityGroup({
         <div className="flex flex-col gap-1 pt-2 pb-1">
           {messages.map((message) => (
             <InAppAgentMessage
+              renderImage={renderImage}
               key={message.id}
               role={message.role}
               content={message.content}
@@ -634,6 +638,7 @@ export type InAppAgentWindowExecutionUi = {
 };
 
 export type InAppAgentWindowProps = {
+  renderImage: InAppAgentMessageProps["renderImage"];
   conversations: InAppAgentWindowConversation[];
   /** Per-conversation attention state, for the recent-conversation indicators. */
   activityByConversationId: InAppAgentActivityByConversationId;
@@ -1206,6 +1211,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       )}
                     >
                       <InAppAgentMessage
+                        renderImage={props.renderImage}
                         role={item.message.role}
                         content={item.message.content}
                         isCompact={!isExpanded}
@@ -1221,6 +1227,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       className={cn("w-full", item.followsUser && "mt-3")}
                     >
                       <AssistantActivityGroup
+                        renderImage={props.renderImage}
                         messages={item.messages}
                         startTimestamp={item.startTimestamp}
                         endTimestamp={item.endTimestamp}
@@ -1259,6 +1266,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     className={cn("w-full", item.followsUser && "mt-3")}
                   >
                     <InAppAgentMessage
+                      renderImage={props.renderImage}
                       role={message.role}
                       content={message.content}
                       isCompact={!isExpanded}

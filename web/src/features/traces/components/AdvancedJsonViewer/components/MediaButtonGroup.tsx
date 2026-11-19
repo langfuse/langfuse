@@ -4,6 +4,8 @@ import { mediaUrlQueryOptions } from "@/src/features/media/constants/mediaUrlQue
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { File, Image as ImageIcon, Volume2, Video } from "@langfuse/icons";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import { SafeImageController } from "@/src/components/design-system/SafeImageController/SafeImageController";
 import {
   Popover,
   PopoverContent,
@@ -55,25 +57,32 @@ function VideoPlayer({ src }: { src?: string }) {
 /**
  * ImagePreview - Renders 96x96px image that opens in new tab when clicked
  */
-function ImagePreview({ src }: { src?: string }) {
-  if (!src) return null;
-
+function ImagePreview({ src }: { src: string }) {
   const openInNewTab = () => {
     window.open(src, "_blank", "noopener,noreferrer");
   };
 
   return (
-    <button
-      onClick={openInNewTab}
-      className="bg-muted h-24 w-24 overflow-hidden rounded-md border transition-opacity hover:opacity-80"
-      aria-label="Open image in new tab"
-    >
-      <img
-        src={src}
-        alt="Media preview"
-        className="h-full w-full object-cover"
-      />
-    </button>
+    <div className="flex flex-col gap-2">
+      <SafeImageController src={src}>
+        {(state) => (
+          <SafeImage
+            state={state}
+            alt="Media preview"
+            width={96}
+            height={96}
+            className="bg-muted overflow-hidden rounded-md border object-cover"
+          />
+        )}
+      </SafeImageController>
+      <button
+        type="button"
+        onClick={openInNewTab}
+        className="text-xs underline"
+      >
+        Open image in new tab
+      </button>
+    </div>
   );
 }
 

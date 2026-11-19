@@ -22,6 +22,7 @@ type PreparedSessionConversationTimelineTraceState =
     };
 
 export function SessionConversationTimelineTrace({
+  renderImage,
   trace,
   turnNumber,
   state,
@@ -37,6 +38,9 @@ export function SessionConversationTimelineTrace({
   isCollapsed = false,
   onToggleCollapsed,
 }: {
+  renderImage: React.ComponentProps<
+    typeof SessionTranscriptContent
+  >["renderImage"];
   isCollapsed?: boolean;
   onToggleCollapsed?: () => void;
   includeNestedThreads?: boolean;
@@ -249,6 +253,7 @@ export function SessionConversationTimelineTrace({
           )}
           {state.type === "transcript" && (
             <SessionTranscriptContent
+              renderImage={renderImage}
               includeNestedThreads={includeNestedThreads}
               variant={
                 variant === "embedded-session" ? "single-trace" : variant

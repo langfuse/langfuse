@@ -1,4 +1,5 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { type ImageProps } from "@/src/components/design-system/SafeImageController/SafeImageController";
 import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import {
   FoldVertical,
@@ -28,14 +29,18 @@ import {
   classifyMediaValue,
   type MediaDescriptor,
 } from "@/src/components/ui/media/mediaUtils";
-import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { getSafeImageUrl, getSafeLinkUrl } from "@/src/utils/safe-url";
 import { cn } from "@/src/utils/tailwind";
 
 export function SessionTimelinePart({
+  renderImage,
   part,
   trailingContent,
   mediaVariant,
 }: {
+  renderImage: (
+    props: Pick<ImageProps, "src" | "alt" | "className">,
+  ) => ReactNode;
   part: NormalizedMessage["parts"][number];
   trailingContent?: ReactNode;
   mediaVariant?: "tool-output";
@@ -80,7 +85,13 @@ export function SessionTimelinePart({
   }
 
   if (part.type === "file") {
-    return <SessionTimelineFile part={part} variant={mediaVariant} />;
+    return (
+      <SessionTimelineFile
+        part={part}
+        variant={mediaVariant}
+        renderImage={renderImage}
+      />
+    );
   }
 
   if (part.type === "tool-call" || part.type === "tool-result") {
@@ -281,15 +292,18 @@ function SessionTimelineReasoning({
 }
 
 function SessionTimelineFile({
+  renderImage,
   part,
   variant,
 }: {
+  renderImage: ComponentProps<typeof SessionTimelinePart>["renderImage"];
   part: FilePart;
   variant?: ComponentProps<typeof SessionTimelinePart>["mediaVariant"];
 }) {
   const content = getSessionTimelineFileContent(part);
   const body = (
     <SessionTimelineFileBody
+      renderImage={renderImage}
       content={content}
       filename={part.filename ?? "Embedded image"}
     />
@@ -324,6 +338,7 @@ function SessionTimelineFile({
 }
 
 function SessionTimelineFileBody({
+  renderImage,
   content,
   filename,
 }: SessionTimelineFileBodyProps) {
@@ -341,15 +356,11 @@ function SessionTimelineFileBody({
   }
 
   if (content.kind === "image") {
-    return (
-      <a href={content.url} target="_blank" rel="noreferrer">
-        <img
-          src={content.url}
-          alt={filename}
-          className="max-h-64 max-w-full rounded-md object-contain"
-        />
-      </a>
-    );
+    return renderImage({
+      src: content.url,
+      alt: filename,
+      className: "max-h-64 max-w-full rounded-md object-contain",
+    });
   }
 
   if (content.kind === "link") {
@@ -416,6 +427,7 @@ type SessionTimelineFileContent =
   | { kind: "fallback"; part: FilePart };
 
 type SessionTimelineFileBodyProps = {
+  renderImage: ComponentProps<typeof SessionTimelinePart>["renderImage"];
   content: SessionTimelineFileContent;
   filename: string;
 };

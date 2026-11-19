@@ -32,12 +32,12 @@ import {
   isAiSdkFileContentPart,
 } from "@langfuse/shared";
 import { type z } from "zod";
-import { ResizableImage } from "@/src/components/ui/ResizableImage";
+import { ConnectedResizableImage } from "@/src/components/ui/ConnectedResizableImage";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { type MarkdownViewState } from "./MarkdownViewController";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
-import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { getSafeImageUrl, getSafeLinkUrl } from "@/src/utils/safe-url";
 import { env } from "@/src/env.mjs";
 import {
   getPromptReferenceMarkdownHref,
@@ -372,7 +372,7 @@ const markdownComponents: NonNullable<Options["components"]> = {
     }
 
     const safeSrc = typeof src === "string" ? getSafeImageUrl(src) : null;
-    return safeSrc ? <ResizableImage src={safeSrc} alt={alt} /> : null;
+    return safeSrc ? <ConnectedResizableImage src={safeSrc} alt={alt} /> : null;
   },
   hr() {
     return <hr className="my-4" />;
@@ -570,7 +570,7 @@ export function MarkdownViewContent({ state }: { state: MarkdownViewState }) {
       if (safeImageUrl) {
         return (
           <div key={index}>
-            <ResizableImage src={safeImageUrl} />
+            <ConnectedResizableImage src={safeImageUrl} />
           </div>
         );
       }

@@ -4,6 +4,8 @@
  */
 
 import { Button } from "@/src/components/ui/button";
+import huggingFaceLogo from "@/public/assets/huggingface-logo.svg";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
 import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 import Head from "next/head";
 import Link from "next/link";
@@ -25,8 +27,8 @@ export default function HfSpacesPage({ deploymentDomain }: PageProps) {
           <div className="flex items-center justify-center gap-2">
             <LangfuseWordmark />
             <PlusIcon size="sm" __rawClassName="ml-1" />
-            <img
-              src="/assets/huggingface-logo.svg"
+            <SafeImage
+              src={huggingFaceLogo}
               alt="Hugging Face Logo"
               width={36}
               height={36}

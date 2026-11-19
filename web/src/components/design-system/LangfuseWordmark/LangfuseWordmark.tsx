@@ -1,6 +1,8 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { env } from "@/src/env.mjs";
+import wordmark from "@/public/langfuse-by-clickhouse.svg";
+import whiteWordmark from "@/public/langfuse-by-clickhouse-white.svg";
 import { cn } from "@/src/utils/tailwind";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
 
 const wordmarkVariants = cva("w-auto max-w-none", {
   variants: {
@@ -25,16 +27,15 @@ export const LangfuseWordmark = ({
   size,
   alt = "Langfuse by ClickHouse",
 }: LangfuseWordmarkProps) => {
-  const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
   return (
     <>
-      <img
-        src={`${basePath}/langfuse-by-clickhouse.svg`}
+      <SafeImage
+        src={wordmark}
         alt={alt}
         className={cn(wordmarkVariants({ size }), "block dark:hidden")}
       />
-      <img
-        src={`${basePath}/langfuse-by-clickhouse-white.svg`}
+      <SafeImage
+        src={whiteWordmark}
         alt={alt}
         className={cn(wordmarkVariants({ size }), "hidden dark:block")}
       />

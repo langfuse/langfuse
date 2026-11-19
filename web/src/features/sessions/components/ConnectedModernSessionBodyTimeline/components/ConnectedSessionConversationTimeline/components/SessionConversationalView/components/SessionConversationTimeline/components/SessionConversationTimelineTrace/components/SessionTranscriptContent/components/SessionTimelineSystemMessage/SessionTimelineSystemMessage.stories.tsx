@@ -12,7 +12,7 @@ const systemPromptParts = [
 
 const meta = preview.meta({
   component: SessionTimelineSystemMessage,
-  args: { senderName: undefined },
+  args: { senderName: undefined, renderImage: () => null },
   parameters: {
     layout: "padded",
     a11y: {

@@ -8,7 +8,7 @@ import {
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
-import { ResizableImage } from "@/src/components/ui/ResizableImage";
+import { SafeResizableImage } from "@/src/components/ui/SafeResizableImage";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
@@ -136,13 +136,7 @@ export const LangfuseMediaView = ({
   }
 
   if (mediaData.type.startsWith("image")) {
-    return (
-      <ResizableImage
-        src={mediaUrl}
-        isDefaultVisible={true}
-        shouldValidateImageSource={false}
-      />
-    );
+    return <SafeResizableImage src={mediaUrl} />;
   } else if (mediaData.type.startsWith("audio")) {
     return <AudioPlayer src={mediaUrl} />;
   } else if (mediaData.type.startsWith("video")) {

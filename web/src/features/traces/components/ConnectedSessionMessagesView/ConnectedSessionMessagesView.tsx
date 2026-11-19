@@ -1,4 +1,5 @@
 import { useMemo, useState, type ComponentProps } from "react";
+import { ConnectedSafeImage } from "@/src/components/design-system/ConnectedSafeImage/ConnectedSafeImage";
 import { useRouter } from "next/router";
 import { ErrorBoundary } from "@sentry/nextjs";
 import { useSessionMessageTraces } from "@/src/features/traces/hooks/useSessionMessageTraces";
@@ -121,6 +122,7 @@ export function ConnectedSessionMessagesView({
       return { type: "transcript" as const, result };
     })();
     return {
+      renderImage: (props) => <ConnectedSafeImage {...props} />,
       ...entry,
       trace,
       turnNumber: entry.traceIndex + 1,

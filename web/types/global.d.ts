@@ -8,13 +8,21 @@ declare namespace JSX {
 }
 
 declare module "*.svg" {
-  const content: {
-    src: string;
-    height: number;
-    width: number;
-    blurDataURL?: string;
-  };
+  import type { StaticImageData } from "next/image";
+  const content: StaticImageData;
 
+  export default content;
+}
+
+declare module "*.png" {
+  import type { StaticImageData } from "next/image";
+  const content: StaticImageData;
+  export default content;
+}
+
+declare module "*.jpg" {
+  import type { StaticImageData } from "next/image";
+  const content: StaticImageData;
   export default content;
 }
 

@@ -1,13 +1,15 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { type NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { SessionTimelineCollapsibleRow } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { SessionTimelinePart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelinePart/SessionTimelinePart";
 
 export function SessionTimelineSystemMessage({
+  renderImage,
   parts,
   senderName,
   trailingContent,
 }: {
+  renderImage: ComponentProps<typeof SessionTimelinePart>["renderImage"];
   parts: NormalizedMessage["parts"];
   senderName: NormalizedMessage["senderName"];
   trailingContent?: ReactNode;
@@ -23,7 +25,11 @@ export function SessionTimelineSystemMessage({
       >
         <div className="text-muted-foreground flex flex-col gap-2 text-sm">
           {parts.map((part, index) => (
-            <SessionTimelinePart key={`${part.type}-${index}`} part={part} />
+            <SessionTimelinePart
+              key={`${part.type}-${index}`}
+              part={part}
+              renderImage={renderImage}
+            />
           ))}
         </div>
       </SessionTimelineCollapsibleRow>
