@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAIAwsProfile,
   getLangfuseAITraceSinkParams,
+  isOrganizationAITelemetryEnabled,
   logger,
   recordIncrement,
   redis,
@@ -633,7 +634,9 @@ export async function executeInAppAgentRun(params: {
           ? {}
           : { langfuseClient: getInAppAgentPromptClient() }),
         langfuseTracing: buildTracingConfig({
-          aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
+          aiTelemetryEnabled: isOrganizationAITelemetryEnabled(
+            project.organization,
+          ),
           projectId,
           conversationId: conversation.id,
           runId,

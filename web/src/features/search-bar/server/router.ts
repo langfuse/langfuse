@@ -27,6 +27,7 @@ import {
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
+  isOrganizationAITelemetryEnabled,
 } from "@langfuse/shared/src/server";
 import {
   getInAppAgentModelConfig,
@@ -232,9 +233,9 @@ export const searchBarRouter = createTRPCRouter({
 
         // Tracing is optional: skip it when the AI-features project is not
         // configured (the default self-hosted case) rather than failing the
-        // generation. Self-hosted cannot toggle `aiTelemetryEnabled` off.
+        // generation.
         const aiTelemetryEnabled =
-          project.organization.aiTelemetryEnabled &&
+          isOrganizationAITelemetryEnabled(project.organization) &&
           isLangfuseAITracingConfigured();
 
         // Pre-generated (rather than left to `getLangfuseAITraceSinkParams`'s
