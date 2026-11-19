@@ -213,6 +213,7 @@ async function assignSummaries(
           embeddingConfig,
           summaries: [row],
           run,
+          ruleId: rule.id,
           origin: "online",
           assignedAt,
         }))
@@ -279,6 +280,7 @@ async function processEvent(
       models,
       facets,
       attempt: deps.attempt ? "retry" : "first",
+      rules,
       executionId: event.batchActionId,
     });
     if (result.outcome === "disabled") return { outcome: "disabled" };

@@ -270,7 +270,11 @@ describe("trace deletion", () => {
 
     await processClickhouseTraceDelete(projectId, [traceId]);
 
-    for (const table of ["topic_facet_summaries", "topic_assignments"]) {
+    for (const table of [
+      "topic_facet_summaries",
+      "topic_assignments",
+      "topic_assignments_by_trace",
+    ]) {
       const remaining = await queryClickhouse<{
         project_id: string;
         trace_id: string;

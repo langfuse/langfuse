@@ -328,8 +328,12 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   projectId: string;
   facetId: string;
   facetVersion: number;
-  /** Processing path that wrote the row; rows from before the automatic/manual split hold "manual_poc". */
-  triggerType: "automatic" | "manual" | "manual_poc";
+  /** "snapshot" when a snapshot's execution requested the summary, else "rule". */
+  triggerType: "rule" | "snapshot";
+  /** Rules of the triggering job that select this facet; empty when unknown (rows written before rule ids were stored). */
+  ruleIds: string[];
+  /** The snapshot execution that requested the summary; null for rule-triggered rows. */
+  executionId: string | null;
   environment: string;
   traceName: string;
   unitStartTime: string;
@@ -358,11 +362,13 @@ export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   unitStartTime: string;
   summaryProcessedAt: string;
   runId: string | null;
+  /** Rule of the map; null for snapshots and rows written before rule ids were stored. */
+  ruleId: string | null;
   topicId: string | null;
   topicVersionId: string | null;
   distance: number | null;
   runnerUpDistance: number | null;
-  origin: "initial" | "online" | "backfill";
+  origin: "initial" | "online";
   assignedAt: string;
 };
 export interface TopicDefinition {

@@ -162,7 +162,7 @@ vi.mock("@langfuse/shared/topics/server", () => {
             a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
           ),
     ),
-    getNewestTopicClusteringSummaries: async (
+    getSampledTopicClusteringSummaries: async (
       projectId: string,
       facet: TopicFacetRef,
       embeddingConfig: TopicEmbeddingConfig,
@@ -312,7 +312,9 @@ function seedSummaries(
         facetVersion: selected.version,
         traceId,
         sessionId: "session",
-        triggerType: "manual",
+        triggerType: "rule",
+        ruleIds: [],
+        executionId: null,
         unitStartTime: "2026-01-01T00:00:00.000Z",
         environment: "production",
         traceName: "Customer support",

@@ -191,7 +191,9 @@ describe("Topics snapshot summarizing", () => {
         facetVersion: 1,
         traceId,
         sessionId: null,
-        triggerType: "automatic" as const,
+        triggerType: "snapshot" as const,
+        ruleIds: [],
+        executionId: execution.id,
         environment: "default",
         traceName: "trace",
         unitStartTime: start.toISOString(),
@@ -207,7 +209,7 @@ describe("Topics snapshot summarizing", () => {
         providedCostDetails: {},
         costDetails: {},
         processedAt: new Date().toISOString(),
-        metadata: { executionId: execution.id },
+        metadata: {},
       })),
     );
     expect(await tickTopicSnapshotSetup(projectId, execution.id)).toBe(false);

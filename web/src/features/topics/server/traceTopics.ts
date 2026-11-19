@@ -26,31 +26,33 @@ export async function topicFilterOptions(projectId: string) {
   ) as Record<string, string[]>;
 }
 
-/** Current topics for a page of traces: one ClickHouse read across facets, one topic per rule's map. */
+/** Latest topics for a page of traces: one ClickHouse read across facets, one topic per rule's map. */
 export async function tracesTopics(
   projectId: string,
   traces: { traceId: string; timestamp: Date }[],
 ) {
   const facets = await listTopicFacets(projectId);
   if (facets.length === 0) return {};
-  const { runIds, maps } = await getPublishedTopicMaps(
+  const { runIds, ruleIds, maps } = await getPublishedTopicMaps(
     projectId,
     facets.map((facet) => facet.id),
   );
   const rows = await readCurrentTraceTopics(projectId, {
     traces,
     facetIds: facets.map((facet) => facet.id),
+    ruleIds,
     publishedRunIds: runIds,
   });
+  // Placements from earlier runs name their topic by the current map's stable topic id.
   const topicNames = new Map(
     maps
       .flatMap((map) => map.topics)
-      .map((topic) => [topic.topicVersionId, topic.name]),
+      .map((topic) => [topic.topicId, topic.name]),
   );
   const result: Record<string, { facet: string; topic: string }[]> = {};
   for (const facet of facets)
     for (const row of rows) {
-      const topic = topicNames.get(row.topicVersionId);
+      const topic = topicNames.get(row.topicId);
       const current = result[row.traceId] ?? [];
       // Rules can each assign a topic; a name another rule also assigned shows once.
       if (row.facetId !== facet.id || !topic) continue;

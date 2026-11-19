@@ -70,7 +70,9 @@ export async function topicsProject() {
   await writeTopicSummaries([
     {
       ...summary,
-      triggerType: "manual_poc",
+      triggerType: "rule",
+      ruleIds: [rule.id],
+      executionId: null,
       state: "complete",
       summary: "Private summary",
       embedding: [1, 0],
@@ -91,6 +93,7 @@ export async function topicsProject() {
       ...summary,
       summaryProcessedAt: now,
       runId: run.id,
+      ruleId: rule.id,
       topicId,
       topicVersionId,
       distance: 0.1,

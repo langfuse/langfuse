@@ -5,6 +5,7 @@ import {
   type TopicFacet,
   type TopicProcessingConfig,
   type TopicFacetVersion,
+  type TopicRule,
   type TopicSummary,
 } from "@langfuse/shared/topics";
 import {
@@ -74,6 +75,8 @@ type AssembledTraceInput = {
   facets: TopicFacet[];
   // Tags the attempt's metrics so retries are separable from first attempts.
   attempt?: "first" | "retry";
+  /** Matched rules; each summary stores those that select its facet. */
+  rules: Pick<TopicRule, "id" | "facetIds">[];
   /** The snapshot that seeded the trace; stored on its summaries. */
   executionId?: string;
 };
@@ -166,10 +169,12 @@ async function summarizeEnabledTrace(
       facet: version,
       summaryModel: models.summary.model,
       embeddingModel,
+      ruleIds: input.rules
+        .filter((rule) => rule.facetIds.includes(version.facetId))
+        .map((rule) => rule.id),
       // A snapshot's summaries carry its ID, for its progress and cost.
-      metadata: input.executionId
-        ? { input: "topics-text", executionId: input.executionId }
-        : { input: "topics-text" },
+      executionId: input.executionId ?? null,
+      metadata: { input: "topics-text" },
     }),
   );
   const summarized = await summarizeTraceFacets({
@@ -369,6 +374,8 @@ function baseTopicSummary(params: {
   facet: TopicFacetVersion;
   summaryModel: string;
   embeddingModel: string;
+  ruleIds: string[];
+  executionId: string | null;
   metadata: Record<string, unknown>;
 }): TopicSummary {
   return {
@@ -377,7 +384,9 @@ function baseTopicSummary(params: {
     facetVersion: params.facet.version,
     traceId: params.traceId,
     sessionId: params.sessionId,
-    triggerType: "automatic",
+    triggerType: params.executionId ? "snapshot" : "rule",
+    ruleIds: params.ruleIds,
+    executionId: params.executionId,
     unitStartTime: params.unitStartTime,
     environment: params.environment,
     traceName: params.traceName,

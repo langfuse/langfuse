@@ -308,7 +308,7 @@ type CandidateRow = {
 /**
  * Picks candidates from the table that can satisfy the filter: assignments
  * when the filter needs an assignment (or rows are assignments), otherwise
- * summaries. Ordering by the sort key's minute prefix lets ClickHouse read in
+ * summaries. Ordering by the summaries' hour key prefix lets ClickHouse read in
  * order and stop after one batch, instead of scanning the whole window.
  */
 function candidateQuery(
@@ -353,8 +353,7 @@ function candidateQuery(
     assignedOnly ||
     (statuses !== undefined &&
       statuses.every((status) => status !== "awaiting_map"));
-  // Trace id lookups on summaries read only columns of the latest_source_versions
-  // projection, which ClickHouse serves by trace id; the resolve step applies the rest.
+  // Trace id lookups on summaries use the trace_id bloom filter; the resolve step applies the rest.
   const byTraceIds =
     !fromAssignments &&
     input.conditions.some(
@@ -409,7 +408,7 @@ function candidateQuery(
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
         AND facet_id IN {facetIds:Array(String)}
         AND ${conditions.join(" AND ")}
-      ORDER BY ${byTraceIds ? "" : `toStartOfMinute(unit_start_time) ${direction}, `}unit_start_time ${direction},
+      ORDER BY ${byTraceIds ? "" : `toStartOfHour(unit_start_time) ${direction}, `}unit_start_time ${direction},
         trace_id ${direction}, facet_id ${direction}${perRun ? `, clustering_run_id ${direction}` : ""}
       LIMIT {batchSize:UInt32}`,
     params: { ...params.values, batchSize },
@@ -518,7 +517,7 @@ async function listCurrentRows<T extends CandidateRow>(
         ...baseParams,
         ...params.values,
         ...input.extraParams,
-        // The candidates' own time span; their keys' history is read in full.
+        // The candidates' own time span; the latest-summary filter widens it by 2 days.
         ...timeRangeParams({
           from: new Date(Math.min(...times)),
           to: new Date(Math.max(...times) + 1),

@@ -532,9 +532,8 @@ export async function getPublishedTopicMaps(
   projectId: string,
   facetIds: string[],
 ) {
-  const unique = (await getCurrentTopicMapRows(projectId, facetIds)).map(
-    ({ run }) => run,
-  );
+  const current = await getCurrentTopicMapRows(projectId, facetIds);
+  const unique = current.map(({ run }) => run);
   const ids = unique.flatMap((run) => run.topicVersionIds);
   // Only names and ids: these reads run on every tracing request with topics.
   const names = new Map(
@@ -545,6 +544,9 @@ export async function getPublishedTopicMaps(
   );
   return {
     runIds: unique.map(({ id }) => id),
+    ruleIds: [
+      ...new Set(current.flatMap(({ ruleId }) => (ruleId ? [ruleId] : []))),
+    ],
     maps: unique.map((run) => ({
       facetId: run.facetId,
       topics: run.topicVersionIds.flatMap((id) => names.get(id) ?? []),

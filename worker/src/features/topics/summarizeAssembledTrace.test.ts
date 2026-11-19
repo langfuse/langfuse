@@ -107,9 +107,13 @@ const usage = {
 let summaries: TopicSummary[] = [];
 // Keeps the returned rows for assertions and rethrows a partial failure, as the batch job reports it.
 const summarize = async (
-  input: Omit<Parameters<typeof summarizeAssembledTrace>[0], "executionIssues">,
+  input: Omit<
+    Parameters<typeof summarizeAssembledTrace>[0],
+    "executionIssues" | "rules"
+  > & { rules?: Parameters<typeof summarizeAssembledTrace>[0]["rules"] },
 ) => {
   const result = await summarizeAssembledTrace({
+    rules: [],
     ...input,
     executionIssues: [],
   });
@@ -260,17 +264,21 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      rules: [{ id: "rule-a", facetIds: ["facet-1", "facet-3"] }],
     });
     expect(state.summarize).toHaveBeenCalledOnce();
     const [intent, issue] = summaries;
     expect(intent).toMatchObject({
       facetId: "facet-1",
       state: "complete",
-      triggerType: "automatic",
+      triggerType: "rule",
+      ruleIds: ["rule-a"],
+      executionId: null,
     });
     expect(issue).toMatchObject({
       facetId: "facet-2",
       state: "not_applicable",
+      ruleIds: [],
     });
     // Integer token shares and cost shares still add up to the call's usage.
     expect(summaries.map((row) => row.usageDetails.summary_input)).toEqual([

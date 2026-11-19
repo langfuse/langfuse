@@ -228,7 +228,7 @@ async function refitRuleFacet({
     ...run,
     config: {
       ...embedding,
-      // The fit loads the newest of the rule's summaries in this window.
+      // The fit loads a stable sample of the rule's summaries in this window.
       timeRange: {
         from: new Date(
           now.getTime() - TOPICS_MAX_SELECTION_RANGE_MS,
