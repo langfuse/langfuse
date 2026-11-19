@@ -4,7 +4,7 @@ import { useId, type ComponentProps } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import {
   Form,
@@ -131,11 +131,7 @@ export function CreateProjectMemberDialog({
           onSubmit={form.handleSubmit(onSubmit)}
         >
           <Dialog.Body>
-            {formError ? (
-              <Alert variant="destructive" size="sm">
-                <Alert.Description>{formError}</Alert.Description>
-              </Alert>
-            ) : null}
+            {formError ? <Banner variant="error">{formError}</Banner> : null}
             <FormField
               control={form.control}
               name="email"
