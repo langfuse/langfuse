@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useWatch } from "react-hook-form";
 import { Info, ExternalLink } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   FormControl,
@@ -125,13 +125,13 @@ export const ExportSourceField = ({
       )}
 
       {!watchedValidation.ok && (
-        <Alert variant="destructive">
-          <Alert.Title>Saved export source is no longer available</Alert.Title>
-          <Alert.Description>
-            {/* Reason-specific body; texts live in the shared lookup. */}
-            {getExportSourceUnavailableMessage(watchedValidation.reason)}
-          </Alert.Description>
-        </Alert>
+        <Banner
+          variant="error"
+          title="Saved export source is no longer available"
+        >
+          {/* Reason-specific body; texts live in the shared lookup. */}
+          {getExportSourceUnavailableMessage(watchedValidation.reason)}
+        </Banner>
       )}
     </>
   );

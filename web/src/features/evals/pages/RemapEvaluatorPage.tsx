@@ -9,7 +9,7 @@ import {
   isTraceTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { type PartialConfig } from "@/src/features/evals/types";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
@@ -241,11 +241,9 @@ export default function RemapEvaluatorPage() {
               <Skeleton className="h-[600px] w-full" />
             </div>
           ) : !oldConfig || !evalTemplate ? (
-            <Alert variant="destructive">
-              <Alert.Description>
-                Failed to load eval configuration or template.
-              </Alert.Description>
-            </Alert>
+            <Banner variant="error">
+              Failed to load eval configuration or template.
+            </Banner>
           ) : (
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2px_minmax(0,1fr)] items-start">
               {/* LEFT: Read-only old config */}

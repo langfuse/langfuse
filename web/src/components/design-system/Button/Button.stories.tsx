@@ -29,6 +29,7 @@ export const VariantMatrix = meta.story({
           "destructive",
           "ghost",
           "text",
+          "link",
         ] as const
       ).map((variant) =>
         (["default", "sm"] as const).map((size) => (

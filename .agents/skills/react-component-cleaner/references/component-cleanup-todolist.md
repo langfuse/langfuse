@@ -63,8 +63,9 @@ Keep the composite API when callers meaningfully:
 
 Component files may export only a single component. When keeping a composite
 API, use `Object.assign` to expose subcomponents through the exported component,
-such as `Alert.Title` and `Alert.Description`, instead of separate component
-exports such as `AlertTitle` and `AlertDescription`. Update all callsites.
+such as `Accordion.Trigger` and `Accordion.Content`, instead of separate
+component exports such as `AccordionTrigger` and `AccordionContent`. Update all
+callsites.
 COMMIT.
 
 ## Step 4: Audit the changes

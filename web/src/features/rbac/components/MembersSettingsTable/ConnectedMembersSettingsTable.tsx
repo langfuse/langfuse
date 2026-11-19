@@ -9,7 +9,7 @@ import {
 } from "use-query-params";
 import { type Role } from "@langfuse/shared";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
@@ -210,12 +210,9 @@ export function ConnectedMembersSettingsTable({
 
   if (project ? !hasProjectViewAccess : !hasOrgViewAccess) {
     return (
-      <Alert>
-        <Alert.Title>Access Denied</Alert.Title>
-        <Alert.Description>
-          You do not have permission to view members of this organization.
-        </Alert.Description>
-      </Alert>
+      <Banner title="Access Denied">
+        You do not have permission to view members of this organization.
+      </Banner>
     );
   }
 

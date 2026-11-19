@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { AsyncMultiSelectTagInput } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
@@ -152,10 +152,9 @@ export function GatewayAddBudgetDialog({
             disabledReason={unavailableReason}
           />
           {errorMessage !== null ? (
-            <Alert variant="destructive">
-              <Alert.Title>Budgets could not be added</Alert.Title>
-              <Alert.Description>{errorMessage}</Alert.Description>
-            </Alert>
+            <Banner variant="error" title="Budgets could not be added">
+              {errorMessage}
+            </Banner>
           ) : null}
         </Form>
       </Dialog.Body>

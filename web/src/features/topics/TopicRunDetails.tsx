@@ -1,7 +1,6 @@
 import { format } from "date-fns";
-import { ChevronLeft, CircleAlert } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { ChevronLeft } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { type RouterOutputs } from "@/src/utils/api";
@@ -260,32 +259,33 @@ export function TopicRunDetails({
       </header>
       {(failed || resumable) && (
         <div className="px-4 pt-4">
-          <Alert variant="destructive" icon={CircleAlert}>
-            <Alert.Title>Run stopped</Alert.Title>
-            <Alert.Description>
-              <div className="text-foreground-secondary flex flex-col gap-0.5">
-                {execution.error && (
-                  <p className="break-words">{execution.error}</p>
-                )}
-                {!isUpdate && complete > 0 && (
-                  <p>
-                    {formatCount(complete)} traces are already summarized and
-                    will be kept.
-                  </p>
-                )}
-              </div>
-              {resumable && (
-                <div className="pt-2.5">
-                  <Button
-                    text="Resume run"
-                    size="sm"
-                    loading={retry.isPending}
-                    onClick={() => retry.onRetry()}
-                  />
-                </div>
+          <Banner
+            variant="error"
+            title="Run stopped"
+            actions={
+              resumable
+                ? [
+                    {
+                      text: "Resume run",
+                      loading: retry.isPending,
+                      onClick: () => retry.onRetry(),
+                    },
+                  ]
+                : undefined
+            }
+          >
+            <div className="flex flex-col gap-0.5">
+              {execution.error && (
+                <p className="break-words">{execution.error}</p>
               )}
-            </Alert.Description>
-          </Alert>
+              {!isUpdate && complete > 0 && (
+                <p>
+                  {formatCount(complete)} traces are already summarized and will
+                  be kept.
+                </p>
+              )}
+            </div>
+          </Banner>
         </div>
       )}
       {retry.errorMessage && (
