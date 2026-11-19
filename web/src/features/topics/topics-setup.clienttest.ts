@@ -40,6 +40,15 @@ describe("topicsSetupPayload", () => {
     ).toMatchObject({ summary: null, embedding: null, clustering: null });
   });
 
+  it("rejects embedding dimensions above 2,048", () => {
+    expect(() =>
+      topicsSetupPayload(draft, { ...slots, embeddingDimensions: 2049 }),
+    ).toThrow("Use at most 2,048 embedding dimensions.");
+    expect(
+      topicsSetupPayload(draft, { ...slots, embeddingDimensions: 2048 }),
+    ).toMatchObject({ embeddingDimensions: 2048 });
+  });
+
   it("rejects an idle time below 60 seconds", () => {
     expect(() =>
       topicsSetupPayload({ ...draft, idleSeconds: "59" }, slots),
