@@ -36,6 +36,7 @@ import {
   currentTopicTraceIdsCondition,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
+import { getTopicFacetSummaryCountsByProjectInCreationInterval } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 describe("Topics eval-backed configuration", () => {
@@ -456,6 +457,7 @@ describe("Topics eval-backed configuration", () => {
 describe("Topics definition persistence", () => {
   const projectId = randomUUID();
   const otherProjectId = randomUUID();
+  const telemetryProjectId = randomUUID();
 
   const summary: TopicSummary = {
     projectId,
@@ -493,7 +495,9 @@ describe("Topics definition persistence", () => {
     ])
       await clickhouseClient().command({
         query: `DELETE FROM ${table} WHERE project_id IN {projectIds:Array(String)}`,
-        query_params: { projectIds: [projectId, otherProjectId] },
+        query_params: {
+          projectIds: [projectId, otherProjectId, telemetryProjectId],
+        },
         clickhouse_settings: { mutations_sync: "1" },
       });
   });
@@ -532,6 +536,32 @@ describe("Topics definition persistence", () => {
         .map((row) => row.unit_type)
         .sort(),
     ).toEqual(["session", "trace"]);
+  });
+
+  it("counts completed summaries processed in the telemetry interval", async () => {
+    const start = new Date("2026-09-01T00:00:00.000Z");
+    const end = new Date("2026-09-02T00:00:00.000Z");
+    const row = (processedAt: string, state: TopicSummary["state"]) => ({
+      ...summary,
+      projectId: telemetryProjectId,
+      traceId: randomUUID(),
+      state,
+      processedAt,
+    });
+    await writeTopicSummaries([
+      row(start.toISOString(), "complete"),
+      row("2026-09-01T12:00:00.000Z", "complete"),
+      row("2026-09-01T12:00:00.000Z", "not_applicable"),
+      row(end.toISOString(), "complete"),
+    ]);
+
+    const counts = await getTopicFacetSummaryCountsByProjectInCreationInterval({
+      start,
+      end,
+    });
+    expect(
+      counts.find((count) => count.projectId === telemetryProjectId)?.count,
+    ).toBe(2);
   });
 
   it("partitions by source time while preserving replacement and published map identities", async () => {
