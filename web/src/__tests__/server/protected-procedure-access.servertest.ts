@@ -1,10 +1,5 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-
-// Session fixture sub-object types; casts keep the runtime fixtures unchanged
-// while satisfying newer required fields on the session user type.
-type SessionUser = NonNullable<Session["user"]>;
-type SessionProjects = SessionUser["organizations"][number]["projects"];
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
 
@@ -47,37 +42,28 @@ const middlewareTestRouter = createTRPCRouter({
     .query(() => ({ ok: true })),
 });
 
-const createSession = (
+const staffSession = (
   projects: Array<{ id: string; name?: string }> = [],
-): Session => ({
-  expires: "1",
-  user: {
-    id: "staff-user-id",
-    email: "staff@langfuse.com",
-    canCreateOrganizations: true,
-    name: "Staff User",
+): Session =>
+  createSession({
+    user: {
+      id: "staff-user-id",
+      email: "staff@langfuse.com",
+      name: "Staff User",
+    },
     organizations: [
       {
         id: "session-org-id",
         name: "Session Organization",
         role: "OWNER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        metadata: {},
         supportAccess: false,
         projects: projects.map((project) => ({
           id: project.id,
-          role: "OWNER",
-          retentionDays: 30,
-          deletedAt: null,
           name: project.name ?? "Project",
-        })) as SessionProjects,
-      } as SessionUser["organizations"][number],
+        })),
+      },
     ],
-    featureFlags: testFeatureFlags(),
-  },
-  environment: {} as any,
-});
+  });
 
 const createTestCaller = (params: {
   session: Session | null;
@@ -153,7 +139,7 @@ describe("protected procedure access", () => {
   it("authorizes a session member without loading the project row", async () => {
     const projectId = "member-project-id";
     const { caller, mockPrisma } = createTestCaller({
-      session: createSession([{ id: projectId }]),
+      session: staffSession([{ id: projectId }]),
     });
 
     await expect(caller.project({ projectId })).resolves.toEqual({ ok: true });
@@ -161,7 +147,7 @@ describe("protected procedure access", () => {
   });
 
   it("rejects non-members even when the session carries a legacy admin flag", async () => {
-    const session = createSession([]);
+    const session = staffSession([]);
     const { caller } = createTestCaller({
       session: {
         ...session,
@@ -273,7 +259,7 @@ describe("protected procedure access", () => {
   it("loads the session row when a member opens a private session", async () => {
     const projectId = "session-project-id";
     const { caller, mockPrisma } = createTestCaller({
-      session: createSession([{ id: projectId }]),
+      session: staffSession([{ id: projectId }]),
       traceSession: { public: false },
     });
 
@@ -296,7 +282,7 @@ describe("protected procedure access", () => {
 
   it("rejects an empty session id before checking access", async () => {
     const { caller, mockPrisma } = createTestCaller({
-      session: createSession([]),
+      session: staffSession([]),
     });
 
     await expect(

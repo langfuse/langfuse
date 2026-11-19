@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { Session } from "next-auth";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
@@ -23,6 +22,7 @@ import {
   GatewayResolveCache,
 } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
@@ -83,29 +83,22 @@ function orgSession(
   org: { id: string; name: string },
   role: Role,
 ): OrgAuthedContext["session"] {
-  const session = {
-    expires: "1",
+  const session = createSession({
     user: {
       id: user.id,
       name: user.name,
-      canCreateOrganizations: true,
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role,
-          cloudConfig: undefined,
-          plan: "oss",
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
     },
-    environment: {} as Session["environment"],
-  } satisfies Session;
+    organizations: [
+      {
+        id: org.id,
+        role,
+        name: org.name,
+        plan: "oss",
+        aiTelemetryEnabled: true,
+      },
+    ],
+  });
   return { ...session, orgId: org.id, orgRole: role };
 }
 
@@ -246,7 +239,6 @@ describe("user-bound API keys", () => {
     it("rejects a creator who is not a member", async () => {
       const org = await createOrg();
       const user = await createUser();
-      const session = orgSession(user, org, Role.OWNER);
       const before = await existingKeyIds();
 
       await expect(
@@ -255,7 +247,17 @@ describe("user-bound API keys", () => {
           name: "Test key",
           metadata: {},
           issuedAs: "user",
-          session: { ...session, user: { ...session.user, organizations: [] } },
+          session: {
+            ...createSession({
+              user: {
+                id: user.id,
+                name: user.name,
+                featureFlags: testFeatureFlags({ templateFlag: false }),
+              },
+            }),
+            orgId: org.id,
+            orgRole: Role.OWNER,
+          },
         }),
       ).rejects.toThrow(ForbiddenError);
       expect(await existingKeyIds()).toEqual(before);

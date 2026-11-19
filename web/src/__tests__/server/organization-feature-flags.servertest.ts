@@ -1,5 +1,5 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { randomUUID } from "node:crypto";
 
 import { Role, type Plan } from "@langfuse/shared";
@@ -577,44 +577,34 @@ async function prepare(
     role: actorRole,
   });
 
-  const session: Session = {
-    expires: "1",
+  const session = createSession({
     user: {
       id: actor.id,
       email: actor.email,
       name: actor.name,
-      canCreateOrganizations: true,
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: actorRole,
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              name: project.name,
-              role: Role.OWNER,
-              deletedAt: null,
-              retentionDays: null,
-              metadata: {},
-            } as NonNullable<
-              Session["user"]
-            >["organizations"][number]["projects"][number],
-          ],
-        },
-      ],
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: actorRole,
+        plan,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            name: project.name,
+            role: Role.OWNER,
+            retentionDays: null,
+          },
+        ],
+      },
+    ],
     environment: {
-      enableExperimentalFeatures: false,
       selfHostedInstancePlan: plan,
     },
-  };
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return {

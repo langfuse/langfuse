@@ -10,6 +10,7 @@ import { AI_GATEWAY_SERVICE_NAME } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { createOrgMembership } from "@langfuse/shared/memberships";
 import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -65,29 +66,22 @@ async function callerFor(
   });
   cleanupUsers.push(user.id);
   await createOrgMembership(prisma, { orgId: org.id, userId: user.id, role });
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: user.id,
       name: user.name,
-      canCreateOrganizations: true,
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role,
-          cloudConfig: undefined,
-          plan: "oss",
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
     },
-    environment: {} as Session["environment"],
-  };
+    organizations: [
+      {
+        id: org.id,
+        role,
+        name: org.name,
+        plan: "oss",
+        aiTelemetryEnabled: true,
+      },
+    ],
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
 }

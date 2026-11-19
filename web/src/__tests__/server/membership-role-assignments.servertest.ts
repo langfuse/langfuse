@@ -3,7 +3,7 @@ import { createMocks } from "node-mocks-http";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import type { Session } from "next-auth";
 
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
@@ -40,9 +40,6 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
   return { ...actual, env: { ...actual.env } };
 });
-
-type SessionUser = NonNullable<Session["user"]>;
-type SessionOrganization = SessionUser["organizations"][number];
 
 const plan: Plan = "cloud:team";
 
@@ -128,41 +125,19 @@ describe("membership role assignments", () => {
       ? [
           {
             id: ownedOrgId,
-            name: ownedOrgId,
             role: Role.OWNER,
+            name: ownedOrgId,
             plan,
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
             aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                name: projectId,
-                role: Role.OWNER,
-                retentionDays: 30,
-                deletedAt: null,
-                metadata: {},
-              },
-            ],
-          } as unknown as SessionOrganization,
+            projects: [{ id: projectId, name: projectId }],
+          },
         ]
       : [];
-    return {
-      expires: "1",
-      user: {
-        id: userId,
-        email: `${userId}@example.com`,
-        name: userId,
-        canCreateOrganizations: true,
-        organizations,
-        featureFlags: testFeatureFlags(),
-      } as SessionUser,
-      environment: {
-        enableExperimentalFeatures: false,
-        selfHostedInstancePlan: plan,
-      },
-    };
+    return createSession({
+      user: { id: userId, email: `${userId}@example.com`, name: userId },
+      organizations,
+      environment: { selfHostedInstancePlan: plan },
+    });
   }
 
   /** callerFor calls tRPC as a user who may own an organization. */

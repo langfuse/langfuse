@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ---- Hoisted mocks ----
@@ -148,6 +147,7 @@ import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // ---- Helpers ----
 
@@ -831,33 +831,19 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
 // Exercised end-to-end: call site → real SfdcService → mocked fetch.
 
 function buildOwnerSession(orgId: string): Session {
-  return {
-    expires: "1",
-    user: {
-      id: "owner-user",
-      email: "owner@test.com",
-      name: "Owner",
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: orgId,
-          name: "Test Org",
-          role: Role.OWNER,
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:team",
-    },
-  };
+  return createSession({
+    user: { id: "owner-user", email: "owner@test.com", name: "Owner" },
+    organizations: [
+      {
+        id: orgId,
+        role: Role.OWNER,
+        name: "Test Org",
+        plan: "cloud:team",
+        aiTelemetryEnabled: true,
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:team" },
+  });
 }
 
 function createOwnerCaller(orgId: string) {

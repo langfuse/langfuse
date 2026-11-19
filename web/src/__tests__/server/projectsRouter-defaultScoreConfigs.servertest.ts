@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { Role } from "@langfuse/shared";
@@ -7,6 +6,7 @@ import { createOrgMembership } from "@langfuse/shared/memberships";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import { describe, expect, it } from "vitest";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 async function createOwnerCaller() {
   const orgId = uuidv4();
@@ -23,30 +23,10 @@ async function createOwnerCaller() {
   });
   await createOrgMembership(prisma, { userId, orgId, role: Role.OWNER });
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: userId,
-      canCreateOrganizations: true,
-      name: "Test User",
-      email: "default-scores@test.com",
-      organizations: [
-        {
-          id: orgId,
-          name: "Test Organization",
-          role: Role.OWNER,
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {} as Session["environment"],
-  };
+  const session: Session = createSession({
+    user: { id: userId, name: "Test User", email: "default-scores@test.com" },
+    organizations: [{ id: orgId, role: Role.OWNER, aiTelemetryEnabled: true }],
+  });
 
   return {
     orgId,
