@@ -71,6 +71,7 @@ export * from "./domain/home-dashboard";
 // llm api
 export * from "./server/llm/types";
 export * from "./server/llm/promptToolConfig";
+export * from "./server/llm/llmBaseUrlRules";
 
 // evals
 export * from "./features/evals/types";
