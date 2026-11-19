@@ -24,7 +24,7 @@ import {
   embedTopicSummaries,
   summarizeTopicTraceFacets,
   TopicInputTooLarge,
-} from "./models";
+} from "./llm/models";
 import { TopicsProviderUnavailable } from "./provider-error";
 import {
   mergeTopicModelUsage,
