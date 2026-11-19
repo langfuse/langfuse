@@ -19,8 +19,8 @@ pub struct ValidatedOtelJson {
 
 #[napi]
 impl ValidatedOtelJson {
-    /// Return sanitized bytes after replacing malformed UTF-8, or `null` in JavaScript for valid
-    /// UTF-8. Masking reads the same source used by validation and media discovery.
+    /// Return sanitized bytes only when malformed UTF-8 required replacement.
+    /// Masking must see the same source as validation and media discovery.
     #[napi]
     pub fn normalized_bytes(&self, env: Env) -> Result<Option<Buffer>> {
         let (payload, _) = self.payload.as_ref().ok_or_else(|| {
@@ -37,7 +37,7 @@ impl ValidatedOtelJson {
             .map(|bytes| Buffer::from(bytes.to_vec())))
     }
 
-    /// Release a superseded masking input on the worker task.
+    /// Release a superseded masking input without waiting for the JS handle to be collected.
     #[napi(ts_return_type = "Promise<void>")]
     pub fn dispose<'env>(
         &mut self,
@@ -53,7 +53,7 @@ impl ValidatedOtelJson {
     }
 
     /// Consume the validated input and create a batch, optionally extracting media.
-    /// When `extract_media` is false, the batch retains the validated JSON with an empty media list.
+    /// When `extract_media` is false, the batch retains the JSON without media discovery or hashing.
     #[napi(ts_return_type = "Promise<EarlyOtelBatch>")]
     pub fn extract(&mut self, extract_media: bool) -> AsyncTask<OtelMediaTask<EarlyOtelBatch>> {
         // Claim ownership before scheduling, so a later dispose cannot invalidate this task.
@@ -232,7 +232,7 @@ impl EarlyOtelBatch {
         })))
     }
 
-    /// Copy the compact document on libuv; the batch keeps its JSON for subsequent reads.
+    /// Copy the compact document on libuv without consuming the batch's JSON.
     #[napi(js_name = "copyJsonBuffer", ts_return_type = "Promise<Buffer>")]
     pub fn copy_json_buffer(&self) -> AsyncTask<OtelMediaTask<Buffer>> {
         let data = self.data();
@@ -249,7 +249,7 @@ impl EarlyOtelBatch {
         })
     }
 
-    /// Transfer compact document bytes to a Node Buffer.
+    /// Transfer the compact document to a Node Buffer without a UTF-8-to-JS-string copy.
     /// The Buffer finalizer owns the Rust allocation; only the batch's accounting is released
     /// here because Node now owns the allocation through that finalizer. Media metadata and
     /// source ranges remain owned by this batch for later reads.
@@ -275,7 +275,7 @@ impl EarlyOtelBatch {
             .collect())
     }
 
-    /// Return the number of extracted media descriptors as a scalar.
+    /// Return the number of extracted media descriptors without materializing them in JavaScript.
     #[napi]
     pub fn media_count(&self, env: Env) -> Result<u32> {
         let count = self
@@ -362,7 +362,8 @@ impl EarlyOtelBatch {
     }
 }
 
-/// Snapshot bytes once on the JS thread; the validator task receives Rust-owned memory.
+/// Snapshot bytes once on the JS thread. Only Rust-owned memory reaches the validator task;
+/// retaining a mutable Node Buffer across an async read would not enforce that ownership.
 #[napi(ts_return_type = "Promise<ValidatedOtelJson>")]
 pub fn validate_otel_json(
     env: Env,
@@ -396,16 +397,15 @@ pub fn prepare_otel_json(
     }))
 }
 
-/// Synchronously check raw bytes for possible media.
+/// Synchronously check raw bytes for possible media without copying or validating JSON.
 /// Callers must bound input size to limit JS-thread work; a match still needs extraction.
 #[napi]
 pub fn has_otel_media_candidate(bytes: Buffer) -> bool {
     otel_media::may_contain_media_candidate(&bytes)
 }
 
-/// Extract media from unmasked input. When the marker scan finds no candidate, return `null`
-/// so the caller validates the original bytes with its JSON parser. Masking callers use
-/// `validateOtelJson` first.
+/// Extract media from unmasked input. Null means the caller should parse its original bytes;
+/// marker-free input has NOT been validated. Masking callers must use validateOtelJson first.
 #[napi(ts_return_type = "Promise<EarlyOtelBatch | null>")]
 pub fn extract_otel_media(
     env: Env,

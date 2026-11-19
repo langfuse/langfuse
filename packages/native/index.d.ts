@@ -3,17 +3,17 @@
 export declare class EarlyOtelBatch {
   /** Release this handle; pending reads retain ownership until they complete. */
   dispose(): Promise<void>
-  /** Copy the compact document on libuv; the batch keeps its JSON for subsequent reads. */
+  /** Copy the compact document on libuv without consuming the batch's JSON. */
   copyJsonBuffer(): Promise<Buffer>
   /**
-   * Transfer compact document bytes to a Node Buffer.
+   * Transfer the compact document to a Node Buffer without a UTF-8-to-JS-string copy.
    * The Buffer finalizer owns the Rust allocation; only the batch's accounting is released
    * here because Node now owns the allocation through that finalizer. Media metadata and
    * source ranges remain owned by this batch for later reads.
    */
   takeJsonBuffer(): Buffer
   get media(): Array<ExtractedOtelMedia>
-  /** Return the number of extracted media descriptors as a scalar. */
+  /** Return the number of extracted media descriptors without materializing them in JavaScript. */
   mediaCount(): number
   /** Materialize a bounded page of descriptors for callers processing very large batches. */
   mediaPage(offset: number, limit: number): Array<ExtractedOtelMedia>
@@ -55,15 +55,15 @@ export declare class RustOtelBatch {
 
 export declare class ValidatedOtelJson {
   /**
-   * Return sanitized bytes after replacing malformed UTF-8, or `null` in JavaScript for valid
-   * UTF-8. Masking reads the same source used by validation and media discovery.
+   * Return sanitized bytes only when malformed UTF-8 required replacement.
+   * Masking must see the same source as validation and media discovery.
    */
   normalizedBytes(): Buffer | null
-  /** Release a superseded masking input on the worker task. */
+  /** Release a superseded masking input without waiting for the JS handle to be collected. */
   dispose(): Promise<void>
   /**
    * Consume the validated input and create a batch, optionally extracting media.
-   * When `extract_media` is false, the batch retains the validated JSON with an empty media list.
+   * When `extract_media` is false, the batch retains the JSON without media discovery or hashing.
    */
   extract(extractMedia: boolean): Promise<EarlyOtelBatch>
 }
@@ -94,9 +94,8 @@ export interface ExtractedOtelMedia {
 }
 
 /**
- * Extract media from unmasked input. When the marker scan finds no candidate, return `null`
- * so the caller validates the original bytes with its JSON parser. Masking callers use
- * `validateOtelJson` first.
+ * Extract media from unmasked input. Null means the caller should parse its original bytes;
+ * marker-free input has NOT been validated. Masking callers must use validateOtelJson first.
  */
 export declare function extractOtelMedia(bytes: Buffer): Promise<EarlyOtelBatch | null>
 
@@ -116,7 +115,7 @@ export interface FinalizedOtelEvent {
 }
 
 /**
- * Synchronously check raw bytes for possible media.
+ * Synchronously check raw bytes for possible media without copying or validating JSON.
  * Callers must bound input size to limit JS-thread work; a match still needs extraction.
  */
 export declare function hasOtelMediaCandidate(bytes: Buffer): boolean
@@ -268,5 +267,8 @@ export interface TopicClusteringSettings {
   minSamples: number
 }
 
-/** Snapshot bytes once on the JS thread; the validator task receives Rust-owned memory. */
+/**
+ * Snapshot bytes once on the JS thread. Only Rust-owned memory reaches the validator task;
+ * retaining a mutable Node Buffer across an async read would not enforce that ownership.
+ */
 export declare function validateOtelJson(bytes: Buffer): Promise<ValidatedOtelJson>
