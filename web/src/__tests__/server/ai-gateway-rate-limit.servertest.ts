@@ -205,6 +205,16 @@ describe("AI Gateway organization rate limits", () => {
       "authenticateRequest",
     ).mockResolvedValue(
       contextFor({
+        connection: {
+          id: "connection-1",
+          name: "OpenAI",
+          provider: "OPENAI",
+          encryptedCredential: "encrypted-credential",
+          allowedModels: null,
+          config: null,
+          baseURL: null,
+          extraHeaders: null,
+        },
         providerModel: "gpt-4o-mini",
         spendLimits: [
           {

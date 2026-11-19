@@ -76,7 +76,11 @@ export class GatewayResolveService {
     context: GatewayApiKeyAuthContext,
   ): Promise<GatewayResolveResponse["pricing"]> {
     const { ingestionProjectId, providerModel } = context;
+    // Skip requests `resolve` rejects with 403 or 404, so a client looping on
+    // an unroutable model cannot turn each rejection into a pricing query.
     if (
+      !getIngestionMode(context) ||
+      !context.connection ||
       getEnforcedSpendLimits(context).length === 0 ||
       !ingestionProjectId ||
       !providerModel
