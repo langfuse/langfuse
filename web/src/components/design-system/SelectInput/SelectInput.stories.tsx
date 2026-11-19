@@ -136,6 +136,44 @@ export const WithLongText = meta.story({
   ),
 });
 
+/** Groups without labels are set apart only by a separator. */
+export const CheckmarkWithUnlabeledGroups = meta.story({
+  args: {
+    value: "eu",
+    placeholder: "Select a region",
+    indicator: "checkmark",
+    options: [
+      {
+        type: "group",
+        id: "regions",
+        options: [
+          {
+            value: "global",
+            label: "Global",
+            badges: [{ text: "api.example.com", color: "filled" }],
+          },
+          {
+            value: "us",
+            label: "United States",
+            badges: [{ text: "us.api.example.com", color: "filled" }],
+          },
+          {
+            value: "eu",
+            label: "Europe",
+            badges: [{ text: "eu.api.example.com", color: "filled" }],
+          },
+        ],
+      },
+      {
+        type: "group",
+        id: "other",
+        options: [{ value: "custom", label: "Custom" }],
+      },
+    ],
+    onValueChange: fn(),
+  },
+});
+
 export const SearchableWithBadges = meta.story({
   name: "(Test) Searchable with badges",
   args: {

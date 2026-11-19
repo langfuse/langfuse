@@ -91,7 +91,9 @@ export function AsyncSelectInput<V extends string>({
   }
   for (const node of options) {
     if (node.type === "group") {
-      rows.push({ type: "heading", id: node.id, label: node.label });
+      if (node.label) {
+        rows.push({ type: "heading", id: node.id, label: node.label });
+      }
       rows.push(
         ...node.options.map((option): Row => ({ type: "option", option })),
       );

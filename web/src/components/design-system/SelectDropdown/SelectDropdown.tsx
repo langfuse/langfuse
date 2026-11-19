@@ -31,7 +31,8 @@ type SelectNode<V> =
   | {
       type: "group";
       id: string;
-      label: string;
+      /** Without a label, the group is set apart only by its separator. */
+      label?: string;
       options: SelectOption<V>[];
     };
 
@@ -83,6 +84,7 @@ export function SelectDropdown<V extends string>({
   onValueChange,
   emptyMessage = "No options available.",
   noCapture,
+  indicator = "radio",
   children,
   ref,
   ...triggerProps
@@ -93,6 +95,8 @@ export function SelectDropdown<V extends string>({
   emptyMessage?: string;
   /** Keeps the portaled option list out of session replay. */
   noCapture?: boolean;
+  /** `radio` leads each option with a radio; `checkmark` trails the selected one with a check. */
+  indicator?: "radio" | "checkmark";
   children: (
     controls: TriggerControls & { selectedLabel: string | undefined },
   ) => React.ReactNode;
@@ -124,9 +128,11 @@ export function SelectDropdown<V extends string>({
             <SelectPrimitive.Separator className="bg-border my-2 h-px" />
           )}
           <SelectPrimitive.Group>
-            <SelectPrimitive.Label className="text-muted-foreground px-1 py-1.5 text-xs font-bold">
-              {node.label}
-            </SelectPrimitive.Label>
+            {node.label ? (
+              <SelectPrimitive.Label className="text-muted-foreground px-1 py-1.5 text-xs font-bold">
+                {node.label}
+              </SelectPrimitive.Label>
+            ) : null}
             {node.options.map((option) => renderNode(option, false))}
           </SelectPrimitive.Group>
         </React.Fragment>
@@ -137,7 +143,7 @@ export function SelectDropdown<V extends string>({
       <InputDropdown.Option highlight="focus">
         <SelectPrimitive.Item value={node.value} disabled={node.disabled}>
           <InputDropdown.OptionContent
-            type="radio"
+            type={indicator}
             checked={value === node.value}
             label={
               <SelectPrimitive.ItemText>
