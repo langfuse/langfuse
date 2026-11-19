@@ -117,7 +117,6 @@ function TopicSetupSession({
     onSuccess: () => {
       utils.topics.modelSettings.invalidate({ projectId });
       utils.topics.facets.invalidate({ projectId });
-      utils.topics.rules.invalidate({ projectId });
       // The page follows the first rule's setup from the maps overview.
       utils.topics.maps.invalidate({ projectId });
       utils.topics.tracingReadinessSettings.invalidate({ projectId });

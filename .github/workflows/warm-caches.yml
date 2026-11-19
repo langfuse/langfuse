@@ -2,20 +2,26 @@ name: Warm CI caches
 
 # Main-branch cache entries can be restored by other refs. Since the main
 # pipeline skips commits already tested by the merge queue, build these
-# profiles periodically so other branches can reuse their task artifacts.
+# profiles on main pushes and periodically so other branches can reuse them.
 on:
   schedule:
     # Every 6 hours, offset from the top of the hour to dodge runner-pool
     # congestion. Frequency chosen to stay under the observed hours-scale
     # cache lifetime.
     - cron: "23 */6 * * *"
+  # Warm caches from the main commit PRs and merge-queue runs are based on.
+  push:
+    branches:
+      - "main"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: warm-caches
+  # Separate groups so a queued push run never replaces a pending scheduled
+  # run (or the reverse); within a group the newest pending run wins.
+  group: warm-caches-${{ github.event_name == 'push' && 'push' || 'periodic' }}
 
 env:
   # Keep in sync with NODE_VERSION in pipeline.yml.
@@ -23,6 +29,7 @@ env:
 
 jobs:
   warm:
+    if: github.ref == 'refs/heads/main'
     # Match the pipeline's runner provider for cache compatibility.
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
@@ -66,18 +73,7 @@ jobs:
         # the whole .env, so even test-only differences invalidate the build.
         run: |
           if [ "${{ matrix.env_profile }}" = "tests-web" ]; then
-            {
-              grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.deploy-mode }}.example
-              echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1"
-              echo "LANGFUSE_CACHE_PROMPT_ENABLED=false"
-              echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1"
-              echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1"
-              echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100"
-              echo "ADMIN_API_KEY=admin-api-key"
-              echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test"
-              echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true"
-              echo "LANGFUSE_ENABLE_SCORES_V3_API=true"
-            } > .env
+            bash scripts/ci/write-web-test-env.sh ".env.dev${{ matrix.deploy-mode }}.example" .env
           else
             cp .env.dev${{ matrix.deploy-mode }}.example .env
           fi
@@ -103,3 +99,96 @@ jobs:
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks to keep the warmer cheap (mirrors tests-web).
           NEXT_IGNORE_BUILD_ERRORS: "true"
+
+  # Saves the Next.js (Turbopack) build cache that e2e-tests and
+  # e2e-server-tests in pipeline.yml restore. Those jobs only restore, so this
+  # job is the only writer. Main-scoped entries are the only ones every PR and
+  # merge-queue run can read.
+  nextjs-e2e:
+    # Another ref's saves are only readable from that ref, so a run anywhere
+    # but main (e.g. a manual dispatch on a branch) would only add an unused
+    # entry.
+    if: github.ref == 'refs/heads/main'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
+    env:
+      # Mirror the e2e jobs so the web build — and its turbo hash — match.
+      NODE_ENV: test
+      NEXT_IGNORE_BUILD_ERRORS: "true"
+      TURBO_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] cache warmer for the e2e Next.js build cache only; runs on main, no released artifacts are built or published from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: pnpm install
+      - name: Load default env
+        # Same files as e2e-tests: turbo hashes the whole .env.
+        run: |
+          cp .env.dev.example .env
+          cp .env.dev.example web/.env
+      - name: Compute web build hash
+        # Keys the cache by turbo's web#build hash, so a push that leaves the
+        # web build unchanged finds its entry and skips the build.
+        id: web-hash
+        run: |
+          hash="$(pnpm exec turbo run build --filter=web --dry=json | jq -r '.tasks[] | select(.taskId == "web#build") | .hash')"
+          if [ -z "$hash" ] || [ "$hash" = "null" ]; then
+            echo "Could not read the web#build hash from turbo's dry run"
+            exit 1
+          fi
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+      - name: Look up Next.js build cache
+        # Checks for this exact web build without downloading the archive.
+        id: nextjs-cache-lookup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] cache warmer for the e2e Next.js build cache only; runs on main, no released artifacts are built or published from this cached state
+        with:
+          path: web/.next/cache
+          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ steps.web-hash.outputs.hash }}
+          lookup-only: true
+      - name: Restore Next.js build cache
+        if: steps.nextjs-cache-lookup.outputs.cache-hit != 'true'
+        id: nextjs-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] cache warmer for the e2e Next.js build cache only; runs on main, no released artifacts are built or published from this cached state
+        with:
+          # Path, key and prefix must match the restore steps in pipeline.yml.
+          path: web/.next/cache
+          key: ${{ steps.nextjs-cache-lookup.outputs.cache-primary-key }}
+          # No cross-lockfile fallback: a dependency change starts a fresh
+          # cache instead of carrying the old one forward indefinitely.
+          restore-keys: |
+            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-
+      - name: Setup Turbo remote cache
+        if: steps.nextjs-cache-lookup.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: rharkor/caching-for-turbo@2238fae6eb9a9936f92356f54cb3660200d105e7 # v2.5.1
+        with:
+          provider: github
+          cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
+          use-relative-cache-path: true
+          server-port: "0"
+      - name: Build web
+        # web runs outside turbo: a turbo cache hit would restore .next
+        # without running next build, and leave the Next.js cache untouched.
+        if: steps.nextjs-cache-lookup.outputs.cache-hit != 'true'
+        run: |
+          pnpm turbo run build --filter='web^...'
+          pnpm --filter=web run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
+      - name: Save Next.js build cache
+        if: steps.nextjs-cache-lookup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] cache warmer for the e2e Next.js build cache only; runs on main, no released artifacts are built or published from this cached state
+        with:
+          path: web/.next/cache
+          key: ${{ steps.nextjs-cache-lookup.outputs.cache-primary-key }}

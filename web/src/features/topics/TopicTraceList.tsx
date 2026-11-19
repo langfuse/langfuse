@@ -1,13 +1,24 @@
 /* eslint-disable react/no-unstable-nested-components */
 import {
   type PointerEvent,
+  type ComponentProps,
   useContext,
+  useEffect,
+  useRef,
   type RefObject,
   type UIEvent,
   useState,
 } from "react";
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
+import {
+  type CustomHeights,
+  customRowHeightMenu,
+  DataTableRowHeightSwitch,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
+import { useElementSize } from "@/src/hooks/useElementSize";
 import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
@@ -21,9 +32,13 @@ import {
   topicTracesHref,
 } from "./facet-topics";
 import { FacetTraceSource } from "./useFacetTopicTraces";
+import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
+import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
+/** Summaries run up to about 230 characters, so medium fits two lines and large about four. */
+const TRACE_ROW_HEIGHTS: CustomHeights = { s: "h-7", m: "h-16", l: "h-24" };
 /** More rows load from the server as the list nears its end. */
 const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
@@ -61,14 +76,44 @@ export function TopicTraceList({
   description,
   swatchColor,
   traces,
+  rowHeightKey = "topicTraces",
+  selectedTraceId = null,
   totalCount,
   tracingTopic,
   peekView,
   tracePanelRef,
   headerRef,
   divider,
+  search,
+  topicColors,
+  emptyMessage = "No trace summaries.",
 }: TopicTraceListProps) {
   const { rows } = traces;
+  const tableRef = useRef<HTMLDivElement>(null);
+  const [sizeRef, tableSize] = useElementSize<HTMLDivElement>();
+  // Default widths: 20% trace ID, 30% topic, 50% summary of the measured list.
+  // The table keeps a small right gutter, so shares come from the width without it.
+  const widthShare = (share: number) =>
+    Math.floor(Math.max(0, (tableSize?.width ?? 0) - 16) * share);
+  // Taller rows wrap the summary and topic, since the list is the only place to read them.
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
+    rowHeightKey,
+    "s",
+  );
+  // Same threshold as the table: custom heights under medium stay one truncated line.
+  const wrapsSummary = !isCompactRowHeight(
+    rowHeight,
+    rowHeights.mode,
+    rowHeights.activeHeightPx,
+    TRACE_ROW_HEIGHTS,
+  );
+  const selectedRowLoaded = rows.some((row) => row.traceId === selectedTraceId);
+  // A trace picked on the map scrolls into view once its row is loaded.
+  useEffect(() => {
+    tableRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [selectedTraceId, selectedRowLoaded]);
   const onScrollCapture = (event: UIEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     if (
@@ -92,8 +137,8 @@ export function TopicTraceList({
     {
       accessorKey: "traceId",
       header: () => <span className={FIRST_CELL}>Trace ID</span>,
-      size: 208,
-      minSize: 128,
+      size: widthShare(0.2),
+      minSize: 96,
       cell: ({ row }) => (
         <span
           className={cn(
@@ -106,16 +151,75 @@ export function TopicTraceList({
         </span>
       ),
     },
+    ...(topicColors
+      ? [
+          {
+            accessorKey: "topicName",
+            header: () => <span className={CELL}>Topic</span>,
+            size: widthShare(0.3),
+            minSize: 120,
+            cell: ({ row }) => {
+              // Outliers read Unassigned, as in the topic rows and on the map.
+              const name =
+                row.original.topicName ??
+                (row.original.outcome === "outlier"
+                  ? "Unassigned"
+                  : row.original.outcome.replaceAll("_", " "));
+              return (
+                <span
+                  className={cn(
+                    CELL,
+                    "flex min-w-0 gap-2",
+                    wrapsSummary ? "items-start" : "items-center",
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    // Wrapped names start at the top, so the swatch sits on their first line.
+                    className={cn(
+                      "size-2.5 shrink-0 rounded-xs",
+                      wrapsSummary && "mt-1.5",
+                    )}
+                    style={{
+                      backgroundColor: topicColors.get(
+                        row.original.topicId ?? UNASSIGNED_TOPIC_ID,
+                      ),
+                    }}
+                  />
+                  <span
+                    className={cn(
+                      "min-w-0 text-sm",
+                      // The cell itself does not wrap, so wrapping is set explicitly.
+                      wrapsSummary
+                        ? "break-words whitespace-normal"
+                        : "truncate",
+                    )}
+                    title={name}
+                  >
+                    {name}
+                  </span>
+                </span>
+              );
+            },
+          } satisfies LangfuseColumnDef<FacetRow>,
+        ]
+      : []),
     {
       accessorKey: "summary",
       header: () => <span className={CELL}>Summary</span>,
-      size: 300,
+      // A share, not a flexible width: the table layout would hand the spare space to the other columns.
+      size: widthShare(0.5),
       minSize: 180,
-      isFlexWidth: true,
       cell: ({ row }) => {
         const summary = row.original.summary || "No applicable summary.";
         return (
-          <p className={cn("truncate", CELL)} title={summary}>
+          <p
+            className={cn(
+              wrapsSummary ? "break-words whitespace-pre-wrap" : "truncate",
+              CELL,
+            )}
+            title={summary}
+          >
             {summary}
           </p>
         );
@@ -133,40 +237,50 @@ export function TopicTraceList({
         !divider && "rounded-md border",
       )}
     >
+      {search && <TopicsTraceToolbar {...search} divider={false} />}
       <div ref={headerRef} className="flex shrink-0 flex-col gap-1 px-4 py-3">
-        <div className="flex h-7 items-center justify-between gap-4">
-          <p className="text-muted-foreground flex min-w-0 items-center gap-2">
-            {swatchColor && (
+        <div className="flex min-h-7 items-center justify-between gap-4">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <h3 className="flex min-w-0 items-baseline gap-2">
+              {swatchColor && (
+                <span
+                  aria-hidden
+                  className="size-3 shrink-0 self-center rounded-xs"
+                  style={{ backgroundColor: swatchColor }}
+                />
+              )}
               <span
-                aria-hidden
-                className="size-3 shrink-0 rounded-xs"
-                style={{ backgroundColor: swatchColor }}
+                className="min-w-0 truncate text-lg font-bold"
+                title={titleTooltip.title}
+                onPointerMove={titleTooltip.onPointerMove}
+              >
+                {title}
+              </span>
+            </h3>
+            {totalCount !== null && (
+              <span className="text-muted-foreground shrink-0 font-mono text-xs">
+                · {traceCountLabel(totalCount)}
+              </span>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <DataTableRowHeightSwitch
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              tableName="topics-trace-list"
+              customRowHeight={customRowHeightMenu(rowHeights)}
+            />
+            {tracingHref && (
+              <Button
+                href={tracingHref}
+                text="Open in Tracing"
+                variant="ghost"
+                size="sm"
+                icon={ExternalLink}
               />
             )}
-            <span
-              className="truncate font-mono text-xs"
-              title={traceCountLabel(totalCount)}
-            >
-              {traceCountLabel(totalCount)}
-            </span>
-          </p>
-          {tracingHref && (
-            <Button
-              href={tracingHref}
-              text="Open in Tracing"
-              variant="ghost"
-              size="sm"
-              icon={ExternalLink}
-            />
-          )}
+          </div>
         </div>
-        <h3
-          className="truncate text-lg font-bold"
-          title={titleTooltip.title}
-          onPointerMove={titleTooltip.onPointerMove}
-        >
-          {title}
-        </h3>
         {description && (
           <p
             className="text-muted-foreground line-clamp-2 text-sm"
@@ -177,20 +291,35 @@ export function TopicTraceList({
           </p>
         )}
       </div>
-      <DataTable
-        tableName="topics-topic-traces"
-        columns={columns}
-        data={{
-          isLoading: traces.isLoading,
-          isError: traces.error !== null,
-          error: traces.error ?? undefined,
-          data: rows.map((row) => ({ ...row, id: row.traceId })),
-        }}
-        className="min-h-0 overscroll-contain"
-        cellPadding="relaxed"
-        noResultsMessage="No trace summaries."
-        peekView={peekView}
-      />
+      <div ref={sizeRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div ref={tableRef} className="contents">
+          {/* The table reads column sizes once, so it waits for the measured width. */}
+          {tableSize && (
+            <DataTable
+              // v2 drops column widths saved before the 20/30/50 defaults.
+              tableName="topics-trace-list"
+              columns={columns}
+              data={{
+                isLoading: traces.isLoading,
+                isError: traces.error !== null,
+                error: traces.error ?? undefined,
+                data: rows.map((row) => ({ ...row, id: row.traceId })),
+              }}
+              className="min-h-0 overscroll-contain"
+              cellPadding="relaxed"
+              noResultsMessage={emptyMessage}
+              peekView={peekView}
+              rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
+              rowHeight={rowHeight}
+              customRowHeights={TRACE_ROW_HEIGHTS}
+              customRowHeightPx={rowHeights.activeHeightPx}
+              onCustomRowHeightChange={rowHeights.setCustomPx}
+              onSelectRowHeight={setRowHeight}
+              topAlignCells={wrapsSummary}
+            />
+          )}
+        </div>
+      </div>
       {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
     </section>
   );
@@ -202,8 +331,12 @@ type TopicTraceListProps = {
   description?: string;
   swatchColor?: string;
   traces: TopicTracesResult;
-  /** Approximate count of the listed topic's traces. */
-  totalCount: number;
+  /** Each view keeps its own row height: the list sits beside the map in Scatter, full width elsewhere. */
+  rowHeightKey?: string;
+  /** Highlighted and scrolled into view, e.g. a trace picked on the map. */
+  selectedTraceId?: string | null;
+  /** Count of the listed traces; null when only the loaded rows are known. */
+  totalCount: number | null;
   /** The listed topic, so Open in Tracing can filter by it instead of trace IDs. */
   tracingTopic?: { facet: Facet; name: string };
   peekView: DataTablePeekViewProps;
@@ -212,12 +345,14 @@ type TopicTraceListProps = {
   headerRef?: RefObject<HTMLDivElement | null>;
   /** `none` when the parent draws the divider, e.g. a resize handle. */
   divider?: "side" | "none";
+  /** Search and filters above the header. */
+  search?: Omit<ComponentProps<typeof TopicsTraceToolbar>, "divider">;
+  /** Shown when the list is empty, e.g. for a search that matches nothing. */
+  emptyMessage?: string;
+  /** Adds a Topic column, colored per topic ID. */
+  topicColors?: ReadonlyMap<string, string>;
 };
 
-const APPROXIMATE_COUNT_FROM = 1_000;
-
-/** Counts are distinct-trace estimates; only large ones read as approximate. */
 function traceCountLabel(count: number) {
-  const approximate = count >= APPROXIMATE_COUNT_FROM ? "~" : "";
-  return `${approximate}${count.toLocaleString()} traces`;
+  return `${count.toLocaleString()} traces`;
 }

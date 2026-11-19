@@ -52,11 +52,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
     auth = fixture.auth;
   });
 
-  it("should kill redis connection", () => {
-    // we need at least one test case to avoid hanging
-    // redis connection when everything else is skipped.
-  });
-
   it("rejects matches filters on v1 observations", async () => {
     const filterParam = JSON.stringify([
       {

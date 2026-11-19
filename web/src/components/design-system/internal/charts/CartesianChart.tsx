@@ -1,8 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ReactNode, ComponentProps } from "react";
 
 import type { CartesianPlot } from "@/src/components/design-system/internal/charts/CartesianLayout";
+import { CartesianLayout } from "./CartesianLayout";
+import { ChartContainer } from "./ChartContainer";
 
 function ChartGrid({
   yTicks,
@@ -238,7 +240,7 @@ function ChartYAxis({
   });
 }
 
-export function CartesianChart({
+function CartesianChartContent({
   width,
   height,
   ariaLabel,
@@ -375,5 +377,63 @@ export function CartesianChart({
         />
       ) : null}
     </svg>
+  );
+}
+
+export function CartesianChart(
+  props:
+    | (ComponentProps<typeof CartesianChartContent> & { variant?: "default" })
+    | { variant: "loading"; compactYAxis?: boolean; hideXAxisLabels?: boolean },
+) {
+  if (props.variant !== "loading") return <CartesianChartContent {...props} />;
+  return (
+    <div aria-hidden="true" className="size-full motion-safe:animate-pulse">
+      <ChartContainer>
+        {({ width, height }) => (
+          <CartesianLayout
+            width={width}
+            height={height}
+            showXAxisLabels={!props.hideXAxisLabels}
+            compactYAxis={props.compactYAxis}
+          >
+            {({ measuredPlot: plot, maxYTicks }) => (
+              <CartesianChartContent
+                width={width}
+                height={height}
+                ariaLabel=""
+                plot={plot}
+                yTicks={Array.from({ length: maxYTicks }, (_, tick) => tick)}
+                y={(tick) =>
+                  plot.top +
+                  plot.height -
+                  (tick * plot.height) / Math.max(1, maxYTicks - 1)
+                }
+                valueFormatter={() => "···"}
+                xAxis={
+                  props.hideXAxisLabels
+                    ? undefined
+                    : {
+                        ticks: [0, 0.5, 1].map((position) => ({
+                          key: String(position),
+                          x: plot.left + position * plot.width,
+                          label: "···",
+                        })),
+                      }
+                }
+              >
+                <rect
+                  x={plot.left}
+                  y={plot.top}
+                  width={plot.width}
+                  height={plot.height}
+                  rx={2}
+                  className="fill-muted/30"
+                />
+              </CartesianChartContent>
+            )}
+          </CartesianLayout>
+        )}
+      </ChartContainer>
+    </div>
   );
 }

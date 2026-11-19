@@ -6,6 +6,7 @@ import {
   classifyTrpcToastError,
   EXPECTED_TRPC_BAD_REQUEST_PATHS,
 } from "@/src/utils/trpcErrorClassification";
+import { TrpcNonJsonResponseError } from "@/src/utils/trpcResponseParseError";
 import { rememberTrpcToastOperation } from "@/src/utils/trpcToastOperation";
 
 const trpcError = (code: string, httpStatus: number, path = "test.procedure") =>
@@ -78,6 +79,40 @@ describe("classifyTrpcToastError", () => {
       });
     },
   );
+
+  it("classifies Safari's Response.json() DOMException as a transient network failure", () => {
+    const cause = new DOMException(
+      "The string did not match the expected pattern.",
+      "SyntaxError",
+    );
+
+    expect(
+      classifyTrpcToastError(
+        new TRPCClientError(cause.message, { cause }),
+        "prompts.allVersions",
+      ),
+    ).toEqual({
+      operation: "prompts.allVersions",
+      errorOrigin: "network",
+      errorCategory: "transient",
+    });
+  });
+
+  it("classifies a typed non-JSON gateway response as transient and keeps the status", () => {
+    const cause = new TrpcNonJsonResponseError(504);
+
+    expect(
+      classifyTrpcToastError(
+        new TRPCClientError(cause.message, { cause }),
+        "prompts.allVersions",
+      ),
+    ).toEqual({
+      operation: "prompts.allVersions",
+      errorOrigin: "network",
+      errorCategory: "transient",
+      httpStatus: 504,
+    });
+  });
 
   it("classifies non-JSON transport responses without capturing their content", () => {
     const error = new TRPCClientError("Unexpected token", {

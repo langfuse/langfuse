@@ -64,6 +64,7 @@ describe("modelMatch", () => {
       const modelId = uuidv4();
       const mockModel = await prisma.model.create({
         data: {
+          scope: "PROJECT",
           projectId,
           id: modelId,
           modelName: "gpt-4",
@@ -147,6 +148,7 @@ describe("modelMatch", () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const mockModel = await prisma.model.create({
         data: {
+          scope: "PROJECT",
           projectId,
           modelName: "gpt-4",
           matchPattern: "gpt-4",
@@ -196,6 +198,7 @@ describe("modelMatch", () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const model = await prisma.model.create({
         data: {
+          scope: "PROJECT",
           projectId,
           modelName: "gpt-4o",
           matchPattern: "gpt-4o",
@@ -225,6 +228,7 @@ describe("modelMatch", () => {
 
       await prisma.model.create({
         data: {
+          scope: "PROJECT",
           projectId,
           modelName,
           matchPattern: modelName,
@@ -243,6 +247,7 @@ describe("modelMatch", () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const mockModel = await prisma.model.create({
         data: {
+          scope: "PROJECT",
           projectId,
           modelName: "gpt-4",
           matchPattern: "gpt-4",
@@ -262,6 +267,7 @@ describe("modelMatch", () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const mockModel = await prisma.model.create({
         data: {
+          scope: "PROJECT",
           projectId,
           modelName: "gpt-4-turbo",
           matchPattern: "gpt-4.*",
@@ -295,6 +301,7 @@ describe("modelMatch", () => {
       // Create and cache multiple models
       await prisma.model.create({
         data: {
+          scope: "PROJECT",
           projectId,
           modelName: "gpt-4",
           matchPattern: "gpt-4",
@@ -305,6 +312,7 @@ describe("modelMatch", () => {
 
       await prisma.model.create({
         data: {
+          scope: "PROJECT",
           projectId,
           modelName: "gpt-3.5-turbo",
           matchPattern: "gpt-3.5-turbo",

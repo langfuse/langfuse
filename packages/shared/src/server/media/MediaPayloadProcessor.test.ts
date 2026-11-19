@@ -109,6 +109,31 @@ describe("transformMediaPayload", () => {
     );
   });
 
+  it.each([true, false])(
+    "processes inline media between references (upload succeeds: %s)",
+    async (uploadSucceeds) => {
+      const value = `${MEDIA_REFERENCE} caption ${DATA_URI} ${MEDIA_REFERENCE}`;
+      const processCandidate = vi
+        .fn()
+        .mockResolvedValue(uploadSucceeds ? MEDIA_REFERENCE : undefined);
+
+      const transformed = await transformMediaPayload(value, {
+        processCandidate,
+        onInvalidCandidate: vi.fn(),
+        onIgnoredCandidate: vi.fn(),
+        onDetectionPath: vi.fn(),
+      });
+
+      expect(processCandidate).toHaveBeenCalledOnce();
+      expect(processCandidate).toHaveBeenCalledWith(
+        expect.objectContaining({ encodedData: PNG_BASE64 }),
+      );
+      expect(transformed.value).toBe(
+        uploadSucceeds ? value.replace(DATA_URI, MEDIA_REFERENCE) : value,
+      );
+    },
+  );
+
   it.each(DATA_URI_PUNCTUATIONS)(
     "processes an embedded Data URI followed by %s",
     async (punctuation) => {

@@ -29,6 +29,7 @@ import {
   revokeRolesForPrincipal,
 } from "../../src/features/rbac/roleAssignmentService";
 import { redis } from "../../src/server/redis/redis";
+import { findOrCreateOrgMembership } from "../../src/features/memberships/orgMembershipRepository";
 import {
   DEFAULT_SEED_API_KEY,
   EVAL_TRACE_COUNT,
@@ -149,34 +150,17 @@ async function main() {
   // Realistic support chat scenario
   await createSupportChatSession(project1);
 
-  const orgMembership = await prisma.organizationMembership.upsert({
-    where: {
-      orgId_userId: {
-        userId: user.id,
-        orgId: seedOrgId,
-      },
-    },
-    create: {
-      userId: user.id,
-      orgId: seedOrgId,
-      role: "OWNER",
-    },
-    update: {},
+  // API keys bound to a user are authorized by the user's role assignments, not the membership row alone.
+  const orgMembership = await findOrCreateOrgMembership(prisma, {
+    orgId: seedOrgId,
+    userId: user.id,
+    role: "OWNER",
   });
 
-  const orgMembership2 = await prisma.organizationMembership.upsert({
-    where: {
-      orgId_userId: {
-        userId: user2.id,
-        orgId: seedOrgId,
-      },
-    },
-    create: {
-      userId: user2.id,
-      orgId: seedOrgId,
-      role: "MEMBER",
-    },
-    update: {},
+  const orgMembership2 = await findOrCreateOrgMembership(prisma, {
+    orgId: seedOrgId,
+    userId: user2.id,
+    role: "MEMBER",
   });
 
   await prisma.projectMembership.upsert({
@@ -281,19 +265,10 @@ async function main() {
       },
       update: { orgId: seedOrgIdOrg2 },
     });
-    await prisma.organizationMembership.upsert({
-      where: {
-        orgId_userId: {
-          userId: user.id,
-          orgId: seedOrgIdOrg2,
-        },
-      },
-      create: {
-        userId: user.id,
-        orgId: seedOrgIdOrg2,
-        role: "VIEWER",
-      },
-      update: {},
+    await findOrCreateOrgMembership(prisma, {
+      orgId: seedOrgIdOrg2,
+      userId: user.id,
+      role: "VIEWER",
     });
     await upsertInAppAgentSystemPrompt(project2.id);
 

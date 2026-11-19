@@ -8,7 +8,6 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   DEFAULT_TOPIC_FACETS,
   topicEmbeddingConfigSchema,
-  topicProcessingConfigSchema,
 } from "@langfuse/shared/topics";
 import {
   createTopicExecution,
@@ -129,11 +128,13 @@ async function topicsProject(userId: string) {
     {
       projectId,
       requestId: randomUUID(),
-      operation: "process",
+      operation: "update",
       facets: [{ facetId: facet.id, version: 1 }],
-      traceIds: [randomUUID()],
-      reuseExistingSummaries: false,
-      processingConfig: topicProcessingConfigSchema.parse({}),
+      timeRange: {
+        from: new Date(Date.now() - 86_400_000),
+        to: new Date(),
+      },
+      exploratory: false,
       embeddingConfig: topicEmbeddingConfigSchema.parse({}),
     },
     undefined,
@@ -278,25 +279,17 @@ describe("Topics tRPC access", () => {
         facetIds: [b.facetId],
       }),
     ).rejects.toThrow("Select facets from this project.");
+    const foreignSlice = {
+      projectId,
+      filter: [],
+      timeRange: { from: new Date(Date.now() - 86_400_000), to: new Date() },
+      facets: [{ facetId: b.facetId, version: 1 }],
+    };
+    await expect(admin.previewAnalysis(foreignSlice)).rejects.toThrow(
+      "Facet version not found in this project.",
+    );
     await expect(
-      admin.trigger({
-        projectId,
-        requestId: randomUUID(),
-        operation: "process",
-        facets: [{ facetId: b.facetId, version: 1 }],
-        traceIds: [randomUUID()],
-        reuseExistingSummaries: false,
-        processingConfig: topicProcessingConfigSchema.parse({}),
-        embeddingConfig: topicEmbeddingConfigSchema.parse({}),
-      }),
-    ).rejects.toThrow("Facet version not found in this project.");
-    await expect(
-      admin.startSetup({
-        projectId,
-        requestId: randomUUID(),
-        sampling: 1,
-        facets: [{ facetId: b.facetId, version: 1 }],
-      }),
+      admin.startAnalysis({ ...foreignSlice, label: "Foreign facet" }),
     ).rejects.toThrow("Facet version not found in this project.");
 
     // Project B is untouched.
@@ -344,11 +337,9 @@ describe("Topics tRPC access", () => {
       memberOfA.setupTraceCounts({ projectId: b.projectId }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
-      memberOfA.startSetup({
+      memberOfA.startRuleSetup({
         projectId: b.projectId,
-        requestId: randomUUID(),
-        sampling: 1,
-        facets: [{ facetId: b.facetId, version: 1 }],
+        ruleId: randomUUID(),
       }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });

@@ -484,6 +484,7 @@ const events = {
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  billing_coupon: ["submitted"],
   // Launch surfaces answer "which entry point and state lead people into
   // gateway setup or key creation?" Props are state enums and counts only.
   ai_gateway_launch: [
@@ -517,7 +518,8 @@ const events = {
     "update_required_badge_clicked",
     "migrate_evals_with_agent_clicked",
     // Legacy v3 strip in the top-banner stack. Both carry
-    // { severity, actionNeededCount }; cta_clicked also carries `cta`.
+    // { severity, actionNeededCount, variant }; cta_clicked also carries `cta`.
+    // `variant` is deadline, delayed (November 23), or december (December 31).
     "top_banner_shown",
     "top_banner_cta_clicked",
     // Opt-out users on the legacy-UI top strip → migration status page.

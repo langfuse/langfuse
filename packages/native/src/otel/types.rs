@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
 use indexmap::IndexMap;
 
 use super::attributes::{for_each_javascript_object_entry_owned, javascript_json_stringify};
@@ -166,6 +166,10 @@ pub(crate) fn to_clickhouse_datetime(value: &str) -> String {
     }
     if let Ok(parsed) = NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S%.f") {
         return parsed.format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+    }
+    // Accepted date-only timestamps denote UTC midnight; DateTime64 needs the time component.
+    if let Ok(parsed) = NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+        return parsed.format("%Y-%m-%d 00:00:00.000").to_string();
     }
     value.to_owned()
 }

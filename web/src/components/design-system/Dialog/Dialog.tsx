@@ -41,7 +41,7 @@ type DialogAction = {
   loading?: boolean;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
   type?: "button" | "submit";
-  variant?: "default" | "destructive";
+  variant?: "default" | "destructive" | "secondary";
 };
 
 type DialogProps = {
@@ -49,6 +49,8 @@ type DialogProps = {
   noCapture?: boolean;
   /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
   closeLabel?: string;
+  /** Hide the footer close button when every footer button is a workflow action. */
+  hideCloseButton?: boolean;
   closeOnInteractionOutside?: boolean;
   /** Only the footer close button closes the dialog: Escape and the header close button are disabled. */
   requireExplicitClose?: boolean;
@@ -69,6 +71,7 @@ function DialogRoot({
   noCapture,
   children,
   closeLabel,
+  hideCloseButton = false,
   closeOnInteractionOutside = false,
   requireExplicitClose = false,
   stopPropagationOnEnterSpace = true,
@@ -91,7 +94,8 @@ function DialogRoot({
     [],
   );
   const hasActions = Boolean(actions?.length);
-  const isCloseOnly = !hasActions && closeLabel !== undefined;
+  const isCloseOnly =
+    !hideCloseButton && !hasActions && closeLabel !== undefined;
   const actionButtonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   return (
@@ -187,21 +191,24 @@ function DialogRoot({
           </PopoverLayerProvider>
           {hasActions || isCloseOnly ? (
             <DialogFooter>
-              <DialogPrimitive.Close asChild>
-                {isCloseOnly ? (
-                  <Button
-                    ref={attachCloseOnlyButton}
-                    variant="primary"
-                    text={closeLabel}
-                  />
-                ) : (
-                  <Button
-                    ref={closeButtonRef}
-                    variant="secondary"
-                    text={closeLabel ?? "Cancel"}
-                  />
-                )}
-              </DialogPrimitive.Close>
+              {hideCloseButton ? null : (
+                <DialogPrimitive.Close asChild>
+                  {isCloseOnly ? (
+                    <Button
+                      ref={attachCloseOnlyButton}
+                      variant="primary"
+                      text={closeLabel}
+                    />
+                  ) : (
+                    <Button
+                      ref={closeButtonRef}
+                      variant="secondary"
+                      text={closeLabel ?? "Cancel"}
+                      disabled={actions?.some((action) => action.loading)}
+                    />
+                  )}
+                </DialogPrimitive.Close>
+              )}
               {actions?.map(
                 (
                   {
@@ -223,7 +230,9 @@ function DialogRoot({
                       text={label}
                       {...buttonProps}
                       variant={
-                        variant === "destructive" ? "destructive" : "primary"
+                        variant === undefined || variant === "default"
+                          ? "primary"
+                          : variant
                       }
                     />
                   );

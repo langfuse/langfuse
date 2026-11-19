@@ -28,7 +28,7 @@ const STRUCTURED_PARAMETERS: [&str; 5] = [
 pub(super) struct AnthropicMessagesCapture {
     pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     usage: Option<Map<String, Value>>,
     /// Present only in full mode; usage mode never records output.
     output: Option<AssistantMessage>,
@@ -236,10 +236,10 @@ impl AnthropicMessagesCapture {
         }
     }
 
-    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    pub(super) fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
-        if !body.push(bytes, |event| {
+        if !body.push(bytes, parse_limit, |event| {
             completion_started |= self.handle_event(event);
         }) {
             self.response_valid = false;

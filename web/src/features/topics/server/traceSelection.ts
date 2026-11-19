@@ -1,12 +1,9 @@
-import { z } from "zod";
+import { type z } from "zod";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "../backfill-limit";
-import { InvalidRequestError, type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import {
-  topicExecutionInputSchema,
   topicIdSchema,
   topicTraceSelectionCriteriaSchema,
-  topicTraceSelectionSnapshotSchema,
-  TOPICS_MAX_TIME_RANGE_MS,
   type TopicEmbeddingConfig,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";
@@ -20,7 +17,6 @@ import {
 } from "@langfuse/shared/topics/server";
 import {
   getTopicSetupTraceCount,
-  getTopicSetupTraceIds,
   getTracingReadinessSettings,
   TOPIC_SETUP_WINDOW_DAYS,
 } from "@langfuse/shared/src/server";
@@ -35,43 +31,13 @@ export const topicTraceSelectionSchema =
     ),
   });
 
-export const topicTriggerInputSchema = z
-  .union([
-    topicExecutionInputSchema,
-    topicExecutionInputSchema.options[0].omit({ traceIds: true }).extend({
-      selection: topicTraceSelectionSnapshotSchema,
-    }),
-  ])
-  .refine(
-    (input) =>
-      input.operation !== "process" ||
-      ("selection" in input
-        ? input.selection.limit === null ||
-          input.selection.limit <= TOPICS_BACKFILL_TRACE_LIMIT
-        : input.traceIds.length <= TOPICS_BACKFILL_TRACE_LIMIT),
-    `Select at most ${TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString("en-US")} traces.`,
-  )
-  .refine(
-    (input) =>
-      input.operation !== "update" ||
-      input.timeRange.to.getTime() - input.timeRange.from.getTime() <=
-        TOPICS_MAX_TIME_RANGE_MS,
-    "Select a time range of at most 93 days.",
-  );
-
 export async function previewTopicTraces(
   input: z.infer<typeof topicTraceSelectionSchema>,
   prisma: PrismaClient,
 ) {
-  const selection = {
-    ...input,
-    limit: input.limit ?? TOPICS_BACKFILL_TRACE_LIMIT,
-  };
-  const rows = await selectTopicTraceRows(selection, prisma, "preview");
-  const matchedTraceCount = Number(rows[0]?.matchedTraceCount ?? 0);
+  const rows = await selectTopicTraceRows(input, prisma);
   return {
-    matchedTraceCount,
-    selectedTraceCount: Math.min(matchedTraceCount, selection.limit),
+    matchedTraceCount: Number(rows[0]?.matchedTraceCount ?? 0),
     traces: rows.map((row) => ({
       id: row.id,
       timestamp: new Date(Number(row.timestampMs)),
@@ -79,35 +45,6 @@ export async function previewTopicTraces(
       environment: row.environment,
     })),
   };
-}
-
-export async function resolveTopicTraceSelection(
-  input: z.infer<typeof topicTriggerInputSchema>,
-  prisma: PrismaClient,
-) {
-  if (!("selection" in input)) return input;
-  const { selection, ...execution } = input;
-  const rows = await selectTopicTraceRows(
-    {
-      ...selection,
-      limit: selection.limit ?? TOPICS_BACKFILL_TRACE_LIMIT,
-      projectId: input.projectId,
-    },
-    prisma,
-    "ids",
-  );
-  const excluded = new Set(selection.excludedTraceIds);
-  const traceIds = rows
-    .filter((trace) => !excluded.has(trace.id))
-    .map((trace) => trace.id);
-  if (traceIds.length === 0)
-    throw new InvalidRequestError(
-      "No traces match this selection. Refresh the preview.",
-    );
-  return topicExecutionInputSchema.parse({
-    ...execution,
-    traceIds,
-  });
 }
 
 // Fallback when a project has no stored idle time; the setup flow always saves one.
@@ -212,34 +149,4 @@ export async function countUnsummarizedTopicTraces(input: {
       embeddingConfig: input.embeddingConfig,
     },
   });
-}
-
-/** Widens from 7 to 14 and 30 days until the limit is met. */
-export async function selectTopicSetupTraces(input: {
-  projectId: string;
-  filter: FilterState;
-  sampling: number;
-  limit: number;
-  now: Date;
-}) {
-  const idleMs = await topicSetupIdleMs(input.projectId);
-  let traceIds: string[] = [];
-  let days: (typeof TOPIC_SETUP_WINDOW_DAYS)[number] = 7;
-  const matching = await setupMatching(
-    input.projectId,
-    input.filter,
-    input.now,
-  );
-  if (matching === null) return { traceIds, days };
-  for (days of TOPIC_SETUP_WINDOW_DAYS) {
-    traceIds = await getTopicSetupTraceIds({
-      ...input,
-      idleMs,
-      days,
-      seed: input.projectId,
-      matching,
-    });
-    if (traceIds.length >= input.limit) break;
-  }
-  return { traceIds, days };
 }

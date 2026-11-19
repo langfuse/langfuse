@@ -14,11 +14,13 @@ type GatewayApiKeyMetadataFieldProps<
   TFieldValues extends EditableGatewayApiKeyFields,
 > = {
   control: Control<TFieldValues>;
+  /** Called instead of removing the last row, e.g. to drop the whole field. */
+  onRemoveLast?: () => void;
 };
 
 export function GatewayApiKeyMetadataField<
   TFieldValues extends EditableGatewayApiKeyFields,
->({ control }: GatewayApiKeyMetadataFieldProps<TFieldValues>) {
+>({ control, onRemoveLast }: GatewayApiKeyMetadataFieldProps<TFieldValues>) {
   // Control is invariant in its form values, so a form that holds more fields
   // than these is narrowed to the slice this field edits.
   const editableControl =
@@ -28,6 +30,10 @@ export function GatewayApiKeyMetadataField<
     name: "metadata",
   });
   const handleAdd = () => append(EMPTY_METADATA_FIELD);
+  const handleRemove = (index: number) => {
+    if (fields.length === 1 && onRemoveLast) onRemoveLast();
+    else remove(index);
+  };
 
   return (
     <CustomTooltip
@@ -39,10 +45,7 @@ export function GatewayApiKeyMetadataField<
       }
     >
       {({ getTriggerProps }) => (
-        <FormField
-          label="Metadata (optional)"
-          registerLabelTooltip={getTriggerProps}
-        >
+        <FormField label="Metadata" registerLabelTooltip={getTriggerProps}>
           {(field) => (
             <div
               id={field.id}
@@ -55,7 +58,7 @@ export function GatewayApiKeyMetadataField<
                   key={metadataField.id}
                   control={editableControl}
                   index={index}
-                  onRemove={remove}
+                  onRemove={handleRemove}
                 />
               ))}
               <Button

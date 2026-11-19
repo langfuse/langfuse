@@ -58,7 +58,7 @@ export function SessionCustomizationDialog({
   }) => void;
   preview: Pick<
     ComponentProps<typeof SessionFilterPreview>,
-    "pending" | "error"
+    "pending" | "error" | "navigation"
   > & { traces: RouterOutputs["sessions"]["previewTree"] | undefined };
 }) {
   const editing = variant.type === "edit" ? variant : undefined;
@@ -87,9 +87,7 @@ export function SessionCustomizationDialog({
     if (filters === null) return;
     const present = hasPreset(filters, filter);
     const remaining = filters.filter(
-      (existing) =>
-        existing.column !== filter.column ||
-        existing.operator !== filter.operator,
+      (existing) => existing.column !== filter.column,
     );
     filterInput.applyFilters(present ? remaining : [...remaining, filter]);
   };
@@ -294,6 +292,7 @@ export function SessionCustomizationDialog({
                 </div>
               </div>
               <SessionFilterPreview
+                key={preview.navigation?.sessionId}
                 {...preview}
                 traces={matchingTraces}
                 invalid={filterInput.invalid}

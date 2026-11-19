@@ -5,6 +5,9 @@ import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hoo
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 
+const SPEND_BUDGETS_NOT_RECORDED =
+  "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to set one.";
+
 /**
  * Single source for who sees which gateway settings and whether setup is done.
  * `isIngestionConfigured` stays undefined while loading so callers never gate
@@ -55,6 +58,11 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     showApiKeys,
     isIngestionConfigured: setupStatus.data?.isConfigured,
     isRecording: setupStatus.data?.isRecording,
+    /** Why spend budgets cannot be set or changed; undefined when they can, or while loading. */
+    spendBudgetUnavailableReason:
+      setupStatus.data?.isRecording === false
+        ? SPEND_BUDGETS_NOT_RECORDED
+        : undefined,
     isSetupStatusPending: setupStatus.isPending,
   };
 }

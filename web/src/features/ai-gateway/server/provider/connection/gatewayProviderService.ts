@@ -859,11 +859,38 @@ async function validateGatewayCredential(
       timeout: 10_000,
     });
   } catch (error) {
+    // A compatible proxy may not serve the test model. A custom base URL that
+    // lists its models for the key has accepted the key all the same.
+    if (params.baseURL && (await listsModelsForKey(params))) {
+      return { modelListingDenied: false };
+    }
     throw new ProviderCredentialRejectedError(
       getProviderAnswerFromCallError(error),
     );
   }
   return { modelListingDenied: false };
+}
+
+async function listsModelsForKey(
+  params: {
+    provider: GatewayProviderName;
+    credential: string;
+    config: GatewayProviderConfig | null;
+  } & ConnectionEndpoint,
+): Promise<boolean> {
+  const extraHeaders = params.extraHeaders ?? {};
+  const result = await getModelDiscoveryAdapter(params.provider).fetchCatalog({
+    credential: params.credential,
+    config: params.config,
+    baseURL: params.baseURL,
+    extraHeaders,
+    fetcher: getGatewayFetch({
+      baseURL: params.baseURL,
+      extraHeaders,
+      logContext: "AI Gateway credential validation",
+    }),
+  });
+  return result.success;
 }
 
 async function checkCredentialEndpoint(

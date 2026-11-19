@@ -3,7 +3,6 @@ import {
   CalendarRange,
   Eye,
   History,
-  Pencil,
   Plus,
   RefreshCw,
   Settings,
@@ -17,7 +16,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "edit" | "new-map" | "new-snapshot" | "refresh" | "configure" | "history";
+  id: "new-map" | "new-snapshot" | "refresh" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -69,7 +68,6 @@ export function prepareTopicsActions({
   automaticProcessing,
   canWrite,
   configureAvailable,
-  menuOnly,
   onConfigure,
   onHistory,
   onNewMap,
@@ -83,7 +81,6 @@ export function prepareTopicsActions({
   automaticProcessing: { state: AutomaticProcessingState; saving: boolean };
   canWrite: boolean;
   configureAvailable: boolean;
-  menuOnly: boolean;
   onConfigure: () => void;
   onHistory: () => void;
   /** Opens New map and New snapshot; disabled without write access. */
@@ -101,15 +98,6 @@ export function prepareTopicsActions({
   const { state } = automaticProcessing;
   const editDisabledReason = canWrite ? undefined : NO_WRITE_ACCESS;
   const menu: TopicAction[] = [];
-  // Handheld headers show only the menu, so it carries Edit map there.
-  if (onEditRun && menuOnly)
-    menu.push({
-      id: "edit",
-      label: "Edit map",
-      icon: Pencil,
-      disabledReason: editDisabledReason,
-      onSelect: onEditRun,
-    });
   if (refreshMap)
     menu.push({
       id: "refresh",
@@ -172,10 +160,9 @@ export function prepareTopicsActions({
       icon: Plus,
       ...newMap,
     });
-  const editRun =
-    onEditRun && !menuOnly
-      ? { onSelect: onEditRun, disabledReason: editDisabledReason }
-      : null;
+  const editRun = onEditRun
+    ? { onSelect: onEditRun, disabledReason: editDisabledReason }
+    : null;
   return {
     editRun,
     newMap,
