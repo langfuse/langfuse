@@ -1,9 +1,11 @@
 import type {
   EarlyOtelBatch,
-  OtelProcessingContext,
-  OtelMediaResolution,
-  OtelMediaRequest,
+  FinalizedOtelBatch,
   OtelLookupRequest,
+  OtelMediaRequest,
+  OtelMediaResolution,
+  OtelOverflowRequest,
+  OtelProcessingContext,
   RustOtelBatch,
 } from "@langfuse/native";
 import {
@@ -32,7 +34,7 @@ import { resolveSkillReferences } from "../../services/IngestionService/skillRef
 import { env, v4WritesToLegacyTables } from "../../env";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { TableName } from "../../services/ClickhouseWriter/types";
-import { fetchEvalRules } from "../evaluation/fetchEvalRules";
+import { fetchEvalRules, type EvalRules } from "../evaluation/fetchEvalRules";
 import {
   createEvalSchedulerDeps,
   scheduleEvals,
@@ -48,237 +50,270 @@ import {
   uploadExtractedMediaOnce,
 } from "../otel-media/resolveExtractedMedia";
 
+type EvalRuleResolution = {
+  traceBatchSamplingRate: number;
+  sampledTraceIds: string[];
+  evalConfigs: EvalRules;
+};
+
+type FinalizedEvent = FinalizedOtelBatch["events"][number];
 /**
- * Runs media uploads and model/prompt/skill lookups, then passes their results to
- * `RustOtelBatch.complete`. If it returns oversized fields, uploads them and calls
- * `finalize`. Schedules evaluations and sends the returned `PreparedEvent` handles
- * to the ClickHouse writer.
+ * Processes a native OTEL batch through service lookups, native completion,
+ * evaluation scheduling, and the ClickHouse writer.
  */
 export async function processRustOtelEvents(params: {
   batch: EarlyOtelBatch;
   context: OtelProcessingContext;
 }): Promise<OtelMediaPresence> {
   const { batch, context } = params;
-  const { projectId, fileKey } = context;
-
-  let processing: RustOtelBatch | undefined;
+  const { projectId } = context;
+  const samplingRate = isEventsDispatchEnabled()
+    ? resolveTraceBatchSamplingRate(projectId)
+    : Promise.resolve(0);
+  const prepared = await batch.process(context);
+  const processing = prepared.batch;
   try {
-    const traceDispatchEnabled = isEventsDispatchEnabled();
-    const traceBatchSamplingRatePromise = traceDispatchEnabled
-      ? resolveTraceBatchSamplingRate(projectId)
-      : Promise.resolve(0);
-    const prepared = await batch.process(context);
-    processing = prepared.batch;
-    const { mediaRequests, lookupRequests } = prepared;
+    const [mediaResults, lookups, rules] = await waitForServiceWork([
+      uploadRequestedMedia(batch, processing, prepared.mediaRequests, context),
+      resolveLookups(prepared.lookupRequests, context),
+      fetchSampledEvalRules(projectId, prepared.traceIds, samplingRate),
+    ] as const);
+    const finalized = await completeOrFinalizeBatch(
+      processing,
+      mediaResults,
+      lookups,
+      rules,
+      projectId,
+    );
+    await writeRecordsAndScheduleEvals(finalized, rules, context);
+    return prepared.mediaRequests.length > 0 ? "present" : "absent";
+  } finally {
+    await processing.dispose();
+  }
+}
 
+function fetchSampledEvalRules(
+  projectId: string,
+  traceIds: string[],
+  traceBatchSamplingRatePromise: Promise<number>,
+): Promise<EvalRuleResolution> {
+  return traceBatchSamplingRatePromise.then(async (traceBatchSamplingRate) => {
     // Select transcript rules using `process`'s trace IDs. Pass selected IDs to
     // `complete`/`finalize` to measure rows after oversized fields are replaced.
-    const evalRulesPromise = traceBatchSamplingRatePromise.then(
-      async (traceBatchSamplingRate) => {
-        const sampledTraceIds = prepared.traceIds.filter((traceId) =>
-          isTraceBatchSampled(traceId, traceBatchSamplingRate),
-        );
-        const evalConfigs = await fetchEvalRules(projectId, {
-          includeTraceTranscriptRules: sampledTraceIds.length > 0,
-        }).catch((error) => {
-          traceException(error);
-          logger.warn(
-            `Failed to fetch eval rules for project ${projectId}`,
-            error,
-          );
-          return { observationRules: [], traceTranscriptRules: [] };
-        });
-        return { traceBatchSamplingRate, sampledTraceIds, evalConfigs };
-      },
+    const sampledTraceIds = traceIds.filter((traceId) =>
+      isTraceBatchSampled(traceId, traceBatchSamplingRate),
     );
-    const serviceWork = [
-      uploadRequestedMedia(batch, processing, mediaRequests, context),
-      resolveLookups(lookupRequests, context),
-      evalRulesPromise,
-    ] as const;
-    const [
-      mediaResults,
-      lookups,
-      { traceBatchSamplingRate, sampledTraceIds, evalConfigs },
-    ] = await Promise.all(serviceWork).catch(async (error) => {
-      // Pending uploads still read the native batch; drain them before disposal.
-      await Promise.allSettled(serviceWork);
-      throw error;
+    const evalConfigs = await fetchEvalRules(projectId, {
+      includeTraceTranscriptRules: sampledTraceIds.length > 0,
+    }).catch((error) => {
+      traceException(error);
+      logger.warn(`Failed to fetch eval rules for project ${projectId}`, error);
+      return { observationRules: [], traceTranscriptRules: [] };
     });
-    const traceActivityIds = sampledTraceIds;
-    const traceActivityIdsForNative =
-      traceActivityIds.length > 0 ? traceActivityIds : undefined;
-    const includeEvaluationRows =
-      evalConfigs.observationRules.length > 0 ||
-      evalConfigs.traceTranscriptRules.length > 0;
-    const completion = await processing.complete(
-      mediaResults,
-      lookups,
-      env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED === "true"
-        ? env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES
-        : undefined,
-      includeEvaluationRows,
-      traceActivityIdsForNative,
-    );
-    let finalized = completion.finalized;
+    return { traceBatchSamplingRate, sampledTraceIds, evalConfigs };
+  });
+}
 
-    if (!finalized) {
-      const nativeProcessing = processing;
-      if (!nativeProcessing) {
-        throw new Error("Rust processing returned no native batch");
-      }
-      const overflowResults = new Array<OtelMediaResolution>(
-        completion.overflowRequests.length,
-      );
-      await forEachMedia(completion.overflowRequests, async (request) => {
-        let reference: string | undefined;
-        let outcome = "failed";
-        try {
-          const mediaBucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
-          if (!mediaBucket)
-            throw new Error("Media upload bucket is not configured");
-          const field = request.field;
-          if (field !== "input" && field !== "output" && field !== "metadata")
-            throw new Error("unsupported overflow field");
-          const sha256Hash = request.sha256Hash;
-          if (!sha256Hash) throw new Error("missing overflow media digest");
-          const result = await otelMediaUploads.run(
-            request.byteLength,
-            async () =>
-              uploadMediaForTrace({
-                projectId,
-                traceId: request.traceId,
-                observationId: request.observationId,
-                field,
-                contentType: MediaContentType.TXT,
-                contentBytes: await nativeProcessing.overflowBody(
-                  request.index,
-                ),
-                sha256Hash,
-                mediaBucket,
-                mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
-                origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
-              }),
-          );
-          reference = `@@@langfuseMedia:type=text/plain|id=${result.mediaId}|source=field_size_limit@@@`;
-          outcome = result.outcome;
-        } catch (error) {
-          logger.warn(
-            "Oversized observation field upload failed; persisting original field",
-            {
-              error,
-              projectId,
-              observationId: request.observationId,
-              field: request.field,
-            },
-          );
-        }
-        recordIncrement("langfuse.ingestion.observation_field_overflow", 1, {
-          field: request.field,
-          outcome,
-        });
-        recordDistribution(
-          "langfuse.ingestion.observation_field_overflow.bytes_removed",
-          reference
-            ? Math.max(request.byteLength - Buffer.byteLength(reference), 0)
-            : 0,
-          { field: request.field, outcome },
-        );
-        overflowResults[request.index] = { index: request.index, reference };
-      });
-      finalized = await processing.finalize(
-        overflowResults,
-        includeEvaluationRows,
-        traceActivityIdsForNative,
-      );
-    }
-    const { events: records, evaluationRows } = finalized;
-
-    const needsScheduler =
-      evalConfigs.observationRules.length > 0 || sampledTraceIds.length > 0;
-    const schedulerDeps = needsScheduler
-      ? createEvalSchedulerDeps(projectId, evalConfigs)
-      : null;
-    const writer = ClickhouseWriter.getNativeInstance();
-    // Dual writes count ingestion in legacy processing; events-only jobs count
-    // the finalized rows here.
-    if (!v4WritesToLegacyTables(env)) {
-      const traceCount = new Set(records.map((record) => record.traceId)).size;
-      recordIncrement("langfuse.ingestion.event", records.length, {
-        source: "otel",
-      });
-      recordDistribution("langfuse.ingestion.otel.trace_count", traceCount);
-      recordDistribution(
-        "langfuse.ingestion.otel.observation_count",
-        records.length,
-      );
-      getCurrentSpan()?.setAttributes({
-        "langfuse.ingestion.otel.trace_count": traceCount,
-        "langfuse.ingestion.otel.observation_count": records.length,
-      });
-    }
-    await Promise.all(
-      records.map(async (record, index) => {
-        const traceActivity = isTraceBatchSampled(
-          record.traceId,
-          traceBatchSamplingRate,
-        )
-          ? {
-              traceId: record.traceId,
-              spanStartTimeISO: record.startTimeIso,
-            }
-          : undefined;
-        const matchedRuleIds = schedulerDeps
-          ? await scheduleEvals({
-              parseObservation: () =>
-                convertEventRecordToObservationForEval(
-                  (evaluationRows as EventRecordInsertType[])[index],
-                ),
-              environment: record.environment,
-              traceActivity,
-              rules: evalConfigs,
-              schedulerDeps,
-              buildFailureContext: () => ({
-                projectId,
-                observationId: record.event.ids.id,
-                fileKey,
-              }),
-            })
-          : undefined;
-
-        try {
-          writer.addToQueue(TableName.EventsFull, record.event);
-          if (
-            traceActivity &&
-            matchedRuleIds !== undefined &&
-            schedulerDeps &&
-            record.serializedEventBytes !== undefined
-          ) {
-            schedulerDeps.collectTraceActivity({
-              ...traceActivity,
-              ruleIds: matchedRuleIds,
-              serializedEventBytes: record.serializedEventBytes,
-            });
-          }
-        } catch (error) {
-          traceException(error);
-          logger.error(
-            `Failed to write event record for ${record.event.ids.id}`,
-            {
-              error,
-              fileKey,
-            },
-          );
-        }
-      }),
-    );
-    if (schedulerDeps) {
-      await schedulerDeps.flushTraceActivity();
-    }
-    return mediaRequests.length > 0 ? "present" : "absent";
-  } finally {
-    await processing?.dispose();
+async function waitForServiceWork<T extends readonly Promise<unknown>[]>(
+  serviceWork: T,
+) {
+  try {
+    return await Promise.all(serviceWork);
+  } catch (error) {
+    // Pending uploads still read the native batch; drain them before disposal.
+    await Promise.allSettled(serviceWork);
+    throw error;
   }
+}
+
+async function completeOrFinalizeBatch(
+  processing: RustOtelBatch,
+  mediaResults: OtelMediaResolution[],
+  lookups: object[],
+  { evalConfigs, sampledTraceIds }: EvalRuleResolution,
+  projectId: string,
+): Promise<FinalizedOtelBatch> {
+  const overflowLimitBytes =
+    env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED === "true"
+      ? env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES
+      : undefined;
+  const includeEvaluationRows =
+    evalConfigs.observationRules.length > 0 ||
+    evalConfigs.traceTranscriptRules.length > 0;
+  const traceActivityIds =
+    sampledTraceIds.length > 0 ? sampledTraceIds : undefined;
+  const completion = await processing.complete(
+    mediaResults,
+    lookups,
+    overflowLimitBytes,
+    includeEvaluationRows,
+    traceActivityIds,
+  );
+  if (completion.finalized) {
+    return completion.finalized;
+  }
+
+  const overflowResults = await uploadOverflowFields(
+    processing,
+    completion.overflowRequests,
+    projectId,
+  );
+  return processing.finalize(
+    overflowResults,
+    includeEvaluationRows,
+    traceActivityIds,
+  );
+}
+
+async function uploadOverflowFields(
+  processing: RustOtelBatch,
+  requests: OtelOverflowRequest[],
+  projectId: string,
+): Promise<OtelMediaResolution[]> {
+  const overflowResults = new Array<OtelMediaResolution>(requests.length);
+  await forEachMedia(requests, async (request) => {
+    let reference: string | undefined;
+    let outcome = "failed";
+    try {
+      const mediaBucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
+      if (!mediaBucket)
+        throw new Error("Media upload bucket is not configured");
+      const field = request.field;
+      if (field !== "input" && field !== "output" && field !== "metadata")
+        throw new Error("unsupported overflow field");
+      const sha256Hash = request.sha256Hash;
+      if (!sha256Hash) throw new Error("missing overflow media digest");
+      const result = await otelMediaUploads.run(request.byteLength, async () =>
+        uploadMediaForTrace({
+          projectId,
+          traceId: request.traceId,
+          observationId: request.observationId,
+          field,
+          contentType: MediaContentType.TXT,
+          contentBytes: await processing.overflowBody(request.index),
+          sha256Hash,
+          mediaBucket,
+          mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+          origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
+        }),
+      );
+      reference = `@@@langfuseMedia:type=text/plain|id=${result.mediaId}|source=field_size_limit@@@`;
+      outcome = result.outcome;
+    } catch (error) {
+      logger.warn(
+        "Oversized observation field upload failed; persisting original field",
+        {
+          error,
+          projectId,
+          observationId: request.observationId,
+          field: request.field,
+        },
+      );
+    }
+    recordIncrement("langfuse.ingestion.observation_field_overflow", 1, {
+      field: request.field,
+      outcome,
+    });
+    recordDistribution(
+      "langfuse.ingestion.observation_field_overflow.bytes_removed",
+      reference
+        ? Math.max(request.byteLength - Buffer.byteLength(reference), 0)
+        : 0,
+      { field: request.field, outcome },
+    );
+    overflowResults[request.index] = { index: request.index, reference };
+  });
+  return overflowResults;
+}
+
+function recordIngestionCounts(records: FinalizedEvent[]): void {
+  // Dual writes count ingestion in legacy processing; events-only jobs count
+  // the finalized rows here.
+  if (v4WritesToLegacyTables(env)) return;
+
+  const traceCount = new Set(records.map((record) => record.traceId)).size;
+  recordIncrement("langfuse.ingestion.event", records.length, {
+    source: "otel",
+  });
+  recordDistribution("langfuse.ingestion.otel.trace_count", traceCount);
+  recordDistribution(
+    "langfuse.ingestion.otel.observation_count",
+    records.length,
+  );
+  getCurrentSpan()?.setAttributes({
+    "langfuse.ingestion.otel.trace_count": traceCount,
+    "langfuse.ingestion.otel.observation_count": records.length,
+  });
+}
+
+async function writeRecordsAndScheduleEvals(
+  { events: records, evaluationRows }: FinalizedOtelBatch,
+  { traceBatchSamplingRate, sampledTraceIds, evalConfigs }: EvalRuleResolution,
+  { projectId, fileKey }: OtelProcessingContext,
+): Promise<void> {
+  const needsScheduler =
+    evalConfigs.observationRules.length > 0 || sampledTraceIds.length > 0;
+  const schedulerDeps = needsScheduler
+    ? createEvalSchedulerDeps(projectId, evalConfigs)
+    : null;
+  const writer = ClickhouseWriter.getNativeInstance();
+  recordIngestionCounts(records);
+  await Promise.all(
+    records.map(async (record, index) => {
+      const traceActivity = isTraceBatchSampled(
+        record.traceId,
+        traceBatchSamplingRate,
+      )
+        ? {
+            traceId: record.traceId,
+            spanStartTimeISO: record.startTimeIso,
+          }
+        : undefined;
+      const matchedRuleIds = schedulerDeps
+        ? await scheduleEvals({
+            parseObservation: () =>
+              convertEventRecordToObservationForEval(
+                evaluationRows[index] as EventRecordInsertType,
+              ),
+            environment: record.environment,
+            traceActivity,
+            rules: evalConfigs,
+            schedulerDeps,
+            buildFailureContext: () => ({
+              projectId,
+              observationId: record.event.ids.id,
+              fileKey,
+            }),
+          })
+        : undefined;
+
+      try {
+        writer.addToQueue(TableName.EventsFull, record.event);
+        if (
+          traceActivity &&
+          matchedRuleIds !== undefined &&
+          schedulerDeps &&
+          record.serializedEventBytes !== undefined
+        ) {
+          schedulerDeps.collectTraceActivity({
+            ...traceActivity,
+            ruleIds: matchedRuleIds,
+            serializedEventBytes: record.serializedEventBytes,
+          });
+        }
+      } catch (error) {
+        traceException(error);
+        logger.error(
+          `Failed to write event record for ${record.event.ids.id}`,
+          {
+            error,
+            fileKey,
+          },
+        );
+      }
+    }),
+  );
+  await schedulerDeps?.flushTraceActivity();
 }
 
 async function uploadRequestedMedia(
