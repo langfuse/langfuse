@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-null-render */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -29,11 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { FormDescription } from "@/src/components/ui/form";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -592,14 +588,12 @@ const ProviderOptionsInput = ({
           >
             Additional options
           </span>
-          <Tooltip>
-            <TooltipTrigger>
-              <InfoIcon size="sm" color="muted" />
-            </TooltipTrigger>
-            <TooltipContent className="max-w-[200px] p-2">
-              Additional options to pass to the invocation. Please check your
-              provider&apos;s API reference for supported values.
-            </TooltipContent>
+          <Tooltip label="Additional options to pass to the invocation. Please check your provider's API reference for supported values.">
+            {({ getTriggerProps }) => (
+              <button type="button" {...getTriggerProps()}>
+                <InfoIcon size="sm" color="muted" />
+              </button>
+            )}
           </Tooltip>
         </div>
         <div className="flex flex-row space-x-3">
