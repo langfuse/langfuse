@@ -27,6 +27,13 @@ const onProjectLevel = (role: Role): Role =>
 
 const roleName = (role: Role) => systemRoleAccessRights[role].name;
 
+/** orgRoleTag says how far a group's organization role reaches. */
+function orgRoleTag(orgRole: Role): string {
+  if (orgRole === "NONE") return "No organization role";
+  if (orgRole === "AI_GATEWAY") return "Organization only";
+  return "Applies in every project";
+}
+
 function RoleWithIcon({ role }: { role: Role }) {
   const Icon = roleIcons[role];
   return (
@@ -76,12 +83,7 @@ function resolveGroupRole(
     ];
     return {
       role: orgRole,
-      tag:
-        orgRole === "NONE"
-          ? "No organization role"
-          : orgRole === "AI_GATEWAY"
-            ? "Organization only"
-            : "Applies in every project",
+      tag: orgRoleTag(orgRole),
       sources,
       editing: orgRole,
     };

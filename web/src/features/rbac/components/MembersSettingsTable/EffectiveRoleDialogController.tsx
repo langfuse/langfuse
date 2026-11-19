@@ -19,6 +19,29 @@ import { type MemberGroupRole } from "./MembersSettingsTable";
 
 const roleName = (role: Role) => systemRoleAccessRights[role].name;
 
+/** levelNote names a grant's level when the same group also grants a different role at the other level. */
+function levelNote(
+  grant: MemberGroupRole,
+  grants: MemberGroupRole[],
+): "project" | "org" | undefined {
+  const conflictsAcrossLevels = grants.some(
+    (other) =>
+      other.groupId === grant.groupId &&
+      other.level !== grant.level &&
+      other.role !== grant.role,
+  );
+  if (!conflictsAcrossLevels) return undefined;
+  return grant.level === "project" ? "project" : "org";
+}
+
+/** inheritNoneDescription explains what "Inherit from organization" means for a project role. */
+function inheritNoneDescription(orgRole: Role): string {
+  if (orgRole === "AI_GATEWAY" || orgRole === "NONE") {
+    return `No project access: the organization role (${roleName(orgRole)}) gives none.`;
+  }
+  return `Keep the organization role (${roleName(orgRole)}) on this project.`;
+}
+
 const higher = (a: Role, b: Role) =>
   orderedRoles[b] > orderedRoles[a] ? b : a;
 
@@ -215,16 +238,7 @@ export function heldRoles(
         label: grant.groupName,
         title: `${grant.groupName} · ${grant.level === "project" ? "project group" : "organization group"} · ${grant.memberCount} ${grant.memberCount === 1 ? "member" : "members"} · ${roleName(grant.role)}`,
         groupId: grant.groupId,
-        levelNote: effective.grants.some(
-          (other) =>
-            other.groupId === grant.groupId &&
-            other.level !== grant.level &&
-            other.role !== grant.role,
-        )
-          ? grant.level === "project"
-            ? "project"
-            : "org"
-          : undefined,
+        levelNote: levelNote(grant, effective.grants),
         group: true,
         scim: grant.groupSource === "SCIM",
         href:
@@ -542,9 +556,7 @@ function RoleDialog({
                 }
                 noneDescription={
                   editor.isProjectRole
-                    ? orgRole === "AI_GATEWAY" || orgRole === "NONE"
-                      ? `No project access: the organization role (${roleName(orgRole)}) gives none.`
-                      : `Keep the organization role (${roleName(orgRole)}) on this project.`
+                    ? inheritNoneDescription(orgRole)
                     : undefined
                 }
                 optionDisabledReason={editor.optionDisabledReason}

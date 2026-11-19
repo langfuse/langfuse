@@ -1,5 +1,4 @@
 import { type Role } from "@langfuse/shared";
-import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -47,7 +46,7 @@ export function directRoleColumns({
     // project role column says when it is inherited instead.
     ...(project
       ? []
-      : [
+      : ([
           {
             accessorKey: "orgRole",
             header: "Organization Role",
@@ -92,7 +91,7 @@ export function directRoleColumns({
               return select;
             },
           },
-        ]),
+        ] satisfies LangfuseColumnDef<MembersSettingsTableRow>[])),
     ...(project
       ? ([
           {
