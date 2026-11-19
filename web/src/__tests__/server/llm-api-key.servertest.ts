@@ -1267,18 +1267,18 @@ describe("llmApiKey.all RPC", () => {
             connectionId: connection.id,
           }),
         ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        const ownExternalId = await callerB.llmApiKey.bedrockExternalId({
+          projectId: tenantB.projectId,
+          nonce,
+        });
+        expect(ownExternalId.externalId).not.toBe(storedExternalId);
         await expect(
           callerB.llmApiKey.bedrockExternalId({
             projectId: tenantB.projectId,
             nonce,
             connectionId: connection.id,
           }),
-        ).resolves.toEqual({
-          externalId: deriveBedrockExternalId({
-            owner: { type: "project", projectId: tenantB.projectId },
-            nonce,
-          }),
-        });
+        ).resolves.toEqual(ownExternalId);
       });
 
       it("requires llmApiKeys:create within the project", async () => {
@@ -1318,18 +1318,19 @@ describe("llmApiKey.all RPC", () => {
             connectionId: connection.id,
           }),
         ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        const ownExternalId =
+          await callerB.organizationLlmApiKey.bedrockExternalId({
+            orgId: tenantB.orgId,
+            nonce,
+          });
+        expect(ownExternalId.externalId).not.toBe(storedExternalId);
         await expect(
           callerB.organizationLlmApiKey.bedrockExternalId({
             orgId: tenantB.orgId,
             nonce,
             connectionId: connection.id,
           }),
-        ).resolves.toEqual({
-          externalId: deriveBedrockExternalId({
-            owner: { type: "organization", organizationId: tenantB.orgId },
-            nonce,
-          }),
-        });
+        ).resolves.toEqual(ownExternalId);
       });
 
       it("requires organizationLlmApiKeys:CUD within the organization", async () => {
