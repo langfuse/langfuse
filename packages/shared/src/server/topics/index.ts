@@ -13,4 +13,5 @@ export * from "./trace-selection";
 export * from "./slices";
 export * from "./rule-setup";
 export * from "./rule-refresh";
+export * from "./nightly-refit-slot";
 export * from "./trace-filter";
