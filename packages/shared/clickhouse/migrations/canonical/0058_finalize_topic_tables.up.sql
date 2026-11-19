@@ -1,5 +1,7 @@
--- Re-keys the Topics summaries and assignments, keeping their rows: each table is copied into a new one, swapped in by RENAME and dropped.
-CREATE TABLE IF NOT EXISTS topic_facet_summaries_new {CLICKHOUSE_CLUSTER_CLAUSE}
+-- Re-keys the Topics summaries and assignments on empty tables. The old tables are kept as *_old (not read or written) and dropped later.
+RENAME TABLE topic_facet_summaries TO topic_facet_summaries_old, topic_assignments TO topic_assignments_old {CLICKHOUSE_CLUSTER_CLAUSE};
+
+CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
 (
     project_id String,
     facet_id String,
@@ -41,20 +43,7 @@ PRIMARY KEY (project_id, toStartOfHour(unit_start_time), facet_id, facet_version
 ORDER BY (project_id, toStartOfHour(unit_start_time), facet_id, facet_version, unit_hash)
 SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
--- Copied rows did not record their rules, so rule_ids stays empty (unknown). Snapshot rows carried their execution in metadata.
-INSERT INTO topic_facet_summaries_new (project_id, facet_id, facet_version, trace_id, session_id, environment, trace_name,
-    unit_start_time, trigger_type, execution_id, processing_state, summary, embedding, transcript_id, transcript_version,
-    summary_model, embedding_model, provided_usage_details, usage_details, provided_cost_details, cost_details, processed_at, metadata)
-SELECT project_id, facet_id, facet_version, trace_id, session_id, environment, trace_name,
-    unit_start_time, if(JSONExtractString(metadata, 'executionId') != '', 'snapshot', 'rule'), JSONExtractString(metadata, 'executionId'),
-    processing_state, summary, embedding, transcript_id, transcript_version,
-    summary_model, embedding_model, provided_usage_details, usage_details, provided_cost_details, cost_details, processed_at, metadata
-FROM topic_facet_summaries;
-
-RENAME TABLE topic_facet_summaries TO topic_facet_summaries_old, topic_facet_summaries_new TO topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE};
-DROP TABLE IF EXISTS topic_facet_summaries_old {CLICKHOUSE_CLUSTER_CLAUSE} SYNC;
-
-CREATE TABLE IF NOT EXISTS topic_assignments_new {CLICKHOUSE_CLUSTER_CLAUSE}
+CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
 (
     project_id String,
     facet_id String,
@@ -87,19 +76,7 @@ PRIMARY KEY (project_id, facet_id, clustering_run_id, topic_id, toStartOfHour(un
 ORDER BY (project_id, facet_id, clustering_run_id, topic_id, toStartOfHour(unit_start_time), unit_hash, origin)
 SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
--- origin ends the sort key so an online row does not replace the unit's initial membership. Copied rows did not record their rule,
--- so rule_id stays empty. No writer ever used the 'backfill' origin.
-INSERT INTO topic_assignments_new (project_id, facet_id, clustering_run_id, facet_version, trace_id, session_id, environment,
-    trace_name, unit_start_time, summary_processed_at, topic_id, topic_version_id, distance, runner_up_distance, origin,
-    coordinates, assigned_at)
-SELECT project_id, facet_id, clustering_run_id, facet_version, trace_id, session_id, environment,
-    trace_name, unit_start_time, summary_processed_at, topic_id, topic_version_id, distance, runner_up_distance, toString(origin),
-    coordinates, assigned_at
-FROM topic_assignments
-WHERE origin != 'backfill';
-
-RENAME TABLE topic_assignments TO topic_assignments_old, topic_assignments_new TO topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE};
-DROP TABLE IF EXISTS topic_assignments_old {CLICKHOUSE_CLUSTER_CLAUSE} SYNC;
+-- origin ends the sort key so an online row does not replace the unit's initial membership.
 
 -- Narrow time-ordered copy of assignments for "which topic does this trace have".
 CREATE TABLE IF NOT EXISTS topic_assignments_by_trace {CLICKHOUSE_CLUSTER_CLAUSE}
@@ -124,10 +101,5 @@ ORDER BY (project_id, toStartOfMinute(unit_start_time), facet_id, trace_id, sess
 SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS topic_assignments_by_trace_mv {CLICKHOUSE_CLUSTER_CLAUSE} TO topic_assignments_by_trace AS
-SELECT project_id, unit_start_time, facet_id, rule_id, trace_id, session_id, clustering_run_id, topic_id, topic_version_id, origin, assigned_at
-FROM topic_assignments;
-
-INSERT INTO topic_assignments_by_trace (project_id, unit_start_time, facet_id, rule_id, trace_id, session_id, clustering_run_id,
-    topic_id, topic_version_id, origin, assigned_at)
 SELECT project_id, unit_start_time, facet_id, rule_id, trace_id, session_id, clustering_run_id, topic_id, topic_version_id, origin, assigned_at
 FROM topic_assignments;
