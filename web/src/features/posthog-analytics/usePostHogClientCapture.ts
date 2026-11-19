@@ -435,6 +435,7 @@ const events = {
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
+    "public_sharing_toggle",
     "feature_flag_default_toggled",
     "personal_feature_previews_opened",
     "user_feature_flag_toggled",

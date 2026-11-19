@@ -42,6 +42,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
     },
     project: {
       findFirst: (...args: unknown[]) => mockProjectFindFirst(...args),
+      findUnique: async () => ({
+        organization: { publicSharingDisabled: false },
+      }),
     },
   },
 }));

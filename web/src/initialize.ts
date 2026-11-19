@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared/memberships";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { isPublicSharingDisabledByInstance } from "@/src/ee/features/public-sharing/server/publicSharing";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
   OrganizationId,
@@ -44,6 +45,15 @@ if (!env.LANGFUSE_INIT_ORG_ID) {
         `Set LANGFUSE_INIT_ORG_ID to enable initialization.`,
     );
   }
+}
+
+if (
+  env.LANGFUSE_DISABLE_PUBLIC_SHARING === "true" &&
+  !isPublicSharingDisabledByInstance()
+) {
+  logger.warn(
+    "LANGFUSE_DISABLE_PUBLIC_SHARING is set but has no effect: it requires a Langfuse Enterprise license.",
+  );
 }
 
 // Create Organization

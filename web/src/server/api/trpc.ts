@@ -109,6 +109,7 @@ import {
   type TrpcMeta,
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { isPublicSharingDisabledForProject } from "@/src/ee/features/public-sharing/server/publicSharing";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
@@ -608,8 +609,15 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         : null;
 
     const isSessionPublic = traceSession?.public === true;
+    const hasPublicAccess =
+      !sessionProject &&
+      (trace?.public === true || isSessionPublic) &&
+      !(await isPublicSharingDisabledForProject({
+        prisma: ctx.prisma,
+        projectId,
+      }));
 
-    if (!trace?.public && !sessionProject && !isSessionPublic) {
+    if (!sessionProject && !hasPublicAccess) {
       logger.error(
         `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
       );
@@ -681,15 +689,21 @@ const enforceSessionAccess = t.middleware(async (opts) => {
       })
     : null;
 
-  const isPublicSession = session?.public ?? false;
-
   const userSessionProject = ctx.session?.user?.organizations
     .flatMap((org) =>
       org.projects.map((project) => ({ ...project, organization: org })),
     )
     .find(({ id }) => id === projectId);
 
-  if (!isPublicSession && !userSessionProject) {
+  const hasPublicAccess =
+    !userSessionProject &&
+    session?.public === true &&
+    !(await isPublicSharingDisabledForProject({
+      prisma: ctx.prisma,
+      projectId,
+    }));
+
+  if (!userSessionProject && !hasPublicAccess) {
     logger.error(
       `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
     );
