@@ -2,6 +2,7 @@ import { beforeEach, expect, describe, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   applyObservationFieldOverflow: vi.fn(),
+  shouldSkipScoresDedup: vi.fn<(projectId: string) => boolean>(() => false),
   validateAndInflateScoreOverride: undefined as
     | ((...args: unknown[]) => unknown)
     | undefined,
@@ -19,6 +20,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
     ...actual,
+    shouldSkipScoresDedup: mocks.shouldSkipScoresDedup,
     validateAndInflateScore: (...args: unknown[]) =>
       mocks.validateAndInflateScoreOverride
         ? mocks.validateAndInflateScoreOverride(...args)
@@ -48,6 +50,8 @@ describe("IngestionService unit tests", () => {
     mocks.applyObservationFieldOverflow.mockImplementation(
       async (eventRecord) => eventRecord,
     );
+    mocks.shouldSkipScoresDedup.mockReset();
+    mocks.shouldSkipScoresDedup.mockReturnValue(false);
     mocks.validateAndInflateScoreOverride = undefined;
   });
 
@@ -861,6 +865,51 @@ describe("IngestionService unit tests", () => {
         evaluation_rule_id: "rule-1",
       }),
     );
+  });
+
+  it("drops a score update for a skip-dedup project instead of writing a second version", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+
+    mocks.shouldSkipScoresDedup.mockReturnValue(true);
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue({
+      ...createTraceScore({
+        id: "score-id",
+        project_id: "project-id",
+        trace_id: "trace-id",
+        timestamp: new Date(timestamp).getTime(),
+      }),
+    });
+
+    await (ingestionService as any).processScoreEventList({
+      projectId: "project-id",
+      entityId: "score-id",
+      createdAtTimestamp: new Date(timestamp),
+      scoreEventList: [
+        {
+          id: "event-id",
+          timestamp,
+          type: "score-update",
+          body: {
+            id: "score-id",
+            comment: "updated",
+          },
+        } as ScoreEventType,
+      ],
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    expect(addToQueue).not.toHaveBeenCalled();
   });
 
   it("does not silently reject score batches with unexpected record errors", async () => {
