@@ -240,15 +240,7 @@ or the fixture documents it.
 
 ## Format coverage
 
-OpenAI Chat Completions + Responses API, Anthropic Messages, Vercel AI SDK,
-Gemini/Vertex, LangChain/LangGraph (incl. the `lc` serialization envelope
-and v1 standard content blocks),
-Microsoft Agent Framework, Pydantic AI, Semantic Kernel, agno/koog-style
-loose shapes, GenAI event streams, OpenRouter Broadcast output envelopes
-(`{ completion, reasoning, toolCalls, rawRequest }`), and raw passthrough.
-Providers without dedicated handling (Bedrock, Mistral, Cohere, …) ride the
-generic shape-sniffing paths; targeted handling is added only when validation
-produces a concrete miss.
+OpenAI Chat Completions + Responses API, Anthropic Messages, Vercel AI SDK, Gemini/Vertex, LangChain/LangGraph (incl. the `lc` serialization envelope and v1 standard content blocks), Microsoft Agent Framework, Pydantic AI, Semantic Kernel, agno/koog-style loose shapes, GenAI event streams, OpenRouter Broadcast output envelopes (`{ completion, reasoning, toolCalls, rawRequest }`), and raw passthrough. Providers without dedicated handling (Bedrock, Mistral, Cohere, …) ride the generic shape-sniffing paths; targeted handling is added only when validation produces a concrete miss.
 
 ## Projections
 
