@@ -26,7 +26,7 @@ type SelectInputProps<V extends string> = Pick<
   search?: { placeholder: string };
   /** Keeps the portaled option list out of session replay; not applied with `search`. */
   noCapture?: boolean;
-  /** Option marker, see `SelectDropdown`; not applied with `search`. */
+  /** Option marker, see `SelectDropdown`. */
   indicator?: React.ComponentProps<typeof SelectDropdown<V>>["indicator"];
   error?: boolean;
   muted?: boolean;
@@ -96,6 +96,7 @@ function SelectInputInner<V extends string>(
           value: searchValue,
           onValueChange: setSearchValue,
         }}
+        indicator={indicator}
         error={error}
         muted={muted}
       />

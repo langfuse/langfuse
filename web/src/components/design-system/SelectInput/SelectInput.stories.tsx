@@ -137,11 +137,10 @@ export const WithLongText = meta.story({
 });
 
 /** Groups without labels are set apart only by a separator. */
-export const CheckmarkWithUnlabeledGroups = meta.story({
+export const UnlabeledGroups = meta.story({
   args: {
     value: "eu",
     placeholder: "Select a region",
-    indicator: "checkmark",
     options: [
       {
         type: "group",
@@ -169,6 +168,20 @@ export const CheckmarkWithUnlabeledGroups = meta.story({
         id: "other",
         options: [{ value: "custom", label: "Custom" }],
       },
+    ],
+    onValueChange: fn(),
+  },
+});
+
+export const RadioIndicator = meta.story({
+  args: {
+    value: "us",
+    placeholder: "Select a region",
+    indicator: "radio",
+    options: [
+      { value: "global", label: "Global" },
+      { value: "us", label: "United States" },
+      { value: "eu", label: "Europe" },
     ],
     onValueChange: fn(),
   },

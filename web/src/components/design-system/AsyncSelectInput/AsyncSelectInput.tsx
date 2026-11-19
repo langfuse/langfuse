@@ -33,6 +33,7 @@ export function AsyncSelectInput<V extends string>({
   loading,
   callToActionOption,
   virtualized = false,
+  indicator = "checkmark",
   emptyMessage = "No options available.",
   error,
   muted,
@@ -42,6 +43,7 @@ export function AsyncSelectInput<V extends string>({
   React.ComponentProps<typeof SelectDropdown<V>>,
   | "options"
   | "emptyMessage"
+  | "indicator"
   | "id"
   | "aria-describedby"
   | "aria-invalid"
@@ -140,7 +142,7 @@ export function AsyncSelectInput<V extends string>({
         >
           {OptionIcon && <OptionIcon size="base" aria-hidden />}
           <InputDropdown.OptionContent
-            type="radio"
+            type={indicator}
             checked={value?.value === option.value}
             label={option.label}
             title={option.disabled ? option.disabledReason : option.label}

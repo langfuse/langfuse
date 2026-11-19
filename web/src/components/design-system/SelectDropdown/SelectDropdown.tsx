@@ -84,7 +84,7 @@ export function SelectDropdown<V extends string>({
   onValueChange,
   emptyMessage = "No options available.",
   noCapture,
-  indicator = "radio",
+  indicator = "checkmark",
   children,
   ref,
   ...triggerProps
@@ -95,7 +95,7 @@ export function SelectDropdown<V extends string>({
   emptyMessage?: string;
   /** Keeps the portaled option list out of session replay. */
   noCapture?: boolean;
-  /** `radio` leads each option with a radio; `checkmark` trails the selected one with a check. */
+  /** `checkmark` trails the selected option with a check; `radio` leads every option with a radio. */
   indicator?: "radio" | "checkmark";
   children: (
     controls: TriggerControls & { selectedLabel: string | undefined },

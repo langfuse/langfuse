@@ -90,7 +90,6 @@ export function BaseUrlPicker({
         options={options}
         onValueChange={handleOptionChange}
         placeholder="Select a base URL"
-        indicator="checkmark"
         noCapture
         disabled={disabled}
         aria-describedby={ariaDescribedBy}
