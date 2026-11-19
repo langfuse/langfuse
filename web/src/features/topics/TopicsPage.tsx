@@ -423,12 +423,18 @@ function TopicsWorkspaceContent({
   );
   const { selectedFacetId } = traceFilters;
   const shownMap = mapSelection ? topicMapQuery(mapSelection).map : undefined;
+  // Live results shown while maps load, or another map's placeholder results,
+  // may lack the requested facet and must not replace it in the URL.
+  const shownFacet =
+    mapSelection && (analysisId || !results.isPlaceholderData)
+      ? selectedFacetId
+      : undefined;
   // Halo and copied links only see the URL, so it names the map and facet the
   // page fell back to. Replacing adds no history entry.
   useEffect(() => {
     const patch = topicsViewQueryPatch(router.query, {
       map: shownMap,
-      facetId: selectedFacetId,
+      facetId: shownFacet,
     });
     if (!patch) return;
     router.replace(
@@ -436,7 +442,7 @@ function TopicsWorkspaceContent({
       undefined,
       { shallow: true },
     );
-  }, [router, shownMap, selectedFacetId]);
+  }, [router, shownMap, shownFacet]);
   const openExecution = (id: string) => {
     router.push(
       {
