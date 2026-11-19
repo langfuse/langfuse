@@ -335,7 +335,7 @@ export type TraceSpanActivity = {
   spanStartTimeISO: string;
   /** Already filtered and sampled; [] still records activity. */
   ruleIds: readonly string[];
-  /** UTF-8 length of the final event row after field overflow, excluding the size field. */
+  /** Estimated bytes for dispatch after the writer accepts the post-overflow row. */
   serializedEventBytes: number;
 };
 

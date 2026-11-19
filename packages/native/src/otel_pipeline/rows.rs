@@ -219,10 +219,7 @@ pub(super) fn finalize_inner(
         .map(|row| {
             let serialized_event_bytes = trace_activity_ids
                 .contains(&row.row.trace_id)
-                .then(|| row.row.serialized_byte_length())
-                .transpose()
-                .map_err(failure)?
-                .map(|bytes| bytes as f64);
+                .then(|| row.row.estimated_dispatch_bytes() as f64);
             let environment = row.row.environment.clone();
             let trace_id = row.row.trace_id.clone();
             let span_id = row.row.span_id.clone();

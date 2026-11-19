@@ -49,6 +49,58 @@ describe("Native OTEL batch NAPI boundary", () => {
     }
   });
 
+  it("matches TypeScript optional experiment fields in evaluation snapshots", async () => {
+    const experimentFields = [
+      ["id", "experiment_id"],
+      ["name", "experiment_name"],
+      ["description", "experiment_description"],
+      ["dataset.id", "experiment_dataset_id"],
+      ["item.id", "experiment_item_id"],
+      ["item.expected_output", "experiment_item_expected_output"],
+      ["item.root_observation_id", "experiment_item_root_span_id"],
+    ] as const;
+    const expectedExperimentFields = Object.fromEntries(
+      experimentFields.map(([, column], index) => [
+        column,
+        `experiment-${index}`,
+      ]),
+    );
+    const spans = [
+      {
+        traceId: "a".repeat(32),
+        spanId: spanId(0),
+        name: "without-experiment",
+      },
+      {
+        traceId: "a".repeat(32),
+        spanId: spanId(1),
+        name: "with-experiment",
+        attributes: experimentFields.map(([suffix], index) => ({
+          key: `langfuse.experiment.${suffix}`,
+          value: { stringValue: `experiment-${index}` },
+        })),
+      },
+    ];
+    const validated = await validateOtelJson(
+      Buffer.from(JSON.stringify([{ resource: {}, scopeSpans: [{ spans }] }])),
+    );
+    const batch = await validated.extract(true);
+    const { batch: processing } = await batch.process(nativeContext);
+    try {
+      const { finalized } = await processing.complete([], [], undefined, true);
+      const rows = finalized!.evaluationRows as Record<string, unknown>[];
+
+      for (const [, column] of experimentFields) {
+        expect(rows[0]).not.toHaveProperty(column);
+      }
+      expect(rows[1]).toMatchObject(expectedExperimentFields);
+    } finally {
+      await processing.dispose();
+      await batch.dispose();
+      await validated.dispose();
+    }
+  });
+
   it.each([undefined, 1])(
     "retains raw evaluation types across completion with overflow limit %s",
     async (limit) => {
@@ -153,9 +205,23 @@ describe("Native OTEL batch NAPI boundary", () => {
       await expect(
         processing.complete([], [], undefined, true),
       ).rejects.toThrow("incomplete OTEL lookup results");
+      const skillsAvailable = [
+        { skillName: "bar", skillVersion: 17 },
+        { skillName: "baz", langfuseSkillId: "skill-baz" },
+      ];
+      const skillsResourceLoaded = skillsAvailable.map((skill) => ({
+        ...skill,
+        filePath: "guide.md",
+      }));
       const { finalized } = await processing.complete(
         [],
-        [{ model: { id: "matched-model" } }],
+        [
+          {
+            model: { id: "matched-model" },
+            skillsAvailable,
+            skillsResourceLoaded,
+          },
+        ],
         undefined,
         true,
         [selectedTraceId],
@@ -166,6 +232,9 @@ describe("Native OTEL batch NAPI boundary", () => {
         { span_id: "0123456789abcde1", model_id: "matched-model" },
         { span_id: "0123456789abcde2", model_id: null },
       ]);
+      const skillRow = finalized!.evaluationRows[1] as Record<string, unknown>;
+      expect(skillRow.skills_available).toEqual(skillsAvailable);
+      expect(skillRow.skills_resource_loaded).toEqual(skillsResourceLoaded);
       expect(finalized!.events).toHaveLength(3);
       expect(finalized!.events[0]?.serializedEventBytes).toBeGreaterThan(
         Buffer.byteLength(spans[0].name),
@@ -175,6 +244,59 @@ describe("Native OTEL batch NAPI boundary", () => {
       await processing.dispose();
       await batch.dispose();
       await validated.dispose();
+    }
+  });
+
+  it("weights the payload retained after each overflow upload for trace dispatch", async () => {
+    const traceId = "a".repeat(32);
+    const input = 'é"'.repeat(200);
+    const reference =
+      "@@@langfuseMedia:type=text/plain|id=example|source=field_size_limit@@@";
+    const spans = [spanId(0), spanId(1)].map((id) => ({
+      traceId,
+      spanId: id,
+      name: "overflow",
+      attributes: [
+        { key: "langfuse.observation.input", value: { stringValue: input } },
+      ],
+    }));
+    const batch = await prepareOtelJson(
+      Buffer.from(JSON.stringify([{ scopeSpans: [{ spans }] }])),
+      false,
+    );
+    try {
+      const { batch: processing } = await batch.process(nativeContext);
+      try {
+        const { overflowRequests } = await processing.complete(
+          [],
+          [],
+          256,
+          false,
+          [traceId],
+        );
+        expect(overflowRequests.map((request) => request.field)).toEqual([
+          "input",
+          "input",
+        ]);
+        const { events } = await processing.finalize(
+          overflowRequests.map(({ index, observationId }) => ({
+            index,
+            reference: observationId === spanId(0) ? reference : undefined,
+          })),
+          false,
+          [traceId],
+        );
+        const [uploaded, retained] = events.map(
+          (event) => event.serializedEventBytes!,
+        );
+        expect(retained! - uploaded!).toBe(
+          Buffer.byteLength(input) - Buffer.byteLength(reference),
+        );
+      } finally {
+        await processing.dispose();
+      }
+    } finally {
+      await batch.dispose();
     }
   });
 
