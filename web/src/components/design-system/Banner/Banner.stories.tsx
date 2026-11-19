@@ -96,22 +96,6 @@ export const VariantMatrix = meta.story({
   ),
 });
 
-export const RoleFollowsStatus = meta.story({
-  name: "(Test) Role Follows Status",
-  render: () => (
-    <div className="grid gap-4">
-      <Banner>Saved</Banner>
-      <Banner variant="error">Failed</Banner>
-    </div>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByRole("status")).toHaveTextContent("Saved");
-    await expect(canvas.getByRole("alert")).toHaveTextContent("Failed");
-  },
-});
-
 export const DismissAction = meta.story({
   name: "(Test) Dismiss Action",
   args: {

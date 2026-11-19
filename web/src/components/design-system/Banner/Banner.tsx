@@ -93,7 +93,7 @@ export function Banner({
 
   return (
     <div
-      role={variant === "error" || variant === "warning" ? "alert" : "status"}
+      role="alert"
       data-variant={variant}
       className={bannerVariants({ variant })}
     >
