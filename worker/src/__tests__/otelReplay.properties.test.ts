@@ -138,18 +138,24 @@ const byteEncoders: ((byte: number) => Json)[] = [
 
 function encodeId(hex: string, encoding: ReplayCase["idEncoding"]): Buffer {
   const bytes = [...Buffer.from(hex, "hex")];
-  const wire =
-    encoding === "string"
-      ? hex
-      : encoding === "buffer"
-        ? { type: "Buffer", data: bytes }
-        : encoding === "array"
-          ? bytes
-          : bytes.map((byte, index) =>
-              byteEncoders[(encoding + index) % byteEncoders.length]!(byte),
-            );
+  let wire: unknown;
+  switch (encoding) {
+    case "string":
+      wire = hex;
+      break;
+    case "buffer":
+      wire = { type: "Buffer", data: bytes };
+      break;
+    case "array":
+      wire = bytes;
+      break;
+    default:
+      wire = bytes.map((byte, index) =>
+        byteEncoders[(encoding + index) % byteEncoders.length]!(byte),
+      );
+  }
   // ResourceSpan types describe protobuf output; replay also accepts JSON ID forms.
-  return wire as unknown as Buffer;
+  return wire as Buffer;
 }
 
 function rootPayloadText(value: RootPayload): string {
@@ -213,13 +219,8 @@ function flattenedMetadataPairs(
     if (value !== null && typeof value === "object" && !Array.isArray(value)) {
       return flattenedMetadataPairs(value as Record<string, unknown>, path);
     }
-    const persistedValue =
-      value === null || value === undefined
-        ? ""
-        : typeof value === "string"
-          ? value
-          : JSON.stringify(value);
-    return [[path, persistedValue]];
+    if (value == null) return [[path, ""]];
+    return [[path, typeof value === "string" ? value : JSON.stringify(value)]];
   });
 }
 
@@ -237,14 +238,14 @@ function buildReplayCase(params: ReplayCase) {
     const marker = `${traceId}-${ordinal}`;
     const start = baseTimeMillis + ordinal * 1_000;
     const end = start + 250;
+    const loneRemainder = seed.numericTimestamps ? 999_936 : 999_999;
+    const bothPresent = seed.timestampPresence === "both";
+    const startNanos = unixNanos(start, bothPresent ? 0 : loneRemainder);
+    const endNanos = unixNanos(end, bothPresent ? 1 : loneRemainder);
     const startTimestamp = seed.numericTimestamps
-      ? Number(
-          unixNanos(start, seed.timestampPresence === "both" ? 0 : 999_936),
-        )
-      : unixNanos(start, seed.timestampPresence === "both" ? 0 : 999_999);
-    const endTimestamp = seed.numericTimestamps
-      ? Number(unixNanos(end, seed.timestampPresence === "both" ? 1 : 999_936))
-      : unixNanos(end, seed.timestampPresence === "both" ? 1 : 999_999);
+      ? Number(startNanos)
+      : startNanos;
+    const endTimestamp = seed.numericTimestamps ? Number(endNanos) : endNanos;
     const startTime = timestampMillis(startTimestamp);
     const endTime = timestampMillis(endTimestamp);
     const modelName = {
@@ -295,12 +296,12 @@ function buildReplayCase(params: ReplayCase) {
       "gen_ai.output.messages": JSON.stringify([
         { role: "assistant", content: `provider-output-${marker}` },
       ]),
-      "gen_ai.request.model":
-        seed.modelPrecedence === "request"
-          ? modelName
-          : seed.modelPrecedence === "none"
-            ? ""
-            : PROVIDER_MODEL,
+      "gen_ai.request.model": {
+        request: modelName,
+        none: "",
+        response: PROVIDER_MODEL,
+        canonical: PROVIDER_MODEL,
+      }[seed.modelPrecedence],
       "langfuse.observation.prompt.version":
         seed.promptVersion?.toString() ?? null,
       "gen_ai.response.model":
@@ -330,12 +331,12 @@ function buildReplayCase(params: ReplayCase) {
         seed.modelPrecedence === "canonical" ? modelName : "",
       "langfuse.version": seed.version,
       "langfuse.release": seed.release,
-      "langfuse.environment":
-        seed.environment === "span"
-          ? expected.environment
-          : seed.environment === "empty"
-            ? ""
-            : null,
+      "langfuse.environment": {
+        span: expected.environment,
+        empty: "",
+        resource: null,
+        lower: null,
+      }[seed.environment],
       "deployment.environment.name":
         seed.environment === "lower" ? "span-fallback-env" : null,
     });
