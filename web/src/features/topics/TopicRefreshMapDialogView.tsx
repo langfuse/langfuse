@@ -8,6 +8,13 @@ import { topicRuleFreshness, type TopicRuleMap } from "./topic-maps";
 const WINDOW_DAYS = Math.round(TOPICS_MAX_SELECTION_RANGE_MS / 86_400_000);
 const COOLDOWN_MINUTES = Math.round(TOPIC_RULE_REFRESH_COOLDOWN_MS / 60_000);
 
+/** "in about 5 hours"; approximate, since the scheduler picks the slot up within minutes. */
+function untilLabel(at: string, now: number) {
+  const hours = Math.round((Date.parse(at) - now) / 3_600_000);
+  if (hours < 1) return "in under an hour";
+  return `in about ${hours} ${hours === 1 ? "hour" : "hours"}`;
+}
+
 /** The Refresh map confirmation without data fetching; stories render it directly. */
 export function TopicRefreshMapDialogView({
   rule,
@@ -15,7 +22,7 @@ export function TopicRefreshMapDialogView({
   refreshing,
   onRefresh,
 }: {
-  rule: Pick<TopicRuleMap, "name" | "enabled" | "lastRefitAt">;
+  rule: Pick<TopicRuleMap, "name" | "enabled" | "lastRefitAt" | "nextRefitAt">;
   now: number;
   refreshing: boolean;
   onRefresh: () => void;
@@ -29,7 +36,8 @@ export function TopicRefreshMapDialogView({
       <Dialog.Body>
         <p>
           Reclusters this map&apos;s topics from the last {WINDOW_DAYS} days of
-          matching traces now, instead of at the next nightly update.
+          matching traces now, instead of at the next scheduled nightly update
+          {rule.nextRefitAt ? ` ${untilLabel(rule.nextRefitAt, now)}` : ""}.
         </p>
         <ul className="flex list-disc flex-col gap-1 pl-5">
           <li>Topics may be renamed, merged or split.</li>

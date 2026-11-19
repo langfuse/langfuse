@@ -23,9 +23,11 @@ import {
   getTopicsModels,
   listTopicAnalysisExecutions,
   listTopicRules,
+  nextNightlyRefitSlot,
   readTopicExecutionSummary,
   topicAnalysisCohort,
 } from "@langfuse/shared/topics/server";
+import { env } from "@langfuse/shared/src/env";
 import { logger } from "@langfuse/shared/src/server";
 import { countUnsummarizedTopicTraces } from "./traceSelection";
 
@@ -52,10 +54,17 @@ export async function topicMapsOverview(projectId: string) {
     projectId,
     rules.map((rule) => rule.id),
   );
+  const nextRefitAt = nextNightlyRefitSlot(
+    projectId,
+    new Date(),
+    env.LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC,
+  ).toISOString();
   return {
     rules: rules.map((rule, index) => ({
       ...rule,
       lastRefitAt: refits.get(rule.id)?.toISOString() ?? null,
+      // Paused rules keep their map without nightly refits.
+      nextRefitAt: rule.enabled === false ? null : nextRefitAt,
       refresh: refreshes[index],
     })),
     analyses: executions.filter(isAnalysis).map((execution) => ({

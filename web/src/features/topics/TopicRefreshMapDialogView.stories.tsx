@@ -14,6 +14,7 @@ const meta = preview.meta({
       name: "Halo only",
       enabled: true,
       lastRefitAt: new Date(now - 3 * 3_600_000).toISOString(),
+      nextRefitAt: new Date(now + 16 * 3_600_000 + 12 * 60_000).toISOString(),
     },
     now,
     refreshing: false,
