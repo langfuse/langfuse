@@ -146,8 +146,8 @@ export interface StorageClient {
  * Delete media link rows for a project. Project deletion cannot rely on
  * project/media cascades for these rows because media link tables deliberately
  * do not have foreign keys to projects or media on the ingestion hot path.
- * Deletes in batches of `batchSize` rows, one short statement per batch,
- * until a batch deletes nothing (a short batch can come from a concurrent sweep).
+ * Deletes in batches of `batchSize` rows along the (project_id, media_id)
+ * index, each batch resuming at the last media_id of the previous one.
  */
 export async function deleteMediaLinkRowsByProjectId(params: {
   projectId: string;
@@ -159,17 +159,26 @@ export async function deleteMediaLinkRowsByProjectId(params: {
     Prisma.raw("observation_media"),
     Prisma.raw("dataset_item_media"),
   ]) {
-    let deleted: number;
-    do {
-      deleted = await prisma.$executeRaw(Prisma.sql`
-        DELETE FROM ${table}
-        WHERE id IN (
-          SELECT id FROM ${table}
-          WHERE project_id = ${projectId}
+    let lastMediaId = "";
+    while (true) {
+      const [{ selected, lastSelectedMediaId }] = await prisma.$queryRaw<
+        Array<{ selected: number; lastSelectedMediaId: string | null }>
+      >(Prisma.sql`
+        WITH batch AS (
+          SELECT id, media_id FROM ${table}
+          WHERE project_id = ${projectId} AND media_id >= ${lastMediaId}
+          ORDER BY media_id
           LIMIT ${batchSize}
+        ), deleted AS (
+          DELETE FROM ${table} WHERE id IN (SELECT id FROM batch)
         )
+        SELECT
+          (SELECT count(*)::int FROM batch) AS selected,
+          (SELECT max(media_id) FROM batch) AS "lastSelectedMediaId"
       `);
-    } while (deleted > 0);
+      if (selected < batchSize || lastSelectedMediaId == null) break;
+      lastMediaId = lastSelectedMediaId;
+    }
   }
 }
 
@@ -177,8 +186,6 @@ export async function deleteMediaLinkRowsByProjectId(params: {
  * Delete media files from S3 first, then from PostgreSQL.
  * S3 is deleted first to avoid orphaned files if PG deletion succeeds but S3 fails.
  * A link cutoff preserves recent links when retention keeps dataset-protected media.
- * `projectDeleted` drops that protection: claimed dataset links of a deleted
- * project are deleted together with their media.
  * Returns the number of media files deleted.
  */
 export async function deleteMediaFiles(params: {
@@ -186,15 +193,9 @@ export async function deleteMediaFiles(params: {
   mediaFiles: MediaFileRef[];
   storageClient: StorageClient;
   linkCleanupCutoffDate?: Date;
-  projectDeleted?: boolean;
 }): Promise<number> {
-  const {
-    projectId,
-    mediaFiles,
-    storageClient,
-    linkCleanupCutoffDate,
-    projectDeleted = false,
-  } = params;
+  const { projectId, mediaFiles, storageClient, linkCleanupCutoffDate } =
+    params;
 
   if (mediaFiles.length === 0) {
     return 0;
@@ -211,17 +212,15 @@ export async function deleteMediaFiles(params: {
     const mediaIds = batch.map((f) => f.id);
     // Only a claimed association (validFrom set) protects media; pending rows
     // (null validFrom) don't, so abandoned uploads are reclaimed by retention.
-    const datasetAssociatedMedia = projectDeleted
-      ? []
-      : await prisma.datasetItemMedia.findMany({
-          select: { mediaId: true },
-          where: {
-            projectId,
-            mediaId: { in: mediaIds },
-            datasetItemValidFrom: { not: null },
-          },
-          distinct: ["mediaId"],
-        });
+    const datasetAssociatedMedia = await prisma.datasetItemMedia.findMany({
+      select: { mediaId: true },
+      where: {
+        projectId,
+        mediaId: { in: mediaIds },
+        datasetItemValidFrom: { not: null },
+      },
+      distinct: ["mediaId"],
+    });
     const datasetAssociatedMediaIds = new Set(
       datasetAssociatedMedia.map((media) => media.mediaId),
     );
@@ -256,13 +255,13 @@ export async function deleteMediaFiles(params: {
           ...linkCleanupFilter,
         },
       }),
-      // Sweep leftover pending rows for the deleted media. Claimed rows only
-      // exist for deletable media when the project is deleted.
+      // Sweep leftover pending rows for the deleted media (claimed rows can't
+      // exist for deletable media).
       prisma.datasetItemMedia.deleteMany({
         where: {
           projectId,
           mediaId: { in: deletableMediaIds },
-          ...(!projectDeleted && { datasetItemValidFrom: null }),
+          datasetItemValidFrom: null,
         },
       }),
       prisma.media.deleteMany({

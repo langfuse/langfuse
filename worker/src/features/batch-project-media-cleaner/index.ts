@@ -8,6 +8,7 @@ import {
   recordGauge,
   recordIncrement,
 } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
@@ -113,13 +114,18 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
       return env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS;
     }
 
+    // Claimed dataset links protect media from deleteMediaFiles; in a deleted
+    // project they no longer should.
+    await prisma.datasetItemMedia.deleteMany({
+      where: { projectId, mediaId: { in: mediaFiles.map((f) => f.id) } },
+    });
+
     const deletedCount = await deleteMediaFiles({
       projectId,
       mediaFiles,
       storageClient: getS3MediaStorageClient(
         env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET!,
       ),
-      projectDeleted: true,
     });
 
     recordIncrement(`${METRIC_PREFIX}.media_files_deleted`, deletedCount, {
