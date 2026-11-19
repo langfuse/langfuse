@@ -9,27 +9,14 @@ import {
 } from "../../../src/server/services/DashboardService/types";
 import type { FilterState } from "../../../src/types";
 
-/** Markdown H1 cells divide the notebook into chapters. The same placements also work on the dashboard grid. */
-export function buildDashboardResearchReport(story: DashboardDefinition) {
-  const widgets: DashboardDefinition["widgets"] = [];
-  let y = 0;
-  const geometry = (height: number) => {
-    const top = y;
-    y += height;
-    return { x: 0, y: top, x_size: 12, y_size: height };
-  };
-  const note = (id: string, title: string, content: string) =>
-    widgets.push({ type: "text", id, title, content, ...geometry(3) });
-  const chapter = (id: string, title: string, intro: string) =>
-    note(id, "", `# ${title}\n\n${intro}`);
-  const chart = (id: string, config: StudioWidgetConfig) =>
-    widgets.push({ type: "query", id, config, ...geometry(7) });
-  const example = (id: string) => {
-    const item = story.widgets.find((w) => w.id === id);
-    if (item?.type !== "query")
-      throw new Error(`Missing dashboard example ${id}`);
-    return item.config;
-  };
+import { createNotebook, notebookExample } from "./dashboard-notebook";
+
+export function buildDashboardResearchReport(
+  story: DashboardDefinition,
+  learningHref?: string,
+) {
+  const { widgets, geometry, note, chapter, chart } = createNotebook();
+  const example = (id: string) => notebookExample(story, id);
   const options = (column: string, value: string): FilterState[number] => ({
     column,
     type: "stringOptions",
@@ -164,7 +151,11 @@ export function buildDashboardResearchReport(story: DashboardDefinition) {
     view,
     metrics,
     dimensions: [],
-    filters: [options("name", name), options("source", "API")],
+    filters: [
+      options("name", name),
+      options("source", "API"),
+      options("dataType", view.slice("scores-".length).toUpperCase()),
+    ],
   });
   const quality = score("quality", "quality", "scores-numeric", [
     { id: "mean", measure: "value", aggregation: "avg", label: "Mean quality" },
@@ -173,7 +164,7 @@ export function buildDashboardResearchReport(story: DashboardDefinition) {
     "quality_trend",
     current(
       "How has average quality changed?",
-      "quality · API · numeric. Each point is the mean of the 0–1 scores recorded in that bucket. An unevaluated interval has no mean.",
+      "Each point averages the 0–1 evaluations in that bucket. Hover or open Data to see how many contributed.",
       [quality],
       "LINE_TIME_SERIES",
     ),
@@ -303,7 +294,7 @@ export function buildDashboardResearchReport(story: DashboardDefinition) {
   chart("custom_percentile", {
     ...example("custom_percentile"),
     executionMode: "prototype",
-    title: "How fast are the fastest 10% of generations?",
+    title: "What duration marks the fastest 10% of generations?",
   });
   chart("fixed_bands", {
     ...example("fixed_bands"),
@@ -346,5 +337,11 @@ export function buildDashboardResearchReport(story: DashboardDefinition) {
     "What we need to decide",
     "1. Start with existing queries, named scores, editable recipes and Markdown. Set a measured budget for independent queries and totals.\n2. Review the Home comparisons and decide which changed definitions can migrate and which need an opt-in.\n3. Align with the data platform on metadata grouping, computed ranking, custom aggregation parameters and relationship filters. Use these examples as acceptance cases for the query-builder contract.",
   );
+  if (learningHref)
+    note(
+      "read_next",
+      "Continue with the technical field guide",
+      `Follow one request from observations and scores to a plotted value. The guide explains storage, aggregation, performance and the proposed query contract. [Read How Langfuse queries your data](${learningHref})`,
+    );
   return DashboardDefinitionSchema.parse({ widgets });
 }
