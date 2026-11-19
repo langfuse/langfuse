@@ -312,6 +312,8 @@ model RoleAssignment {
   apiKey       ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
   roleId       String       @map("role_id")
   systemRole   SystemRole   @map("system_role")
+  expiresAt    DateTime?    @map("expires_at")
+  tags         String[]     @default([])
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at")
 
@@ -336,6 +338,7 @@ model RoleAssignment {
   @@index([principalId])
   @@index([userId])
   @@index([apiKeyId])
+  @@index([tags(ops: ArrayOps)], type: Gin)
   @@map("role_assignments")
 }
 

@@ -39,13 +39,22 @@ export const topicTimeRangeSchema = z
     path: ["to"],
   });
 export type TopicTimeRange = z.infer<typeof topicTimeRangeSchema>;
+export const TOPICS_MIN_EMBEDDING_DIMENSIONS = 64;
+/** Every stored summary keeps a vector of this size, so larger ones grow the embeddings table too much. */
+export const TOPICS_MAX_EMBEDDING_DIMENSIONS = 2048;
 export const topicEmbeddingConfigSchema = z.object({
   embeddingModel: z.string().trim().min(1).optional(),
   embeddingDimensions: z
     .number()
     .int("Embedding dimensions must be a whole number.")
-    .min(64, "Use at least 64 embedding dimensions.")
-    .max(4096, "Use at most 4,096 embedding dimensions.")
+    .min(
+      TOPICS_MIN_EMBEDDING_DIMENSIONS,
+      `Use at least ${TOPICS_MIN_EMBEDDING_DIMENSIONS} embedding dimensions.`,
+    )
+    .max(
+      TOPICS_MAX_EMBEDDING_DIMENSIONS,
+      `Use at most ${TOPICS_MAX_EMBEDDING_DIMENSIONS.toLocaleString("en-US")} embedding dimensions.`,
+    )
     .default(1024),
 });
 export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;

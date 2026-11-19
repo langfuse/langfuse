@@ -4,7 +4,7 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { Button } from "@/src/components/ui/button";
 import { GatewayAddBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsHeaderActions/components/GatewayAddBudgetDialogController/GatewayAddBudgetDialogController";
 import { GatewayOrganizationBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayOrganizationBudgetDialogController/GatewayOrganizationBudgetDialogController";
-import type { useGatewayOrganizationBudget } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayOrganizationBudget";
+import type { useGatewayOrganizationBudget } from "@/src/features/ai-gateway/hooks/useGatewayOrganizationBudget";
 import { formatGatewayOrganizationBudgetLabel } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/formatGatewayOrganizationBudgetLabel";
 import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTableState";
