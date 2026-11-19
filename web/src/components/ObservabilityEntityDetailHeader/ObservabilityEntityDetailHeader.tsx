@@ -748,12 +748,12 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
       >
         {({ getTriggerProps }) =>
           metric.color ? (
-            <span
+            <Badge
               {...getTriggerProps()}
-              className="inline-flex min-w-0 cursor-default"
-            >
-              <Badge text={metric.text} color={metric.color} />
-            </span>
+              interactive
+              text={metric.text}
+              color={metric.color}
+            />
           ) : (
             <Metric {...getTriggerProps()} interactive value={metric.text} />
           )
