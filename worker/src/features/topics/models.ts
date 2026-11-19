@@ -24,6 +24,7 @@ import {
   type TopicFacetVersion,
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
+import { env } from "../../env";
 import { createEventLoopYielder } from "./event-loop";
 import { recordTopicModelCall, recordTopicTokenUsage } from "./metrics";
 import {
@@ -223,6 +224,8 @@ async function topicTraceSink(
   projectId: string,
   metadata?: Record<string, unknown>,
 ) {
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA") return undefined;
+
   const trace = getLangfuseAITraceSinkParams({
     feature: "topics",
     projectId,

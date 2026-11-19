@@ -67,6 +67,7 @@ import {
 } from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
+import { env } from "../../env";
 import { recordTopicModelCall } from "./metrics";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
@@ -1062,23 +1063,34 @@ describe("Topics naming boundary", () => {
     },
   );
 
-  it("keeps inference untraced and skips the consent lookup without a destination", async () => {
-    state.traceSink.mockReturnValue(undefined);
-    state.call.mockResolvedValue({
-      output: keyed({ summary: "A billing request.", status: "applicable" }),
-      usage: {},
-      usageDetails: {},
-      providedCostDetails: {},
-    });
-    await summarizeOne(
-      topicsModels(),
-      "A billing request.",
-      topicProcessingConfigSchema.parse({}),
-    );
-    expect(state.project).not.toHaveBeenCalled();
-    expect(state.call).toHaveBeenCalledOnce();
-    expect(state.call.mock.calls[0][0].trace).toBeUndefined();
-  });
+  it.for(["in HIPAA", "without a destination"])(
+    "keeps inference untraced and skips the consent lookup %s",
+    async (scenario, { onTestFinished }) => {
+      if (scenario === "in HIPAA") {
+        const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "HIPAA";
+        onTestFinished(() => {
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+        });
+      } else {
+        state.traceSink.mockReturnValue(undefined);
+      }
+      state.call.mockResolvedValue({
+        output: keyed({ summary: "A billing request.", status: "applicable" }),
+        usage: {},
+        usageDetails: {},
+        providedCostDetails: {},
+      });
+      await summarizeOne(
+        topicsModels(),
+        "A billing request.",
+        topicProcessingConfigSchema.parse({}),
+      );
+      expect(state.call).toHaveBeenCalledOnce();
+      expect(state.call.mock.calls[0][0].trace).toBeUndefined();
+      expect(state.project).not.toHaveBeenCalled();
+    },
+  );
 
   it("prices the full embedding batch through the shared engine", async () => {
     state.embed.mockResolvedValue({
