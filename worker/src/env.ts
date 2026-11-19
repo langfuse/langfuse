@@ -65,8 +65,7 @@ const EnvSchema = z.object({
   // in every CHB tenant, and overridable in case that stops being true.
   CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
   // Compares each metered Stripe interval with the billable_events ledger and
-  // reports the gap. Requires the ledger table, which only Langfuse Cloud has;
-  // keep in sync with web/src/env.mjs.
+  // reports the gap. Keep in sync with web/src/env.mjs.
   LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
