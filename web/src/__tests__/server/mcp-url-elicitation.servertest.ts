@@ -11,18 +11,53 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import "@/src/features/mcp/server/bootstrap";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import type { ServerContext } from "@/src/features/mcp/types";
 import { createMcpTestSetup } from "./mcp-helpers";
 
+const UNKNOWN_MODEL = "unknown-model";
+
 describe("MCP URL elicitation", () => {
   let httpServer: HttpServer;
   let url: URL;
   let context: ServerContext;
+  let llmServer: HttpServer;
+  let llmServerUrl: string;
+  const originalWhitelistedHosts =
+    sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST;
+  const originalWhitelistedIps =
+    sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS;
+  const originalCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
   beforeAll(async () => {
     ({ context } = await createMcpTestSetup());
+
+    // Answers the test call like a provider: an unknown model is not found,
+    // every other model is refused because the key is rejected.
+    sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = ["127.0.0.1"];
+    sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS = ["127.0.0.1"];
+    llmServer = createServer(async (req, res) => {
+      let raw = "";
+      for await (const chunk of req) raw += chunk;
+      const { model } = JSON.parse(raw) as { model: string };
+      const [status, code] =
+        model === UNKNOWN_MODEL
+          ? [404, "model_not_found"]
+          : [401, "invalid_api_key"];
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: { message: code, type: "invalid_request_error", code },
+        }),
+      );
+    });
+    await new Promise<void>((resolve) =>
+      llmServer.listen(0, "127.0.0.1", resolve),
+    );
+    llmServerUrl = `http://127.0.0.1:${(llmServer.address() as AddressInfo).port}/v1`;
 
     // Mounts the transport the way the API route does after authentication.
     httpServer = createServer(async (req, res) => {
@@ -38,7 +73,12 @@ describe("MCP URL elicitation", () => {
   });
 
   afterAll(async () => {
+    sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST =
+      originalWhitelistedHosts;
+    sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS = originalWhitelistedIps;
+    sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => llmServer.close(resolve));
   });
 
   type TestClient = {
@@ -50,6 +90,7 @@ describe("MCP URL elicitation", () => {
   async function setDefaultModel(
     provider: string,
     client: TestClient = { pin: "2026-07-28", elicitation: { url: {} } },
+    model = "gpt-4o-mini",
   ) {
     const requests: { message: string; url: string }[] = [];
     const mcpClient = new Client(
@@ -72,7 +113,7 @@ describe("MCP URL elicitation", () => {
     try {
       const result = await mcpClient.callTool({
         name: "setDefaultEvaluationModel",
-        arguments: { provider, model: "gpt-4o-mini" },
+        arguments: { provider, model },
       });
       return { requests, result };
     } finally {
@@ -120,22 +161,25 @@ describe("MCP URL elicitation", () => {
     expect(result.isError).toBe(true);
   });
 
-  it("opens the connection's edit dialog when its test call fails", async () => {
-    const provider = `mcp-url-${randomUUID()}`;
-    // An unreachable base URL fails the test call like a rejected key does.
-    const connection = await prisma.llmApiKeys.create({
+  async function createConnection(provider: string) {
+    return prisma.llmApiKeys.create({
       data: {
         projectId: context.projectId,
         provider,
         adapter: LLMAdapter.OpenAI,
         secretKey: encrypt("expired-key"),
         displaySecretKey: "...-key",
-        baseURL: "http://127.0.0.1:1/v1",
+        baseURL: llmServerUrl,
         customModels: [],
         withDefaultModels: true,
         extraHeaderKeys: [],
       },
     });
+  }
+
+  it("opens the connection's edit dialog when the provider rejects its key", async () => {
+    const provider = `mcp-url-${randomUUID()}`;
+    const connection = await createConnection(provider);
 
     const { requests, result } = await setDefaultModel(provider);
 
@@ -152,5 +196,26 @@ describe("MCP URL elicitation", () => {
       },
     ]);
     expect(result.isError).toBe(true);
+  });
+
+  it("returns an unknown model to the agent without a link", async () => {
+    const provider = `mcp-url-${randomUUID()}`;
+    await createConnection(provider);
+
+    const { requests, result } = await setDefaultModel(
+      provider,
+      undefined,
+      UNKNOWN_MODEL,
+    );
+
+    expect(requests).toEqual([]);
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([
+      expect.objectContaining({
+        text: expect.stringContaining(
+          "Model configuration not valid for evaluation.",
+        ),
+      }),
+    ]);
   });
 });

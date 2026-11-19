@@ -4,7 +4,9 @@ import type {
   ServerContext as McpRequestContext,
 } from "@modelcontextprotocol/server";
 import { ForbiddenError, LangfuseNotFoundError } from "@langfuse/shared";
+import { EvaluatorBlockReason } from "@langfuse/shared/src/db";
 import {
+  classifyEvaluatorLlmError,
   DefaultEvalModelService,
   getProductBaseUrl,
   logger,
@@ -19,6 +21,15 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 import { requestUrlStep } from "../../../core/url-step";
 import type { ServerContext } from "../../../types";
 import { McpEvaluatorModelConfigSchema } from "./evaluatorInput";
+
+function isConnectionFailure(
+  blockReason: EvaluatorBlockReason | null | undefined,
+): boolean {
+  return (
+    blockReason === EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID ||
+    blockReason === EvaluatorBlockReason.LLM_CONNECTION_ENDPOINT_UNREACHABLE
+  );
+}
 
 /** A link to the project's LLM connections page that opens one dialog. */
 function llmConnectionsUrl(
@@ -64,8 +75,14 @@ async function requestConnectionFix(params: {
     });
   }
 
-  // The test call runs only once the connection is found, so it exists.
-  if (error instanceof ForbiddenError) {
+  // A failed test call points at the connection only when the provider
+  // rejected its credentials or could not be reached; an unknown model or
+  // invalid parameters are the agent's to fix. The test call runs only once
+  // the connection is found, so it exists.
+  if (
+    error instanceof ForbiddenError &&
+    isConnectionFailure(classifyEvaluatorLlmError(error)?.blockReason)
+  ) {
     const connection = await resolveLlmApiKey({
       projectId: context.projectId,
       provider: input.provider,
