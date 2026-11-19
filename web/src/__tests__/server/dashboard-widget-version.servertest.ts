@@ -4,7 +4,11 @@ import {
   createOrgProjectAndApiKey,
   DashboardService,
 } from "@langfuse/shared/src/server";
-import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
+import {
+  DashboardWidgetViews,
+  prisma,
+  type Prisma,
+} from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,
@@ -368,6 +372,28 @@ describe("dashboard widget minVersion", () => {
         userId,
       );
 
+      // Future types may use their own id namespace; retain their payload verbatim.
+      const future = {
+        type: "future-placement",
+        id: placementId,
+        payload: { nested: [null, "synthetic"] },
+      };
+      const persisted = await prisma.dashboard.findUniqueOrThrow({
+        where: { id: dashboard.id, projectId },
+      });
+      await prisma.dashboard.update({
+        where: { id: dashboard.id, projectId },
+        data: {
+          definition: {
+            widgets: [
+              ...(persisted.definition as { widgets: Prisma.InputJsonObject[] })
+                .widgets,
+              future,
+            ],
+          },
+        },
+      });
+
       const newWidgetId = await DashboardService.copyWidgetToProject({
         sourceWidgetId: sourceWidget.id,
         projectId,
@@ -384,6 +410,23 @@ describe("dashboard widget minVersion", () => {
       expect(copiedWidget).not.toBeNull();
       expect(copiedWidget!.minVersion).toBe(2);
       expect(copiedWidget!.owner).toBe("PROJECT");
+      const updated = await prisma.dashboard.findUniqueOrThrow({
+        where: { id: dashboard.id, projectId },
+      });
+      expect(updated.definition).toEqual({
+        widgets: [
+          {
+            type: "widget",
+            id: placementId,
+            widgetId: newWidgetId,
+            x: 0,
+            y: 0,
+            x_size: 6,
+            y_size: 4,
+          },
+          future,
+        ],
+      });
     });
 
     it("should round-trip preset placements in the dashboard definition", async () => {

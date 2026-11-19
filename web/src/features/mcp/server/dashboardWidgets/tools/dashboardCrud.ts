@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { DashboardWidgetChartType } from "@langfuse/shared";
+import {
+  DashboardWidgetChartType,
+  DashboardSupportedPlacementTypesSchema,
+} from "@langfuse/shared";
 import { metricAggregations } from "@langfuse/shared/query";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
@@ -84,6 +87,7 @@ const dashboardWidgetPatchBaseSchema = z.object({
 });
 const dashboardPatchBaseSchema = z.object({
   dashboardId: z.string(),
+  supportedPlacementTypes: DashboardSupportedPlacementTypesSchema.optional(),
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   filters: z.array(z.object({}).loose()).optional(),
@@ -333,7 +337,7 @@ export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
   baseSchema: dashboardPatchBaseSchema,
   inputSchema: DashboardIdQuery.extend(
     PatchUnstableDashboardBody.shape,
-  ).superRefine(requirePatchField(["dashboardId"])),
+  ).superRefine(requirePatchField(["dashboardId", "supportedPlacementTypes"])),
   destructiveHint: true,
   handler: ({ dashboardId, ...patch }, context) =>
     runMcpTool({

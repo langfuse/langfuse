@@ -20,6 +20,7 @@ import {
   getObservationUsageByTypeByTime,
   DashboardService,
   DashboardDefinitionSchema,
+  DashboardSupportedPlacementTypesSchema,
   escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { executeQuery } from "@langfuse/shared/query/server";
@@ -67,6 +68,7 @@ const UpdateDashboardDefinitionInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
   definition: DashboardDefinitionSchema,
+  supportedPlacementTypes: DashboardSupportedPlacementTypesSchema.optional(),
 });
 
 // Update dashboard input schema
@@ -91,6 +93,7 @@ const CloneDashboardInput = z.object({
   // Optional definition override so an edit attempted on a read-only
   // dashboard (e.g. a tile moved on the curated Home) carries into the clone.
   definition: DashboardDefinitionSchema.optional(),
+  supportedPlacementTypes: DashboardSupportedPlacementTypesSchema.optional(),
   // Set the clone as the project's home dashboard in the same gesture.
   setAsHome: z.boolean().optional(),
 });
@@ -579,6 +582,7 @@ export const dashboardRouter = createTRPCRouter({
         input.projectId,
         input.definition,
         ctx.session.user.id,
+        input.supportedPlacementTypes,
       );
 
       return dashboard;
@@ -637,15 +641,16 @@ export const dashboardRouter = createTRPCRouter({
         select: { name: true },
       });
 
-      const clonedDashboard = await DashboardService.createDashboard(
+      const clonedDashboard = await DashboardService.cloneDashboard(
+        input.dashboardId,
         input.projectId,
         nextCloneName(
           sourceDashboard.name,
           existingClones.map((d) => d.name),
         ),
-        sourceDashboard.description,
         ctx.session.user.id,
-        input.definition ?? sourceDashboard.definition,
+        input.definition,
+        input.supportedPlacementTypes,
       );
 
       if (input.setAsHome) {

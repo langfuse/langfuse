@@ -18,6 +18,7 @@
 - tRPC context/procedures: `src/server/api/trpc.ts`
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
+- Dashboard full-definition update/clone inputs use `supportedPlacementTypes` to declare the types a client can intentionally replace or remove. Omitted capabilities mean widget and preset. Persisted readers omit unsupported types; server-owned placement mutations declare the current server's supported types. Older views and exports omit unknown placements, while layout saves and clones preserve their stored payloads. Strict import validation rejects unknown types.
 - Public REST API routes: `src/pages/api/public/*`
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
