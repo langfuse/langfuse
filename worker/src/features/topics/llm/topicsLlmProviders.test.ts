@@ -5,11 +5,11 @@ import {
   nameTopicGroup,
   prepareTopicNamingGroup,
   summarizeTopicTraceFacets,
-} from "../models";
+} from "./models";
 import {
   resolveTopicsLlmCombination,
   TOPICS_LLM_COMBINATIONS,
-} from "./topicsLlmCombinations";
+} from "./__tests__/topicsLlmCombinations";
 
 /**
  * Topics LLM provider tests

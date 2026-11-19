@@ -7,7 +7,7 @@ import {
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
 /**
- * Model combinations exercised by `topicsLlmProviders.test.ts`. Each one is a
+ * Model combinations exercised by `../topicsLlmProviders.test.ts`. Each one is a
  * Topics configuration a project could save: one connection and model per
  * slot, the embedding dimensions, and optionally processing limits.
  *
