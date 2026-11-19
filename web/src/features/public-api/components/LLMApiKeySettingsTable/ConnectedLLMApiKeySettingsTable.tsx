@@ -179,7 +179,7 @@ export function ConnectedLLMApiKeySettingsTable({
     <CreateLLMApiKeyDialogController
       owner={owner}
       initialPrefill={createPrefill}
-      onClose={clearCreateConnection}
+      onAfterClose={clearCreateConnection}
     >
       {({ hasAccess: hasCreateAccess, openDialog: openCreateDialog }) => (
         <UpdateLLMApiKeyDialog
@@ -187,7 +187,7 @@ export function ConnectedLLMApiKeySettingsTable({
           key={editTarget?.id}
           owner={owner}
           initialApiKey={editTarget}
-          onClose={clearEditConnection}
+          onAfterClose={clearEditConnection}
         >
           {({ openDialog: openUpdateDialog }) => (
             <ConfirmationDialogController<{ id: string }>
