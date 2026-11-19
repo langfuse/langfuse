@@ -38,6 +38,8 @@ export function RoleSelect({
   disabled = false,
   roleDisabledReason,
   triggerId,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
   size,
 }: {
   roles: Role[];
@@ -49,6 +51,8 @@ export function RoleSelect({
   /** Makes single options unselectable and says why, e.g. a group already grants more. */
   roleDisabledReason?: (role: Role) => string | undefined;
   triggerId?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
 } & VariantProps<typeof triggerVariants>) {
   const [open, setOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -79,6 +83,8 @@ export function RoleSelect({
       >
         <SelectTrigger
           id={triggerId}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={triggerVariants({ size })}
           disableValueLineClamp
         >

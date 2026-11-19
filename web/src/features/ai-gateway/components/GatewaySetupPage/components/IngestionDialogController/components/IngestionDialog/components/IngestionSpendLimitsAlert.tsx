@@ -6,11 +6,11 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 export function IngestionSpendLimitsAlert() {
   return (
     <Alert variant="warning" size="sm" icon={AlertTriangle}>
-      <Alert.Title>Spend limits stop applying</Alert.Title>
+      <Alert.Title>Budgets stop applying</Alert.Title>
       <Alert.Description>
         <p>
           Gateway keys can spend without limit while nothing is recorded. Your
-          spend limits apply again once you turn ingestion back on.
+          budgets apply again once you turn ingestion back on.
         </p>
       </Alert.Description>
     </Alert>

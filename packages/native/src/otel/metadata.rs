@@ -563,6 +563,7 @@ pub(crate) mod tests {
                 scope: &empty,
                 cache,
                 decode_metadata: false,
+                evaluation_fields: &mut None,
             },
         );
         apply_context_fields(

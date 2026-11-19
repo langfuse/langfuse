@@ -86,6 +86,7 @@ export type RoleAssignment = {
   roleId: RoleId;
   principalId: PrincipalId;
   tags: string[];
+  expiresAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };

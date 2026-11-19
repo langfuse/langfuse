@@ -615,6 +615,33 @@ describe("GoogleCloudStorageService.uploadFile source stream errors", () => {
   });
 });
 
+describe("GoogleCloudStorageService.listFilePage", () => {
+  it("ends pagination when the client returns no next query on the last page", async () => {
+    const service = StorageServiceFactory.getInstance({
+      credentials: storageKeys(undefined, undefined),
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+    const createdAt = "2026-01-01T00:00:00.000Z";
+    (service as unknown as { bucket: { getFiles: () => unknown } }).bucket = {
+      getFiles: async () => [
+        [{ name: "a.json", metadata: { timeCreated: createdAt } }],
+        null,
+      ],
+    };
+
+    await expect(service.listFilePage({ prefix: "p/" })).resolves.toEqual({
+      files: [{ file: "a.json", createdAt: new Date(createdAt) }],
+      continuationToken: undefined,
+    });
+  });
+});
+
 /**
  * Regression tests for the DeleteObjects checksum sent to S3-compatible
  * stores.

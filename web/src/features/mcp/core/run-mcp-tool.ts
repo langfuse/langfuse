@@ -5,6 +5,7 @@ import {
   instrumentAsync,
 } from "@langfuse/shared/src/server";
 import { SpanKind, type Span } from "@opentelemetry/api";
+import { isInputRequiredResult } from "@modelcontextprotocol/server";
 import { ZodError } from "zod";
 
 import { StructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
@@ -49,7 +50,11 @@ export const runMcpTool = async <TResult>({
 
       try {
         const result = await fn(span);
-        span.setAttribute("mcp.outcome", "success");
+        // Asking the client for input is a normal round, not a failure.
+        span.setAttribute(
+          "mcp.outcome",
+          isInputRequiredResult(result) ? "input_required" : "success",
+        );
         return result;
       } catch (error) {
         if (error instanceof McpQueryCooldownError) {

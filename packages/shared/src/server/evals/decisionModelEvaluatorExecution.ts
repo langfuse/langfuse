@@ -1,3 +1,4 @@
+/* eslint-disable array-callback-return */
 import { ScoreDataTypeEnum } from "../../domain/scores";
 import {
   DecisionModelQuestionType,

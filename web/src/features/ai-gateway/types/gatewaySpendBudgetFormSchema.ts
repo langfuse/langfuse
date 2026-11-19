@@ -18,6 +18,16 @@ export const requiredGatewaySpendBudgetFormSchema =
     }
   });
 
+/** The same, for forms where an empty amount means no budget. */
+export const optionalGatewaySpendBudgetFormSchema =
+  gatewaySpendBudgetFormSchema.superRefine((value, context) => {
+    if (value.limitUsd.trim() === "") return;
+    const message = getGatewaySpendBudgetLimitError(value.limitUsd);
+    if (message) {
+      context.addIssue({ code: "custom", path: ["limitUsd"], message });
+    }
+  });
+
 export type GatewaySpendBudgetFormValue = z.infer<
   typeof gatewaySpendBudgetFormSchema
 >;

@@ -1,3 +1,11 @@
+import {
+  ApiKeyStep,
+  type ApiKeyStepProps,
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/ApiKeyStep";
+import {
+  BudgetStep,
+  type BudgetStepProps,
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/BudgetStep";
 import { CredentialStep } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/CredentialStep";
 import { IngestionStep } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/IngestionStep/IngestionStep";
 import {
@@ -12,16 +20,18 @@ import type {
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 
-export type GatewaySetupGuideProps = Omit<TeamInviteStepProps, "status"> & {
-  /** The open step: 1 ingestion, 2 credential, 3 team. */
-  activeStep: 1 | 2 | 3;
-  config: GatewayConfig | null;
-  projects: GatewayProject[];
-  firstConnection: Pick<GatewayConnection, "provider"> | undefined;
-  isSavingIngestion: boolean;
-  onSaveIngestion: (settings: GatewayIngestionSettings) => Promise<unknown>;
-  onAddCredential: () => void;
-};
+export type GatewaySetupGuideProps = Omit<TeamInviteStepProps, "status"> &
+  Omit<ApiKeyStepProps, "status"> & {
+    /** The open step: 1 ingestion, 2 credential, 3 budgets, 4 team, 5 own key. */
+    activeStep: 1 | 2 | 3 | 4 | 5;
+    config: GatewayConfig | null;
+    projects: GatewayProject[];
+    firstConnection: Pick<GatewayConnection, "provider"> | undefined;
+    isSavingIngestion: boolean;
+    onSaveIngestion: (settings: GatewayIngestionSettings) => Promise<unknown>;
+    onAddCredential: () => void;
+    budgetStep: Omit<BudgetStepProps, "status">;
+  };
 
 export function GatewaySetupGuide({
   activeStep,
@@ -31,6 +41,9 @@ export function GatewaySetupGuide({
   isSavingIngestion,
   onSaveIngestion,
   onAddCredential,
+  budgetStep,
+  onCreateKey,
+  onSkipKey,
   ...teamInviteProps
 }: GatewaySetupGuideProps) {
   return (
@@ -47,9 +60,15 @@ export function GatewaySetupGuide({
         firstConnection={firstConnection}
         onAddCredential={onAddCredential}
       />
+      <BudgetStep status={getSetupStepStatus(3, activeStep)} {...budgetStep} />
       <TeamInviteStep
-        status={getSetupStepStatus(3, activeStep)}
+        status={getSetupStepStatus(4, activeStep)}
         {...teamInviteProps}
+      />
+      <ApiKeyStep
+        status={getSetupStepStatus(5, activeStep)}
+        onCreateKey={onCreateKey}
+        onSkipKey={onSkipKey}
       />
     </div>
   );

@@ -99,6 +99,10 @@ import {
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import {
+  replaceRolesForPrincipal,
+  revokeRolesForPrincipal,
+} from "@langfuse/shared/rbac/server";
+import {
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
 } from "@langfuse/shared";
@@ -181,9 +185,11 @@ async function authenticateRequest(
   const context = await new GatewayApiKeyAuthenticator(
     prisma,
   ).authenticateRequest(params);
-  return new GatewayResolveService().resolve({
+  const service = new GatewayResolveService();
+  return service.resolve({
     context,
     apiFormat: params.apiFormat,
+    pricing: service.findPricing(context),
   });
 }
 
@@ -2748,6 +2754,296 @@ describe("AI gateway control plane", () => {
     ]);
   });
 
+  it("applies the organization's budget to every key on top of key and user budgets", async () => {
+    configureGatewayJwtSigning();
+    const owner = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    await owner.caller.aiGateway.createConnection({
+      orgId: owner.org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const laptop = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Laptop",
+      metadata: {},
+      spendLimit: { interval: "DAILY", limitUsd: 5 },
+    });
+    const service = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Service",
+      metadata: {},
+      issuedAs: "serviceAccount",
+    });
+    const resolved = async (secretKey: string) =>
+      (
+        await authenticateRequest({
+          fastHashedSecretKey: createShaHash(secretKey, env.SALT),
+          apiFormat: "openai.chat-completions",
+          model: "OpenAI:gpt-4o-mini",
+        })
+      ).spend_limits.map(({ id, scope, interval, limit_usd }) => ({
+        id,
+        scope,
+        interval,
+        limit_usd,
+      }));
+    const setBudget = (
+      caller: typeof member,
+      spendLimit: {
+        interval: "DAILY" | "WEEKLY" | "MONTHLY";
+        limitUsd: number;
+      } | null,
+    ) =>
+      caller.aiGateway.setOrganizationSpendLimit({
+        orgId: owner.org.id,
+        spendLimit,
+      });
+
+    await expect(
+      setBudget(member, { interval: "MONTHLY", limitUsd: 5000 }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    // Resolve first, so the budget must drop the cached context.
+    expect(await resolved(service.secretKey)).toEqual([]);
+    await setBudget(owner.caller, { interval: "MONTHLY", limitUsd: 5000 });
+    // Organization budgets have no subject, like defaults, and share their one-per-scope index.
+    await owner.caller.aiGateway.setDefaultSpendLimit({
+      orgId: owner.org.id,
+      scope: "API_KEY",
+      spendLimit: { interval: "MONTHLY", limitUsd: 10 },
+    });
+    expect(
+      await owner.caller.aiGateway.getOrganizationSpendLimit({
+        orgId: owner.org.id,
+      }),
+    ).toEqual({
+      spendLimit: { interval: "MONTHLY", limitUsd: 5000 },
+      spentUsd: 0,
+    });
+    const { id } = await prisma.gatewaySpendLimit.findFirstOrThrow({
+      where: { organizationId: owner.org.id, scope: "ORGANIZATION" },
+    });
+    // One id for every key, so all of them add to the same counter.
+    const organizationLimit = {
+      id,
+      scope: "organization",
+      interval: "monthly",
+      limit_usd: 5000,
+    };
+    expect(await resolved(laptop.secretKey)).toEqual([
+      expect.objectContaining({ scope: "api_key", limit_usd: 5 }),
+      organizationLimit,
+    ]);
+    expect(await resolved(service.secretKey)).toEqual([
+      expect.objectContaining({ scope: "api_key", limit_usd: 10 }),
+      organizationLimit,
+    ]);
+
+    // A new interval replaces the budget; there is only ever one.
+    await setBudget(owner.caller, { interval: "DAILY", limitUsd: 250 });
+    expect(await resolved(service.secretKey)).toEqual([
+      expect.objectContaining({ scope: "api_key", limit_usd: 10 }),
+      expect.objectContaining({
+        scope: "organization",
+        interval: "daily",
+        limit_usd: 250,
+      }),
+    ]);
+    await setBudget(owner.caller, null);
+    expect(await resolved(service.secretKey)).toEqual([
+      expect.objectContaining({ scope: "api_key", limit_usd: 10 }),
+    ]);
+  });
+
+  it("rejects budget reads and changes from another organization and from callers without the gateway scope they need", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    // Both record spend, so cross-tenant reads reach the organization filters.
+    for (const { caller, org, project } of [owner, other]) {
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: project.id,
+        ingestionMode: "USAGE",
+      });
+    }
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const spendLimit = { interval: "MONTHLY" as const, limitUsd: 1 };
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+      spendLimit: { interval: "DAILY", limitUsd: 5 },
+    });
+    const unbudgetedKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Unbudgeted key",
+      metadata: {},
+    });
+    await owner.caller.aiGateway.setSpendLimits({
+      orgId: owner.org.id,
+      scope: "USER",
+      subjects: { type: "ids", subjectIds: [owner.user.id] },
+      spendLimit: { interval: "MONTHLY", limitUsd: 20 },
+    });
+    await owner.caller.aiGateway.setDefaultSpendLimit({
+      orgId: owner.org.id,
+      scope: "API_KEY",
+      spendLimit: { interval: "MONTHLY", limitUsd: 10 },
+    });
+    await owner.caller.aiGateway.setOrganizationSpendLimit({
+      orgId: owner.org.id,
+      spendLimit: { interval: "MONTHLY", limitUsd: 5000 },
+    });
+    const ownerLimits = () =>
+      prisma.gatewaySpendLimit.findMany({
+        where: { organizationId: owner.org.id },
+        orderBy: { id: "asc" },
+      });
+    const limitsBefore = await ownerLimits();
+
+    type Caller = typeof member;
+    const keyIds = { type: "ids" as const, subjectIds: [ownerKey.id] };
+    const userIds = { type: "ids" as const, subjectIds: [owner.user.id] };
+    const matchingAll = { type: "matching" as const, status: "all" as const };
+    const keyBudgetRequests = (caller: Caller, orgId: string) => [
+      caller.aiGateway.getApiKeysSpend({ orgId, apiKeyIds: [ownerKey.id] }),
+      caller.aiGateway.listBudgets({ orgId, scope: "API_KEY" }),
+      caller.aiGateway.listMatchingBudgetSubjects({ orgId, scope: "API_KEY" }),
+      caller.aiGateway.createSpendLimits({
+        orgId,
+        scope: "API_KEY",
+        subjectIds: [unbudgetedKey.id],
+        spendLimit,
+      }),
+      caller.aiGateway.setSpendLimits({
+        orgId,
+        scope: "API_KEY",
+        subjects: keyIds,
+        spendLimit: null,
+      }),
+      caller.aiGateway.setSpendLimits({
+        orgId,
+        scope: "API_KEY",
+        subjects: matchingAll,
+        spendLimit: null,
+      }),
+      caller.aiGateway.getDefaultSpendLimits({ orgId }),
+    ];
+    const managerBudgetRequests = (caller: Caller, orgId: string) => [
+      caller.aiGateway.listBudgets({ orgId, scope: "USER" }),
+      caller.aiGateway.listMatchingBudgetSubjects({ orgId, scope: "USER" }),
+      caller.aiGateway.createSpendLimits({
+        orgId,
+        scope: "USER",
+        subjectIds: [owner.user.id],
+        spendLimit,
+      }),
+      caller.aiGateway.setSpendLimits({
+        orgId,
+        scope: "USER",
+        subjects: userIds,
+        spendLimit: null,
+      }),
+      caller.aiGateway.setSpendLimits({
+        orgId,
+        scope: "USER",
+        subjects: matchingAll,
+        spendLimit: null,
+      }),
+      ...(["API_KEY", "USER"] as const).map((scope) =>
+        caller.aiGateway.setDefaultSpendLimit({
+          orgId,
+          scope,
+          spendLimit: null,
+        }),
+      ),
+      caller.aiGateway.getOrganizationSpendLimit({ orgId }),
+      caller.aiGateway.setOrganizationSpendLimit({ orgId, spendLimit: null }),
+    ];
+    const expectAllRejected = (
+      requests: Promise<unknown>[],
+      error: { code: string; message?: string },
+    ) =>
+      Promise.all(
+        requests.map((request) => expect(request).rejects.toMatchObject(error)),
+      );
+
+    await expectAllRejected(
+      [
+        ...keyBudgetRequests(other.caller, owner.org.id),
+        ...managerBudgetRequests(other.caller, owner.org.id),
+      ],
+      {
+        code: "UNAUTHORIZED",
+        message: "User is not a member of this organization",
+      },
+    );
+    // The scope check's own message, since the service also refuses changes to budgets a manager set.
+    const missingScope = {
+      code: "FORBIDDEN",
+      message:
+        "Forbidden, user does not have access to this resource or action",
+    };
+    await expectAllRejected(
+      keyBudgetRequests(viewer, owner.org.id),
+      missingScope,
+    );
+    await expectAllRejected(
+      [
+        ...managerBudgetRequests(viewer, owner.org.id),
+        ...managerBudgetRequests(member, owner.org.id),
+      ],
+      missingScope,
+    );
+
+    // In their own organization, a foreign manager can neither see nor change the owner's keys and users.
+    expect(
+      await other.caller.aiGateway.getApiKeysSpend({
+        orgId: other.org.id,
+        apiKeyIds: [ownerKey.id],
+      }),
+    ).toEqual({ available: true, apiKeys: [] });
+    await expect(
+      other.caller.aiGateway.setSpendLimits({
+        orgId: other.org.id,
+        scope: "API_KEY",
+        subjects: keyIds,
+        spendLimit: null,
+      }),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Gateway key not found",
+    });
+    await expect(
+      other.caller.aiGateway.createSpendLimits({
+        orgId: other.org.id,
+        scope: "API_KEY",
+        subjectIds: [unbudgetedKey.id],
+        spendLimit,
+      }),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Gateway key not found",
+    });
+    await expect(
+      other.caller.aiGateway.setSpendLimits({
+        orgId: other.org.id,
+        scope: "USER",
+        subjects: userIds,
+        spendLimit: null,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", message: "User not found" });
+
+    expect(await ownerLimits()).toEqual(limitsBefore);
+  });
+
   it("rejects key edits from another organization and from members without gateway:invoke", async () => {
     const owner = await prepare();
     const other = await prepare();
@@ -4254,18 +4550,33 @@ describe("AI gateway control plane", () => {
         fastHashedSecretKey: createShaHash(secretKey, env.SALT),
         apiFormat: "openai.responses",
       });
+    // Changes the owner's org role without the app's cache invalidation.
     const setOwnerRole = (orgId: string, userId: string, role: Role | null) =>
-      role
-        ? prisma.organizationMembership.update({
-            where: { orgId_userId: { orgId, userId } },
-            data: { role },
-          })
-        : prisma.organizationMembership.delete({
+      prisma.$transaction(async (tx) => {
+        const tenantId = OrganizationId(orgId);
+        const principalId = UserId(userId);
+        if (!role) {
+          await tx.organizationMembership.delete({
             where: { orgId_userId: { orgId, userId } },
           });
-    const ownerNotAllowed = {
+          await revokeRolesForPrincipal(tx, { tenantId, principalId });
+          return;
+        }
+        await tx.organizationMembership.update({
+          where: { orgId_userId: { orgId, userId } },
+          data: { role },
+        });
+        await replaceRolesForPrincipal(tx, {
+          tenantId,
+          ownerId: tenantId,
+          principalId,
+          roleId: SystemRoleId(role),
+          tags: [],
+        });
+      });
+    const keyNotAllowed = {
       status: 403,
-      message: "API key owner is not allowed to invoke the gateway",
+      message: "API key is not allowed to invoke the gateway",
     };
 
     it.each([
@@ -4286,7 +4597,7 @@ describe("AI gateway control plane", () => {
 
         for (let attempt = 0; attempt < 2; attempt++) {
           await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
-            ownerNotAllowed,
+            keyNotAllowed,
           );
         }
         // A rejection is not cached, so restoring access applies at once.
@@ -4348,7 +4659,7 @@ describe("AI gateway control plane", () => {
       });
       await invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey);
       await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
-        ownerNotAllowed,
+        keyNotAllowed,
       );
     });
 
@@ -4381,7 +4692,7 @@ describe("AI gateway control plane", () => {
       });
 
       await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
-        ownerNotAllowed,
+        keyNotAllowed,
       );
     });
   });

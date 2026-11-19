@@ -375,6 +375,30 @@ describe("expansion table: scope USER, privateKey", () => {
     );
   });
 
+  it("loads the user's and the key's roles concurrently", async () => {
+    const prisma = mockPrisma(orgRow());
+    let inFlight = 0;
+    let maxInFlight = 0;
+    Object.assign(prisma.roleAssignment, {
+      findMany: async ({ where }: { where: { principalId: string } }) => {
+        maxInFlight = Math.max(maxInFlight, ++inFlight);
+        await new Promise((resolve) => setImmediate(resolve));
+        inFlight--;
+        return assignmentsFor(where.principalId);
+      },
+    });
+    const resolved = await new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+    ).resolve({ authorization: "privateKey", apiKey: userKey() });
+    if (!resolved.success) throw resolved.error;
+    expect(maxInFlight).toBe(2);
+    expect(resolved.context.policies.map((set) => set[0]?.roleId)).toEqual([
+      "system/MEMBER",
+      "system/ADMIN",
+    ]);
+  });
+
   it("denies a user key without a user", async () => {
     const ctx = await contextFor({
       authorization: "privateKey",

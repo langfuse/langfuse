@@ -6,7 +6,7 @@ import {
   DropdownMenu,
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { AnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/AnnotationQueueSubmenuItemController";
+import { ConnectedAnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/ConnectedAnnotationQueueSubmenuItemController";
 import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 import {
@@ -79,7 +79,7 @@ export function ConnectedTraceObservationAddToDropdownMenuController(
             disabled: createDatasetDisabled,
             openDialog: openDatasetDialog,
           }) => (
-            <AnnotationQueueSubmenuItemController
+            <ConnectedAnnotationQueueSubmenuItemController
               projectId={props.projectId}
               objectId={objectId}
               objectType={objectType}
@@ -94,7 +94,7 @@ export function ConnectedTraceObservationAddToDropdownMenuController(
                   openDatasetItemDialog={openDatasetItemDialog}
                 />
               )}
-            </AnnotationQueueSubmenuItemController>
+            </ConnectedAnnotationQueueSubmenuItemController>
           )}
         </CreateDatasetDialogController>
       )}

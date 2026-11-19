@@ -14,11 +14,15 @@ import {
 } from "@langfuse/shared/memberships";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import {
-  sessionOrganizationScopes,
-  throwIfHigherRole,
-} from "@/src/features/rbac/server/throwIfHigherRole";
+  ALREADY_ORGANIZATION_MEMBER_MESSAGE,
+  ALREADY_PROJECT_MEMBER_MESSAGE,
+  PENDING_MEMBERSHIP_INVITE_MESSAGE,
+} from "@/src/features/rbac/constants/membershipErrorMessages";
+import {
+  assertValidOrgOwnershipChange,
+  assertValidProjectOwnershipChange,
+} from "@/src/features/rbac/server/ownershipChange";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
@@ -117,10 +121,12 @@ export async function inviteOrganizationMember({
     });
   }
 
-  throwIfHigherRole({
-    ownRole: ctx.session.orgRole,
-    ownScopes: sessionOrganizationScopes(ctx.session),
-    role: input.orgRole,
+  await assertValidOrgOwnershipChange({
+    tx: ctx.prisma,
+    session: ctx.session,
+    orgId: input.orgId,
+    from: undefined,
+    to: input.orgRole,
   });
   requireGatewayEnabledForRole(input.orgId, input.orgRole);
 
@@ -146,10 +152,12 @@ export async function inviteOrganizationMember({
   });
 
   if (project && input.projectRole)
-    await throwIfHigherProjectRole({
-      orgCtx: ctx,
-      projectId: project.id,
-      projectRole: input.projectRole,
+    await assertValidProjectOwnershipChange({
+      tx: ctx.prisma,
+      session: ctx.session,
+      orgId: input.orgId,
+      from: undefined,
+      to: input.projectRole,
     });
 
   const org = await ctx.prisma.organization.findFirst({
@@ -213,7 +221,7 @@ export async function inviteOrganizationMember({
       }
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "User is already a member of this organization",
+        message: ALREADY_ORGANIZATION_MEMBER_MESSAGE,
       });
     }
 
@@ -233,7 +241,7 @@ export async function inviteOrganizationMember({
     ) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "User is already a member of this project",
+        message: ALREADY_PROJECT_MEMBER_MESSAGE,
       });
     }
 
@@ -349,8 +357,7 @@ export async function inviteOrganizationMember({
       ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message:
-            "A pending membership invitation with this email and organization already exists",
+          message: PENDING_MEMBERSHIP_INVITE_MESSAGE,
         });
       } else {
         throw error;

@@ -106,7 +106,6 @@ import {
   type EmailCodeRequest,
   normalizeEmailIdentifier,
 } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
-import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
 import {
   canToggleV4,
   isV4UpgradeUiAvailable,
@@ -907,7 +906,6 @@ export async function getAuthOptions(
                   name: true,
                   email: true,
                   image: true,
-                  emailVerified: true,
                   password: true,
                   createdAt: true,
                   featureFlags: true,
@@ -1026,9 +1024,6 @@ export async function getAuthOptions(
                     id: dbUser.id,
                     name: dbUser.name,
                     email: dbUser.email,
-                    emailSupportHash: dbUser.email
-                      ? createSupportEmailHash(dbUser.email)
-                      : undefined,
                     image: dbUser.image,
                     v4BetaEnabled,
                     v4UpgradeUiAvailable,
@@ -1156,7 +1151,6 @@ export async function getAuthOptions(
                         };
                       },
                     ),
-                    emailVerified: dbUser.emailVerified?.toISOString(),
                     featureFlags: parseFlags(dbUser.featureFlags, {
                       v4BetaEnabled,
                     }),

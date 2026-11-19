@@ -29,7 +29,7 @@ export function SessionViewTabs({
     Partial<
       Pick<
         RouterOutputs["sessionViews"]["list"][number],
-        "isPinnedByDefaultForProject"
+        "isPinnedByDefaultForProject" | "ownership"
       >
     >)[];
   onManageViews: () => void;
@@ -94,7 +94,8 @@ export function SessionViewTabs({
                   icon: PinOff,
                   onClick: () => onUnpin(view.id),
                 },
-                ...(onSetDefaultPin
+                ...(onSetDefaultPin &&
+                (view.ownership !== "PRIVATE" || view.canEdit)
                   ? [
                       {
                         type: "item" as const,
@@ -118,7 +119,10 @@ export function SessionViewTabs({
                         id: "edit",
                         title: "Edit",
                         disabled: !view.canEdit
-                          ? { reason: "Only the creator can edit this view." }
+                          ? {
+                              reason:
+                                "You don’t have permission to edit this view.",
+                            }
                           : undefined,
                         icon: Pencil,
                         onClick: () => onViewAction(view.id, "edit"),
@@ -136,7 +140,8 @@ export function SessionViewTabs({
                         title: "Delete",
                         disabled: !view.canEdit
                           ? {
-                              reason: "Only the creator can delete this view.",
+                              reason:
+                                "You don’t have permission to delete this view.",
                             }
                           : undefined,
                         icon: Trash2,

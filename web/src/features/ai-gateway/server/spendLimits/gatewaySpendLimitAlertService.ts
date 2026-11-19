@@ -21,6 +21,7 @@ import {
   GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR,
   GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES,
 } from "./gatewayDefaultSpendLimits";
+import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
 
 const REPORTED_USER_SELECT = { id: true, email: true, name: true } as const;
 
@@ -263,6 +264,8 @@ async function findReportedLimits(
           ? [{ limit, subjectId, windowStart }]
           : [];
       }
+      // Not loaded above: reaching an organization limit sends no email.
+      if (scope === GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE) return [];
       if (defaultSubjects.get(scope) !== subjectId) return [];
       const appliesToKey = scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.API_KEY;
       return [

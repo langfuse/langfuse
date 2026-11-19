@@ -36,13 +36,7 @@
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Audit snapshots and replay: `src/server/repositories/auditLogs.ts`; `getAuditLogResourceRefs` derives bulk trace refs from the persisted snapshot for live staging and backfill.
-- Billing ledger: the append-only `billable_events` table (created by
-  `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
-  migration-managed) read via `src/server/repositories/billable-events.ts`.
-  Keep it out of every delete, retention and cleaner path.
-  `src/server/billing/billingLedgerShadow.ts` compares legacy billing counts
-  with the ledger and only reports (metrics plus one log line); it never
-  throws. Callers gate it on `LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED`.
+- Billing ledger: the append-only `billable_events` table (ClickHouse migration `0057_create_billable_events`, with its materialized views) read via `src/server/repositories/billable-events.ts`. Keep it out of every delete, retention and cleaner path.
 - Queue payload schemas: `src/server/queues.ts`. `EvalJobExecutionEventSchema`
   is a union on `type`. Observation jobs carry `observationS3Path`.
   Trace-transcript jobs carry `traceId`, `revision`, and `transcriptS3Path`
@@ -94,7 +88,7 @@
   `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
   with `put` and `get`, and one lazily initialized provider client across
   factory calls. `put` returns the object key when the envelope is stored.
-  `get` reads that key. Topics still rebuilds the key through `legacyGet`.
+  `get` reads that key. Topics and trace-transcript eval jobs carry it as `transcriptS3Path`; readers never rebuild it.
   Consumers
   receive the storage object. The writer takes `TraceBatchInputData` with transcript,
   `executionIssues` (empty without a transcript) and required `traceContext`; session ID and trace name are nullable. The reader
@@ -103,6 +97,7 @@
   units; the reader validates the stored version and restores message dates, and
   throws `UnsupportedTraceBatchInputVersionError` for a newer version, which
   callers treat as retryable. Same-revision PUTs may overwrite.
+  Objects live under `TRACE_BATCH_INPUT_PREFIX` for `TRACE_BATCH_INPUT_RETENTION_MS` (three days). The worker events-dispatch transcript cleaner deletes expired objects; trace and project deletion do not.
   `src/server/traceBatch/versions/v1.ts` freezes the complete envelope, including
   transcript and trace context, without importing live schemas; `serialization.ts` owns the typed
   transcript adapters and `storage-schema.ts` only probes the version. Compatible
