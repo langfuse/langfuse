@@ -22,6 +22,7 @@ import {
 } from "@/src/components/ui/sheet";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import { TOPICS_MAX_RULES, type TopicFacet } from "@langfuse/shared/topics";
 import { cn } from "@/src/utils/tailwind";
@@ -219,6 +220,12 @@ function TopicsWorkspaceContent({
     `topics-show-unassigned:${projectId}`,
     true,
   );
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const [sessionCountsOn, setSessionCountsOn] = useSessionStorage(
+    `topics-show-session-counts:${projectId}`,
+    false,
+  );
+  const showSessionCounts = internalFeaturesEnabled && sessionCountsOn;
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
@@ -387,7 +394,11 @@ function TopicsWorkspaceContent({
       requested: facet.requested,
     })) ?? [];
   const analysisResults = api.topics.analysisResults.useQuery(
-    { projectId, executionId: analysisId ?? "" },
+    {
+      projectId,
+      executionId: analysisId ?? "",
+      includeSessionCounts: showSessionCounts,
+    },
     {
       enabled: analysisId !== null,
       // The results area already explains a run it can't find.
@@ -428,6 +439,7 @@ function TopicsWorkspaceContent({
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
     refreshAfter: Math.max(refreshAfter, refitAfter),
     ruleId: selectedRule?.id,
+    includeSessionCounts: showSessionCounts,
     enabled: !analysisId,
   });
   const shownResults = analysisId
@@ -610,6 +622,12 @@ function TopicsWorkspaceContent({
           mapPickerShown,
           showUnassigned,
           onShowUnassignedChange: setShowUnassigned,
+          sessionCounts: internalFeaturesEnabled
+            ? {
+                checked: sessionCountsOn,
+                onCheckedChange: setSessionCountsOn,
+              }
+            : undefined,
         });
         const mapPicker =
           maps.data && mapSelection && mapPickerShown ? (

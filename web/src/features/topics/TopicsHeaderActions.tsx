@@ -2,6 +2,7 @@ import { EllipsisVertical, MessageSquare, Pencil } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type TopicsActions } from "./prepare-topics-actions";
@@ -38,6 +39,19 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
             description: action.disabledReason,
             onClick: action.onSelect,
           })),
+          ...(actions.sessionCounts
+            ? [
+                {
+                  id: actions.sessionCounts.id,
+                  type: "checkbox" as const,
+                  title: actions.sessionCounts.label,
+                  icon: actions.sessionCounts.icon,
+                  badge: <FeatureReleaseStatus status="internal" />,
+                  checked: actions.sessionCounts.checked,
+                  onCheckedChange: actions.sessionCounts.onCheckedChange,
+                },
+              ]
+            : []),
         ]}
       >
         {({ getTriggerProps }) => (

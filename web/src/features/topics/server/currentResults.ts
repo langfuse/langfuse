@@ -182,7 +182,11 @@ async function ruleMap(
 }
 
 /** Topic and status counts per facet map, aggregated in ClickHouse. */
-async function facetMapCounts(projectId: string, maps: FacetMap[]) {
+async function facetMapCounts(
+  projectId: string,
+  maps: FacetMap[],
+  includeSessionCounts = false,
+) {
   // Facets whose maps share a cohort window share one count query.
   const groups = new Map<string, FacetMap[]>();
   for (const map of maps) {
@@ -201,6 +205,7 @@ async function facetMapCounts(projectId: string, maps: FacetMap[]) {
               version: facet.versions[0]?.version ?? null,
               runId: run?.id ?? null,
             })),
+            ...(includeSessionCounts ? { includeSessions: true } : {}),
           }),
         ),
       )
@@ -222,6 +227,9 @@ async function facetMapCounts(projectId: string, maps: FacetMap[]) {
               name: definition.name,
               description: definition.description,
               count: topic.count,
+              ...(topic.sessions !== undefined
+                ? { sessionCount: topic.sessions }
+                : {}),
             },
           ]
         : [];
@@ -277,7 +285,16 @@ async function facetMapCounts(projectId: string, maps: FacetMap[]) {
 export async function currentTopicResults(
   projectId: string,
   timeRange?: TopicTimeRange,
-  { facetIds, ruleId }: { facetIds?: string[]; ruleId?: string } = {},
+  {
+    facetIds,
+    ruleId,
+    includeSessionCounts,
+  }: {
+    facetIds?: string[];
+    ruleId?: string;
+    /** Adds an approximate distinct session count to each topic. */
+    includeSessionCounts?: boolean;
+  } = {},
 ) {
   const facets = (await listTopicFacets(projectId)).filter(
     (facet) => !facetIds || facetIds.includes(facet.id),
@@ -286,13 +303,17 @@ export async function currentTopicResults(
   const hasStoredSummaries = await hasStoredTopicSummaries(projectId);
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };
   const maps = await resolveFacetMaps(projectId, { ruleId }, facets, timeRange);
-  return { hasStoredSummaries, facets: await facetMapCounts(projectId, maps) };
+  return {
+    hasStoredSummaries,
+    facets: await facetMapCounts(projectId, maps, includeSessionCounts),
+  };
 }
 
 /** One analysis run's maps: its own snapshot over its fixed window, never current topics. */
 export async function analysisTopicResults(
   projectId: string,
   executionId: string,
+  { includeSessionCounts }: { includeSessionCounts?: boolean } = {},
 ) {
   const execution = await requireAnalysis(projectId, executionId);
   const maps = await resolveFacetMaps(
@@ -316,7 +337,7 @@ export async function analysisTopicResults(
         complete: facet.counts.complete,
       })),
     },
-    facets: await facetMapCounts(projectId, maps),
+    facets: await facetMapCounts(projectId, maps, includeSessionCounts),
   };
 }
 

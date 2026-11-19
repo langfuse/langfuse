@@ -244,6 +244,7 @@ type DropdownMenuCheckboxItem = {
   id: string;
   title: string;
   icon?: IconComponent;
+  badge?: React.ReactNode;
   searchBehavior?: SearchBehavior;
   onCheckedChange: (checked: boolean) => void;
   type: "checkbox";
@@ -658,6 +659,9 @@ function DropdownMenuNode({
             <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
               {item.title}
             </span>
+            {item.badge ? (
+              <span className="ml-2 shrink-0">{item.badge}</span>
+            ) : null}
             <span className="ml-2 flex shrink-0 items-center">
               <Checkbox
                 aria-hidden="true"

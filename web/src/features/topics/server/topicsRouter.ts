@@ -84,6 +84,8 @@ import {
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
 const includeCosts = z.boolean().default(true);
+// Internal view only; adds a distinct-session aggregate to the topic counts.
+const includeSessionCounts = z.boolean().optional();
 const mapInput = projectInput.extend({ runId: topicIdSchema });
 // Snapshots offer 7 or 14 days; longer windows risk an out-of-memory fit.
 const SNAPSHOT_MAX_WINDOW_MS = 14 * 86_400_000;
@@ -398,10 +400,16 @@ async function topicMapMatches(
 export const topicsRouter = createTRPCRouter({
   /** Counts per facet over its published map's window; the page has no time filter. */
   currentResults: topicsProcedure
-    .input(projectInput.extend({ ruleId: topicIdSchema.optional() }))
+    .input(
+      projectInput.extend({
+        ruleId: topicIdSchema.optional(),
+        includeSessionCounts,
+      }),
+    )
     .query(({ input }) =>
       currentTopicResults(input.projectId, undefined, {
         ruleId: input.ruleId,
+        includeSessionCounts: input.includeSessionCounts,
       }),
     ),
   /** One page of a facet's traces; filters and paging run in ClickHouse. */
@@ -431,9 +439,11 @@ export const topicsRouter = createTRPCRouter({
     topicMapsOverview(input.projectId),
   ),
   analysisResults: topicsProcedure
-    .input(executionInput)
+    .input(executionInput.extend({ includeSessionCounts }))
     .query(({ input }) =>
-      analysisTopicResults(input.projectId, input.executionId),
+      analysisTopicResults(input.projectId, input.executionId, {
+        includeSessionCounts: input.includeSessionCounts,
+      }),
     ),
   previewAnalysis: topicsProcedure
     .input(analysisFilterInput)

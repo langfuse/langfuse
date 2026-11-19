@@ -1,11 +1,11 @@
-import { type TopicDisplay } from "./prepare-topic-display";
+import { sessionCountLabel, type TopicDisplay } from "./prepare-topic-display";
 
 /** Persistent touch counterpart to a topic's hover details. */
 export function TopicPreviewCard({
   topic,
   total,
 }: {
-  topic: Pick<TopicDisplay, "name" | "description" | "count">;
+  topic: Pick<TopicDisplay, "name" | "description" | "count" | "sessionCount">;
   total?: number | null;
 }) {
   // Counts are approximate, so a topic can slightly exceed the total.
@@ -13,6 +13,7 @@ export function TopicPreviewCard({
     total && total > 0
       ? Math.min(100, Math.round((topic.count / total) * 100))
       : null;
+  const sessions = sessionCountLabel(topic.sessionCount);
   return (
     <div
       role="tooltip"
@@ -22,6 +23,7 @@ export function TopicPreviewCard({
       <p className="text-muted-foreground mt-1">
         {topic.count.toLocaleString()} traces
         {share !== null && ` · ${share}% of traces`}
+        {sessions && ` · ${sessions}`}
       </p>
       {topic.description && (
         <p className="mt-1 line-clamp-3">{topic.description}</p>
