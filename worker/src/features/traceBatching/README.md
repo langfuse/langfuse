@@ -161,15 +161,10 @@ Events dispatch stores the assembled transcript once per routed trace, then enqu
 The shared `server/traceBatch` module uses the event-upload bucket and credentials:
 
 ```text
-<prefix>trace-batch/trace/<hash>/<projectId>/<safeTraceId>/<revision>.json
+<prefix>events-dispatch/trace-transcript/<hash>/<projectId>/<safeTraceId>/<revision>.json
 ```
 
-`hash` is the first three hex characters of SHA-256 over
-`JSON.stringify([projectId, traceId])`. Identifiers use the shared blob-key
-escaping helpers. The revision comes from the queued readiness entry; a new
-revision uses another key, while an ordinary PUT of the same revision can replace
-its object. A reader needs all three identifiers; no latest-revision lookup or
-durable job reference is stored.
+`hash` is the first three hex characters of SHA-256 over `JSON.stringify([projectId, traceId])`. Identifiers use the shared blob-key escaping helpers. The revision comes from the queued readiness entry; a new revision uses another key, while an ordinary PUT of the same revision can replace its object. `put` returns the key and every consumer job carries it as `transcriptS3Path`; readers never rebuild it, so the key format can change without breaking queued jobs.
 
 The stored envelope contains `schemaVersion`, a nullable transcript, `executionIssues` and trace context (nullable session/name, source timestamp and environment). The frozen schema is [versions/v1.ts](../../../../packages/shared/src/server/traceBatch/versions/v1.ts); [serialization.ts](../../../../packages/shared/src/server/traceBatch/serialization.ts) adapts it to live types. Schema version and readiness revision are independent.
 
@@ -187,9 +182,9 @@ dispatch on `schemaVersion`; existing objects are never rewritten.
 
 Serialize the full envelope once. Skip the entire upload if `json.length` exceeds 1,000,000; do not truncate. This measures UTF-16 code units, not UTF-8 bytes, and does not bound assembly or serialization memory. Size skips emit an info log with identifiers, actual length and limit. StorageService owns upload retries and logs: SlowDown at warning level, other failures including request timeouts at error level. Exhausted failures count the trace as failed in `langfuse.events_dispatch.trace_outcomes`.
 
-Deploy with writes disabled. Before enabling, expire the full `<prefix>trace-batch/trace/` path after three days: a bucket lifecycle rule, the transcript cleaner below, or both. The cleaner deletes without a version ID, so on a bucket with versioning or soft delete it only hides objects; there, a lifecycle rule that expires noncurrent versions is still required. A rule for `evals/` alone does not cover this path. Enable on a small worker rollout and check size-skip logs, S3 failures and Topics latency. Consumers that require files must schedule only after a successful PUT.
+Deploy with writes disabled. Before enabling, expire the full `<prefix>events-dispatch/trace-transcript/` path after three days: a bucket lifecycle rule, the transcript cleaner below, or both. The cleaner deletes without a version ID, so on a bucket with versioning or soft delete it only hides objects; there, a lifecycle rule that expires noncurrent versions is still required. A rule for `evals/` alone does not cover this path. Enable on a small worker rollout and check size-skip logs, S3 failures and Topics latency. Consumers that require files must schedule only after a successful PUT.
 
-Like temporary span-eval inputs, these objects have no ingestion deletion references. Trace and project deletion do not remove them. They expire after three days (`TRACE_BATCH_INPUT_RETENTION_MS`). `eventsDispatch/transcriptCleaner.ts` lists `<prefix>trace-batch/trace/` with the shared event-upload client, under one Redis lock, and deletes older objects. It starts when `LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED=true` and emits `langfuse.events_dispatch.transcript_cleaner.{files_deleted,failures}`.
+Like temporary span-eval inputs, these objects have no ingestion deletion references. Trace and project deletion do not remove them. They expire after three days (`TRACE_BATCH_INPUT_RETENTION_MS`). `eventsDispatch/transcriptCleaner.ts` lists `<prefix>events-dispatch/trace-transcript/` with the shared event-upload client, under one Redis lock, and deletes older objects. It starts when `LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED=true` and emits `langfuse.events_dispatch.transcript_cleaner.{files_deleted,failures}`.
 
 ## Per-trace transcripts
 

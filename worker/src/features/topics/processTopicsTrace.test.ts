@@ -21,16 +21,12 @@ import {
 
 const mocks = vi.hoisted(() => ({
   getInputs: vi.fn(),
-  getStoredInputs: vi.fn(),
   addToQueue: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
-  createTraceBatchInputStorage: () => ({
-    legacyGet: mocks.getInputs,
-    get: mocks.getStoredInputs,
-  }),
+  createTraceBatchInputStorage: () => ({ get: mocks.getInputs }),
   recordIncrement: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
@@ -97,6 +93,7 @@ const event = {
   projectId: "project",
   traceId: "trace",
   revision: "revision",
+  transcriptS3Path: "stored.json",
   ruleIds: ["rule"],
 };
 
@@ -271,20 +268,15 @@ describe("processTopicsTrace", () => {
     expect(scheduleRetry).not.toHaveBeenCalled();
   });
 
-  it("reads the transcript by the stored key when the job carries one", async () => {
-    mocks.getStoredInputs.mockResolvedValueOnce(storedInputs);
+  it("reads the transcript at the key the job carries", async () => {
     vi.mocked(summarizeAssembledTrace).mockResolvedValue({
       outcome: "summarized",
       rows: [],
     });
 
-    await processTopicsTrace(
-      { ...event, transcriptS3Path: "stored.json" },
-      { scheduleRetry },
-    );
+    await processTopicsTrace(event, { scheduleRetry });
 
-    expect(mocks.getStoredInputs).toHaveBeenCalledWith("stored.json");
-    expect(mocks.getInputs).not.toHaveBeenCalled();
+    expect(mocks.getInputs).toHaveBeenCalledWith("stored.json");
     expect(summarizeAssembledTrace).toHaveBeenCalledOnce();
   });
 
