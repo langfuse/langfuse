@@ -12,7 +12,7 @@ import {
 
 /** apiKeyRoleGrowthNote tells readers that a named role's permissions grow with the product. */
 export const apiKeyRoleGrowthNote =
-  "Roles may gain permissions as new features roll out.";
+  "Permissions may be added as new features roll out.";
 
 /** apiKeyRoleOrder lists the roles shown first in the picker; the rest follow in catalog order. */
 const apiKeyRoleOrder: SystemRole[] = ["ADMIN", "VIEWER", "MEMBER"];
