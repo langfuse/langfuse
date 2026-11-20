@@ -201,8 +201,6 @@ describe("native Rust trace activity", () => {
     const original = {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       LANGFUSE_EVENTS_DISPATCH_ENABLED: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
-      LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL:
-        env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL,
       LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
         env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
@@ -210,11 +208,10 @@ describe("native Rust trace activity", () => {
     Object.assign(env, {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "DEV",
       LANGFUSE_EVENTS_DISPATCH_ENABLED: "true",
-      LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL: 1,
       LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "false",
       LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
     });
-    vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
+    vi.mocked(getTopicsProcessingSampling).mockResolvedValue(1);
     const projectId = "project";
     vi.mocked(fetchEvalRules).mockResolvedValue({
       observationRules: [],
@@ -300,7 +297,7 @@ describe("native Rust trace activity", () => {
         {
           traceId: "trace-a",
           spanStartTimeISO: records[0].startTimeIso,
-          ruleIds: ["__trace_batch_experiment__"],
+          ruleIds: [],
           serializedEventBytes: records[0].serializedEventBytes,
         },
       ]);
