@@ -109,14 +109,16 @@ COPY --from=rpm-installer /mnt/rootfs /
 # package-manager-less runtime image.
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS web-tools
 COPY scripts/docker/prune-node-modules.sh /usr/local/bin/prune-node-modules
+# Install the CLI as an npm project so its transitive overrides apply.
+WORKDIR /opt/prisma-cli
+COPY scripts/docker/prisma-cli/package*.json ./
 # entrypoint.sh only runs `prisma db execute` and `prisma migrate deploy`, which
 # need neither the client generator nor Studio. Keep @prisma/engines intact:
 # the CLI re-downloads any missing engine at startup, which fails as non-root
 # and without network access.
-RUN npm install -g --prefix /opt/prisma-cli --no-package-lock --no-save prisma@6.19.3 && \
-    rm -rf /opt/prisma-cli/lib/node_modules/prisma/prisma-client \
-    /opt/prisma-cli/lib/node_modules/prisma/build/public && \
-    prune-node-modules /opt/prisma-cli/lib/node_modules
+RUN npm ci --omit=dev && \
+    rm -rf node_modules/prisma/prisma-client node_modules/prisma/build/public && \
+    prune-node-modules node_modules
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN mkdir -p /opt/dd/node_modules && \
     if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
@@ -282,9 +284,8 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # The non-root user (nextjs, uid 1001) is baked into the runtime rootfs by
 # the rpm-installer stage, since micro has no shadow-utils.
 
-# prisma CLI from the tools stage (bin/prisma symlink + lib/node_modules
-# structure lands under /usr/local); the runtime image has no npm.
-COPY --from=web-tools /opt/prisma-cli /usr/local
+COPY --from=web-tools /opt/prisma-cli/node_modules /opt/prisma-cli/node_modules
+RUN ln -s /opt/prisma-cli/node_modules/.bin/prisma /usr/local/bin/prisma
 
 # dd-trace, npm-installed in the tools stage (node_modules is empty unless
 # NEXT_PUBLIC_LANGFUSE_CLOUD_REGION was set); the standalone output copied
