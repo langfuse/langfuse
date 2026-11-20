@@ -17,6 +17,10 @@ import {
   providerExecutedToolCall,
   toolCallPart,
 } from "../../../core/normalize/message-parts/tool-calls";
+import {
+  toolDefinition,
+  toolDefinitionProviderMetadata,
+} from "../../../core/normalize/tool-definitions";
 import type {
   FilePart,
   NormalizedMessage,
@@ -265,4 +269,28 @@ export const langchainProvider = {
   typedParts: LANGCHAIN_PART_HANDLERS,
   tryUnwrapMessage: unwrapLangchainEnvelope,
   collectSiblingParts: langchainCollectSiblingParts,
+  // LangChain StructuredTool declarations: { name, description, args_schema }.
+  tryNormalizeToolDefinition: (value: Record<string, unknown>) => {
+    if (value.args_schema === undefined) return unmatched;
+    const definition = toolDefinition({
+      name: value.name,
+      description: value.description,
+      inputSchema: value.args_schema ?? undefined,
+      type: value.type,
+      providerMetadata: toolDefinitionProviderMetadata(value, value),
+    });
+    return definition ? claimed(definition) : unmatched;
+  },
+  // Langfuse CallbackHandler appends invocation_params.tools as role-"tool"
+  // turns with no tool_call_id.
+  isToolDefinitionMessage: (message: Record<string, unknown>) => {
+    const content = asRecord(message.content);
+    return Boolean(
+      message.role === "tool" &&
+      !message.tool_call_id &&
+      typeof content?.name === "string" &&
+      content.name.length > 0 &&
+      content.args_schema !== undefined,
+    );
+  },
 } satisfies IOConvention;
