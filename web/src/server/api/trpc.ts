@@ -117,24 +117,22 @@ setUpSuperjson();
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+// Off by default: the error type (memory, result size, timeout) is only sent
+// to the browser when the operator opts in, e.g. on a self-hosted instance
+// where the users also run ClickHouse.
+const exposeClickHouseErrorType = () =>
+  env.LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS === "true";
+
 const CLICKHOUSE_MEMORY_ERROR_MESSAGE = [
   "ClickHouse ran out of memory while running this query.",
   "Please narrow your request by adding more specific filters (e.g., a shorter date range).",
 ].join(" ");
 
-// On self-hosted deployments a memory error on small queries usually means the
-// ClickHouse server itself is under-provisioned, which narrowing filters cannot fix.
-const SELF_HOSTED_CLICKHOUSE_MEMORY_HINT =
-  "If small queries fail as well, ClickHouse likely needs more memory: https://langfuse.com/self-hosting/configuration/scaling#minimum-infrastructure-requirements";
-
-const getClickHouseResourceErrorMessage = (error: ClickHouseResourceError) => {
-  if (error.errorType === "MEMORY_LIMIT" || error.errorType === "OVERCOMMIT") {
-    return env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-      ? CLICKHOUSE_MEMORY_ERROR_MESSAGE
-      : `${CLICKHOUSE_MEMORY_ERROR_MESSAGE} ${SELF_HOSTED_CLICKHOUSE_MEMORY_HINT}`;
-  }
-  return error.adviceMessage;
-};
+const getClickHouseResourceErrorMessage = (error: ClickHouseResourceError) =>
+  exposeClickHouseErrorType() &&
+  (error.errorType === "MEMORY_LIMIT" || error.errorType === "OVERCOMMIT")
+    ? CLICKHOUSE_MEMORY_ERROR_MESSAGE
+    : error.adviceMessage;
 
 const trpcBuilder = initTRPC
   .context<typeof createTRPCContext>()
@@ -157,10 +155,10 @@ const t = trpcBuilder.create({
           error.cause instanceof ClickHouseResourceError
             ? "ClickHouseResourceError"
             : null,
-        clickhouseErrorType:
-          error.cause instanceof ClickHouseResourceError
-            ? error.cause.errorType
-            : null,
+        ...(error.cause instanceof ClickHouseResourceError &&
+        exposeClickHouseErrorType()
+          ? { clickhouseErrorType: error.cause.errorType }
+          : {}),
         // do not expose stack traces for CH errors as they may contain sensitive info
         stack:
           error.cause instanceof ClickHouseResourceError
@@ -225,8 +223,8 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
 
   if (!res.ok) {
     if (res.error.cause instanceof ClickHouseResourceError) {
-      // Surface ClickHouse errors using an advice message that matches the
-      // limit that was hit (memory, result size, or time) to guide the user.
+      // Surface ClickHouse errors using an advice message
+      // which is supposed to provide a bit of guidance to the user.
       logger.warn("ClickHouse resource limit exceeded", {
         errorType: res.error.cause.errorType,
         message: res.error.cause.message,

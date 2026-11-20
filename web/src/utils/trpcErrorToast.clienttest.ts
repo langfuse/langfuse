@@ -257,10 +257,11 @@ describe("trpcErrorToast", () => {
   });
 
   it.each([
+    [undefined, "Query hit a resource limit"],
     ["MEMORY_LIMIT", "Query ran out of memory"],
     ["OVERCOMMIT", "Query ran out of memory"],
     ["RESULT_SIZE", "Query result too large"],
-    ["TIMEOUT", "Request Timed Out"],
+    ["TIMEOUT", "Query timed out"],
   ] as const)(
     "titles a ClickHouse %s resource error as %s",
     (clickhouseErrorType, expectedTitle) => {

@@ -54,74 +54,87 @@ const throwClickHouseResourceError = async (message: string) => {
   throw new Error("expected the procedure to throw");
 };
 
+const formatClickHouseError = (error: TRPCError) => {
+  const formatter = (createTRPCRouter({}) as any)._def._config
+    .errorFormatter as (args: any) => {
+    data: Record<string, unknown>;
+  };
+  return formatter({
+    shape: {
+      code: -32603,
+      message: error.message,
+      data: {
+        code: error.code,
+        httpStatus: 422,
+      },
+    },
+    error,
+  });
+};
+
+const GENERIC_ADVICE =
+  /^Your query could not be completed\..*narrow your request/;
+const MEMORY_ADVICE = /^ClickHouse ran out of memory.*narrow your request/;
+const RESULT_SIZE_ADVICE = /result is too large.*date range.*filters/i;
+
+const clickHouseErrorCases = [
+  {
+    errorType: "MEMORY_LIMIT",
+    message: "Memory limit exceeded",
+    adviceByDefault: GENERIC_ADVICE,
+    adviceWhenDetailed: MEMORY_ADVICE,
+  },
+  {
+    errorType: "OVERCOMMIT",
+    message:
+      "Memory limit (total) exceeded. OvercommitTracker decision: Query was selected to stop by OvercommitTracker",
+    adviceByDefault: GENERIC_ADVICE,
+    adviceWhenDetailed: MEMORY_ADVICE,
+  },
+  {
+    errorType: "RESULT_SIZE",
+    message:
+      "Limit for result exceeded, max bytes: 10.00 MiB. (TOO_MANY_ROWS_OR_BYTES) SELECT private_column FROM private_table",
+    adviceByDefault: RESULT_SIZE_ADVICE,
+    adviceWhenDetailed: RESULT_SIZE_ADVICE,
+  },
+  {
+    errorType: "TIMEOUT",
+    message: "Request timed out after 30000ms",
+    adviceByDefault: GENERIC_ADVICE,
+    adviceWhenDetailed: GENERIC_ADVICE,
+  },
+];
+
 describe("tRPC error formatting", () => {
-  const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalDetailedErrors = env.LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
   });
 
   afterEach(() => {
     Object.assign(env, {
-      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS: originalDetailedErrors,
     });
   });
 
-  it.each([
-    {
-      errorType: "MEMORY_LIMIT",
-      message: "Memory limit exceeded",
-      expectedAdvice:
-        /ClickHouse ran out of memory.*langfuse\.com\/self-hosting\/configuration\/scaling/,
-    },
-    {
-      errorType: "OVERCOMMIT",
-      message:
-        "Memory limit (total) exceeded. OvercommitTracker decision: Query was selected to stop by OvercommitTracker",
-      expectedAdvice:
-        /ClickHouse ran out of memory.*langfuse\.com\/self-hosting\/configuration\/scaling/,
-    },
-    {
-      errorType: "RESULT_SIZE",
-      message:
-        "Limit for result exceeded, max bytes: 10.00 MiB. (TOO_MANY_ROWS_OR_BYTES) SELECT private_column FROM private_table",
-      expectedAdvice: /result is too large.*date range.*filters/i,
-    },
-    {
-      errorType: "TIMEOUT",
-      message: "Request timed out after 30000ms",
-      expectedAdvice:
-        /Your query could not be completed\..*narrow your request/i,
-    },
-  ])(
-    "ClickHouseResourceError $errorType",
-    async ({ errorType, message, expectedAdvice }) => {
+  it.each(clickHouseErrorCases)(
+    "ClickHouseResourceError $errorType hides the error type by default",
+    async ({ errorType, message, adviceByDefault }) => {
+      Object.assign(env, { LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS: "false" });
+
       const error = await throwClickHouseResourceError(message);
-      const formatter = (createTRPCRouter({}) as any)._def._config
-        .errorFormatter as (args: any) => {
-        data: Record<string, unknown>;
-      };
+      const formatted = formatClickHouseError(error);
 
       expect(error).toBeInstanceOf(TRPCError);
       expect(error.code).toBe("UNPROCESSABLE_CONTENT");
       expect(error.message).not.toContain(message);
-      expect(error.message).toMatch(expectedAdvice);
-
-      const formatted = formatter({
-        shape: {
-          code: -32603,
-          message: error.message,
-          data: {
-            code: error.code,
-            httpStatus: 422,
-          },
-        },
-        error,
-      });
+      expect(error.message).toMatch(adviceByDefault);
+      expect(error.message).not.toMatch(/memory/i);
 
       expect(formatted.data["errorName"]).toBe("ClickHouseResourceError");
-      expect(formatted.data["clickhouseErrorType"]).toBe(errorType);
+      expect(formatted.data).not.toHaveProperty("clickhouseErrorType");
       expect(formatted.data["stack"]).toBeNull();
       expect(formatted.data["zodError"]).toBeNull();
       expect(logger.warn).toHaveBeenCalledTimes(1);
@@ -136,14 +149,24 @@ describe("tRPC error formatting", () => {
     },
   );
 
-  it("omits the self-hosting link from memory errors on Langfuse Cloud", async () => {
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+  it.each(clickHouseErrorCases)(
+    "ClickHouseResourceError $errorType exposes the error type when LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS is on",
+    async ({ errorType, message, adviceWhenDetailed }) => {
+      Object.assign(env, { LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS: "true" });
 
-    const error = await throwClickHouseResourceError("Memory limit exceeded");
+      const error = await throwClickHouseResourceError(message);
+      const formatted = formatClickHouseError(error);
 
-    expect(error.message).toContain("ClickHouse ran out of memory");
-    expect(error.message).not.toContain("self-hosting");
-  });
+      expect(error.code).toBe("UNPROCESSABLE_CONTENT");
+      expect(error.message).not.toContain(message);
+      expect(error.message).toMatch(adviceWhenDetailed);
+      expect(error.message).not.toMatch(/https?:\/\//);
+
+      expect(formatted.data["errorName"]).toBe("ClickHouseResourceError");
+      expect(formatted.data["clickhouseErrorType"]).toBe(errorType);
+      expect(formatted.data["stack"]).toBeNull();
+    },
+  );
 
   it("preserves the default stack behavior for non-ClickHouse errors", () => {
     const formatterTestRouter = createTRPCRouter({});
