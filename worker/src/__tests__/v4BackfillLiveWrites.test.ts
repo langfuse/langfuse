@@ -30,16 +30,6 @@ class PidTidSortingStep extends RewriteObservationsToPidTidSorting {
   }
 }
 
-const runChunk = async (chunk: {
-  query: string;
-  params: Record<string, unknown>;
-}) =>
-  commandClickhouse({
-    query: chunk.query,
-    params: chunk.params,
-    tags: { surface: "worker", route: "test.v4BackfillLiveWrites" },
-  });
-
 // A month no other suite writes to: every chunk query covers the whole
 // partition, across projects.
 const PARTITION = "200303";
@@ -50,13 +40,10 @@ const at = (minutes: number) =>
 describe("V4 historic backfill during dual write", () => {
   it("copies legacy rows written before dual write, and overlap rows without a live copy", async () => {
     const projectId = v4();
-
     const legacyTrace = (eventTs: Date) => {
       const trace = createTrace({
         project_id: projectId,
         timestamp: eventTs,
-        created_at: eventTs,
-        updated_at: eventTs,
         event_ts: eventTs,
       });
       const observation = createObservation({
@@ -64,8 +51,6 @@ describe("V4 historic backfill during dual write", () => {
         trace_id: trace.id,
         parent_observation_id: null,
         start_time: eventTs,
-        created_at: eventTs,
-        updated_at: eventTs,
         event_ts: eventTs,
       });
       return { trace, observation };
@@ -91,13 +76,8 @@ describe("V4 historic backfill during dual write", () => {
         project_id: projectId,
         trace_id: directWrite.trace.id,
         span_id: directWrite.observation.id,
-        id: directWrite.observation.id,
-        parent_span_id: "",
-        is_app_root: true,
         source: "otel",
         start_time: directWrite.observation.start_time,
-        created_at: at(5),
-        updated_at: at(5),
         event_ts: at(5),
       }),
     ]);
@@ -112,34 +92,27 @@ describe("V4 historic backfill during dual write", () => {
         lookupEnd: at(120).toISOString(),
       },
     };
-
-    await runChunk(new RootSpansStep().chunkQuery(todo));
+    await commandClickhouse(new RootSpansStep().chunkQuery(todo));
     const pidTidSorting = new PidTidSortingStep();
     await pidTidSorting.createScratchTable();
-    await runChunk(pidTidSorting.chunkQuery(todo));
+    await commandClickhouse(pidTidSorting.chunkQuery(todo));
 
-    const virtualRoots = await queryClickhouse<{ trace_id: string }>({
-      query: `
-        SELECT trace_id FROM events_full
-        WHERE project_id = {projectId: String}
-          AND span_id = concat('t-', trace_id)
-      `,
-      params: { projectId },
-    });
-    const scratchObservations = await queryClickhouse<{ id: string }>({
-      query: `
+    const ids = async (query: string) =>
+      (await queryClickhouse<{ id: string }>({ query, params: { projectId } }))
+        .map((r) => r.id)
+        .sort();
+    const expected = [beforeDualWrite, legacyOnlyInOverlap];
+    expect(
+      await ids(`
+        SELECT trace_id AS id FROM events_full
+        WHERE project_id = {projectId: String} AND span_id = concat('t-', trace_id)
+      `),
+    ).toEqual(expected.map((t) => t.trace.id).sort());
+    expect(
+      await ids(`
         SELECT id FROM ${pidTidSortingTable()}
         WHERE project_id = {projectId: String}
-      `,
-      params: { projectId },
-    });
-
-    const expected = [beforeDualWrite, legacyOnlyInOverlap];
-    expect(virtualRoots.map((r) => r.trace_id).sort()).toEqual(
-      expected.map((t) => t.trace.id).sort(),
-    );
-    expect(scratchObservations.map((r) => r.id).sort()).toEqual(
-      expected.map((t) => t.observation.id).sort(),
-    );
+      `),
+    ).toEqual(expected.map((t) => t.observation.id).sort());
   });
 });
