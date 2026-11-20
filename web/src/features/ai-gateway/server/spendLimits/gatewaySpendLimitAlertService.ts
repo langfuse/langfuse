@@ -114,7 +114,12 @@ export class GatewaySpendLimitAlertService {
 
     const claimed: ClaimedAlert[] = [];
     try {
-      for (const { limit, subjectId, windowStart, thresholdPercent } of reported) {
+      for (const {
+        limit,
+        subjectId,
+        windowStart,
+        thresholdPercent,
+      } of reported) {
         const alert: AlertKey = {
           spendLimitId: limit.id,
           subjectId,

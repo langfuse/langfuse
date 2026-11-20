@@ -67,7 +67,9 @@ export const GatewaySpendLimitEmailTemplate = ({
   const subject = describeScope(scope, audience, orgName);
   const [onlyLimit] = limits.length === 1 ? limits : [];
   const onlyThreshold = onlyLimit ? getThresholdPercent(onlyLimit) : 100;
-  const allExceeded = limits.every((limit) => getThresholdPercent(limit) >= 100);
+  const allExceeded = limits.every(
+    (limit) => getThresholdPercent(limit) >= 100,
+  );
   const hasExceeded = limits.some((limit) => getThresholdPercent(limit) >= 100);
 
   return (
@@ -186,7 +188,9 @@ export function getGatewaySpendLimitEmailSubject(
       threshold < 100 ? `${threshold}% of its budget` : "its budget";
     return `${prefix} reached ${reached}${inOrg}`;
   }
-  const allExceeded = limits.every((limit) => getThresholdPercent(limit) >= 100);
+  const allExceeded = limits.every(
+    (limit) => getThresholdPercent(limit) >= 100,
+  );
   const reached = allExceeded
     ? `${limits.length} budgets`
     : `${limits.length} budget alerts`;

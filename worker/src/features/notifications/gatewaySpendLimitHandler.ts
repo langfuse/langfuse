@@ -48,18 +48,20 @@ export async function handleGatewaySpendLimitNotification({
       audience,
       orgName,
       scope,
-      limits: limits.map(({ interval, limitUsd, thresholdPercent, resetsAt }) => ({
-        interval: interval.toLowerCase(),
-        limitUsd,
-        thresholdPercent,
-        resetsAt: resetsAt
-          ? `${new Date(resetsAt).toLocaleString("en-US", {
-              dateStyle: "medium",
-              timeStyle: "short",
-              timeZone: "UTC",
-            })} UTC`
-          : undefined,
-      })),
+      limits: limits.map(
+        ({ interval, limitUsd, thresholdPercent, resetsAt }) => ({
+          interval: interval.toLowerCase(),
+          limitUsd,
+          thresholdPercent,
+          resetsAt: resetsAt
+            ? `${new Date(resetsAt).toLocaleString("en-US", {
+                dateStyle: "medium",
+                timeStyle: "short",
+                timeZone: "UTC",
+              })} UTC`
+            : undefined,
+        }),
+      ),
       receiverEmail: to,
       receiverName,
       link: `${baseUrl}/organization/${orgId}/ai-gateway/${scope.type === "API_KEY" ? "api-keys" : "budgets"}`,

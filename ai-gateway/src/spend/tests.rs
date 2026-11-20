@@ -219,7 +219,9 @@ fn alert_thresholds_trigger_only_highest_unreported_threshold_and_respect_opt_ou
     assert_eq!(make_counted(&[95]).into_unreported_alert(97.0), None);
 
     // 100% keeps the legacy Redis flag suffix.
-    let exceeded = make_counted(&[85, 95]).into_unreported_alert(100.0).unwrap();
+    let exceeded = make_counted(&[85, 95])
+        .into_unreported_alert(100.0)
+        .unwrap();
     assert_eq!(exceeded.threshold_percent, 100);
     assert_eq!(
         exceeded.alerted_flag,
