@@ -66,24 +66,15 @@ export function GatewaySpendBudgetField<
       }
     >
       {({ getTriggerProps }) => (
-        <FormField
-          label="Spend budget"
-          description={budget.description}
-          registerLabelTooltip={getTriggerProps}
-        >
+        <FormField label="Spend budget" registerLabelTooltip={getTriggerProps}>
           {(group) => (
             <div
               id={group.id}
               role="group"
               aria-label="Spend budget"
-              className="flex flex-col gap-4 pt-1"
+              className="pt-1"
             >
-              <SpendBudgetControls budget={budget} />
-              <AlertThresholdField
-                control={budget.control}
-                subject={subject}
-                disabled={budget.disabled}
-              />
+              <SpendBudgetSections budget={budget} subject={subject} />
             </div>
           )}
         </FormField>
@@ -100,19 +91,7 @@ function GatewaySpendBudgetInputs<T extends GatewaySpendBudgetFormValues>({
 }: GatewaySpendBudgetFieldProps<T>) {
   const budget = useSpendBudget(control, subject, disabledReason);
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <SpendBudgetControls budget={budget} />
-        <p className="text-muted-foreground text-sm">{budget.description}</p>
-      </div>
-      <AlertThresholdField
-        control={budget.control}
-        subject={subject}
-        disabled={budget.disabled}
-      />
-    </div>
-  );
+  return <SpendBudgetSections budget={budget} subject={subject} />;
 }
 
 GatewaySpendBudgetField.Inputs = GatewaySpendBudgetInputs;
@@ -173,6 +152,28 @@ function GatewaySpendBudgetRow<T extends FieldValues>({
 
 GatewaySpendBudgetField.Row = GatewaySpendBudgetRow;
 
+function SpendBudgetSections({
+  budget,
+  subject,
+}: {
+  budget: SpendBudget;
+  subject: keyof typeof alertRecipientsBySubject;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <SpendBudgetControls budget={budget} />
+        <p className="text-muted-foreground text-sm">{budget.description}</p>
+      </div>
+      <AlertThresholdField
+        control={budget.control}
+        subject={subject}
+        disabled={budget.disabled}
+      />
+    </div>
+  );
+}
+
 function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
   const { control, disabled } = budget;
 
@@ -219,34 +220,38 @@ function AlertThresholdField({
   disabled: boolean;
 }) {
   return (
-    <Controller
+    <Form.Field
       control={control}
       name="spendBudget.alertThresholds"
-      render={({ field }) => (
+      label="Email alerts"
+      description={`Emails ${alertRecipientsBySubject[subject]} when usage reaches a selected threshold.`}
+    >
+      {(field) => (
         <AlertThresholdCheckboxes
-          subject={subject}
+          id={field.id}
+          ariaDescribedBy={field.inputDescribedById}
           selected={field.value}
           disabled={disabled}
           onChange={field.onChange}
         />
       )}
-    />
+    </Form.Field>
   );
 }
 
 function AlertThresholdCheckboxes({
-  subject,
+  id,
+  ariaDescribedBy,
   selected,
   disabled,
   onChange,
 }: {
-  subject: keyof typeof alertRecipientsBySubject;
+  id: string;
+  ariaDescribedBy: string | undefined;
   selected: readonly GatewaySpendBudgetAlertThreshold[];
   disabled: boolean;
   onChange: (next: GatewaySpendBudgetAlertThreshold[]) => void;
 }) {
-  const labelText = `Email ${alertRecipientsBySubject[subject]} when usage reaches:`;
-
   const handleToggle = (
     threshold: GatewaySpendBudgetAlertThreshold,
     checked: boolean,
@@ -258,23 +263,22 @@ function AlertThresholdCheckboxes({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-muted-foreground text-sm">{labelText}</span>
-      <div
-        role="group"
-        aria-label={labelText}
-        className="flex flex-wrap items-center gap-4"
-      >
-        {GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS.map((threshold) => (
-          <AlertThresholdCheckbox
-            key={threshold}
-            threshold={threshold}
-            checked={selected.includes(threshold)}
-            disabled={disabled}
-            onToggle={handleToggle}
-          />
-        ))}
-      </div>
+    <div
+      id={id}
+      role="group"
+      aria-label="Email alerts"
+      aria-describedby={ariaDescribedBy}
+      className="flex flex-wrap items-center gap-4"
+    >
+      {GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS.map((threshold) => (
+        <AlertThresholdCheckbox
+          key={threshold}
+          threshold={threshold}
+          checked={selected.includes(threshold)}
+          disabled={disabled}
+          onToggle={handleToggle}
+        />
+      ))}
     </div>
   );
 }
