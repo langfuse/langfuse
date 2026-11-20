@@ -15,9 +15,10 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Streamdown } from "streamdown";
+import { type ImageProps } from "@/src/components/design-system/SafeImageController/SafeImageController";
 import { Button } from "@/src/components/ui/button";
 import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
-import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { getSafeLinkUrl } from "@/src/utils/safe-url";
 import { stripBasePath } from "@/src/utils/redirect";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -25,6 +26,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
@@ -153,6 +155,9 @@ function SmartLink({
 }
 
 export type InAppAgentMessageProps = {
+  renderImage: (
+    props: Pick<ImageProps, "src" | "alt" | "className">,
+  ) => ReactNode;
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
   isCompact?: boolean;
@@ -175,6 +180,7 @@ export function InAppAgentMessage({
   isFinalAnswer = true,
   timestamp,
   onSubmitFeedback,
+  renderImage,
 }: InAppAgentMessageProps) {
   if (content.type === "redirectAction") {
     return <RedirectActionButton content={content} isCompact={isCompact} />;
@@ -191,12 +197,18 @@ export function InAppAgentMessage({
   if (content.type === "text") {
     if (role === "user") {
       return (
-        <MessageCard role={role} content={content} isCompact={isCompact} />
+        <MessageCard
+          role={role}
+          content={content}
+          isCompact={isCompact}
+          renderImage={renderImage}
+        />
       );
     }
 
     return (
       <TextMessageWithActions
+        renderImage={renderImage}
         content={content}
         isCompact={isCompact}
         isFeedbackDisabled={isFeedbackDisabled}
@@ -207,12 +219,20 @@ export function InAppAgentMessage({
     );
   }
 
-  return <MessageCard role={role} content={content} isCompact={isCompact} />;
+  return (
+    <MessageCard
+      role={role}
+      content={content}
+      isCompact={isCompact}
+      renderImage={renderImage}
+    />
+  );
 }
 
 const MessageCard = forwardRef<
   HTMLDivElement,
   {
+    renderImage: InAppAgentMessageProps["renderImage"];
     role: InAppAgentMessageRole;
     content: Exclude<
       InAppAgentMessageContent,
@@ -220,7 +240,7 @@ const MessageCard = forwardRef<
     >;
     isCompact: boolean;
   }
->(function MessageCard({ role, content, isCompact }, ref) {
+>(function MessageCard({ role, content, isCompact, renderImage }, ref) {
   const isUser = role === "user";
 
   return (
@@ -241,7 +261,12 @@ const MessageCard = forwardRef<
         <ThinkingIndicator label={content.label} isCompact={isCompact} />
       ) : (
         <>
-          <MessageText role={role} text={content.text} isCompact={isCompact} />
+          <MessageText
+            role={role}
+            text={content.text}
+            isCompact={isCompact}
+            renderImage={renderImage}
+          />
           {content.redirectAction ? (
             <div className={cn(isCompact ? "mt-3 mb-1" : "mt-2.5 mb-0.5")}>
               <RedirectActionButton
@@ -257,6 +282,7 @@ const MessageCard = forwardRef<
 });
 
 function TextMessageWithActions({
+  renderImage,
   content,
   isCompact,
   isFeedbackDisabled,
@@ -264,6 +290,7 @@ function TextMessageWithActions({
   isFinalAnswer,
   timestamp,
 }: {
+  renderImage: InAppAgentMessageProps["renderImage"];
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
@@ -338,6 +365,7 @@ function TextMessageWithActions({
   return (
     <div className="group/message flex max-w-full flex-col items-start">
       <MessageCard
+        renderImage={renderImage}
         ref={messageCardRef}
         role="assistant"
         content={
@@ -851,14 +879,53 @@ function ToolCallStatusIcon({
 }
 
 function MessageText({
+  renderImage,
   role,
   text,
   isCompact,
 }: {
+  renderImage: InAppAgentMessageProps["renderImage"];
   role: InAppAgentMessageRole;
   text: string;
   isCompact: boolean;
 }) {
+  const components = useMemo<
+    NonNullable<ComponentProps<typeof Streamdown>["components"]>
+  >(
+    () => ({
+      img: ({ src, alt }) =>
+        renderImage({
+          src: typeof src === "string" ? src : "",
+          alt: alt ?? "",
+          className: "h-auto max-w-full rounded border",
+        }),
+      h1: ({ children }) => <h1>{children}</h1>,
+      h2: ({ children }) => <h2>{children}</h2>,
+      h3: ({ children }) => <h3>{children}</h3>,
+      h4: ({ children }) => <h4>{children}</h4>,
+      h5: ({ children }) => <h5>{children}</h5>,
+      h6: ({ children }) => <h6>{children}</h6>,
+      p: ({ children }) => <p>{children}</p>,
+      a: ({ children, href }) => <SmartLink href={href}>{children}</SmartLink>,
+      hr: ({ children }) => <hr>{children}</hr>,
+      ul: ({ children }) => <ul>{children}</ul>,
+      ol: ({ children }) => <ol>{children}</ol>,
+      li: ({ children }) => <li>{children}</li>,
+      b: ({ children }) => <b>{children}</b>,
+      strong: ({ children }) => <strong>{children}</strong>,
+      i: ({ children }) => <i>{children}</i>,
+      em: ({ children }) => <em>{children}</em>,
+      code: ({ children }) => <code>{children}</code>,
+      pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+      thead: ({ children }) => <thead>{children}</thead>,
+      tbody: ({ children }) => <tbody>{children}</tbody>,
+      tr: ({ children }) => <tr>{children}</tr>,
+      th: ({ children }) => <th>{children}</th>,
+      td: ({ children }) => <td>{children}</td>,
+      table: ({ children }) => <TableBlock>{children}</TableBlock>,
+    }),
+    [renderImage],
+  );
   if (role === "user") {
     return (
       <p
@@ -899,35 +966,7 @@ function MessageText({
     >
       <Streamdown
         // Remove all default classNames so that tailwind's prose styling can be applied without conflicts
-        components={{
-          h1: ({ children }) => <h1>{children}</h1>,
-          h2: ({ children }) => <h2>{children}</h2>,
-          h3: ({ children }) => <h3>{children}</h3>,
-          h4: ({ children }) => <h4>{children}</h4>,
-          h5: ({ children }) => <h5>{children}</h5>,
-          h6: ({ children }) => <h6>{children}</h6>,
-
-          p: ({ children }) => <p>{children}</p>,
-          a: ({ children, href }) => (
-            <SmartLink href={href}>{children}</SmartLink>
-          ),
-          hr: ({ children }) => <hr>{children}</hr>,
-          ul: ({ children }) => <ul>{children}</ul>,
-          ol: ({ children }) => <ol>{children}</ol>,
-          li: ({ children }) => <li>{children}</li>,
-          b: ({ children }) => <b>{children}</b>,
-          strong: ({ children }) => <strong>{children}</strong>,
-          i: ({ children }) => <i>{children}</i>,
-          em: ({ children }) => <em>{children}</em>,
-          code: ({ children }) => <code>{children}</code>,
-          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-          thead: ({ children }) => <thead>{children}</thead>,
-          tbody: ({ children }) => <tbody>{children}</tbody>,
-          tr: ({ children }) => <tr>{children}</tr>,
-          th: ({ children }) => <th>{children}</th>,
-          td: ({ children }) => <td>{children}</td>,
-          table: ({ children }) => <TableBlock>{children}</TableBlock>,
-        }}
+        components={components}
       >
         {text}
       </Streamdown>

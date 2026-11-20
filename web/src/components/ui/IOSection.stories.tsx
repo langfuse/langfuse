@@ -2,7 +2,8 @@ import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { useState } from "react";
 import preview from "../../../.storybook/preview";
 import { expect, fn, userEvent, within } from "storybook/test";
-import Image from "next/image";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import revenueChart from "@/.storybook/public/revenue-chart.svg";
 import { FoldVertical, UnfoldVertical, Pencil, Wrench } from "@langfuse/icons";
 import { IOSection } from "./IOSection";
 import { PrettyJsonViewContent } from "./PrettyJsonViewContent";
@@ -141,12 +142,11 @@ export const VariantMatrix = meta.story({
       <Example caption="Media body: tiles sit 12px from every edge (variant media)">
         <IOSection onCopy={args.onCopy} title="Media" variant="media">
           <div className="flex flex-wrap gap-2">
-            <Image
-              src="/revenue-chart.svg"
+            <SafeImage
+              src={revenueChart}
               alt="Attached chart"
               width={160}
               height={96}
-              unoptimized
               className="bg-background rounded-md border"
             />
           </div>

@@ -1,6 +1,8 @@
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 import { cn } from "@/src/utils/tailwind";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import { SafeImageController } from "@/src/components/design-system/SafeImageController/SafeImageController";
 import { PlusIcon } from "@langfuse/icons";
 
 export const LangfuseLogo = ({
@@ -14,22 +16,30 @@ export const LangfuseLogo = ({
     // logo is a url, maximum aspect ratio of 1:3 needs to be supported according to docs
     return (
       <div className="flex items-center gap-1">
-        <img
-          src={logoLightModeHref}
-          alt="Langfuse Logo"
-          className={cn(
-            "group-data-[collapsible=icon]:hidden dark:hidden",
-            "max-h-4 max-w-14",
+        <SafeImageController src={logoLightModeHref}>
+          {(state) => (
+            <SafeImage
+              state={state}
+              alt="Langfuse Logo"
+              className={cn(
+                "group-data-[collapsible=icon]:hidden dark:hidden",
+                "max-h-4 max-w-14",
+              )}
+            />
           )}
-        />
-        <img
-          src={logoDarkModeHref}
-          alt="Langfuse Logo"
-          className={cn(
-            "hidden group-data-[collapsible=icon]:hidden dark:block",
-            "max-h-4 max-w-14",
+        </SafeImageController>
+        <SafeImageController src={logoDarkModeHref}>
+          {(state) => (
+            <SafeImage
+              state={state}
+              alt="Langfuse Logo"
+              className={cn(
+                "hidden group-data-[collapsible=icon]:hidden dark:block",
+                "max-h-4 max-w-14",
+              )}
+            />
           )}
-        />
+        </SafeImageController>
         <PlusIcon
           size="sm"
           __rawClassName="group-data-[collapsible=icon]:hidden"

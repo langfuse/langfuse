@@ -6,6 +6,8 @@ import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "@langfuse/shared";
 import { useHasExternalMediaStorageAccess } from "@/src/ee/features/external-media-storage/hooks/useHasExternalMediaStorageAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useMediaPeek } from "@/src/features/media/hooks/useMediaPeek";
+import { ConnectedSafeImageController } from "@/src/components/design-system/ConnectedSafeImageController/ConnectedSafeImageController";
+import { SafeImageController } from "@/src/components/design-system/SafeImageController/SafeImageController";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 type S3Descriptor = Extract<MediaDescriptor, { kind: "s3" }>;
@@ -30,13 +32,23 @@ export function MediaReferenceTag({
   }
 
   if (descriptor.kind !== "langfuseRef") {
+    const props: MediaTagProps = {
+      contentType: descriptor.contentType,
+      status: "ready",
+      url: descriptor.src,
+      size,
+    };
+    if (!descriptor.contentType.startsWith("image/")) {
+      return <MediaTag {...props} />;
+    }
+    const ImageController =
+      descriptor.kind === "url"
+        ? ConnectedSafeImageController
+        : SafeImageController;
     return (
-      <MediaTag
-        contentType={descriptor.contentType}
-        status="ready"
-        url={descriptor.src}
-        size={size}
-      />
+      <ImageController src={descriptor.src}>
+        {(imageState) => <MediaTag {...props} imageState={imageState} />}
+      </ImageController>
     );
   }
 
@@ -73,17 +85,27 @@ function S3MediaTag({
     );
   }
 
+  const props: MediaTagProps = {
+    contentType: descriptor.contentType,
+    label,
+    size,
+    status,
+    url,
+    errorDetail: descriptor.uri,
+    open: peek.open,
+    onOpenChange: handleOpenChange,
+  };
+  if (
+    !descriptor.contentType.startsWith("image/") ||
+    status !== "ready" ||
+    !url
+  ) {
+    return <MediaTag {...props} />;
+  }
   return (
-    <MediaTag
-      contentType={descriptor.contentType}
-      label={label}
-      size={size}
-      status={status}
-      url={url}
-      errorDetail={descriptor.uri}
-      open={peek.open}
-      onOpenChange={handleOpenChange}
-    />
+    <SafeImageController src={url}>
+      {(imageState) => <MediaTag {...props} imageState={imageState} />}
+    </SafeImageController>
   );
 }
 
@@ -104,23 +126,32 @@ function LangfuseRefMediaTag({
   const isOversizedField =
     descriptor.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE;
 
+  const props: MediaTagProps = {
+    contentType: descriptor.contentType,
+    size,
+    status,
+    url,
+    contentLength,
+    label: isOversizedField ? "Full value attached" : undefined,
+    description: isOversizedField
+      ? "This field was too large to process inline, so Langfuse saved the complete original value as an attachment at ingestion."
+      : undefined,
+    openActionLabel: isOversizedField ? "Open original" : undefined,
+    intent: isOversizedField ? "attachment" : undefined,
+    open: peek.open,
+    onOpenChange: handleOpenChange,
+  };
+  if (
+    !descriptor.contentType.startsWith("image/") ||
+    status !== "ready" ||
+    !url
+  ) {
+    return <MediaTag {...props} />;
+  }
+
   return (
-    <MediaTag
-      contentType={descriptor.contentType}
-      size={size}
-      status={status}
-      url={url}
-      contentLength={contentLength}
-      label={isOversizedField ? "Full value attached" : undefined}
-      description={
-        isOversizedField
-          ? "This field was too large to process inline, so Langfuse saved the complete original value as an attachment at ingestion."
-          : undefined
-      }
-      openActionLabel={isOversizedField ? "Open original" : undefined}
-      intent={isOversizedField ? "attachment" : undefined}
-      open={peek.open}
-      onOpenChange={handleOpenChange}
-    />
+    <SafeImageController src={url}>
+      {(imageState) => <MediaTag {...props} imageState={imageState} />}
+    </SafeImageController>
   );
 }

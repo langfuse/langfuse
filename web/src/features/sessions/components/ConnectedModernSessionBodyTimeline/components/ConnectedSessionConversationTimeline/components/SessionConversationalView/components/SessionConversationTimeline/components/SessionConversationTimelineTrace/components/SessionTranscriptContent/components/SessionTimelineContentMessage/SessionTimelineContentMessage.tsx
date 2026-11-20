@@ -45,6 +45,7 @@ const rolePresentation = {
 >;
 
 export function SessionTimelineContentMessage({
+  renderImage,
   role,
   parts,
   senderName,
@@ -53,6 +54,7 @@ export function SessionTimelineContentMessage({
   expandRequestId,
   variant = "session",
 }: {
+  renderImage: React.ComponentProps<typeof SessionTimelinePart>["renderImage"];
   variant?: "session" | "single-trace";
   role: Exclude<NormalizedMessage["role"], "system">;
   parts: NormalizedMessage["parts"];
@@ -109,6 +111,7 @@ export function SessionTimelineContentMessage({
             >
               {group.parts.map((part, partIndex) => (
                 <SessionTimelinePart
+                  renderImage={renderImage}
                   key={`${part.content.kind}-${partIndex}`}
                   part={part}
                   trailingContent={
@@ -201,6 +204,7 @@ export function SessionTimelineContentMessage({
                   >
                     {group.parts.map((part, partIndex) => (
                       <SessionTimelinePart
+                        renderImage={renderImage}
                         key={`${part.type}-${partIndex}`}
                         part={part}
                       />

@@ -1,4 +1,5 @@
 import { useState, type ComponentProps } from "react";
+import { ConnectedSafeImage } from "@/src/components/design-system/ConnectedSafeImage/ConnectedSafeImage";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
@@ -54,6 +55,7 @@ function SingleTraceMessagesView() {
   );
   const traces: ComponentProps<typeof SessionConversationTimeline>["traces"] =
     entries.map((entry) => ({
+      renderImage: (props) => <ConnectedSafeImage {...props} />,
       ...entry,
       trace: messageTrace,
       turnNumber: 1,

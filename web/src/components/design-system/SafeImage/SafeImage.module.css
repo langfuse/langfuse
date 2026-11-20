@@ -1,0 +1,53 @@
+.placeholder {
+  container: safe-image / size;
+}
+
+.sourceMeasurement::before {
+  content: attr(data-source);
+}
+
+.loadingText,
+.inlineDetails,
+.detailsHint {
+  display: none;
+}
+
+.compactDetails {
+  display: flex;
+}
+
+.inlineDetails .message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container safe-image (min-width: 144px) and (min-height: 64px) {
+  .loadingText {
+    display: inline;
+  }
+}
+
+@container safe-image (min-width: 96px) and (min-height: 64px) {
+  .detailsHint {
+    display: inline;
+  }
+}
+
+@container safe-image (min-width: 144px) and (min-height: 112px) {
+  .inlineDetails {
+    display: flex;
+  }
+
+  .compactDetails {
+    display: none;
+  }
+}
+
+.placeholder[data-source-truncated] .inlineDetails {
+  display: none;
+}
+
+.placeholder[data-source-truncated] .compactDetails {
+  display: flex;
+}

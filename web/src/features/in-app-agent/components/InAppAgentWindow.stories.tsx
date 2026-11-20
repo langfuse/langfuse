@@ -1,4 +1,6 @@
 import preview from "../../../../.storybook/preview";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import icon from "@/public/icon.svg";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -695,6 +697,7 @@ const meta = preview.meta({
     ),
   ],
   args: {
+    renderImage: (props) => <SafeImage {...props} src={icon} alt={props.alt} />,
     error: null,
     executionUi: { notice: null, stop: null },
     isExpanded: false,

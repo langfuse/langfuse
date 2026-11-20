@@ -1,4 +1,5 @@
-import { env } from "@/src/env.mjs";
+import icon from "@/public/icon.svg";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
 
 type LangfuseIconProps = {
   size?: 14 | 16 | 24 | 28 | 32 | 42;
@@ -10,10 +11,5 @@ export const LangfuseIcon = ({
   size = 32,
   alt = "Langfuse",
 }: LangfuseIconProps) => (
-  <img
-    src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`}
-    width={size}
-    height={size}
-    alt={alt}
-  />
+  <SafeImage src={icon} width={size} height={size} alt={alt} />
 );

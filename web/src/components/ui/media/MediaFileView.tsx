@@ -5,8 +5,8 @@ import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 import { Button } from "@/src/components/ui/button";
 import {
   COMPACT_IMAGE_MAX_HEIGHT_REM,
-  ResizableImage,
-} from "@/src/components/ui/ResizableImage";
+  SafeResizableImage,
+} from "@/src/components/ui/SafeResizableImage";
 import type { MediaContentType } from "@/src/features/media/validation";
 import { cn } from "@/src/utils/tailwind";
 
@@ -111,11 +111,9 @@ function MediaFilePreview({
 }: MediaFilePreviewProps) {
   if (fileType === "image") {
     return (
-      <ResizableImage
+      <SafeResizableImage
         src={src}
         alt={fileName}
-        isDefaultVisible={true}
-        shouldValidateImageSource={false}
         fitContent
         compactWidth={compactImageWidth}
       />

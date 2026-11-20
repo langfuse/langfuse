@@ -14,6 +14,8 @@ import {
 import { cva } from "class-variance-authority";
 
 import { Button } from "@/src/components/ui/button";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import { type SafeImageState } from "@/src/components/design-system/SafeImageController/SafeImageController";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { cn } from "@/src/utils/tailwind";
@@ -42,6 +44,8 @@ export interface MediaTagProps {
    * meaningful when `status === "ready"`.
    */
   url?: string;
+  /** Consent/validation state supplied by the connected owner. */
+  imageState?: SafeImageState;
   /** Resolved file size in bytes, shown in the peek header when available. */
   contentLength?: number;
   /** Overrides the chip label (defaults to the MIME subtype, e.g. "JPEG"). */
@@ -129,13 +133,14 @@ function KindIcon({ kind, size }: { kind: MediaKind; size: IconSize }) {
 
 type PreviewRenderer = (params: {
   url: string;
+  imageState?: SafeImageState;
   onError: () => void;
 }) => React.ReactNode;
 
 const MEDIA_KIND_PREVIEW = {
-  image: ({ url, onError }) => (
-    <img
-      src={url}
+  image: ({ imageState, onError }) => (
+    <SafeImage
+      state={imageState ?? { status: "loading" }}
       alt=""
       onError={onError}
       // Bounded by the max-h cap and the card's max-w-sm; object-contain
@@ -177,12 +182,14 @@ function PeekBody({
   kind,
   status,
   url,
+  imageState,
   errorDetail,
   onPreviewError,
 }: {
   kind: MediaKind;
   status: MediaTagStatus;
   url?: string;
+  imageState?: SafeImageState;
   errorDetail?: string;
   onPreviewError: () => void;
 }) {
@@ -204,7 +211,7 @@ function PeekBody({
     return <Skeleton className="h-32 w-64" />;
   }
 
-  return MEDIA_KIND_PREVIEW[kind]({ url, onError: onPreviewError });
+  return MEDIA_KIND_PREVIEW[kind]({ url, imageState, onError: onPreviewError });
 }
 
 /**
@@ -221,6 +228,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
       contentType,
       status = "idle",
       url,
+      imageState,
       contentLength,
       label,
       description,
@@ -317,6 +325,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               kind={kind}
               status={previewStatus}
               url={url}
+              imageState={imageState}
               errorDetail={errorDetail}
               onPreviewError={() => setFailedPreviewUrl(url ?? null)}
             />

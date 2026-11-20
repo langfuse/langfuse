@@ -21,6 +21,7 @@ import { getSessionToolStatus } from "@/src/features/sessions/components/Connect
 import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
 
 export function SessionTranscriptContent({
+  renderImage,
   result,
   onOpenObservation,
   scrollTarget,
@@ -28,6 +29,7 @@ export function SessionTranscriptContent({
   variant,
   includeNestedThreads = false,
 }: {
+  renderImage: ComponentProps<typeof SessionTimelinePart>["renderImage"];
   includeNestedThreads?: boolean;
   variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   threadIndex?: number;
@@ -69,6 +71,7 @@ export function SessionTranscriptContent({
               </h3>
             )}
             <SessionTranscriptThread
+              renderImage={renderImage}
               variant={variant}
               rows={rows.filter((row) => row.threadIndex === threadIndex)}
               onOpenObservation={onOpenObservation}
@@ -90,11 +93,13 @@ type DisplayMessage = NormalizedMessage & {
 };
 
 function SessionTranscriptThread({
+  renderImage,
   rows,
   variant,
   onOpenObservation,
   scrollTarget,
 }: {
+  renderImage: ComponentProps<typeof SessionTimelinePart>["renderImage"];
   rows: ReturnType<typeof getSessionTranscriptRows>;
   variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   onOpenObservation?: (observationId: string) => void;
@@ -144,6 +149,7 @@ function SessionTranscriptThread({
     >
       {group.type === "tools" ? (
         <SessionTranscriptToolGroup
+          renderImage={renderImage}
           variant={variant}
           summary={group.summary}
           title={group.title}
@@ -153,6 +159,7 @@ function SessionTranscriptThread({
         />
       ) : (
         <SessionTranscriptRow
+          renderImage={renderImage}
           variant={variant}
           item={group.row}
           onOpenObservation={onOpenObservation}
@@ -164,6 +171,7 @@ function SessionTranscriptThread({
 }
 
 function SessionTranscriptRow({
+  renderImage,
   item,
   variant,
   onOpenObservation,
@@ -225,9 +233,14 @@ function SessionTranscriptRow({
       data-scroll-request-id={scrollRequestId}
     >
       {row.type === "tool" ? (
-        <SessionTranscriptTool row={row} trailingContent={metadata} />
+        <SessionTranscriptTool
+          row={row}
+          trailingContent={metadata}
+          renderImage={renderImage}
+        />
       ) : (
         <SessionTranscriptMessage
+          renderImage={renderImage}
           variant={variant}
           expandRequestId={scrollRequestId}
           message={row.message}
@@ -357,9 +370,11 @@ function SessionTranscriptToolGroup({
 }
 
 function SessionTranscriptTool({
+  renderImage,
   row,
   trailingContent,
 }: {
+  renderImage: ComponentProps<typeof SessionTimelinePart>["renderImage"];
   row: Extract<TranscriptMessageGroup<DisplayMessage>, { type: "tool" }>;
   trailingContent: ReactNode;
 }) {
@@ -384,6 +399,7 @@ function SessionTranscriptTool({
               if (part.type === "file") {
                 return (
                   <SessionTimelinePart
+                    renderImage={renderImage}
                     key={index}
                     part={part}
                     mediaVariant="tool-output"
@@ -418,12 +434,14 @@ function SessionTranscriptTool({
 }
 
 function SessionTranscriptMessage({
+  renderImage,
   message,
   variant,
   trailingContent,
   onOpenObservation,
   expandRequestId,
 }: {
+  renderImage: ComponentProps<typeof SessionTimelinePart>["renderImage"];
   message: DisplayMessage;
   variant?: ComponentProps<typeof SessionTimelineContentMessage>["variant"];
   trailingContent: ReactNode;
@@ -433,6 +451,7 @@ function SessionTranscriptMessage({
   if (message.role === "system") {
     return (
       <SessionTimelineSystemMessage
+        renderImage={renderImage}
         parts={message.parts}
         senderName={message.senderName}
         trailingContent={trailingContent}
@@ -441,6 +460,7 @@ function SessionTranscriptMessage({
   }
   return (
     <SessionTimelineContentMessage
+      renderImage={renderImage}
       variant={variant}
       expandRequestId={expandRequestId}
       role={message.role}

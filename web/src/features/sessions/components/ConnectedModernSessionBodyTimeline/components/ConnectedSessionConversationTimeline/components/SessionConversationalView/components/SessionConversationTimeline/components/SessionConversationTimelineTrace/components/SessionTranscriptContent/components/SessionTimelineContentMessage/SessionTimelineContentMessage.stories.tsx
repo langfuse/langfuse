@@ -5,7 +5,7 @@ import { SessionTimelineContentMessage } from "@/src/features/sessions/component
 
 const meta = preview.meta({
   component: SessionTimelineContentMessage,
-  args: { senderName: undefined },
+  args: { senderName: undefined, renderImage: () => null },
   parameters: { layout: "padded", a11y: { test: "error" } },
 });
 

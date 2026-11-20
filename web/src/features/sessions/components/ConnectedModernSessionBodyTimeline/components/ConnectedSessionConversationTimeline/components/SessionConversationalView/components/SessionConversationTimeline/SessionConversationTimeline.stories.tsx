@@ -13,6 +13,7 @@ function SessionConversationTimelineStory({
   const traces = Array.from(
     { length: dynamicContent ? 40 : 3 },
     (_, index) => ({
+      renderImage: () => null,
       trace: {
         id: `trace-${index + 1}`,
         name: `Turn ${index + 1}`,
@@ -95,6 +96,7 @@ function SingleTraceLoadingStory() {
   const traces: ComponentProps<typeof SessionConversationTimeline>["traces"] = [
     {
       trace: { id: "trace-1", name: "Loading trace" },
+      renderImage: () => null,
       turnNumber: 1,
       variant: "single-trace",
       state: isLoading ? { type: "loading" } : { type: "empty" },

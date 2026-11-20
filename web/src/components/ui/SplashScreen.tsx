@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-margin-on-root-elements */
 import React, { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import Image from "next/image";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
 import { InfoIcon, type IconComponent } from "@langfuse/icons";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -32,7 +32,7 @@ export interface SplashScreenProps {
   description: string | React.ReactNode;
   waitingFor?: string;
   image?: {
-    src: string;
+    src: NonNullable<React.ComponentProps<typeof SafeImage>["src"]>;
     alt: string;
     width: number;
     height: number;
@@ -108,7 +108,7 @@ export function SplashScreen({
       {videoSrc && <VideoPlayer videoSrc={videoSrc} />}
       {!videoSrc && image && (
         <div className="my-6 w-full max-w-3xl">
-          <Image
+          <SafeImage
             src={image.src}
             alt={image.alt}
             width={image.width}

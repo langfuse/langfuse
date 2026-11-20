@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import Image from "next/image";
-import { useState } from "react";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import { useState, type ComponentProps } from "react";
 
 import {
   Dialog,
@@ -28,8 +28,8 @@ import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureRele
 export type PreviewFlag = PersonalFeaturePreviewFlag;
 
 type PreviewIllustration = {
-  light: React.ComponentProps<typeof Image>["src"];
-  dark: React.ComponentProps<typeof Image>["src"];
+  light: NonNullable<ComponentProps<typeof SafeImage>["src"]>;
+  dark: NonNullable<ComponentProps<typeof SafeImage>["src"]>;
   alt: string;
   width?: number;
   height?: number;
@@ -269,14 +269,14 @@ function PreviewMockupPanel({
 }) {
   return (
     <div className="border-border bg-muted/30 mt-6 overflow-hidden rounded-2xl border shadow-inner">
-      <Image
+      <SafeImage
         src={illustration.light}
         alt={illustration.alt}
         width={illustration.width}
         height={illustration.height}
         className="block h-auto w-full dark:hidden"
       />
-      <Image
+      <SafeImage
         src={illustration.dark}
         alt={illustration.alt}
         width={illustration.width}

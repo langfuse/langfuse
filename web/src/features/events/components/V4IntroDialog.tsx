@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
+import introImage from "@/public/assets/v4-beta-intro.jpg";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
 import {
   Dialog,
   DialogContent,
@@ -27,8 +29,8 @@ export function V4IntroDialog({
           Welcome to a faster Langfuse
         </DialogTitle>
         <DialogBody>
-          <img
-            src="/assets/v4-beta-intro.jpg"
+          <SafeImage
+            src={introImage}
             alt="Langfuse gets Faster — performance comparison showing 5x to 165x speedups"
             className="w-full rounded-md"
           />

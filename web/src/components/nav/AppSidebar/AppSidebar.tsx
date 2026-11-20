@@ -2,6 +2,8 @@
 "use client";
 
 import * as React from "react";
+import { SafeImage } from "@/src/components/design-system/SafeImage/SafeImage";
+import { SafeImageController } from "@/src/components/design-system/SafeImageController/SafeImageController";
 import { NavMain, type NavMainItem } from "@/src/components/nav/NavMain";
 import {
   Sidebar,
@@ -231,16 +233,24 @@ export function AppSidebar({
               >
                 {logo.lightModeHref && logo.darkModeHref ? (
                   <>
-                    <img
-                      src={logo.lightModeHref}
-                      alt="Logo"
-                      className="mr-1 size-7 object-contain group-data-[collapsible=icon]:mr-0 dark:hidden"
-                    />
-                    <img
-                      src={logo.darkModeHref}
-                      alt="Logo"
-                      className="mr-1 hidden size-7 object-contain group-data-[collapsible=icon]:mr-0 dark:block"
-                    />
+                    <SafeImageController src={logo.lightModeHref}>
+                      {(state) => (
+                        <SafeImage
+                          state={state}
+                          alt="Logo"
+                          className="mr-1 size-7 object-contain group-data-[collapsible=icon]:mr-0 dark:hidden"
+                        />
+                      )}
+                    </SafeImageController>
+                    <SafeImageController src={logo.darkModeHref}>
+                      {(state) => (
+                        <SafeImage
+                          state={state}
+                          alt="Logo"
+                          className="mr-1 hidden size-7 object-contain group-data-[collapsible=icon]:mr-0 dark:block"
+                        />
+                      )}
+                    </SafeImageController>
                   </>
                 ) : (
                   <LangfuseIcon size={24} />
@@ -519,6 +529,7 @@ function SidebarNotifications({
 }) {
   const visibleNotifications = activeNotifications.slice(0, 3);
   const frontNotification = visibleNotifications[0];
+  const linkImage = frontNotification.linkImage;
   const backCount = visibleNotifications.length - 1;
   const peekOffset = 8;
   const peekScaleStep = 0.05;
@@ -568,16 +579,15 @@ function SidebarNotifications({
           </CardHeader>
           <CardContent className="px-3 pt-1.5 pb-2.5">
             {frontNotification.link &&
-              (frontNotification.linkImage ? (
+              (linkImage ? (
                 <Link
                   href={frontNotification.link}
                   target="_blank"
                   onClick={() => state.onLinkClick(frontNotification.id)}
                 >
-                  <img
-                    alt={frontNotification.linkImage.alt}
-                    src={frontNotification.linkImage.src}
-                  />
+                  <SafeImageController src={linkImage.src}>
+                    {(state) => <SafeImage state={state} alt={linkImage.alt} />}
+                  </SafeImageController>
                 </Link>
               ) : (
                 <Button
