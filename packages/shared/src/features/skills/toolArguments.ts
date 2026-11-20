@@ -15,7 +15,11 @@ const SKILL_TOOL_NAMES = new Set([
 ]);
 
 /** Filters unsupported tools before decoding their arguments or skill catalog. */
-export function isSkillLoadTool(toolName: string, metadata?: unknown): boolean {
+export function isSkillLoadTool(
+  toolName: unknown,
+  metadata?: unknown,
+): boolean {
+  if (typeof toolName !== "string") return false;
   return (
     SKILL_TOOL_NAMES.has(toolName) ||
     (isCodexShellTool(toolName) && isCodexMetadata(metadata))
@@ -131,11 +135,10 @@ function isCodexMetadata(metadata: unknown): boolean {
 
 function isCodexShellTool(toolName: string): boolean {
   return (
-    typeof toolName === "string" &&
-    (toolName === "skill" ||
-      toolName.startsWith("skill:") ||
-      toolName === "exec" ||
-      toolName === "exec_command")
+    toolName === "skill" ||
+    toolName.startsWith("skill:") ||
+    toolName === "exec" ||
+    toolName === "exec_command"
   );
 }
 
