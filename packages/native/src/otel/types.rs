@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, SecondsFormat, TimeDelta, Utc};
 use indexmap::IndexMap;
 
 use super::attributes::{for_each_javascript_object_entry_owned, javascript_json_stringify};
@@ -133,10 +133,15 @@ impl OwnedEvent {
         row.skills_resource_loaded = enrichment.skills_resource_loaded;
         row.start_time = to_clickhouse_datetime(&row.start_time);
         row.end_time = to_clickhouse_datetime(&row.end_time);
-        row.completion_start_time = row
-            .completion_start_time
-            .take()
-            .map(|time| to_clickhouse_datetime(&time));
+        // An empty string stands for a provided value that could not be read; it becomes the
+        // row's creation time.
+        row.completion_start_time = row.completion_start_time.take().map(|time| {
+            to_clickhouse_datetime(if time.is_empty() {
+                &context.created_at
+            } else {
+                &time
+            })
+        });
         row.created_at = to_clickhouse_datetime(&context.created_at);
         row.updated_at = to_clickhouse_datetime(&context.updated_at);
         row.event_ts = to_clickhouse_datetime(&context.event_ts);
@@ -175,6 +180,108 @@ pub(crate) fn to_clickhouse_datetime(value: &str) -> String {
         return parsed.format("%Y-%m-%d 00:00:00.000").to_string();
     }
     value.to_owned()
+}
+
+/// Reads an ISO 8601 datetime, with `T` or a space, as a UTC instant and returns it as a
+/// ClickHouse datetime, or `None` when it cannot be read. This mirrors what
+/// `toClickhouseDateTime` in `packages/shared/src/server/clickhouse/client.ts` does with ISO
+/// strings; change both together.
+///
+/// The shape is `YYYY-MM-DD`, optionally `T` or a space and `HH:MM[:SS[.fraction]]`, optionally
+/// `Z` or `±HH[:MM]`. Without an offset the fields are UTC. A day past the end of its month and
+/// `24:00:00` roll forward; any other field out of range is unreadable. A string that already is
+/// a ClickHouse datetime naming a real time is returned as written; everything else is returned
+/// with milliseconds. The result is within years 0001 to 9999.
+pub(crate) fn read_datetime_string(value: &str) -> Option<String> {
+    let bytes = value.as_bytes();
+    let is = |index: usize, byte: u8| bytes.get(index) == Some(&byte);
+    let two_digits = |index: usize| two_ascii_digits(bytes.get(index..index + 2)?);
+
+    let year = two_digits(0)? * 100 + two_digits(2)?;
+    let (month, day) = (two_digits(5)?, two_digits(8)?);
+    if !is(4, b'-') || !is(7, b'-') {
+        return None;
+    }
+    // Everything up to `end` has been checked to be ASCII, so it is a valid place to slice.
+    let (mut hour, mut minute, mut second, mut fraction, mut end) = (0, 0, 0, "", 10);
+    let has_separator = matches!(bytes.get(10), Some(b'T' | b't' | b' '));
+    if let (true, Some(hours), true, Some(minutes)) =
+        (has_separator, two_digits(11), is(13, b':'), two_digits(14))
+    {
+        (hour, minute, end) = (hours, minutes, 16);
+        if let (true, Some(seconds)) = (is(16, b':'), two_digits(17)) {
+            (second, end) = (seconds, 19);
+            let digits = bytes.get(20..).map_or(0, |rest| {
+                rest.iter().take_while(|byte| byte.is_ascii_digit()).count()
+            });
+            if is(19, b'.') && digits > 0 {
+                (fraction, end) = (&value[20..20 + digits], 20 + digits);
+            }
+        }
+    }
+    let zone = &value[end..];
+    let offset_minutes = match zone.strip_prefix(' ').unwrap_or(zone).as_bytes() {
+        [] | [b'Z' | b'z'] => 0,
+        [sign @ (b'+' | b'-'), offset @ ..] => {
+            let minutes = offset.get(2..)?;
+            let minutes = minutes.strip_prefix(b":").unwrap_or(minutes);
+            let hours = two_ascii_digits(&offset[..2])?;
+            let minutes = if minutes.is_empty() {
+                0
+            } else {
+                two_ascii_digits(minutes)?
+            };
+            if hours > 23 || minutes > 59 {
+                return None;
+            }
+            (if *sign == b'-' { -1 } else { 1 }) * (hours * 60 + minutes)
+        }
+        _ => return None,
+    };
+
+    let is_end_of_day =
+        hour == 24 && minute == 0 && second == 0 && fraction.bytes().all(|digit| digit == b'0');
+    if !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || (hour > 23 && !is_end_of_day)
+        || minute > 59
+        || second > 59
+    {
+        return None;
+    }
+    let first_of_month = NaiveDate::from_ymd_opt(year as i32, month as u32, 1)?;
+    let is_clickhouse_datetime = value.len() == end
+        && end >= 19
+        && year > 0
+        && is(10, b' ')
+        && fraction.len() <= 9
+        && hour < 24
+        && first_of_month.with_day(day as u32).is_some();
+    if is_clickhouse_datetime {
+        return Some(value.to_owned());
+    }
+    // Counting from the first of the month rolls a day such as February 30 forward.
+    let seconds = (day - 1) * 86_400 + hour * 3_600 + (minute - offset_minutes) * 60 + second;
+    let instant = first_of_month
+        .and_hms_opt(0, 0, 0)?
+        .checked_add_signed(TimeDelta::try_seconds(seconds)?)?;
+    if !(1..=9999).contains(&instant.year()) {
+        return None;
+    }
+    let milliseconds: String = fraction.chars().chain("000".chars()).take(3).collect();
+    Some(format!(
+        "{}.{milliseconds}",
+        instant.format("%Y-%m-%d %H:%M:%S")
+    ))
+}
+
+fn two_ascii_digits(digits: &[u8]) -> Option<i64> {
+    match digits {
+        [tens, ones] if tens.is_ascii_digit() && ones.is_ascii_digit() => {
+            Some(i64::from(tens - b'0') * 10 + i64::from(ones - b'0'))
+        }
+        _ => None,
+    }
 }
 
 /// Flatten metadata while consuming the event so keys and leaf strings can be moved.
@@ -248,8 +355,8 @@ pub(crate) fn json_storage_string(value: Option<Value>) -> Option<String> {
 mod tests {
     use crate::otel::value::{json, Value};
 
-    use super::to_clickhouse_datetime;
     use super::{flatten_object_owned, json_storage_string, JsonObject};
+    use super::{read_datetime_string, to_clickhouse_datetime};
 
     #[test]
     fn storage_strings_omit_null_but_preserve_literal_null() {
@@ -258,6 +365,51 @@ mod tests {
             json_storage_string(Some(json!("null"))),
             Some("null".to_owned())
         );
+    }
+
+    /// The ISO examples of `client.datetime.test.ts` in `packages/shared`.
+    #[test]
+    fn iso_datetime_strings_are_read_like_the_typescript_helper() {
+        for (value, expected) in [
+            (
+                "2024-11-06 20:37:00.123456",
+                Some("2024-11-06 20:37:00.123456"),
+            ),
+            (
+                "2024-02-29 23:59:59.123456",
+                Some("2024-02-29 23:59:59.123456"),
+            ),
+            ("2024-11-06T20:37:00.123Z", Some("2024-11-06 20:37:00.123")),
+            (
+                "2024-11-06T22:37:00.123456+02:00",
+                Some("2024-11-06 20:37:00.123"),
+            ),
+            (
+                "2024-11-06 22:37:00.123456+02:00",
+                Some("2024-11-06 20:37:00.123"),
+            ),
+            ("2024-11-06 15:07:00-0530", Some("2024-11-06 20:37:00.000")),
+            ("2024-11-06 20:37", Some("2024-11-06 20:37:00.000")),
+            ("2024-11-06", Some("2024-11-06 00:00:00.000")),
+            ("2024-02-30 12:00:00", Some("2024-03-01 12:00:00.000")),
+            ("2023-02-29T12:00:00Z", Some("2023-03-01 12:00:00.000")),
+            ("2024-11-06 24:00:00", Some("2024-11-07 00:00:00.000")),
+            ("soon", None),
+            ("2024-13-01 12:00:00", None),
+            ("2024-11-06 20:37:60", None),
+            ("2024-11-06 24:00:00.5", None),
+            ("9999-12-31 24:00:00", None),
+            ("0000-02-29 12:00:00", None),
+            // Read by JavaScript only, on the TypeScript path.
+            ("Wed, 06 Nov 2024 21:37:00 +0100", None),
+            ("11/6/2024 8:37:00 PM UTC", None),
+        ] {
+            assert_eq!(
+                read_datetime_string(value).as_deref(),
+                expected,
+                "{value:?}"
+            );
+        }
     }
 
     #[test]
