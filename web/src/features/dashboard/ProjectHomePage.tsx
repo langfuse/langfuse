@@ -579,7 +579,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
             {/* "At a glance" sits at the bottom of the visible area and the
                 Ask section is centred in the space above it. In a window too
                 short for both, the column grows and the area scrolls. */}
-            <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col px-6 pt-3 pb-6">
+            <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col px-6 pt-3 pb-12">
               <div className="flex flex-1 flex-col justify-center py-18">
                 <InAppAgentHomeComposer />
               </div>

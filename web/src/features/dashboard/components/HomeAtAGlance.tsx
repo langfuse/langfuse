@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { type ReactNode } from "react";
-import { ArrowRight, ArrowUpRight, LayoutDashboard } from "@langfuse/icons";
+import { ArrowUpRight, LayoutDashboard } from "@langfuse/icons";
 import {
+  encodeFiltersGeneric,
   type FilterState,
   type ScoreDataTypeType,
   getGenerationLikeTypes,
@@ -32,6 +33,7 @@ const ROWS_SHOWN = 3;
 function GlanceCard({
   title,
   href,
+  hoverLink,
   value,
   caption,
   isPending,
@@ -40,6 +42,8 @@ function GlanceCard({
 }: {
   title: string;
   href: string;
+  /** Shown while the card is hovered or holds keyboard focus. */
+  hoverLink?: { href: string; label: string };
   value: string;
   caption: string;
   isPending: boolean;
@@ -47,16 +51,23 @@ function GlanceCard({
   children: ReactNode;
 }) {
   return (
-    <article className="bg-card flex flex-col gap-4 rounded-lg border p-5">
-      <h3 className="text-base font-bold">
-        <Link
-          href={href}
-          className="inline-flex items-center gap-1 underline-offset-3 hover:underline"
-        >
-          <span>{title}</span>
-          <ArrowUpRight size="sm" color="muted" aria-hidden />
-        </Link>
-      </h3>
+    <article className="group/card bg-card flex flex-col gap-4 rounded-lg border p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-base font-bold">
+          <Link
+            href={href}
+            className="inline-flex items-center gap-1 underline-offset-3 hover:underline"
+          >
+            <span>{title}</span>
+            <ArrowUpRight size="sm" color="muted" aria-hidden />
+          </Link>
+        </h3>
+        {hoverLink ? (
+          <span className="flex min-w-0 opacity-0 transition-opacity group-focus-within/card:opacity-100 group-hover/card:opacity-100">
+            <TextLink path={hoverLink.href} value={hoverLink.label} />
+          </span>
+        ) : null}
+      </div>
       {isPending ? (
         <div className="flex flex-col gap-3">
           <Skeleton className="h-8 w-28" />
@@ -118,6 +129,40 @@ function GlanceTable({
         ))}
       </tbody>
     </table>
+  );
+}
+
+function GlanceBarRows({
+  rows,
+  total,
+}: {
+  rows: { name: string; count: number }[];
+  total: number;
+}) {
+  return (
+    <ul className="flex flex-col gap-2 text-sm">
+      {rows.map((row) => (
+        <li key={row.name} className="flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate" title={row.name}>
+              {row.name}
+            </span>
+            <span className="text-foreground-secondary font-mono">
+              {numberFormatter(row.count, 0)}
+            </span>
+          </div>
+          {/* Share of the total. An SVG so the width is an attribute. */}
+          <svg aria-hidden className="text-muted-blue h-1.5 w-full">
+            <rect
+              width={`${total > 0 ? Math.max(1, (row.count / total) * 100) : 0}%`}
+              height="100%"
+              rx="3"
+              fill="currentColor"
+            />
+          </svg>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -211,6 +256,80 @@ export function HomeAtAGlance({
     { ...queryOptions, queryId: "home:at-a-glance:model-costs" },
   );
 
+  const agentRunsQuery: QueryType = {
+    view: "observations",
+    dimensions: [],
+    metrics: [{ measure: "count", aggregation: "count" }],
+    filters: [
+      ...mapLegacyUiTableFilterToView("observations", filterState),
+      {
+        column: "type",
+        operator: "any of",
+        value: ["AGENT"],
+        type: "stringOptions",
+      },
+    ],
+    timeDimension: null,
+    fromTimestamp,
+    toTimestamp,
+    orderBy: null,
+  };
+  const totalAgentRuns = useScheduledDashboardExecuteQuery(
+    { projectId, query: agentRunsQuery, version: metricsVersion },
+    { ...queryOptions, queryId: "home:at-a-glance:agents:total" },
+  );
+  const agentRunsByName = useScheduledDashboardExecuteQuery(
+    {
+      projectId,
+      query: {
+        ...agentRunsQuery,
+        dimensions: [{ field: "name" }],
+        orderBy: [{ field: "count_count", direction: "desc" }],
+        chartConfig: { type: "table", row_limit: PRESET_ROW_LIMIT },
+      },
+      version: metricsVersion,
+    },
+    { ...queryOptions, queryId: "home:at-a-glance:agents:grouped" },
+  );
+  const totalAgentRunCount = Number(totalAgentRuns.data?.[0]?.count_count ?? 0);
+  // Without agent runs in scope the third card stays Scores.
+  const isThirdCardPending = !isEnabled || totalAgentRuns.isPending;
+  const showsAgents = !isThirdCardPending && totalAgentRunCount > 0;
+  const showsScores = !isThirdCardPending && !showsAgents;
+
+  // Same list and arguments as the Home dashboard picker, so both share one
+  // cache entry. Langfuse-owned dashboards are the curated ones.
+  const dashboards = api.dashboard.allDashboards.useQuery(
+    {
+      projectId,
+      page: 1,
+      limit: 500,
+      orderBy: { column: "name", order: "ASC" },
+    },
+    { enabled: Boolean(projectId) },
+  );
+  const curatedDashboardHref = (name: RegExp) => {
+    const curated = dashboards.data?.dashboards.find(
+      (candidate) =>
+        candidate.owner === "LANGFUSE" && name.test(candidate.name),
+    );
+
+    return curated
+      ? `/project/${projectId}/dashboards/${encodeURIComponent(curated.id)}`
+      : dashboardHref;
+  };
+  // Tracing lists observations on the events tables and traces before them.
+  const agentRunsHref = `/project/${projectId}/${isV2 ? "traces" : "observations"}?filter=${encodeURIComponent(
+    encodeFiltersGeneric([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["AGENT"],
+      },
+    ]),
+  )}`;
+
   const scoreFilters: FilterState = dateRange
     ? [
         ...filterState,
@@ -249,7 +368,7 @@ export function HomeAtAGlance({
       queryName: "score-aggregate",
       version: metricsVersion,
     },
-    queryOptions,
+    { ...queryOptions, enabled: showsScores },
   );
 
   const totalTraceCount = Number(totalTraces.data?.[0]?.[traceCountField] ?? 0);
@@ -268,6 +387,13 @@ export function HomeAtAGlance({
     0,
   );
 
+  const agentRows = (agentRunsByName.data ?? [])
+    .slice(0, ROWS_SHOWN)
+    .map((row) => ({
+      name: row.name ? String(row.name) : "Unknown",
+      count: Number(row.count_count),
+    }));
+
   const scoreRows = scores.data ?? [];
   const totalScoreCount = scoreRows.reduce(
     (total, row) => total + Number(row.countScoreId ?? 0),
@@ -283,23 +409,20 @@ export function HomeAtAGlance({
         <h2 id="home-at-a-glance-title" className="text-lg font-bold">
           At a glance
         </h2>
-        <div className="flex flex-wrap items-center gap-4">
-          <TextLink
-            path={dashboardHref}
-            value={`Open ${dashboard.name} dashboard`}
-            icon={LayoutDashboard}
-          />
-          <TextLink
-            path={`/project/${projectId}/dashboards`}
-            value="All dashboards"
-            icon={ArrowRight}
-          />
-        </div>
+        <TextLink
+          path={dashboardHref}
+          value={`Open ${dashboard.name} dashboard`}
+          icon={LayoutDashboard}
+        />
       </div>
       <div className="grid grid-cols-1 gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
         <GlanceCard
           title="Traces"
           href={`/project/${projectId}/traces`}
+          hoverLink={{
+            href: `/project/${projectId}/traces`,
+            label: "Open tracing",
+          }}
           value={compactNumberFormatter(totalTraceCount)}
           caption="Total traces tracked"
           isPending={
@@ -307,33 +430,15 @@ export function HomeAtAGlance({
           }
           isEmpty={traceRows.length === 0}
         >
-          <ul className="flex flex-col gap-2 text-sm">
-            {traceRows.map((row) => (
-              <li key={row.name} className="flex flex-col gap-1">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 truncate" title={row.name}>
-                    {row.name}
-                  </span>
-                  <span className="text-foreground-secondary font-mono">
-                    {numberFormatter(row.count, 0)}
-                  </span>
-                </div>
-                {/* Share of all traces. An SVG so the width is an attribute. */}
-                <svg aria-hidden className="text-muted-blue h-1.5 w-full">
-                  <rect
-                    width={`${totalTraceCount > 0 ? Math.max(1, (row.count / totalTraceCount) * 100) : 0}%`}
-                    height="100%"
-                    rx="3"
-                    fill="currentColor"
-                  />
-                </svg>
-              </li>
-            ))}
-          </ul>
+          <GlanceBarRows rows={traceRows} total={totalTraceCount} />
         </GlanceCard>
         <GlanceCard
           title="Model costs"
           href={dashboardHref}
+          hoverLink={{
+            href: curatedDashboardHref(/cost/i),
+            label: "Open cost dashboard",
+          }}
           value={costFormatter(totalModelCost)}
           caption="Total cost"
           isPending={!isEnabled || modelCosts.isPending}
@@ -351,32 +456,65 @@ export function HomeAtAGlance({
             }))}
           />
         </GlanceCard>
-        <GlanceCard
-          title="Scores"
-          href={`/project/${projectId}/scores`}
-          value={compactNumberFormatter(totalScoreCount)}
-          caption="Total scores tracked"
-          isPending={!isEnabled || scores.isPending}
-          isEmpty={scoreRows.length === 0}
-        >
-          <GlanceTable
-            columns={["Name", "#", "Avg"]}
-            rows={scoreRows.slice(0, ROWS_SHOWN).map((row) => ({
-              id: JSON.stringify([
-                row.scoreName,
-                row.scoreSource,
-                row.scoreDataType,
-              ]),
-              cells: [
-                `${String(row.scoreName)} (${String(row.scoreSource).toLowerCase()})`,
-                numberFormatter(Number(row.countScoreId ?? 0), 0),
-                isCategoricalDataType(row.scoreDataType as ScoreDataTypeType)
-                  ? "–"
-                  : compactNumberFormatter(Number(row.avgValue ?? 0)),
-              ],
-            }))}
-          />
-        </GlanceCard>
+        {isThirdCardPending && (
+          <article className="bg-card flex flex-col gap-4 rounded-lg border p-5">
+            <Skeleton className="h-5 w-20" />
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-8 w-28" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          </article>
+        )}
+        {showsAgents && (
+          <GlanceCard
+            title="Agents"
+            href={agentRunsHref}
+            hoverLink={{
+              href: curatedDashboardHref(/agent/i),
+              label: "Open agent dashboard",
+            }}
+            value={compactNumberFormatter(totalAgentRunCount)}
+            caption="Agent runs"
+            isPending={agentRunsByName.isPending}
+            isEmpty={agentRows.length === 0}
+          >
+            <GlanceBarRows rows={agentRows} total={totalAgentRunCount} />
+          </GlanceCard>
+        )}
+        {showsScores && (
+          <GlanceCard
+            title="Scores"
+            href={`/project/${projectId}/scores`}
+            hoverLink={{
+              href: `/project/${projectId}/scores`,
+              label: "Open scores",
+            }}
+            value={compactNumberFormatter(totalScoreCount)}
+            caption="Total scores tracked"
+            isPending={scores.isPending}
+            isEmpty={scoreRows.length === 0}
+          >
+            <GlanceTable
+              columns={["Name", "#", "Avg"]}
+              rows={scoreRows.slice(0, ROWS_SHOWN).map((row) => ({
+                id: JSON.stringify([
+                  row.scoreName,
+                  row.scoreSource,
+                  row.scoreDataType,
+                ]),
+                cells: [
+                  `${String(row.scoreName)} (${String(row.scoreSource).toLowerCase()})`,
+                  numberFormatter(Number(row.countScoreId ?? 0), 0),
+                  isCategoricalDataType(row.scoreDataType as ScoreDataTypeType)
+                    ? "–"
+                    : compactNumberFormatter(Number(row.avgValue ?? 0)),
+                ],
+              }))}
+            />
+          </GlanceCard>
+        )}
       </div>
     </section>
   );
