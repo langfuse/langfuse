@@ -158,6 +158,63 @@ export function createInAppAgentScreenContext(params: {
   ];
 }
 
+/**
+ * Path and query of the page a run context was captured on. Reads both forms
+ * the context takes: the browser's absolute URL and the sanitized record the
+ * server stores.
+ */
+export function getInAppAgentContextPagePath(
+  context: InAppAgentContext,
+): string | undefined {
+  const value = context.find(
+    (item) => item.description === CURRENT_URL_CONTEXT_DESCRIPTION,
+  )?.value;
+
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const stored: unknown = JSON.parse(value);
+
+    if (
+      typeof stored === "object" &&
+      stored !== null &&
+      "pathname" in stored &&
+      typeof stored.pathname === "string"
+    ) {
+      const searchParams = new URLSearchParams();
+      const storedParams =
+        "searchParams" in stored && Array.isArray(stored.searchParams)
+          ? stored.searchParams
+          : [];
+
+      for (const param of storedParams) {
+        if (
+          typeof param === "object" &&
+          param !== null &&
+          typeof param.key === "string" &&
+          typeof param.value === "string"
+        ) {
+          searchParams.append(param.key, param.value);
+        }
+      }
+
+      const search = searchParams.toString();
+      return search ? `${stored.pathname}?${search}` : stored.pathname;
+    }
+  } catch {
+    // Not the stored record, so it is the URL the browser sent.
+  }
+
+  try {
+    const parsedUrl = new URL(value);
+    return `${parsedUrl.pathname}${parsedUrl.search}`;
+  } catch {
+    return undefined;
+  }
+}
+
 export function sanitizeInAppAgentContext(
   context: InAppAgentContext,
   projectId: string,

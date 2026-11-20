@@ -14,6 +14,7 @@ import { createInAppAgentMessageId } from "../ids";
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
   createInAppAgentDisplayState,
+  recordInAppAgentAskedFromForDisplay,
   recordInAppAgentMessagesForDisplay,
   recordInAppAgentToolCallForDisplay,
   type InAppAgentDisplayState,
@@ -291,6 +292,11 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     }
     this.setView({
       ...this.view,
+      displayState: recordInAppAgentAskedFromForDisplay(
+        this.view.displayState,
+        [userMessage.id],
+        command.context,
+      ),
       currentRun: null,
       attachment: { status: "attached" },
     });

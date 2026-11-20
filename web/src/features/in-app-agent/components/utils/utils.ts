@@ -29,6 +29,7 @@ const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
     feedbackMessageId: z.string().optional(),
     timestamp: z.number().optional(),
     feedback: InAppAgentMessageFeedbackSchema.optional(),
+    askedFrom: z.string().optional(),
   }),
 );
 
@@ -665,6 +666,9 @@ export function getDrawerMessages({
           : {}),
         ...(message.role === "assistant" && message.feedbackMessageId
           ? { feedbackMessageId: message.feedbackMessageId }
+          : {}),
+        ...(message.role === "user" && message.askedFrom
+          ? { askedFrom: message.askedFrom }
           : {}),
         role,
         content: {
