@@ -7,7 +7,6 @@ import {
   Bug,
   DollarSign,
   History,
-  Sparkles,
   TrendingUp,
   type IconComponent,
 } from "@langfuse/icons";
@@ -16,6 +15,7 @@ import { formatDistanceToNow, subDays } from "date-fns";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 type HomeStarter = {
@@ -61,11 +61,7 @@ const DEFAULT_PLACEHOLDER = "Ask about your traces, costs or scores…";
 const CONTINUE_WINDOW_DAYS = 7;
 
 /** Project home entry point: asking here turns Home into the conversation. */
-export function InAppAgentHomeComposer({
-  projectName,
-}: {
-  projectName: string;
-}) {
+export function InAppAgentHomeComposer() {
   const {
     conversations,
     homeAskInputRef,
@@ -130,14 +126,11 @@ export function InAppAgentHomeComposer({
           id="home-ask-title"
           className="flex items-center gap-2 text-xl font-bold"
         >
-          <span className="text-primary-accent flex">
-            <Sparkles size="lg" color="inherit" aria-hidden />
-          </span>
-          <span>Ask about {projectName}</span>
+          <HaloIcon variant="heading" />
+          <span>Ask Halo</span>
         </h2>
-        <p className="text-muted-foreground text-base text-pretty">
-          Get answers from your traces, costs and scores. Write your own
-          question or start from a common one.
+        <p className="text-muted-foreground text-base">
+          Get answers from your traces, costs and scores.
         </p>
       </div>
       <div className="bg-card border-border-contrast focus-within:border-primary-accent/55 focus-within:ring-primary-accent/12 flex flex-col rounded-xl border shadow-md focus-within:ring-3">

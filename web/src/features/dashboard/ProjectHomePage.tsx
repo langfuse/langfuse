@@ -581,9 +581,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                 short for both, the column grows and the area scrolls. */}
             <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col px-6 py-3">
               <div className="flex flex-1 flex-col justify-center py-18">
-                <InAppAgentHomeComposer
-                  projectName={project?.name ?? "your project"}
-                />
+                <InAppAgentHomeComposer />
               </div>
               <HomeAtAGlance
                 projectId={projectId}
