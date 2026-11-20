@@ -41,6 +41,17 @@ export const Warning = meta.story({
   },
 });
 
+export const WithOneAction = meta.story({
+  args: {
+    variant: "info",
+    align: "middle",
+    icon: Bot,
+    children: message,
+    actions: [{ type: "button", label: "Learn more", onClick: fn() }],
+    onDismiss: fn(),
+  },
+});
+
 export const WithActions = meta.story({
   args: {
     variant: "info",
