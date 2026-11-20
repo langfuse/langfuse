@@ -915,7 +915,7 @@ describeWithClickhouse("golden: observations public API filters family", () => {
       "input non-string type",
       { column: "input", type: "null", operator: "is not null", value: "" },
     ],
-    // `validateIndexedInputOutputFilters`: an IO filter needs a `matches` or
+    // `assertIndexedIoFilters`: an IO filter needs a `matches` or
     // `=` IO filter next to it.
     [
       "input contains without matches",
