@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Dataset } from "../../db";
 import { jsonSchemaNullable } from "../../utils/zod";
 import {
-  isValidJSONSchema,
+  getJSONSchemaValidationError,
   type FieldValidationError,
 } from "../../utils/jsonSchemaValidation";
 
@@ -13,8 +13,11 @@ import {
  */
 export const DatasetJSONSchema = z
   .record(z.string(), jsonSchemaNullable)
-  .refine(isValidJSONSchema, {
-    message: "Must be a valid JSON Schema",
+  .superRefine((schema, context) => {
+    const error = getJSONSchemaValidationError(schema);
+    if (error) {
+      context.addIssue({ code: "custom", message: error });
+    }
   });
 
 export type DatasetJSONSchema = z.infer<typeof DatasetJSONSchema>;
