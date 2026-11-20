@@ -1,0 +1,245 @@
+# AI Gateway benchmark stack: one gateway instance with production limits,
+# Web/worker for resolution and trace ingestion, and a mock OpenAI upstream.
+# Generate secrets first: `bash scripts/setup.sh` (writes .env and .generated/).
+#
+# CPU pinning (8 vCPU host): gateway 0-1, mock upstream 2-3, load generator 4-5,
+# Web/worker/datastores 6-7. Override with the BENCH_CPUSET_* variables.
+# The gateway, mock and load generator get 65536 file descriptors: at 1,000
+# concurrent streams the gateway holds an inbound and an upstream socket each.
+
+name: gateway-bench
+
+x-langfuse-env: &langfuse-env
+  HOSTNAME: 0.0.0.0
+  NODE_ENV: production
+  DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+  NEXTAUTH_SECRET: bench-nextauth-secret
+  NEXTAUTH_URL: http://localhost:3000
+  SALT: bench-salt
+  ENCRYPTION_KEY: ${BENCH_ENCRYPTION_KEY:?run scripts/setup.sh}
+  TELEMETRY_ENABLED: "false"
+  CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+  CLICKHOUSE_URL: http://clickhouse:8123
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: clickhouse
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: myredissecret
+  LANGFUSE_AI_GATEWAY_DEPLOYED: "true"
+  LANGFUSE_AI_GATEWAY_ENABLED: "true"
+  LANGFUSE_AI_GATEWAY_SERVICE_KEY: ${BENCH_SERVICE_KEY:?run scripts/setup.sh}
+  LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: ${BENCH_JWT_PRIVATE_KEY:?run scripts/setup.sh}
+  LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: ${BENCH_RESOLVE_CACHE:-true}
+
+x-infra: &infra
+  cpuset: ${BENCH_CPUSET_INFRA:-6-7}
+  restart: unless-stopped
+
+services:
+  ai-gateway:
+    image: ${BENCH_GATEWAY_IMAGE:-langfuse-ai-gateway:bench}
+    build:
+      context: ..
+      target: runtime
+    cpuset: ${BENCH_CPUSET_GATEWAY:-0-1}
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    cpus: ${BENCH_GATEWAY_CPUS:-2}
+    mem_limit: ${BENCH_GATEWAY_MEMORY:-4g}
+    memswap_limit: ${BENCH_GATEWAY_MEMORY:-4g}
+    restart: unless-stopped
+    depends_on:
+      langfuse-web:
+        condition: service_healthy
+      mock-upstream:
+        condition: service_started
+    environment:
+      LANGFUSE_AI_GATEWAY_WEB_URL: ${BENCH_GATEWAY_WEB_URL:-http://langfuse-web:3000}
+      LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL: "true"
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: ${BENCH_SERVICE_KEY:?run scripts/setup.sh}
+      # Unset by default, so the gateway derives its budget from the memory limit.
+      LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES:
+      LANGFUSE_LOG_FORMAT: json
+      LANGFUSE_LOG_LEVEL: ${BENCH_GATEWAY_LOG_LEVEL:-info}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: ai-gateway-bench
+      OTEL_TRACES_SAMPLER_ARG: ${BENCH_TRACE_SAMPLE_RATIO:-0.02}
+      # api.openai.com resolves to the mock upstream on this network; the gateway
+      # trusts only the benchmark CA, so the unmodified release binary is measured.
+      SSL_CERT_FILE: /certs/ca.crt
+    volumes:
+      - ./.generated/ca.crt:/certs/ca.crt:ro
+    ports:
+      - "127.0.0.1:${BENCH_GATEWAY_PORT:-18080}:8080"
+
+  mock-upstream:
+    image: langfuse-gateway-bench-tools
+    build: ./tools
+    command: ["mock-upstream"]
+    cpuset: ${BENCH_CPUSET_MOCK:-2-3}
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    restart: unless-stopped
+    environment:
+      MOCK_TTFT_MS: ${MOCK_TTFT_MS:-20}
+      MOCK_CHUNK_DELAY_MS: ${MOCK_CHUNK_DELAY_MS:-10}
+      MOCK_CHUNKS: ${MOCK_CHUNKS:-20}
+      MOCK_FAIL_STATUS: ${MOCK_FAIL_STATUS:-0}
+    volumes:
+      - ./.generated:/certs:ro
+    networks:
+      default:
+        aliases:
+          - api.openai.com
+
+  loadgen:
+    image: langfuse-gateway-bench-tools
+    build: ./tools
+    profiles: ["tools"]
+    entrypoint: ["loadgen"]
+    cpuset: ${BENCH_CPUSET_LOADGEN:-4-5}
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    environment:
+      BENCH_API_KEY: ${BENCH_GATEWAY_SECRET_KEY:-sk-lf-gateway-bench}
+    volumes:
+      - ./.generated:/certs:ro
+      - ./.generated:/payload:ro
+      - ./results:/results
+
+  toxiproxy:
+    <<: *infra
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/toxiproxy.json"]
+    volumes:
+      - ./scripts/toxiproxy.json:/toxiproxy.json:ro
+    ports:
+      - "127.0.0.1:${BENCH_TOXIPROXY_PORT:-18474}:8474"
+
+  otel-collector:
+    <<: *infra
+    image: otel/opentelemetry-collector-contrib:0.139.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    user: "0:0"
+    volumes:
+      - ./scripts/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+      - ./results/otel:/otel
+
+  langfuse-web:
+    <<: *infra
+    image: ${BENCH_WEB_IMAGE:-langfuse-bench-web}
+    build:
+      context: ../..
+      dockerfile: ./web/Dockerfile
+    depends_on: &langfuse-depends-on
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment: *langfuse-env
+    ports:
+      - "127.0.0.1:${BENCH_WEB_PORT:-13000}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:3000/api/public/health",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+      start_interval: 2s
+
+  langfuse-worker:
+    <<: *infra
+    image: ${BENCH_WORKER_IMAGE:-langfuse-bench-worker}
+    build:
+      context: ../..
+      dockerfile: ./worker/Dockerfile
+    depends_on: *langfuse-depends-on
+    environment: *langfuse-env
+    volumes:
+      - ./seed/seed.cjs:/app/worker/bench-seed.cjs:ro
+
+  clickhouse:
+    <<: *infra
+    image: docker.io/clickhouse/clickhouse-server:26.10.3.7
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+
+  minio:
+    <<: *infra
+    image: cgr.dev/chainguard/minio
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniosecret
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+
+  redis:
+    <<: *infra
+    image: docker.io/redis:7
+    command: --requirepass myredissecret --maxmemory-policy noeviction
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+
+  postgres:
+    <<: *infra
+    image: docker.io/postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  clickhouse_data:
+  minio_data:
+  postgres_data:
