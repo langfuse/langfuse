@@ -2,7 +2,7 @@ import { createClient, type ClickHouseSettings } from "@clickhouse/client";
 import { env } from "../../env";
 import { VERSION } from "../../constants/VERSION";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
-import { getCurrentSpan, recordIncrement } from "../instrumentation";
+import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 import {
@@ -248,6 +248,12 @@ export class ClickHouseClientManager {
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
+          // ClickHouse before 26.5 defaults to `basic`, which rejects a date
+          // string that carries a zone such as `Z` or `+02:00` and fails the
+          // whole insert. `best_effort` is the default from 26.5 on.
+          ...(env.LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING === "true"
+            ? { date_time_input_format: "best_effort" as const }
+            : {}),
           ...(shouldSendProgressInHttpHeaders
             ? {
                 send_progress_in_http_headers: 1,
@@ -294,55 +300,11 @@ export const convertDateToClickhouseDateTime = (date: Date): string => {
   return date.toISOString().replace("T", " ").replace("Z", "");
 };
 
-/**
- * A datetime every ClickHouse version stores as written: zero-padded fields in
- * range, a year from 0001, and a day that exists in that month and year.
- */
-const CLICKHOUSE_DATETIME_STRING =
-  /^(?!0000)(?:\d{4}-(?:(?:0[1-9]|1[0-2])-(?:0[1-9]|1\d|2[0-8])|(?:0[13-9]|1[0-2])-(?:29|30)|(?:0[13578]|1[02])-31)|(?:\d\d(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29) (?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?$/;
-
-// YYYY-MM-DD, then optionally `T` or a space and HH:MM[:SS[.fraction]], then
-// optionally `Z` or ±HH[:MM]. Only a non-zero offset is captured.
-const ISO_DATETIME_STRING =
-  /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?))? ?(?:Z|[+-]00:?00|([+-]\d{2}):?(\d{2})?)?$/i;
-
-/** Null for an invalid date, or one outside years 0001 to 9999 that ClickHouse may reject. */
-const formatInstant = (date: Date): string | null => {
-  if (Number.isNaN(date.getTime())) return null;
-  const text = convertDateToClickhouseDateTime(date);
-  return text.length === 23 && !text.startsWith("0000") ? text : null;
-};
+const CLICKHOUSE_DATETIME_STRING = /^\d{4}-\d{2}-\d{2} /;
 
 /**
- * Reads a matched ISO 8601 datetime, with `T` or a space, as a UTC instant in
- * milliseconds. Without an offset the fields are UTC. A day past the end of
- * its month and 24:00:00 roll forward; any other field out of range is
- * unreadable. The Rust path reads the same strings in `read_datetime_string`.
- */
-const readIsoDateTime = (match: RegExpExecArray): string | null => {
-  const [, date, time = "00:00", offsetHour, offsetMinute = "00"] = match;
-
-  // Fields that already name a real UTC time are copied, with the fraction
-  // cut or padded to milliseconds.
-  const utc = `${date} ${time}`;
-  if (!offsetHour && CLICKHOUSE_DATETIME_STRING.test(utc)) {
-    return `${utc}${utc.length === 19 ? "." : ""}`.slice(0, 23).padEnd(23, "0");
-  }
-  const zone = offsetHour ? `${offsetHour}:${offsetMinute}` : "Z";
-  return formatInstant(new Date(`${date}T${time}${zone}`));
-};
-
-/** Whether `toClickhouseDateTime` reads `value` as an ISO 8601 datetime. */
-export const isIsoDateTimeString = (value: unknown): boolean => {
-  const match = typeof value === "string" && ISO_DATETIME_STRING.exec(value);
-  return Boolean(match) && readIsoDateTime(match as RegExpExecArray) !== null;
-};
-
-/**
- * Convert a Date, unix-millisecond timestamp, or datetime string to a UTC
- * ClickHouse datetime for JSONEachRow inserts, so that ClickHouse never has to
- * interpret a string. A missing value or an unreadable string becomes the
- * current time.
+ * Convert a Date, unix-millisecond timestamp, ISO string, or already-quoted
+ * ClickHouse datetime string to YYYY-MM-DD HH:MM:SS.sss for JSONEachRow inserts.
  */
 export const toClickhouseDateTime = (
   value?: Date | number | string | null,
@@ -359,17 +321,5 @@ export const toClickhouseDateTime = (
   if (CLICKHOUSE_DATETIME_STRING.test(value)) {
     return value;
   }
-  const isoMatch = ISO_DATETIME_STRING.exec(value);
-  let datetime: string | null;
-  if (isoMatch) {
-    datetime = readIsoDateTime(isoMatch);
-  } else {
-    // Other formats are read by JavaScript only, such as RFC 2822. The Rust
-    // path does not read them; the counter shows whether they occur.
-    datetime = formatInstant(new Date(value));
-    if (datetime !== null) {
-      recordIncrement("langfuse.clickhouse.non_iso_datetime_string", 1);
-    }
-  }
-  return datetime ?? convertDateToClickhouseDateTime(new Date());
+  return convertDateToClickhouseDateTime(new Date(value));
 };

@@ -8,11 +8,12 @@ use std::borrow::Cow;
 
 use super::{is_meaningful, parse_javascript_number, select_first, trim_javascript};
 
+use crate::native_codec::parse_datetime_text;
 use crate::otel::attributes::{
     is_js_truthy, javascript_string, retain_evaluation_value, value_as_f64, value_as_string,
     JsonParseCache,
 };
-use crate::otel::types::{read_datetime_string, JsonObject};
+use crate::otel::types::{to_clickhouse_datetime, JsonObject};
 use crate::otel::value::{JsString, Value};
 
 mod rules;
@@ -189,30 +190,18 @@ pub fn extract_tags(
     }
 }
 
-/// Returns the completion start time as text for `OwnedEvent::into_storage`: a provided value
-/// that can be read, else the start time plus first-chunk latency. A provided value that cannot
-/// be read and has no latency to fall back on yields an empty string, which `into_storage`
-/// replaces with the row's creation time. `None` means the span has no completion start time.
 pub fn extract_completion_start_time(
     attributes: &JsonObject,
     start_time: &str,
     parse_cache: &mut JsonParseCache,
 ) -> Option<String> {
-    let provided = attributes.get("langfuse.observation.completion_start_time");
-    if let Some(value) = provided.and_then(|value| readable_datetime(value, parse_cache)) {
-        return Some(value);
+    if let Some(value) = attributes.get("langfuse.observation.completion_start_time") {
+        // Accept a date string or a JSON-encoded date string; otherwise derive the time
+        // from first-chunk latency below.
+        if let Some(value) = valid_date_string_with_cache(value, parse_cache) {
+            return Some(value);
+        }
     }
-    first_chunk_time(attributes, start_time).or_else(|| {
-        let is_absent = match provided? {
-            Value::Null => true,
-            Value::String(value) => value.as_str().is_empty(),
-            _ => false,
-        };
-        (!is_absent).then(String::new)
-    })
-}
-
-fn first_chunk_time(attributes: &JsonObject, start_time: &str) -> Option<String> {
     let primary_offset = select_first(attributes, FIRST_CHUNK_MS_KEYS, |_| true);
     let offset = match primary_offset {
         Some(value) if is_js_truthy(value) => value_as_f64(Some(value)),
@@ -436,16 +425,22 @@ pub fn observation_type(
         .unwrap_or("SPAN")
         .to_owned()
 }
-/// Reads a datetime string, or the same string JSON-encoded (older SDKs stringify it twice), and
-/// returns it as a ClickHouse datetime.
-fn readable_datetime(value: &Value, parse_cache: &mut JsonParseCache) -> Option<String> {
-    let Value::String(candidate) = value else {
-        return None;
-    };
-    if let Some(datetime) = read_datetime_string(candidate.as_str()) {
-        return Some(datetime);
+fn valid_date_string_with_cache(value: &Value, parse_cache: &mut JsonParseCache) -> Option<String> {
+    let candidate = match value {
+        Value::String(value) => Some(value.as_str().to_owned()),
+        _ => None,
+    }?;
+    if is_valid_date_string(&candidate) {
+        return Some(candidate);
     }
-    read_datetime_string(parse_cache.parse(Some(value))?.as_str()?)
+    let parsed = parse_cache.parse(Some(value))?.as_str()?.to_owned();
+    is_valid_date_string(&parsed).then_some(parsed)
+}
+
+fn is_valid_date_string(value: &str) -> bool {
+    // Only keep dates the native row codec can store, so a malformed optional timestamp
+    // cannot fail preparation of the entire batch.
+    parse_datetime_text(&to_clickhouse_datetime(value), "completion_start_time").is_ok()
 }
 
 fn genkit_model_parameters(
@@ -598,7 +593,7 @@ mod tests {
     }
 
     #[test]
-    fn unreadable_completion_start_times_use_latency_or_the_creation_time_marker() {
+    fn unsupported_completion_date_separators_allow_latency_fallback() {
         for date in [
             "2025-10-01\t08:45:26",
             "2025-10-01\n08:45:26",
@@ -618,7 +613,7 @@ mod tests {
                         "2024-01-01T00:00:00.000Z",
                         &mut JsonParseCache::default(),
                     ),
-                    Some(String::new()),
+                    None,
                     "unsupported separator: {date:?}, JSON-wrapped: {json_wrapped}",
                 );
                 attributes.insert("ai.response.msToFirstChunk".into(), json!(125));
@@ -631,33 +626,6 @@ mod tests {
                     Some("2024-01-01T00:00:00.125Z".to_owned()),
                 );
             }
-        }
-    }
-
-    #[test]
-    fn completion_start_time_marks_provided_values_that_cannot_be_read() {
-        for (value, expected) in [
-            (
-                json!("2025-10-01 10:45:26.112648+02:00"),
-                Some("2025-10-01 08:45:26.112"),
-            ),
-            (json!(1_759_308_326_112_i64), Some("")),
-            (json!(true), Some("")),
-            (json!("soon"), Some("")),
-            (json!(""), None),
-            (Value::Null, None),
-        ] {
-            let attributes = json!({"langfuse.observation.completion_start_time": value.clone()});
-            assert_eq!(
-                extract_completion_start_time(
-                    attributes.as_object().unwrap(),
-                    "2024-01-01T00:00:00.000Z",
-                    &mut JsonParseCache::default(),
-                )
-                .as_deref(),
-                expected,
-                "{value:?}",
-            );
         }
     }
 
@@ -677,14 +645,7 @@ mod tests {
                 attributes.as_object().unwrap(), "2024-01-01T00:00:00.000Z",
                 &mut JsonParseCache::default(),
             );
-            // `into_storage` replaces the empty marker with the row's creation time.
-            let stored = extracted.map(|value| {
-                crate::otel::types::to_clickhouse_datetime(if value.is_empty() {
-                    "2024-01-01T00:00:00.000Z"
-                } else {
-                    &value
-                })
-            });
+            let stored = extracted.map(|value| crate::otel::types::to_clickhouse_datetime(&value));
             let prepared: Result<Option<crate::native_codec::DateTime64Micros>, String> =
                 crate::native_owned::IntoPrepared::into_prepared(stored);
             prop_assert!(prepared.is_ok(), "accepted completion date {:?} failed preparation: {:?}", candidate, prepared);

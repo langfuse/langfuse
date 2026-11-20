@@ -41,10 +41,7 @@ import {
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
-import {
-  convertDateToClickhouseDateTime,
-  isIsoDateTimeString,
-} from "../clickhouse/client";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
 
@@ -3553,18 +3550,17 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     startTimeISO?: string,
   ): string | null {
-    const value = attributes[
-      LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
-    ] as any;
-    const isReadable = (candidate: unknown) =>
-      isValidDateString(candidate as string) || isIsoDateTimeString(candidate);
     try {
-      if (isReadable(value)) return value;
+      const value = attributes[
+        LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
+      ] as any;
+
+      if (isValidDateString(value)) return value;
 
       // Older SDKs have double stringified timestamps that need JSON parsing
       // "\"2025-10-01T08:45:26.112648Z\""
       const parsed = JSON.parse(value);
-      if (isReadable(parsed)) return parsed;
+      if (isValidDateString(parsed)) return parsed;
     } catch {
       // Fallthrough
     }
@@ -3591,9 +3587,7 @@ export class OtelIngestionProcessor {
       // Fallthrough
     }
 
-    // A provided value that cannot be read still says the span has a
-    // completion start time, so it gets the current time instead of none.
-    return value == null || value === "" ? null : new Date().toISOString();
+    return null;
   }
 
   private extractTags(

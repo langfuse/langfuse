@@ -530,6 +530,13 @@ const EnvSchema = z.object({
   LANGFUSE_CLICKHOUSE_MULTIPART_QUERY_PARAMS: z
     .enum(["true", "false"])
     .default("true"),
+  // Sends `date_time_input_format = best_effort` with every ClickHouse
+  // request. ClickHouse before 26.5 defaults to `basic`, which rejects a
+  // datetime string that carries a zone such as `Z` or `+02:00` and fails the
+  // whole insert. Set to "false" to keep the server's own setting.
+  LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
     .string()

@@ -1,7 +1,6 @@
 import {
   OtelIngestionProcessor,
   createIngestionEventSchema,
-  toClickhouseDateTime,
   type IngestionEventType,
   type OtelIngestionProcessorConfig,
   type ResourceSpan,
@@ -1717,55 +1716,6 @@ describe("OTel Resource Span Mapping", () => {
           resourceSpan,
         ]);
         expect(ttftMs(event.startTimeISO, event.completionStartTime)).toBe(251);
-      },
-    );
-
-    it.each([
-      [
-        "a space-separated string with an offset",
-        { stringValue: "2025-10-01 10:45:26.112648+02:00" },
-        "2025-10-01 08:45:26.112",
-      ],
-      [
-        "a string that is not a time",
-        { stringValue: "soon" },
-        "2025-10-02 00:00:00.000",
-      ],
-    ])(
-      "should read completionStartTime from %s, or use the current time",
-      (_name, otelAttributeValue, expected) => {
-        vi.useFakeTimers({
-          toFake: ["Date"],
-          now: new Date("2025-10-02T00:00:00.000Z"),
-        });
-        try {
-          const [event] = createTestOtelProcessor().processToEvent([
-            {
-              scopeSpans: [
-                {
-                  scope: { name: "langfuse-sdk" },
-                  spans: [
-                    {
-                      ...defaultSpanProps,
-                      attributes: [
-                        {
-                          key: "langfuse.observation.completion_start_time",
-                          value: otelAttributeValue,
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            } as unknown as ResourceSpan,
-          ]);
-          expect(event.completionStartTime).toBeTruthy();
-          expect(toClickhouseDateTime(event.completionStartTime)).toBe(
-            expected,
-          );
-        } finally {
-          vi.useRealTimers();
-        }
       },
     );
 
