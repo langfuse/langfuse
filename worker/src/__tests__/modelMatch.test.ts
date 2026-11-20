@@ -19,6 +19,7 @@ let findModel: SharedServerModule["findModel"];
 let findModelInPostgres: SharedServerModule["findModelInPostgres"];
 let getRedisModelKey: SharedServerModule["getRedisModelKey"];
 let clearModelCacheForProject: SharedServerModule["clearModelCacheForProject"];
+let clearModelCacheForOrganization: SharedServerModule["clearModelCacheForOrganization"];
 
 const originalLocalCacheSetting =
   process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED;
@@ -39,6 +40,7 @@ describe("modelMatch", () => {
       findModelInPostgres,
       getRedisModelKey,
       clearModelCacheForProject,
+      clearModelCacheForOrganization,
     } = sharedServer);
   });
 
@@ -291,6 +293,82 @@ describe("modelMatch", () => {
       });
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("cached entries without an owner column", () => {
+    it.each([
+      { cachedProjectId: true, expectedScope: "PROJECT" },
+      { cachedProjectId: false, expectedScope: "LANGFUSE" },
+    ])(
+      "serves entries cached without scope or organizationId as hits (project row: $cachedProjectId)",
+      async ({ cachedProjectId, expectedScope }) => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const modelName = `legacy-${uuidv4()}`;
+        const redisKey = getRedisModelKey({ projectId, model: modelName });
+        await redis?.set(
+          redisKey,
+          JSON.stringify({
+            model: {
+              id: "cached-id",
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              projectId: cachedProjectId ? projectId : null,
+              modelName,
+              matchPattern: modelName,
+              startDate: null,
+              inputPrice: null,
+              outputPrice: null,
+              totalPrice: null,
+              unit: "TOKENS",
+              tokenizerId: null,
+              tokenizerConfig: null,
+            },
+            pricingTiers: [],
+          }),
+        );
+
+        const result = await findModel({ projectId, model: modelName });
+
+        expect(result.model).toMatchObject({
+          id: "cached-id",
+          scope: expectedScope,
+          organizationId: null,
+        });
+      },
+    );
+  });
+
+  describe("clearModelCacheForOrganization", () => {
+    it("clears cached matches of every project in the organization only", async () => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      const secondProjectId = uuidv4();
+      await prisma.project.create({
+        data: { id: secondProjectId, name: secondProjectId, orgId },
+      });
+      const { projectId: otherOrgProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const model = "not-cached-yet";
+      for (const p of [projectId, secondProjectId, otherOrgProjectId]) {
+        await findModel({ projectId: p, model });
+      }
+
+      await clearModelCacheForOrganization(orgId);
+
+      expect(
+        await redis?.get(getRedisModelKey({ projectId, model })),
+      ).toBeNull();
+      expect(
+        await redis?.get(
+          getRedisModelKey({ projectId: secondProjectId, model }),
+        ),
+      ).toBeNull();
+      expect(
+        await redis?.get(
+          getRedisModelKey({ projectId: otherOrgProjectId, model }),
+        ),
+      ).toBe("LANGFUSE_MODEL_MATCH_NOT_FOUND");
     });
   });
 
