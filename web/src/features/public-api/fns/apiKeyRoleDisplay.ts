@@ -10,6 +10,10 @@ import {
   type RoleDisplay,
 } from "@/src/features/rbac/components/roleDisplay";
 
+/** apiKeyRoleGrowthNote tells readers that a named role's permissions grow with the product. */
+export const apiKeyRoleGrowthNote =
+  "Roles may gain permissions as new features roll out.";
+
 /** apiKeyRoleOrder lists the roles shown first in the picker; the rest follow in catalog order. */
 const apiKeyRoleOrder: SystemRole[] = ["ADMIN", "VIEWER", "MEMBER"];
 
@@ -47,6 +51,16 @@ export function apiKeyPermissionSetDisplay(
 ): RoleDisplay | undefined {
   if (!apiKeyRolesOfferedForScope(scope).includes(role)) return undefined;
   return apiKeyRoleDisplay(role);
+}
+
+/** apiKeyPermissionPopupDisplay presents a named role with the growth note, and titles a legacy permission set as plain "Permissions". */
+export function apiKeyPermissionPopupDisplay(
+  role: SystemRole,
+  scope: ApiKeyScope,
+): { name: string; Icon?: RoleDisplay["Icon"]; note?: string } {
+  const permissionSet = apiKeyPermissionSetDisplay(role, scope);
+  if (!permissionSet) return { name: "Permissions" };
+  return { ...permissionSet, note: apiKeyRoleGrowthNote };
 }
 
 /** sortApiKeyRoles puts apiKeyRoleOrder roles first, keeping catalog order for the rest. */

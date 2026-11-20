@@ -13,7 +13,7 @@ import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hoo
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { filterApiKeysByName } from "@/src/features/public-api/components/ApiKeySettingsTable/fns/filterApiKeysByName";
 import {
-  apiKeyPermissionSetDisplay,
+  apiKeyPermissionPopupDisplay,
   apiKeyResourceKinds,
 } from "@/src/features/public-api/fns/apiKeyRoleDisplay";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
@@ -297,9 +297,4 @@ function useApiKeySettingsTableData({
       data: filterApiKeysByName(apiKeys.data ?? [], searchQuery),
     };
   }, [apiKeys.data, apiKeys.isError, apiKeys.isLoading, searchQuery]);
-}
-
-/** apiKeyPermissionPopupDisplay titles a legacy permission set as plain "Permissions". */
-function apiKeyPermissionPopupDisplay(role: SystemRole, scope: ApiKeyScope) {
-  return apiKeyPermissionSetDisplay(role, scope) ?? { name: "Permissions" };
 }

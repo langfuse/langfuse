@@ -68,6 +68,9 @@ export function RolePermissionPopup({
                   </BadgeShell>
                 </span>
               </DialogTitle>
+              {shown.note && (
+                <p className="text-muted-foreground text-xs">{shown.note}</p>
+              )}
             </DialogHeader>
             <DialogBody className={showEmptyStateComment ? undefined : "p-0"}>
               {showEmptyStateComment ? (
@@ -85,7 +88,8 @@ export function RolePermissionPopup({
   );
 }
 
-/** RolePermissionPopupDisplay is a role's popup title, with an optional icon. */
+/** RolePermissionPopupDisplay is a role's popup title, with an optional icon and fine-print note. */
 type RolePermissionPopupDisplay = Pick<RoleDisplay, "name"> & {
   Icon?: IconComponent;
+  note?: string;
 };

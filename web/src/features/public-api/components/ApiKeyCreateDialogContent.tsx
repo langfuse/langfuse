@@ -26,7 +26,9 @@ import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/api
 import { resolveApiKeyExpiration } from "@/src/features/apiKey/fns/resolveApiKeyExpiration";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import {
+  apiKeyPermissionPopupDisplay,
   apiKeyRoleDisplay,
+  apiKeyRoleGrowthNote,
   apiKeyRolesOfferedForScope,
 } from "@/src/features/public-api/fns/apiKeyRoleDisplay";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
@@ -195,20 +197,23 @@ function ApiKeyCreateForm({
                   ))}
                 </SelectContent>
               </Select>
-              <button
-                type="button"
-                onClick={() => {
-                  setPermissionsRole(role);
-                  setPermissionsOpen(true);
-                }}
-                className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
-              >
-                View{" "}
-                <span className="inline-flex items-center gap-0.5 underline">
-                  {rolePermissionCountLabel(role)}
-                  <ArrowUpRight size="sm" />
-                </span>
-              </button>
+              <p className="text-muted-foreground ml-1 text-xs">
+                {apiKeyRoleGrowthNote}{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPermissionsRole(role);
+                    setPermissionsOpen(true);
+                  }}
+                  className="hover:text-foreground"
+                >
+                  View{" "}
+                  <span className="inline-flex items-center gap-0.5 underline">
+                    {rolePermissionCountLabel(role)}
+                    <ArrowUpRight size="sm" />
+                  </span>
+                </button>
+              </p>
             </div>
           )}
         </div>
@@ -218,7 +223,7 @@ function ApiKeyCreateForm({
             open={permissionsOpen}
             onOpenChange={setPermissionsOpen}
             role={permissionsRole}
-            display={apiKeyRoleDisplay}
+            display={(target) => apiKeyPermissionPopupDisplay(target, scope)}
           />
         )}
       </DialogBody>
