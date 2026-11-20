@@ -34,19 +34,23 @@
 }
 
 .Streamdown table {
-  @apply bg-muted dark:bg-card m-0! overflow-hidden rounded border;
+  @apply m-0! overflow-hidden rounded-lg border;
 }
 
 .Streamdown td {
-  @apply p-2;
+  @apply px-3 py-2;
 }
 
 .Streamdown th {
-  @apply p-2;
+  @apply bg-muted text-muted-foreground px-3 py-2 font-normal;
 }
 
 .Streamdown tr {
-  @apply border-border dark:border-border border-b;
+  @apply border-border border-b;
+}
+
+.Streamdown tbody tr:last-child {
+  @apply border-b-0;
 }
 
 .Streamdown hr {

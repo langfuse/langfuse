@@ -2436,7 +2436,9 @@ export const FeedbackControlsWaitForTurnEnd = meta.story({
       canvas.queryByRole("button", { name: "Bad response" }),
     ).not.toBeInTheDocument();
 
-    await userEvent.click(canvas.getByRole("button", { name: "Working…" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Working on it" }),
+    );
     await expect(canvas.getByText(midTurnText)).toBeVisible();
     expect(
       canvas.queryByRole("button", { name: "Good response" }),

@@ -27,8 +27,8 @@ import {
 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Button as DsButton } from "@/src/components/design-system/Button/Button";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
-import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -271,7 +271,6 @@ function getSettledActivityGroupLabel({
 
 function getActivityGroupLabel({
   durationSeconds,
-  hasDetails,
   isAwaitingApproval,
   isInProgress,
   outcome,
@@ -279,7 +278,6 @@ function getActivityGroupLabel({
   toolNames,
 }: {
   durationSeconds: number | null;
-  hasDetails: boolean;
   isAwaitingApproval: boolean;
   isInProgress: boolean;
   outcome: SettledActivityOutcome;
@@ -300,9 +298,10 @@ function getActivityGroupLabel({
     return "Waiting for your approval…";
   }
 
-  return hasDetails
+  // Names the step in hand where the run has one to name.
+  return toolNames.length > 0
     ? getInAppAgentActivityProgressLabel(toolNames)
-    : "There for you in a second…";
+    : "Working on it";
 }
 
 function AssistantActivityGroup({
@@ -342,7 +341,6 @@ function AssistantActivityGroup({
   );
   const label = getActivityGroupLabel({
     durationSeconds,
-    hasDetails,
     isAwaitingApproval,
     isInProgress,
     outcome,
@@ -352,13 +350,9 @@ function AssistantActivityGroup({
   const chevron = (
     <ChevronRight
       aria-hidden="true"
-      size={isInProgress ? "base" : "sm"}
+      size="sm"
       color="tertiary"
-      __rawClassName={cn(
-        "transition-transform",
-        isInProgress && "translate-y-px",
-        isOpen && "rotate-90",
-      )}
+      __rawClassName={cn("transition-transform", isOpen && "rotate-90")}
     />
   );
 
@@ -369,30 +363,31 @@ function AssistantActivityGroup({
         aria-expanded={isOpen}
         aria-label={label}
         className={cn(
-          "text-muted-foreground focus-visible:ring-ring flex w-full items-center py-1 text-left outline-none focus-visible:ring-2",
+          "focus-visible:ring-ring flex w-full items-center py-1 text-left outline-none focus-visible:ring-2",
           isInProgress
-            ? cn("gap-1", isCompact ? "text-[0.775rem]" : "text-sm")
-            : "gap-1.5 text-xs",
+            ? "text-foreground-secondary gap-2 text-sm"
+            : "text-muted-foreground gap-1.5 text-xs",
         )}
         onClick={() => {
           setIsOpen((open) => !open);
         }}
       >
         {isInProgress ? null : chevron}
-        {/* Nothing is happening while we wait on the user, so hold the shimmer. */}
-        <span
-          className={cn(
-            isInProgress &&
-              !isAwaitingApproval &&
-              textShimmerStyles.textShimmer,
-          )}
-        >
-          {label}
-        </span>
+        {/* Nothing is happening while we wait on the user, so no spinner. */}
+        {isInProgress && !isAwaitingApproval ? (
+          <Spinner size="xs" variant="primary" />
+        ) : null}
+        <span>{label}</span>
         {isInProgress ? chevron : null}
       </button>
       {isOpen && hasDetails ? (
-        <div className="flex flex-col gap-1 pt-2 pb-1">
+        // One row per step along a guide line: what finished, then what runs.
+        <div
+          className={cn(
+            "border-border mt-1 mb-1 ml-1.5 flex flex-col gap-2.5 border-l py-0.5 pl-4",
+            isCompact && "pl-3.5",
+          )}
+        >
           {messages.map((message) => (
             <InAppAgentMessage
               key={message.id}

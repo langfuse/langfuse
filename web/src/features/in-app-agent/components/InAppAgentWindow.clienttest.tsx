@@ -539,7 +539,7 @@ describe("ControlledInAppAgentWindow internal session menu", () => {
 });
 
 describe("InAppAgentWindow activity", () => {
-  it("shows a waiting drawer, then Working once the first activity arrives", () => {
+  it("keeps one working drawer from the wait through the first activity", () => {
     const userMessage = {
       id: "user-1",
       role: "user" as const,
@@ -560,7 +560,7 @@ describe("InAppAgentWindow activity", () => {
     );
 
     const waitingTrigger = screen.getByRole("button", {
-      name: "There for you in a second…",
+      name: "Working on it",
     });
     expect(waitingTrigger).toBeVisible();
     expect(waitingTrigger).toHaveAttribute("aria-expanded", "false");
@@ -591,11 +591,10 @@ describe("InAppAgentWindow activity", () => {
       }),
     );
 
-    const workingTrigger = screen.getByRole("button", { name: "Working…" });
+    const workingTrigger = screen.getByRole("button", {
+      name: "Working on it",
+    });
     expect(workingTrigger).toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: "There for you in a second…" }),
-    ).not.toBeInTheDocument();
     // The drawer the user opened while waiting is the same drawer now working.
     expect(workingTrigger).toHaveAttribute("aria-expanded", "true");
 
@@ -940,7 +939,9 @@ describe("InAppAgentWindow message actions", () => {
       }),
     );
 
-    const workingTrigger = screen.getByRole("button", { name: "Working…" });
+    const workingTrigger = screen.getByRole("button", {
+      name: "Working on it",
+    });
     expect(workingTrigger).toHaveAttribute("aria-expanded", "false");
     expect(
       screen.queryByText("I will inspect the slow traces."),
