@@ -23,7 +23,9 @@ export const DatasetItemFieldSchemaErrors: React.FC<
       <div className="space-y-2">
         {errors.map((error, idx) => (
           <div key={`${error.datasetId}-${idx}`} className="space-y-1">
-            {showDatasetName && <p>{error.datasetName}</p>}
+            {showDatasetName && (
+              <p className="font-bold">{error.datasetName}</p>
+            )}
             <ul className="space-y-1">
               {error.errors.map((err, errIdx) => (
                 <li key={errIdx}>
