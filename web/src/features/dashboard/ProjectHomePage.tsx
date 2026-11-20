@@ -367,8 +367,10 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
       shouldBucketQueriesByTimeRange={!("from" in timeRange)}
     >
       <Page
-        withPadding
-        scrollable
+        // With the assistant, Home owns its scroll area so the column below
+        // can be exactly as tall as the space under the header.
+        withPadding={!showAssistantComposer}
+        scrollable={!showAssistantComposer}
         headerProps={{
           title: "Home",
           actionButtonsLeft: (
@@ -573,21 +575,28 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           />
         </PageHeaderControlsPortal>
         {showAssistantComposer && (
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-18 px-3 pt-21 pb-11">
-            <InAppAgentHomeComposer
-              projectName={project?.name ?? "your project"}
-            />
-            <HomeAtAGlance
-              projectId={projectId}
-              dashboard={{
-                id: appliedDefaultId,
-                name: homeDashboard.data?.dashboard?.name ?? "Langfuse Home",
-              }}
-              filterState={pageFilterState}
-              dateRange={absoluteTimeRange}
-              metricsVersion={metricsVersion}
-              isLoading={!isDashboardDataReady}
-            />
+          <div className="h-full overflow-y-auto">
+            {/* "At a glance" sits at the bottom of the visible area and the
+                Ask section is centred in the space above it. In a window too
+                short for both, the column grows and the area scrolls. */}
+            <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col px-6 py-3">
+              <div className="flex flex-1 flex-col justify-center py-18">
+                <InAppAgentHomeComposer
+                  projectName={project?.name ?? "your project"}
+                />
+              </div>
+              <HomeAtAGlance
+                projectId={projectId}
+                dashboard={{
+                  id: appliedDefaultId,
+                  name: homeDashboard.data?.dashboard?.name ?? "Langfuse Home",
+                }}
+                filterState={pageFilterState}
+                dateRange={absoluteTimeRange}
+                metricsVersion={metricsVersion}
+                isLoading={!isDashboardDataReady}
+              />
+            </div>
           </div>
         )}
         {!showAssistantComposer &&

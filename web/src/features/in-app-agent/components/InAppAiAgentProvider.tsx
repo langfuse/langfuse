@@ -116,7 +116,8 @@ export type InAppAgentEntryPoint =
   | "v4_migration"
   | "evaluators_empty_state"
   | "skill_editor"
-  | "home_composer";
+  | "home_composer"
+  | "home_continue";
 
 function useBackgroundExecutionView(
   session: BackgroundExecutionSession | null,
@@ -463,7 +464,11 @@ function InAppAiAgentProviderInner({
     api.inAppAgent.listConversations.useInfiniteQuery(
       { projectId },
       {
-        enabled: open,
+        // Home lists the most recent conversation while the assistant is
+        // closed.
+        enabled:
+          open ||
+          (canUseAssistant && router.pathname === PROJECT_HOME_PATHNAME),
         getNextPageParam: (lastPage) => lastPage.nextCursor,
       },
     );
@@ -1432,29 +1437,36 @@ function InAppAiAgentProviderInner({
     [capture, isFullPage, organization, setAgentOpen],
   );
 
-  // Home has its own Ask box, so an assistant with no conversation in it
-  // never shows beside it.
-  const hasNoConversation = !selectedConversationId;
+  // Home has its own Ask box and a link back to the latest conversation, so
+  // the assistant never shows beside it. A conversation that was open is only
+  // hidden there and docks again on the next page.
   const isOpen =
     open &&
     !(
       router.pathname === PROJECT_HOME_PATHNAME &&
       canUseAssistant &&
-      hasNoConversation &&
       !isFullPage
     );
-  const closesOnHomeArrival = open && canUseAssistant && hasNoConversation;
+  const closesOnHomeArrival = open && !selectedConversationId;
 
-  // External system: the Next router's event emitter. Arriving on Home with
-  // an empty assistant open closes it, so it does not come back on the next
+  // External system: the Next router's event emitter. Arriving on Home
+  // refreshes the conversation list for its "Continue" link, and closes an
+  // assistant that had nothing in it so it does not come back on the next
   // page either.
   useEffect(() => {
-    if (!closesOnHomeArrival) {
+    if (!canUseAssistant) {
       return;
     }
 
     const handleRouteChangeComplete = (url: string) => {
-      if (url.replace(/[?#].*$/, "").endsWith(`/project/${projectId}`)) {
+      if (!url.replace(/[?#].*$/, "").endsWith(`/project/${projectId}`)) {
+        return;
+      }
+
+      Promise.resolve(
+        utils.inAppAgent.listConversations.invalidate({ projectId }),
+      ).catch(() => undefined);
+      if (closesOnHomeArrival) {
         setAgentOpen(false);
       }
     };
@@ -1464,7 +1476,14 @@ function InAppAiAgentProviderInner({
     return () => {
       router.events.off("routeChangeComplete", handleRouteChangeComplete);
     };
-  }, [closesOnHomeArrival, projectId, router.events, setAgentOpen]);
+  }, [
+    canUseAssistant,
+    closesOnHomeArrival,
+    projectId,
+    router.events,
+    setAgentOpen,
+    utils.inAppAgent.listConversations,
+  ]);
 
   const isCancellingRun = Boolean(
     backgroundExecutionView.cancelStatus === "submitting" ||

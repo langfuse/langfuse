@@ -6,13 +6,16 @@ import {
   ArrowUp,
   Bug,
   DollarSign,
+  History,
   Sparkles,
   TrendingUp,
   type IconComponent,
 } from "@langfuse/icons";
+import { formatDistanceToNow, subDays } from "date-fns";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 type HomeStarter = {
@@ -54,6 +57,8 @@ const HOME_STARTERS: readonly HomeStarter[] = [
 ];
 
 const DEFAULT_PLACEHOLDER = "Ask about your traces, costs or scores…";
+// How far back the latest conversation still counts as one to continue.
+const CONTINUE_WINDOW_DAYS = 7;
 
 /** Project home entry point: asking here turns Home into the conversation. */
 export function InAppAgentHomeComposer({
@@ -61,8 +66,21 @@ export function InAppAgentHomeComposer({
 }: {
   projectName: string;
 }) {
-  const { homeAskInputRef, openAssistant, setLayoutMode, submit } =
-    useInAppAiAgent();
+  const {
+    conversations,
+    homeAskInputRef,
+    openAssistant,
+    selectConversation,
+    setLayoutMode,
+    submit,
+  } = useInAppAiAgent();
+  // The list is ordered by last activity, so the first entry is the latest.
+  const latestConversation = conversations[0];
+  const conversationToContinue =
+    latestConversation &&
+    latestConversation.updatedAt > subDays(new Date(), CONTINUE_WINDOW_DAYS)
+      ? latestConversation
+      : null;
   const [request, setRequest] = useState("");
   // The starter whose prompt currently fills the composer, until it is edited.
   const [pickedStarterId, setPickedStarterId] = useState<string | null>(null);
@@ -193,6 +211,31 @@ export function InAppAgentHomeComposer({
           </span>
         ))}
       </div>
+      {conversationToContinue ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground text-sm">Continue</span>
+          <TextLink
+            path=""
+            value={
+              conversationToContinue.title?.trim() || "Untitled conversation"
+            }
+            icon={History}
+            onClick={() => {
+              if (!openAssistant("home_continue")) {
+                return;
+              }
+
+              selectConversation(conversationToContinue.id);
+              setLayoutMode("full");
+            }}
+          />
+          <span className="text-muted-foreground text-xs">
+            {formatDistanceToNow(conversationToContinue.updatedAt, {
+              addSuffix: true,
+            })}
+          </span>
+        </div>
+      ) : null}
     </section>
   );
 }
