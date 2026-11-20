@@ -845,14 +845,6 @@ const EnvSchema = z.object({
   LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
   LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
 
-  // Dataset Service
-  LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION: z
-    .enum(["true", "false"])
-    .default("true"),
-  LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
-    .enum(["true", "false"])
-    .default("true"),
-
   // API ClickHouse query options
   LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS: z
     .enum(["true", "false"])

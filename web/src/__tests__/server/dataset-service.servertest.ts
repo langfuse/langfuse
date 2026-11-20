@@ -28,10 +28,6 @@ import {
 } from "@/src/features/scores/lib/aggregateScores";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
-  "true";
-process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
-
 describe("Fetch datasets for UI presentation", () => {
   it("should fetch dataset runs for UI", async () => {
     const datasetId = v4();

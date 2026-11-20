@@ -33,10 +33,6 @@ import { getDatabaseReadStreamPaginated } from "../features/database-read-stream
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
 import { getTraceStream } from "../features/database-read-stream/trace-stream";
 import { getEventsStream } from "../features/database-read-stream/event-stream";
-// Set environment variable before any imports to ensure it's picked up by env module
-process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
-  "true";
-process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 const maybeDescribe =
   process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"

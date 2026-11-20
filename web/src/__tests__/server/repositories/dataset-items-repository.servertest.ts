@@ -1,8 +1,3 @@
-// Set environment variables before any imports to ensure VERSIONED mode
-process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
-  "true";
-process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
-
 import crypto from "crypto";
 
 import { LangfuseConflictError } from "@langfuse/shared";
