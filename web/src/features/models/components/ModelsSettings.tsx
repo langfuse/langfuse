@@ -11,7 +11,9 @@ export function ModelsSettings(props: { projectId: string }) {
         Langfuse to automatically calculate the price of generations based on
         token usage.
       </p>
-      <ConnectedModelDefinitionsTable projectId={props.projectId} />
+      <ConnectedModelDefinitionsTable
+        owner={{ scope: "project", projectId: props.projectId }}
+      />
     </>
   );
 }

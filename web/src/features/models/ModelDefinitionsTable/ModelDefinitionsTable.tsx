@@ -1,5 +1,3 @@
-/* eslint-disable react/no-unstable-nested-components */
-import { type ReactNode } from "react";
 import { Copy, Pencil, Trash } from "@langfuse/icons";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -12,14 +10,9 @@ import { type RowHeight } from "@/src/components/table/data-table-row-height-swi
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import {
-  type GetModelResult,
-  type PriceUnit,
-} from "@/src/features/models/validation";
-import { PriceBreakdownTooltip } from "@/src/features/models/components/PriceBreakdownTooltip";
+import { type GetModelResult } from "@/src/features/models/validation";
 import {
   type ModelMaintainer,
-  isProjectEditableModel,
   modelMaintainerBadgeVariant,
 } from "@/src/features/models/modelMaintainer";
 
@@ -28,7 +21,8 @@ export type ModelTableRow = {
   maintainer: ModelMaintainer;
   modelName: string;
   matchPattern: string;
-  prices?: Record<string, number>;
+  /** Owned by the page's owner; other definitions can only be cloned. */
+  editable: boolean;
   serverResponse: GetModelResult;
 };
 
@@ -39,7 +33,6 @@ const modelConfigDescriptions = {
     "Regex pattern to match `model` parameter of generations to model pricing",
   startDate:
     "Date to start pricing model. If not set, model is active unless a more recent version exists.",
-  prices: "Prices per usage type",
   maintainer:
     "Maintainer of the model. Langfuse and organization managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse or organization managed model, set the custom model name to its model name.",
   lastUsed: "Start time of the latest generation using this model",
@@ -51,9 +44,6 @@ export function ModelDefinitionsTable({
   search,
   rowHeight,
   onRowHeightChange,
-  priceUnit,
-  priceUnitMultiplier,
-  priceUnitSelector,
   lastUsed,
   toolbarActions,
   modelActions,
@@ -64,9 +54,6 @@ export function ModelDefinitionsTable({
   search: { value: string; onChange: (value: string) => void };
   rowHeight: RowHeight;
   onRowHeightChange: (height: RowHeight) => void;
-  priceUnit: PriceUnit;
-  priceUnitMultiplier: number;
-  priceUnitSelector?: ReactNode;
   lastUsed?: Record<string, Date>;
   toolbarActions?: SettingsTableProps<ModelTableRow>["toolbarActions"];
   modelActions: {
@@ -107,36 +94,6 @@ export function ModelDefinitionsTable({
       header: "Match Pattern",
       size: 200,
     }),
-    {
-      accessorKey: "prices",
-      id: "prices",
-      header: () => {
-        return (
-          <div className="flex items-center gap-2">
-            <span>Prices {priceUnit}</span>
-            {priceUnitSelector}
-          </div>
-        );
-      },
-      size: 120,
-      cell: ({ row }) => {
-        const prices: Record<string, number> | undefined =
-          row.getValue("prices");
-
-        if (!prices) return;
-
-        return (
-          <PriceBreakdownTooltip
-            modelName={row.original.modelName}
-            prices={prices}
-            priceUnit={priceUnit}
-            priceUnitMultiplier={priceUnitMultiplier}
-            rowHeight={rowHeight}
-          />
-        );
-      },
-      enableHiding: true,
-    },
     createDateTableColumn<ModelTableRow>({
       accessorFn: () => undefined,
       id: "lastUsed",
@@ -159,7 +116,7 @@ export function ModelDefinitionsTable({
       tableName="models"
       columns={columns}
       actions={(model) =>
-        !isProjectEditableModel(model.serverResponse.scope)
+        !model.editable
           ? [
               {
                 id: "clone",

@@ -13,7 +13,3 @@ export const modelMaintainerBadgeVariant = {
   Organization: "violet",
   User: "blue",
 } as const satisfies Record<ModelMaintainer, string>;
-
-/** Only project models can be edited from a project; others are cloned to override. */
-export const isProjectEditableModel = (scope: ModelScope) =>
-  scope === "PROJECT";
