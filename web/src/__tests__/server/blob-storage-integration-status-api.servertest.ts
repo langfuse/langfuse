@@ -154,6 +154,77 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     await prisma.apiKey.delete({ where: { id: projectApiKey.id } });
   });
 
+  it("lets an organization whose plan lacks scheduled exports read and delete its integration", async () => {
+    const hobbyOrg = await prisma.organization.create({
+      data: {
+        name: `Blob Hobby Org ${randomUUID().substring(0, 8)}`,
+        cloudConfig: { plan: "Hobby" },
+      },
+    });
+    try {
+      const hobbyProject = await prisma.project.create({
+        data: { name: "Blob Hobby Project", orgId: hobbyOrg.id },
+      });
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      const hobbyKey = await createApiKey(prisma, {
+        tenant: OrganizationId(hobbyOrg.id),
+        scope: OrganizationId(hobbyOrg.id),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: "Hobby org key",
+        predefinedKeys: {
+          publicKey: `pk-lf-bhob-${randomUUID().substring(0, 8)}`,
+          secretKey: `sk-lf-bhob-${randomUUID().substring(0, 8)}`,
+        },
+      });
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId: hobbyProject.id,
+          type: "S3",
+          bucketName: "hobby-bucket",
+          region: "us-east-1",
+          accessKeyId: "hobby-key",
+          secretAccessKey: "hobby-secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: false,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+        },
+      });
+      const auth = createBasicAuthHeader(
+        hobbyKey.publicKey,
+        hobbyKey.secretKey,
+      );
+
+      const getResult = await makeAPICall(
+        "GET",
+        `/api/public/integrations/blob-storage/${hobbyProject.id}`,
+        undefined,
+        auth,
+      );
+      expect(getResult.status).toBe(200);
+
+      const deleteResult = await makeAPICall(
+        "DELETE",
+        `/api/public/integrations/blob-storage/${hobbyProject.id}`,
+        undefined,
+        auth,
+      );
+      expect(deleteResult.status).toBe(200);
+      expect(
+        await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: hobbyProject.id },
+        }),
+      ).toBeNull();
+    } finally {
+      await prisma.organization.delete({ where: { id: hobbyOrg.id } });
+    }
+  });
+
   it("should return 404 when no integration exists", async () => {
     const result = await makeAPICall(
       "GET",
