@@ -100,6 +100,7 @@ const UpsertModelFieldsSchema = z.object({
 });
 
 export type UpsertModelInput = z.infer<typeof UpsertModelFieldsSchema>;
+export type UpsertModelRequest = z.input<typeof UpsertModelFieldsSchema>;
 
 export const TestModelMatchInputSchema = z.object({
   modelName: z.string().min(1),
@@ -107,6 +108,7 @@ export const TestModelMatchInputSchema = z.object({
   modelParameters: z.record(z.string(), z.string()).optional(),
   metadata: z.record(z.string(), z.string()).optional(),
 });
+export type TestModelMatchInput = z.infer<typeof TestModelMatchInputSchema>;
 
 const validTiersMessage = {
   message: "Invalid pricing tiers configuration",
