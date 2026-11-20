@@ -179,6 +179,7 @@ export default function RemapEvaluatorPage() {
               <Callout
                 variant="info"
                 align="top"
+                icon={Zap}
                 actions={[
                   ...(isInAppAgentLauncherVisible
                     ? [
@@ -194,26 +195,23 @@ export default function RemapEvaluatorPage() {
                 ]}
                 onDismiss={onDismiss}
               >
-                <div className="flex items-start gap-2">
-                  <Zap size="base" __rawClassName="mt-0.5" />
-                  <span>
-                    <span className="font-bold">
-                      This evaluator needs an upgrade for Langfuse v4.
-                    </span>{" "}
-                    Evaluators are moving to observation-level. Upgrade this
-                    configuration to keep its scores aligned with the v4 data
-                    model.{" "}
-                    <a
-                      href={EVAL_MIGRATION_DOCS_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline"
-                    >
-                      Learn more about evaluator upgrades
-                    </a>
-                    .
-                  </span>
-                </div>
+                <span>
+                  <span className="font-bold">
+                    This evaluator needs an upgrade for Langfuse v4.
+                  </span>{" "}
+                  Evaluators are moving to observation-level. Upgrade this
+                  configuration to keep its scores aligned with the v4 data
+                  model.{" "}
+                  <a
+                    href={EVAL_MIGRATION_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Learn more about evaluator upgrades
+                  </a>
+                  .
+                </span>
               </Callout>
             )}
           </DismissController>

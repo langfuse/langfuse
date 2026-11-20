@@ -35,8 +35,24 @@ const descriptionVariants = cva(
   },
 );
 
+// One line tall, 1px low: centers the icon on the first line's lowercase letters.
+const iconClasses = "flex h-lh shrink-0 translate-y-px items-center";
+
+const actionsVariants = cva(
+  "flex shrink-0 items-center gap-4 self-end sm:ml-6 sm:self-auto",
+  {
+    variants: {
+      variant: {
+        info: "text-dark-blue",
+        warning: "text-dark-yellow",
+      },
+    },
+  },
+);
+
+// Bold text in the callout tone, no box.
 const actionClasses =
-  "inline-flex h-6 items-center justify-center gap-1.5 rounded-md border border-current bg-transparent px-2.5 text-sm transition-colors hover:bg-black/5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10";
+  "inline-flex items-center gap-1.5 rounded-sm text-sm font-bold hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50";
 
 export type CalloutAction =
   | {
@@ -55,6 +71,8 @@ export type CalloutAction =
 export type CalloutProps = {
   variant: "info" | "warning";
   align: "top" | "middle";
+  /** Sits on the first line of the text. */
+  icon?: IconComponent;
   children: React.ReactElement;
   actions: ReadonlyArray<CalloutAction>;
   onDismiss: () => void;
@@ -63,6 +81,7 @@ export type CalloutProps = {
 export function Callout({
   variant,
   align,
+  icon: LeadingIcon,
   children,
   actions,
   onDismiss,
@@ -73,9 +92,16 @@ export function Callout({
         <div
           className={`${contentVariants({ align })} sm:flex-row sm:justify-between`}
         >
-          <div className="text-foreground min-w-0 text-sm">{children}</div>
+          <div className="text-foreground flex min-w-0 gap-2 text-sm">
+            {LeadingIcon ? (
+              <span className={iconClasses}>
+                <LeadingIcon size="base" aria-hidden />
+              </span>
+            ) : null}
+            <div className="min-w-0">{children}</div>
+          </div>
           {actions.length > 0 ? (
-            <div className="flex shrink-0 items-center gap-2 self-end sm:ml-4 sm:self-auto">
+            <div className={actionsVariants({ variant })}>
               {actions.map((action) => {
                 if (action.type === "button") {
                   const Icon = action.icon;
@@ -127,7 +153,7 @@ export function Callout({
         </div>
         <button
           aria-label="Dismiss"
-          className="focus-visible:ring-ring inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden dark:hover:bg-white/10"
+          className="focus-visible:ring-ring text-icon-foreground inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden dark:hover:bg-white/10"
           onClick={onDismiss}
           type="button"
         >
