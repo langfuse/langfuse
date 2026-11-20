@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 
@@ -6,6 +5,7 @@ import { env } from "@/src/env.mjs";
 import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { type BackgroundMigration } from "@langfuse/shared";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // Real gate declared in the worker env (worker/src/env.ts); the status endpoint
 // mirrors the worker's gate discovery, which only considers env vars with the
@@ -13,20 +13,13 @@ import { type BackgroundMigration } from "@langfuse/shared";
 const GATE = "LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES";
 const UNPREFIXED_GATE = "SOME_UNRELATED_FLAG";
 
-const session: Session = {
-  expires: "1",
+const session: Session = createSession({
   user: {
     id: `background-migrations-user-${randomUUID()}`,
-    canCreateOrganizations: true,
     name: "Background Migrations Test User",
-    organizations: [],
-    featureFlags: testFeatureFlags(),
   },
-  environment: {
-    enableExperimentalFeatures: false,
-    selfHostedInstancePlan: "oss",
-  },
-};
+  environment: { selfHostedInstancePlan: "oss" },
+});
 
 const migrationRow = (
   overrides: Partial<BackgroundMigration>,

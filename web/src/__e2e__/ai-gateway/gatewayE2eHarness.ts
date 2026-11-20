@@ -36,6 +36,7 @@ import {
   redis,
   UsageDetails,
 } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const BASE_URL = (
   process.env.LANGFUSE_AI_GATEWAY_E2E_BASE_URL ?? "http://localhost:3000"
@@ -716,29 +717,22 @@ async function createGatewayAdmin() {
       select: { id: true, name: true, email: true },
     }),
   ]);
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: user.id,
       name: user.name,
-      canCreateOrganizations: true,
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: organization.id,
-          name: organization.name,
-          role: Role.OWNER,
-          cloudConfig: undefined,
-          plan: "oss",
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
     },
-    environment: {} as Session["environment"],
-  };
+    organizations: [
+      {
+        id: organization.id,
+        role: Role.OWNER,
+        name: organization.name,
+        plan: "oss",
+        aiTelemetryEnabled: true,
+      },
+    ],
+  });
   const context = createInnerTRPCContext({ session, headers: {} });
   return {
     caller: appRouter.createCaller({ ...context, prisma }),

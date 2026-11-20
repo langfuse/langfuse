@@ -1,6 +1,8 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { env } from "@/src/env.mjs";
 import type { Session } from "next-auth";
+import type { Role } from "@langfuse/shared";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { applyNavigationFilters } from "./navigationFilters";
 import type { NavigationFilterContext } from "./navigationFilters.types";
@@ -84,21 +86,21 @@ it.each([
   "shows the Topics entry only when the gate passes for the current project (allowlisted: $topicsEnabled)",
   ({ topicsEnabled, visible }) => {
     const route = ROUTES.find((route) => route.title === "Topics")!;
-    const project = { id: "project-1", role: "VIEWER", topicsEnabled };
-    const organization = {
-      id: "org-1",
-      role: "VIEWER",
-      projects: [project],
-    } as unknown as NonNullable<Session["user"]>["organizations"][number];
+    const session = createSession({
+      user: { featureFlags: testFeatureFlags({ langfuseTopics: true }) },
+      organizations: [
+        {
+          id: "org-1",
+          role: "VIEWER",
+          projects: [{ id: "project-1", topicsEnabled }],
+        },
+      ],
+    });
+    const organization = session.user.organizations[0]!;
     const context: NavigationFilterContext = {
       routerProjectId: "project-1",
       routerOrganizationId: undefined,
-      session: {
-        user: {
-          featureFlags: testFeatureFlags({ langfuseTopics: true }),
-          organizations: [organization],
-        },
-      } as Session,
+      session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
       entitlements: [],
@@ -114,7 +116,12 @@ it.each([
   },
 );
 
-it.each([
+it.each<{
+  title: string;
+  role: Role;
+  projects: { id: string }[];
+  visible: boolean;
+}>([
   { title: "Projects", role: "AI_GATEWAY", projects: [], visible: true },
   { title: "Settings", role: "AI_GATEWAY", projects: [], visible: false },
   {
@@ -131,21 +138,16 @@ it.each([
       (route) =>
         route.title === title && route.href.startsWith("/organization/"),
     )!;
-    const organization = {
-      id: "org-1",
-      role,
-      projects,
-    } as unknown as NonNullable<Session["user"]>["organizations"][number];
+    const session = createSession({
+      user: { featureFlags: testFeatureFlags({}) },
+      organizations: [{ id: "org-1", role, projects }],
+      environment: { aiGatewayDeployed: true },
+    });
+    const organization = session.user.organizations[0]!;
     const context: NavigationFilterContext = {
       routerProjectId: undefined,
       routerOrganizationId: "org-1",
-      session: {
-        user: {
-          featureFlags: testFeatureFlags({}),
-          organizations: [organization],
-        },
-        environment: { aiGatewayDeployed: true },
-      } as Session,
+      session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
       entitlements: [],
@@ -167,22 +169,22 @@ it("shows the AI Gateway pages among the organization routes", () => {
   onTestFinished(() => {
     Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion });
   });
-  const organization = {
-    id: "org-1",
-    role: "OWNER",
-    projects: [],
-    featureFlags: testFeatureFlags({ aiGateway: true }),
-  } as unknown as NonNullable<Session["user"]>["organizations"][number];
+  const session = createSession({
+    user: { featureFlags: testFeatureFlags({}) },
+    organizations: [
+      {
+        id: "org-1",
+        role: "OWNER",
+        featureFlags: testFeatureFlags({ aiGateway: true }),
+      },
+    ],
+    environment: { aiGatewayDeployed: true },
+  });
+  const organization = session.user.organizations[0]!;
   const context: NavigationFilterContext = {
     routerProjectId: undefined,
     routerOrganizationId: "org-1",
-    session: {
-      user: {
-        featureFlags: testFeatureFlags({}),
-        organizations: [organization],
-      },
-      environment: { aiGatewayDeployed: true },
-    } as Session,
+    session,
     enableExperimentalFeatures: false,
     internalFeaturesEnabled: false,
     entitlements: [],
