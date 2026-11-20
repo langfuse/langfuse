@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { TablePeekView } from "@/src/components/table/peek";
 import { createPeekHeaderActions } from "@/src/components/ObservabilityEntityDetailHeader/fns/createPeekHeaderActions";
-import { ConnectedSessionScopeActions } from "@/src/features/traces/components/TraceDetailActions";
+import { ConnectedSessionScopeActions } from "@/src/features/traces/components/ConnectedSessionScopeActions/ConnectedSessionScopeActions";
 import { Trace } from "@/src/features/traces/components/Trace";
 
 export function TablePeekViewSessionDetail({

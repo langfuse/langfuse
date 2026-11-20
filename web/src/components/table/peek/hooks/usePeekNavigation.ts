@@ -220,11 +220,13 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
       }
 
       // Update peek param to the new id
-      params.set(PEEK_PARAM, entry.id);
+      // DetailPageNav passes an encoded path segment; query values must be raw.
+      const id = decodeURIComponent(entry.id);
+      params.set(PEEK_PARAM, id);
 
       // Set URL params to the same value as peek ID
       config?.paramsToMirrorPeekValue?.forEach((param) => {
-        params.set(param, entry.id);
+        params.set(param, id);
       });
 
       // Set the search part of the URL

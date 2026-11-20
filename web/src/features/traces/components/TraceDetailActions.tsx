@@ -1,10 +1,4 @@
-import {
-  Download,
-  FileText,
-  MoreVertical,
-  TrashIcon,
-  Webhook,
-} from "@langfuse/icons";
+import { Download, FileText, MoreVertical, TrashIcon } from "@langfuse/icons";
 import type { EntityDetailHeaderAction } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
 import type { DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
@@ -20,9 +14,7 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
-import { useSessionHeaderMenuItems } from "@/src/features/sessions/useSessionHeaderMenuItems";
-import { api } from "@/src/utils/api";
-import { useWebCalloutAction } from "@/src/features/web-callouts/components/useWebCalloutAction";
+import { ConnectedSessionScopeActions } from "./ConnectedSessionScopeActions/ConnectedSessionScopeActions";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
@@ -119,68 +111,6 @@ export function TraceDetailActions({
       )}
     </TraceTranscriptDialogController>
   );
-}
-
-export function ConnectedSessionScopeActions({
-  projectId,
-  sessionId,
-  isPlaceholderData,
-  children,
-}: Pick<TraceDetailActionsProps, "children" | "isPlaceholderData"> & {
-  projectId: string;
-  sessionId: string;
-}) {
-  const session = api.sessions.byIdWithScoresFromEvents.useQuery({
-    projectId,
-    sessionId,
-  });
-  const webCalloutAction = useWebCalloutAction(
-    { projectId, traceId: null, observationId: null, sessionId },
-    true,
-  );
-  const items = useSessionHeaderMenuItems({
-    projectId,
-    sessionId,
-    isPublic: session.data?.public ?? false,
-    shareUrl: `/project/${encodeURIComponent(projectId)}/sessions/${encodeURIComponent(sessionId)}`,
-  });
-  return children([
-    ...(webCalloutAction
-      ? [
-          {
-            id: "web-callout",
-            type: "button" as const,
-            label: `Call ${webCalloutAction.endpointName}`,
-            icon: Webhook,
-            iconOnly: true,
-            disabled: isPlaceholderData || webCalloutAction.isLoading,
-            isLoading: webCalloutAction.isLoading,
-            onClick: () => {
-              webCalloutAction.invokeCallout().catch(() => undefined);
-            },
-          },
-        ]
-      : []),
-    {
-      id: "download-json",
-      type: "button",
-      label: "Download JSON",
-      icon: Download,
-      iconOnly: true,
-      disabled: true,
-      onClick: () => {},
-    },
-    {
-      id: "session-options",
-      type: "dropdown",
-      label: "Session actions",
-      icon: MoreVertical,
-      iconOnly: true,
-      placement: "trailing",
-      disabled: isPlaceholderData || !session.data,
-      items,
-    },
-  ]);
 }
 
 function LoadedTraceDetailActions({

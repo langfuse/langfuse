@@ -561,6 +561,12 @@ function TraceContent({
       />
     ) : null;
 
+  const messagesDisabled = isSessionTracePeek
+    ? {
+        disabledReason:
+          "Messages view is unavailable in stacked trace peeks. Open the trace in a new tab to view messages.",
+      }
+    : false;
   const content = (
     <div className={traceContentClassName}>
       <TraceHeader header={header} />
@@ -585,12 +591,7 @@ function TraceContent({
                   {
                     value: "messages",
                     label: "Messages",
-                    disabled: isSessionTracePeek
-                      ? {
-                          disabledReason:
-                            "Messages view is unavailable in stacked trace peeks. Open the trace in a new tab to view messages.",
-                        }
-                      : false,
+                    disabled: messagesDisabled,
                   },
                 ]}
               />

@@ -6,6 +6,7 @@ import {
   type QueryParamAdapterComponent,
 } from "use-query-params";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
+import { navigateSessionTracePeek } from "./fns/navigateSessionTracePeek";
 
 const SessionTracePeekContext = createContext(false);
 export const useIsSessionTracePeek = () => useContext(SessionTracePeekContext);
@@ -48,51 +49,14 @@ export function SessionTracePeekNavigationProvider({
   const router = useRouter();
   const navigate = (
     method: "push" | "replace",
-    ...[url, as, options]: Parameters<NextRouter["push"]>
-  ) => {
-    const target =
-      typeof url === "string" ? new URL(url, "http://peek.local") : url;
-    const isExternal =
-      target.host &&
-      target.host !== "peek.local" &&
-      target.host !== window.location.host;
-    if (
-      isExternal ||
-      (target.pathname &&
-        target.pathname !== router.pathname &&
-        target.pathname !== router.asPath.split("?")[0])
-    ) {
-      return router[method](url, as, options);
-    }
-    const query =
-      typeof url === "string"
-        ? urlSearchParamsToQuery(new URLSearchParams(target.search ?? ""))
-        : (url.query ??
-          urlSearchParamsToQuery(new URLSearchParams(url.search ?? "")));
-    const next = new URLSearchParams();
-    if (typeof query === "string") {
-      new URLSearchParams(query).forEach((value, key) =>
-        next.append(key, value),
-      );
-    } else {
-      for (const [key, value] of Object.entries(query)) {
-        if (key === "projectId" || key === "sessionId") continue;
-        if (Array.isArray(value)) {
-          for (const entry of value) next.append(key, String(entry));
-        } else if (value !== undefined && value !== null) {
-          next.set(key, String(value));
-        }
-      }
-    }
-    return router[method](
-      {
-        pathname: router.pathname,
-        query: { ...router.query, sessionPeek: next.toString() },
-      },
-      undefined,
-      { ...options, shallow: true },
-    );
-  };
+    ...args: Parameters<NextRouter["push"]>
+  ) =>
+    navigateSessionTracePeek({
+      router,
+      method,
+      host: window.location.host,
+      args,
+    });
 
   const scopedRouter: NextRouter = {
     ...router,

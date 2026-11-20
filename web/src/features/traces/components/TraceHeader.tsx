@@ -38,14 +38,14 @@ import { ConnectedAnnotationQueueSubmenuItemController } from "@/src/features/an
 import { useViewPreferences } from "../contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { api } from "@/src/utils/api";
+import { useSessionScopeHeaderData } from "@/src/features/traces/hooks/useSessionScopeHeaderData";
+import { useTraceHeaderWorkflowData } from "@/src/features/traces/hooks/useTraceHeaderWorkflowData";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { SessionHeaderMetricsControl } from "@/src/features/sessions/SessionHeaderMetricsControl/SessionHeaderMetricsControl";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
-import { useSessionViewSelection } from "@/src/features/sessions/hooks/useSessionViewSelection";
-import { resolveTraceScope } from "../fns/resolveTraceScope";
+import { getTraceSessionLinkMetric } from "../fns/getTraceSessionLinkMetric";
 
 export function TraceHeader({
   isLoading = false,
@@ -83,23 +83,9 @@ function ConnectedSessionScopeHeader({
   sessionId: string;
 }) {
   const { projectId, isPlaceholderData } = useTraceData();
-  const viewSelection = useSessionViewSelection({
+  const { session, traces, filters } = useSessionScopeHeaderData({
     projectId,
     sessionId,
-    enabled: true,
-  });
-  const { filters, unmatchedTraces } = viewSelection.configuration;
-  const traceFilters = filters.filter(
-    (filter) => filter.column === "traceName" || unmatchedTraces === "hide",
-  );
-  const session = api.sessions.byIdWithScoresFromEvents.useQuery({
-    projectId,
-    sessionId,
-  });
-  const traces = api.sessions.tracesFromEvents.useQuery({
-    projectId,
-    sessionId,
-    filter: traceFilters.length > 0 ? traceFilters : undefined,
   });
 
   return (
@@ -168,14 +154,6 @@ function LoadedTraceHeader({
   const { isV4 } = useReadPath();
   const isProjectMember = useIsAuthenticatedAndProjectMember(trace.projectId);
   const { traceContext } = useViewPreferences();
-  const { canSelectSession } = resolveTraceScope({
-    unifiedTraceSessionViewEnabled,
-    isV4,
-    isProjectMember,
-    sessionId: trace.sessionId,
-    context: traceContext,
-    aggregation: undefined,
-  });
   const topicFacets = useTraceTopicFacets(trace);
 
   const aggregatedMetrics = useMemo(
@@ -246,14 +224,17 @@ function LoadedTraceHeader({
       details: aggregatedMetrics.usageDetails,
       searchText: `tokens ${aggregatedMetrics.totalUsage}`,
     });
-  if (trace.sessionId && !canSelectSession)
-    metrics.push({
-      id: "session",
-      type: "link",
-      href: `/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`,
-      text: "session",
-      searchText: `session ${trace.sessionId}`,
-    });
+  const sessionMetric = getTraceSessionLinkMetric({
+    projectId: trace.projectId,
+    header,
+    unifiedTraceSessionViewEnabled,
+    isV4,
+    isProjectMember,
+    sessionId: trace.sessionId,
+    context: traceContext,
+    aggregation: undefined,
+  });
+  if (sessionMetric) metrics.push(sessionMetric);
   if (trace.userId)
     metrics.push({
       id: "user",
@@ -349,16 +330,15 @@ function ConnectedTraceHeaderWorkflowActions({
   );
   const isMember = useIsAuthenticatedAndProjectMember(projectId);
   const sessionId = scope.type === "session" ? scope.sessionId : null;
-  const session = api.sessions.byIdWithScoresFromEvents.useQuery(
-    { projectId, sessionId: sessionId ?? "" },
-    { enabled: !!sessionId && isMember },
-  );
   const objectId = sessionId ?? trace?.id ?? "";
   const objectType = sessionId ? ("SESSION" as const) : ("TRACE" as const);
-  const counts = api.comments.getCountByObjectId.useQuery(
-    { projectId, objectId, objectType },
-    { enabled: isMember, refetchOnMount: false },
-  );
+  const { session, counts } = useTraceHeaderWorkflowData({
+    projectId,
+    sessionId,
+    objectId,
+    objectType,
+    isMember,
+  });
   const count = Number(counts.data?.get(objectId) ?? 0);
   // The unified view can show an observation instead of the trace detail pane.
   if (!sessionId && (!unifiedTraceSessionViewEnabled || !isV4))

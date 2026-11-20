@@ -1,8 +1,9 @@
 import Page from "@/src/components/layouts/Page";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { Trace } from "@/src/features/traces/components/Trace";
-import { ConnectedSessionScopeActions } from "@/src/features/traces/components/TraceDetailActions";
+import { ConnectedSessionScopeActions } from "@/src/features/traces/components/ConnectedSessionScopeActions/ConnectedSessionScopeActions";
 import { useRouter } from "next/router";
+import { getSessionDetailNavigationPath } from "@/src/features/sessions/fns/getSessionDetailNavigationPath";
 
 export function ConnectedSessionDetailPage({
   projectId,
@@ -51,14 +52,13 @@ export function ConnectedSessionDetailPage({
                           <DetailPageNav
                             currentId={sessionId}
                             listKey="sessions"
-                            path={(entry) => {
-                              const query = new URLSearchParams();
-                              if (typeof router.query.traceView === "string") {
-                                query.set("traceView", router.query.traceView);
-                              }
-                              const search = query.size ? `?${query}` : "";
-                              return `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}${search}`;
-                            }}
+                            path={(entry) =>
+                              getSessionDetailNavigationPath({
+                                projectId,
+                                entry,
+                                query: router.query,
+                              })
+                            }
                           />
                         ) : null,
                     },
