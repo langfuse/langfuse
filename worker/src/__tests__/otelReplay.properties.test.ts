@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 import { MediaAssociationOrigin } from "@langfuse/shared";
 import type { ResourceSpan } from "@langfuse/shared/src/server";
 import * as dispatchConfig from "../features/eventsDispatch/config";
-import * as traceSampling from "../features/traceBatching/traceBatchSampling";
-import type { TraceSpanActivity } from "../features/traceBatching/traceRuleRecording";
+import * as traceSampling from "../features/traceDispatch/traceDispatchSampling";
+import type { TraceSpanActivity } from "../features/traceDispatch/traceRuleRecording";
 import {
   expectRawNativeParity,
   type OtelReplayResult,
@@ -2329,7 +2329,7 @@ async function assertLifecycleParity(testCase: LifecycleCase): Promise<void> {
     .spyOn(dispatchConfig, "isEventsDispatchEnabled")
     .mockReturnValue(true);
   const sampling = vi
-    .spyOn(traceSampling, "resolveTraceBatchSamplingRate")
+    .spyOn(traceSampling, "resolveTraceDispatchSamplingRate")
     .mockResolvedValue(1);
 
   try {
