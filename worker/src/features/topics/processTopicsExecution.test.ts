@@ -867,7 +867,7 @@ describe("Topics execution", () => {
     },
   );
 
-  it("renames a continued topic once its small moves add up past the name's drift limit", async () => {
+  it("renames a continued topic, with its old name as context, once small moves add up past the drift limit", async () => {
     seedSummaries(100);
     await updateSelection("first");
     const first = [...state.runs.values()].at(-1)!;
@@ -888,7 +888,17 @@ describe("Topics execution", () => {
     });
     const calls = state.name.mock.calls.length;
     const renamed = await drift(0.75, "third");
-    expect(state.name.mock.calls.length).toBe(calls + 1);
+    expect(state.name.mock.calls.slice(calls)).toEqual([
+      [
+        expect.objectContaining({
+          previousTopic: expect.objectContaining({
+            name: named.name,
+            description: named.description,
+          }),
+        }),
+        expect.anything(),
+      ],
+    ]);
     expect(renamed.metadata.nameAnchor).toBeUndefined();
   });
 
