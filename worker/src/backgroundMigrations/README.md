@@ -37,6 +37,9 @@ In that case, it will try to acquire a lock and start the execution.
 If it completes, it marks the migration as done and proceeds with the next one until all are complete.
 If the worker is killed for any reason, another worker will pick up the migration and continue where it left off after the lock expired.
 
+Each worker scans at startup and again 5 minutes after its previous scan finished.
+Rows inserted by Prisma migrations that the web container applies after the worker started, and migrations whose lock expired, are therefore picked up without restarting the worker.
+
 Ideally, background migrations can also be executed via the commandline, e.g. to run them locally or to test them in a staging environment.
 
 ## Env-gated migrations (dormant rows)

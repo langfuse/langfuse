@@ -3,11 +3,22 @@ import { IBackgroundMigration } from "./IBackgroundMigration";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { instrumentAsync, logger } from "@langfuse/shared/src/server";
 import { env } from "../env";
+import { PeriodicRunner } from "../utils/PeriodicRunner";
 
 const ENV_GATE_PREFIX = "LANGFUSE_BACKGROUND_MIGRATION_";
 
+// Rows are inserted by Prisma migrations that the web container applies, which
+// can finish after this worker started, and a row stays locked for 60s after
+// its worker dies. Rescanning picks up both without a restart. Five minutes
+// keeps the idle cost at one small query per worker and is short compared to
+// the runtime of a background migration.
+export const BACKGROUND_MIGRATION_RESCAN_INTERVAL_MS = 5 * 60 * 1000;
+
 export class BackgroundMigrationManager {
   private static workerId = randomUUID();
+  private static scanner: BackgroundMigrationScanner | undefined;
+  private static closing = false;
+  private static hasScanned = false;
   private static activeMigration:
     | {
         id: string;
@@ -38,6 +49,23 @@ export class BackgroundMigrationManager {
     setTimeout(BackgroundMigrationManager.heartBeat, 15 * 1000);
   }
 
+  private static loadMigration(script: string): IBackgroundMigration {
+    return new (require(`./${script}`).default)();
+  }
+
+  /**
+   * Runs pending background migrations now and scans again
+   * BACKGROUND_MIGRATION_RESCAN_INTERVAL_MS after each scan completes, so scans
+   * within a process never overlap. Stopped by close().
+   */
+  public static start(): void {
+    BackgroundMigrationManager.closing = false;
+    if (!BackgroundMigrationManager.scanner) {
+      BackgroundMigrationManager.scanner = new BackgroundMigrationScanner();
+    }
+    BackgroundMigrationManager.scanner.start();
+  }
+
   public static async run(): Promise<void> {
     await instrumentAsync({ name: "background-migration-run" }, async () => {
       // A migration row may declare `args.envGate = "<ENV_VAR>"` to remain dormant
@@ -56,7 +84,7 @@ export class BackgroundMigrationManager {
 
       let migrationToRun = true;
 
-      while (migrationToRun) {
+      while (migrationToRun && !BackgroundMigrationManager.closing) {
         await prisma.$transaction(
           async (tx) => {
             // Read background migrations from database, ignoring any row whose
@@ -83,9 +111,15 @@ export class BackgroundMigrationManager {
               (migration.lockedAt &&
                 migration.lockedAt > new Date(Date.now() - 60 * 1000))
             ) {
-              logger.info(
-                "[Background Migration] No background migrations to run",
-              );
+              // Only the first scan of a process logs at info; idle rescans
+              // would otherwise log every interval on every worker.
+              const message =
+                "[Background Migration] No background migrations to run";
+              if (BackgroundMigrationManager.hasScanned) {
+                logger.debug(message);
+              } else {
+                logger.info(message);
+              }
               migrationToRun = false;
               return;
             }
@@ -111,7 +145,9 @@ export class BackgroundMigrationManager {
               id: migration.id,
               name: migration.name,
               args: migration.args as any,
-              migration: new (require(`./${migration.script}`).default)(),
+              migration: BackgroundMigrationManager.loadMigration(
+                migration.script,
+              ),
             };
           },
           {
@@ -147,6 +183,7 @@ export class BackgroundMigrationManager {
               failedReason: invalidReason,
             },
           });
+          BackgroundMigrationManager.activeMigration = undefined;
           continue;
         }
 
@@ -188,10 +225,13 @@ export class BackgroundMigrationManager {
         }
         BackgroundMigrationManager.activeMigration = undefined;
       }
+      BackgroundMigrationManager.hasScanned = true;
     });
   }
 
   public static async close(): Promise<void> {
+    BackgroundMigrationManager.closing = true;
+    BackgroundMigrationManager.scanner?.stop();
     if (BackgroundMigrationManager.activeMigration) {
       await BackgroundMigrationManager.activeMigration.migration.abort();
       await prisma.backgroundMigration.update({
@@ -208,5 +248,23 @@ export class BackgroundMigrationManager {
       );
       BackgroundMigrationManager.activeMigration = undefined;
     }
+  }
+}
+
+class BackgroundMigrationScanner extends PeriodicRunner {
+  constructor() {
+    super("background_migrations");
+  }
+
+  protected get name(): string {
+    return "BackgroundMigrationScanner";
+  }
+
+  protected get defaultIntervalMs(): number {
+    return BACKGROUND_MIGRATION_RESCAN_INTERVAL_MS;
+  }
+
+  protected execute(): Promise<void> {
+    return BackgroundMigrationManager.run();
   }
 }
