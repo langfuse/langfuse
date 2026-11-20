@@ -8,7 +8,7 @@
 
 mod retained;
 
-pub(crate) use retained::retained_size;
+pub(crate) use retained::{retained_size, RetainedSize};
 
 use std::sync::{
     atomic::{AtomicI64, Ordering},
@@ -19,6 +19,12 @@ use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi::{Env, Result, Status};
 
 type MemoryAdjuster = ThreadsafeFunction<i64, (), (), Status, false, true>;
+
+fn record_retained_bytes(delta: i64) {
+    metrics::gauge!("langfuse.native.otel.retained_bytes").increment(delta as f64);
+    // The OTEL rollout dashboard uses the original name for total accounted bytes.
+    metrics::gauge!("langfuse.native.otel_media.retained_bytes").increment(delta as f64);
+}
 
 pub(crate) struct NativeMemory {
     bytes: AtomicI64,
@@ -31,7 +37,7 @@ impl NativeMemory {
         let bytes = bytes as i64;
         let total = env.adjust_external_memory(bytes)?;
         tracing::trace!(delta = bytes, total, "V8 external memory adjusted");
-        metrics::gauge!("langfuse.native.otel_media.retained_bytes").increment(bytes as f64);
+        record_retained_bytes(bytes);
         Ok(Self {
             bytes: AtomicI64::new(bytes),
             adjust,
@@ -55,7 +61,7 @@ impl NativeMemory {
         if delta == 0 {
             return;
         }
-        metrics::gauge!("langfuse.native.otel_media.retained_bytes").increment(delta as f64);
+        record_retained_bytes(delta);
         // Closing is expected once the environment stops accepting callbacks.
         let status = self
             .adjust

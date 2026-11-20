@@ -11,8 +11,9 @@ use indexmap::IndexMap;
 use serde_json::Value;
 
 use crate::native_codec::{DateTime64Micros, Decimal64, SkillReference, SkillResourceLoaded};
-use crate::otel::types::{SkillAvailableInput, SkillResourceInput};
+use crate::otel::types::{OwnedEvent, SkillAvailableInput, SkillResourceInput, StorageContext};
 use crate::otel::value::{JsString, Value as OtelValue};
+use crate::otel_pipeline::OtelOverflowRequest;
 
 /// Estimate heap owned by a value. Container implementations add capacity and
 /// recurse into children; row callers add the inline struct size for retained
@@ -96,21 +97,31 @@ no_retained_heap!(
     Decimal64
 );
 
-macro_rules! string_fields {
-    ($($ty:ty => [$($field:ident),+]),+ $(,)?) => {$ (
+macro_rules! retained_fields {
+    ($($ty:ty => [$($field:ident),+ $(,)?]),+ $(,)?) => {$ (
         impl RetainedSize for $ty {
             fn retained_bytes(&self) -> usize {
-                0 $(+ self.$field.retained_bytes())+
+                let Self { $($field),+ } = self;
+                0 $(+ retained_size($field))+
             }
         }
     )+};
 }
 
-string_fields! {
-    SkillReference => [langfuse_skill_id, skill_name],
-    SkillResourceLoaded => [langfuse_skill_id, skill_name, file_path],
-    SkillAvailableInput => [name],
-    SkillResourceInput => [skill_name, file_path],
+retained_fields! {
+    SkillReference => [langfuse_skill_id, skill_version, skill_name],
+    SkillResourceLoaded => [langfuse_skill_id, skill_version, skill_name, file_path],
+    SkillAvailableInput => [name, version],
+    SkillResourceInput => [skill_name, file_path, skill_version],
+    StorageContext => [blob_storage_file_path, created_at, updated_at, event_ts],
+    OtelOverflowRequest => [
+        index, event_index, trace_id, observation_id, field, metadata_index, byte_length, sha256_hash,
+    ],
+    OwnedEvent => [
+        row, prompt_version_lookup, evaluation_fields, model_parameters, provided_usage_details,
+        provided_cost_details, gateway_calculated_cost, input, output, metadata, skills_available,
+        skills_resource_loaded,
+    ],
 }
 
 impl RetainedSize for Value {

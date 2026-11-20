@@ -69,9 +69,9 @@ macro_rules! define_row_types {
             }
         }
 
-        impl OtelStorageRow {
-            pub(crate) fn retained_bytes(&self) -> usize {
-                std::mem::size_of::<Self>() $(+
+        impl crate::native_memory::RetainedSize for OtelStorageRow {
+            fn retained_bytes(&self) -> usize {
+                0 $(+
                     crate::native_memory::retained_size(&self.$field))*
             }
         }

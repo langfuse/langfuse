@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-use crate::native_memory::NativeMemory;
+use crate::native_memory::{retained_size, NativeMemory, RetainedSize};
 use crate::native_schema::OtelStorageRow;
 use crate::native_task::{to_js_error, NativeResult, OwnedTask};
 use crate::otel::{process_to_events, EventBuildConfig, OwnedEvent, StorageContext};
@@ -108,12 +108,14 @@ struct EnrichedStorageRow {
     evaluation_fields: Option<Box<crate::otel::types::JsonObject>>,
 }
 
-impl EnrichedStorageRow {
+impl RetainedSize for EnrichedStorageRow {
     fn retained_bytes(&self) -> usize {
-        std::mem::size_of::<Self>() - std::mem::size_of::<OtelStorageRow>()
-            + self.row.retained_bytes()
-            + self.start_time_iso.capacity()
-            + crate::native_memory::retained_size(&self.evaluation_fields)
+        let Self {
+            row,
+            start_time_iso,
+            evaluation_fields,
+        } = self;
+        retained_size(row) + retained_size(start_time_iso) + retained_size(evaluation_fields)
     }
 }
 
@@ -123,67 +125,42 @@ impl Pipeline {
     }
 
     fn retained_bytes(&self) -> usize {
-        if matches!(&self.rows, BatchRows::Finalized) {
+        let Self {
+            source: _, // The source batch has its own tracker.
+            memory: _,
+            rows,
+            context,
+            media_requests,
+            late_media,
+            overflow_requests,
+        } = self;
+        let row_bytes = match rows {
+            BatchRows::Prepared(rows) => retained_size(rows),
+            BatchRows::Ready(rows) => retained_size(rows),
             // Finalized rows carry the shared tracker through PreparedEvent handles.
-            return 0;
-        }
-        let rows = match &self.rows {
-            BatchRows::Prepared(rows) => {
-                rows.capacity().saturating_sub(rows.len()) * std::mem::size_of::<OwnedEvent>()
-                    + rows.iter().map(OwnedEvent::retained_bytes).sum::<usize>()
-            }
-            BatchRows::Ready(rows) => {
-                rows.capacity().saturating_sub(rows.len())
-                    * std::mem::size_of::<Option<EnrichedStorageRow>>()
-                    + rows
-                        .iter()
-                        .flatten()
-                        .map(EnrichedStorageRow::retained_bytes)
-                        .sum::<usize>()
-            }
-            BatchRows::Finalized => 0,
+            BatchRows::Finalized => return 0,
         };
         let mut media_seen = std::collections::HashSet::new();
         let mut late_sources = HashSet::new();
-        let late_source_bytes = self
-            .late_media
+        let late_source_bytes = late_media
             .iter()
             .filter_map(ExtractedMedia::source_allocation)
             .filter(|(source, _)| late_sources.insert(*source))
             .map(|(_, bytes)| bytes)
             .sum::<usize>();
-        let late_media = self.late_media.capacity() * std::mem::size_of::<ExtractedMedia>()
-            + self
-                .late_media
+        let late_media_bytes = late_media.capacity() * std::mem::size_of::<ExtractedMedia>()
+            + late_media
                 .iter()
                 .map(|media| media.retained_bytes(&mut media_seen))
                 .sum::<usize>()
             + late_source_bytes;
-        let overflow = self.overflow_requests.capacity()
-            * std::mem::size_of::<OtelOverflowRequest>()
-            + self
-                .overflow_requests
-                .iter()
-                .map(retained_overflow_request)
-                .sum::<usize>();
         std::mem::size_of::<Self>()
-            + rows
-            + self.media_requests.capacity() * std::mem::size_of::<u32>()
-            + late_media
-            + overflow
-            + self.context.blob_storage_file_path.capacity()
-            + self.context.created_at.capacity()
-            + self.context.updated_at.capacity()
-            + self.context.event_ts.capacity()
+            + row_bytes
+            + retained_size(media_requests)
+            + late_media_bytes
+            + retained_size(overflow_requests)
+            + retained_size(context)
     }
-}
-
-fn retained_overflow_request(request: &OtelOverflowRequest) -> usize {
-    std::mem::size_of::<OtelOverflowRequest>()
-        + request.trace_id.capacity()
-        + request.observation_id.capacity()
-        + request.field.capacity()
-        + request.sha256_hash.capacity()
 }
 
 #[napi]
