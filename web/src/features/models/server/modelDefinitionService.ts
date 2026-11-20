@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
@@ -13,6 +12,7 @@ import {
   type UpsertModelInput,
 } from "@/src/features/models/validation";
 import {
+  InvalidRequestError,
   LangfuseNotFoundError,
   ModelUsageUnit,
   Prisma,
@@ -127,7 +127,7 @@ export async function getModelDefinition(params: {
   `;
   const model = z.array(GetModelResultSchema).parse(rows)[0];
   if (!model) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Model not found" });
+    throw new LangfuseNotFoundError("Model not found");
   }
   return model;
 }
@@ -201,10 +201,7 @@ export async function upsertModelDefinition(params: {
   // Postgres validates the pattern, because ingestion matches it with POSIX
   // regex semantics that JavaScript does not share.
   if (!(await isValidPostgresRegex(matchPattern, prisma))) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Invalid regex, needs to be Postgres syntax",
-    });
+    throw new InvalidRequestError("Invalid regex, needs to be Postgres syntax");
   }
 
   const modelId = providedModelId ?? uuidv4();
@@ -220,7 +217,7 @@ export async function upsertModelDefinition(params: {
           ? before.projectId !== owner.projectId
           : before.organizationId !== owner.organizationId))
     ) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Model not found" });
+      throw new LangfuseNotFoundError("Model not found");
     }
 
     // Name uniqueness within the owner is checked explicitly: the project
@@ -229,10 +226,9 @@ export async function upsertModelDefinition(params: {
       where: { ...owned, modelName },
     });
     if (sameName && sameName.id !== modelId) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: `Model name '${modelName}' already exists in ${ownerLabel(owner)}`,
-      });
+      throw new InvalidRequestError(
+        `Model name '${modelName}' already exists in ${ownerLabel(owner)}`,
+      );
     }
 
     const upserted = await tx.model.upsert({
