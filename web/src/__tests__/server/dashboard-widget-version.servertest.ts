@@ -1,10 +1,10 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { v4 as uuidv4 } from "uuid";
 import {
   createOrgProjectAndApiKey,
   DashboardService,
 } from "@langfuse/shared/src/server";
 import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,
@@ -18,6 +18,7 @@ import {
   mapLegacyUiTableFilterToView,
   mapWidgetUiTableFilterToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 describe("dashboard widget minVersion", () => {
   let projectId: string;
@@ -39,12 +40,10 @@ describe("dashboard widget minVersion", () => {
     });
     userId = user.id;
 
-    await prisma.organizationMembership.create({
-      data: {
-        orgId,
-        userId: user.id,
-        role: "OWNER",
-      },
+    await createOrgMembership(prisma, {
+      orgId,
+      userId: user.id,
+      role: "OWNER",
     });
   });
 
@@ -53,41 +52,17 @@ describe("dashboard widget minVersion", () => {
   });
 
   function makeCaller(v4BetaEnabled = false) {
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: userId,
-        canCreateOrganizations: true,
-        name: "Test User",
-        organizations: [
-          {
-            id: orgId,
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: true,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-        v4BetaEnabled,
-      },
-      environment: {} as any,
-    };
+    const session: Session = createSession({
+      user: { id: userId, name: "Test User", v4BetaEnabled },
+      organizations: [
+        {
+          id: orgId,
+          role: "OWNER",
+          aiTelemetryEnabled: true,
+          projects: [{ id: projectId, role: "ADMIN", hasTraces: true }],
+        },
+      ],
+    });
     const ctx = createInnerTRPCContext({ session, headers: {} });
     return appRouter.createCaller({ ...ctx, prisma });
   }

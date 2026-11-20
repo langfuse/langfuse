@@ -595,8 +595,6 @@ describe("trace micro-batch scheduling with Redis", () => {
   const recordingKeys = getRecordingKeys(0);
   const recordingBoundsKeys = new Map<number, Buffer[]>();
   const originalEventsDispatchEnabled = env.LANGFUSE_EVENTS_DISPATCH_ENABLED;
-  const originalDispatchSamplingRate =
-    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL;
   const originalBoundsTtl = traceDispatchConfig.boundsTtlMs;
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalMaxSize = env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE;
@@ -690,7 +688,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       topicsProjects.add(projectId);
     // vitest loads the root .env; pin the dispatcher's target queue.
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
-    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0;
     traceDispatchConfig.boundsTtlMs = 86_400_000;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = 60;
@@ -720,8 +717,6 @@ describe("trace micro-batch scheduling with Redis", () => {
     await clearReadiness();
     topicsProjects.clear();
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = originalEventsDispatchEnabled;
-    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL =
-      originalDispatchSamplingRate;
     traceDispatchConfig.boundsTtlMs = originalBoundsTtl;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE = originalMaxSize;
@@ -1898,10 +1893,13 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await queue.count()).toBe(0);
   });
 
-  it("admits the larger of the Topics rule's rate and the experiment rate", async () => {
+  it("admits a stable trace-ID sample at the Topics rule's rate", async () => {
     const traceIds = Array.from({ length: 1_000 }, (_, index) =>
       index.toString(16).padStart(32, "0"),
     );
+    // "project" is an active Topics project whose rule samples everything.
+    expect(await resolveTraceBatchSamplingRate("project")).toBe(1);
+    expect(await resolveTraceBatchSamplingRate("other-project")).toBe(0);
     let previous: string[] = [];
     for (const [rate, expectedCount] of [
       [0, 0],
@@ -1909,10 +1907,8 @@ describe("trace micro-batch scheduling with Redis", () => {
       [0.5, 478],
       [1, 1_000],
     ]) {
-      env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = rate;
-      // "project" is an active Topics project whose rule samples everything.
-      expect(await resolveTraceBatchSamplingRate("project")).toBe(1);
-      const samplingRate = await resolveTraceBatchSamplingRate("other-project");
+      vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(rate);
+      const samplingRate = await resolveTraceBatchSamplingRate("project");
       expect(samplingRate).toBe(rate);
       const selected = traceIds.filter((traceId) =>
         isTraceBatchSampled(traceId, samplingRate),
@@ -1921,14 +1917,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(selected).toEqual(expect.arrayContaining(previous));
       previous = selected;
     }
-    // A rule sampling below the experiment rate admits the experiment share.
-    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0.5;
-    vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(0.25);
-    expect(await resolveTraceBatchSamplingRate("project")).toBe(0.5);
-    // A rule sampling above it admits the rule's share.
-    env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0.1;
-    vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(0.25);
-    expect(await resolveTraceBatchSamplingRate("project")).toBe(0.25);
     // An unreadable gate falls back to the Topics allowlist.
     vi.mocked(getTopicsProcessingSampling).mockRejectedValueOnce(
       new Error("postgres down"),

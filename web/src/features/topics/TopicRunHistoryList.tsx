@@ -4,16 +4,15 @@ import { CircleAlert, History } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { type RouterOutputs } from "@/src/utils/api";
 import {
+  createsSummaries,
   executionBadgeTypes,
   executionLabels,
   formatTopicRunCost,
   runLabel,
+  type TopicRunWithCost as Run,
 } from "./topic-run-labels";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
-
-type Run = RouterOutputs["topics"]["executions"][number];
 
 type TopicRunHistoryListProps = {
   executions: Run[];
@@ -140,9 +139,9 @@ function ActiveRun({
         </div>
       )}
       <div className="flex items-center justify-between gap-2.5 text-xs">
-        <span className="text-muted-foreground">Estimated cost</span>
+        <span className="text-muted-foreground">Summaries and embeddings</span>
         <span className="font-mono">
-          {formatTopicRunCost(run.input.operation, run.estimatedCost)}
+          {formatTopicRunCost(run.input, run.estimatedCost)}
         </span>
       </div>
     </div>
@@ -171,8 +170,9 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
         <span className="text-muted-foreground text-xs">
           {run.input.operation === "process" &&
             `${formatCount(traceCount(run))} traces · `}
+          {createsSummaries(run.input) && "Summaries and embeddings · "}
           <span className="whitespace-nowrap">
-            Cost: {formatTopicRunCost(run.input.operation, run.estimatedCost)}
+            {formatTopicRunCost(run.input, run.estimatedCost)}
           </span>
         </span>
         {problem && (

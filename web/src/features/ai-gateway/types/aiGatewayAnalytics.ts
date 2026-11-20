@@ -1,7 +1,6 @@
 import type {
   GatewayIngestionMode,
   GatewaySpendLimitScope,
-  Role,
 } from "@langfuse/shared";
 
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
@@ -84,8 +83,6 @@ export type AiGatewayEventMap = {
     isNotifyMembersEnabled: boolean;
   };
   "ai_gateway:api_key_created": OrganizationContext & {
-    /** Organization role of the creator; null when they are not a member. */
-    creatorRole: Role | null;
     isServiceAccount: boolean;
     hasMetadata: boolean;
     metadataCount: number;

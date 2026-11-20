@@ -15,8 +15,6 @@ import {
   traceException,
   type EventsDispatchEventSchema,
 } from "@langfuse/shared/src/server";
-import { env } from "../../env";
-import { EXPERIMENT_RULE_ID } from "../evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
 import { getTraceBatchShard } from "../traceBatching/traceBatchReadiness";
 import {
   evalRecording,
@@ -41,7 +39,7 @@ type DispatchTrace = z.infer<
 >["payload"]["traces"][number];
 type ConsumerJobs = Awaited<ReturnType<typeof routeRules>>["jobs"];
 type TraceOutcome =
-  | { outcome: "enqueued" | "stored" | "too_large" | "missing" }
+  | { outcome: "enqueued" | "too_large" | "missing" }
   | { outcome: "skipped"; reason: "no_rules" | "internal_environment" }
   | {
       outcome: "failed";
@@ -71,7 +69,7 @@ const inputStorage = createTraceBatchInputStorage();
 
 /**
  * Routes each trace's recorded rules to consumers. Traces without any end here,
- * before ClickHouse, unless the store-all experiment keeps them for storage only.
+ * before ClickHouse.
  */
 async function selectTraces(traces: DispatchTrace[], batchActionId?: string) {
   const readable = new Map<string, ReadableTrace>();
@@ -87,20 +85,11 @@ async function selectTraces(traces: DispatchTrace[], batchActionId?: string) {
     return { readable, outcomes };
   }
   let unresolved = 0;
-  const withoutConsumers = (trace: DispatchTrace) => {
-    if (env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL === "true")
-      readable.set(traceKey(trace.projectId, trace.traceId), {
-        trace,
-        jobs: [],
-      });
-    else outcomes.push({ outcome: "skipped", reason: "no_rules" });
-  };
+  const skipped: TraceOutcome = { outcome: "skipped", reason: "no_rules" };
   for (const trace of traces) {
-    const ruleIds = (trace.ruleIds ?? []).filter(
-      (id) => id !== EXPERIMENT_RULE_ID,
-    );
+    const ruleIds = trace.ruleIds ?? [];
     if (ruleIds.length === 0) {
-      withoutConsumers(trace);
+      outcomes.push(skipped);
       continue;
     }
     let routed;
@@ -123,7 +112,7 @@ async function selectTraces(traces: DispatchTrace[], batchActionId?: string) {
     }
     // Deleted, inactive or blocked rules; their consumers would find nothing to run.
     unresolved += routed.unresolved.length;
-    if (routed.jobs.length === 0) withoutConsumers(trace);
+    if (routed.jobs.length === 0) outcomes.push(skipped);
     else
       readable.set(traceKey(trace.projectId, trace.traceId), {
         trace,
@@ -231,9 +220,7 @@ function dispatchTrace(
           trace,
           retryRuleIds: failedRuleIds,
         });
-      return finish({
-        outcome: jobs.length > 0 ? "enqueued" : "stored",
-      });
+      return finish({ outcome: "enqueued" });
     },
   );
 }
@@ -465,7 +452,7 @@ export async function processEventsDispatchJob(
     event.payload.batchActionId,
   );
   if (readable.size > 0) outcomes.push(...(await streamTraces(readable)));
-  // Storage-only and snapshot traces have no rules to retry for.
+  // Snapshot traces have no rules to retry for.
   const failed = outcomes.flatMap((result) =>
     result.outcome === "failed" && result.retryRuleIds.length > 0
       ? [
