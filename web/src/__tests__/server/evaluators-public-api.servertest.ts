@@ -430,10 +430,16 @@ describe("stable evaluators public API", () => {
           selectedColumnId: "threads",
           jsonSelector: null,
         },
+        {
+          templateVariable: "inherited",
+          selectedColumnId: "constructor",
+          jsonSelector: null,
+        },
       ]),
     ).toEqual([
       { variable: "input", source: "input" },
       { variable: "thread", source: null },
+      { variable: "inherited", source: null },
     ]);
   });
 

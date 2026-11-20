@@ -112,8 +112,12 @@ export function toApiReadMappings(
   }
 
   return parsed.data.map((mapping) => {
-    const source =
-      INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE[mapping.selectedColumnId];
+    const source = Object.hasOwn(
+      INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE,
+      mapping.selectedColumnId,
+    )
+      ? INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE[mapping.selectedColumnId]
+      : undefined;
     // One unknown column must not fail a whole page of evaluators or rules.
     if (!source && mapping.selectedColumnId.trim()) {
       logger.warn("Unknown column in public evaluation mapping", {
