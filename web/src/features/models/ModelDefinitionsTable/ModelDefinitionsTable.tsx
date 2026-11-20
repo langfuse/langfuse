@@ -10,7 +10,6 @@ import { type RowHeight } from "@/src/components/table/data-table-row-height-swi
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type GetModelResult } from "@/src/features/models/validation";
 import {
   type ModelMaintainer,
@@ -74,36 +73,21 @@ export function ModelDefinitionsTable({
   onRowClick: (model: ModelTableRow) => void;
 }) {
   const columns: LangfuseColumnDef<ModelTableRow>[] = [
-    {
+    createTextTableColumn<ModelTableRow>({
       accessorKey: "modelName",
-      id: "modelName",
-      header: "Model Name",
+      header: "Model name",
       headerTooltip: {
         description: modelConfigDescriptions.modelName,
       },
       size: 120,
-      cell: ({ row }) =>
-        row.original.isOverridden ? (
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              className="text-muted-foreground truncate"
-              title={row.original.modelName}
-            >
-              {row.original.modelName}
-            </span>
-            <Badge
-              size="sm"
-              color="filled"
-              text="Overridden"
-              title={modelConfigDescriptions.overridden}
-            />
-          </span>
-        ) : (
-          <span className="truncate" title={row.original.modelName}>
-            {row.original.modelName}
-          </span>
-        ),
-    },
+      status: ({ row }) =>
+        row.original.isOverridden
+          ? {
+              label: "Overridden",
+              description: modelConfigDescriptions.overridden,
+            }
+          : undefined,
+    }),
     createBadgeTableColumn<ModelTableRow>({
       accessorKey: "maintainer",
       header: "Scope",
