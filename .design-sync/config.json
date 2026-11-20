@@ -36,7 +36,7 @@
         "playground-button--with-icon"
       ]
     },
-    "Alert": {
+    "Banner": {
       "cardMode": "column"
     },
     "AreaChart": {

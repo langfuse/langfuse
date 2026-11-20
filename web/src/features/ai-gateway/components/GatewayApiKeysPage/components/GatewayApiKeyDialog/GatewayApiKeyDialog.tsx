@@ -7,7 +7,7 @@ import {
   type UseFormReturn,
 } from "react-hook-form";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -212,10 +212,9 @@ export function GatewayApiKeyDialog({
             spendBudgetUnavailableReason={spendBudgetUnavailableReason}
           />
           {errorMessage !== null ? (
-            <Alert variant="destructive">
-              <Alert.Title>Gateway key could not be saved</Alert.Title>
-              <Alert.Description>{errorMessage}</Alert.Description>
-            </Alert>
+            <Banner variant="error" title="Gateway key could not be saved">
+              {errorMessage}
+            </Banner>
           ) : null}
         </Form>
       </Dialog.Body>

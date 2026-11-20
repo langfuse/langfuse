@@ -78,7 +78,7 @@ type ConditionOf<T extends PredicateCondition["type"]> = Extract<
   { type: T }
 >;
 
-const DEFAULT_NUMBER_BIND_TYPE = "Decimal64(12)";
+const DEFAULT_NUMBER_BIND_TYPE = "Decimal128(12)";
 const STRING_ARRAY = "Array(String)";
 const FTS_MATCH_TOKEN_ERROR = "`matches` requires at least one search token.";
 

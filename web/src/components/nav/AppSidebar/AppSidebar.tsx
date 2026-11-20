@@ -766,7 +766,7 @@ const DemoBadge = () => {
 };
 
 const attentionDotTones = {
-  major: "bg-dark-red",
+  major: "bg-destructive",
   minor: "bg-category-amber",
   patch: "bg-muted-foreground",
   migration: "bg-dark-blue",

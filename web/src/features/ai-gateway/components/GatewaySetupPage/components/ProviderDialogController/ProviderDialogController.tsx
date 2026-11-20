@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ReactNode } from "react";
 import { type MutationStatus } from "@tanstack/react-query";
-import { Info, TriangleAlert } from "@langfuse/icons";
 import {
   getInvalidLlmBaseUrlReason,
   getLlmBaseUrlFormatError,
 } from "@langfuse/shared";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -386,14 +385,11 @@ export function ProviderDialogController({
             </DialogHeader>
             <DialogBody className="gap-6">
               {isGatewayHipaaNoticeVisible(region) ? (
-                <Alert variant="info" icon={Info}>
-                  <Alert.Title>HIPAA region</Alert.Title>
-                  <Alert.Description>
-                    Requests are forwarded to the provider you configure, using
-                    your provider connection and on your instruction. Make sure
-                    you have a BAA with that provider before sending PHI.
-                  </Alert.Description>
-                </Alert>
+                <Banner variant="info" title="HIPAA region">
+                  Requests are forwarded to the provider you configure, using
+                  your provider connection and on your instruction. Make sure
+                  you have a BAA with that provider before sending PHI.
+                </Banner>
               ) : null}
               {selectedConnection ? (
                 <div>
@@ -480,22 +476,16 @@ export function ProviderDialogController({
                 />
               ) : null}
               {selectedConnection && name.trim() !== selectedConnection.name ? (
-                <Alert variant="warning" icon={TriangleAlert}>
-                  <Alert.Title>Renaming changes model slugs</Alert.Title>
-                  <Alert.Description>
-                    Requests using model slugs with the old connection name will
-                    stop resolving.
-                  </Alert.Description>
-                </Alert>
+                <Banner variant="warning" title="Renaming changes model slugs">
+                  Requests using model slugs with the old connection name will
+                  stop resolving.
+                </Banner>
               ) : null}
               {isSaveError ? (
-                <Alert variant="destructive">
-                  <Alert.Title>Connection could not be saved</Alert.Title>
-                  <Alert.Description>
-                    {/* Base URL validation and provider errors can echo the configured host. */}
-                    <span className="ph-no-capture">{saveError?.message}</span>
-                  </Alert.Description>
-                </Alert>
+                <Banner variant="error" title="Connection could not be saved">
+                  {/* Base URL validation and provider errors can echo the configured host. */}
+                  <span className="ph-no-capture">{saveError?.message}</span>
+                </Banner>
               ) : null}
               {test.data?.success &&
               test.data.modelListingDenied &&
