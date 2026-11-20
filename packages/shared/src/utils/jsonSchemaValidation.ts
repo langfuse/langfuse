@@ -1,5 +1,16 @@
 import Ajv, { AnySchema, ValidateFunction } from "ajv";
+import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
+
+const DRAFT_2020_12_META_SCHEMA_PREFIX =
+  "https://json-schema.org/draft/2020-12/";
+
+const declaresDraft202012 = (schema: unknown): boolean =>
+  typeof schema === "object" &&
+  schema !== null &&
+  "$schema" in schema &&
+  typeof schema.$schema === "string" &&
+  schema.$schema.startsWith(DRAFT_2020_12_META_SCHEMA_PREFIX);
 
 export type FieldValidationError = {
   path: string;
@@ -19,8 +30,9 @@ export type FieldValidationResult =
 /**
  * Creates a fresh Ajv instance for validation
  */
-export const createAjvInstanceInternal = () => {
-  const ajv = new Ajv({
+export const createAjvInstanceInternal = (schema?: unknown) => {
+  const AjvForDraft = declaresDraft202012(schema) ? Ajv2020 : Ajv;
+  const ajv = new AjvForDraft({
     strict: true,
     allErrors: false, // Return only the first error, not all
     code: { optimize: true }, // Enable code optimization to improve performance and reduce DoS risk
@@ -41,7 +53,7 @@ export function isValidJSONSchema(schema: unknown): boolean {
     const stringified = JSON.stringify(schema);
     if (stringified.length > 10_000) return false; // Schema too large
 
-    const ajv = createAjvInstanceInternal();
+    const ajv = createAjvInstanceInternal(schema);
     // This will throw an error if the schema is invalid
     ajv.compile(schema as AnySchema);
 
@@ -85,7 +97,7 @@ export function validateFieldAgainstSchema(params: {
   schema: Record<string, unknown>;
 }): FieldValidationResult {
   const { data, schema } = params;
-  const ajv = createAjvInstanceInternal();
+  const ajv = createAjvInstanceInternal(schema);
   const validate = ajv.compile(schema);
   return validateWithCompiledSchema(data, validate);
 }
