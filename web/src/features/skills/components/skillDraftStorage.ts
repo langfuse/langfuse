@@ -46,6 +46,50 @@ export type SkillDraft = {
   discard: () => void;
 };
 
+// The in-memory draft that changed last, per key. Only a changed draft can
+// hold unsaved edits, and a copy React created but never rendered never
+// changes, so it is never picked.
+const changedDrafts = new Map<
+  string,
+  { flush: () => void; release: () => void }
+>();
+
+/** Writes the latest in-memory edits for `key` to storage now. */
+export function flushSkillDraft(key: string) {
+  changedDrafts.get(key)?.flush();
+}
+
+/**
+ * Writes the latest in-memory edits for `key` and stops that draft from
+ * saving, so a draft written outside the editor is not overwritten. Follow it
+ * with `reloadSkillDraft` so an open editor resumes the stored draft.
+ */
+export function releaseSkillDraft(key: string) {
+  changedDrafts.get(key)?.release();
+  changedDrafts.delete(key);
+}
+
+// Bumped when a draft is written outside the editor, so an open editor
+// remounts and resumes it.
+const reloadCounts = new Map<string, number>();
+const reloadListeners = new Set<() => void>();
+
+export function subscribeSkillDraftReloads(listener: () => void) {
+  reloadListeners.add(listener);
+  return () => {
+    reloadListeners.delete(listener);
+  };
+}
+
+export function getSkillDraftReloadCount(key: string) {
+  return reloadCounts.get(key) ?? 0;
+}
+
+export function reloadSkillDraft(key: string) {
+  reloadCounts.set(key, getSkillDraftReloadCount(key) + 1);
+  reloadListeners.forEach((listener) => listener());
+}
+
 export function skillDraftStorageKey(
   projectId: string,
   skillName: string | null,
@@ -69,26 +113,10 @@ export function resumeSkillDraft(
   stored: StoredSkillDraft,
   metadata?: { labels: string[]; tags: string[] },
 ): SkillDraft {
-  const {
-    deletedFiles,
-    folders,
-    activePath,
-    commitMessage,
-    baseVersionId,
-    ...initialValue
-  } = stored;
   return persistSkillDraft(
     key,
-    baseVersionId,
-    createSkillEditorStore(
-      { ...initialValue, ...metadata },
-      {
-        deletedFiles,
-        folders,
-        activePath,
-        commitMessage,
-      },
-    ),
+    stored.baseVersionId,
+    createStoreForStoredSkillDraft({ ...stored, ...metadata }),
   );
 }
 
@@ -111,34 +139,20 @@ function persistSkillDraft(
 ): SkillDraft {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const save = () => {
+    clearTimeout(timeout);
     timeout = undefined;
-    const state = store.getState();
-    if (!state.dirty) return;
-    const draft: StoredSkillDraft = {
-      schemaVersion: 2,
-      name: state.name,
-      baseVersion: state.baseVersion,
-      baseVersionId,
-      files: Object.values(state.files),
-      deletedFiles: Object.values(state.deletedFiles),
-      folders: state.folders,
-      activePath: state.activePath,
-      labels: state.labels,
-      tags: state.tags,
-      commitMessage: state.commitMessage,
-    };
-    try {
-      window.sessionStorage.setItem(key, JSON.stringify(draft));
-    } catch {
-      // Storage can be full or unavailable; the draft stays in memory, and an
-      // older stored copy must not be restored in its place.
-      clearSkillDraft(key);
-    }
+    if (store.getState().dirty) writeSkillDraft(key, store, baseVersionId);
   };
+  const changed = { flush: save, release: () => {} };
   const unsubscribe = store.subscribe(() => {
+    changedDrafts.set(key, changed);
     clearTimeout(timeout);
     timeout = setTimeout(save, SAVE_DEBOUNCE_MS);
   });
+  changed.release = () => {
+    save();
+    unsubscribe();
+  };
   return {
     store,
     baseVersionId,
@@ -146,8 +160,58 @@ function persistSkillDraft(
       unsubscribe();
       clearTimeout(timeout);
       clearSkillDraft(key);
+      if (changedDrafts.get(key) === changed) changedDrafts.delete(key);
     },
   };
+}
+
+/** Writes the store's draft to storage right away. */
+export function writeSkillDraft(
+  key: string,
+  store: SkillEditorStore,
+  baseVersionId: string | null,
+) {
+  const state = store.getState();
+  const draft: StoredSkillDraft = {
+    schemaVersion: 2,
+    name: state.name,
+    baseVersion: state.baseVersion,
+    baseVersionId,
+    files: Object.values(state.files),
+    deletedFiles: Object.values(state.deletedFiles),
+    folders: state.folders,
+    activePath: state.activePath,
+    labels: state.labels,
+    tags: state.tags,
+    commitMessage: state.commitMessage,
+  };
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(draft));
+  } catch {
+    // Storage can be full or unavailable; the draft stays in memory, and an
+    // older stored copy must not be restored in its place.
+    clearSkillDraft(key);
+  }
+}
+
+/** An editor store for a stored draft that does not write itself back. */
+export function createStoreForStoredSkillDraft(
+  stored: StoredSkillDraft,
+): SkillEditorStore {
+  const {
+    deletedFiles,
+    folders,
+    activePath,
+    commitMessage,
+    baseVersionId: _,
+    ...initialValue
+  } = stored;
+  return createSkillEditorStore(initialValue, {
+    deletedFiles,
+    folders,
+    activePath,
+    commitMessage,
+  });
 }
 
 /** Reads the stored draft for `key`; an invalid entry is removed. */

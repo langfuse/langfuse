@@ -1,7 +1,7 @@
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 const CONFIRM_BEFORE_SAVING =
-  "Show me the result before you save, and save a new version only after I confirm.";
+  "Work on a draft with me in the skill editor, and create a new version from it only after I confirm.";
 
 const CREATE_SKILL_PROMPT = [
   "Help me create a new skill in this project.",

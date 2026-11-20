@@ -1,5 +1,10 @@
 /* eslint-disable @repo/component-file-structure */
-import { type ComponentProps, useMemo, useState } from "react";
+import {
+  type ComponentProps,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { useStore } from "zustand";
@@ -20,8 +25,10 @@ import {
 } from "@/src/features/skills/components/skillEditorStore";
 import {
   createSkillDraft,
+  getSkillDraftReloadCount,
   restoreSkillDraft,
   skillDraftStorageKey,
+  subscribeSkillDraftReloads,
   type SkillDraft,
 } from "@/src/features/skills/components/skillDraftStorage";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -34,6 +41,13 @@ import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function NewSkillPage() {
+  const projectId = useProjectIdFromURL();
+  const draftKey = skillDraftStorageKey(projectId ?? "", null);
+  const reloadCount = useSkillDraftReloadCount(draftKey);
+  return <NewSkillSession key={reloadCount} />;
+}
+
+function NewSkillSession() {
   const router = useRouter();
   const projectId = useProjectIdFromURL();
   const canCreate = useHasProjectAccess({
@@ -60,7 +74,8 @@ export function NewSkillPage() {
 
   return (
     <>
-      {storedDraft ? (
+      {/* A draft Halo opened is the one the user asked for. */}
+      {storedDraft && router.query.draft !== "true" ? (
         <DialogController
           initialState={() => true}
           onDismiss={() => {
@@ -131,9 +146,12 @@ export function ExistingSkillPage() {
   const projectId = useProjectIdFromURL();
   const skillName =
     typeof router.query.skillName === "string" ? router.query.skillName : "";
+  const reloadCount = useSkillDraftReloadCount(
+    skillDraftStorageKey(projectId ?? "", skillName),
+  );
   return (
     <ExistingSkillSession
-      key={`${projectId}:${skillName}`}
+      key={`${projectId}:${skillName}:${reloadCount}`}
       projectId={projectId ?? ""}
       skillName={skillName}
     />
@@ -485,4 +503,13 @@ function SkillEditorForInitialValue({
   );
 
   return <SkillEditor {...props} store={store} />;
+}
+
+/** Changes when a draft is written outside the editor, to remount it. */
+function useSkillDraftReloadCount(draftKey: string) {
+  return useSyncExternalStore(
+    subscribeSkillDraftReloads,
+    () => getSkillDraftReloadCount(draftKey),
+    () => 0,
+  );
 }

@@ -19,6 +19,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { createInAppAgentConversationId } from "../ids";
 import {
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  type InAppAgentBrowserToolName,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
@@ -77,6 +78,14 @@ import {
   getCompletedToolCalls,
   performToolSideEffectsForCompletedToolCalls,
 } from "@/src/features/in-app-agent/components/utils/side-effects";
+import {
+  getOpenBrowserToolCall,
+  markRunStartedInThisTab,
+  runBrowserTool,
+  runsWithoutConfirmation,
+  wasRunStartedInThisTab,
+  type OpenBrowserToolCall,
+} from "@/src/features/in-app-agent/components/utils/browserTools";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -154,6 +163,15 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   submitFeedback: async () => undefined,
 };
 
+export type PendingBrowserToolCall = {
+  toolName: InAppAgentBrowserToolName;
+  /** Whether this tab started the run; otherwise another tab may run it. */
+  isThisTab: boolean;
+  isRunning: boolean;
+  run: () => void;
+  decline: () => void;
+};
+
 type InAppAiAgentFeedbackByConversationId = Record<
   string,
   Record<string, InAppAgentMessageFeedback>
@@ -222,6 +240,8 @@ type InAppAiAgentContextType = {
     answers: InAppAgentQuestionnaireAnswers,
   ) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
+  /** A browser tool call this tab runs only once the user says so. */
+  pendingBrowserToolCall?: PendingBrowserToolCall;
   submitFeedback: (params: {
     messageId: string;
     runId: string;
@@ -367,6 +387,50 @@ function InAppAiAgentProviderInner({
   const cancelRunMutation = api.inAppAgent.cancelRun.useMutation();
   const decideToolApprovalMutation =
     api.inAppAgent.decideToolApproval.useMutation();
+  const submitBrowserToolResultMutation =
+    api.inAppAgent.submitBrowserToolResult.useMutation();
+  const [runningBrowserToolCallId, setRunningBrowserToolCallId] = useState<
+    string | null
+  >(null);
+  // Calls this tab already ran or tried, so none runs twice here; the server
+  // accepts only the first result across tabs.
+  const handledBrowserToolCallIdsRef = useRef(new Set<string>());
+  const runBrowserToolCall = useCallback(
+    async (
+      session: BackgroundExecutionSession,
+      call: OpenBrowserToolCall,
+      decline = false,
+    ) => {
+      if (handledBrowserToolCallIdsRef.current.has(call.toolCallId)) {
+        return;
+      }
+      handledBrowserToolCallIdsRef.current.add(call.toolCallId);
+      setRunningBrowserToolCallId(call.toolCallId);
+      try {
+        const result = decline
+          ? { status: "declined" }
+          : await runBrowserTool({ projectId, utils, call }).catch(
+              (error: unknown) => ({
+                status: "error",
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : "The browser could not run the tool.",
+              }),
+            );
+        await session.submitBrowserToolResult({
+          runId: call.runId,
+          toolCallId: call.toolCallId,
+          result,
+        });
+      } catch (error) {
+        setError(getInAppAgentError(error));
+      } finally {
+        setRunningBrowserToolCallId(null);
+      }
+    },
+    [projectId, utils],
+  );
   const isSelectedConversationNotFound =
     conversationQuery.error?.data?.code === "NOT_FOUND";
   const selectedConversationId = isSelectedConversationNotFound
@@ -819,6 +883,7 @@ function InAppAiAgentProviderInner({
             message: params.message,
             context: [...params.context],
           });
+          markRunStartedInThisTab(started.runId);
           setUnpersistedConversationIds((current) => {
             if (!current.has(started.conversationId)) {
               return current;
@@ -833,6 +898,22 @@ function InAppAiAgentProviderInner({
         },
       });
 
+      // The tab that started a run runs the browser tool it ended on, unless
+      // the tool needs the user's confirmation.
+      const runOwnBrowserToolCall = () => {
+        const session = backgroundSessionRef.current;
+        if (session?.conversationId !== conversationId) {
+          return;
+        }
+        const call = getOpenBrowserToolCall(session.getSnapshot());
+        if (
+          call &&
+          runsWithoutConfirmation(call.toolName) &&
+          wasRunStartedInThisTab(call.runId)
+        ) {
+          runBrowserToolCall(session, call).catch(() => undefined);
+        }
+      };
       const nextBackgroundSession = new BackgroundExecutionSessionController({
         agent,
         subscriber: sharedAgentSubscriber,
@@ -880,8 +961,8 @@ function InAppAiAgentProviderInner({
             conversationId,
             runId,
           }),
-        decideApproval: (input) =>
-          decideToolApprovalMutation.mutateAsync({
+        decideApproval: async (input) => {
+          const continuation = await decideToolApprovalMutation.mutateAsync({
             projectId,
             conversationId,
             runId: input.runId,
@@ -889,8 +970,22 @@ function InAppAiAgentProviderInner({
             approved: input.approved,
             approvalScope: input.approvalScope,
             toolInputs: input.toolInputs,
-          }),
+          });
+          markRunStartedInThisTab(continuation.runId);
+          return continuation;
+        },
+        submitBrowserToolResult: async (input) => {
+          const continuation =
+            await submitBrowserToolResultMutation.mutateAsync({
+              projectId,
+              conversationId,
+              ...input,
+            });
+          markRunStartedInThisTab(continuation.runId);
+          return continuation;
+        },
         onHydratedSnapshot: ({ messages }) => {
+          runOwnBrowserToolCall();
           performToolSideEffectsForCompletedToolCalls({
             toolCalls: getCompletedToolCalls(messages),
             handledToolCallIds: handledToolCallIdsRef.current,
@@ -903,6 +998,7 @@ function InAppAiAgentProviderInner({
           });
         },
         onSettled: () => {
+          runOwnBrowserToolCall();
           clearLoadingEvents();
           Promise.resolve(
             utils.inAppAgent.listConversations.invalidate({ projectId }),
@@ -927,6 +1023,8 @@ function InAppAiAgentProviderInner({
       clearLoadingEvents,
       conversationQuery.data,
       decideToolApprovalMutation,
+      runBrowserToolCall,
+      submitBrowserToolResultMutation,
       projectId,
       refetchActivity,
       releaseSubmitLock,
@@ -1471,6 +1569,63 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
+  const openBrowserToolCall = isSelectedConversationNotFound
+    ? null
+    : getOpenBrowserToolCall(backgroundExecutionView);
+  const openToolCallId = openBrowserToolCall?.toolCallId;
+  const openToolRunId = openBrowserToolCall?.runId;
+  const openToolName = openBrowserToolCall?.toolName;
+  const openToolArguments = openBrowserToolCall?.arguments;
+  // The tab that started the run runs edits and reads on its own, so only a
+  // save, or a call from another tab's run, needs the user.
+  const pendingBrowserToolCall = useMemo(():
+    | PendingBrowserToolCall
+    | undefined => {
+    if (
+      !openToolCallId ||
+      !openToolRunId ||
+      !openToolName ||
+      openToolArguments === undefined ||
+      !backgroundSession
+    ) {
+      return undefined;
+    }
+    const call = {
+      toolCallId: openToolCallId,
+      runId: openToolRunId,
+      toolName: openToolName,
+      arguments: openToolArguments,
+    };
+    const isThisTab = wasRunStartedInThisTab(call.runId);
+    if (isThisTab && runsWithoutConfirmation(call.toolName)) {
+      return undefined;
+    }
+    return {
+      toolName: call.toolName,
+      isThisTab,
+      isRunning: runningBrowserToolCallId === call.toolCallId,
+      // A retry is safe: a published draft is gone, so it reports notFound.
+      run: () => {
+        handledBrowserToolCallIdsRef.current.delete(call.toolCallId);
+        runBrowserToolCall(backgroundSession, call).catch(() => undefined);
+      },
+      decline: () => {
+        handledBrowserToolCallIdsRef.current.delete(call.toolCallId);
+        runBrowserToolCall(backgroundSession, call, true).catch(
+          () => undefined,
+        );
+      },
+    };
+  }, [
+    backgroundSession,
+    openToolArguments,
+    openToolCallId,
+    openToolName,
+    openToolRunId,
+    runBrowserToolCall,
+    runningBrowserToolCallId,
+  ]);
+
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
       isAvailable: true,
@@ -1508,6 +1663,7 @@ function InAppAiAgentProviderInner({
       alwaysAllowToolCall,
       answerQuestionnaire,
       rejectToolCall,
+      pendingBrowserToolCall,
       submitFeedback,
     }),
     [
@@ -1534,6 +1690,7 @@ function InAppAiAgentProviderInner({
       openAssistant,
       execution,
       effectivePendingToolApprovals,
+      pendingBrowserToolCall,
       rejectToolCall,
       setAgentOpen,
       invalidateConversations,

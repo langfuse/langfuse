@@ -144,6 +144,17 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     /** Inherited from the parent run. */
     topicsAvailable: z.boolean().optional(),
   }),
+  z.object({
+    // The user's browser ran a browser tool the parent run ended on; its
+    // result is the input of this run.
+    kind: z.literal("browserToolResult"),
+    parentRunId: z.string(),
+    toolCallId: z.string(),
+    /** Inherited from the parent run. */
+    context: z.array(AgUiContextSchema).default([]),
+    /** Inherited from the parent run. */
+    topicsAvailable: z.boolean().optional(),
+  }),
 ]);
 
 export type InAppAgentRunRequest = z.infer<typeof InAppAgentRunRequestSchema>;
