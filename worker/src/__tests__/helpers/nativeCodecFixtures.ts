@@ -1,8 +1,14 @@
 import {
+  PreparedEvent,
   prepareOtelJson,
   type OtelLookupRequest,
   type RustOtelBatch,
 } from "@langfuse/native";
+
+export function constructPreparedEventFromJs() {
+  // @ts-expect-error Rust creates the handle when it finalizes an event.
+  return new PreparedEvent();
+}
 
 export function codecSpan(
   index: number,

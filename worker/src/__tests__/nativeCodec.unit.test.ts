@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { encodeClickhouseEvents } from "@langfuse/native";
-import { codecSpan, prepareCodecRows } from "./helpers/nativeCodecFixtures";
+import {
+  codecSpan,
+  constructPreparedEventFromJs,
+  prepareCodecRows,
+} from "./helpers/nativeCodecFixtures";
 
 describe("Native codec NAPI boundary", () => {
+  it("only allows Rust to construct prepared event handles", () => {
+    expect(constructPreparedEventFromJs).toThrow(/constructor/);
+  });
+
   it("retains Rust-owned rows while handles and evaluation snapshots change during encoding", async () => {
     const { events, evaluationRows } = await prepareCodecRows([
       codecSpan(1, {
