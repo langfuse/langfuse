@@ -1260,6 +1260,17 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
       toolMetadata: { root: false, attributes: "none", name: "a" },
     },
   ],
+  [
+    {
+      ...aiProviderSeed([
+        { key: "gen_ai.tool.name", value: false },
+        { key: "flue.operation.result", value: "" },
+      ]),
+      scope: "@flue/opentelemetry",
+      spanName: null,
+    },
+    aiProviderSeed([]),
+  ],
   declaredTypeExamples.flatMap(([key, alias]) =>
     [[alias], [[alias]], [alias, ""]].map((value) =>
       aiProviderSeed([{ key, value }]),

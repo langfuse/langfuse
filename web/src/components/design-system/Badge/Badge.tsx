@@ -165,22 +165,19 @@ export function Badge({
       hasTrailingIcon={TrailingIcon != null}
       {...props}
     >
-      {LeadingIcon && <LeadingIcon aria-hidden size="sm" color="tertiary" />}
+      {LeadingIcon && <LeadingIcon aria-hidden size="sm" />}
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(
           // min-w-0 lets the text shrink inside the badge so it truncates.
           "min-w-0 py-0.5",
-          shouldWrap
-            ? "break-words whitespace-normal"
-            : "text-ellipsis whitespace-nowrap",
-          interactive ? "overflow-clip" : "overflow-x-clip overflow-y-visible",
+          shouldWrap ? "break-words whitespace-normal" : "truncate",
         )}
         title={title ?? (interactive ? undefined : text)}
       >
         {text}
       </span>
-      {TrailingIcon && <TrailingIcon aria-hidden size="sm" color="tertiary" />}
+      {TrailingIcon && <TrailingIcon aria-hidden size="sm" />}
     </BadgeShell>
   );
 }
