@@ -41,11 +41,7 @@
   (`modelScopeRankSql`) before pattern or start date. After changing an
   organization's definitions, call `clearModelCacheForOrganization`
   (`src/server/ingestion/modelMatch.ts`).
-- Plans and entitlements: the plan → entitlement table and
-  `hasEntitlementBasedOnPlan` live in `src/features/entitlements/` (client-safe
-  barrel); `getOrganizationPlanServerSide` / `getSelfHostedInstancePlanServerSide`
-  in `src/server/entitlements/getPlan.ts` (server barrel), so web and worker
-  resolve an organization's plan the same way.
+- Plans and entitlements: the plan → entitlement table and `hasEntitlementBasedOnPlan` live in `src/features/entitlements/` (client-safe barrel); `getOrganizationPlanServerSide` / `getSelfHostedInstancePlanServerSide` in `src/server/entitlements/getPlan.ts` (server barrel), so web and worker resolve an organization's plan the same way. The resolver reads shared's `env`, so tests override it there (`@langfuse/shared/src/env`), not via `process.env` or a `@/src/env.mjs` mock.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Audit snapshots and replay: `src/server/repositories/auditLogs.ts`; `getAuditLogResourceRefs` derives bulk trace refs from the persisted snapshot for live staging and backfill.
