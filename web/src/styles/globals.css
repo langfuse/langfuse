@@ -518,7 +518,7 @@
     /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
        readable text/icon color on them. */
     --light-red: oklch(93.6% 0.032 17.717 / 0.7);
-    --dark-red: oklch(63.7% 0.237 25.331);
+    --dark-red: oklch(44.4% 0.177 26.899);
 
     --light-yellow: oklch(97.3% 0.071 103.193 / 0.7);
     --dark-yellow: oklch(47.6% 0.114 61.907);
