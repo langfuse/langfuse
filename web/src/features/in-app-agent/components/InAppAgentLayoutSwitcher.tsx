@@ -1,7 +1,7 @@
 "use client";
 
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { Button } from "@/src/components/ui/button";
 import {
   IN_APP_AGENT_LAYOUT_MODES,
   IN_APP_AGENT_LAYOUT_MODE_OPTIONS,
@@ -32,17 +32,23 @@ export function InAppAgentLayoutSwitcher({
             hoverableContent={false}
           >
             {({ getTriggerProps }) => (
-              <IconButton
+              <Button
                 {...getTriggerProps()}
-                icon={option.icon}
-                label={option.label}
-                size="sm"
-                variant="toolbar"
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="aria-pressed:bg-accent size-5 shrink-0 rounded-sm"
+                aria-label={option.label}
                 aria-pressed={layoutMode === value}
                 onClick={() => {
                   onChange(layoutMode);
                 }}
-              />
+              >
+                <option.icon
+                  size="sm"
+                  color={layoutMode === value ? "default" : "muted"}
+                />
+              </Button>
             )}
           </Tooltip>
         );
