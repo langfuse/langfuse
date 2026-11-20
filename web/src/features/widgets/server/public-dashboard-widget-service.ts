@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/only-throw-error */
 import type { z } from "zod";
 import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {

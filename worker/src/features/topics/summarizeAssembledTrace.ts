@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/only-throw-error */
 import type { TopicsModels } from "@langfuse/shared/topics/server";
 import {
   DEFAULT_TOPIC_FACETS,
@@ -116,7 +115,9 @@ export async function summarizeAssembledTrace(
         try {
           await metrics.measure("trace", async () => {
             result = await summarizeEnabledTrace(input, metrics);
-            if (result.failure !== undefined) throw result.failure;
+            if (result.failure !== undefined)
+              // eslint-disable-next-line @typescript-eslint/only-throw-error -- propagate assembled-trace failure
+              throw result.failure;
           });
           span.setAttribute("langfuse.topics.trace_outcome", result!.outcome);
           return result!;

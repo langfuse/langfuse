@@ -1,4 +1,4 @@
-/* eslint-disable array-callback-return, @typescript-eslint/only-throw-error */
+/* eslint-disable array-callback-return */
 import {
   EvalTemplateType,
   Prisma,

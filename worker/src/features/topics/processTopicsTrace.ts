@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/only-throw-error */
 import { ZodError } from "zod";
 import {
   createTraceBatchInputStorage,
@@ -314,7 +313,9 @@ async function processEvent(
     if (retry === "scheduled")
       return { outcome: "retry_scheduled", failedStage };
     // Without a scheduled retry, BullMQ's attempts are the fallback.
-    if (retry === "queue_unavailable") throw failure;
+    if (retry === "queue_unavailable")
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- rethrow stored facet failure for BullMQ
+      throw failure;
     return { outcome: "failed", reason, failedStage };
   }
   if (failure instanceof TopicsProviderUnavailable)
@@ -324,6 +325,7 @@ async function processEvent(
   // Output that fails the facet schema would fail again; retrying only repeats the paid call.
   if (failure instanceof ZodError)
     return { outcome: "failed", reason: "invalid_output", failedStage };
+  // eslint-disable-next-line @typescript-eslint/only-throw-error -- rethrow stored facet failure for BullMQ
   throw failure;
 }
 

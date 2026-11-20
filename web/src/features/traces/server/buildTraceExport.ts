@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/only-throw-error */
 import {
   BaseError,
   LangfuseNotFoundError,

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/only-throw-error */
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
@@ -596,6 +595,7 @@ describe("withMiddlewares error handling", () => {
     it("should handle non-Error thrown values with 500 status", async () => {
       const handler = withMiddlewares({
         PATCH: async () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error for middleware coverage
           throw "string error";
         },
       });
@@ -620,6 +620,7 @@ describe("withMiddlewares error handling", () => {
     it("should handle null/undefined errors with 500 status", async () => {
       const handler = withMiddlewares({
         PUT: async () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error for middleware coverage
           throw null;
         },
       });

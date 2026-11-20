@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/only-throw-error */
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";

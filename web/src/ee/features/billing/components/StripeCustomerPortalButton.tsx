@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/only-throw-error */
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";
@@ -50,6 +49,7 @@ export const StripeCustomerPortalButton = ({
     try {
       setLoading(true);
       const { data, error } = await portalQuery.refetch();
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- tRPC refetch error is forwarded to the boundary
       if (error) throw error;
       if (data) {
         window.location.href = data;
