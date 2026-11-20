@@ -388,9 +388,22 @@ export const listDatasetsByProjectForApi = async ({
   projectId,
   page,
   limit,
+  fromTimestamp,
+  toTimestamp,
 }: ListDatasetsV1Input) => {
   const shouldReadLegacyDatasetRuns =
     env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only";
+  const where = {
+    projectId,
+    ...(fromTimestamp || toTimestamp
+      ? {
+          createdAt: {
+            ...(fromTimestamp ? { gte: new Date(fromTimestamp) } : {}),
+            ...(toTimestamp ? { lte: new Date(toTimestamp) } : {}),
+          },
+        }
+      : {}),
+  };
   const datasets = await prisma.dataset.findMany({
     select: {
       name: true,
@@ -413,7 +426,7 @@ export const listDatasetsByProjectForApi = async ({
           }
         : {}),
     },
-    where: { projectId },
+    where,
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     take: limit,
     skip: (page - 1) * limit,
@@ -438,7 +451,7 @@ export const listDatasetsByProjectForApi = async ({
   }
 
   const totalItems = await prisma.dataset.count({
-    where: { projectId },
+    where,
   });
 
   return {
