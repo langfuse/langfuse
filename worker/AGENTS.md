@@ -16,7 +16,7 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
-- Topics: `src/features/topics/processTopicsExecution.ts` and `src/features/topics/nightlyRefit.ts`, which fits each rule's continuous map daily at `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a per-project offset from `nightlyRefitSlot` in `@langfuse/shared/topics/server`; each tick publishes the hour to Redis for web's next-refit time. Before changing extraction, model configuration, fitting, scheduling, persistence, costs or retries, read `src/features/topics/README.md` for lifecycle and recovery contracts.
+- Topics: `src/features/topics/processTopicsExecution.ts` and `src/features/topics/nightlyRefit.ts`, which fits each rule's continuous map daily at `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a per-project offset. Before changing extraction, model configuration, fitting, scheduling, persistence, costs or retries, read `src/features/topics/README.md` for lifecycle and recovery contracts.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation

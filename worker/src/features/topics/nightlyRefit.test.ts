@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextNightlyRefitSlot, nightlyRefitSlot } from "./nightly-refit-slot";
+import { nightlyRefitSlot } from "./nightlyRefit";
 
 const hourUtc = 4;
 const now = new Date("2026-11-04T06:00:00.000Z");
@@ -28,14 +28,5 @@ describe("nightlyRefitSlot", () => {
       hourUtc,
     );
     expect(slot.toISOString().startsWith("2026-11-03T04:")).toBe(true);
-  });
-
-  it("returns today's slot as the next one before it has passed", () => {
-    const next = nextNightlyRefitSlot(
-      "project",
-      new Date("2026-11-04T03:00:00.000Z"),
-      hourUtc,
-    );
-    expect(next.toISOString().startsWith("2026-11-04T04:")).toBe(true);
   });
 });

@@ -22,9 +22,7 @@ import {
   getTopicSummaryCounts,
   getTopicsModels,
   listTopicAnalysisExecutions,
-  getNightlyRefitHour,
   listTopicRules,
-  nextNightlyRefitSlot,
   readTopicExecutionSummary,
   topicAnalysisCohort,
 } from "@langfuse/shared/topics/server";
@@ -45,26 +43,19 @@ const isAnalysis = (
 
 /** Rules with their last update, and one-off analyses, for the map picker. */
 export async function topicMapsOverview(projectId: string) {
-  const [rules, refits, executions, refitHour] = await Promise.all([
+  const [rules, refits, executions] = await Promise.all([
     listTopicRules(projectId),
     getTopicRuleRefits(projectId),
     listTopicAnalysisExecutions(projectId),
-    getNightlyRefitHour(),
   ]);
   const refreshes = await getTopicRuleRefreshStatuses(
     projectId,
     rules.map((rule) => rule.id),
   );
-  const nextRefitAt =
-    refitHour === null
-      ? null
-      : nextNightlyRefitSlot(projectId, new Date(), refitHour).toISOString();
   return {
     rules: rules.map((rule, index) => ({
       ...rule,
       lastRefitAt: refits.get(rule.id)?.toISOString() ?? null,
-      // Paused rules keep their map without nightly refits.
-      nextRefitAt: rule.enabled === false ? null : nextRefitAt,
       refresh: refreshes[index],
     })),
     analyses: executions.filter(isAnalysis).map((execution) => ({

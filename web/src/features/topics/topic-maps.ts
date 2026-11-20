@@ -70,11 +70,11 @@ export function topicRuleFreshness(
 }
 
 /**
- * "in about 5 hours"; approximate, since the scheduler picks the slot up within
- * minutes. A slot that passed since the overview was fetched recurs daily.
+ * "in about 5 hours": nightly refits recur daily at about the same time, so the
+ * next one is estimated as the last refit plus whole days.
  */
-export function topicNextRefitLabel(nextRefitAt: string, now: number) {
-  let at = Date.parse(nextRefitAt);
+export function topicNextRefitLabel(lastRefitAt: string, now: number) {
+  let at = Date.parse(lastRefitAt);
   while (at <= now) at += 86_400_000;
   const hours = Math.round((at - now) / 3_600_000);
   if (hours < 1) return "in under an hour";

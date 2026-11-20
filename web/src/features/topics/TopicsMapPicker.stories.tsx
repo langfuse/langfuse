@@ -24,7 +24,6 @@ const rule = (
   createdAt: hoursAgo(24 * 30),
   updatedAt: hoursAgo(24 * 30),
   lastRefitAt: hoursAgo(3),
-  nextRefitAt: hoursAgo(-16),
   refresh: { availableAt: null, running: false },
   ...overrides,
 });

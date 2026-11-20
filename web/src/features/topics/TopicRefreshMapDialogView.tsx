@@ -11,6 +11,7 @@ import {
 
 const WINDOW_DAYS = Math.round(TOPICS_MAX_SELECTION_RANGE_MS / 86_400_000);
 const COOLDOWN_MINUTES = Math.round(TOPIC_RULE_REFRESH_COOLDOWN_MS / 60_000);
+
 /** The Refresh map confirmation without data fetching; stories render it directly. */
 export function TopicRefreshMapDialogView({
   rule,
@@ -18,7 +19,7 @@ export function TopicRefreshMapDialogView({
   refreshing,
   onRefresh,
 }: {
-  rule: Pick<TopicRuleMap, "name" | "enabled" | "lastRefitAt" | "nextRefitAt">;
+  rule: Pick<TopicRuleMap, "name" | "enabled" | "lastRefitAt">;
   now: number;
   refreshing: boolean;
   onRefresh: () => void;
@@ -33,8 +34,8 @@ export function TopicRefreshMapDialogView({
         <p>
           Reclusters this map&apos;s topics from the last {WINDOW_DAYS} days of
           matching traces now, instead of at the next scheduled nightly update
-          {rule.nextRefitAt
-            ? ` ${topicNextRefitLabel(rule.nextRefitAt, now)}`
+          {rule.enabled !== false && rule.lastRefitAt
+            ? ` ${topicNextRefitLabel(rule.lastRefitAt, now)}`
             : ""}
           .
         </p>
