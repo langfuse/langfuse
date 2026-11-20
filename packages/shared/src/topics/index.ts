@@ -388,7 +388,7 @@ export interface TopicDefinition {
   topicId: string;
   createdByRunId: string;
   createdAt: string;
-  tags: string[];
+  labels: string[];
   name: string;
   description: string;
   centroid: number[];

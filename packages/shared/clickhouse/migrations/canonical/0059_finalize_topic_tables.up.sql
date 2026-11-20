@@ -1,5 +1,25 @@
--- Re-keys the Topics summaries and assignments on empty tables. The old tables are kept as *_old (not read or written) and dropped later.
-RENAME TABLE topic_facet_summaries TO topic_facet_summaries_old, topic_assignments TO topic_assignments_old {CLICKHOUSE_CLUSTER_CLAUSE};
+-- Re-keys the Topics summaries and assignments and recreates topics (tags renamed to labels), all empty. The old tables are kept as *_old (not read or written) and dropped later.
+RENAME TABLE topic_facet_summaries TO topic_facet_summaries_old, topic_assignments TO topic_assignments_old, topics TO topics_old {CLICKHOUSE_CLUSTER_CLAUSE};
+
+CREATE TABLE IF NOT EXISTS topics {CLICKHOUSE_CLUSTER_CLAUSE}
+(
+    project_id String,
+    id String,
+    stable_id String,
+    created_by_run_id String,
+    created_at DateTime64(3, 'UTC'),
+    name String,
+    description String CODEC(ZSTD(3)),
+    centroid Array(Float64),
+    radius Float64,
+    labels Array(String) DEFAULT [],
+    representative_summaries Array(Tuple(facet_id String, facet_version UInt32, trace_id String, session_id String)),
+    metadata String CODEC(ZSTD(3))
+)
+ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(created_at)
+PARTITION BY toYYYYMM(created_at)
+ORDER BY (project_id, toDate(created_at), id)
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
 (

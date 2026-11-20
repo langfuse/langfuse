@@ -47,7 +47,7 @@ export async function topicsProject() {
         projectId: project.projectId,
         createdByRunId: run.id,
         createdAt: now,
-        tags: [],
+        labels: [],
         name: "Private topic",
         description: "Private topic description",
         centroid: [1, 0],

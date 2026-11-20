@@ -530,7 +530,7 @@ async function clusterFacet(
         projectId: scope.projectId,
         createdByRunId: run.id,
         createdAt: run.createdAt,
-        tags: [],
+        labels: [],
         name: label?.name ?? `Unnamed topic ${topics.length + 1}`,
         description:
           label?.description ??

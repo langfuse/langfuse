@@ -55,7 +55,7 @@ describe("tracesTopics", () => {
             projectId,
             createdByRunId: run.id,
             createdAt: now,
-            tags: [],
+            labels: [],
             name,
             description: name,
             centroid: [1, 0],

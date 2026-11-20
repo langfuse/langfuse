@@ -396,7 +396,7 @@ describe("Topics definition storage", () => {
     projectId: "project-a",
     createdByRunId: "run-a",
     createdAt: "2026-09-16T00:00:00.000Z",
-    tags: ["billing"],
+    labels: ["billing"],
     name: "Billing",
     description: "Invoice requests",
     centroid: [0.123456789012345, 1],

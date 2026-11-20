@@ -161,7 +161,7 @@ export async function getTopicDefinitions(
       query: `SELECT project_id AS projectId, id AS topicVersionId,
         stable_id AS topicId, created_by_run_id AS createdByRunId,
         toUnixTimestamp64Milli(created_at) AS createdAtMs, name, description,
-        centroid, radius, tags, representative_summaries AS representativeSummaries,
+        centroid, radius, labels, representative_summaries AS representativeSummaries,
         metadata AS metadataJson
         FROM topics
         WHERE project_id = {projectId:String} AND id IN {ids:Array(String)}
@@ -248,7 +248,7 @@ function encodeTopicDefinition(row: TopicDefinition): Buffer {
   const radius = Buffer.allocUnsafe(8);
   radius.writeDoubleLE(row.radius);
   parts.push(radius);
-  strings(row.tags);
+  strings(row.labels);
   length(row.representativeSummaries.length);
   for (const source of row.representativeSummaries) {
     string(source.facetId);
@@ -286,7 +286,7 @@ export async function writeTopicDefinitions(
     if (!values.length) return;
     const result = await clickhouseClient().exec({
       query: `INSERT INTO topics (project_id, id, stable_id, created_by_run_id,
-        created_at, name, description, centroid, radius, tags,
+        created_at, name, description, centroid, radius, labels,
         representative_summaries, metadata) FORMAT RowBinary`,
       values: Readable.from(values),
       clickhouse_settings: {

@@ -435,7 +435,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         topicId: `${map.runId}-topic-${k}`,
         createdByRunId: map.runId,
         createdAt: processedAt,
-        tags: [],
+        labels: [],
         name: topic.name,
         description: topic.description,
         centroid: unit(k),

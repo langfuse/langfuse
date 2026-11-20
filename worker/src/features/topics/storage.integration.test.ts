@@ -894,7 +894,7 @@ describe("Topics definition persistence", () => {
         i === 847 ? -0.003662027125082599 : Math.sin(i) / 32,
       ),
       radius: 0.003662027125082599,
-      tags: ["billing", "請求書"],
+      labels: ["billing", "請求書"],
       representativeSummaries: [
         {
           facetId: "facet-a",
@@ -918,7 +918,7 @@ describe("Topics definition persistence", () => {
       createdAt: "2026-09-24T21:21:07.330Z",
       centroid: [1, 0, -1],
       radius: 0,
-      tags: [],
+      labels: [],
       representativeSummaries: [],
       metadata: {},
     };
