@@ -149,6 +149,7 @@ type FtsMetadataArrayConditionContext = {
   valuesColumn: string;
   valueAccessor: string;
   valueParam: string;
+  encodedValueParam?: string;
   // Whether the search value yields at least one token; gates the text-index
   // prefilter so tokenless values fall back to the exact check alone.
   hasToken: boolean;
@@ -187,11 +188,20 @@ export const FTS_OPERATOR_DESCRIPTORS = {
       valuesColumn,
       valueAccessor,
       valueParam,
+      encodedValueParam,
       hasToken,
-    }) =>
-      hasToken
-        ? `${hasKey} AND ${ftsMetadataArrayTokenConjunct(valuesColumn, valueParam)} AND (${valueAccessor} = ${valueParam})`
-        : `${hasKey} AND (${valueAccessor} = ${valueParam})`,
+    }) => {
+      const equalityCondition = (param: string) => {
+        const tokenPrefilter = hasToken
+          ? `${ftsMetadataArrayTokenConjunct(valuesColumn, param)} AND `
+          : "";
+        return `${tokenPrefilter}${valueAccessor} = ${param}`;
+      };
+      const encodedMatch = encodedValueParam
+        ? ` OR (${equalityCondition(encodedValueParam)})`
+        : "";
+      return `${hasKey} AND ((${equalityCondition(valueParam)})${encodedMatch})`;
+    },
   },
   [FTS_MATCH_OPERATOR]: {
     textCondition: (fieldExpr, valueParam, _exactCondition, _hasToken) =>
