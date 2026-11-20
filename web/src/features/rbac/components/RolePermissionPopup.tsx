@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { type IconComponent } from "@langfuse/icons";
+
 import { type SystemRole } from "@langfuse/shared/src/db";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
@@ -6,6 +8,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
@@ -13,6 +16,7 @@ import {
   RolePermissionList,
   rolePermissionCount,
   rolePermissionNoun,
+  type ResourceKind,
 } from "@/src/features/rbac/components/RolePermissionList";
 import {
   roleDisplay,
@@ -25,13 +29,16 @@ export function RolePermissionPopup({
   onOpenChange,
   role,
   display = roleDisplay,
+  resourceKinds,
   emptyStateComment,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   role: SystemRole | null;
   /** display overrides how the role is presented. */
-  display?: (role: SystemRole) => RoleDisplay;
+  display?: (role: SystemRole) => RolePermissionPopupDisplay;
+  /** resourceKinds limits the popup to the permission kinds that apply. */
+  resourceKinds?: ResourceKind[];
   emptyStateComment?: string;
 }) {
   const shown = role ? display(role) : undefined;
@@ -39,7 +46,7 @@ export function RolePermissionPopup({
   const showEmptyStateComment =
     role !== null &&
     emptyStateComment !== undefined &&
-    rolePermissionCount(role) === 0;
+    rolePermissionCount(role, resourceKinds) === 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -47,18 +54,18 @@ export function RolePermissionPopup({
         closeOnInteractionOutside
         className="min-h-[25.5rem] sm:min-w-[32rem]"
       >
-        {role && shown && Icon && (
+        {role && shown && (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Icon size="base" />
+                {Icon && <Icon size="base" />}
                 <span>{shown?.name}</span>
                 <span className="ml-1 shrink-0 tabular-nums">
                   <BadgeShell color="filled" size="sm">
                     <span className="font-bold">
-                      {rolePermissionCount(role)}
+                      {rolePermissionCount(role, resourceKinds)}
                     </span>{" "}
-                    {rolePermissionNoun(role)}
+                    {rolePermissionNoun(role, resourceKinds)}
                   </BadgeShell>
                 </span>
               </DialogTitle>
@@ -69,12 +76,23 @@ export function RolePermissionPopup({
                   {emptyStateComment}
                 </p>
               ) : (
-                <RolePermissionList role={role} />
+                <RolePermissionList role={role} resourceKinds={resourceKinds} />
               )}
             </DialogBody>
+            {shown.note && (
+              <DialogFooter className="px-4 py-3 sm:justify-start">
+                <p className="text-muted-foreground text-xs">* {shown.note}</p>
+              </DialogFooter>
+            )}
           </>
         )}
       </DialogContent>
     </Dialog>
   );
 }
+
+/** RolePermissionPopupDisplay is a role's popup title, with an optional icon and fine-print note. */
+type RolePermissionPopupDisplay = Pick<RoleDisplay, "name"> & {
+  Icon?: IconComponent;
+  note?: string;
+};
