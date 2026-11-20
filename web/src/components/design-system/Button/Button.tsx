@@ -49,8 +49,6 @@ type ButtonProps = {
   text: string;
   /** Stretch to the width of the parent. Used by dialog footer actions. */
   fill?: boolean;
-  /** Let pointer events reach a parent tooltip while this button is disabled. */
-  ignorePointer?: boolean;
   variant?:
     | "primary"
     | "secondary"
@@ -98,7 +96,6 @@ export function Button(props: ButtonProps) {
       size: props.size,
     }),
     props.fill && "w-full",
-    props.ignorePointer && "pointer-events-none",
   );
   const iconColor = props.variant === "ghost" ? "default" : "inherit";
 

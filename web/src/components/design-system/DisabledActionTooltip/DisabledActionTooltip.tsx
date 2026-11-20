@@ -1,29 +1,12 @@
 "use client";
 
-import { cloneElement, type ReactElement } from "react";
+import { type ReactElement } from "react";
 
-import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
-// Disabled buttons swallow pointer events, so the tooltip listens on this
-// wrapper and the button lets those events through.
-type PointerChild = ReactElement<{
-  className?: string;
-  ignorePointer?: boolean;
-}>;
-
-function releasePointerEvents(child: ReactElement) {
-  const element = child as PointerChild;
-  if (element.type === Button) {
-    return cloneElement(element, { ignorePointer: true });
-  }
-
-  return cloneElement(element, {
-    className: cn(element.props.className, "pointer-events-none"),
-  });
-}
-
+// A disabled button is not a hover target. The trigger is this wrapper, and
+// the layer above the button receives the pointer so the button can stay as it is.
 export function DisabledActionTooltip({
   label,
   fill = false,
@@ -45,11 +28,15 @@ export function DisabledActionTooltip({
               typeof triggerProps.className === "string"
                 ? triggerProps.className
                 : undefined,
-              "inline-flex cursor-not-allowed",
+              "relative inline-flex",
               fill && "w-full sm:w-auto",
             )}
           >
-            {releasePointerEvents(children)}
+            {children}
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 cursor-not-allowed"
+            />
           </span>
         );
       }}
