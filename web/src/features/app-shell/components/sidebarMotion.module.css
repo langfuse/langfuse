@@ -93,6 +93,7 @@
   justify-content: center;
 }
 
+.workspace,
 .account,
 .version {
   display: flex;
@@ -106,6 +107,14 @@
 
 .account {
   block-size: 3rem;
+}
+
+.workspace {
+  block-size: 2.75rem;
+  box-shadow: inset 0 0 0 1px
+    hsl(var(--sidebar-border) / var(--sidebar-label-opacity, 1));
+  transition: box-shadow var(--sidebar-motion-duration, 0ms)
+    var(--sidebar-motion-ease, ease);
 }
 
 .version {

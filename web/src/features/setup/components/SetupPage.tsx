@@ -37,8 +37,8 @@ export function SetupPage() {
         ...(stepInt === 1 && {
           breadcrumb: [
             {
-              name: "Home",
-              href: "/",
+              name: "Organizations",
+              href: "/organizations",
             },
           ],
         }),

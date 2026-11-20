@@ -23,6 +23,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
+import { WorkspaceBreadcrumbSwitcher } from "@/src/features/app-shell/components/WorkspaceBreadcrumbSwitcher";
 
 const BreadcrumbComponent = ({
   items,
@@ -32,13 +33,14 @@ const BreadcrumbComponent = ({
   className?: string;
 }) => {
   const session = useSession();
+  const appNavigation = useAppNavigation();
   const { organization, project } = useQueryProjectOrOrganization();
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
   const organizations = session.data?.user?.organizations;
   // The expanded desktop sidebar shows the org switcher, so the breadcrumb
   // drops it there.
-  const orgInSidebar = useAppNavigation()?.isSidebarExpanded ?? false;
+  const orgInSidebar = appNavigation?.isSidebarExpanded ?? false;
 
   const canCreateOrganizations = session.data?.user?.canCreateOrganizations;
   const canCreateProjects = useHasOrganizationAccess({
@@ -49,7 +51,12 @@ const BreadcrumbComponent = ({
   return (
     <Breadcrumb className={className}>
       <BreadcrumbList>
-        {organization && (
+        {organization && appNavigation?.shell === "next" && (
+          <BreadcrumbItem>
+            <WorkspaceBreadcrumbSwitcher />
+          </BreadcrumbItem>
+        )}
+        {organization && appNavigation?.shell !== "next" && (
           <OrganizationDropdownMenu
             {...(organizations
               ? { state: "loaded", organizations }
@@ -87,7 +94,7 @@ const BreadcrumbComponent = ({
             )}
           </OrganizationDropdownMenu>
         )}
-        {organization && project && (
+        {organization && project && appNavigation?.shell !== "next" && (
           <>
             <BreadcrumbSeparator
               className={cn(
