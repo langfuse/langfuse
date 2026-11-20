@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import type { z } from "zod";
 import { singleFilterList } from "@langfuse/shared";
-import { type views } from "@langfuse/shared/query";
+import { type ViewVersion, type views } from "@langfuse/shared/query";
 
 export const FilterArray = singleFilterList;
 
@@ -488,6 +488,42 @@ export const partitionWidgetUiTableFiltersToView = (
   filters: z.infer<typeof FilterArray>,
 ): PartitionedWidgetFilters =>
   partitionUiTableFiltersToView(view, filters, "editor");
+
+/** viewLowersNumericMetadata reports whether the view compares metadata as numbers: the other views' servers reject `numberObject` metadata filters. */
+export const viewLowersNumericMetadata = (
+  view: z.infer<typeof views>,
+  viewVersion: ViewVersion,
+): boolean => viewVersion === "v2" && view === "observations";
+
+export const isNumericMetadataFilter = (filter: {
+  column: string;
+  type: string;
+}): boolean => filter.column === "metadata" && filter.type === "numberObject";
+
+/**
+ * partitionWidgetQueryFiltersToView partitions editor rows for a query on the
+ * view, like partitionWidgetUiTableFiltersToView, and also counts a numeric
+ * metadata row as unsupported on a view that does not lower it.
+ */
+export const partitionWidgetQueryFiltersToView = (
+  view: z.infer<typeof views>,
+  viewVersion: ViewVersion,
+  filters: z.infer<typeof FilterArray>,
+): PartitionedWidgetFilters => {
+  const partitioned = partitionWidgetUiTableFiltersToView(view, filters);
+  if (viewLowersNumericMetadata(view, viewVersion)) {
+    return partitioned;
+  }
+  return {
+    mappedFilters: partitioned.mappedFilters.filter(
+      (filter) => !isNumericMetadataFilter(filter),
+    ),
+    unsupportedFilters: [
+      ...partitioned.unsupportedFilters,
+      ...partitioned.mappedFilters.filter(isNumericMetadataFilter),
+    ],
+  };
+};
 
 export const mapLegacyUiTableFilterToView = (
   view: z.infer<typeof views>,

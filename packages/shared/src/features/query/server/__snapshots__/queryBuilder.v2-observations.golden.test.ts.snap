@@ -1292,6 +1292,30 @@ ORDER BY count_count DESC",
 ]
 `;
 
+exports[`golden: executeQuery v2 observations > filters > build filter=metadata numberObject > 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "latency_ms",
+      "param3": 200,
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND has(e.metadata_names, {param2:String})
+    AND (toFloat64OrNull(e.metadata_values[indexOf(e.metadata_names, {param2:String})]) > {param3:Float64})
+    AND (e.start_time >= {param4:DateTime64(3, 'UTC')})
+    AND (e.start_time <= {param5:DateTime64(3, 'UTC')})
+ORDER BY count_count DESC",
+  },
+]
+`;
+
 exports[`golden: executeQuery v2 observations > filters > build filter=null environment is-not-null 1`] = `
 [
   {
