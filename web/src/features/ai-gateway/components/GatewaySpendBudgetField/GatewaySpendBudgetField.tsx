@@ -138,7 +138,7 @@ function GatewaySpendBudgetRow<T extends FieldValues>({
         control={control}
         name={`${name}.interval`}
         render={({ field, fieldState }) => (
-          <div className="w-36">
+          <div className="w-28">
             <IntervalSelect
               ariaLabel={`${label} budget resets`}
               field={field}
@@ -197,7 +197,7 @@ function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
           )}
         </Form.Field>
       </div>
-      <div className="w-36">
+      <div className="w-28">
         <Form.Field
           control={control}
           name="spendBudget.interval"
