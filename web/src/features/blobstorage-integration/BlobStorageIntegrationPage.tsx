@@ -8,9 +8,11 @@ import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integratio
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { BlobStorageIntegrationContainer } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationContainer";
-import { useBlobStorageIntegration } from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
+import {
+  useBlobStorageIntegration,
+  useDeleteBlobStorageIntegration,
+} from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
 import { BlobStorageStatusSection } from "@/src/features/blobstorage-integration/components/BlobStorageStatusSection";
-import { api } from "@/src/utils/api";
 
 export default function BlobStorageIntegrationPage() {
   const router = useRouter();
@@ -56,10 +58,10 @@ export default function BlobStorageIntegrationPage() {
             This feature is not available in your current plan.
           </p>
           {hasAccess && state.data?.config && (
-            <>
+            <div className="flex flex-col items-start gap-4">
               <BlobStorageStatusSection config={state.data.config} />
               <DeleteIntegrationButton projectId={projectId} />
-            </>
+            </div>
           )}
         </>
       ) : !hasAccess ? (
@@ -95,14 +97,10 @@ export default function BlobStorageIntegrationPage() {
 // The only action left once the plan no longer includes scheduled exports:
 // removing the integration and its stored credentials.
 function DeleteIntegrationButton({ projectId }: { projectId: string }) {
-  const utils = api.useUtils();
-  const mutDelete = api.blobStorageIntegration.delete.useMutation({
-    onSuccess: () => utils.blobStorageIntegration.invalidate(),
-  });
+  const mutDelete = useDeleteBlobStorageIntegration(projectId);
   return (
     <Button
       variant="destructive"
-      className="mt-4"
       loading={mutDelete.isPending}
       onClick={() => {
         if (

@@ -172,11 +172,4 @@ the container.
 
 ## Plan entitlement
 
-Configuring, running, and validating an export requires the
-`scheduled-blob-exports` entitlement (Cloud Team and Enterprise; every
-self-hosted plan). Reading (`get`, REST `GET`) and deleting do not, so an
-organization that lost the entitlement can see why its export stopped and
-remove the stored credentials. The scheduler checks the entitlement on every
-tick and disables integrations whose organization no longer has it, because a
-plan can change without any event (manual `cloudConfig.plan` override, billing
-webhooks).
+Configuring, running, and validating an export requires the `scheduled-blob-exports` entitlement (Cloud Team and Enterprise; every self-hosted plan). Reading (`get`, REST `GET`) and deleting do not, so an organization that lost the entitlement can see why its export stopped and remove the stored credentials. The scheduler checks the entitlement on every tick and disables integrations whose organization no longer has it, because a plan can change without any event (manual `cloudConfig.plan` override, billing webhooks). An unreadable plan (a `cloudConfig` that fails to parse, an unrecognized ClickHouse Billing plan code, or a Stripe product id missing from the product map) keeps exporting. Before disabling, the scheduler re-reads the plan, and a run that finishes after the disable keeps the disable reason.
