@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   findMany,
+  findUnique,
   updateMany,
   addBulk,
   recordDistribution,
@@ -10,6 +11,7 @@ const {
   getOrganizationPlanServerSide,
 } = vi.hoisted(() => ({
   findMany: vi.fn(),
+  findUnique: vi.fn(),
   updateMany: vi.fn(),
   addBulk: vi.fn(),
   recordDistribution: vi.fn(),
@@ -19,7 +21,10 @@ const {
 }));
 
 vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: { blobStorageIntegration: { findMany, updateMany } },
+  prisma: {
+    blobStorageIntegration: { findMany, updateMany },
+    project: { findUnique },
+  },
 }));
 
 vi.mock("./handleBlobStorageIntegrationProjectJob", () => ({
@@ -56,6 +61,15 @@ describe("handleBlobStorageIntegrationSchedule", () => {
     vi.useFakeTimers({ now });
     // Self-hosted: every plan includes scheduled exports.
     getOrganizationPlanServerSide.mockReturnValue("oss");
+    // The disable path re-reads the organization; by default its plan is
+    // unchanged since the tick's snapshot.
+    findUnique.mockImplementation(
+      async ({ where }: { where: { id: string } }) => {
+        const rows: { projectId: string; project: unknown }[] =
+          await findMany.mock.results[0].value;
+        return rows.find((row) => row.projectId === where.id)?.project;
+      },
+    );
   });
 
   it("emits staleness for every enabled integration but enqueues only due ones", async () => {
@@ -193,20 +207,31 @@ describe("handleBlobStorageIntegrationSchedule", () => {
       expect(enqueued).toEqual(["team"]);
     });
 
-    it("keeps exporting for a ClickHouse Billing org whose plan code is unrecognized", async () => {
+    it.each([
+      {
+        label: "a ClickHouse Billing plan code it does not recognize",
+        cloudConfig: {
+          clickhouse: {
+            organizationId: "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a",
+            planCode: "scale",
+          },
+        },
+      },
+      {
+        label: "a Stripe product id missing from the product map",
+        cloudConfig: {
+          stripe: { customerId: "cus_1", activeProductId: "prod_unknown" },
+        },
+      },
+    ])("keeps exporting for $label", async ({ cloudConfig }) => {
       findMany.mockResolvedValue([
         {
-          projectId: "chb-drifted",
+          projectId: "unknown-plan",
           exportFrequency: "hourly",
           lastSyncAt: null,
           nextSyncAt: null,
           backfill: false,
-          ...withCloudConfig({
-            clickhouse: {
-              organizationId: "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a",
-              planCode: "scale",
-            },
-          }),
+          ...withCloudConfig(cloudConfig),
         },
       ]);
 
@@ -214,6 +239,52 @@ describe("handleBlobStorageIntegrationSchedule", () => {
 
       expect(updateMany).not.toHaveBeenCalled();
       expect(addBulk).toHaveBeenCalledTimes(1);
+    });
+
+    it("disables a ClickHouse Billing org whose plan was cancelled", async () => {
+      findMany.mockResolvedValue([
+        {
+          projectId: "chb-cancelled",
+          exportFrequency: "hourly",
+          lastSyncAt: null,
+          nextSyncAt: null,
+          backfill: false,
+          ...withCloudConfig({
+            clickhouse: {
+              organizationId: "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a",
+            },
+          }),
+        },
+      ]);
+      updateMany.mockResolvedValue({ count: 1 });
+
+      await handleBlobStorageIntegrationSchedule();
+
+      expect(updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { projectId: "chb-cancelled", enabled: true },
+        }),
+      );
+      expect(addBulk).not.toHaveBeenCalled();
+    });
+
+    it("keeps an integration whose organization upgraded after the tick read its plan", async () => {
+      findMany.mockResolvedValue([
+        {
+          projectId: "upgraded",
+          exportFrequency: "hourly",
+          lastSyncAt: null,
+          nextSyncAt: null,
+          backfill: false,
+          ...withCloudConfig({ plan: "Pro" }),
+        },
+      ]);
+      findUnique.mockResolvedValue(withCloudConfig({ plan: "Team" }).project);
+
+      await handleBlobStorageIntegrationSchedule();
+
+      expect(updateMany).not.toHaveBeenCalled();
+      expect(notifyBlobStorageExportFailed).not.toHaveBeenCalled();
     });
 
     it("does not notify when another tick already disabled the integration", async () => {

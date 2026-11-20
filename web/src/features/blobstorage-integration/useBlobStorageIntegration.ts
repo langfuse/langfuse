@@ -50,3 +50,14 @@ export function useBlobStorageIntegration(
 
   return { hasAccess, hasEntitlement, query, status };
 }
+
+/** Deletes the integration and its stored credentials. */
+export function useDeleteBlobStorageIntegration(projectId: string) {
+  const utils = api.useUtils();
+  return api.blobStorageIntegration.delete.useMutation({
+    onSuccess: () => {
+      utils.blobStorageIntegration.getExternalId.reset({ projectId });
+      utils.blobStorageIntegration.invalidate();
+    },
+  });
+}

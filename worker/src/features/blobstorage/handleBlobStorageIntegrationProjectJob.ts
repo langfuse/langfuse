@@ -217,6 +217,14 @@ const removeBlobExportDeprecationNotice = async (params: {
   }
 };
 
+// A run that finishes after the integration was disabled mid-run (for example
+// by a plan downgrade) keeps the disable reason.
+const clearLastErrorIfEnabled = (projectId: string) =>
+  prisma.blobStorageIntegration.updateMany({
+    where: { projectId, enabled: true },
+    data: { lastError: null, lastErrorAt: null },
+  });
+
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
@@ -320,8 +328,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       data: {
         runStartedAt: null,
         nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
-        lastError: null,
-        lastErrorAt: null,
         ...(isExportCaughtUp({
           lastSyncAt: blobStorageIntegration.lastSyncAt,
           runStartTime,
@@ -330,6 +336,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
           : {}),
       },
     });
+    await clearLastErrorIfEnabled(projectId);
     return;
   }
 
@@ -565,8 +572,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         data: {
           lastSyncAt: maxTimestamp,
           nextSyncAt,
-          lastError: null,
-          lastErrorAt: null,
           runStartedAt: null,
           ...(isExportCaughtUp({ lastSyncAt: maxTimestamp, runStartTime })
             ? { backfill: false }
@@ -574,6 +579,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         },
       },
     );
+    await clearLastErrorIfEnabled(projectId);
     if (persisted === 0) {
       logger.info(
         `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after successful export`,
