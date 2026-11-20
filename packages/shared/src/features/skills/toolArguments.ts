@@ -131,10 +131,11 @@ function isCodexMetadata(metadata: unknown): boolean {
 
 function isCodexShellTool(toolName: string): boolean {
   return (
-    toolName === "skill" ||
-    toolName.startsWith("skill:") ||
-    toolName === "exec" ||
-    toolName === "exec_command"
+    typeof toolName === "string" &&
+    (toolName === "skill" ||
+      toolName.startsWith("skill:") ||
+      toolName === "exec" ||
+      toolName === "exec_command")
   );
 }
 
