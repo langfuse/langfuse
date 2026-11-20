@@ -60,7 +60,7 @@ import {
   topicClusterSettings,
   TOPICS_NUMERIC_VERSION,
 } from "./numeric";
-import { matchTopicContinuity } from "./continuity";
+import { keepsName, matchTopicContinuity, nameAnchor } from "./continuity";
 import { createEventLoopYielder } from "./event-loop";
 import { TopicMetrics } from "./metrics";
 
@@ -412,6 +412,8 @@ async function clusterFacet(
       });
     }
     const reused = new Map<string, TopicDefinition>();
+    // Continued topics whose name still fits: candidate version ID -> previous version.
+    const keptNames = new Map<string, TopicDefinition>();
     candidates = candidates.map((candidate) => {
       const old = previous?.topics.find(
         (topic) => topic.topicId === candidate.topicId,
@@ -430,6 +432,8 @@ async function clusterFacet(
           radius: old.radius,
         };
       }
+      if (compatiblePrevious && old && keepsName(old, candidate))
+        keptNames.set(candidate.topicVersionId, old);
       return candidate;
     });
     // Final version IDs also determine the serving classifier's distance ties.
@@ -448,7 +452,7 @@ async function clusterFacet(
     const topics: TopicDefinition[] = [];
     const named: NamedTopics = new Map();
     for (const group of evidence) {
-      const retained = reused.get(group.id);
+      const retained = reused.get(group.id) ?? keptNames.get(group.id);
       if (retained)
         named.set(retained.name.toLowerCase(), {
           name: retained.name,
@@ -460,6 +464,30 @@ async function clusterFacet(
       const retained = reused.get(group.id);
       if (retained) {
         topics.push(retained);
+        continue;
+      }
+      const kept = keptNames.get(group.id);
+      if (kept) {
+        const candidate = candidates.find(
+          (topic) => topic.topicVersionId === group.id,
+        )!;
+        topics.push({
+          ...candidate,
+          projectId: scope.projectId,
+          createdByRunId: run.id,
+          createdAt: run.createdAt,
+          tags: [],
+          name: kept.name,
+          description: kept.description,
+          representativeSummaries: kept.representativeSummaries,
+          metadata: {
+            ...candidate.metadata,
+            effectiveMemberCount: group.count,
+            namingModel: kept.metadata.namingModel,
+            nameAnchor: nameAnchor(kept),
+          },
+        });
+        metrics.result("naming", "name_kept");
         continue;
       }
       const label = await instrumentAsync(
