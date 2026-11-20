@@ -1004,12 +1004,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     aria-label={`Conversation history${historyAttentionSuffix}`}
                   >
                     <History size="base" color="default" />
-                    {/* Launcher badge, scaled to the 24px trigger. Visual only —
+                    {/* Conversations owed a look, kept quiet. Visual only —
                         accessible name is on the button. */}
                     {historyAttentionCount > 0 && (
                       <span
                         aria-hidden="true"
-                        className="bg-primary-accent text-primary-foreground absolute -top-0.5 -right-0.5 flex h-3 min-w-3 items-center justify-center rounded-full px-1 text-[9px] leading-none font-bold"
+                        className="bg-muted text-muted-foreground ring-border absolute -top-0.5 -right-0.5 flex h-3 min-w-3 items-center justify-center rounded-full px-1 text-[9px] leading-none font-bold ring-1"
                       >
                         {historyAttentionCount > 99
                           ? "99+"
