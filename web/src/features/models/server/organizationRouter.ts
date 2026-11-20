@@ -4,6 +4,7 @@ import type { Session } from "next-auth";
 import {
   deleteModelDefinition,
   getModelDefinition,
+  isLangfuseDefaultModelName,
   listModelDefinitions,
   testModelDefinitionMatch,
   upsertModelDefinition,
@@ -97,6 +98,17 @@ export const organizationModelRouter = createTRPCRouter({
         actor: { session: ctx.session },
         modelId: input.modelId,
       });
+    }),
+
+  isLangfuseDefaultName: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string(), modelName: z.string().min(1) }))
+    .query(({ input, ctx }) => {
+      requireAccess({
+        session: ctx.session,
+        orgId: input.orgId,
+        scope: "organizationModels:read",
+      });
+      return isLangfuseDefaultModelName(input.modelName);
     }),
 
   testMatch: protectedOrganizationProcedure

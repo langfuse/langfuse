@@ -470,6 +470,19 @@ describe("organization model definitions", () => {
       expect(shared.matched && shared.model.id).toBe(ids.orgAShared);
       expect((await testMatch(orgBName)).matched).toBe(false);
     });
+
+    it("tells whether a name is a Langfuse default name, by exact name only", async () => {
+      const caller = createCaller(orgA.orgId, orgA.projectId);
+      const isDefault = (modelName: string) =>
+        caller.organizationModels.isLangfuseDefaultName({
+          orgId: orgA.orgId,
+          modelName,
+        });
+
+      expect(await isDefault(sharedName)).toBe(true);
+      expect(await isDefault(sharedName.slice(0, -1))).toBe(false);
+      expect(await isDefault(orgOnlyName)).toBe(false);
+    });
   });
 
   describe("public models API", () => {
