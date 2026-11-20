@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ---- Hoisted mocks ----
@@ -146,8 +145,10 @@ import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { CloudConfigSchema, Role } from "@langfuse/shared";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import type { Session } from "next-auth";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // ---- Helpers ----
 
@@ -557,18 +558,16 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
   const PRO_PRODUCT = "prod_QhK7UMhrkVeF6R";
   const TEAM_PRODUCT = "prod_QhK9qKGH25BTcS";
 
-  // getOrganizationPlanServerSide reads process.env directly (not env.mjs),
-  // so the region must be stubbed on the real process env.
-  const originalRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  // getOrganizationPlanServerSide reads the region from shared's env, not
+  // env.mjs.
+  const originalRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+    Object.assign(sharedEnv, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
   });
   afterEach(() => {
-    if (originalRegion === undefined) {
-      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    } else {
-      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
-    }
+    Object.assign(sharedEnv, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion,
+    });
   });
 
   const orgBefore = (cloudConfig: unknown) => ({
@@ -831,33 +830,19 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
 // Exercised end-to-end: call site → real SfdcService → mocked fetch.
 
 function buildOwnerSession(orgId: string): Session {
-  return {
-    expires: "1",
-    user: {
-      id: "owner-user",
-      email: "owner@test.com",
-      name: "Owner",
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: orgId,
-          name: "Test Org",
-          role: Role.OWNER,
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:team",
-    },
-  };
+  return createSession({
+    user: { id: "owner-user", email: "owner@test.com", name: "Owner" },
+    organizations: [
+      {
+        id: orgId,
+        role: Role.OWNER,
+        name: "Test Org",
+        plan: "cloud:team",
+        aiTelemetryEnabled: true,
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:team" },
+  });
 }
 
 function createOwnerCaller(orgId: string) {
@@ -1184,6 +1169,7 @@ describe("call site: createProjectMembershipsOnSignup", () => {
     prismaMock.project.findFirst.mockResolvedValueOnce({ id: "proj-9" });
     prismaMock.$queryRaw
       .mockResolvedValueOnce([{ id: "proj-9" }])
+      .mockResolvedValueOnce([{ id: "org-membership-9" }])
       .mockResolvedValueOnce([{ id: "proj-9" }]);
 
     await createProjectMembershipsOnSignup(

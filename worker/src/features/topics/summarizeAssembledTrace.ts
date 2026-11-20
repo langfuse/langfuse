@@ -48,9 +48,6 @@ const BUILT_IN_FACETS = new Set(
   DEFAULT_TOPIC_FACETS.map((facet) => facet.name),
 );
 
-// Stored as `transcript_id` on every summary.
-export const ASSEMBLED_TRANSCRIPT_ID = "trace-batch";
-
 type TraceFacet = {
   name: string;
   version: TopicFacetVersion;
@@ -72,6 +69,8 @@ type AssembledTraceInput = {
   executionIssues: ExecutionIssue[];
   models: TopicsModels;
   facets: TopicFacet[];
+  /** Dispatch revision of the stored transcript; stored as `transcript_id`. */
+  revision: string;
   // Tags the attempt's metrics so retries are separable from first attempts.
   attempt?: "first" | "retry";
   /** The snapshot that seeded the trace; stored on its summaries. */
@@ -163,6 +162,7 @@ async function summarizeEnabledTrace(
       unitStartTime: input.traceTimestamp,
       environment: input.environment,
       traceName: input.traceName,
+      transcriptId: input.revision,
       facet: version,
       summaryModel: models.summary.model,
       embeddingModel,
@@ -366,6 +366,7 @@ function baseTopicSummary(params: {
   unitStartTime: string;
   environment: string;
   traceName: string;
+  transcriptId: string;
   facet: TopicFacetVersion;
   summaryModel: string;
   embeddingModel: string;
@@ -384,7 +385,7 @@ function baseTopicSummary(params: {
     state: "insufficient_input",
     summary: "",
     embedding: [],
-    transcriptId: ASSEMBLED_TRANSCRIPT_ID,
+    transcriptId: params.transcriptId,
     transcriptVersion: TOPICS_TEXT_VERSION,
     summaryModel: params.summaryModel,
     embeddingModel: params.embeddingModel,

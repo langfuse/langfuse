@@ -1,10 +1,10 @@
 import { ZodError } from "zod";
 import {
-  createTraceBatchInputStorage,
+  createTraceTranscriptStorage,
   logger,
   recordIncrement,
   type TopicsTraceEventType,
-  type TraceBatchInputData,
+  type TraceTranscriptData,
 } from "@langfuse/shared/src/server";
 import {
   getEnabledTopicsModels,
@@ -36,7 +36,7 @@ import {
   type TopicsFailedStage,
 } from "./summarizeAssembledTrace";
 
-const inputStorage = createTraceBatchInputStorage();
+const inputStorage = createTraceTranscriptStorage();
 
 export type TopicsTraceOutcome =
   | { outcome: "disabled" | "stale" | "summarized" }
@@ -144,7 +144,7 @@ function pendingFacetIds(facets: TopicFacet[], rows: TopicSummary[]): string[] {
 /** Unreadable objects are retried; a stored object that does not parse never will. */
 async function readInputs(
   event: TopicsTraceEventType,
-): Promise<TraceBatchInputData | null> {
+): Promise<TraceTranscriptData | null> {
   try {
     return await inputStorage.get(event.transcriptS3Path);
   } catch (error) {
@@ -278,6 +278,7 @@ async function processEvent(
       executionIssues: inputs.executionIssues,
       models,
       facets,
+      revision: event.revision,
       attempt: deps.attempt ? "retry" : "first",
       executionId: event.batchActionId,
     });

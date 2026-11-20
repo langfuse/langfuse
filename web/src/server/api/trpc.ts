@@ -117,6 +117,23 @@ setUpSuperjson();
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+// Off by default: the error type (memory, result size, timeout) is only sent
+// to the browser when the operator opts in, e.g. on a self-hosted instance
+// where the users also run ClickHouse.
+const exposeClickHouseErrorType = () =>
+  env.LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS === "true";
+
+const CLICKHOUSE_MEMORY_ERROR_MESSAGE = [
+  "ClickHouse ran out of memory while running this query.",
+  "Please narrow your request by adding more specific filters (e.g., a shorter date range).",
+].join(" ");
+
+const getClickHouseResourceErrorMessage = (error: ClickHouseResourceError) =>
+  exposeClickHouseErrorType() &&
+  (error.errorType === "MEMORY_LIMIT" || error.errorType === "OVERCOMMIT")
+    ? CLICKHOUSE_MEMORY_ERROR_MESSAGE
+    : error.adviceMessage;
+
 const trpcBuilder = initTRPC
   .context<typeof createTRPCContext>()
   .meta<TrpcMeta>();
@@ -138,6 +155,10 @@ const t = trpcBuilder.create({
           error.cause instanceof ClickHouseResourceError
             ? "ClickHouseResourceError"
             : null,
+        ...(error.cause instanceof ClickHouseResourceError &&
+        exposeClickHouseErrorType()
+          ? { clickhouseErrorType: error.cause.errorType }
+          : {}),
         // do not expose stack traces for CH errors as they may contain sensitive info
         stack:
           error.cause instanceof ClickHouseResourceError
@@ -211,7 +232,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       });
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
-        message: res.error.cause.adviceMessage,
+        message: getClickHouseResourceErrorMessage(res.error.cause),
         // Keep the original error, it will be removed by `errorFormatter`
         cause: res.error.cause,
       });

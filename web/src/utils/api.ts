@@ -151,10 +151,12 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * Zod input validation (`BAD_REQUEST` whose message is a Zod 4 issue list or
  * whose `data.zodError` is populated), plus CONFLICT on
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
- * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}. Empty/too-short fields, stale
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, plus PRECONDITION_FAILED on
+ * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}. Empty/too-short fields, stale
  * in-app-agent approvals, a rejected user-configured remote-experiment URL,
- * and an invite for someone who is already a member or already invited are
- * the product working as designed — the UI already explains them; Sentry
+ * an invite for someone who is already a member or already invited, and an
+ * organization delete while projects are still being purged are the product
+ * working as designed — the UI already explains them; Sentry
  * must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
@@ -183,6 +185,17 @@ export const EXPECTED_TRPC_ERROR_CODES = [
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
   "members.create",
+] as const;
+
+/**
+ * PRECONDITION_FAILED is usually an unexpected guard. These procedures throw
+ * it only as user-facing product state the UI already explains.
+ *
+ * `organizations.delete` throws it while soft-deleted projects are still
+ * being purged. The delete dialog renders that inline.
+ */
+const EXPECTED_TRPC_PRECONDITION_FAILED_PATHS = [
+  "organizations.delete",
 ] as const;
 
 const getTrpcErrorData = (
@@ -214,7 +227,8 @@ export const getTrpcErrorPath = (error: unknown): string | undefined => {
  * True when `error` is a TRPCClientError whose code is an EXPECTED, user-facing
  * state that should not be captured to Sentry.
  * See {@link EXPECTED_TRPC_ERROR_CODES}, {@link EXPECTED_TRPC_CONFLICT_PATHS},
- * and {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}.
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, and
+ * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}.
  */
 export const isExpectedTrpcClientError = (error: unknown): boolean => {
   const code = getTrpcErrorCode(error);
@@ -236,6 +250,15 @@ export const isExpectedTrpcClientError = (error: unknown): boolean => {
     code === "BAD_REQUEST" &&
     path !== undefined &&
     (EXPECTED_TRPC_BAD_REQUEST_PATHS as readonly string[]).includes(path)
+  ) {
+    return true;
+  }
+  if (
+    code === "PRECONDITION_FAILED" &&
+    path !== undefined &&
+    (EXPECTED_TRPC_PRECONDITION_FAILED_PATHS as readonly string[]).includes(
+      path,
+    )
   ) {
     return true;
   }

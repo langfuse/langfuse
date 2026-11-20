@@ -95,6 +95,9 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
+    LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS: z
+      .enum(["true", "false"])
+      .default("false"),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -984,6 +987,8 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS:
+      process.env.LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:

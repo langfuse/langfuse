@@ -6,7 +6,7 @@ import { X, type IconComponent } from "@langfuse/icons";
 import * as React from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
 import { cn } from "@/src/utils/tailwind";
@@ -236,6 +236,9 @@ function DialogRoot({
                       }}
                       text={label}
                       {...buttonProps}
+                      shouldFill={Boolean(
+                        buttonProps.disabled && disabledReason,
+                      )}
                       variant={
                         variant === undefined || variant === "default"
                           ? "primary"
@@ -245,7 +248,11 @@ function DialogRoot({
                   );
                   if (!buttonProps.disabled || !disabledReason) return button;
                   return (
-                    <DisabledActionTooltip key={label} label={disabledReason}>
+                    <DisabledActionTooltip
+                      key={label}
+                      label={disabledReason}
+                      shouldFill
+                    >
                       {button}
                     </DisabledActionTooltip>
                   );
@@ -285,28 +292,6 @@ function DialogBody({
     >
       {children}
     </div>
-  );
-}
-
-// Disabled buttons fire no pointer events, so the tooltip listens on a wrapper.
-function DisabledActionTooltip({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactElement;
-}) {
-  return (
-    <Tooltip label={label}>
-      {({ getTriggerProps }) => (
-        <span
-          {...getTriggerProps()}
-          className="inline-flex w-full cursor-not-allowed sm:w-auto [&>button]:pointer-events-none [&>button]:w-full"
-        >
-          {children}
-        </span>
-      )}
-    </Tooltip>
   );
 }
 

@@ -13,14 +13,17 @@ import {
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger, withSerializableRetry } from "@langfuse/shared/src/server";
-import { isBaseError, LangfuseConflictError } from "@langfuse/shared";
+import {
+  isBaseError,
+  LangfuseConflictError,
+  hasEntitlementBasedOnPlan,
+} from "@langfuse/shared";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { assertValidOrgOwnershipChange } from "@/src/features/rbac/server/ownershipChange";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeScimError } from "@/src/features/public-api/server/writeError";
 

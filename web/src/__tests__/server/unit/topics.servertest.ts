@@ -1,7 +1,7 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "@/src/features/topics/backfill-limit";
-import type { Session } from "next-auth";
+import type { Role } from "@langfuse/shared";
 import type * as topicsServer from "@langfuse/shared/topics/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -89,6 +89,7 @@ vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
 import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
 import {} from "@/src/features/topics/server/slices";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const projectId = "project-a";
 const facetId = "facet-a";
@@ -109,20 +110,10 @@ const input: TopicManualRunInput = {
 };
 
 function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
-  const session = {
-    expires: "1",
-    user: {
-      id: "user-a",
-      featureFlags: testFeatureFlags({ langfuseTopics }),
-      organizations: [
-        {
-          id: "org-a",
-          role,
-          projects: [{ id: projectId, role }],
-        },
-      ],
-    },
-  } as Session;
+  const session = createSession({
+    user: { id: "user-a", featureFlags: testFeatureFlags({ langfuseTopics }) },
+    organizations: [{ id: "org-a", role, projects: [{ id: projectId }] }],
+  });
   return topicsRouter.createCaller(
     createInnerTRPCContext({ session, headers: {} }),
   );
@@ -306,29 +297,6 @@ describe("Topics project allowlist", () => {
 });
 
 describe("Topics visibility gate", () => {
-  const session = ({
-    langfuseTopics = true,
-    email,
-    internalFeatures = true,
-    role = "VIEWER",
-  }: {
-    langfuseTopics?: boolean;
-    email?: string;
-    internalFeatures?: boolean;
-    role?: string | null;
-  }) =>
-    ({
-      expires: "1",
-      user: {
-        id: "user-a",
-        email,
-        featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
-        organizations: role
-          ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
-          : [],
-      },
-    }) as unknown as Session;
-
   // Page, sidebar and API all call this one gate.
   it.each([
     ["a member on an allowlisted project", {}, true, true],
@@ -370,7 +338,28 @@ describe("Topics visibility gate", () => {
       false,
     ],
   ] as const)("%s", (_case, user, topicsEnabled, expected) => {
-    expect(canViewTopics(session(user), { id: projectId, topicsEnabled })).toBe(
+    const {
+      langfuseTopics = true,
+      email,
+      internalFeatures = true,
+      role = "VIEWER",
+    }: {
+      langfuseTopics?: boolean;
+      email?: string;
+      internalFeatures?: boolean;
+      role?: Role | null;
+    } = user;
+    const session = createSession({
+      user: {
+        id: "user-a",
+        email,
+        featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
+      },
+      organizations: role
+        ? [{ id: "org-a", role, projects: [{ id: projectId }] }]
+        : [],
+    });
+    expect(canViewTopics(session, { id: projectId, topicsEnabled })).toBe(
       expected,
     );
   });

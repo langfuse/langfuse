@@ -107,9 +107,13 @@ const usage = {
 let summaries: TopicSummary[] = [];
 // Keeps the returned rows for assertions and rethrows a partial failure, as the batch job reports it.
 const summarize = async (
-  input: Omit<Parameters<typeof summarizeAssembledTrace>[0], "executionIssues">,
+  input: Omit<
+    Parameters<typeof summarizeAssembledTrace>[0],
+    "executionIssues" | "revision"
+  > & { revision?: string },
 ) => {
   const result = await summarizeAssembledTrace({
+    revision: "revision",
     ...input,
     executionIssues: [],
   });
@@ -172,6 +176,7 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      revision: "revision-1",
     });
     expect(state.summarize).toHaveBeenCalledTimes(1);
     const submitted = state.summarize.mock.calls[0];
@@ -198,6 +203,7 @@ describe("summarizeAssembledTrace", () => {
       embeddingModel: "eu.cohere.embed-v4:0",
       environment: "default",
       traceName: "agent-turn",
+      transcriptId: "revision-1",
       providedUsageDetails: {
         summary_input: 20,
         embedding_input: 4,

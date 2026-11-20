@@ -10,10 +10,10 @@ import {
   getTraceCountsByProjectInCreationInterval,
   getTracingCountsByProjectInCreationIntervalFromEventsTable,
   logger,
+  getSelfHostedInstancePlanServerSide,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
 
 // Interval between jobs in minutes
 const JOB_INTERVAL_MINUTES = Prisma.raw("720"); // 12 hours

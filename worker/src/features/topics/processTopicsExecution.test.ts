@@ -13,8 +13,6 @@ import { getTopicClusteringSummaries } from "@langfuse/shared/topics/server";
 import { TOPICS_TEXT_VERSION } from "@langfuse/shared/src/server";
 import { topicExecutionInputSchema } from "@langfuse/shared/topics";
 import { TopicsProviderUnavailable } from "./provider-error";
-import { ASSEMBLED_TRANSCRIPT_ID } from "./summarizeAssembledTrace";
-
 const { topicSourceKey } = vi.hoisted(() => ({
   topicSourceKey: (
     row: Pick<
@@ -319,7 +317,7 @@ function seedSummaries(
         state: "complete",
         summary: traceId,
         embedding,
-        transcriptId: ASSEMBLED_TRANSCRIPT_ID,
+        transcriptId: "revision",
         transcriptVersion: TOPICS_TEXT_VERSION,
         summaryModel: "gpt-4.1-nano",
         embeddingModel: "eu.cohere.embed-v4:0",

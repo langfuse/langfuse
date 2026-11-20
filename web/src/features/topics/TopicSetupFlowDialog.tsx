@@ -11,7 +11,7 @@ import {
   Lock,
   RefreshCw,
 } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -376,13 +376,7 @@ export function TopicSetupFlowDialog({
                   { value: backfillLine(pastCount) },
                 ]}
               />
-              {notice ? (
-                <Alert variant="warning" size="sm">
-                  <Alert.Description>
-                    <p>{notice}</p>
-                  </Alert.Description>
-                </Alert>
-              ) : null}
+              {notice ? <Banner variant="warning">{notice}</Banner> : null}
               <div className="bg-light-blue text-dark-blue mt-1 flex flex-col gap-1.5 rounded-md px-4 py-2.5 text-sm">
                 {pastCount.status !== "ready" || pastCount.matched > 0 ? (
                   <span className="flex items-center gap-2">
