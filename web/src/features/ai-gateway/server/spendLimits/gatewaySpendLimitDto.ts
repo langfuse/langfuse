@@ -3,7 +3,7 @@ import type {
   Prisma,
 } from "@langfuse/shared/src/db";
 
-import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 
 /** Fields serialized to clients for a spend budget. */
 export const GATEWAY_SPEND_LIMIT_DTO_SELECT = {

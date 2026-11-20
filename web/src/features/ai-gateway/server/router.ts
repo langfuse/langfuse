@@ -54,7 +54,7 @@ import {
   GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_USD,
 } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
-import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import { GatewaySpendLimitService } from "./spendLimits/gatewaySpendLimitService";
 import { GatewaySpendLimitRepository } from "./spendLimits/gatewaySpendLimitRepository";
 import { GatewayTeamService } from "./team/gatewayTeamService";

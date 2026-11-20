@@ -23,7 +23,7 @@ import {
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
-import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {

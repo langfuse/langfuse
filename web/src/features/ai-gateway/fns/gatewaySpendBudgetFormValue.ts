@@ -1,6 +1,6 @@
 import { DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
-import { createDefaultGatewaySpendBudget } from "@/src/features/ai-gateway/fns/createDefaultGatewaySpendBudget";
-import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
+import { createDefaultGatewaySpendBudget } from "@/src/features/ai-gateway/fns/spendLimits/createDefaultGatewaySpendBudget";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import type { GatewaySpendBudgetFormValue } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 

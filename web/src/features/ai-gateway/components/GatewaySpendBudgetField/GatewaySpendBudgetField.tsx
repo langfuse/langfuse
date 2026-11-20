@@ -21,7 +21,7 @@ import {
   gatewaySpendBudgetIntervalOptions,
   type GatewaySpendBudgetInterval,
 } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
-import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import type { GatewaySpendBudgetFormValue } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import { PresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/PresetOption/PresetOption";
 

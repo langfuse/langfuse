@@ -22,9 +22,9 @@ import {
   DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
   type GatewaySpendBudgetAlertThreshold,
 } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
-import { areGatewaySpendBudgetAlertThresholdsEqual } from "@/src/features/ai-gateway/fns/areGatewaySpendBudgetAlertThresholdsEqual";
+import { areGatewaySpendBudgetAlertThresholdsEqual } from "@/src/features/ai-gateway/fns/spendLimits/areGatewaySpendBudgetAlertThresholdsEqual";
 import { getGatewaySpendLimitWindowStart } from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
-import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import {
   invalidateGatewayResolveCacheForApiKey,

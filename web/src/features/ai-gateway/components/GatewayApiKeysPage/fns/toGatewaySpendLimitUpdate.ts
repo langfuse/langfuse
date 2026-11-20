@@ -1,6 +1,6 @@
 import { DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
-import { areGatewaySpendBudgetAlertThresholdsEqual } from "@/src/features/ai-gateway/fns/areGatewaySpendBudgetAlertThresholdsEqual";
+import { areGatewaySpendBudgetAlertThresholdsEqual } from "@/src/features/ai-gateway/fns/spendLimits/areGatewaySpendBudgetAlertThresholdsEqual";
 
 type GatewaySpendLimitValue = {
   interval: GatewaySpendBudgetInterval;
