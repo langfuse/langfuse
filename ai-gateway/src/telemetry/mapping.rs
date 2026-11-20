@@ -46,20 +46,15 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         ));
     }
     if let Some(usage) = inference.usage_details {
-        let usage = usage_attributes(
+        append_usage_attributes(
             facts.api_format,
             &facts.metadata,
             &usage,
             inference.provider_metadata.as_ref(),
             facts.charged_cost_details.as_ref(),
+            &mut attributes,
+            &mut metadata,
         );
-        attributes.extend(usage.attributes);
-        if usage.cost_calculated_by_gateway {
-            metadata.insert(
-                GATEWAY_COST_SOURCE_METADATA_KEY.into(),
-                json!(GATEWAY_COST_SOURCE_CALCULATED),
-            );
-        }
     }
     if full {
         if let Some(input) = inference.input {
@@ -428,39 +423,38 @@ fn observation_type(api_format: ApiFormat) -> &'static str {
     }
 }
 
-struct UsageAttributes {
-    attributes: Vec<Value>,
-    cost_calculated_by_gateway: bool,
-}
-
-fn usage_attributes(
+fn append_usage_attributes(
     api_format: ApiFormat,
-    metadata: &Value,
+    facts_metadata: &Value,
     usage: &Value,
     provider_metadata: Option<&Value>,
     charged_cost_details: Option<&crate::spend::UsageCostType>,
-) -> UsageAttributes {
-    let provider = metadata.get("provider").and_then(Value::as_str);
+    attributes: &mut Vec<Value>,
+    metadata: &mut Map<String, Value>,
+) {
+    let provider = facts_metadata.get("provider").and_then(Value::as_str);
     let usage =
         crate::providers::usage::provider_usage(api_format, provider, usage, provider_metadata);
-    let usage_details = usage.usage_details.map(|details| {
-        attribute(
+    if let Some(details) = usage.usage_details {
+        attributes.push(attribute(
             "langfuse.observation.usage_details",
             details.to_json().to_string(),
-        )
-    });
-    let (cost_details, cost_calculated_by_gateway) = match usage.provided_cost_details.as_ref() {
-        Some(cost) => (Some(cost), false),
-        None => match charged_cost_details.filter(|cost| !cost.is_empty()) {
-            Some(cost) => (Some(cost), true),
-            None => (None, false),
-        },
-    };
-    let cost_details = cost_details
-        .map(|cost| attribute("langfuse.observation.cost_details", json!(cost).to_string()));
-    UsageAttributes {
-        attributes: usage_details.into_iter().chain(cost_details).collect(),
-        cost_calculated_by_gateway,
+        ));
+    }
+    if let Some(cost) = usage.provided_cost_details.as_ref() {
+        attributes.push(attribute(
+            "langfuse.observation.cost_details",
+            json!(cost).to_string(),
+        ));
+    } else if let Some(cost) = charged_cost_details.filter(|cost| !cost.is_empty()) {
+        attributes.push(attribute(
+            "langfuse.observation.cost_details",
+            json!(cost).to_string(),
+        ));
+        metadata.insert(
+            GATEWAY_COST_SOURCE_METADATA_KEY.into(),
+            json!(GATEWAY_COST_SOURCE_CALCULATED),
+        );
     }
 }
 

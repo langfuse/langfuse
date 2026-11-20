@@ -14,9 +14,6 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
 use indexmap::IndexMap;
 
 use super::attributes::{for_each_javascript_object_entry_owned, javascript_json_stringify};
-use super::events::{
-    AI_GATEWAY_COST_SOURCE_CALCULATED, AI_GATEWAY_COST_SOURCE_METADATA_KEY, AI_GATEWAY_SERVICE_NAME,
-};
 use super::value::{Object, Value};
 
 /// An owned object map used during normalization.
@@ -70,6 +67,7 @@ pub struct OwnedEvent {
     pub model_parameters: Option<Value>,
     pub provided_usage_details: IndexMap<String, Value>,
     pub provided_cost_details: BTreeMap<String, Value>,
+    pub gateway_calculated_cost: bool,
     pub input: Option<Value>,
     pub output: Option<Value>,
     pub metadata: JsonObject,
@@ -106,6 +104,7 @@ impl Default for OwnedEvent {
             output: None,
             provided_usage_details: IndexMap::new(),
             provided_cost_details: BTreeMap::new(),
+            gateway_calculated_cost: false,
             metadata: JsonObject::new(),
             skills_available: Vec::new(),
             skills_resource_loaded: Vec::new(),
@@ -123,15 +122,9 @@ impl OwnedEvent {
         row.input = json_storage_string(self.input);
         row.output = json_storage_string(self.output);
         row.model_parameters = json_storage_string(self.model_parameters);
-        let gateway_calculated_cost = row.service_name.as_deref() == Some(AI_GATEWAY_SERVICE_NAME)
-            && self
-                .metadata
-                .get(AI_GATEWAY_COST_SOURCE_METADATA_KEY)
-                .and_then(Value::as_str)
-                == Some(AI_GATEWAY_COST_SOURCE_CALCULATED);
         (row.metadata_names, row.metadata_values) = flatten_object_owned(self.metadata);
         row.provided_usage_details = storage_map(self.provided_usage_details);
-        row.provided_cost_details = if gateway_calculated_cost {
+        row.provided_cost_details = if self.gateway_calculated_cost {
             BTreeMap::new()
         } else {
             storage_map(self.provided_cost_details)

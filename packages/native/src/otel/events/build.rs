@@ -29,12 +29,11 @@ use super::EventBuildConfig;
 use crate::native_schema::OtelStorageRow;
 
 const INTERNAL_LLM_JUDGE_ENVIRONMENT: &str = "langfuse-llm-as-a-judge";
-pub(in crate::otel) const AI_GATEWAY_SERVICE_NAME: &str = "langfuse-ai-gateway";
+pub(super) const AI_GATEWAY_SERVICE_NAME: &str = "langfuse-ai-gateway";
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX: &str = "gateway:";
 const AI_GATEWAY_KEY_ID_METADATA_KEY: &str = "langfuse.gateway.api_key.id";
-pub(in crate::otel) const AI_GATEWAY_COST_SOURCE_METADATA_KEY: &str =
-    "langfuse.gateway.cost.source";
-pub(in crate::otel) const AI_GATEWAY_COST_SOURCE_CALCULATED: &str = "calculated";
+const AI_GATEWAY_COST_SOURCE_METADATA_KEY: &str = "langfuse.gateway.cost.source";
+const AI_GATEWAY_COST_SOURCE_CALCULATED: &str = "calculated";
 
 pub(super) fn build_event(
     span: Span,
@@ -92,6 +91,7 @@ impl<'a> EventAssembly<'a> {
             model_parameters: None,
             provided_usage_details: Default::default(),
             provided_cost_details: Default::default(),
+            gateway_calculated_cost: false,
             input: None,
             output: None,
             metadata: JsonObject::new(),
@@ -192,6 +192,7 @@ impl<'a> EventAssembly<'a> {
         ingestion_api_key: &str,
         scope_version: Option<&str>,
     ) -> Option<&mut Self> {
+        let is_gateway = ingestion_api_key.starts_with(AI_GATEWAY_INGESTION_API_KEY_PREFIX);
         let Some((ingestion_api_key, service_name, service_version)) = resolve_gateway_attribution(
             ingestion_api_key,
             &self.event.metadata,
@@ -210,6 +211,13 @@ impl<'a> EventAssembly<'a> {
         self.event.row.ingestion_api_key = ingestion_api_key;
         self.event.row.service_name = service_name;
         self.event.row.service_version = service_version;
+        self.event.gateway_calculated_cost = is_gateway
+            && self
+                .event
+                .metadata
+                .get(AI_GATEWAY_COST_SOURCE_METADATA_KEY)
+                .and_then(Value::as_str)
+                == Some(AI_GATEWAY_COST_SOURCE_CALCULATED);
         Some(self)
     }
 
