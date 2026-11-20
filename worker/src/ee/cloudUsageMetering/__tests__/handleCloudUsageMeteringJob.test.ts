@@ -35,10 +35,7 @@ const {
   },
 }));
 
-// Partial mock: the real worker env module, loaded for v4WritesToEventsTable,
-// needs the rest of this module.
-vi.mock("@langfuse/shared", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@langfuse/shared")>()),
+vi.mock("@langfuse/shared", () => ({
   getBillingProvider: () => "stripe",
   parseDbOrg: (org: unknown) => org,
   Prisma: { DbNull: "DbNull" },
@@ -86,10 +83,7 @@ vi.mock("stripe", () => ({
   },
 }));
 
-vi.mock("../../../env", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../../env")>()),
-  env: mockEnv,
-}));
+vi.mock("../../../env", () => ({ env: mockEnv }));
 
 import { handleCloudUsageMeteringJob } from "../handleCloudUsageMeteringJob";
 import { CloudUsageMeteringDbCronJobStates } from "../constants";
@@ -342,13 +336,11 @@ describe("handleCloudUsageMeteringJob", () => {
     expect(valueOf("tracing_events")).toBe("14");
   });
 
-  it("refuses to meter when the worker does not write events_full", async () => {
-    // The ledger's trace and observation rows come from events_full, so a
-    // legacy-only worker would meter scores alone.
+  it("refuses to meter in legacy write mode", async () => {
     mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
 
     await expect(handleCloudUsageMeteringJob(createJob())).rejects.toThrow(
-      /events_full/,
+      /legacy/,
     );
 
     expect(mockCronJobsUpdate).not.toHaveBeenCalled();

@@ -1,7 +1,7 @@
 import { getBillingProvider, parseDbOrg, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import Stripe from "stripe";
-import { env, v4WritesToEventsTable } from "../../env";
+import { env } from "../../env";
 import {
   BILLING_SETTLE_MS,
   type BillableEventType,
@@ -112,16 +112,10 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     logger.warn("[CLOUD USAGE METERING] Stripe secret key not found");
     throw new Error("Stripe secret key not found");
   }
-  // The ledger's trace and observation rows come from events_full. A worker
-  // that writes only the legacy tables would meter scores alone, so fail the
-  // job before claiming an interval: lastRun stays put and catches up once the
-  // write mode is fixed.
-  if (!v4WritesToEventsTable(env)) {
-    logger.error(
-      "[CLOUD USAGE METERING] The worker does not write events_full, so the billing ledger misses traces and observations",
-    );
+  // The billing ledger is filled from events_full, which legacy mode never writes.
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
     throw new Error(
-      "Cloud usage metering requires LANGFUSE_MIGRATION_V4_WRITE_MODE to write events_full",
+      "Cloud usage metering does not support LANGFUSE_MIGRATION_V4_WRITE_MODE=legacy",
     );
   }
 
