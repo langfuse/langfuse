@@ -1,53 +1,9 @@
-import {
-  Maximize,
-  PanelLeft,
-  PanelRight,
-  PictureInPicture2,
-  type IconComponent,
-} from "@langfuse/icons";
-
-/** Where the Halo window sits relative to the page content. */
-export const IN_APP_AGENT_LAYOUT_MODES = [
-  "full",
-  "dock-right",
-  "dock-left",
-  "floating",
-] as const;
-
-export type InAppAgentLayoutMode = (typeof IN_APP_AGENT_LAYOUT_MODES)[number];
-
-export type InAppAgentDockLayoutMode = Extract<
-  InAppAgentLayoutMode,
-  "dock-right" | "dock-left"
->;
-
-export const IN_APP_AGENT_DEFAULT_LAYOUT_MODE: InAppAgentDockLayoutMode =
-  "dock-right";
+/**
+ * Where the assistant window sits relative to the page content. The provider
+ * only produces "full" and "dock-right"; "floating" is the window the host
+ * still carries next to the handheld drawer.
+ */
+export type InAppAgentLayoutMode = "full" | "dock-right" | "floating";
 
 /** Next.js pathname of project Home, which carries its own Ask box. */
 export const PROJECT_HOME_PATHNAME = "/project/[projectId]";
-
-export function isInAppAgentDockLayoutMode(
-  value: unknown,
-): value is InAppAgentDockLayoutMode {
-  return value === "dock-right" || value === "dock-left";
-}
-
-export const IN_APP_AGENT_LAYOUT_MODE_OPTIONS: Record<
-  InAppAgentLayoutMode,
-  { label: string; icon: IconComponent }
-> = {
-  full: { label: "Full page", icon: Maximize },
-  "dock-right": { label: "Dock right", icon: PanelRight },
-  "dock-left": { label: "Dock left", icon: PanelLeft },
-  floating: { label: "Floating", icon: PictureInPicture2 },
-};
-
-export function parseInAppAgentLayoutMode(
-  value: unknown,
-): InAppAgentLayoutMode {
-  return (
-    IN_APP_AGENT_LAYOUT_MODES.find((mode) => mode === value) ??
-    IN_APP_AGENT_DEFAULT_LAYOUT_MODE
-  );
-}

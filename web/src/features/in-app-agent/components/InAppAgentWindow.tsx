@@ -691,8 +691,6 @@ export type InAppAgentWindowProps = {
   untitledLabel?: string;
   /** Rendered before the title, e.g. a back control. */
   headerLeading?: ReactNode;
-  /** Rendered first in the header's action cluster. */
-  headerActions?: ReactNode;
   /** Names the expand toggle when it switches something other than the
    * floating window's size, e.g. docked and full page. */
   expandToggleLabels?: { expand: string; collapse: string };
@@ -794,7 +792,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     titleActions,
     untitledLabel = "Halo",
     headerLeading,
-    headerActions,
     expandToggleLabels = {
       expand: "Expand window",
       collapse: "Collapse window",
@@ -996,7 +993,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           className="flex shrink-0 items-center gap-0.5"
           data-movable-resizable-panel-ignore-drag="true"
         >
-          {headerActions}
           <Tooltip
             label="Start new conversation"
             delay={100}

@@ -9,7 +9,6 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow";
-import { InAppAgentLayoutSwitcher } from "@/src/features/in-app-agent/components/InAppAgentLayoutSwitcher";
 import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/InAppAgentWindow";
 import {
   InAppAgentWindowShell,
@@ -61,7 +60,6 @@ export function useInAppAgentInlinePresentation(): Exclude<
  */
 export function InAppAgentWindowHost() {
   const router = useRouter();
-  const isHandheld = useIsHandheld();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const inlinePresentation = useInAppAgentInlinePresentation();
   const {
@@ -70,8 +68,6 @@ export function InAppAgentWindowHost() {
     setOpen,
     isExpanded,
     setIsExpanded,
-    layoutMode,
-    dockLayoutMode,
     setLayoutMode,
   } = useInAppAiAgent();
   const [deleteConversationWithLoading, isDeletingConversation] =
@@ -136,10 +132,6 @@ export function InAppAgentWindowHost() {
     return null;
   }
 
-  const layoutSwitcher = isHandheld ? null : (
-    <InAppAgentLayoutSwitcher value={layoutMode} onChange={setLayoutMode} />
-  );
-
   return (
     <ConfirmationDialogController<InAppAgentWindowConversation>
       title="Delete conversation"
@@ -158,8 +150,6 @@ export function InAppAgentWindowHost() {
               "bg-background flex min-h-0 flex-col",
               inlinePresentation === "full" && "min-w-0 flex-1",
               inlinePresentation === "dock-right" && "w-105 shrink-0 border-l",
-              inlinePresentation === "dock-left" &&
-                "order-first w-105 shrink-0 border-r",
             )}
           >
             <ControlledInAppAgentWindow
@@ -184,19 +174,15 @@ export function InAppAgentWindowHost() {
                 ) : undefined
               }
               // The full page keeps to new conversation, history and
-              // docking; the layout switcher and minimize stay on the docked
-              // panel.
+              // docking; minimize stays on the docked panel.
               untitledLabel={
                 inlinePresentation === "full" ? "New chat" : undefined
-              }
-              headerActions={
-                inlinePresentation === "full" ? undefined : layoutSwitcher
               }
               onDeleteConversation={(conversation) => {
                 deleteConversationDialog.openDialog(conversation);
               }}
               onExpandedChange={(nextIsExpanded) => {
-                setLayoutMode(nextIsExpanded ? "full" : dockLayoutMode);
+                setLayoutMode(nextIsExpanded ? "full" : "dock-right");
               }}
               {...(inlinePresentation === "full"
                 ? { showCloseButton: false as const }
@@ -229,7 +215,6 @@ export function InAppAgentWindowHost() {
                 <ControlledInAppAgentWindow
                   isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
                   isExpanded={isExpanded}
-                  headerActions={layoutSwitcher}
                   onDeleteConversation={(conversation) => {
                     deleteConversationDialog.openDialog(conversation);
                   }}

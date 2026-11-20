@@ -16,7 +16,6 @@ import type { AgentSubscriber } from "@ag-ui/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
-import useLocalStorage from "@/src/components/useLocalStorage";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createInAppAgentConversationId } from "../ids";
 import {
@@ -72,11 +71,7 @@ import {
 } from "@/src/features/in-app-agent/context";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
 import {
-  IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
   PROJECT_HOME_PATHNAME,
-  isInAppAgentDockLayoutMode,
-  parseInAppAgentLayoutMode,
-  type InAppAgentDockLayoutMode,
   type InAppAgentLayoutMode,
 } from "@/src/features/in-app-agent/layoutMode";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -92,8 +87,6 @@ const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
-const LAYOUT_MODE_STORAGE_KEY = "langfuse:in-app-ai-agent-layout-mode";
-const DOCK_LAYOUT_MODE_STORAGE_KEY = "langfuse:in-app-ai-agent-dock-side";
 const FULL_PAGE_QUERY_PARAM = "halo";
 const FULL_PAGE_QUERY_VALUE = "full";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
@@ -143,8 +136,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   openAssistant: () => false,
   isExpanded: false,
   setIsExpanded: () => undefined,
-  layoutMode: IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
-  dockLayoutMode: IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
+  layoutMode: "dock-right",
   setLayoutMode: () => undefined,
   homeAskInputRef: { current: null },
   isRunning: false,
@@ -207,10 +199,8 @@ type InAppAiAgentContextType = {
   openAssistant: (source: InAppAgentEntryPoint) => boolean;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
-  /** Where the window sits: full page, docked beside the content, or floating. */
+  /** Where the window sits: full page, or docked right of the content. */
   layoutMode: InAppAgentLayoutMode;
-  /** The side the window docks to when it leaves full page. */
-  dockLayoutMode: InAppAgentDockLayoutMode;
   setLayoutMode: (layoutMode: InAppAgentLayoutMode) => void;
   /** Home's Ask box while it is mounted. On Home it is the assistant's entry
    * point, so the launcher focuses it instead of opening a second one. */
@@ -350,18 +340,6 @@ function InAppAiAgentProviderInner({
       {},
     );
   const [isExpanded, setIsExpanded] = useState(false);
-  const [storedLayoutMode, setStoredLayoutMode] = useLocalStorage<string>(
-    LAYOUT_MODE_STORAGE_KEY,
-    IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
-  );
-  const [storedDockLayoutMode, setStoredDockLayoutMode] =
-    useLocalStorage<string>(
-      DOCK_LAYOUT_MODE_STORAGE_KEY,
-      IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
-    );
-  const dockLayoutMode = isInAppAgentDockLayoutMode(storedDockLayoutMode)
-    ? storedDockLayoutMode
-    : IN_APP_AGENT_DEFAULT_LAYOUT_MODE;
   // Full page is a view of one page, not a stored preference. It needs both
   // a request made in this page session and the marker in the URL: a fresh
   // load never restores it, and any navigation to a URL without the marker
@@ -373,13 +351,9 @@ function InAppAiAgentProviderInner({
   const isFullPage = isFullPageRequested && hasFullPageMarker;
   // Whether leaving full page should pop the history entry entering it pushed.
   const didPushFullPageEntryRef = useRef(false);
-  const parsedStoredLayoutMode = parseInAppAgentLayoutMode(storedLayoutMode);
-  // The mode the window rests in when it is not full page.
-  const restingLayoutMode =
-    parsedStoredLayoutMode === "full" ? dockLayoutMode : parsedStoredLayoutMode;
-  const layoutMode: InAppAgentLayoutMode = isFullPage
-    ? "full"
-    : restingLayoutMode;
+  // Outside the full page the window is always docked right. Nothing is
+  // stored, so layout values an earlier build wrote are ignored.
+  const layoutMode: InAppAgentLayoutMode = isFullPage ? "full" : "dock-right";
   const leaveFullPage = useCallback(() => {
     setIsFullPageRequested(false);
 
@@ -428,19 +402,9 @@ function InAppAiAgentProviderInner({
         return;
       }
 
-      setStoredLayoutMode(nextLayoutMode);
-      if (isInAppAgentDockLayoutMode(nextLayoutMode)) {
-        setStoredDockLayoutMode(nextLayoutMode);
-      }
       leaveFullPage();
     },
-    [
-      hasFullPageMarker,
-      leaveFullPage,
-      router,
-      setStoredDockLayoutMode,
-      setStoredLayoutMode,
-    ],
+    [hasFullPageMarker, leaveFullPage, router],
   );
   // Key by conversation so another conversation cannot release its submit lock.
   const [submittingConversationId, setSubmittingConversationId] = useState<
@@ -1677,7 +1641,6 @@ function InAppAiAgentProviderInner({
       isExpanded,
       setIsExpanded,
       layoutMode,
-      dockLayoutMode,
       setLayoutMode,
       homeAskInputRef,
       isRunning,
@@ -1719,7 +1682,6 @@ function InAppAiAgentProviderInner({
       alwaysAllowToolCall,
       isExpanded,
       layoutMode,
-      dockLayoutMode,
       setLayoutMode,
       conversations,
       effectiveError,
