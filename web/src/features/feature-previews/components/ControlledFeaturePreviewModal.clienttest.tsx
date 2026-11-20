@@ -1,11 +1,9 @@
-/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 
 import { ControlledFeaturePreviewModal } from "./ControlledFeaturePreviewModal";
-import { FeaturePreviewModal } from "./FeaturePreviewModal";
 
 const mocks = vi.hoisted(() => ({ mutate: vi.fn(), isV4: true }));
 
@@ -35,7 +33,7 @@ vi.mock("next/image", () => ({
   default: ({ alt }: { alt: string }) => <span role="img" aria-label={alt} />,
 }));
 
-describe("FeaturePreviewModal", () => {
+describe("ControlledFeaturePreviewModal", () => {
   beforeEach(() => {
     mocks.mutate.mockClear();
     mocks.isV4 = true;
@@ -111,37 +109,5 @@ describe("FeaturePreviewModal", () => {
       expect(toggle).not.toBeChecked();
       expect(toggle).toBeDisabled();
     }
-  });
-
-  it("renders the session timeline toggle inside Redesigned Session View", () => {
-    const onTimelineToggle = vi.fn();
-
-    render(
-      <FeaturePreviewModal
-        open
-        onOpenChange={vi.fn()}
-        state={{
-          sessionViewV2: { enabled: true, onToggle: vi.fn() },
-          sessionViewV2Timeline: {
-            enabled: false,
-            onToggle: onTimelineToggle,
-          },
-        }}
-      />,
-    );
-
-    const timelineToggle = screen.getByRole("switch", {
-      name: "Toggle Session Timeline",
-    });
-    expect(screen.getByRole("link", { name: "Give feedback" })).toHaveAttribute(
-      "href",
-      "https://github.com/orgs/langfuse/discussions/18687",
-    );
-    fireEvent.click(timelineToggle);
-
-    expect(onTimelineToggle).toHaveBeenCalledWith(true);
-    expect(
-      screen.queryByRole("button", { name: /Session Timeline/ }),
-    ).not.toBeInTheDocument();
   });
 });
