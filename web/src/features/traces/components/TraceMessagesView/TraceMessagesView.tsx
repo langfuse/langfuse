@@ -89,7 +89,7 @@ function SingleTraceMessagesView() {
             className="text-muted-foreground flex shrink-0 items-center justify-between gap-3 rounded-md border p-3 text-sm"
           >
             <span>
-              {hiddenThreadCount} nested{" "}
+              {hiddenThreadCount}{" "}
               {hiddenThreadCount === 1 ? "thread is" : "threads are"} hidden.
             </span>
             <button
@@ -97,7 +97,7 @@ function SingleTraceMessagesView() {
               className="text-foreground shrink-0 underline underline-offset-4"
               onClick={() => setExpandedTraceId(messageTrace.id)}
             >
-              Show nested threads
+              Show hidden threads
             </button>
           </div>
         )}
