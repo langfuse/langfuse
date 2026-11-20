@@ -181,15 +181,16 @@ type ContinuityPair = {
   candidateId: string;
   sharedCount: number;
   previousCoverage: number;
+  candidateCoverage: number;
   commonAnchorCoverage: number;
   centroidDistance: number | null;
 };
 
 /**
- * A split or merge child keeps an old topic's identity when it holds more than half of that topic's common
- * members, the old topic is clearly its largest source, no other child already continues it, and the anchor and
- * centroid checks of a plain continuation hold. Refits re-cut
- * boundaries; without this, a topic that shed a small branch loses its ID and name.
+ * A split or merge child keeps an old topic's identity when the pair holds a majority both ways (of the old
+ * topic's common members and of the child's), each is the other's largest match, no other child already
+ * continues it, and the anchor and centroid checks of a plain continuation hold. Refits re-cut boundaries;
+ * without this, a topic that shed a small branch loses its ID and name.
  */
 function inheritDominantSuccessors<
   T extends Pick<TopicDefinition, "topicVersionId" | "topicId" | "metadata">,
@@ -222,13 +223,13 @@ function inheritDominantSuccessors<
     if (
       child &&
       ["split", "merge"].includes(status(child)) &&
-      pair.previousCoverage > 0.5 &&
-      pair.commonAnchorCoverage >= 0.5 &&
-      (pair.centroidDistance === null || pair.centroidDistance <= 0.15) &&
-      pair.sharedCount >= minimumShared &&
-      (!runnerUp || pair.sharedCount > runnerUp.sharedCount) &&
-      source === pair &&
-      (!secondSource || pair.sharedCount > secondSource.sharedCount) &&
+      isDominantSuccessor(
+        pair,
+        runnerUp,
+        source,
+        secondSource,
+        minimumShared,
+      ) &&
       !taken.has(pair.previousTopic.topicId) &&
       !inherited.has(pair.candidateId)
     ) {
@@ -253,4 +254,24 @@ function inheritDominantSuccessors<
       },
     };
   });
+}
+
+/** The pair is each side's strict largest match, holds a majority both ways, and passes the continuation checks. */
+function isDominantSuccessor(
+  pair: ContinuityPair,
+  runnerUp: ContinuityPair | undefined,
+  source: ContinuityPair,
+  secondSource: ContinuityPair | undefined,
+  minimumShared: number,
+) {
+  return (
+    source === pair &&
+    (!runnerUp || pair.sharedCount > runnerUp.sharedCount) &&
+    (!secondSource || pair.sharedCount > secondSource.sharedCount) &&
+    pair.previousCoverage > 0.5 &&
+    pair.candidateCoverage > 0.5 &&
+    pair.sharedCount >= minimumShared &&
+    pair.commonAnchorCoverage >= 0.5 &&
+    (pair.centroidDistance === null || pair.centroidDistance <= 0.15)
+  );
 }

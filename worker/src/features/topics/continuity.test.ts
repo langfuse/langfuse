@@ -80,6 +80,23 @@ describe("Topics identity continuity", () => {
       });
   });
 
+  it("does not hand a split's identity to a child made mostly of former outliers", () => {
+    const [mostlyOutliers] = match(
+      [...members("old", 20), ...members(null, 185, 20)],
+      [
+        ...members("large", 15),
+        ...members("small", 5, 15),
+        ...members("large", 185, 20),
+      ],
+      undefined,
+      [topic("large"), topic("small")],
+    );
+    expect(mostlyOutliers).toMatchObject({
+      topicId: "stable-large",
+      metadata: { continuity: { status: "split" } },
+    });
+  });
+
   it("keeps a merge's identity only for a clearly dominant predecessor", () => {
     const topics = [topic("old-a"), topic("old-b")];
     const [absorbed] = match(
