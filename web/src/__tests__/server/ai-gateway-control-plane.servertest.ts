@@ -2309,7 +2309,11 @@ describe("AI gateway control plane", () => {
         "only an admin can change it",
       );
     }
-    expect(await memberKeyBudget()).toEqual({ interval: "DAILY", limitUsd: 5 });
+    expect(await memberKeyBudget()).toEqual({
+      interval: "DAILY",
+      limitUsd: 5,
+      alertThresholds: [100],
+    });
 
     await setBudget(owner.caller, memberKey.id, null);
     expect(await memberKeyBudget()).toBeNull();
@@ -2504,7 +2508,11 @@ describe("AI gateway control plane", () => {
     expect(await budgets(owner.caller, "USER")).toEqual([
       {
         subjectId: userId,
-        spendLimit: { interval: "MONTHLY", limitUsd: 20 },
+        spendLimit: {
+          interval: "MONTHLY",
+          limitUsd: 20,
+          alertThresholds: [100],
+        },
         isEditable: true,
       },
     ]);
@@ -2527,7 +2535,11 @@ describe("AI gateway control plane", () => {
         { subjectId: memberKeys[0].id, spendLimit: null, isEditable: true },
         {
           subjectId: memberKeys[1].id,
-          spendLimit: { interval: "DAILY", limitUsd: 5 },
+          spendLimit: {
+            interval: "DAILY",
+            limitUsd: 5,
+            alertThresholds: [100],
+          },
           isEditable: true,
         },
       ]),
@@ -2736,7 +2748,11 @@ describe("AI gateway control plane", () => {
     expect(await listed("default")).toEqual([
       {
         subjectId: service.id,
-        spendLimit: { interval: "MONTHLY", limitUsd: 10 },
+        spendLimit: {
+          interval: "MONTHLY",
+          limitUsd: 10,
+          alertThresholds: [100],
+        },
         isDefault: true,
       },
     ]);
@@ -2818,7 +2834,11 @@ describe("AI gateway control plane", () => {
         orgId: owner.org.id,
       }),
     ).toEqual({
-      spendLimit: { interval: "MONTHLY", limitUsd: 5000 },
+      spendLimit: {
+        interval: "MONTHLY",
+        limitUsd: 5000,
+        alertThresholds: [100],
+      },
       spentUsd: 0,
     });
     const { id } = await prisma.gatewaySpendLimit.findFirstOrThrow({
