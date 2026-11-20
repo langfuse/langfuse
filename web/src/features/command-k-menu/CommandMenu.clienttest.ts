@@ -3,6 +3,7 @@ import {
   buildCreateActions,
   buildPageShortcuts,
   getEntityBaseUrl,
+  getEvaluatorSearchTerm,
   getIdNavigationItem,
   getRecentPickAnalytics,
   getSearchAnalytics,
@@ -286,5 +287,45 @@ describe("toEntityGroup", () => {
       toEntityGroup("evaluator", null, [{ id: "e1", name: "Toxicity" }], "")
         .items,
     ).toEqual([]);
+  });
+
+  it.each(["eval", "evaluator", "evals", "evaluators"])(
+    "matches all evaluators when typing alias keyword %j",
+    (keyword) => {
+      const rows = [
+        { id: "e1", name: "Toxicity" },
+        { id: "e2", name: "Hallucination" },
+      ];
+      expect(
+        toEntityGroup("evaluator", "/evals", rows, keyword).items.map(
+          (item) => item.name,
+        ),
+      ).toEqual(["Toxicity", "Hallucination"]);
+    },
+  );
+});
+
+describe("getEvaluatorSearchTerm", () => {
+  it.each([
+    ["", undefined],
+    ["   ", undefined],
+    ["eval", undefined],
+    ["Eval", undefined],
+    ["EVAL", undefined],
+    ["evaluator", undefined],
+    ["Evaluator", undefined],
+    ["evals", undefined],
+    ["evaluators", undefined],
+    ["eval ", undefined],
+    ["evaluator   ", undefined],
+    ["eval toxicity", "toxicity"],
+    ["evaluator toxicity", "toxicity"],
+    ["evals toxicity", "toxicity"],
+    ["evaluators toxicity", "toxicity"],
+    ["toxicity", "toxicity"],
+    ["my-evaluator", "my-evaluator"],
+    ["eval_toxicity", "eval_toxicity"],
+  ])("normalizes %j to %j", (search, expected) => {
+    expect(getEvaluatorSearchTerm(search)).toBe(expected);
   });
 });
