@@ -1,6 +1,5 @@
 import { useCallback, useId, useMemo, useState } from "react";
 import {
-  AlertCircle,
   Lock,
   PencilLine,
   PlusIcon,
@@ -9,7 +8,7 @@ import {
   Users,
 } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -36,7 +35,8 @@ import {
 } from "@/src/features/groups/groupSource";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
-import { higherRole } from "@/src/features/rbac/constants/orderedRoles";
+import { resolveEffectiveRoles } from "@langfuse/shared/rbac";
+import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -103,12 +103,9 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
     return (
       <div>
         {header}
-        <Alert icon={AlertCircle}>
-          <Alert.Title>Not available</Alert.Title>
-          <Alert.Description>
-            SCIM provisioning is not available on your plan.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Not available">
+          SCIM provisioning is not available on your plan.
+        </Banner>
       </div>
     );
   }
@@ -117,12 +114,9 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
     return (
       <div>
         {header}
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            You do not have permission to view the members of this organization.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          You do not have permission to view the members of this organization.
+        </Banner>
       </div>
     );
   }
@@ -377,10 +371,10 @@ function GroupOrgRoleSelect({
 type OpenWith<T> = (value: T) => void;
 
 function effectiveOrgRoleLabel(member: GroupMember) {
-  const top = member.groupOrgRoles.reduce(
-    (best, grant) => higherRole(best, grant.role),
-    member.directOrgRole,
-  );
+  const [top = member.directOrgRole] = resolveEffectiveRoles(
+    [member.directOrgRole, ...member.groupOrgRoles.map((grant) => grant.role)],
+    "organization",
+  ).toSorted(byPermissionCount);
   if (top === member.directOrgRole) return `${roleName(top)} (own role)`;
   const sources = [
     ...new Set(

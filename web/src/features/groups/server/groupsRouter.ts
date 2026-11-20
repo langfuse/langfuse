@@ -2,14 +2,7 @@ import * as z from "zod";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { GroupSource, Role, type prisma } from "@langfuse/shared/src/db";
-import {
-  GroupId,
-  OrganizationId,
-  ProjectId,
-  SystemRoleId,
-  type OrganizationScope,
-} from "@langfuse/shared/rbac";
-import { assignRole } from "@langfuse/shared/rbac/server";
+import { type OrganizationScope, groupRoleGrants } from "@langfuse/shared/rbac";
 import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
 import {
   createTRPCRouter,
@@ -25,6 +18,15 @@ import {
   hasEntitlement,
   throwIfNoEntitlement,
 } from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  addGroupMembers,
+  deleteGroup,
+  removeGroupMembers,
+  replaceGroupRoles,
+  roleOf,
+  setGroupRole,
+  toGroupRoles,
+} from "@/src/features/groups/server/groupService";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 // No OWNER (too broad) and no NONE (adds nothing).
@@ -36,22 +38,6 @@ const OrgGroupRole = z.enum([...groupRoles, Role.AI_GATEWAY]);
 const groupRoleAssignmentsSelect = {
   select: { projectId: true, systemRole: true },
 } as const;
-
-const roleOf = (assignment: { systemRole: string } | undefined) =>
-  (assignment?.systemRole as Role | undefined) ?? null;
-
-function toGroupRoles(
-  assignments: { projectId: string | null; systemRole: string }[],
-) {
-  return {
-    orgRole: roleOf(assignments.find((a) => a.projectId === null)),
-    projectRoles: assignments
-      .filter((a): a is { projectId: string; systemRole: string } =>
-        Boolean(a.projectId),
-      )
-      .map((a) => ({ projectId: a.projectId, role: a.systemRole as Role })),
-  };
-}
 
 const DisplayName = z.string().trim().min(1).max(256);
 
@@ -151,22 +137,27 @@ export const groupsRouter = createTRPCRouter({
     .input(z.object({ orgId: z.string(), displayName: DisplayName }))
     .mutation(async ({ input, ctx }) => {
       throwIfNoOrgGroupAccess(ctx.session, input.orgId);
-      const group = await ctx.prisma.group.create({
-        data: {
-          orgId: input.orgId,
-          displayName: input.displayName,
-          source: GroupSource.MANUAL,
-        },
-        select: { id: true, displayName: true, source: true },
+      return ctx.prisma.$transaction(async (tx) => {
+        const group = await tx.group.create({
+          data: {
+            orgId: input.orgId,
+            displayName: input.displayName,
+            source: GroupSource.MANUAL,
+          },
+          select: { id: true, displayName: true, source: true },
+        });
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "group",
+            resourceId: group.id,
+            action: "create",
+            after: group,
+          },
+          tx,
+        );
+        return group;
       });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "group",
-        resourceId: group.id,
-        action: "create",
-        after: group,
-      });
-      return group;
     }),
 
   rename: protectedOrganizationProcedure
@@ -184,23 +175,27 @@ export const groupsRouter = createTRPCRouter({
         input.orgId,
         input.groupId,
       );
-      const after = await ctx.prisma.group.update({
-        where: { id: before.id },
-        data: { displayName: input.displayName },
-        select: editableGroupSelect,
+      return ctx.prisma.$transaction(async (tx) => {
+        const after = await tx.group.update({
+          where: { id: before.id },
+          data: { displayName: input.displayName },
+          select: editableGroupSelect,
+        });
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "group",
+            resourceId: before.id,
+            action: "update",
+            before,
+            after,
+          },
+          tx,
+        );
+        return after;
       });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "group",
-        resourceId: before.id,
-        action: "update",
-        before,
-        after,
-      });
-      return after;
     }),
 
-  /** Memberships and role assignments go by FK cascade; SCIM groups are deleted by the IdP. */
   delete: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string(), groupId: z.string() }))
     .mutation(async ({ input, ctx }) => {
@@ -210,13 +205,18 @@ export const groupsRouter = createTRPCRouter({
         input.orgId,
         input.groupId,
       );
-      await ctx.prisma.group.delete({ where: { id: group.id } });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "group",
-        resourceId: group.id,
-        action: "delete",
-        before: group,
+      await ctx.prisma.$transaction(async (tx) => {
+        const roles = await deleteGroup(tx, { id: group.id });
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "group",
+            resourceId: group.id,
+            action: "delete",
+            before: { ...group, ...roles },
+          },
+          tx,
+        );
       });
     }),
 
@@ -237,29 +237,22 @@ export const groupsRouter = createTRPCRouter({
         input.groupId,
       );
       const userIds = [...new Set(input.userIds)];
-      const memberships = await ctx.prisma.organizationMembership.findMany({
-        where: { orgId: input.orgId, userId: { in: userIds } },
-        select: { id: true, userId: true },
-      });
-      if (memberships.length !== userIds.length) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Every user must be a member of the organization",
-        });
-      }
-      await ctx.prisma.groupMembership.createMany({
-        data: memberships.map((m) => ({
+      await ctx.prisma.$transaction(async (tx) => {
+        await addGroupMembers(tx, {
+          orgId: input.orgId,
           groupId: group.id,
-          orgMembershipId: m.id,
-        })),
-        skipDuplicates: true,
-      });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "group",
-        resourceId: group.id,
-        action: "addMembers",
-        after: { userIds },
+          userIds,
+        });
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "group",
+            resourceId: group.id,
+            action: "addMembers",
+            after: { userIds },
+          },
+          tx,
+        );
       });
     }),
 
@@ -274,18 +267,21 @@ export const groupsRouter = createTRPCRouter({
         input.orgId,
         input.groupId,
       );
-      await ctx.prisma.groupMembership.deleteMany({
-        where: {
+      await ctx.prisma.$transaction(async (tx) => {
+        await removeGroupMembers(tx, {
           groupId: group.id,
-          organizationMembership: { userId: input.userId },
-        },
-      });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "group",
-        resourceId: group.id,
-        action: "removeMember",
-        before: { userId: input.userId },
+          userIds: [input.userId],
+        });
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "group",
+            resourceId: group.id,
+            action: "removeMember",
+            before: { userId: input.userId },
+          },
+          tx,
+        );
       });
     }),
 
@@ -342,14 +338,13 @@ export const groupsRouter = createTRPCRouter({
         updatedAt: group.updatedAt,
         ...toGroupRoles(group.roleAssignments),
         members: group.members.map(({ organizationMembership, createdAt }) => {
-          const groupOrgRoles = organizationMembership.groupMemberships.flatMap(
-            ({ group }) =>
-              group.roleAssignments.map((assignment) => ({
-                groupId: group.id,
-                groupName: group.displayName,
-                role: assignment.systemRole as Role,
-              })),
-          );
+          const groupOrgRoles = groupRoleGrants(
+            organizationMembership.groupMemberships.map(({ group }) => group),
+          ).map(({ group, role }) => ({
+            groupId: group.id,
+            groupName: group.displayName,
+            role,
+          }));
           return {
             userId: organizationMembership.user.id,
             name: organizationMembership.user.name,
@@ -401,42 +396,27 @@ export const groupsRouter = createTRPCRouter({
       });
       throwIfGroupNotFound(group);
 
-      const tenantId = OrganizationId(input.orgId);
-      const principalId = GroupId(group.id);
-      await ctx.prisma.$transaction(async (tx) => {
-        await tx.roleAssignment.deleteMany({ where: { groupId: group.id } });
-        if (input.orgRole) {
-          await assignRole(tx, {
-            tenantId,
-            ownerId: tenantId,
-            principalId,
-            roleId: SystemRoleId(input.orgRole),
-            tags: [],
-          });
-        }
-        for (const { projectId, role } of input.projectRoles) {
-          // assignRole rejects projects outside the organization.
-          await assignRole(tx, {
-            tenantId,
-            ownerId: ProjectId(projectId),
-            principalId,
-            roleId: SystemRoleId(role),
-            tags: [],
-          });
-        }
-      });
-
       const after = {
         orgRole: input.orgRole,
         projectRoles: input.projectRoles,
       };
-      await auditLog({
-        session: ctx.session,
-        resourceType: "group",
-        resourceId: group.id,
-        action: "updateRoleAssignments",
-        before: toGroupRoles(group.roleAssignments),
-        after,
+      await ctx.prisma.$transaction(async (tx) => {
+        await replaceGroupRoles(tx, {
+          orgId: input.orgId,
+          groupId: group.id,
+          ...after,
+        });
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "group",
+            resourceId: group.id,
+            action: "updateRoleAssignments",
+            before: toGroupRoles(group.roleAssignments),
+            after,
+          },
+          tx,
+        );
       });
       return after;
     }),
@@ -464,29 +444,24 @@ export const groupsRouter = createTRPCRouter({
       throwIfGroupNotFound(group);
       const before = roleOf(group.roleAssignments[0]);
 
-      const tenantId = OrganizationId(input.orgId);
       await ctx.prisma.$transaction(async (tx) => {
-        await tx.roleAssignment.deleteMany({
-          where: { groupId: group.id, projectId: null },
+        await setGroupRole(tx, {
+          orgId: input.orgId,
+          groupId: group.id,
+          projectId: null,
+          role: input.role,
         });
-        if (input.role) {
-          await assignRole(tx, {
-            tenantId,
-            ownerId: tenantId,
-            principalId: GroupId(group.id),
-            roleId: SystemRoleId(input.role),
-            tags: [],
-          });
-        }
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "group",
-        resourceId: group.id,
-        action: "updateOrgRole",
-        before: { role: before },
-        after: { role: input.role },
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "group",
+            resourceId: group.id,
+            action: "updateOrgRole",
+            before: { role: before },
+            after: { role: input.role },
+          },
+          tx,
+        );
       });
       return { role: input.role };
     }),
@@ -589,29 +564,24 @@ export const groupsRouter = createTRPCRouter({
         throwIfRoleNotCovered(ctx.session, input.projectId, input.role);
       }
 
-      const tenantId = OrganizationId(ctx.session.orgId);
       await ctx.prisma.$transaction(async (tx) => {
-        await tx.roleAssignment.deleteMany({
-          where: { groupId: group.id, projectId: input.projectId },
+        await setGroupRole(tx, {
+          orgId: ctx.session.orgId,
+          groupId: group.id,
+          projectId: input.projectId,
+          role: input.role,
         });
-        if (input.role) {
-          await assignRole(tx, {
-            tenantId,
-            ownerId: ProjectId(input.projectId),
-            principalId: GroupId(group.id),
-            roleId: SystemRoleId(input.role),
-            tags: [],
-          });
-        }
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "group",
-        resourceId: group.id,
-        action: "updateProjectRole",
-        before: { projectId: input.projectId, role: before },
-        after: { projectId: input.projectId, role: input.role },
+        await auditLog(
+          {
+            session: ctx.session,
+            resourceType: "group",
+            resourceId: group.id,
+            action: "updateProjectRole",
+            before: { projectId: input.projectId, role: before },
+            after: { projectId: input.projectId, role: input.role },
+          },
+          tx,
+        );
       });
       return { projectId: input.projectId, role: input.role };
     }),

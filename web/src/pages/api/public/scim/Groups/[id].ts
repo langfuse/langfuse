@@ -1,6 +1,5 @@
 import { logger } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   authorizeScimGroupsRequest,
   deleteScimGroup,
@@ -46,30 +45,13 @@ export default async function handler(
         const body = parseScimBody(req);
         const updated =
           req.method === "PUT"
-            ? await replaceScimGroup(scope.orgId, groupId, body)
-            : await patchScimGroup(scope.orgId, groupId, body);
-        await auditLog({
-          resourceType: "group",
-          resourceId: groupId,
-          action: "update",
-          before: toScimGroup(existing),
-          after: toScimGroup(updated),
-          apiKeyId: scope.apiKeyId,
-          orgId: scope.orgId,
-        });
+            ? await replaceScimGroup(scope, existing, body)
+            : await patchScimGroup(scope, existing, body);
         return res.status(200).json(toScimGroup(updated, { excludeMembers }));
       }
 
       case "DELETE": {
-        await deleteScimGroup(scope.orgId, groupId);
-        await auditLog({
-          resourceType: "group",
-          resourceId: groupId,
-          action: "delete",
-          before: toScimGroup(existing),
-          apiKeyId: scope.apiKeyId,
-          orgId: scope.orgId,
-        });
+        await deleteScimGroup(scope, existing);
         logger.info(`[SCIM] Deleted group ${groupId} in org ${scope.orgId}`);
         return res.status(204).end();
       }

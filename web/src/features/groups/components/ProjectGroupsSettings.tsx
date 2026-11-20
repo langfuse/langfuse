@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { AlertCircle } from "@langfuse/icons";
 import { projectRoleAccessRights, type Role } from "@langfuse/shared";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import Header from "@/src/components/layouts/header";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -214,12 +213,9 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
     return (
       <div>
         {header}
-        <Alert icon={AlertCircle}>
-          <Alert.Title>Not available</Alert.Title>
-          <Alert.Description>
-            SCIM provisioning is not available on your plan.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Not available">
+          SCIM provisioning is not available on your plan.
+        </Banner>
       </div>
     );
   }
@@ -227,12 +223,9 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
     return (
       <div>
         {header}
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            You do not have permission to view the members of this project.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          You do not have permission to view the members of this project.
+        </Banner>
       </div>
     );
   }
@@ -242,22 +235,16 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
       {header}
       {!hasProjectRoles && (
         <div className="mb-4">
-          <Alert icon={AlertCircle}>
-            <Alert.Title>
-              Project roles are not available on your plan
-            </Alert.Title>
-            <Alert.Description>
-              Groups can still get access through their organization role.
-            </Alert.Description>
-          </Alert>
+          <Banner title="Project roles are not available on your plan">
+            Groups can still get access through their organization role.
+          </Banner>
         </div>
       )}
       {setRole.error && (
         <div className="mb-4">
-          <Alert icon={AlertCircle}>
-            <Alert.Title>Could not save the group role</Alert.Title>
-            <Alert.Description>{setRole.error.message}</Alert.Description>
-          </Alert>
+          <Banner variant="error" title="Could not save the group role">
+            {setRole.error.message}
+          </Banner>
         </div>
       )}
       <SettingsTable

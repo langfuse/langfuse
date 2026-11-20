@@ -6,6 +6,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { randomUUID } from "crypto";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 
 type ScimGroup = {
   schemas: string[];
@@ -49,8 +50,10 @@ describe("SCIM Groups API", () => {
     const user = await prisma.user.create({
       data: { email: `scim-group-${randomUUID()}@example.com` },
     });
-    await prisma.organizationMembership.create({
-      data: { orgId: org, userId: user.id, role: "NONE" },
+    await createOrgMembership(prisma, {
+      orgId: org,
+      userId: user.id,
+      role: "NONE",
     });
     return user.id;
   };

@@ -2,9 +2,17 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { GroupSource, Prisma, prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeScimError } from "@/src/features/public-api/server/writeError";
+import {
+  addGroupMembers,
+  deleteGroup,
+  GroupMembersNotInOrgError,
+  removeGroupMembers,
+  replaceGroupMembers,
+} from "@/src/features/groups/server/groupService";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 // SCIM 2.0 Groups (RFC 7643 4.2, RFC 7644 3) as sent by Okta and Entra ID. Never touches role assignments;
 // MANUAL and SYSTEM groups are invisible to SCIM.
@@ -161,8 +169,12 @@ export function toScimGroup(
   };
 }
 
-export async function getScimGroup(orgId: string, groupId: string) {
-  return prisma.group.findFirst({
+export async function getScimGroup(
+  orgId: string,
+  groupId: string,
+  db: Prisma.TransactionClient = prisma,
+) {
+  return db.group.findFirst({
     where: { id: groupId, orgId, source: GroupSource.SCIM },
     ...groupWithMembers,
   });
@@ -251,68 +263,7 @@ function parseMemberIds(value: unknown): string[] {
 
 type Tx = Prisma.TransactionClient;
 
-async function resolveOrgMemberships(
-  tx: Tx,
-  orgId: string,
-  userIds: string[],
-): Promise<Map<string, string>> {
-  const unique = [...new Set(userIds)];
-  if (unique.length === 0) return new Map();
-  const memberships = await tx.organizationMembership.findMany({
-    where: { orgId, userId: { in: unique } },
-    select: { id: true, userId: true },
-  });
-  const byUserId = new Map(memberships.map((m) => [m.userId, m.id]));
-  const missing = unique.filter((id) => !byUserId.has(id));
-  if (missing.length > 0) {
-    throw new ScimError(
-      400,
-      `Members not found in organization: ${missing.join(", ")}. Provision the users via /Users first.`,
-      "invalidValue",
-    );
-  }
-  return byUserId;
-}
-
-async function addMembers(
-  tx: Tx,
-  orgId: string,
-  groupId: string,
-  userIds: string[],
-) {
-  const memberships = await resolveOrgMemberships(tx, orgId, userIds);
-  if (memberships.size === 0) return;
-  await tx.groupMembership.createMany({
-    data: [...memberships.values()].map((orgMembershipId) => ({
-      groupId,
-      orgMembershipId,
-    })),
-    skipDuplicates: true,
-  });
-}
-
-async function removeMembers(tx: Tx, groupId: string, userIds: string[]) {
-  if (userIds.length === 0) return;
-  await tx.groupMembership.deleteMany({
-    where: { groupId, organizationMembership: { userId: { in: userIds } } },
-  });
-}
-
-async function replaceMembers(
-  tx: Tx,
-  orgId: string,
-  groupId: string,
-  userIds: string[],
-) {
-  await resolveOrgMemberships(tx, orgId, userIds);
-  await tx.groupMembership.deleteMany({
-    where: {
-      groupId,
-      organizationMembership: { userId: { notIn: [...new Set(userIds)] } },
-    },
-  });
-  await addMembers(tx, orgId, groupId, userIds);
-}
+export type ScimActor = { apiKeyId: string; orgId: string };
 
 function optionalString(value: unknown, name: string): string | undefined {
   if (value === undefined || value === null) return undefined;
@@ -350,40 +301,65 @@ async function transactOrConflict<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
 }
 
 export async function createScimGroup(
-  orgId: string,
+  actor: ScimActor,
   body: Record<string, unknown>,
 ) {
+  const { orgId } = actor;
   const displayName = requireDisplayName(body.displayName);
   const externalId = optionalString(body.externalId, "externalId");
   const memberIds = parseMemberIds(body.members);
 
-  const groupId = await transactOrConflict(async (tx) => {
+  return transactOrConflict(async (tx) => {
     const group = await tx.group.create({
       data: { orgId, displayName, externalId },
     });
-    await addMembers(tx, orgId, group.id, memberIds);
-    return group.id;
+    await addGroupMembers(tx, { orgId, groupId: group.id, userIds: memberIds });
+    const created = (await getScimGroup(orgId, group.id, tx))!;
+    await auditLog(
+      {
+        ...actor,
+        resourceType: "group",
+        resourceId: group.id,
+        action: "create",
+        after: toScimGroup(created),
+      },
+      tx,
+    );
+    return created;
   });
-  return (await getScimGroup(orgId, groupId))!;
 }
 
 export async function replaceScimGroup(
-  orgId: string,
-  groupId: string,
+  actor: ScimActor,
+  existing: ScimGroupWithMembers,
   body: Record<string, unknown>,
 ) {
+  const { orgId } = actor;
+  const groupId = existing.id;
   const displayName = requireDisplayName(body.displayName);
   const externalId = optionalString(body.externalId, "externalId") ?? null;
   const memberIds = parseMemberIds(body.members);
 
-  await transactOrConflict(async (tx) => {
+  return transactOrConflict(async (tx) => {
     await tx.group.update({
       where: { id: groupId, orgId },
       data: { displayName, externalId },
     });
-    await replaceMembers(tx, orgId, groupId, memberIds);
+    await replaceGroupMembers(tx, { orgId, groupId, userIds: memberIds });
+    const updated = (await getScimGroup(orgId, groupId, tx))!;
+    await auditLog(
+      {
+        ...actor,
+        resourceType: "group",
+        resourceId: groupId,
+        action: "update",
+        before: toScimGroup(existing),
+        after: toScimGroup(updated),
+      },
+      tx,
+    );
+    return updated;
   });
-  return (await getScimGroup(orgId, groupId))!;
 }
 
 const MEMBER_FILTER_PATH = /^members\[\s*value\s+eq\s+"([^"]+)"\s*\]$/i;
@@ -391,10 +367,12 @@ const MEMBER_FILTER_PATH = /^members\[\s*value\s+eq\s+"([^"]+)"\s*\]$/i;
 type PatchOperation = { op?: unknown; path?: unknown; value?: unknown };
 
 export async function patchScimGroup(
-  orgId: string,
-  groupId: string,
+  actor: ScimActor,
+  existing: ScimGroupWithMembers,
   body: Record<string, unknown>,
 ) {
+  const { orgId } = actor;
+  const groupId = existing.id;
   if (
     !Array.isArray(body.schemas) ||
     !body.schemas.includes(SCIM_PATCH_OP_SCHEMA)
@@ -414,7 +392,7 @@ export async function patchScimGroup(
   }
   const operations = body.Operations as PatchOperation[];
 
-  await transactOrConflict(async (tx) => {
+  return transactOrConflict(async (tx) => {
     for (const operation of operations) {
       await applyPatchOperation(tx, orgId, groupId, operation);
     }
@@ -423,8 +401,20 @@ export async function patchScimGroup(
       where: { id: groupId, orgId },
       data: { updatedAt: new Date() },
     });
+    const updated = (await getScimGroup(orgId, groupId, tx))!;
+    await auditLog(
+      {
+        ...actor,
+        resourceType: "group",
+        resourceId: groupId,
+        action: "update",
+        before: toScimGroup(existing),
+        after: toScimGroup(updated),
+      },
+      tx,
+    );
+    return updated;
   });
-  return (await getScimGroup(orgId, groupId))!;
 }
 
 async function applyPatchOperation(
@@ -471,8 +461,10 @@ async function applyPatchOperation(
     });
     if ("members" in attrs) {
       const memberIds = parseMemberIds(attrs.members);
-      if (op === "add") await addMembers(tx, orgId, groupId, memberIds);
-      else await replaceMembers(tx, orgId, groupId, memberIds);
+      if (op === "add")
+        await addGroupMembers(tx, { orgId, groupId, userIds: memberIds });
+      else
+        await replaceGroupMembers(tx, { orgId, groupId, userIds: memberIds });
     }
     // Ignore other attributes; rejecting them breaks provisioning
     return;
@@ -487,26 +479,27 @@ async function applyPatchOperation(
         "invalidPath",
       );
     }
-    await removeMembers(tx, groupId, [filteredMember[1]]);
+    await removeGroupMembers(tx, { groupId, userIds: [filteredMember[1]] });
     return;
   }
 
   switch (path.toLowerCase()) {
     case "members": {
+      const userIds =
+        operation.value === undefined || operation.value === null
+          ? undefined
+          : parseMemberIds(operation.value);
       if (op === "add") {
-        await addMembers(tx, orgId, groupId, parseMemberIds(operation.value));
+        await addGroupMembers(tx, { orgId, groupId, userIds: userIds ?? [] });
       } else if (op === "replace") {
-        await replaceMembers(
-          tx,
+        await replaceGroupMembers(tx, {
           orgId,
           groupId,
-          parseMemberIds(operation.value),
-        );
-      } else if (operation.value === undefined || operation.value === null) {
-        // remove without value clears the group (RFC 7644 3.5.2.2)
-        await tx.groupMembership.deleteMany({ where: { groupId } });
+          userIds: userIds ?? [],
+        });
       } else {
-        await removeMembers(tx, groupId, parseMemberIds(operation.value));
+        // remove without value clears the group (RFC 7644 3.5.2.2)
+        await removeGroupMembers(tx, { groupId, userIds });
       }
       return;
     }
@@ -541,9 +534,26 @@ async function applyPatchOperation(
   }
 }
 
-export async function deleteScimGroup(orgId: string, groupId: string) {
-  await prisma.group.delete({
-    where: { id: groupId, orgId, source: GroupSource.SCIM },
+export async function deleteScimGroup(
+  actor: ScimActor,
+  existing: ScimGroupWithMembers,
+) {
+  await prisma.$transaction(async (tx) => {
+    const roles = await deleteGroup(tx, {
+      id: existing.id,
+      orgId: actor.orgId,
+      source: GroupSource.SCIM,
+    });
+    await auditLog(
+      {
+        ...actor,
+        resourceType: "group",
+        resourceId: existing.id,
+        action: "delete",
+        before: { ...toScimGroup(existing), ...roles },
+      },
+      tx,
+    );
   });
 }
 
@@ -552,6 +562,11 @@ export function handleScimGroupsError(
   error: unknown,
   context: string,
 ) {
+  if (error instanceof GroupMembersNotInOrgError) {
+    const detail = `Members not found in organization: ${error.userIds.join(", ")}. Provision the users via /Users first.`;
+    logger.warn(`[SCIM] ${context}: ${detail}`);
+    return writeScimErrorResponse(res, 400, detail, "invalidValue");
+  }
   if (error instanceof ScimError) {
     logger.warn(`[SCIM] ${context}: ${error.detail}`);
     return writeScimErrorResponse(

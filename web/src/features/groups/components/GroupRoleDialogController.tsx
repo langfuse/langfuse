@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { type Role } from "@langfuse/shared";
+import { grantsAccess, includesRole } from "@langfuse/shared/rbac";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -8,7 +9,6 @@ import { EffectiveRoleCard } from "@/src/features/rbac/components/EffectiveRoleC
 import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
 import { RoleWithIcon } from "@/src/features/rbac/components/RoleWithIcon";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 
 type GroupRole = "ADMIN" | "MEMBER" | "VIEWER" | "AI_GATEWAY";
@@ -23,9 +23,8 @@ const optionsFor = (level: Level, isAiGatewayEnabled: boolean): Role[] =>
     : OPTIONS
   ).toSorted(byPermissionCount);
 
-/** AI Gateway grants no project permissions, so on a project it counts as no role. */
 const onProjectLevel = (role: Role): Role =>
-  role === "AI_GATEWAY" ? "NONE" : role;
+  grantsAccess(role, "project") ? role : "NONE";
 
 function orgRoleTag(orgRole: Role): string {
   if (orgRole === "NONE") return "No organization role";
@@ -56,7 +55,7 @@ function resolveGroupRole(
     };
   const inherited = onProjectLevel(orgRole);
   const projectApplies =
-    projectRole !== null && orderedRoles[projectRole] > orderedRoles[inherited];
+    projectRole !== null && !includesRole(inherited, projectRole, "project");
   let tag = "No role here";
   if (projectApplies) tag = "Set on this project";
   else if (inherited !== "NONE") tag = "Inherited from organization";
@@ -79,7 +78,7 @@ function resolveGroupRole(
     tag,
     sources: sources
       .filter((source) => source.role !== "NONE")
-      .toSorted((x, y) => orderedRoles[y.role] - orderedRoles[x.role]),
+      .toSorted((x, y) => byPermissionCount(x.role, y.role)),
     editing: projectRole ?? "NONE",
   };
 }
@@ -259,7 +258,7 @@ function GroupRoleDialog({
                     onProject &&
                     role !== "NONE" &&
                     levelOrgRole !== "NONE" &&
-                    orderedRoles[role] <= orderedRoles[levelOrgRole]
+                    includesRole(levelOrgRole, role, "project")
                   )
                     return `No effect: ${groupName} already gives ${roleName(levelOrgRole)} in the organization`;
                   return undefined;

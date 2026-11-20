@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { Role } from "@prisma/client";
 import {
+  resolveEffectiveRoles,
   resolveOrganizationScopes,
   resolveProjectRole,
   resolveProjectScopes,
+  roleScopes,
+  type AccessLevel,
   type GroupRoleGrant,
-} from "./userProjectRoleAuth";
-import { organizationRoleAccessRights } from "../../features/rbac/organizationAccessRights";
-import { projectRoleAccessRights } from "../../features/rbac/projectAccessRights";
+} from "./effectiveAccess";
+import { organizationRoleAccessRights } from "./organizationAccessRights";
+import { projectRoleAccessRights } from "./projectAccessRights";
 
 const projectMemberships = [{ projectId: "locked", role: Role.VIEWER }];
 const orgAdmin: GroupRoleGrant = { projectId: null, role: Role.ADMIN };
@@ -84,5 +87,39 @@ describe("resolveOrganizationScopes", () => {
         }),
       ),
     ).toEqual(sorted(organizationRoleAccessRights[Role.ADMIN]));
+  });
+});
+
+describe("resolveEffectiveRoles", () => {
+  const roles = Object.values(Role);
+  const levels: AccessLevel[] = ["organization", "project"];
+
+  it.each(levels)("drops only roles that add no %s permissions", (level) => {
+    for (const a of roles)
+      for (const b of roles)
+        for (const c of roles) {
+          const held = [a, b, c];
+          const effective = resolveEffectiveRoles(held, level);
+          const kept = new Set(
+            effective.flatMap((role) => roleScopes(role, level)),
+          );
+          for (const role of held.filter((r) => r !== Role.NONE))
+            expect(
+              roleScopes(role, level).every((scope) => kept.has(scope)),
+            ).toBe(true);
+          expect(effective.every((role) => held.includes(role))).toBe(true);
+        }
+  });
+
+  it("keeps AI Gateway beside Viewer in the organization only", () => {
+    expect(
+      resolveEffectiveRoles([Role.VIEWER, Role.AI_GATEWAY], "organization"),
+    ).toEqual([Role.VIEWER, Role.AI_GATEWAY]);
+    expect(
+      resolveEffectiveRoles([Role.MEMBER, Role.AI_GATEWAY], "organization"),
+    ).toEqual([Role.MEMBER]);
+    expect(
+      resolveEffectiveRoles([Role.VIEWER, Role.AI_GATEWAY], "project"),
+    ).toEqual([Role.VIEWER]);
   });
 });

@@ -1,6 +1,5 @@
 import { logger } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   authorizeScimGroupsRequest,
   createScimGroup,
@@ -60,15 +59,7 @@ export default async function handler(
         );
     }
 
-    const group = await createScimGroup(scope.orgId, parseScimBody(req));
-    await auditLog({
-      resourceType: "group",
-      resourceId: group.id,
-      action: "create",
-      after: toScimGroup(group),
-      apiKeyId: scope.apiKeyId,
-      orgId: scope.orgId,
-    });
+    const group = await createScimGroup(scope, parseScimBody(req));
     logger.info(
       `[SCIM] Created group ${group.id} with ${group.members.length} members in org ${scope.orgId}`,
     );

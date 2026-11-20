@@ -2,7 +2,12 @@ import { useId, useState } from "react";
 import Link from "next/link";
 import { Lock } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
-import { organizationRoleAccessRights } from "@langfuse/shared/rbac";
+import {
+  grantsAccess,
+  includesRole,
+  resolveEffectiveRoles,
+  type AccessLevel,
+} from "@langfuse/shared/rbac";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -12,10 +17,6 @@ import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
 import { RoleWithIcon } from "@/src/features/rbac/components/RoleWithIcon";
-import {
-  higherRole,
-  orderedRoles,
-} from "@/src/features/rbac/constants/orderedRoles";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 import { type MemberGroupRole } from "./MembersSettingsTable";
 
@@ -42,35 +43,19 @@ function inheritNoneDescription(orgRole: Role): string {
 
 const joinNames = (names: string[]) => [...new Set(names)].join(", ");
 
-/** Roles that rank against each other; a higher one includes a lower one. */
-const LADDER: ReadonlySet<Role> = new Set<Role>([
-  "OWNER",
-  "ADMIN",
-  "MEMBER",
-  "VIEWER",
-]);
-const onLadder = (role: Role) => LADDER.has(role);
-
-const gatewayAddsTo = (role: Role) => {
-  const scopes = new Set<string>(organizationRoleAccessRights[role]);
-  return organizationRoleAccessRights.AI_GATEWAY.some(
-    (scope) => !scopes.has(scope),
-  );
-};
-
 export type EffectiveRole = {
-  /** Highest ladder role, plus AI Gateway when it adds permissions; `["NONE"]` when nothing applies. */
+  /** `["NONE"]` when nothing applies. */
   roles: Role[];
   role: Role;
   raisedByGroup: boolean;
   direct: Role;
   directIsOrgDefault: boolean;
-  /** Highest ladder role a group grants; direct roles below it cannot be picked. */
+  /** Direct roles it includes can't be picked. */
   groupFloor: Role | null;
   grants: MemberGroupRole[];
+  level: AccessLevel;
 };
 
-/** Mirrors server-side `resolveOrganizationScopes`/`resolveProjectScopes`: ladder roles collapse to the highest, and AI Gateway stays only when it adds permissions (Viewer cannot invoke the gateway). */
 export function resolveEffectiveRole({
   orgRole,
   projectRole,
@@ -80,39 +65,38 @@ export function resolveEffectiveRole({
   orgRole: Role;
   projectRole?: Role;
   groupRoles: MemberGroupRole[];
-  level: "organization" | "project";
+  level: AccessLevel;
 }): EffectiveRole {
   const onProject = level === "project";
-  // AI Gateway has no project permissions, so on a project it counts as no role.
   const atLevel = (role: Role): Role =>
-    onProject && role === "AI_GATEWAY" ? "NONE" : role;
+    grantsAccess(role, level) ? role : "NONE";
   const grants = groupRoles
     .filter((grant) => onProject || grant.level === "organization")
-    .filter((grant) => atLevel(grant.role) !== "NONE")
-    .toSorted((a, b) => orderedRoles[b.role] - orderedRoles[a.role]);
+    .filter((grant) => grantsAccess(grant.role, level))
+    .toSorted((a, b) => byPermissionCount(a.role, b.role));
   const directIsOrgDefault = onProject && projectRole === undefined;
   const direct = atLevel(onProject ? (projectRole ?? orgRole) : orgRole);
-  const ladderDirect: Role = onLadder(direct) ? direct : "NONE";
-  const groupFloor = grants.find((grant) => onLadder(grant.role))?.role ?? null;
-  const role = groupFloor ? higherRole(ladderDirect, groupFloor) : ladderDirect;
-  const raisedByGroup = role !== ladderDirect;
-  const hasGateway =
-    (direct === "AI_GATEWAY" ||
-      grants.some((grant) => grant.role === "AI_GATEWAY")) &&
-    gatewayAddsTo(role);
-  const roles: Role[] = [
-    ...(role !== "NONE" ? [role] : []),
-    ...(hasGateway ? (["AI_GATEWAY"] as Role[]) : []),
-  ].toSorted(byPermissionCount);
+  const ownRole: Role = direct === "AI_GATEWAY" ? "NONE" : direct;
+  const groupFloor =
+    grants.find((grant) => grant.role !== "AI_GATEWAY")?.role ?? null;
+  const role =
+    groupFloor && !includesRole(ownRole, groupFloor, level)
+      ? groupFloor
+      : ownRole;
+  const roles = resolveEffectiveRoles(
+    [direct, ...grants.map((grant) => grant.role)],
+    level,
+  ).toSorted(byPermissionCount);
 
   return {
     roles: roles.length > 0 ? roles : ["NONE"],
     role,
-    raisedByGroup,
+    raisedByGroup: role !== ownRole,
     direct,
     directIsOrgDefault,
     groupFloor,
     grants,
+    level,
   };
 }
 
@@ -127,7 +111,8 @@ export const belowGroupFloor =
     if (
       !floor ||
       role === "AI_GATEWAY" ||
-      orderedRoles[role] >= orderedRoles[floor]
+      role === floor ||
+      !includesRole(floor, role, effective.level)
     )
       return undefined;
     if (allowNone && role === "NONE") return undefined;

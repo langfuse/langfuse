@@ -5,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { Role } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 
 async function prepare() {
   const org = await prisma.organization.create({
@@ -52,8 +53,10 @@ async function prepare() {
     const user = await prisma.user.create({
       data: { email: `groups-${uuidv4()}@example.com` },
     });
-    await prisma.organizationMembership.create({
-      data: { orgId, userId: user.id, role: Role.NONE },
+    await createOrgMembership(prisma, {
+      orgId,
+      userId: user.id,
+      role: Role.NONE,
     });
     return user.id;
   };

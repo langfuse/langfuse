@@ -18,6 +18,7 @@ import {
   escapeSqlLikePattern,
   formatAuthProviderName,
 } from "@langfuse/shared/src/server";
+import { groupRoleGrants } from "@langfuse/shared/rbac";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
@@ -216,19 +217,17 @@ async function getMembers(
   return {
     memberships: orgMemberships.map(({ groupMemberships, ...om }) => ({
       ...om,
-      groupRoles: groupMemberships.flatMap(({ group }) =>
-        group.roleAssignments.map((assignment) => ({
-          groupId: group.id,
-          groupName: group.displayName,
-          groupSource: group.source,
-          memberCount: group._count.members,
-          role: assignment.systemRole as Role,
-          level:
-            assignment.projectId === null
-              ? ("organization" as const)
-              : ("project" as const),
-        })),
-      ),
+      groupRoles: groupRoleGrants(
+        groupMemberships.map(({ group }) => group),
+      ).map(({ group, projectId, role }) => ({
+        groupId: group.id,
+        groupName: group.displayName,
+        groupSource: group.source,
+        memberCount: group._count.members,
+        role,
+        level:
+          projectId === null ? ("organization" as const) : ("project" as const),
+      })),
       user: {
         ...om.user,
         accounts: om.user.accounts.map((account) => ({

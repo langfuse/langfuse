@@ -7,7 +7,8 @@ import {
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma, type Role } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
+import { groupRoleGrants } from "@langfuse/shared/rbac";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
@@ -1055,12 +1056,10 @@ export async function getAuthOptions(
                         // Support-access memberships have no groups.
                         const groupRoles =
                           "groupMemberships" in orgMembership
-                            ? orgMembership.groupMemberships.flatMap(
-                                ({ group }) =>
-                                  group.roleAssignments.map((assignment) => ({
-                                    projectId: assignment.projectId,
-                                    role: assignment.systemRole as Role,
-                                  })),
+                            ? groupRoleGrants(
+                                orgMembership.groupMemberships.map(
+                                  ({ group }) => group,
+                                ),
                               )
                             : [];
                         return {
