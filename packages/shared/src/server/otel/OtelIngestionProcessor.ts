@@ -40,7 +40,11 @@ import {
 } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
-import { isValidDateString, flattenJsonToPathArrays } from "./utils";
+import {
+  isValidDateString,
+  flattenJsonToPathArrays,
+  normalizeOtelDateTime,
+} from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
@@ -3555,12 +3559,14 @@ export class OtelIngestionProcessor {
         LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
       ] as any;
 
-      if (isValidDateString(value)) return value;
+      const normalized = this.normalizeCompletionStartTime(value);
+      if (normalized) return normalized;
 
       // Older SDKs have double stringified timestamps that need JSON parsing
       // "\"2025-10-01T08:45:26.112648Z\""
       const parsed = JSON.parse(value);
-      if (isValidDateString(parsed)) return parsed;
+      const normalizedParsed = this.normalizeCompletionStartTime(parsed);
+      if (normalizedParsed) return normalizedParsed;
     } catch {
       // Fallthrough
     }
@@ -3588,6 +3594,11 @@ export class OtelIngestionProcessor {
     }
 
     return null;
+  }
+
+  /** Accepts what `isValidDateString` accepted and returns the ISO date-time the schema requires. */
+  private normalizeCompletionStartTime(value: unknown): string | null {
+    return normalizeOtelDateTime(value);
   }
 
   private extractTags(
