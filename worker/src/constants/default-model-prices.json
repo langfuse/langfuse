@@ -10497,5 +10497,989 @@
         }
       }
     ]
+  },
+  {
+    "id": "ba226ee3-e18d-4688-9174-c13d7c7198a8",
+    "modelName": "accounts/fireworks/models/ember-1",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/ember-1$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "ba226ee3-e18d-4688-9174-c13d7c7198a8_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 3e-6,
+          "input_tokens": 3e-6,
+          "input_cached_tokens": 0.3e-6,
+          "input_cache_read": 0.3e-6,
+          "cache_read_input_tokens": 0.3e-6,
+          "output": 15e-6,
+          "output_tokens": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6,
+          "reasoning_tokens": 15e-6
+        }
+      },
+      {
+        "id": "8c14e4de-cc44-4e4f-b1d0-30a5b021538d",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 3.75e-6,
+          "input_tokens": 3.75e-6,
+          "input_cached_tokens": 0.375e-6,
+          "input_cache_read": 0.375e-6,
+          "cache_read_input_tokens": 0.375e-6,
+          "output": 18.75e-6,
+          "output_tokens": 18.75e-6,
+          "output_reasoning_tokens": 18.75e-6,
+          "output_reasoning": 18.75e-6,
+          "reasoning_tokens": 18.75e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "2ca4607f-cd94-4c7a-a819-54666d027ca0",
+    "modelName": "accounts/fireworks/models/kimi-k3",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/kimi-k3$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "2ca4607f-cd94-4c7a-a819-54666d027ca0_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 3e-6,
+          "input_tokens": 3e-6,
+          "input_cached_tokens": 0.3e-6,
+          "input_cache_read": 0.3e-6,
+          "cache_read_input_tokens": 0.3e-6,
+          "output": 15e-6,
+          "output_tokens": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6,
+          "reasoning_tokens": 15e-6
+        }
+      },
+      {
+        "id": "c78304e6-2d8e-438e-af88-2e813e6d928e",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 3.75e-6,
+          "input_tokens": 3.75e-6,
+          "input_cached_tokens": 0.375e-6,
+          "input_cache_read": 0.375e-6,
+          "cache_read_input_tokens": 0.375e-6,
+          "output": 18.75e-6,
+          "output_tokens": 18.75e-6,
+          "output_reasoning_tokens": 18.75e-6,
+          "output_reasoning": 18.75e-6,
+          "reasoning_tokens": 18.75e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "ce67294f-eefa-476b-9442-5be18908790f",
+    "modelName": "accounts/fireworks/models/kimi-k3p1-pro",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/kimi-k3p1-pro$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "ce67294f-eefa-476b-9442-5be18908790f_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-6,
+          "input_tokens": 2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "output": 10e-6,
+          "output_tokens": 10e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "reasoning_tokens": 10e-6
+        }
+      },
+      {
+        "id": "3bc5ba0a-459c-4ce5-82e4-fec1012ad7e7",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 3e-6,
+          "input_tokens": 3e-6,
+          "input_cached_tokens": 0.3e-6,
+          "input_cache_read": 0.3e-6,
+          "cache_read_input_tokens": 0.3e-6,
+          "output": 15e-6,
+          "output_tokens": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6,
+          "reasoning_tokens": 15e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "5a3bb7b0-99f7-4a7c-91be-7b4e4dab527b",
+    "modelName": "accounts/fireworks/models/qwen3p8-max",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/qwen3p8-max$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "5a3bb7b0-99f7-4a7c-91be-7b4e4dab527b_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-6,
+          "input_tokens": 2e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "output": 6e-6,
+          "output_tokens": 6e-6,
+          "output_reasoning_tokens": 6e-6,
+          "output_reasoning": 6e-6,
+          "reasoning_tokens": 6e-6
+        }
+      },
+      {
+        "id": "1a2a0b0d-654b-420b-9327-38ca5df8e619",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 3e-6,
+          "input_tokens": 3e-6,
+          "input_cached_tokens": 0.375e-6,
+          "input_cache_read": 0.375e-6,
+          "cache_read_input_tokens": 0.375e-6,
+          "output": 9e-6,
+          "output_tokens": 9e-6,
+          "output_reasoning_tokens": 9e-6,
+          "output_reasoning": 9e-6,
+          "reasoning_tokens": 9e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "b9e590ec-bdf3-40fe-ac2e-ede31ef79bc2",
+    "modelName": "accounts/fireworks/models/glm-5p3",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/glm-5p3$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "b9e590ec-bdf3-40fe-ac2e-ede31ef79bc2_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.4e-6,
+          "input_tokens": 1.4e-6,
+          "input_cached_tokens": 0.26e-6,
+          "input_cache_read": 0.26e-6,
+          "cache_read_input_tokens": 0.26e-6,
+          "output": 4.4e-6,
+          "output_tokens": 4.4e-6,
+          "output_reasoning_tokens": 4.4e-6,
+          "output_reasoning": 4.4e-6,
+          "reasoning_tokens": 4.4e-6
+        }
+      },
+      {
+        "id": "205e068e-c19d-4a93-b548-1cbed6a6759e",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 1.75e-6,
+          "input_tokens": 1.75e-6,
+          "input_cached_tokens": 0.325e-6,
+          "input_cache_read": 0.325e-6,
+          "cache_read_input_tokens": 0.325e-6,
+          "output": 5.5e-6,
+          "output_tokens": 5.5e-6,
+          "output_reasoning_tokens": 5.5e-6,
+          "output_reasoning": 5.5e-6,
+          "reasoning_tokens": 5.5e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "5ae8f9e1-f339-42d1-bfe0-f643f464aebd",
+    "modelName": "accounts/fireworks/models/muse-spark-open",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/muse-spark-open$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "5ae8f9e1-f339-42d1-bfe0-f643f464aebd_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.25e-6,
+          "input_tokens": 1.25e-6,
+          "input_cached_tokens": 0.15e-6,
+          "input_cache_read": 0.15e-6,
+          "cache_read_input_tokens": 0.15e-6,
+          "output": 4.25e-6,
+          "output_tokens": 4.25e-6,
+          "output_reasoning_tokens": 4.25e-6,
+          "output_reasoning": 4.25e-6,
+          "reasoning_tokens": 4.25e-6
+        }
+      },
+      {
+        "id": "c18ee000-8595-4fe5-8e7b-7f89e27cb25a",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 1.875e-6,
+          "input_tokens": 1.875e-6,
+          "input_cached_tokens": 0.225e-6,
+          "input_cache_read": 0.225e-6,
+          "cache_read_input_tokens": 0.225e-6,
+          "output": 6.375e-6,
+          "output_tokens": 6.375e-6,
+          "output_reasoning_tokens": 6.375e-6,
+          "output_reasoning": 6.375e-6,
+          "reasoning_tokens": 6.375e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "df20b8bb-e0b0-4893-aa6c-9b08efee160c",
+    "modelName": "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/nemotron-3-ultra-nvfp4$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "df20b8bb-e0b0-4893-aa6c-9b08efee160c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.6e-6,
+          "input_tokens": 0.6e-6,
+          "input_cached_tokens": 0.12e-6,
+          "input_cache_read": 0.12e-6,
+          "cache_read_input_tokens": 0.12e-6,
+          "output": 2.4e-6,
+          "output_tokens": 2.4e-6,
+          "output_reasoning_tokens": 2.4e-6,
+          "output_reasoning": 2.4e-6,
+          "reasoning_tokens": 2.4e-6
+        }
+      },
+      {
+        "id": "0a56b08f-b195-4f9d-9ddb-9d061d39d888",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.75e-6,
+          "input_tokens": 0.75e-6,
+          "input_cached_tokens": 0.15e-6,
+          "input_cache_read": 0.15e-6,
+          "cache_read_input_tokens": 0.15e-6,
+          "output": 3e-6,
+          "output_tokens": 3e-6,
+          "output_reasoning_tokens": 3e-6,
+          "output_reasoning": 3e-6,
+          "reasoning_tokens": 3e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "b32f1080-9a8a-45f3-a34d-9d732f9f17a4",
+    "modelName": "accounts/fireworks/models/deepseek-v4p1-flash",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/deepseek-v4p1-flash$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "b32f1080-9a8a-45f3-a34d-9d732f9f17a4_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.3e-6,
+          "input_tokens": 0.3e-6,
+          "input_cached_tokens": 0.006e-6,
+          "input_cache_read": 0.006e-6,
+          "cache_read_input_tokens": 0.006e-6,
+          "output": 1.2e-6,
+          "output_tokens": 1.2e-6,
+          "output_reasoning_tokens": 1.2e-6,
+          "output_reasoning": 1.2e-6,
+          "reasoning_tokens": 1.2e-6
+        }
+      },
+      {
+        "id": "1a0cbda9-f205-4f65-bbf4-ef0c124f0c1b",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.375e-6,
+          "input_tokens": 0.375e-6,
+          "input_cached_tokens": 0.0075e-6,
+          "input_cache_read": 0.0075e-6,
+          "cache_read_input_tokens": 0.0075e-6,
+          "output": 1.5e-6,
+          "output_tokens": 1.5e-6,
+          "output_reasoning_tokens": 1.5e-6,
+          "output_reasoning": 1.5e-6,
+          "reasoning_tokens": 1.5e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "a4b7db52-7872-4a3a-9002-8eb621144188",
+    "modelName": "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/deepseek-v4p1-flash-1017$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "a4b7db52-7872-4a3a-9002-8eb621144188_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.3e-6,
+          "input_tokens": 0.3e-6,
+          "input_cached_tokens": 0.006e-6,
+          "input_cache_read": 0.006e-6,
+          "cache_read_input_tokens": 0.006e-6,
+          "output": 1.2e-6,
+          "output_tokens": 1.2e-6,
+          "output_reasoning_tokens": 1.2e-6,
+          "output_reasoning": 1.2e-6,
+          "reasoning_tokens": 1.2e-6
+        }
+      },
+      {
+        "id": "b0c65c29-b3cf-4e90-844a-5a2c343ec0b0",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.375e-6,
+          "input_tokens": 0.375e-6,
+          "input_cached_tokens": 0.0075e-6,
+          "input_cache_read": 0.0075e-6,
+          "cache_read_input_tokens": 0.0075e-6,
+          "output": 1.5e-6,
+          "output_tokens": 1.5e-6,
+          "output_reasoning_tokens": 1.5e-6,
+          "output_reasoning": 1.5e-6,
+          "reasoning_tokens": 1.5e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "3ca7bdd4-afb5-461e-ba54-feccc42e2612",
+    "modelName": "accounts/fireworks/models/minimax-m3",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/minimax-m3$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "3ca7bdd4-afb5-461e-ba54-feccc42e2612_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.3e-6,
+          "input_tokens": 0.3e-6,
+          "input_cached_tokens": 0.06e-6,
+          "input_cache_read": 0.06e-6,
+          "cache_read_input_tokens": 0.06e-6,
+          "output": 1.2e-6,
+          "output_tokens": 1.2e-6,
+          "output_reasoning_tokens": 1.2e-6,
+          "output_reasoning": 1.2e-6,
+          "reasoning_tokens": 1.2e-6
+        }
+      },
+      {
+        "id": "16b2aad4-acfe-4fff-9917-4182cdf3e8a3",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.45e-6,
+          "input_tokens": 0.45e-6,
+          "input_cached_tokens": 0.09e-6,
+          "input_cache_read": 0.09e-6,
+          "cache_read_input_tokens": 0.09e-6,
+          "output": 1.8e-6,
+          "output_tokens": 1.8e-6,
+          "output_reasoning_tokens": 1.8e-6,
+          "output_reasoning": 1.8e-6,
+          "reasoning_tokens": 1.8e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "2b71b890-33d8-4810-9549-bc4afc0e9d24",
+    "modelName": "accounts/fireworks/models/minimax-m3p1-flash",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/minimax-m3p1-flash$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "2b71b890-33d8-4810-9549-bc4afc0e9d24_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.15e-6,
+          "input_tokens": 0.15e-6,
+          "input_cached_tokens": 0.015e-6,
+          "input_cache_read": 0.015e-6,
+          "cache_read_input_tokens": 0.015e-6,
+          "output": 0.6e-6,
+          "output_tokens": 0.6e-6,
+          "output_reasoning_tokens": 0.6e-6,
+          "output_reasoning": 0.6e-6,
+          "reasoning_tokens": 0.6e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "9712c110-01ba-433a-8a06-205e63ca77ed",
+    "modelName": "accounts/fireworks/models/glm-5p3-flash",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/glm-5p3-flash$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "9712c110-01ba-433a-8a06-205e63ca77ed_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.15e-6,
+          "input_tokens": 0.15e-6,
+          "input_cached_tokens": 0.03e-6,
+          "input_cache_read": 0.03e-6,
+          "cache_read_input_tokens": 0.03e-6,
+          "output": 0.5e-6,
+          "output_tokens": 0.5e-6,
+          "output_reasoning_tokens": 0.5e-6,
+          "output_reasoning": 0.5e-6,
+          "reasoning_tokens": 0.5e-6
+        }
+      },
+      {
+        "id": "277b5826-b3ee-4cd4-8ddf-a2753dc86955",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.1875e-6,
+          "input_tokens": 0.1875e-6,
+          "input_cached_tokens": 0.0375e-6,
+          "input_cache_read": 0.0375e-6,
+          "cache_read_input_tokens": 0.0375e-6,
+          "output": 0.625e-6,
+          "output_tokens": 0.625e-6,
+          "output_reasoning_tokens": 0.625e-6,
+          "output_reasoning": 0.625e-6,
+          "reasoning_tokens": 0.625e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "91d13451-865b-4eb4-ba88-06f8dd69378c",
+    "modelName": "accounts/fireworks/models/ultramarine-1-flash-us",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/ultramarine-1-flash-us$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "91d13451-865b-4eb4-ba88-06f8dd69378c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.15e-6,
+          "input_tokens": 0.15e-6,
+          "input_cached_tokens": 0.03e-6,
+          "input_cache_read": 0.03e-6,
+          "cache_read_input_tokens": 0.03e-6,
+          "output": 0.5e-6,
+          "output_tokens": 0.5e-6,
+          "output_reasoning_tokens": 0.5e-6,
+          "output_reasoning": 0.5e-6,
+          "reasoning_tokens": 0.5e-6
+        }
+      },
+      {
+        "id": "2e27a694-b431-4b6b-b121-abb07ccba0ec",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.1875e-6,
+          "input_tokens": 0.1875e-6,
+          "input_cached_tokens": 0.0375e-6,
+          "input_cache_read": 0.0375e-6,
+          "cache_read_input_tokens": 0.0375e-6,
+          "output": 0.625e-6,
+          "output_tokens": 0.625e-6,
+          "output_reasoning_tokens": 0.625e-6,
+          "output_reasoning": 0.625e-6,
+          "reasoning_tokens": 0.625e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "014bf8a1-1c2b-499a-9421-f977c73e073d",
+    "modelName": "accounts/fireworks/models/gpt-oss-120b",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/gpt-oss-120b$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "014bf8a1-1c2b-499a-9421-f977c73e073d_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.15e-6,
+          "input_tokens": 0.15e-6,
+          "input_cached_tokens": 0.015e-6,
+          "input_cache_read": 0.015e-6,
+          "cache_read_input_tokens": 0.015e-6,
+          "output": 0.6e-6,
+          "output_tokens": 0.6e-6,
+          "output_reasoning_tokens": 0.6e-6,
+          "output_reasoning": 0.6e-6,
+          "reasoning_tokens": 0.6e-6
+        }
+      },
+      {
+        "id": "dc196f89-3b2b-4533-87da-d94a4a0eabaf",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.18e-6,
+          "input_tokens": 0.18e-6,
+          "input_cached_tokens": 0.018e-6,
+          "input_cache_read": 0.018e-6,
+          "cache_read_input_tokens": 0.018e-6,
+          "output": 0.72e-6,
+          "output_tokens": 0.72e-6,
+          "output_reasoning_tokens": 0.72e-6,
+          "output_reasoning": 0.72e-6,
+          "reasoning_tokens": 0.72e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "a4a3c9ac-60e9-490c-845e-7f73f904a28f",
+    "modelName": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/nemotron-lightning-3p5-30b-a3b$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "a4a3c9ac-60e9-490c-845e-7f73f904a28f_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.05e-6,
+          "input_tokens": 0.05e-6,
+          "input_cached_tokens": 0.01e-6,
+          "input_cache_read": 0.01e-6,
+          "cache_read_input_tokens": 0.01e-6,
+          "output": 0.2e-6,
+          "output_tokens": 0.2e-6,
+          "output_reasoning_tokens": 0.2e-6,
+          "output_reasoning": 0.2e-6,
+          "reasoning_tokens": 0.2e-6
+        }
+      },
+      {
+        "id": "ad0e628a-87c6-4051-a711-30f2af8c3f36",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.0625e-6,
+          "input_tokens": 0.0625e-6,
+          "input_cached_tokens": 0.0125e-6,
+          "input_cache_read": 0.0125e-6,
+          "cache_read_input_tokens": 0.0125e-6,
+          "output": 0.25e-6,
+          "output_tokens": 0.25e-6,
+          "output_reasoning_tokens": 0.25e-6,
+          "output_reasoning": 0.25e-6,
+          "reasoning_tokens": 0.25e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "b47b490d-4cc9-460d-b0c4-afbea45b3d2c",
+    "modelName": "accounts/fireworks/models/glm-5p3-spot",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/glm-5p3-spot$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "b47b490d-4cc9-460d-b0c4-afbea45b3d2c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.98e-6,
+          "input_tokens": 0.98e-6,
+          "input_cached_tokens": 0.182e-6,
+          "input_cache_read": 0.182e-6,
+          "cache_read_input_tokens": 0.182e-6,
+          "output": 3.08e-6,
+          "output_tokens": 3.08e-6,
+          "output_reasoning_tokens": 3.08e-6,
+          "output_reasoning": 3.08e-6,
+          "reasoning_tokens": 3.08e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "3fea3c89-7c9b-4b93-be56-16e24df30cce",
+    "modelName": "accounts/fireworks/models/kimi-k3-spot",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/kimi-k3-spot$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "3fea3c89-7c9b-4b93-be56-16e24df30cce_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.1e-6,
+          "input_tokens": 2.1e-6,
+          "input_cached_tokens": 0.21e-6,
+          "input_cache_read": 0.21e-6,
+          "cache_read_input_tokens": 0.21e-6,
+          "output": 10.5e-6,
+          "output_tokens": 10.5e-6,
+          "output_reasoning_tokens": 10.5e-6,
+          "output_reasoning": 10.5e-6,
+          "reasoning_tokens": 10.5e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "ffec890a-4179-4201-956e-eb85415710dd",
+    "modelName": "accounts/fireworks/models/deepseek-v4p1-flash-spot",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/deepseek-v4p1-flash-spot$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "ffec890a-4179-4201-956e-eb85415710dd_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.21e-6,
+          "input_tokens": 0.21e-6,
+          "input_cached_tokens": 0.0042e-6,
+          "input_cache_read": 0.0042e-6,
+          "cache_read_input_tokens": 0.0042e-6,
+          "output": 0.84e-6,
+          "output_tokens": 0.84e-6,
+          "output_reasoning_tokens": 0.84e-6,
+          "output_reasoning": 0.84e-6,
+          "reasoning_tokens": 0.84e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "1cab6d74-5f5f-4024-acc7-299bb201a295",
+    "modelName": "accounts/fireworks/models/deepseek-v4p1-flash-1017-spot",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/deepseek-v4p1-flash-1017-spot$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "1cab6d74-5f5f-4024-acc7-299bb201a295_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.21e-6,
+          "input_tokens": 0.21e-6,
+          "input_cached_tokens": 0.0042e-6,
+          "input_cache_read": 0.0042e-6,
+          "cache_read_input_tokens": 0.0042e-6,
+          "output": 0.84e-6,
+          "output_tokens": 0.84e-6,
+          "output_reasoning_tokens": 0.84e-6,
+          "output_reasoning": 0.84e-6,
+          "reasoning_tokens": 0.84e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "4369d06d-79e5-416f-8130-c4cf59af77da",
+    "modelName": "accounts/fireworks/models/rune",
+    "matchPattern": "(?i)^(fireworks(_ai)?\/)?accounts\/fireworks\/models\/rune$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "4369d06d-79e5-416f-8130-c4cf59af77da_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.042e-6,
+          "input_tokens": 0.042e-6,
+          "input_cached_tokens": 0.0084e-6,
+          "input_cache_read": 0.0084e-6,
+          "cache_read_input_tokens": 0.0084e-6,
+          "output": 0,
+          "output_tokens": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "61701ec8-2d17-4f1c-9e6d-c82d748305ee",
+    "modelName": "accounts/fireworks/models/qwen3-embedding-8b",
+    "matchPattern": "(?i)^((fireworks(_ai)?\/)?accounts\/fireworks\/models\/|fireworks(_ai)?\/)qwen3-embedding-8b$",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "updatedAt": "2026-11-20T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "61701ec8-2d17-4f1c-9e6d-c82d748305ee_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.1e-6,
+          "input_tokens": 0.1e-6,
+          "prompt_tokens": 0.1e-6
+        }
+      }
+    ]
   }
 ]

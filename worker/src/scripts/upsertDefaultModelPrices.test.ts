@@ -354,3 +354,162 @@ describe("default Gemini Pro pricing tiers", () => {
     },
   );
 });
+
+describe("default Fireworks serverless model prices", () => {
+  const compileCatalogPattern = (matchPattern: string) =>
+    // Both catalogue patterns and model names are checked-in test fixtures.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+    new RegExp(matchPattern.replace(/^\(\?i\)/, ""), "i");
+
+  it.each([
+    ["accounts/fireworks/models/ember-1", 3e-6, 0.3e-6, 15e-6],
+    ["accounts/fireworks/models/kimi-k3", 3e-6, 0.3e-6, 15e-6],
+    ["fireworks/accounts/fireworks/models/kimi-k3p1-pro", 2e-6, 0.2e-6, 10e-6],
+    ["fireworks_ai/accounts/fireworks/models/qwen3p8-max", 2e-6, 0.25e-6, 6e-6],
+    ["accounts/fireworks/models/glm-5p3", 1.4e-6, 0.26e-6, 4.4e-6],
+    ["accounts/fireworks/models/muse-spark-open", 1.25e-6, 0.15e-6, 4.25e-6],
+    [
+      "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
+      0.6e-6,
+      0.12e-6,
+      2.4e-6,
+    ],
+    ["accounts/fireworks/models/deepseek-v4p1-flash", 0.3e-6, 0.006e-6, 1.2e-6],
+    [
+      "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+      0.3e-6,
+      0.006e-6,
+      1.2e-6,
+    ],
+    ["accounts/fireworks/models/minimax-m3", 0.3e-6, 0.06e-6, 1.2e-6],
+    ["accounts/fireworks/models/minimax-m3p1-flash", 0.15e-6, 0.015e-6, 0.6e-6],
+    ["accounts/fireworks/models/glm-5p3-flash", 0.15e-6, 0.03e-6, 0.5e-6],
+    [
+      "accounts/fireworks/models/ultramarine-1-flash-us",
+      0.15e-6,
+      0.03e-6,
+      0.5e-6,
+    ],
+    [
+      "fireworks_ai/accounts/fireworks/models/gpt-oss-120b",
+      0.15e-6,
+      0.015e-6,
+      0.6e-6,
+    ],
+    [
+      "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+      0.05e-6,
+      0.01e-6,
+      0.2e-6,
+    ],
+    ["accounts/fireworks/models/glm-5p3-spot", 0.98e-6, 0.182e-6, 3.08e-6],
+    ["accounts/fireworks/models/kimi-k3-spot", 2.1e-6, 0.21e-6, 10.5e-6],
+    [
+      "accounts/fireworks/models/deepseek-v4p1-flash-spot",
+      0.21e-6,
+      0.0042e-6,
+      0.84e-6,
+    ],
+    [
+      "accounts/fireworks/models/deepseek-v4p1-flash-1017-spot",
+      0.21e-6,
+      0.0042e-6,
+      0.84e-6,
+    ],
+    ["accounts/fireworks/models/rune", 0.042e-6, 0.0084e-6, 0],
+    [
+      "accounts/fireworks/models/qwen3-embedding-8b",
+      0.1e-6,
+      undefined,
+      undefined,
+    ],
+    ["fireworks/qwen3-embedding-8b", 0.1e-6, undefined, undefined],
+  ])(
+    "matches and prices %s uniquely",
+    (modelName, input, cachedInput, output) => {
+      const matches = defaultModelPrices.filter(({ matchPattern }) =>
+        compileCatalogPattern(matchPattern).test(modelName),
+      );
+      expect(matches).toHaveLength(1);
+      const standardPrices = matches[0].pricingTiers.find(
+        (tier) => tier.isDefault,
+      )?.prices;
+      expect(standardPrices).toMatchObject({
+        input,
+        input_tokens: input,
+        ...(cachedInput === undefined
+          ? {}
+          : {
+              input_cached_tokens: cachedInput,
+              input_cache_read: cachedInput,
+              cache_read_input_tokens: cachedInput,
+            }),
+        ...(output === undefined ? {} : { output, output_tokens: output }),
+      });
+    },
+  );
+
+  it.each([
+    "gpt-oss-120b",
+    "openai/gpt-oss-120b",
+    "kimi-k3",
+    "moonshotai/kimi-k3",
+    "glm-5p3",
+    "deepseek-v4p1-flash",
+    "deepseek/deepseek-v4p1-flash",
+    "qwen3p8-max",
+    "qwen3-embedding-8b",
+    "qwen/qwen3-embedding-8b",
+    "accounts/custom-account/models/kimi-k3",
+    "fireworks/kimi-k3",
+  ])("does not match non-Fireworks model ID %s", (modelName) => {
+    const fireworksEntries = defaultModelPrices.filter(({ modelName: name }) =>
+      name.startsWith("accounts/fireworks/models/"),
+    );
+    const matches = fireworksEntries.filter(({ matchPattern }) =>
+      compileCatalogPattern(matchPattern).test(modelName),
+    );
+    expect(matches).toHaveLength(0);
+  });
+
+  it("selects Fireworks Priority tier via service_tier and prices cached and reasoning tokens", () => {
+    const model = defaultModelPrices.find(
+      ({ modelName }) =>
+        modelName === "accounts/fireworks/models/deepseek-v4p1-flash",
+    );
+    expect(model).toBeDefined();
+    if (!model) return;
+
+    const tiers = model.pricingTiers.map((tier) => ({
+      ...tier,
+      conditions:
+        tier.conditions as DefaultModelPrice["pricingTiers"][number]["conditions"],
+      prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+        usageType,
+        price: new Decimal(price),
+      })),
+    }));
+
+    const usageDetails = UsageDetails.parse({
+      prompt_tokens: 1_000,
+      completion_tokens: 500,
+      total_tokens: 1_500,
+      prompt_tokens_details: { cached_tokens: 400 },
+      completion_tokens_details: { reasoning_tokens: 200 },
+    }) as Record<string, number>;
+
+    const standard = matchPricingTier(tiers, usageDetails);
+    expect(standard?.pricingTierName).toBe("Standard");
+    expect(standard?.prices.input?.toNumber()).toBe(0.3e-6);
+    expect(standard?.prices.input_cached_tokens?.toNumber()).toBe(0.006e-6);
+    expect(standard?.prices.output_reasoning_tokens?.toNumber()).toBe(1.2e-6);
+
+    const priority = matchPricingTier(tiers, usageDetails, {
+      modelParameters: { service_tier: "priority" },
+    });
+    expect(priority?.pricingTierName).toBe("Priority");
+    expect(priority?.prices.input?.toNumber()).toBe(0.375e-6);
+    expect(priority?.prices.input_cached_tokens?.toNumber()).toBe(0.0075e-6);
+    expect(priority?.prices.output_reasoning_tokens?.toNumber()).toBe(1.5e-6);
+  });
+});
