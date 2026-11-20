@@ -1,4 +1,8 @@
-import { EvalTemplateType, extractValueFromObject } from "@langfuse/shared";
+import {
+  EvalTemplateType,
+  extractValueFromObject,
+  TRACE_TRANSCRIPT_EVAL_VARIABLE_COLUMN_ID,
+} from "@langfuse/shared";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import {
   LLMAsJudgeExecutionQueue,
@@ -77,7 +81,10 @@ export function extractTranscriptEvalVariables(
     };
   }
   if (
-    variableMapping.some((mapping) => mapping.selectedColumnId !== "threads")
+    variableMapping.some(
+      (mapping) =>
+        mapping.selectedColumnId !== TRACE_TRANSCRIPT_EVAL_VARIABLE_COLUMN_ID,
+    )
   ) {
     return {
       ok: false,

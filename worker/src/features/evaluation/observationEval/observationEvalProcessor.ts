@@ -15,6 +15,7 @@ import { extractTranscriptEvalVariables } from "../../eventsDispatch/traceTransc
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
   getCodeEvalVariableMapping,
+  observationEvalVariableColumns,
   observationForEvalSchema,
   observationVariableMappingList,
   type EvalTemplateWithType,
@@ -49,6 +50,10 @@ import { executeCodeBasedEvaluation } from "../codeBased/executeCodeBasedEvaluat
 import { runDecisionModelEvaluation } from "../decisionModel/runDecisionModelEvaluation";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
+
+const OBSERVATION_VARIABLE_COLUMN_IDS = new Set(
+  observationEvalVariableColumns.map(({ id }) => id),
+);
 
 /**
  * Dependencies for processing observation evals.
@@ -402,10 +407,38 @@ function observationTarget(params: {
     extract(observation, variableMapping) {
       return extractObservationVariables({
         observation,
-        variableMapping: observationVariableMappingList.parse(variableMapping),
+        variableMapping: parseObservationVariableMapping(variableMapping),
       });
     },
   };
+}
+
+/**
+ * A malformed stored mapping or one that names an unknown column cannot be
+ * evaluated, so the execution fails with a message the user can act on instead
+ * of running the evaluator with missing variables. Empty column ids are
+ * unmapped placeholders and resolve to no value.
+ */
+function parseObservationVariableMapping(variableMapping: Prisma.JsonValue) {
+  const parsed = observationVariableMappingList.safeParse(variableMapping);
+  if (!parsed.success) {
+    throw new UnrecoverableEvalFailureError(
+      "Evaluator variable mapping is invalid. Update the variable mapping of this evaluator.",
+      EvalFailureReason.InvalidObservationData,
+    );
+  }
+  const unknownColumnMapping = parsed.data.find(
+    ({ selectedColumnId }) =>
+      selectedColumnId !== "" &&
+      !OBSERVATION_VARIABLE_COLUMN_IDS.has(selectedColumnId),
+  );
+  if (unknownColumnMapping) {
+    throw new UnrecoverableEvalFailureError(
+      `Variable "${unknownColumnMapping.templateVariable}" maps to unknown column "${unknownColumnMapping.selectedColumnId}". Update the variable mapping of this evaluator.`,
+      EvalFailureReason.InvalidObservationData,
+    );
+  }
+  return parsed.data;
 }
 
 function transcriptTarget(
