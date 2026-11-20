@@ -19,7 +19,7 @@ import { EvaluatorSavedCostSummary } from "@/src/features/evals/v2/components/Ev
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
-import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
+import { useActivationEstimate } from "@/src/features/evals/v2/hooks/useActivationEstimate";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -59,9 +59,8 @@ export function EvaluatorSavedDialogContainer({
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
-  const activation = useActivationConfirmation({ projectId });
+  const activation = useActivationEstimate({ projectId });
   const requestActivation = activation.requestActivation;
-  const setActivationOpen = activation.setOpen;
   const setActivationSampling = activation.setSampling;
   const [dialogPhase, setDialogPhase] = useState<DialogPhase>("saved");
   const [mode, setMode] = useState<EvaluatorSavedMode>("test-filters");
@@ -241,7 +240,6 @@ export function EvaluatorSavedDialogContainer({
   const requestEstimate = useCallback(
     async ({ filter, sampling }: { filter: FilterState; sampling: number }) => {
       const requestId = ++estimateRequestId.current;
-      setActivationOpen(false);
       // Stay in the loading state for the whole request: the numbers on screen
       // belong to the previous scope, so a rule switch must not show the old
       // match count and cost under the newly selected rule.
@@ -304,7 +302,6 @@ export function EvaluatorSavedDialogContainer({
       evaluator.testRunCostUsd,
       requestActivation,
       resetMissingCostTest,
-      setActivationOpen,
     ],
   );
 
@@ -347,7 +344,6 @@ export function EvaluatorSavedDialogContainer({
 
   const selectNewRule = () => {
     estimateRequestId.current += 1;
-    setActivationOpen(false);
     setIsEstimating(false);
     setSelectedRuleId(null);
     backfill.clearScope();
@@ -360,7 +356,6 @@ export function EvaluatorSavedDialogContainer({
       });
     }
     const modeChangeRequestId = ++estimateRequestId.current;
-    setActivationOpen(false);
     setIsEstimating(false);
     setMode(nextMode);
 

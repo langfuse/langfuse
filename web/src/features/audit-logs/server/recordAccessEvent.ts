@@ -8,7 +8,10 @@ import {
   type AuditRequestContext,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { type ApiAccessScope } from "@langfuse/shared/src/server";
+import {
+  type ApiAccessScope,
+  getOrganizationPlanServerSide,
+} from "@langfuse/shared/src/server";
 
 import { stageAccessEvent } from "@/src/ee/features/access-audit-log/server/stageAccessEvent";
 import {
@@ -18,7 +21,6 @@ import {
 } from "@/src/features/audit-logs/isAccessAuditLogEnabled";
 import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { toApiKeyActor, toUserActor } from "@/src/features/audit-logs/auditLog";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type ServerContext } from "@/src/features/mcp/types";
 
 /** What a route returned: the resource it read, typed refs to every resource in the response, and the validated request input. */

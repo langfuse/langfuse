@@ -6,6 +6,7 @@ import { type ProjectScope } from "@langfuse/shared";
 import { type Role } from "@langfuse/shared/src/db";
 import { type Session } from "next-auth";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@/src/env.mjs", () => ({
   env: { NEXT_PUBLIC_DEMO_PROJECT_ID: "demo-project" },
@@ -14,101 +15,36 @@ vi.mock("@/src/env.mjs", () => ({
 function projectSession(
   projectId: string,
   role: Role,
-  user: Partial<NonNullable<Session["user"]>> = {},
+  user: Partial<Omit<NonNullable<Session["user"]>, "organizations">> = {},
 ) {
-  return {
-    user: {
-      email: "user@example.com",
-      featureFlags: testFeatureFlags(),
-      organizations: [{ projects: [{ id: projectId, role }] }],
-      ...user,
-    },
-  } as Session;
+  return createSession({
+    user: { email: "user@example.com", ...user },
+    organizations: [{ id: "org-1", role, projects: [{ id: projectId }] }],
+  });
 }
 
 describe("RBAC access checks", () => {
-  it("ignores inherited role properties for organization access", () => {
-    const params = Object.assign(
-      Object.create({
-        role: "OWNER",
-      }),
-      {
-        session: {
-          user: {
-            organizations: [{ id: "org-1", role: "MEMBER" }],
-          },
-        },
-        organizationId: "org-1",
-        scope: "organizationMembers:CUD",
-      },
-    );
-
-    expect(
-      hasOrganizationAccess(
-        params as Parameters<typeof hasOrganizationAccess>[0],
-      ),
-    ).toBe(false);
-  });
-
-  it("ignores inherited role properties for project access", () => {
-    const params = Object.assign(
-      Object.create({
-        role: "OWNER",
-      }),
-      {
-        session: {
-          user: {
-            organizations: [
-              {
-                projects: [{ id: "project-1", role: "MEMBER" }],
-              },
-            ],
-          },
-        },
-        projectId: "project-1",
-        scope: "project:update",
-      },
-    );
-
-    expect(
-      hasProjectAccess(params as Parameters<typeof hasProjectAccess>[0]),
-    ).toBe(false);
-  });
-
-  it("still supports own role-based checks", () => {
-    expect(
-      hasOrganizationAccess({
-        role: "OWNER",
-        scope: "organizationMembers:CUD",
-      }),
-    ).toBe(true);
-
-    expect(
-      hasProjectAccess({
-        role: "ADMIN",
-        scope: "project:update",
-      }),
-    ).toBe(true);
-  });
-
   it("allows organization members to invoke the gateway", () => {
-    for (const role of ["OWNER", "ADMIN", "MEMBER"] as const) {
-      expect(hasOrganizationAccess({ role, scope: "gateway:invoke" })).toBe(
-        true,
-      );
-    }
+    const canInvoke = (role: Role) =>
+      hasOrganizationAccess({
+        session: createSession({ organizations: [{ id: "org-1", role }] }),
+        organizationId: "org-1",
+        scope: "gateway:invoke",
+      });
 
+    for (const role of ["OWNER", "ADMIN", "MEMBER"] as const) {
+      expect(canInvoke(role)).toBe(true);
+    }
     for (const role of ["VIEWER", "NONE"] as const) {
-      expect(hasOrganizationAccess({ role, scope: "gateway:invoke" })).toBe(
-        false,
-      );
+      expect(canInvoke(role)).toBe(false);
     }
   });
 
   it("allows members to manage llm tools", () => {
     expect(
       hasProjectAccess({
-        role: "MEMBER",
+        session: projectSession("project-1", "MEMBER"),
+        projectId: "project-1",
         scope: "llmTools:CUD",
       }),
     ).toBe(true);

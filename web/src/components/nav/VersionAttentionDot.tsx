@@ -1,7 +1,7 @@
 import { cn } from "@/src/utils/tailwind";
 
 const tones = {
-  major: "bg-dark-red",
+  major: "bg-destructive",
   minor: "bg-category-amber",
   patch: "bg-muted-foreground",
   migration: "bg-dark-blue",

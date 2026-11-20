@@ -15,6 +15,7 @@ function gatewayApiKey(id: string) {
       expiresAt: null,
       lastUsedAt: null,
       createdByUserId: null,
+      gatewaySpendLimits: [],
     },
   };
 }
@@ -36,7 +37,10 @@ describe("GatewayApiKeyRepository pagination", () => {
         limit: 2,
       }),
     ).resolves.toMatchObject({
-      data: [{ apiKey: { id: "key-3" } }, { apiKey: { id: "key-4" } }],
+      data: [
+        { apiKey: { id: "key-3" }, spendLimit: null },
+        { apiKey: { id: "key-4" }, spendLimit: null },
+      ],
       totalCount: 5,
     });
     const where = {
@@ -44,7 +48,7 @@ describe("GatewayApiKeyRepository pagination", () => {
     };
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderBy: [{ apiKey: { createdAt: "asc" } }, { apiKeyId: "asc" }],
+        orderBy: [{ apiKey: { createdAt: "desc" } }, { apiKeyId: "desc" }],
         take: 2,
         skip: 2,
         where,

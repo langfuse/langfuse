@@ -76,21 +76,6 @@ pub(super) fn large_base64(label: &[u8]) -> (String, Vec<u8>) {
 }
 
 #[test]
-fn leaves_small_data_uris_for_the_later_media_pass() {
-    let small = data_uri(&vec![b'x'; MIN_EARLY_MEDIA_BYTES / 2]);
-    let (large, large_body) = large_data_uri(b"large");
-    let input = format!(r#"{{"small":"{small}","large":"{large}"}}"#);
-
-    let result = extract_media(input.as_bytes()).expect("valid JSON");
-
-    assert_eq!(result.media.len(), 1);
-    assert_eq!(result.media[0].decode().unwrap(), large_body);
-    let compact = result.compact_json;
-    assert!(compact.contains(&small));
-    assert!(compact.contains(&result.media[0].reference()));
-}
-
-#[test]
 fn early_extraction_uses_encoded_size_for_uri_and_provider_candidates() {
     for size in [1023, 1024] {
         let header = "data:image/png;name=a;base64,";
@@ -119,22 +104,6 @@ fn validates_and_extracts_data_uri_without_parsing_a_value_tree() {
     assert_eq!(result.media[0].decode().unwrap(), body);
     assert_eq!(result.media[0].original_value().unwrap(), uri);
     assert_eq!(result.media[0].kind, MediaPayloadKind::DataUri);
-}
-
-#[test]
-fn nested_otlp_map_keys_stay_structural() {
-    let (uri, _) = large_data_uri(b"nested-map");
-    let attributes = json!([{"key": "metadata", "value": {"arrayValue": {"values": [
-        {"kvlistValue": {"values": [{"key": uri, "value": {"stringValue": uri}}]}}
-    ]}}}]);
-    let input = json!({"resourceSpans": [{"resource": {"attributes": attributes}}]});
-    let result = extract_media(&serde_json::to_vec(&input).unwrap()).unwrap();
-    assert_eq!(result.media.len(), 1);
-    let compact: Value = serde_json::from_str(&result.compact_json).unwrap();
-    let entry = &compact["resourceSpans"][0]["resource"]["attributes"][0]["value"]["arrayValue"]
-        ["values"][0]["kvlistValue"]["values"][0];
-    assert_eq!(entry["key"], uri);
-    assert_eq!(entry["value"]["stringValue"], result.media[0].reference());
 }
 
 #[test]
@@ -177,17 +146,6 @@ fn tag_attribute_values_stay_inline_only_on_spans() {
             assert_eq!(value == &uri, is_tag);
         }
     }
-}
-
-#[test]
-fn accepts_deep_otlp_structure_before_embedded_json_limit() {
-    let mut value = r#""leaf""#.to_owned();
-    for _ in 0..16 {
-        value = format!(r#"{{"nested":{value}}}"#);
-    }
-
-    let result = extract_media(value.as_bytes()).expect("deep OTLP JSON is valid");
-    assert!(result.media.is_empty());
 }
 
 #[test]
@@ -541,19 +499,6 @@ fn nested_provider_source_spelling_survives_two_stringified_layers() {
 }
 
 #[test]
-fn continues_to_the_next_gemini_shape_when_one_is_not_decodable() {
-    let (encoded, body) = large_base64(b"gemini");
-    let input = format!(
-        r#"{{"inline_data":{{"mime_type":1,"data":"{encoded}"}},"inlineData":{{"mimeType":"image/png","data":"{encoded}"}}}}"#
-    );
-    let result = extract_media(input.as_bytes()).expect("valid Gemini alternatives");
-
-    assert_eq!(result.media.len(), 1);
-    assert_eq!(result.media[0].kind, MediaPayloadKind::Gemini);
-    assert_eq!(result.media[0].decode().unwrap(), body);
-}
-
-#[test]
 fn keeps_embedded_provider_documents_in_payload_mode() {
     let (encoded, body) = large_base64(b"embedded-provider");
     let nested = format!(
@@ -588,34 +533,6 @@ fn classifies_each_root_array_object_before_discovery() {
         compact[1]["scopeSpans"][0]["spans"][0]["attributes"][0]["key"],
         structural_uri
     );
-}
-
-#[test]
-fn extracts_repeated_small_nested_objects_without_a_resource_fallback() {
-    let (uri, body) = large_data_uri(b"deep");
-    let chain = (0..120).fold(format!("\"{uri}\""), |value, _| {
-        format!(r#"{{"x":{value}}}"#)
-    });
-    let input = format!(
-        "[{}]",
-        std::iter::repeat_n(chain, 32).collect::<Vec<_>>().join(",")
-    );
-    let (validated, scanned, index_bytes, _, _) =
-        validate_measured(input.as_bytes().to_vec()).expect("valid nested input stays native");
-    // Bound source revisits instead of relying on a wall-clock threshold.
-    assert!(
-        scanned <= 3 * input.len(),
-        "scanned {scanned} for {} source bytes",
-        input.len()
-    );
-    // Discovery state should scale with structure, not repeated siblings.
-    assert!(index_bytes <= 16 * input.len());
-    let result = validated.compact().unwrap();
-    assert_eq!(result.media.len(), 32);
-    assert!(result
-        .media
-        .iter()
-        .all(|media| media.decode().unwrap() == body));
 }
 
 #[test]
@@ -759,12 +676,46 @@ fn validates_large_numbers_without_converting_them_to_floats_or_integers() {
 }
 
 #[test]
-fn structured_data_uri_must_occupy_the_entire_provider_field() {
-    let (uri, _) = large_data_uri(b"trailing");
-    let input = format!(r#"{{"type":"file","mediaType":"image/png","data":"{uri} trailing"}}"#);
+fn non_candidates_stay_inline() {
+    let (uri, _) = large_data_uri(b"inline");
+    let prefix = "A".repeat(MIN_EARLY_MEDIA_BYTES);
+    let filler = "x".repeat(MIN_EARLY_MEDIA_BYTES);
+    let repeated = "abc".repeat(MIN_EARLY_MEDIA_BYTES);
+    // Fields whose value fails validation: a Data URI body that is not base64 or has excess
+    // padding, a content type outside the supported list, and a provider body with excess padding.
+    let rejected = [
+        format!(r#""invalid":"data:image/png;base64,{prefix}not#base64""#),
+        format!(r#""invalid_padding":"data:image/png;base64,{prefix}AAAA===""#),
+        format!(r#""unsupported":"data:application/x-unknown;base64,{prefix}aGk=""#),
+        format!(
+            r#""provider":{{"type":"base64","media_type":"image/png","data":"{prefix}AAAA==="}}"#
+        ),
+    ];
+    let mut cases = vec![
+        // A provider field must hold nothing but the Data URI.
+        format!(r#"{{"type":"file","mediaType":"image/png","data":"{uri} trailing"}}"#),
+        // Python bytes literals holding a non-ASCII character or an escaped closing quote.
+        format!(r#"{{"type":"file","mediaType":"image/png","data":"b'{filler}text\u00e9'"}}"#),
+        format!(r#"{{"type":"file","mediaType":"image/png","data":"b'{repeated}\\'"}}"#),
+        format!(r#"{{"type":"file","mediaType":"image/png","data":"b\"{repeated}\\\""}}"#),
+        // Object keys are never media.
+        format!(r#"{{"{uri}":"ordinary value"}}"#),
+    ];
+    cases.extend(rejected.iter().map(|field| format!("{{{field}}}")));
+    for input in &cases {
+        let result = extract_media(input.as_bytes()).expect("valid JSON");
+        assert!(result.media.is_empty(), "{input}");
+        assert_eq!(&result.compact_json, input);
+    }
+
+    // Beside a valid Data URI, only that sibling is replaced.
+    let input = format!(r#"{{"valid":"{uri}",{}}}"#, rejected.join(","));
     let result = extract_media(input.as_bytes()).expect("valid JSON");
-    assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, input);
+    assert_eq!(result.media.len(), 1);
+    assert_eq!(
+        result.compact_json,
+        input.replacen(&uri, &result.media[0].reference(), 1)
+    );
 }
 
 #[test]
@@ -782,49 +733,6 @@ fn matches_data_uri_parameter_validation() {
     let result = extract_media(invalid.as_bytes()).expect("valid JSON");
     assert!(result.media.is_empty());
     assert_eq!(result.compact_json, invalid);
-}
-
-#[test]
-fn leaves_invalid_python_bytes_literals_inline_like_typescript() {
-    for input in [
-        br#"{"type":"file","mediaType":"image/png","data":"b'text\u00e9'"}"#.as_slice(),
-        br#"{"type":"file","mediaType":"image/png","data":"b'abc\\'"}"#,
-        br#"{"type":"file","mediaType":"image/png","data":"b\"abc\\\""}"#,
-    ] {
-        let input = String::from_utf8_lossy(input)
-            .replace(
-                "text",
-                &format!("{}text", "x".repeat(MIN_EARLY_MEDIA_BYTES)),
-            )
-            .replace("abc", &"abc".repeat(MIN_EARLY_MEDIA_BYTES));
-        let result = extract_media(input.as_bytes()).expect("valid JSON");
-        assert!(result.media.is_empty(), "invalid literal extracted");
-        assert_eq!(result.compact_json, input);
-    }
-}
-
-#[test]
-fn leaves_invalid_and_unsupported_candidates_inline() {
-    let (valid, _) = large_data_uri(b"valid");
-    let prefix = "A".repeat(MIN_EARLY_MEDIA_BYTES);
-    let input = format!(
-        r#"{{"valid":"{valid}","invalid":"data:image/png;base64,{prefix}not#base64","invalid_padding":"data:image/png;base64,{prefix}AAAA===","unsupported":"data:application/x-unknown;base64,{prefix}aGk=","provider":{{"type":"base64","media_type":"image/png","data":"{prefix}AAAA==="}}}}"#
-    );
-    let result = extract_media(input.as_bytes()).expect("valid JSON");
-    assert_eq!(result.media.len(), 1);
-    let compact = result.compact_json;
-    assert!(compact.contains("not#base64"));
-    assert!(compact.contains("AAAA==="));
-    assert!(compact.contains("application/x-unknown"));
-}
-
-#[test]
-fn never_rewrites_media_like_object_keys() {
-    let (uri, _) = large_data_uri(b"object-key");
-    let input = format!(r#"{{"{uri}":"ordinary value"}}"#);
-    let result = extract_media(input.as_bytes()).expect("valid JSON");
-    assert!(result.media.is_empty());
-    assert_eq!(result.compact_json, input);
 }
 
 #[test]
@@ -854,89 +762,153 @@ fn extracts_user_payload_values_named_name_or_key() {
         .is_some_and(|value| value.starts_with(MEDIA_REFERENCE_PREFIX)));
 }
 
-#[test]
-fn does_not_extract_structural_otlp_strings_or_attribute_keys() {
-    let (uri, _) = large_data_uri(b"structural");
-    let input = serde_json::json!({
-        "resourceSpans": [{
-            "scopeSpans": [{
-                "scope": { "name": uri, "version": "1" },
-                "spans": [{
-                    "name": uri,
-                    "traceId": uri,
-                    "data": uri,
-                    "attributes": [{
-                        "key": uri,
-                        "value": { "stringValue": uri }
-                    }]
-                }]
-            }]
-        }]
-    });
-    let source = serde_json::to_vec(&input).expect("serialize OTLP envelope");
-    let result = extract_media(&source).expect("valid JSON");
+/// Placeholders for string slots in an OTLP document template. Both are filled with the same
+/// Data URI, which must survive in a kept slot and be extracted from a data slot.
+const KEPT_SLOT: &str = "<kept>";
+const DATA_SLOT: &str = "<data>";
 
-    assert_eq!(result.media.len(), 1);
-    let compact: Value = serde_json::from_str(&result.compact_json).expect("compact JSON");
-    assert_eq!(
-        compact["resourceSpans"][0]["scopeSpans"][0]["scope"]["name"],
-        uri
-    );
-    assert_eq!(
-        compact["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["name"],
-        uri
-    );
-    assert_eq!(
-        compact["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["traceId"],
-        uri
-    );
-    assert_eq!(
-        compact["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["data"],
-        uri
-    );
-    assert_eq!(
-        compact["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"][0]["key"],
-        uri
-    );
-    assert!(
-        compact["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"][0]["value"]
-            ["stringValue"]
-            .as_str()
-            .is_some_and(|value| value.starts_with(MEDIA_REFERENCE_PREFIX))
-    );
+fn otlp_slot(placeholder: &'static str) -> impl Strategy<Value = Value> {
+    prop_oneof![Just(json!("plain")), Just(json!(placeholder))]
+}
+
+/// An OTLP `KeyValue` list, as used for attributes and for key-value list values. The key may
+/// come before or after its value.
+fn otlp_key_values(value: impl Strategy<Value = Value>) -> impl Strategy<Value = Value> {
+    prop::collection::vec((otlp_slot(KEPT_SLOT), value, any::<bool>()), 0..3).prop_map(|entries| {
+        entries
+            .into_iter()
+            .map(|(key, value, key_first)| {
+                if key_first {
+                    json!({"key": key, "value": value})
+                } else {
+                    json!({"value": value, "key": key})
+                }
+            })
+            .collect()
+    })
+}
+
+/// An OTLP `AnyValue`: a string, or an array or key-value list of further values.
+fn otlp_any_value() -> impl Strategy<Value = Value> {
+    let string = otlp_slot(DATA_SLOT).prop_map(|text| json!({"stringValue": text}));
+    string.prop_recursive(3, 8, 3, |inner| {
+        prop_oneof![
+            prop::collection::vec(inner.clone(), 0..3)
+                .prop_map(|values| json!({"arrayValue": {"values": values}})),
+            otlp_key_values(inner).prop_map(|values| json!({"kvlistValue": {"values": values}})),
+        ]
+    })
+}
+
+/// A span or log envelope, rooted at its `resource*` field or at a bare array of resources.
+fn otlp_template() -> impl Strategy<Value = String> {
+    let kept = || otlp_slot(KEPT_SLOT);
+    (
+        (any::<bool>(), any::<bool>()),
+        (
+            otlp_key_values(otlp_any_value()),
+            otlp_key_values(otlp_any_value()),
+            otlp_any_value(),
+        ),
+        (kept(), kept(), kept(), kept(), kept(), kept()),
+    )
+        .prop_map(
+            |(
+                (logs, bare_array),
+                (resource_attributes, attributes, body),
+                (scope_name, scope_version, name, trace_id, unknown, event_name),
+            )| {
+                let record = if logs {
+                    json!({
+                        "severityText": name, "traceId": trace_id, "data": unknown,
+                        "body": body, "attributes": attributes,
+                    })
+                } else {
+                    json!({
+                        "name": name, "traceId": trace_id, "data": unknown,
+                        "attributes": attributes,
+                        "events": [{
+                            "name": event_name,
+                            "attributes": [{"key": "detail", "value": body}],
+                        }],
+                    })
+                };
+                let (root, scopes, records) = if logs {
+                    ("resourceLogs", "scopeLogs", "logRecords")
+                } else {
+                    ("resourceSpans", "scopeSpans", "spans")
+                };
+                let resource = json!({
+                    "resource": {"attributes": resource_attributes},
+                    scopes: [{
+                        "scope": {"name": scope_name, "version": scope_version},
+                        records: [record],
+                    }],
+                });
+                if bare_array {
+                    json!([resource]).to_string()
+                } else {
+                    json!({root: [resource]}).to_string()
+                }
+            },
+        )
+}
+
+/// Fill every slot of `template` with `uri` and check that exactly the data slots are extracted.
+fn check_otlp_slots(template: &str, uri: &str) -> Result<(), TestCaseError> {
+    let input = template.replace(KEPT_SLOT, uri).replace(DATA_SLOT, uri);
+    let result = extract_media(input.as_bytes()).expect("valid OTLP JSON");
+    prop_assert_eq!(result.media.len(), template.matches(DATA_SLOT).count());
+    let mut expected = template.replace(KEPT_SLOT, uri);
+    for media in &result.media {
+        expected = expected.replacen(DATA_SLOT, &media.reference(), 1);
+    }
+    prop_assert_eq!(result.compact_json, expected);
+    Ok(())
 }
 
 #[test]
-fn recognizes_a_top_level_resource_span_array_as_an_otlp_envelope() {
-    let (uri, _) = large_data_uri(b"array-envelope");
-    let input = serde_json::json!([{
-        "scopeSpans": [{
-            "scope": { "name": uri },
+fn otlp_envelopes_extract_media_from_data_slots_only() {
+    let (uri, _) = large_data_uri(b"slot");
+    for template in [
+        // A key-value list inside an array value of a resource attribute.
+        json!({"resourceSpans": [{"resource": {"attributes": [{
+            "key": "metadata",
+            "value": {"arrayValue": {"values": [{"kvlistValue": {"values": [
+                {"key": KEPT_SLOT, "value": {"stringValue": DATA_SLOT}}
+            ]}}]}}
+        }]}}]}),
+        // Scope and span fields, including one the envelope does not define.
+        json!({"resourceSpans": [{"scopeSpans": [{
+            "scope": {"name": KEPT_SLOT, "version": "1"},
             "spans": [{
-                "name": uri,
-                "attributes": [{
-                    "key": uri,
-                    "value": { "stringValue": uri }
-                }]
+                "name": KEPT_SLOT,
+                "traceId": KEPT_SLOT,
+                "data": KEPT_SLOT,
+                "attributes": [{"key": KEPT_SLOT, "value": {"stringValue": DATA_SLOT}}]
             }]
-        }]
-    }]);
-    let source = serde_json::to_vec(&input).expect("serialize OTLP envelope");
-    let result = extract_media(&source).expect("valid JSON");
-    let compact: Value = serde_json::from_str(&result.compact_json).expect("compact JSON");
+        }]}]}),
+        // A bare array of resources.
+        json!([{"scopeSpans": [{
+            "scope": {"name": KEPT_SLOT},
+            "spans": [{
+                "name": KEPT_SLOT,
+                "attributes": [{"key": KEPT_SLOT, "value": {"stringValue": DATA_SLOT}}]
+            }]
+        }]}]),
+    ] {
+        check_otlp_slots(&template.to_string(), &uri).unwrap();
+    }
 
-    assert_eq!(result.media.len(), 1);
-    assert_eq!(compact[0]["scopeSpans"][0]["scope"]["name"], uri);
-    assert_eq!(compact[0]["scopeSpans"][0]["spans"][0]["name"], uri);
-    assert_eq!(
-        compact[0]["scopeSpans"][0]["spans"][0]["attributes"][0]["key"],
-        uri
-    );
-    assert!(
-        compact[0]["scopeSpans"][0]["spans"][0]["attributes"][0]["value"]["stringValue"]
-            .as_str()
-            .is_some_and(|value| value.starts_with(MEDIA_REFERENCE_PREFIX))
-    );
+    proptest!(|(
+        template in otlp_template(),
+        body in prop::collection::vec(
+            any::<u8>(),
+            MIN_EARLY_MEDIA_BYTES..=MIN_EARLY_MEDIA_BYTES + 32,
+        ),
+    )| {
+        check_otlp_slots(&template, &data_uri(&body))?;
+    });
 }
 
 #[test]
@@ -1101,6 +1073,109 @@ fn existing_public_references_are_preserved_beside_new_occurrences() {
     }
 }
 
+/// `width` sibling chains in an array, each nesting `uri` in `depth` containers: objects only,
+/// or objects alternating with arrays.
+fn nested_chains(uri: &str, depth: usize, width: usize, objects_only: bool) -> String {
+    let chain = (0..depth).fold(format!("\"{uri}\""), |value, level| {
+        if objects_only || level % 2 == 0 {
+            format!(r#"{{"x":{value}}}"#)
+        } else {
+            format!("[{value}]")
+        }
+    });
+    format!(
+        "[{}]",
+        std::iter::repeat_n(chain, width)
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+/// Check the walk's cost and result for a document that holds `uri` `occurrences` times, at most
+/// `depth` containers deep. Everything else in the document must stay as it is.
+fn check_structural_work(
+    input: &str,
+    uri: &str,
+    body: &[u8],
+    occurrences: usize,
+    depth: usize,
+    embedded: bool,
+) -> Result<(), TestCaseError> {
+    let (validated, scanned, index_bytes, unique, _) =
+        validate_measured(input.as_bytes().to_vec()).unwrap();
+    // Bound source revisits instead of relying on a wall-clock threshold. Embedded documents
+    // are validated separately, but each structural pass remains linear in that document's
+    // source size.
+    let passes = if embedded { 6 } else { 3 };
+    prop_assert!(
+        scanned <= passes * input.len(),
+        "{} syntax bytes for {} input bytes",
+        scanned,
+        input.len()
+    );
+    // The walk retains open frames and candidates, not closed containers.
+    // Allow fixed initial capacities as well as depth and result growth.
+    prop_assert!(
+        index_bytes <= 4096 + 512 * (depth + 3 + occurrences),
+        "{} index bytes",
+        index_bytes
+    );
+    let should_extract = uri.len() >= MIN_EARLY_MEDIA_BYTES;
+    prop_assert_eq!(unique, usize::from(should_extract));
+    let result = validated.compact().unwrap();
+    prop_assert_eq!(
+        result.media.len(),
+        if should_extract { occurrences } else { 0 }
+    );
+    let mut expected = input.to_owned();
+    for media in &result.media {
+        let decoded = media.decode().unwrap();
+        prop_assert_eq!(decoded.as_slice(), body);
+        expected = expected.replacen(uri, &media.reference(), 1);
+    }
+    prop_assert_eq!(result.compact_json, expected);
+    Ok(())
+}
+
+#[test]
+fn structural_work_stays_proportional_across_depth_width_and_embedded_json() {
+    // A body below the size cutoff stays inline beside one that is extracted.
+    let small = data_uri(&vec![b'x'; MIN_EARLY_MEDIA_BYTES / 2]);
+    let (large, large_body) = large_data_uri(b"large");
+    let input = format!(r#"{{"small":"{small}","large":"{large}"}}"#);
+    check_structural_work(&input, &large, &large_body, 1, 0, false).unwrap();
+    // The deepest and widest generated shape, with objects only.
+    let (uri, body) = large_data_uri(b"deep");
+    let input = nested_chains(&uri, 120, 32, true);
+    check_structural_work(&input, &uri, &body, 32, 120, false).unwrap();
+
+    // Each complete four-character base64 group holds up to three body bytes.
+    let largest_inline_body = MIN_EARLY_MEDIA_BYTES.saturating_sub(data_uri(&[]).len() + 1) / 4 * 3;
+    let near_cutoff = largest_inline_body.saturating_sub(8)..=largest_inline_body + 8;
+    proptest!(|(
+        depth in 0usize..=120,
+        width in 1usize..=32,
+        objects_only in any::<bool>(),
+        embedded in any::<bool>(),
+        object_root in any::<bool>(),
+        body in prop_oneof![
+            prop::collection::vec(any::<u8>(), 1..24),
+            prop::collection::vec(any::<u8>(), near_cutoff),
+            prop::collection::vec(any::<u8>(), MIN_EARLY_MEDIA_BYTES..=MIN_EARLY_MEDIA_BYTES + 32),
+        ],
+    )| {
+        let uri = data_uri(&body);
+        let mut input = nested_chains(&uri, depth, width, objects_only);
+        if object_root {
+            input = format!(r#"{{"items":{input}}}"#);
+        }
+        if embedded {
+            input = serde_json::to_string(&input).unwrap();
+        }
+        check_structural_work(&input, &uri, &body, width, depth, embedded)?;
+    });
+}
+
 proptest! {
     #[test]
     fn same_content_occurrences_keep_unique_references_and_each_spelling(
@@ -1140,44 +1215,6 @@ proptest! {
                 .replacen(second, &second_reference, 1);
             prop_assert_eq!(result.compact_json, expected);
         }
-    }
-
-    #[test]
-    fn structural_work_stays_proportional_across_depth_width_and_embedded_json(
-        depth in 0usize..120,
-        width in 1usize..32,
-        embedded in any::<bool>(),
-        object_root in any::<bool>(),
-        body in prop_oneof![
-            prop::collection::vec(any::<u8>(), 1..24),
-            prop::collection::vec(any::<u8>(), MIN_EARLY_MEDIA_BYTES..=MIN_EARLY_MEDIA_BYTES + 32),
-        ],
-    ) {
-        let uri = data_uri(&body);
-        let chain = (0..depth).fold(format!("\"{uri}\""), |value, level| {
-            if level % 2 == 0 { format!(r#"{{"x":{value}}}"#) } else { format!("[{value}]") }
-        });
-        let mut input = format!("[{}]", std::iter::repeat_n(chain, width).collect::<Vec<_>>().join(","));
-        if object_root { input = format!(r#"{{"items":{input}}}"#); }
-        if embedded { input = serde_json::to_string(&input).unwrap(); }
-        let (validated, scanned, index_bytes, unique, _) =
-            validate_measured(input.as_bytes().to_vec()).unwrap();
-        // Embedded documents are validated separately, but each structural pass
-        // remains linear in that document's source size.
-        prop_assert!(scanned <= 6 * input.len(), "{} syntax bytes for {} input bytes", scanned, input.len());
-        // The walk retains open frames and candidates, not closed containers.
-        // Allow fixed initial capacities as well as depth and result growth.
-        prop_assert!(index_bytes <= 4096 + 512 * (depth + 3 + width), "{} index bytes", index_bytes);
-        let should_extract = uri.len() >= MIN_EARLY_MEDIA_BYTES;
-        prop_assert_eq!(unique, usize::from(should_extract));
-        let result = validated.compact().unwrap();
-        prop_assert_eq!(result.media.len(), if should_extract { width } else { 0 });
-        if !should_extract {
-            prop_assert_eq!(result.compact_json, input);
-            return Ok(());
-        }
-        for media in result.media { let decoded = media.decode().unwrap();
-            prop_assert_eq!(decoded.as_slice(), body.as_slice()); }
     }
 
     #[test]

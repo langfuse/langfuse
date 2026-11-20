@@ -228,6 +228,56 @@ async fn fetches_models_from_the_control_plane() {
 }
 
 #[tokio::test]
+async fn reports_reached_spend_limits_to_the_control_plane() {
+    let web = FakeWeb::start(|request| async move {
+        assert_eq!(request.method(), "POST");
+        assert_eq!(
+            request.uri(),
+            "/api/internal/ai-gateway/v1/spend-limit-alerts"
+        );
+        assert_eq!(request.headers()[AUTHORIZATION], "Bearer gw_test_alice");
+        assert!(
+            request
+                .headers()
+                .contains_key("langfuse-gateway-authorization")
+        );
+        assert_eq!(request.headers()["langfuse-gateway-request-id"], REQUEST_ID);
+        assert_eq!(
+            to_bytes(request.into_body(), 1024).await.unwrap(),
+            concat!(
+                r#"{"limits":[{"countingStartedAt":1700000000123,"limitId":"limit-1","windowStart":1767225600000},"#,
+                r#"{"countingStartedAt":1700000000456,"limitId":"limit-2","thresholdPercent":85,"windowStart":1767225600000}]}"#
+            )
+        );
+        response(json!({}))
+    })
+    .await;
+
+    web.control_plane()
+        .report_spend_limits_reached(
+            GATEWAY_KEY,
+            &[
+                ReachedSpendLimit {
+                    limit_id: "limit-1",
+                    counting_started_at: 1_700_000_000_123,
+                    window_start: 1_767_225_600_000,
+                    threshold_percent: None,
+                },
+                ReachedSpendLimit {
+                    limit_id: "limit-2",
+                    counting_started_at: 1_700_000_000_456,
+                    window_start: 1_767_225_600_000,
+                    threshold_percent: Some(85),
+                },
+            ],
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
 async fn model_catalogs_have_a_larger_response_limit_than_resolution() {
     let body = "x".repeat(300 * 1024);
     let web = FakeWeb::start(move |_| {

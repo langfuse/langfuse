@@ -8,6 +8,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 describe("organization AI feature settings", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -163,44 +164,33 @@ async function createCaller() {
     },
   });
 
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: user.id,
       email: user.email,
       name: user.name,
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: organization.id,
-          name: organization.name,
-          role: "OWNER",
-          plan: "self-hosted:enterprise",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              name: project.name,
-              role: "ADMIN",
-              deletedAt: null,
-              retentionDays: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags({ templateFlag: false }),
     },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "self-hosted:enterprise",
-    },
-  };
+    organizations: [
+      {
+        id: organization.id,
+        role: "OWNER",
+        name: organization.name,
+        plan: "self-hosted:enterprise",
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            role: "ADMIN",
+            name: project.name,
+            retentionDays: null,
+            createdAt: project.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "self-hosted:enterprise" },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
 

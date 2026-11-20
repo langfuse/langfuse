@@ -107,6 +107,7 @@ describe("IngestionService unit tests", () => {
     const createGatewayLikeEventRecord = (overrides: {
       ingestionApiKey: string;
       metadata?: Record<string, unknown>;
+      providedCostDetails?: Record<string, number>;
     }) =>
       new IngestionService(
         {} as any,
@@ -124,6 +125,7 @@ describe("IngestionService unit tests", () => {
           environment: "default",
           startTimeISO: "2026-07-22T00:00:00.000Z",
           endTimeISO: "2026-07-22T00:00:01.000Z",
+          providedCostDetails: overrides.providedCostDetails,
           metadata: overrides.metadata ?? {
             "langfuse.gateway.api_key.id": "gateway-key-1",
           },
@@ -172,6 +174,37 @@ describe("IngestionService unit tests", () => {
           metadata: {},
         }),
       ).rejects.toThrow("langfuse.gateway.api_key.id");
+    });
+
+    it("stores gateway-calculated costs as calculated without dropping cost_details", async () => {
+      const gatewayCalculated = await createGatewayLikeEventRecord({
+        ingestionApiKey: "gateway:grant-1",
+        providedCostDetails: { input: 0.1, total: 0.1 },
+        metadata: {
+          "langfuse.gateway.api_key.id": "gateway-key-1",
+          "langfuse.gateway.cost.source": "calculated",
+        },
+      });
+      expect(gatewayCalculated.cost_details).toEqual({
+        input: 0.1,
+        total: 0.1,
+      });
+      expect(gatewayCalculated.provided_cost_details).toEqual({});
+
+      const providerSupplied = await createGatewayLikeEventRecord({
+        ingestionApiKey: "gateway:grant-1",
+        providedCostDetails: { total: 0.25 },
+      });
+      expect(providerSupplied.cost_details).toEqual({ total: 0.25 });
+      expect(providerSupplied.provided_cost_details).toEqual({ total: 0.25 });
+
+      const spoofedNonGateway = await createGatewayLikeEventRecord({
+        ingestionApiKey: "pk-lf-spoofing-sdk",
+        providedCostDetails: { total: 0.25 },
+        metadata: { "langfuse.gateway.cost.source": "calculated" },
+      });
+      expect(spoofedNonGateway.cost_details).toEqual({ total: 0.25 });
+      expect(spoofedNonGateway.provided_cost_details).toEqual({ total: 0.25 });
     });
   });
 

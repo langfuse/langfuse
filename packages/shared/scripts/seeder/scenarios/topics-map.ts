@@ -18,6 +18,7 @@ import {
 import type {
   TopicAssignment,
   TopicDefinition,
+  TopicRule,
   TopicSummary,
 } from "../../../src/topics";
 import type { FilterState } from "../../../src/types";
@@ -108,6 +109,20 @@ const ISSUE_TOPICS: SeedTopic[] = [
   },
 ];
 
+// The enterprise rule fits its own Intent map on fewer traces, so its topics
+// have other names than the first rule's.
+const ENTERPRISE_INTENT_TOPICS: SeedTopic[] = [
+  {
+    name: "Enterprise invoices and seat changes",
+    description: "Annual-plan invoices, seat counts and procurement.",
+    count: 34,
+  },
+  {
+    name: "Production incidents on SSO workspaces",
+    description: "Errors and outages reported by enterprise teams.",
+    count: 14,
+  },
+];
 const OUTLIERS = 7;
 const AWAITING = 4;
 const DIMENSIONS = 16;
@@ -143,7 +158,7 @@ const OUTLIER_REQUESTS = [
 export const topicsMapScenario: ScenarioDefinition = {
   name: "topics-map",
   description:
-    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project.",
+    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, a second Intent map with its own topic names, long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project.",
   supportsV4: true,
   flags: [],
   run: async (ctx, params) => {
@@ -281,7 +296,7 @@ export const topicsMapScenario: ScenarioDefinition = {
     const intent = facet("Intent");
     const issues = facet("Issues");
     const existingRules = await listTopicRules(ctx.projectId);
-    const rules = [];
+    const rules: TopicRule[] = [];
     for (const [index, name] of RULE_NAMES.entries())
       rules.push(
         await saveTopicRule({
@@ -315,7 +330,16 @@ export const topicsMapScenario: ScenarioDefinition = {
           ...source(index),
           facetId: facetRef.id,
           facetVersion: facetRef.version,
-          triggerType: "manual",
+          triggerType: "rule",
+          // The second rule's filter matches the first SECOND_RULE_TRACES traces.
+          ruleIds: rules
+            .filter(
+              (rule, r) =>
+                rule.facetIds.includes(facetRef.id) &&
+                (r === 0 || index < SECOND_RULE_TRACES),
+            )
+            .map((rule) => rule.id),
+          executionId: null,
           state: complete ? "complete" : "not_applicable",
           summary: complete ? summaryText(topic, requests[index]!) : "",
           embedding: complete
@@ -323,6 +347,7 @@ export const topicsMapScenario: ScenarioDefinition = {
             : [],
           transcriptId: traceIds[index]!,
           transcriptVersion: "seed",
+          transcriptBytes: 0,
           summaryModel: "seed-summary",
           embeddingModel: "seed-embedding",
           providedUsageDetails: {},
@@ -374,7 +399,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         runId: `${runPrefix}-enterprise-intent`,
         rule: rules[1]!,
         facet: intent,
-        topics: INTENT_TOPICS,
+        topics: ENTERPRISE_INTENT_TOPICS,
         topicOf: (index: number) => intentOf[index],
         members: (index: number) => index < SECOND_RULE_TRACES,
         summaries: intentSummaries,
@@ -410,7 +435,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         topicId: `${map.runId}-topic-${k}`,
         createdByRunId: map.runId,
         createdAt: processedAt,
-        tags: [],
+        labels: [],
         name: topic.name,
         description: topic.description,
         centroid: unit(k),
@@ -429,6 +454,7 @@ export const topicsMapScenario: ScenarioDefinition = {
             facetVersion: map.facet.version,
             summaryProcessedAt: map.summaries[index]!.processedAt,
             runId: map.runId,
+            ruleId: map.rule.id,
             topicId: definition?.topicId ?? null,
             topicVersionId: definition?.topicVersionId ?? null,
             distance: definition ? 0.05 + rng.next() * 0.2 : null,

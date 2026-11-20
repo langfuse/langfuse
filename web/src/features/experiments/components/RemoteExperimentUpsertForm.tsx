@@ -1,5 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React, { useState } from "react";
@@ -30,7 +29,6 @@ import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { type Prisma, WebhookProtectedHeaders } from "@langfuse/shared";
@@ -74,11 +72,6 @@ export const RemoteExperimentUpsertForm = ({
   setShowRemoteExperimentUpsertForm: (show: boolean) => void;
   onBack?: () => void;
 }) => {
-  const hasDatasetAccess = useHasProjectAccess({
-    projectId,
-    scope: "datasets:CUD",
-  });
-
   const dataset = api.datasets.byId.useQuery({
     projectId,
     datasetId,
@@ -219,10 +212,6 @@ export const RemoteExperimentUpsertForm = ({
     }
   };
 
-  if (!hasDatasetAccess) {
-    return null;
-  }
-
   if (dataset.isPending) {
     return <Skeleton className="h-48 w-full" />;
   }
@@ -348,41 +337,51 @@ export const RemoteExperimentUpsertForm = ({
             <FormField
               control={form.control}
               name="signingEnabled"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel>Sign requests</FormLabel>
-                    <FormDescription>
-                      {field.value
-                        ? existingRemoteExperiment?.displaySecretKey
-                          ? "Requests include an x-langfuse-signature header so your service can verify they come from Langfuse."
-                          : "A signing secret will be generated when you save and shown once."
-                        : "Requests will be sent without an x-langfuse-signature header."}
-                    </FormDescription>
-                    {field.value &&
-                      existingRemoteExperiment?.displaySecretKey && (
-                        <div className="pt-2">
-                          <CodeSection
-                            variant="outline"
-                            isCollapsible
-                            defaultCollapsed
-                            content={existingRemoteExperiment.displaySecretKey}
-                          />
-                          <div className="text-muted-foreground mt-1 text-xs">
-                            Secret is encrypted and can only be viewed when
-                            generated
+              render={({ field }) => {
+                const signingRequestDescription = (() => {
+                  if (!field.value) {
+                    return "Requests will be sent without an x-langfuse-signature header.";
+                  }
+                  if (existingRemoteExperiment?.displaySecretKey) {
+                    return "Requests include an x-langfuse-signature header so your service can verify they come from Langfuse.";
+                  }
+                  return "A signing secret will be generated when you save and shown once.";
+                })();
+
+                return (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>Sign requests</FormLabel>
+                      <FormDescription>
+                        {signingRequestDescription}
+                      </FormDescription>
+                      {field.value &&
+                        existingRemoteExperiment?.displaySecretKey && (
+                          <div className="pt-2">
+                            <CodeSection
+                              variant="outline"
+                              isCollapsible
+                              defaultCollapsed
+                              content={
+                                existingRemoteExperiment.displaySecretKey
+                              }
+                            />
+                            <div className="text-muted-foreground mt-1 text-xs">
+                              Secret is encrypted and can only be viewed when
+                              generated
+                            </div>
                           </div>
-                        </div>
-                      )}
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
+                        )}
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                );
+              }}
             />
 
             <AccordionPrimitive.Root type="single" collapsible>

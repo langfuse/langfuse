@@ -7,6 +7,7 @@ import {
   createFilterFromFilterState,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  eventsTableNativeUiColumnDefinitions,
   eventsTableUiColumnDefinitions,
   experimentPreAggCols,
   ExperimentsAggregationQueryBuilder,
@@ -20,7 +21,7 @@ import {
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
   it.each([
     ["cachedInputTokens", eventsTableCachedInputTokensSql, "Float64"],
-    ["cachedInputCost", eventsTableCachedInputCostSql, "Decimal64(12)"],
+    ["cachedInputCost", eventsTableCachedInputCostSql, "Decimal128(12)"],
   ] as const)(
     "maps %s filters to the cached-read metric expression",
     (column, expression, clickhouseType) => {
@@ -702,6 +703,33 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(filter.apply().query).toContain(
       `(e.experiment_id = '' OR e.experiment_id IS NULL)`,
     );
+  });
+
+  it.each([
+    ["userId", "is not null", `(e.user_id != '' AND e.user_id IS NOT NULL)`],
+    ["name", "is null", `(e.name = '' OR e.name IS NULL)`],
+  ] as const)(
+    "treats an empty %s as null (%s)",
+    (column, operator, expected) => {
+      const [filter] = createFilterFromFilterState(
+        [{ column, type: "null", operator, value: "" }],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
+
+      expect(filter?.apply().query).toBe(expected);
+    },
+  );
+
+  it("treats an empty name as null when the caller passes no column definitions", () => {
+    // The positionInTrace ranking query filters this way; it must select the
+    // same rows as the outer query.
+    const [filter] = createFilterFromFilterState(
+      [{ column: "name", type: "null", operator: "is not null", value: "" }],
+      eventsTableNativeUiColumnDefinitions,
+    );
+
+    expect(filter?.apply().query).toBe(`(e.name != '' AND e.name IS NOT NULL)`);
   });
 
   it("builds a direct grouped query for one boolean filter option column", () => {

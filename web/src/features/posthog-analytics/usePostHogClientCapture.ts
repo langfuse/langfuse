@@ -452,6 +452,10 @@ const events = {
     "setup_opened",
     "setup_step_saved",
     "setup_started",
+    // Tracing pulse chart topic stripe. Props: isV4, isSelected, topicCount; never topic names.
+    "stripe_toggle",
+    // Topics page "Give feedback", opening the support form as Feedback. No props.
+    "feedback_open",
   ],
   in_app_agent: [
     "activity_opened",
@@ -479,6 +483,10 @@ const events = {
     "api_key_secret_revealed",
     "model_access_changed",
     "model_name_copied",
+    "custom_model_added",
+    "custom_model_removed",
+    "budget_saved",
+    "budget_removed",
     "agent_setup_instructions_viewed",
     "agent_setup_instructions_copied",
   ],
@@ -490,6 +498,7 @@ const events = {
     "variant_switched",
   ],
   spend_alert: ["created", "updated", "deleted"],
+  billing_coupon: ["submitted"],
   // Launch surfaces answer "which entry point and state lead people into
   // gateway setup or key creation?" Props are state enums and counts only.
   ai_gateway_launch: [

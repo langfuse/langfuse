@@ -34,6 +34,10 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
+import {
   createObservation,
   createObservationsCh,
   createDatasetRunItem,
@@ -51,6 +55,7 @@ import {
 import "@/src/features/mcp/server/bootstrap";
 import { config as mcpRouteConfig } from "@/src/pages/api/public/mcp";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
+import { handleBatchCreateAnnotationQueueItems } from "@/src/features/mcp/server/annotationQueues/tools/batchCreateAnnotationQueueItems";
 import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueue";
 import { handleCreateAnnotationQueueAssignment } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueueAssignment";
 import { handleCreateAnnotationQueueItem } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueueItem";
@@ -115,21 +120,18 @@ const createProjectUser = async ({
     },
   });
 
-  const orgMembership = await prisma.organizationMembership.create({
-    data: {
-      orgId,
-      userId: user.id,
-      role: "MEMBER",
-    },
+  const orgMembership = await createOrgMembership(prisma, {
+    orgId,
+    userId: user.id,
+    role: "MEMBER",
   });
 
-  await prisma.projectMembership.create({
-    data: {
-      projectId,
-      userId: user.id,
-      role: "MEMBER",
-      orgMembershipId: orgMembership.id,
-    },
+  await createProjectMembership(prisma, {
+    orgId,
+    projectId,
+    userId: user.id,
+    role: "MEMBER",
+    orgMembershipId: orgMembership.id,
   });
 
   return user;
@@ -248,6 +250,7 @@ describe("MCP public API tools", () => {
       [
         "addDashboardPlacement",
         "attachEvaluatorToEvaluationRule",
+        "batchCreateScores",
         "batchUpsertDatasetItems",
         "createChatPrompt",
         "createDashboard",
@@ -442,6 +445,51 @@ describe("MCP public API tools", () => {
       success: true,
       message: "Annotation queue item deleted successfully",
     });
+  });
+
+  it("batch creates annotation queue items with one audit log each", async () => {
+    const { context, projectId } = await createMcpTestSetup();
+    const scoreConfig = await createScoreConfig(projectId);
+    const queue = (await handleCreateAnnotationQueue(
+      { name: `mcp-queue-${uuidv4()}`, scoreConfigIds: [scoreConfig.id] },
+      context,
+    )) as { id: string };
+
+    const { data } = (await handleBatchCreateAnnotationQueueItems(
+      {
+        queueId: queue.id,
+        items: [
+          { objectId: uuidv4(), objectType: "TRACE" },
+          {
+            objectId: uuidv4(),
+            objectType: "OBSERVATION",
+            status: "COMPLETED",
+          },
+        ],
+      } as unknown as Parameters<
+        typeof handleBatchCreateAnnotationQueueItems
+      >[0],
+      context,
+    )) as {
+      data: Array<{ id: string; status: string; completedAt: unknown }>;
+    };
+
+    expect(data.map(({ status }) => status).sort()).toEqual([
+      "COMPLETED",
+      "PENDING",
+    ]);
+    expect(
+      data.find(({ status }) => status === "COMPLETED")?.completedAt,
+    ).toBeTruthy();
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          resourceType: "annotationQueueItem",
+          resourceId: { in: data.map(({ id }) => id) },
+          action: "create",
+        },
+      }),
+    ).resolves.toBe(2);
   });
 
   it("covers comment and model public API routes", async () => {

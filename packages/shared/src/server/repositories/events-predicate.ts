@@ -78,7 +78,7 @@ type ConditionOf<T extends PredicateCondition["type"]> = Extract<
   { type: T }
 >;
 
-const DEFAULT_NUMBER_BIND_TYPE = "Decimal64(12)";
+const DEFAULT_NUMBER_BIND_TYPE = "Decimal128(12)";
 const STRING_ARRAY = "Array(String)";
 const FTS_MATCH_TOKEN_ERROR = "`matches` requires at least one search token.";
 
@@ -533,8 +533,14 @@ function lowerNull(
   lowering: ScalarFieldLowering,
   { op }: ConditionOf<"null">,
 ): Condition {
+  // A missing string is '' (or NULL on a nullable one); a missing array is
+  // empty, since ClickHouse arrays are never NULL.
+  if (lowering.kind === "array") {
+    const value = lowering.value(eb);
+    return op === "is null" ? empty(value) : notEmpty(value);
+  }
   const value = lowering.value(eb);
-  if (lowering.emptyEqualsNull) {
+  if (lowering.emptyEqualsNull || lowering.kind === "string") {
     return op === "is null"
       ? isEmptyOrNull(eb, value)
       : eb.and([eb(value, "!=", literal("")), eb(value, "is not", null)]);

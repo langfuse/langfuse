@@ -53,6 +53,10 @@ vi.mock(
   () => ({ GatewayModelsPage: () => null }),
 );
 vi.mock(
+  "@/src/features/ai-gateway/components/GatewayBudgetsPage/GatewayBudgetsPage",
+  () => ({ GatewayBudgetsPage: () => null }),
+);
+vi.mock(
   "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice",
   () => ({ GatewayNotDeployedNotice: () => null }),
 );
@@ -122,6 +126,7 @@ describe("useGatewayPages", () => {
     expect(visiblePages()).toEqual([
       ["index", false],
       ["models", false],
+      ["budgets", false],
       ["api-keys", false],
     ]);
   });
@@ -139,7 +144,7 @@ describe("useGatewayPages", () => {
     expect(models?.tabsProps).toBeDefined();
   });
 
-  it("disables Models and Gateway keys for managers until ingestion is set up", () => {
+  it("disables Models, Budgets and Gateway keys for managers until ingestion is set up", () => {
     grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -149,6 +154,7 @@ describe("useGatewayPages", () => {
     expect(visiblePages()).toEqual([
       ["index", false],
       ["models", true],
+      ["budgets", true],
       ["api-keys", true],
     ]);
   });
@@ -190,7 +196,7 @@ describe("useGatewayPages", () => {
     expect(visiblePages()).toEqual([["models", false]]);
   });
 
-  it("shows AI_GATEWAY members their keys, models and own analytics, even before ingestion is set up", () => {
+  it("shows AI_GATEWAY members their keys, budgets, models and own analytics, even before ingestion is set up", () => {
     grantScopesOf(Role.AI_GATEWAY);
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -200,6 +206,7 @@ describe("useGatewayPages", () => {
     expect(visiblePages()).toEqual([
       ["index", false],
       ["models", false],
+      ["budgets", false],
       ["api-keys", false],
     ]);
   });
@@ -253,6 +260,7 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages().map(([slug]) => slug)).toEqual([
       "models",
+      "budgets",
       "api-keys",
     ]);
   });

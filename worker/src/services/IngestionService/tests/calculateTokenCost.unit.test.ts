@@ -54,6 +54,7 @@ describe("Token Cost Calculation", () => {
   let projectId: string;
   let tokenModelData: {
     id: string;
+    scope: "LANGFUSE";
     modelName: string;
     matchPattern: string;
     tokenizerId: string;
@@ -87,6 +88,7 @@ describe("Token Cost Calculation", () => {
     const matchPattern = `(?i)^(${modelName})$`;
     tokenModelData = {
       id: modelId,
+      scope: "LANGFUSE",
       modelName,
       matchPattern,
       tokenizerId: "openai",

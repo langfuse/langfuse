@@ -34,9 +34,17 @@ import { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassifica
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
   createToastOperationMutationCache,
+  getTrpcToastOperation,
   rememberTrpcToastOperation,
   resolveToastOperation,
 } from "@/src/utils/trpcToastOperation";
+import {
+  isResponseJsonParseFailure,
+  isTrpcNonJsonBodyError,
+  readAnnotatedResponseStatus,
+  shouldParseResponseAsJson,
+  TrpcNonJsonResponseError,
+} from "@/src/utils/trpcResponseParseError";
 import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 
 export { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
@@ -143,9 +151,12 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * Zod input validation (`BAD_REQUEST` whose message is a Zod 4 issue list or
  * whose `data.zodError` is populated), plus CONFLICT on
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
- * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}. Empty/too-short fields, stale
- * in-app-agent approvals, and a rejected user-configured remote-experiment
- * URL are the product working as designed — the toast is the UX; Sentry
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, plus PRECONDITION_FAILED on
+ * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}. Empty/too-short fields, stale
+ * in-app-agent approvals, a rejected user-configured remote-experiment URL,
+ * an invite for someone who is already a member or already invited, and an
+ * organization delete while projects are still being purged are the product
+ * working as designed — the UI already explains them; Sentry
  * must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
@@ -160,16 +171,31 @@ export const EXPECTED_TRPC_ERROR_CODES = [
 
 /**
  * CONFLICT is usually a uniqueness / concurrency failure we still want
- * (duplicate names, unique-constraint races). These procedures throw 409
- * only as an optimistic-concurrency / stale-UI race the product already
- * toasts — expected user-facing state, not a regression.
+ * captured (duplicate names, unique-constraint races). These procedures
+ * throw 409 only for a state the product already explains in the UI.
  *
- * `inAppAgent.decideToolApproval` is the only current member: every CONFLICT
- * it throws means the parent run is no longer AWAITING_APPROVAL (already
- * decided, expired, or cancelled). The UI already tells the user to reload.
+ * `inAppAgent.decideToolApproval`: the parent run is no longer
+ * AWAITING_APPROVAL (already decided, expired, or cancelled). The UI tells
+ * the user to reload.
+ * `members.create`: a concurrent insert hits the membership unique
+ * constraint. `rethrowIfMembershipExists` in `@langfuse/shared` returns
+ * 409 with the already-member sentence, and the invite form shows it on
+ * the email field. The pre-check for the same state is BAD_REQUEST.
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
+  "members.create",
+] as const;
+
+/**
+ * PRECONDITION_FAILED is usually an unexpected guard. These procedures throw
+ * it only as user-facing product state the UI already explains.
+ *
+ * `organizations.delete` throws it while soft-deleted projects are still
+ * being purged. The delete dialog renders that inline.
+ */
+const EXPECTED_TRPC_PRECONDITION_FAILED_PATHS = [
+  "organizations.delete",
 ] as const;
 
 const getTrpcErrorData = (
@@ -185,35 +211,24 @@ export const getTrpcErrorCode = (error: unknown): string | undefined => {
   return typeof code === "string" ? code : undefined;
 };
 
-/** The tRPC procedure path (`data.path`) when available — used as a Sentry tag. */
+/**
+ * The tRPC procedure path when available — used as a Sentry tag.
+ * Prefers the JSON envelope (`data.path`). A non-JSON body has no envelope;
+ * `buildIdLink` records the procedure on the error for the toast, and this
+ * reads that same association.
+ */
 export const getTrpcErrorPath = (error: unknown): string | undefined => {
   const path = getTrpcErrorData(error)?.path;
-  return typeof path === "string" ? path : undefined;
+  if (typeof path === "string") return path;
+  return getTrpcToastOperation(error);
 };
-
-/**
- * Sentry fingerprint for a captured tRPC client error.
- *
- * Sentry's default grouping keys on the stack trace, and every
- * `TRPCClientError` throws from the same client-link frames — so unrelated
- * failures (different procedures, different codes, different messages)
- * collapse into one mega-issue. Grouping by code + procedure path gives each
- * distinct failure class its own issue with bounded cardinality
- * (procedures × codes) and no user data: `data.path` is the static procedure
- * name from the router definition (e.g. `traces.deleteMany`) — query input,
- * ids, and messages are never part of it.
- */
-export const getTrpcErrorFingerprint = (error: unknown): string[] => [
-  "trpc-client-error",
-  getTrpcErrorCode(error) ?? "unknown",
-  getTrpcErrorPath(error) ?? "unknown",
-];
 
 /**
  * True when `error` is a TRPCClientError whose code is an EXPECTED, user-facing
  * state that should not be captured to Sentry.
  * See {@link EXPECTED_TRPC_ERROR_CODES}, {@link EXPECTED_TRPC_CONFLICT_PATHS},
- * and {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}.
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, and
+ * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}.
  */
 export const isExpectedTrpcClientError = (error: unknown): boolean => {
   const code = getTrpcErrorCode(error);
@@ -238,6 +253,15 @@ export const isExpectedTrpcClientError = (error: unknown): boolean => {
   ) {
     return true;
   }
+  if (
+    code === "PRECONDITION_FAILED" &&
+    path !== undefined &&
+    (EXPECTED_TRPC_PRECONDITION_FAILED_PATHS as readonly string[]).includes(
+      path,
+    )
+  ) {
+    return true;
+  }
   return isTrpcZodValidationError(error);
 };
 
@@ -246,26 +270,31 @@ export const isExpectedTrpcClientError = (error: unknown): boolean => {
 // envelope, so these are otherwise hard to diagnose.
 const REQUEST_TOO_LARGE_STATUSES = [414, 431];
 
-type SyntaxErrorWithResponseStatus = SyntaxError & { responseStatus?: number };
-
 /**
- * `@trpc/client` (11.13.4) rejects with the bare `SyntaxError` when
- * JSON-parsing a response body fails — the link only records the response
- * meta (and so the HTTP status) for fulfilled requests. This fetch wrapper
- * re-attaches the status to the parse `SyntaxError` so error classification
- * can tell an app-owned 414/431 failure from transport garbage.
+ * `@trpc/client` (11.13.4) calls `res.json()` and, on failure, rejects with
+ * that engine error. The link only records response meta for fulfilled
+ * requests, so the HTTP status is otherwise lost. This wrapper:
+ *  - does not parse an explicit non-JSON content type (gateway HTML / plain
+ *    text) — parsing it is what throws Safari's DOMException
+ *    "The string did not match the expected pattern.", which is not a
+ *    `SyntaxError`;
+ *  - when a JSON body still fails to parse, replaces the engine error with
+ *    {@link TrpcNonJsonResponseError} so status and classification do not
+ *    depend on which browser threw.
  * Exported for tests.
  */
 export const fetchWithParseErrorStatus: typeof fetch = async (input, init) => {
   const response = await fetch(input, init);
   const originalJson = response.json.bind(response);
   response.json = async () => {
+    if (!shouldParseResponseAsJson(response.headers.get("content-type"))) {
+      throw new TrpcNonJsonResponseError(response.status);
+    }
     try {
       return await originalJson();
     } catch (error) {
-      if (error instanceof SyntaxError) {
-        (error as SyntaxErrorWithResponseStatus).responseStatus =
-          response.status;
+      if (isResponseJsonParseFailure(error)) {
+        throw new TrpcNonJsonResponseError(response.status, error);
       }
       throw error;
     }
@@ -273,19 +302,55 @@ export const fetchWithParseErrorStatus: typeof fetch = async (input, init) => {
   return response;
 };
 
-/** HTTP status of a failed tRPC response: from the annotated parse error
+/** HTTP status of a failed tRPC response: from the non-JSON/parse error
  * (`fetchWithParseErrorStatus`) or, when a link attached it, the response meta. */
 const getResponseStatus = (error: TRPCClientError<any>): number | undefined => {
-  const cause = getCause(error);
-  if (
-    cause instanceof SyntaxError &&
-    typeof (cause as SyntaxErrorWithResponseStatus).responseStatus === "number"
-  ) {
-    return (cause as SyntaxErrorWithResponseStatus).responseStatus;
-  }
+  const annotated = readAnnotatedResponseStatus(getCause(error));
+  if (annotated !== undefined) return annotated;
   return error.meta?.response instanceof Response
     ? error.meta.response.status
     : undefined;
+};
+
+/**
+ * Load-balancer statuses our handlers do not produce. Application failures
+ * serialize as JSON with HTTP 500. 502/503/504 are the edge answering in
+ * place of the app (HTML or an empty body).
+ */
+const TRPC_GATEWAY_RESPONSE_STATUSES = [502, 503, 504] as const;
+
+/**
+ * Sentry fingerprint for a captured tRPC client error.
+ *
+ * Sentry's default grouping keys on the stack trace, and every
+ * `TRPCClientError` throws from the same client-link frames — so unrelated
+ * failures (different procedures, different codes, different messages)
+ * collapse into one mega-issue. Grouping by code + procedure path gives each
+ * distinct failure class its own issue with bounded cardinality
+ * (procedures × codes) and no user data: `data.path` is the static procedure
+ * name from the router definition (e.g. `traces.deleteMany`) — query input,
+ * ids, and messages are never part of it.
+ *
+ * A gateway non-JSON response (502/503/504) groups by status instead. Those
+ * share one stack and, on Safari, one message; the procedure path stays a
+ * tag so the group does not split per procedure or collide with app errors.
+ */
+export const getTrpcErrorFingerprint = (error: unknown): string[] => {
+  if (isTrpcNonJsonBodyError(error)) {
+    const status = getResponseStatus(error);
+    if (
+      status !== undefined &&
+      (TRPC_GATEWAY_RESPONSE_STATUSES as readonly number[]).includes(status)
+    ) {
+      return ["trpc-gateway-response", String(status)];
+    }
+  }
+
+  return [
+    "trpc-client-error",
+    getTrpcErrorCode(error) ?? "unknown",
+    getTrpcErrorPath(error) ?? "unknown",
+  ];
 };
 
 /**
@@ -306,11 +371,13 @@ const getResponseStatus = (error: TRPCClientError<any>): number | undefined => {
  * keep capturing. Unknown status (no annotation, no meta) stays classified
  * as transport — the live client drops the response meta on parse failures,
  * which is why `fetchWithParseErrorStatus` exists.
+ *
+ * Safari's failure is a DOMException named `SyntaxError`, not a JS
+ * `SyntaxError`. {@link isTrpcNonJsonBodyError} accepts that, a real
+ * `SyntaxError` (Chrome / Firefox), and {@link TrpcNonJsonResponseError}.
  */
 export const isTrpcResponseParseError = (error: unknown): boolean => {
-  if (!(error instanceof TRPCClientError)) return false;
-  if (error.data) return false;
-  if (!(getCause(error) instanceof SyntaxError)) return false;
+  if (!isTrpcNonJsonBodyError(error)) return false;
   const status = getResponseStatus(error);
   return status === undefined || !REQUEST_TOO_LARGE_STATUSES.includes(status);
 };
@@ -465,18 +532,28 @@ const handleTrpcError = (
         data: {
           message: error.message,
           status: getResponseStatus(error),
+          path: getTrpcErrorPath(error),
         },
       });
     } else {
       // Real tRPC errors keep flowing to Sentry, tagged and fingerprinted by
       // procedure/code so each failure class gets its own issue instead of
       // collapsing into one opaque bucket (see getTrpcErrorFingerprint).
+      // A non-JSON body that is still reported (414/431, or a gateway status
+      // this branch still sees) carries the HTTP status and procedure path.
+      // Gateway 502/503/504 fingerprints stay separate from app errors.
+      const nonJsonStatus = isTrpcNonJsonBodyError(error)
+        ? getResponseStatus(error)
+        : undefined;
       reportError(error, {
         area: "trpc",
         fingerprint: getTrpcErrorFingerprint(error),
         tags: {
           "trpc.code": getTrpcErrorCode(error),
           "trpc.path": getTrpcErrorPath(error),
+          ...(nonJsonStatus !== undefined
+            ? { "http.status": String(nonJsonStatus) }
+            : {}),
         },
       });
     }

@@ -15,6 +15,8 @@ const apiKeys = [
   {
     metadata: { user: "Marc Klingen", environment: "production" },
     allowedModels: null,
+    spendLimit: { interval: "MONTHLY" as const, limitUsd: 500 },
+    hasSeveralSpendLimits: false,
     apiKey: {
       id: "gateway-key-production",
       publicKey: "pk-lf-gw-...4fa2",
@@ -39,6 +41,8 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
     index % 4 === 0
       ? ["openai:*", "anthropic:claude-sonnet-*", "-*preview*"]
       : null,
+  spendLimit: null,
+  hasSeveralSpendLimits: false,
   apiKey: {
     id: `gateway-key-${index + 1}`,
     publicKey: `pk-lf-gw-${String(index + 1).padStart(4, "0")}`,
@@ -58,8 +62,10 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
 
 const actions = {
   lastUsed: { status: "success", isTracked: true },
+  spend: { status: "success" },
   onEdit,
   onRevoke,
+  onCreateKey: fn(),
   pagination: {
     mode: "offset",
     totalCount: 1,
@@ -69,12 +75,58 @@ const actions = {
   search: { value: "", onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  "lastUsed" | "onEdit" | "onRevoke" | "pagination" | "search"
+  | "lastUsed"
+  | "spend"
+  | "onEdit"
+  | "onRevoke"
+  | "onCreateKey"
+  | "pagination"
+  | "search"
 >;
 
 const lastUsedCell = (canvas: {
   getAllByRole: (role: "row") => HTMLElement[];
-}) => canvas.getAllByRole("row")[1]!.querySelectorAll("td")[5]!;
+}) => canvas.getAllByRole("row")[1]!.querySelectorAll("td")[6]!;
+
+const budgetCells = (canvas: {
+  getAllByRole: (role: "row") => HTMLElement[];
+}) =>
+  canvas
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => row.querySelectorAll("td")[5]!);
+
+const budgetApiKeys = (
+  [
+    [null, undefined],
+    [{ interval: "MONTHLY", limitUsd: 100 }, 42.5],
+  ] as const
+).map(([spendLimit, spentUsd], index) => ({
+  ...apiKeys[0]!,
+  spendLimit,
+  spentUsd,
+  apiKey: {
+    ...apiKeys[0]!.apiKey,
+    id: `gateway-key-budget-${index}`,
+    note: `Budget ${index}`,
+  },
+}));
+
+export const BudgetsLoading = meta.story({
+  name: "(Test) Budget shows a skeleton only for keys with a limit",
+  args: {
+    data: { status: "success", data: budgetApiKeys },
+    ...actions,
+    spend: { status: "loading" },
+  },
+  play: async ({ canvas }) => {
+    const cells = budgetCells(canvas);
+    await expect(cells[0]).toHaveTextContent("No budget");
+    await expect(
+      cells[1]!.querySelector("[data-slot='skeleton']"),
+    ).not.toBeNull();
+  },
+});
 
 export const LastUsedLoading = meta.story({
   name: "(Test) Last used shows a skeleton while loading",
@@ -144,7 +196,7 @@ export const PopulatedMetadata = meta.story({
   play: async ({ canvas }) => {
     const cells = canvas.getAllByRole("row")[1]!.querySelectorAll("td");
     await expect(cells[2]).toHaveClass("ph-no-capture");
-    await expect(cells[7]).toHaveClass("ph-no-capture");
+    await expect(cells[8]).toHaveClass("ph-no-capture");
   },
 });
 
@@ -175,7 +227,7 @@ export const OverflowingMetadata = meta.story({
   play: async ({ canvas }) => {
     const metadataCell = canvas
       .getAllByRole("row")[1]!
-      .querySelectorAll("td")[7]!;
+      .querySelectorAll("td")[8]!;
     await waitFor(() => {
       expect(metadataCell).toHaveTextContent(/\+\d+/);
     });
@@ -204,10 +256,10 @@ export const RestrictedModels = meta.story({
   },
   play: async ({ canvas }) => {
     const rows = canvas.getAllByRole("row");
-    await expect(rows[1]!.querySelectorAll("td")[6]).toHaveTextContent(
+    await expect(rows[1]!.querySelectorAll("td")[7]).toHaveTextContent(
       "All models",
     );
-    await expect(rows[2]!.querySelectorAll("td")[6]).toHaveTextContent(
+    await expect(rows[2]!.querySelectorAll("td")[7]).toHaveTextContent(
       "anthropic:*+1",
     );
   },

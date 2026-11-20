@@ -8,7 +8,10 @@ export default mergeConfig(sharedConfig, {
         extends: "./vitest.shared.mts",
         test: {
           name: "client",
-          include: ["src/**/*.clienttest.{ts,tsx}"],
+          include: [
+            "src/**/*.clienttest.{ts,tsx}",
+            ".storybook/docs/**/*.test.{ts,tsx}",
+          ],
           exclude: ["**/node_modules/**", "**/.next/**", "**/dist/**"],
           environment: "jsdom",
           setupFiles: [

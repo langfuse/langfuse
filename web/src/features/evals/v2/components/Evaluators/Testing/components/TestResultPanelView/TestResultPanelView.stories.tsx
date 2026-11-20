@@ -1,12 +1,11 @@
 import { fn } from "storybook/test";
 
 import preview from "../../../../../../../../../.storybook/preview";
-import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import { TestRerunButton } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestRerunButton/TestRerunButton";
 import {
-  TestResultTraceActions,
+  TestResultTraceActionsDropdownMenu,
   TestResultTraceActionsTrigger,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
+} from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActionsDropdownMenu/TestResultTraceActionsDropdownMenu";
 import { TestResultPanelView } from "./TestResultPanelView";
 
 const meta = preview.meta({ component: TestResultPanelView });
@@ -18,14 +17,14 @@ const actions = {
 };
 
 const traceActions = (executionTraceId: string | null) => (
-  <TestResultTraceActions
+  <TestResultTraceActionsDropdownMenu
     executionTraceId={executionTraceId}
     onOpenExecutionTrace={actions.onOpenExecutionTrace}
   >
-    <DropdownMenuTrigger asChild>
-      <TestResultTraceActionsTrigger />
-    </DropdownMenuTrigger>
-  </TestResultTraceActions>
+    {({ getTriggerProps }) => (
+      <TestResultTraceActionsTrigger {...getTriggerProps()} />
+    )}
+  </TestResultTraceActionsDropdownMenu>
 );
 
 const rerunAction = (isPending: boolean, disabledReason: string | null) => (

@@ -1,9 +1,8 @@
 import { type NextApiRequest } from "next";
 
-import { ForbiddenError } from "@langfuse/shared";
+import { ForbiddenError, hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { type ApiAccessScope } from "@langfuse/shared/src/server";
 
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 
 /** authorizeBlobStorageRequest gates a blob-storage request on an organization key and the blob-export entitlement, returning the verified scope. */

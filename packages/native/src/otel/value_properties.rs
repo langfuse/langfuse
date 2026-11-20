@@ -79,7 +79,7 @@ fn digest<T: Hash>(value: &T) -> u64 {
     hasher.finish()
 }
 
-fn ordinary_json() -> impl Strategy<Value = SerdeValue> {
+pub(super) fn ordinary_json() -> impl Strategy<Value = SerdeValue> {
     let leaf = prop_oneof![
         Just(SerdeValue::Null),
         any::<bool>().prop_map(SerdeValue::Bool),
