@@ -131,7 +131,7 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toMatch(/prompt_version = \{\w+: ?Decimal64\(12\)\}/);
+      expect(query).toMatch(/prompt_version = \{\w+: ?Decimal128\(12\)\}/);
     },
   );
 

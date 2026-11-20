@@ -701,6 +701,40 @@ describeWithClickhouseLocal("numeric metadata conditions", () => {
   });
 });
 
+describeWithClickhouseLocal(
+  "number conditions on a default-bound field",
+  () => {
+    // A cost bound at or above 1e6 is valid input: it matches every stored cost
+    // (`<=`) or none (`>=`), and must not fail the query.
+    const matchCount = (op: "<=" | ">=", value: number) => {
+      const { sql, params } = compileForProject({
+        kind: "condition",
+        type: "number",
+        field: { id: "totalCost" },
+        op,
+        value,
+      });
+      const typed = sql.replace(
+        /\{[A-Za-z0-9_]+:([^}]+)\}/g,
+        (placeholder, type: string) => `CAST(${placeholder} AS ${type})`,
+      );
+      return executeClickhouseLocal(
+        substituteNamedParams(
+          `SELECT count() FROM (SELECT map('total', toDecimal64(2.5, 12)) AS cost_details) AS e WHERE ${typed}`,
+          params,
+        ),
+      );
+    };
+
+    it.each([
+      ["<=", 1840000, "1"],
+      [">=", 1840000, "0"],
+    ] as const)("%s %s", (op, value, expected) => {
+      expect(matchCount(op, value)).toBe(expected);
+    });
+  },
+);
+
 describe("lowering inside an AST query", () => {
   const compiled = (predicate: Predicate) =>
     compileClickhouseQuery(
