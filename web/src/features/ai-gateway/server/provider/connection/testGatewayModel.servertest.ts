@@ -257,6 +257,26 @@ describe("testGatewayModel", () => {
         baseURL: null,
         extraHeaders: {},
         credential: "fw-key",
+        model: "accounts/fireworks/models/deepseek-v3p1",
+        reportedFormats: [
+          "openai.responses",
+          "openai.chat-completions",
+          "anthropic.messages",
+        ],
+      }),
+    ).resolves.toMatchObject({ success: false, error: "Not a chat model" });
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://api.fireworks.ai/inference/v1/chat/completions",
+    ]);
+
+    fetcher.mockClear();
+    await expect(
+      testGatewayModel({
+        provider: "FIREWORKS",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        credential: "fw-key",
         model: "accounts/fireworks/models/qwen3-embedding-8b",
         reportedFormats: ["openai.embeddings"],
       }),
