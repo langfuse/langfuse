@@ -4,7 +4,6 @@ import Stripe from "stripe";
 import { env } from "../../env";
 import {
   BILLING_SETTLE_MS,
-  type BillableEventType,
   CloudUsageMeteringQueue,
   CloudSpendAlertQueue,
   getBillableUnitCountsByProjectInWindow,
@@ -25,18 +24,6 @@ import { backOff } from "exponential-backoff";
 // Rows stamped just before the interval ends can take a moment to become
 // readable.
 const delayFromStartOfInterval = 3600000 + BILLING_SETTLE_MS;
-
-type BillableUnits = Record<BillableEventType, number>;
-
-const zeroUnits = (): BillableUnits => ({
-  trace: 0,
-  observation: 0,
-  score: 0,
-  topic_facet_summary: 0,
-});
-
-const isBilledEventType = (eventType: string): eventType is BillableEventType =>
-  Object.hasOwn(zeroUnits(), eventType);
 
 // Stripe deduplicates meter events by identifier, so deriving it from the tuple
 // that defines the billable fact makes a replayed interval idempotent instead of
@@ -231,28 +218,22 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       org.projectIds.map((projectId) => [projectId, org.id] as const),
     ),
   );
-  const unitsByOrg = new Map<string, BillableUnits>();
-  // A unit type this job does not know has no price yet, so it is left out and
-  // reported instead of turning an org's total into NaN.
-  const unknownEventTypes = new Set<string>();
+  // Every ledger row is billable: all of them go to tracing_events, and
+  // observations also to tracing_observations.
+  const unitsByOrg = new Map<
+    string,
+    { observations: number; events: number }
+  >();
   for (const row of await getBillableUnitCountsByProjectInWindow({
     windowFrom: meterIntervalStart,
     windowTo: meterIntervalEnd,
   })) {
-    if (!isBilledEventType(row.eventType)) {
-      unknownEventTypes.add(row.eventType);
-      continue;
-    }
     const orgId = orgIdByProjectId.get(row.projectId);
     if (!orgId) continue;
-    const units = unitsByOrg.get(orgId) ?? zeroUnits();
-    units[row.eventType] += row.count;
+    const units = unitsByOrg.get(orgId) ?? { observations: 0, events: 0 };
+    units.events += row.count;
+    if (row.eventType === "observation") units.observations += row.count;
     unitsByOrg.set(orgId, units);
-  }
-  if (unknownEventTypes.size > 0) {
-    const message = `[CLOUD USAGE METERING] Billing ledger has unit types without a meter, not billed: ${[...unknownEventTypes].join(", ")}`;
-    traceException(message);
-    logger.error(message);
   }
 
   // setup stripe client
@@ -318,10 +299,10 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       continue;
     }
 
-    const orgUnits = unitsByOrg.get(org.id) ?? zeroUnits();
+    const orgUnits = unitsByOrg.get(org.id) ?? { observations: 0, events: 0 };
 
     // Observations (legacy)
-    const countObservations = orgUnits.observation;
+    const countObservations = orgUnits.observations;
 
     logger.info(
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`,
@@ -343,10 +324,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
 
     // Events: every billable unit, Topics facet summaries included
-    const countEvents = Object.values(orgUnits).reduce(
-      (sum, count) => sum + count,
-      0,
-    );
+    const countEvents = orgUnits.events;
     logger.info(
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countEvents} events`,
     );

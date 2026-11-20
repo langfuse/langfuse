@@ -346,18 +346,4 @@ describe("handleCloudUsageMeteringJob", () => {
     expect(mockCronJobsUpdate).not.toHaveBeenCalled();
     expect(mockMeterEventsCreate).not.toHaveBeenCalled();
   });
-
-  it("still meters known units when the ledger holds an unknown unit type", async () => {
-    mockLedgerCounts.mockResolvedValue([
-      { projectId: "project-1", eventType: "trace", count: 3 },
-      { projectId: "project-1", eventType: "not_yet_priced", count: 7 },
-    ]);
-
-    await handleCloudUsageMeteringJob(createJob());
-
-    expect(callsForMeter("tracing_events")[0]?.[0].payload.value).toBe("3");
-    expect(mockTraceException).toHaveBeenCalledWith(
-      expect.stringContaining("not_yet_priced"),
-    );
-  });
 });
