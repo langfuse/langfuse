@@ -15,6 +15,7 @@ import type { AgentSubscriber } from "@ag-ui/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
+import useLocalStorage from "@/src/components/useLocalStorage";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createInAppAgentConversationId } from "../ids";
 import {
@@ -69,6 +70,11 @@ import {
   createInAppAgentUserContext,
 } from "@/src/features/in-app-agent/context";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
+import {
+  IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
+  parseInAppAgentLayoutMode,
+  type InAppAgentLayoutMode,
+} from "@/src/features/in-app-agent/layoutMode";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
@@ -82,6 +88,7 @@ const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
+const LAYOUT_MODE_STORAGE_KEY = "langfuse:in-app-ai-agent-layout-mode";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   messages: EMPTY_MESSAGES,
@@ -101,7 +108,8 @@ export type InAppAgentEntryPoint =
   | "dashboard_widget"
   | "v4_migration"
   | "evaluators_empty_state"
-  | "skill_editor";
+  | "skill_editor"
+  | "home_composer";
 
 function useBackgroundExecutionView(
   session: BackgroundExecutionSession | null,
@@ -127,6 +135,8 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   openAssistant: () => false,
   isExpanded: false,
   setIsExpanded: () => undefined,
+  layoutMode: IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
+  setLayoutMode: () => undefined,
   isRunning: false,
   isSubmitting: false,
   pendingToolApprovals: [],
@@ -187,6 +197,9 @@ type InAppAiAgentContextType = {
   openAssistant: (source: InAppAgentEntryPoint) => boolean;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
+  /** Where the window sits: full page, docked beside the content, or floating. */
+  layoutMode: InAppAgentLayoutMode;
+  setLayoutMode: (layoutMode: InAppAgentLayoutMode) => void;
   isRunning: boolean;
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
@@ -321,6 +334,19 @@ function InAppAiAgentProviderInner({
       {},
     );
   const [isExpanded, setIsExpanded] = useState(false);
+  const [storedLayoutMode, setStoredLayoutMode] = useLocalStorage<string>(
+    LAYOUT_MODE_STORAGE_KEY,
+    IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
+  );
+  const layoutMode = parseInAppAgentLayoutMode(storedLayoutMode);
+  const setLayoutMode = useCallback(
+    (nextLayoutMode: InAppAgentLayoutMode) => {
+      // Expanded is a variant of the floating window only.
+      setIsExpanded(false);
+      setStoredLayoutMode(nextLayoutMode);
+    },
+    [setStoredLayoutMode],
+  );
   // Key by conversation so another conversation cannot release its submit lock.
   const [submittingConversationId, setSubmittingConversationId] = useState<
     string | null
@@ -1479,6 +1505,8 @@ function InAppAiAgentProviderInner({
       openAssistant,
       isExpanded,
       setIsExpanded,
+      layoutMode,
+      setLayoutMode,
       isRunning,
       isSubmitting,
       pendingToolApprovals: isSelectedConversationNotFound
@@ -1517,6 +1545,8 @@ function InAppAiAgentProviderInner({
       attentionCount,
       alwaysAllowToolCall,
       isExpanded,
+      layoutMode,
+      setLayoutMode,
       conversations,
       effectiveError,
       hasMoreConversations,
@@ -1643,7 +1673,7 @@ export function useInAppAiAgent() {
  * Features. Use this for polling and other paths that must not hit the
  * server when org AI Features is off. More restrictive than
  * useIsInAppAgentLauncherVisible. */
-function useCanUseInAppAgent() {
+export function useCanUseInAppAgent() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
   const session = useSession();

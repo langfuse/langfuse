@@ -687,6 +687,14 @@ export type InAppAgentWindowProps = {
   selectedConversationTitle: string | null;
   /** Rendered right after the title. */
   titleActions?: ReactNode;
+  /** Rendered before the title, e.g. a back control. */
+  headerLeading?: ReactNode;
+  /** Rendered first in the header's action cluster. */
+  headerActions?: ReactNode;
+  /** False when the host owns the window size (docked or full page). */
+  showExpandToggle?: boolean;
+  /** Drops the window chrome when the host supplies the frame. */
+  isFlush?: boolean;
 } & InAppAgentWindowCloseButtonProps;
 
 function InAppAgentRateLimitError({
@@ -781,6 +789,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     selectedConversationId,
     selectedConversationTitle,
     titleActions,
+    headerLeading,
+    headerActions,
+    showExpandToggle = true,
+    isFlush = false,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
@@ -918,7 +930,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       className={cn(
         "bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
         // Full-bleed on mobile: the drawer owns the edge, so drop the window chrome.
-        isHandheld && "rounded-none border-0 shadow-none",
+        (isHandheld || isFlush) && "rounded-none border-0 shadow-none",
       )}
     >
       <header
@@ -932,7 +944,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           !isHandheld && "select-none",
         )}
         onDoubleClick={
-          isHandheld
+          isHandheld || !showExpandToggle
             ? undefined
             : (event) => {
                 // The action cluster owns its own double-clicks.
@@ -948,6 +960,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         }
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
+          {headerLeading}
           {conversationTitle ? (
             <p
               className="min-w-0 truncate text-sm font-bold"
@@ -973,6 +986,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           className="flex shrink-0 items-center gap-0.5"
           data-movable-resizable-panel-ignore-drag="true"
         >
+          {headerActions}
           <Tooltip
             label="Start new conversation"
             delay={100}
@@ -1111,7 +1125,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </DropdownMenuContent>
           </DropdownMenu>
           {/* Mobile is always full-screen, so there is nothing to expand. */}
-          {!isHandheld ? (
+          {!isHandheld && showExpandToggle ? (
             <Tooltip
               label={isExpanded ? "Collapse window" : "Expand window"}
               delay={100}

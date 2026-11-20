@@ -38,7 +38,7 @@ import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
-import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
+import { InAppAgentDockLayout } from "@/src/features/in-app-agent/components/InAppAgentDockLayout";
 import {
   useV4UpgradeUiEnabled,
   useV4UpgradeUiFlag,
@@ -358,9 +358,15 @@ export function AuthenticatedLayout({
                     scrollbar showed — spawning a horizontal one. Flex already
                     sizes the inset to that space. */}
               <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
-                <AppContentWithRightDrawer>
-                  {children}
-                </AppContentWithRightDrawer>
+                {/* Assistant window host lives here (not in PageHeader with
+                      its launcher button) so the open window and its geometry
+                      survive route changes. Docked, it sits beside the page
+                      content; floating, it portals into the `agent` layer. */}
+                <InAppAgentDockLayout>
+                  <AppContentWithRightDrawer>
+                    {children}
+                  </AppContentWithRightDrawer>
+                </InAppAgentDockLayout>
                 {/* Toasts render in the `toast` overlay layer — the last layer
                       in LAYER_ORDER — so they paint above every overlay (incl. a
                       non-modal peek) by DOM order alone, no z-index. Sonner's
@@ -370,10 +376,6 @@ export function AuthenticatedLayout({
                   <Toaster visibleToasts={1} />
                 </Layer>
                 <CommandMenu mainNavigation={navigation.navigation} />
-                {/* Assistant window host lives here (not in PageHeader with
-                      its launcher button) so the open window and its geometry
-                      survive route changes. */}
-                <InAppAgentWindowHost />
               </SidebarInset>
             </div>
             {internalViewMode.available && (

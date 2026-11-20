@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import {
   InAppAgentWindow,
@@ -33,6 +33,10 @@ type ControlledInAppAgentWindowBaseProps = {
   isExpanded: boolean;
   onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onExpandedChange: (isExpanded: boolean) => void;
+  headerLeading?: ReactNode;
+  headerActions?: ReactNode;
+  showExpandToggle?: boolean;
+  isFlush?: boolean;
 };
 
 type ControlledInAppAgentWindowProps = ControlledInAppAgentWindowBaseProps &
@@ -216,6 +220,10 @@ export function ControlledInAppAgentWindow(
       selectedConversationId={selectedConversationId}
       selectedConversationTitle={selectedConversationTitle}
       titleActions={titleActions}
+      headerLeading={props.headerLeading}
+      headerActions={props.headerActions}
+      showExpandToggle={props.showExpandToggle}
+      isFlush={props.isFlush}
       onLoadMoreConversations={loadMoreConversations}
       onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}

@@ -75,7 +75,8 @@ export type InAppAgentSubmitOptions = {
     | "add-widget-modal"
     | "command_menu"
     | "evaluators-empty-state"
-    | "skill-editor";
+    | "skill-editor"
+    | "home_composer";
 };
 
 // Version 1 starter sets. Idea is that periodic curation replaces sets when usage
