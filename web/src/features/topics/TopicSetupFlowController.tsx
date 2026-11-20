@@ -3,6 +3,7 @@ import type { FilterState } from "@langfuse/shared";
 import {
   DEFAULT_TOPIC_RULE_NAME,
   topicRuleFilterError,
+  type TopicRule,
 } from "@langfuse/shared/topics";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -257,20 +258,24 @@ function TopicSetupSession({
     });
   }
 
+  // The rule is saved before the review step, where its name is edited.
+  async function renameSavedRule(rule: TopicRule) {
+    const name = draft.name.trim();
+    if (name === rule.name) return;
+    setSavedRule(
+      await saveRule.mutateAsync({
+        projectId,
+        id: rule.id,
+        name,
+        filter: rule.filter,
+        facetIds: rule.facetIds,
+      }),
+    );
+  }
+
   async function startAnalyzing() {
     if (!savedRule) throw new Error("Save the trace filter first.");
-    // The rule is saved before the review step, where its name is edited.
-    const name = draft.name.trim();
-    if (name !== savedRule.name)
-      setSavedRule(
-        await saveRule.mutateAsync({
-          projectId,
-          id: savedRule.id,
-          name,
-          filter: savedRule.filter,
-          facetIds: savedRule.facetIds,
-        }),
-      );
+    await renameSavedRule(savedRule);
     await persistSampling(true);
     await startRuleSetup.mutateAsync({ projectId, ruleId: savedRule.id });
     capture("topics:setup_started", { samplePercent: draft.samplePercent });
