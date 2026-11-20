@@ -53,6 +53,7 @@ import {
   classifyCustomerFault,
   type CustomerFaultReason,
 } from "./isCustomerFaultError";
+import { unlessPlanDisabled } from "./planDisable";
 import { isMultipartPartLimitError } from "./partLimitError";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { isFinalBullmqAttempt } from "../integrations/bullmqAttempts";
@@ -1159,6 +1160,12 @@ const removeBlobExportDeprecationNotice = async (params: {
   }
 };
 
+const setLastError = (projectId: string, lastError: string | null) =>
+  prisma.blobStorageIntegration.updateMany({
+    where: unlessPlanDisabled(projectId),
+    data: { lastError, lastErrorAt: lastError === null ? null : new Date() },
+  });
+
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
@@ -1262,8 +1269,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       data: {
         runStartedAt: null,
         nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
-        lastError: null,
-        lastErrorAt: null,
         ...(isExportCaughtUp({
           lastSyncAt: blobStorageIntegration.lastSyncAt,
           runStartTime,
@@ -1272,6 +1277,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
           : {}),
       },
     });
+    await setLastError(projectId, null);
     return;
   }
 
@@ -1507,8 +1513,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         data: {
           lastSyncAt: maxTimestamp,
           nextSyncAt,
-          lastError: null,
-          lastErrorAt: null,
           runStartedAt: null,
           ...(isExportCaughtUp({ lastSyncAt: maxTimestamp, runStartTime })
             ? { backfill: false }
@@ -1516,6 +1520,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         },
       },
     );
+    await setLastError(projectId, null);
     if (persisted === 0) {
       logger.info(
         `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after successful export`,
@@ -1563,12 +1568,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
       try {
         integration = await prisma.blobStorageIntegration.update({
           where: { projectId },
-          data: {
-            lastError: BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
-            lastErrorAt: new Date(),
-            runStartedAt: null,
-          },
+          data: { runStartedAt: null },
         });
+        await setLastError(projectId, BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE);
       } catch (persistError) {
         if (isRecordNotFoundError(persistError)) {
           logger.info(
@@ -1589,7 +1591,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       // path's stillEnabled check: a user who disabled the integration mid-run
       // must not get an "export failed" alert for a run they already turned off.
       if (integration.enabled) {
-        await notifyBlobStorageExportFailed(projectId, { disabled: false });
+        await notifyBlobStorageExportFailed(projectId);
       }
 
       logger.error(
@@ -1620,7 +1622,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
       case "disabled-by-us":
         // Awaited: the integration is now off, so the scheduler never revisits
         // it and nothing would carry an interrupted dispatch.
-        await notifyBlobStorageExportFailed(projectId, { disabled: true });
+        await notifyBlobStorageExportFailed(projectId, {
+          disabledMessage: (projectName) =>
+            `The blob storage export for project "${projectName}" has been disabled after a configuration fault. This usually means the destination configuration or credentials are no longer valid. Once you have updated them, simply re-enable the export in the integration settings and it will pick up right where it left off.`,
+        });
         return; // resolving is the point; a throw would light the monitor
       case "lost-disable-race":
         return; // the winner sent the terminal email
@@ -1629,7 +1634,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         // scheduled export" is no longer true. Not awaited: this path rethrows,
         // so the job is about to fail and be retried regardless.
         if (isFinalAttempt && outcome.stillEnabled) {
-          notifyBlobStorageExportFailed(projectId, { disabled: false });
+          notifyBlobStorageExportFailed(projectId);
         }
         break;
       case "persist-failed":
@@ -1689,12 +1694,9 @@ async function recordTerminalExportError({
   try {
     const updated = await prisma.blobStorageIntegration.update({
       where: { projectId },
-      data: {
-        lastError: errorMessage,
-        lastErrorAt: new Date(),
-        runStartedAt: null,
-      },
+      data: { runStartedAt: null },
     });
+    await setLastError(projectId, errorMessage);
 
     if (disableReason === undefined) {
       return { kind: "error-recorded", stillEnabled: updated.enabled };
@@ -1735,13 +1737,18 @@ async function recordTerminalExportError({
 // Logs and swallows every failure: notification trouble must not turn a
 // deliberate resolve back into a job failure. Delivery is therefore best-effort
 // even on the awaited path; the persisted lastError is the durable signal.
-async function notifyBlobStorageExportFailed(
+export async function notifyBlobStorageExportFailed(
   projectId: string,
   {
-    disabled = false,
-    bypassCooldown = disabled,
-  }: { disabled?: boolean; bypassCooldown?: boolean } = {},
+    disabledMessage,
+    bypassCooldown = disabledMessage !== undefined,
+  }: {
+    // Set when the integration was disabled: says why and how to restore it.
+    disabledMessage?: (projectName: string) => string;
+    bypassCooldown?: boolean;
+  } = {},
 ): Promise<void> {
+  const disabled = disabledMessage !== undefined;
   try {
     // Called once per exhausted run. The cooldown gates across scheduled
     // runs (the scheduler re-enqueues every frequency period, and each
@@ -1810,8 +1817,8 @@ async function notifyBlobStorageExportFailed(
         // the most useful human label for the failing export destination.
         resourceId: projectId,
         resourceName: integration?.bucketName ?? "Blob storage integration",
-        message: disabled
-          ? `Blob storage export disabled for project "${projectName}" after a configuration fault.`
+        message: disabledMessage
+          ? disabledMessage(projectName)
           : `Blob storage export failed for project "${projectName}".`,
         url: env.NEXTAUTH_URL
           ? `${env.NEXTAUTH_URL}${settingsPath}`
