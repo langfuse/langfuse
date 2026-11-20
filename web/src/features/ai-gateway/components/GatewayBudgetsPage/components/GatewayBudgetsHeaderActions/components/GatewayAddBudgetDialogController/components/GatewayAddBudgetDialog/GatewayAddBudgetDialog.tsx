@@ -30,7 +30,7 @@ const targetLabels = {
     field: "Users",
     placeholder: "Select users",
     description:
-      "Each user gets their own budget, which caps all of their gateway keys in addition to each key's own budget.",
+      "Applies a separate total budget to each user across all their keys.",
   },
 } as const satisfies Record<GatewaySpendTab, Record<string, string>>;
 
