@@ -3659,13 +3659,11 @@ describe("AI gateway control plane", () => {
           {
             interval: "DAILY",
             limitUsd: 10,
-            thresholdPercent: 100,
             resetsAt: "2026-11-17T00:00:00.000Z",
           },
           {
             interval: "MONTHLY",
             limitUsd: 100,
-            thresholdPercent: 100,
             resetsAt: "2026-12-01T00:00:00.000Z",
           },
         ],
@@ -3834,6 +3832,7 @@ describe("AI gateway control plane", () => {
 
     expect(queuedNotifications()).toEqual([
       expect.objectContaining({
+        type: "AI_GATEWAY_SPEND_LIMIT_ALERT",
         audience: "keyOwner",
         scope: expect.objectContaining({ type: "API_KEY", name: "Warned key" }),
         limits: [
@@ -3845,12 +3844,14 @@ describe("AI gateway control plane", () => {
         ],
       }),
       expect.objectContaining({
+        type: "AI_GATEWAY_SPEND_LIMIT_ALERT",
         to: owner.user.email,
         audience: "orgOwner",
         scope: expect.objectContaining({ type: "API_KEY", name: "Warned key" }),
         limits: [expect.objectContaining({ thresholdPercent: 85 })],
       }),
       expect.objectContaining({
+        type: "AI_GATEWAY_SPEND_LIMIT_ALERT",
         to: owner.user.email,
         audience: "orgOwner",
         scope: { type: "ORGANIZATION" },
@@ -3886,8 +3887,27 @@ describe("AI gateway control plane", () => {
     const added = queuedNotifications().slice(before);
     expect(added).toHaveLength(2);
     expect(added[0]).toMatchObject({
+      type: "AI_GATEWAY_SPEND_LIMIT_ALERT",
       limits: [expect.objectContaining({ thresholdPercent: 95 })],
     });
+
+    // Omitting alertThresholds on an update (e.g. an older client bundle) keeps stored thresholds.
+    await member.aiGateway.updateApiKey({
+      orgId: owner.org.id,
+      id: memberKey.id,
+      name: "Warned key",
+      metadata: {},
+      allowedModels: null,
+      previousAllowedModels: null,
+      spendLimit: {
+        interval: "MONTHLY",
+        limitUsd: 150,
+      },
+    });
+    const updatedKeyLimit = await prisma.gatewaySpendLimit.findFirstOrThrow({
+      where: { apiKeyId: memberKey.id },
+    });
+    expect(updatedKeyLimit.alertThresholds).toEqual([85, 95, 100]);
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {

@@ -45,10 +45,7 @@ import {
   requireGatewayAdmin,
   requireGatewayInvoke,
 } from "./gatewayAccess";
-import {
-  DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
-  GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
-} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
+import { GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
 import {
   GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
@@ -101,10 +98,11 @@ const gatewaySpendLimitAlertThresholdInput = z.union([
 const gatewaySpendLimitInput = z.object({
   interval: z.enum(GatewaySpendLimitInterval),
   limitUsd: z.number().positive().max(GATEWAY_SPEND_BUDGET_MAX_USD),
+  // Omitted by older clients: updates preserve stored thresholds, creates default to [100].
   alertThresholds: z
     .array(gatewaySpendLimitAlertThresholdInput)
-    .default([...DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS])
-    .transform(normalizeGatewaySpendBudgetAlertThresholds),
+    .transform(normalizeGatewaySpendBudgetAlertThresholds)
+    .optional(),
 });
 const gatewaySpendLimitScopeInput = z.enum(["API_KEY", "USER"]);
 /** The keys or users a budget change applies to, at most one table page. */

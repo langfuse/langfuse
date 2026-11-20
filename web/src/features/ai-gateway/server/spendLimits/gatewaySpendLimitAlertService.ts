@@ -35,10 +35,17 @@ const ALERT_TYPE_BY_THRESHOLD: Record<
   100: GatewaySpendLimitAlertType.EXCEEDED,
 };
 
-type GatewaySpendLimitEmail = Extract<
+type GatewaySpendLimitReachedEmail = Extract<
   NotificationEventType,
   { type: "AI_GATEWAY_SPEND_LIMIT_REACHED" }
 >;
+type GatewaySpendLimitAlertEmail = Extract<
+  NotificationEventType,
+  { type: "AI_GATEWAY_SPEND_LIMIT_ALERT" }
+>;
+type GatewaySpendLimitEmail =
+  | GatewaySpendLimitReachedEmail
+  | GatewaySpendLimitAlertEmail;
 
 /**
  * Emails whom a limit applies to (the key's owner, or the user of a user
@@ -396,24 +403,45 @@ function toEmailScope(limit: ReportedLimit): GatewaySpendLimitEmail["scope"] {
 
 function toNotificationJob(claimed: ClaimedAlert[], recipient: Recipient) {
   const { limit } = claimed[0]!;
-  const payload: GatewaySpendLimitEmail = {
-    type: "AI_GATEWAY_SPEND_LIMIT_REACHED",
+  const scope = toEmailScope(limit);
+  const needsAlertPayload =
+    scope.type === "ORGANIZATION" ||
+    claimed.some(({ thresholdPercent }) => thresholdPercent < 100);
+  const base = {
     orgId: limit.organization.id,
     orgName: limit.organization.name,
     to: recipient.to,
     receiverName: recipient.name ?? undefined,
     audience: recipient.audience,
-    scope: toEmailScope(limit),
-    limits: claimed.map(({ limit, alert, thresholdPercent }) => ({
-      interval: limit.interval,
-      limitUsd: limit.limitUsd.toNumber(),
-      thresholdPercent,
-      resetsAt: getGatewaySpendLimitWindowEnd(
-        limit.interval,
-        alert.windowStart,
-      )?.toISOString(),
-    })),
   };
+  const payload: GatewaySpendLimitEmail = needsAlertPayload
+    ? {
+        ...base,
+        type: "AI_GATEWAY_SPEND_LIMIT_ALERT",
+        scope,
+        limits: claimed.map(({ limit, alert, thresholdPercent }) => ({
+          interval: limit.interval,
+          limitUsd: limit.limitUsd.toNumber(),
+          thresholdPercent,
+          resetsAt: getGatewaySpendLimitWindowEnd(
+            limit.interval,
+            alert.windowStart,
+          )?.toISOString(),
+        })),
+      }
+    : {
+        ...base,
+        type: "AI_GATEWAY_SPEND_LIMIT_REACHED",
+        scope,
+        limits: claimed.map(({ limit, alert }) => ({
+          interval: limit.interval,
+          limitUsd: limit.limitUsd.toNumber(),
+          resetsAt: getGatewaySpendLimitWindowEnd(
+            limit.interval,
+            alert.windowStart,
+          )?.toISOString(),
+        })),
+      };
   const alertsHash = createHash("sha256")
     .update(
       claimed

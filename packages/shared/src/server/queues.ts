@@ -346,6 +346,39 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
         name: z.string(),
         email: z.string(),
       }),
+    ]),
+    limits: z
+      .array(
+        z.object({
+          interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
+          limitUsd: z.number(),
+          /** ISO timestamp of the next window; absent for total limits. */
+          resetsAt: z.string().optional(),
+        }),
+      )
+      .min(1),
+  }),
+  /** Spend budget warning (85%/95%) or organization-scope alert email; separate type so an older worker never renders a warning as an exceeded rejection. */
+  z.object({
+    type: z.literal("AI_GATEWAY_SPEND_LIMIT_ALERT"),
+    orgId: z.string(),
+    orgName: z.string(),
+    to: z.string(),
+    receiverName: z.string().optional(),
+    audience: z.enum(["keyOwner", "orgOwner"]),
+    scope: z.discriminatedUnion("type", [
+      z.object({
+        type: z.literal("API_KEY"),
+        apiKeyId: z.string(),
+        name: z.string(),
+        displaySecretKey: z.string(),
+      }),
+      z.object({
+        type: z.literal("USER"),
+        userId: z.string(),
+        name: z.string(),
+        email: z.string(),
+      }),
       z.object({
         type: z.literal("ORGANIZATION"),
       }),
@@ -355,9 +388,7 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
         z.object({
           interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
           limitUsd: z.number(),
-          /** Usage percentage threshold that fired; defaults to 100 for older jobs. */
-          thresholdPercent: z.number().int().min(1).max(100).default(100),
-          /** ISO timestamp of the next window; absent for total limits. */
+          thresholdPercent: z.number().int().min(1).max(100),
           resetsAt: z.string().optional(),
         }),
       )

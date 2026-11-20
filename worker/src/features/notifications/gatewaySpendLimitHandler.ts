@@ -11,10 +11,18 @@ import {
 
 import { env } from "../../env";
 
-type GatewaySpendLimitPayload = Omit<
-  Extract<NotificationEventType, { type: "AI_GATEWAY_SPEND_LIMIT_REACHED" }>,
-  "type"
->;
+type GatewaySpendLimitPayload =
+  | Omit<
+      Extract<
+        NotificationEventType,
+        { type: "AI_GATEWAY_SPEND_LIMIT_REACHED" }
+      >,
+      "type"
+    >
+  | Omit<
+      Extract<NotificationEventType, { type: "AI_GATEWAY_SPEND_LIMIT_ALERT" }>,
+      "type"
+    >;
 
 /**
  * Tells a gateway key's owner or an organization owner which spend limits the
@@ -43,25 +51,26 @@ export async function handleGatewaySpendLimitNotification({
     );
   }
 
+  const emailLimits = limits.map((limit) => ({
+    interval: limit.interval.toLowerCase(),
+    limitUsd: limit.limitUsd,
+    thresholdPercent:
+      "thresholdPercent" in limit ? limit.thresholdPercent : 100,
+    resetsAt: limit.resetsAt
+      ? `${new Date(limit.resetsAt).toLocaleString("en-US", {
+          dateStyle: "medium",
+          timeStyle: "short",
+          timeZone: "UTC",
+        })} UTC`
+      : undefined,
+  }));
+
   const html = await render(
     GatewaySpendLimitEmailTemplate({
       audience,
       orgName,
       scope,
-      limits: limits.map(
-        ({ interval, limitUsd, thresholdPercent, resetsAt }) => ({
-          interval: interval.toLowerCase(),
-          limitUsd,
-          thresholdPercent,
-          resetsAt: resetsAt
-            ? `${new Date(resetsAt).toLocaleString("en-US", {
-                dateStyle: "medium",
-                timeStyle: "short",
-                timeZone: "UTC",
-              })} UTC`
-            : undefined,
-        }),
-      ),
+      limits: emailLimits,
       receiverEmail: to,
       receiverName,
       link: `${baseUrl}/organization/${orgId}/ai-gateway/${scope.type === "API_KEY" ? "api-keys" : "budgets"}`,
@@ -72,7 +81,7 @@ export async function handleGatewaySpendLimitNotification({
   await createMailTransport(env.SMTP_CONNECTION_URL).sendMail({
     to,
     from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
-    subject: getGatewaySpendLimitEmailSubject(scope, orgName, limits),
+    subject: getGatewaySpendLimitEmailSubject(scope, orgName, emailLimits),
     html,
   });
 }

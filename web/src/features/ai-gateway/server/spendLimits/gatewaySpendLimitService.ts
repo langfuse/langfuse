@@ -425,7 +425,7 @@ export class GatewaySpendLimitService {
       ? existing.find((candidate) => candidate.interval === limit.interval)
       : undefined;
     const normalizedThresholds = limit
-      ? resolveAlertThresholds(limit.alertThresholds)
+      ? resolveAlertThresholds(limit.alertThresholds, kept?.alertThresholds)
       : undefined;
     const isUnchanged =
       kept !== undefined &&
@@ -599,7 +599,7 @@ export class GatewaySpendLimitService {
     });
     const kept = existing?.interval === limit?.interval ? existing : null;
     const normalizedThresholds = limit
-      ? resolveAlertThresholds(limit.alertThresholds)
+      ? resolveAlertThresholds(limit.alertThresholds, kept?.alertThresholds)
       : undefined;
     if (
       kept &&
@@ -826,10 +826,9 @@ async function update(
 
 function resolveAlertThresholds(
   thresholds: GatewaySpendBudgetAlertThreshold[] | undefined,
+  fallback: readonly number[] = DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
 ): GatewaySpendBudgetAlertThreshold[] {
-  return normalizeGatewaySpendBudgetAlertThresholds(
-    thresholds ?? DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
-  );
+  return normalizeGatewaySpendBudgetAlertThresholds(thresholds ?? fallback);
 }
 
 /** Deleting stays possible without ingestion, so a limit can always be removed. */
