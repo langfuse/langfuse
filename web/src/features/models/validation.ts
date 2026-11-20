@@ -81,6 +81,7 @@ export type GetModelResult = z.infer<typeof GetModelResultSchema>;
 export const ModelListItemSchema = GetModelResultSchema.extend({
   isOverridden: z.boolean(),
 });
+export type ModelListItem = z.infer<typeof ModelListItemSchema>;
 
 const UpsertModelFieldsSchema = z.object({
   modelId: z.string().nullable(),
