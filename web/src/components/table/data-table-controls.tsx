@@ -67,7 +67,7 @@ import {
 import { Slider } from "@/src/components/ui/Slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
   NumericUIFilter,
@@ -1440,7 +1440,25 @@ function FilterAccordionItem({
                 {help && (
                   <DocPopup description={help.description} href={help.href}>
                     {({ getTriggerProps }) => (
-                      <DocPopupTrigger triggerProps={getTriggerProps()} />
+                      // The accordion trigger is already a button, so the
+                      // help trigger cannot be one too.
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        aria-label="More information"
+                        className="text-muted-foreground inline-flex cursor-help items-center px-1 whitespace-nowrap"
+                        {...getTriggerProps({
+                          onKeyDown: (event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              event.currentTarget.click();
+                            }
+                          },
+                        })}
+                      >
+                        <InfoIcon size="sm" />
+                      </span>
                     )}
                   </DocPopup>
                 )}
