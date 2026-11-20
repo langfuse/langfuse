@@ -699,8 +699,9 @@ describe("isExpectedTrpcClientError", () => {
 
   it("treats BAD_REQUEST on an allowlisted procedure as expected", () => {
     // Each path throws BAD_REQUEST for rejected user input the UI already
-    // explains: a remote-experiment URL, a model or gateway connection, or
-    // an invite for someone who is already a member or already invited.
+    // explains: a remote-experiment URL, a model or gateway connection, an
+    // invite for someone who is already a member or already invited, or a
+    // prompt export over the version limit.
     for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
       expect(
         isExpectedTrpcClientError(
