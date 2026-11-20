@@ -2902,8 +2902,9 @@ exports[`golden: events metadata map and session resolution > getObservationsV2F
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": true,
-      "param3": 51,
+      "param2": "golden-project",
+      "param3": true,
+      "param4": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2916,14 +2917,14 @@ exports[`golden: events metadata map and session resolution > getObservationsV2F
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (((e.parent_span_id = '') OR (e.is_app_root = true)) = {param2:Boolean})
+    AND ((e.project_id = {param2:String}) AND (((e.parent_span_id = '') OR (e.is_app_root = true)) = {param3:Boolean}))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param3:Int32}",
+LIMIT {param4:Int32}",
   },
 ]
 `;
@@ -7538,16 +7539,17 @@ exports[`golden: observations public API filters family > getObservationsCountFr
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "needle",
-      "param3": "golden-trace",
-      "param4": "GENERATION",
-      "param5": "2025-12-01 00:00:00.000",
+      "param2": "golden-project",
+      "param3": "needle",
+      "param4": "golden-trace",
+      "param5": "GENERATION",
+      "param6": "2025-12-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT count(*) AS count
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
-    AND ((position(e.input, {param2:String}) > 0) AND (e.trace_id = {param3:String}) AND (e.type = {param4:String}) AND (e.start_time >= {param5:DateTime64(3, 'UTC')}))",
+    AND ((e.project_id = {param2:String}) AND (position(e.input, {param3:String}) > 0) AND (e.trace_id = {param4:String}) AND (e.type = {param5:String}) AND (e.start_time >= {param6:DateTime64(3, 'UTC')}))",
   },
 ]
 `;
@@ -7558,12 +7560,13 @@ exports[`golden: observations public API filters family > getObservationsFromEve
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "needle",
-      "param3": "golden-trace",
-      "param4": "GENERATION",
-      "param5": "2025-12-01 00:00:00.000",
-      "param6": 50,
+      "param2": "golden-project",
+      "param3": "needle",
+      "param4": "golden-trace",
+      "param5": "GENERATION",
+      "param6": "2025-12-01 00:00:00.000",
       "param7": 50,
+      "param8": 50,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -7618,14 +7621,14 @@ exports[`golden: observations public API filters family > getObservationsFromEve
     ) AS time_to_first_token
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
-    AND ((position(e.input, {param2:String}) > 0) AND (e.trace_id = {param3:String}) AND (e.type = {param4:String}) AND (e.start_time >= {param5:DateTime64(3, 'UTC')}))
+    AND ((e.project_id = {param2:String}) AND (position(e.input, {param3:String}) > 0) AND (e.trace_id = {param4:String}) AND (e.type = {param5:String}) AND (e.start_time >= {param6:DateTime64(3, 'UTC')}))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param6:Int32}, {param7:Int32}",
+LIMIT {param7:Int32}, {param8:Int32}",
   },
 ]
 `;
@@ -7636,10 +7639,11 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
+      "param2": "golden-project",
+      "param3": [
         "golden-tag",
       ],
-      "param3": 51,
+      "param4": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -7652,14 +7656,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (hasAny({param2:Array(String)}, e.tags) = true)
+    AND ((e.project_id = {param2:String}) AND (hasAny({param3:Array(String)}, e.tags) = true))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param3:Int32}",
+LIMIT {param4:Int32}",
   },
 ]
 `;
@@ -7670,8 +7674,9 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": true,
-      "param3": 51,
+      "param2": "golden-project",
+      "param3": true,
+      "param4": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -7684,14 +7689,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND ((e.input != '') = {param2:Boolean})
+    AND ((e.project_id = {param2:String}) AND ((e.input != '') = {param3:Boolean}))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param3:Int32}",
+LIMIT {param4:Int32}",
   },
 ]
 `;
@@ -7702,8 +7707,9 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "2026-01-02 00:00:00.000",
-      "param3": 51,
+      "param2": "golden-project",
+      "param3": "2026-01-02 00:00:00.000",
+      "param4": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -7716,14 +7722,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (e.end_time < {param2:DateTime64(3, 'UTC')})
+    AND ((e.project_id = {param2:String}) AND (e.end_time < {param3:DateTime64(3, 'UTC')}))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param3:Int32}",
+LIMIT {param4:Int32}",
   },
 ]
 `;
@@ -7734,8 +7740,9 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "needle",
-      "param3": 51,
+      "param2": "golden-project",
+      "param3": "needle",
+      "param4": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -7750,7 +7757,142 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.output
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
-    AND ((position(lower(e.input), lower({param2:String})) > 0) AND hasAllTokens(lower(e.input), arraySlice(arrayDistinct(tokens(lower({param2:String}))), 1, 64)))
+    AND ((e.project_id = {param2:String}) AND ((position(lower(e.input), lower({param3:String})) > 0) AND hasAllTokens(lower(e.input), arraySlice(arrayDistinct(tokens(lower({param3:String}))), 1, 64))))
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC,
+    xxHash32(e.trace_id) DESC,
+    e.span_id DESC
+LIMIT {param4:Int32}",
+  },
+]
+`;
+
+exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=metadata numberObject 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-project",
+      "param3": "attempt",
+      "param4": 1,
+      "param5": 51,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND has(e.metadata_names, {param3:String}) AND (toFloat64OrNull(e.metadata_values[indexOf(e.metadata_names, {param3:String})]) > {param4:Float64}))
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC,
+    xxHash32(e.trace_id) DESC,
+    e.span_id DESC
+LIMIT {param5:Int32}",
+  },
+]
+`;
+
+exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=metadata stringObject = (events_core) 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-project",
+      "param3": "env",
+      "param4": "short",
+      "param5": 51,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND has(e.metadata_names, {param3:String}) AND hasAllTokens(e.metadata_values, arraySlice(arrayDistinct(tokens({param4:String})), 1, 64)) AND ((e.metadata_values[indexOf(e.metadata_names, {param3:String})]) = {param4:String}))
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC,
+    xxHash32(e.trace_id) DESC,
+    e.span_id DESC
+LIMIT {param5:Int32}",
+  },
+]
+`;
+
+exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=metadata stringObject contains (events_full) 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-project",
+      "param3": "env",
+      "param4": "%needle%",
+      "param5": "needle",
+      "param6": 51,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time
+FROM events_full AS e
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND has(e.metadata_names, {param3:String}) AND like(arrayStringConcat(e.metadata_values), {param4:String}) AND (position(e.metadata_values[indexOf(e.metadata_names, {param3:String})], {param5:String}) > 0))
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC,
+    xxHash32(e.trace_id) DESC,
+    e.span_id DESC
+LIMIT {param6:Int32}",
+  },
+]
+`;
+
+exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=null 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-project",
+      "param3": 51,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND ((e.parent_span_id = '') OR (e.parent_span_id IS NULL)))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
@@ -7762,21 +7904,14 @@ LIMIT {param3:Int32}",
 ]
 `;
 
-exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=metadata numberObject 1`] = `
-{
-  "error": "InvalidRequestError: Invalid filter type 'numberObject' for column 'metadata'. Expected filter type 'stringObject'.",
-  "queries": [],
-}
-`;
-
-exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=metadata stringObject = (events_core) 1`] = `
+exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=number 1`] = `
 [
   {
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "env",
-      "param3": "short",
+      "param2": "golden-project",
+      "param3": "1.5",
       "param4": 51,
     },
     "route": "unknown",
@@ -7790,7 +7925,7 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (has(e.metadata_names, {param2:String}) AND hasAllTokens(e.metadata_values, arraySlice(arrayDistinct(tokens({param3:String})), 1, 64)) AND ((e.metadata_values[indexOf(e.metadata_names, {param2:String})]) = {param3:String}))
+    AND ((e.project_id = {param2:String}) AND (if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time) / 1000) > {param3:Decimal64(3)}))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
@@ -7802,13 +7937,20 @@ LIMIT {param4:Int32}",
 ]
 `;
 
-exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=metadata stringObject contains (events_full) 1`] = `
+exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=positionInTrace 1`] = `
+{
+  "error": "InvalidRequestError: Filter type 'positionInTrace' is not available on this endpoint.",
+  "queries": [],
+}
+`;
+
+exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=string 1`] = `
 [
   {
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "env",
+      "param2": "golden-project",
       "param3": "%needle%",
       "param4": "needle",
       "param5": 51,
@@ -7822,9 +7964,9 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.parent_span_id AS parent_observation_id,
     e.start_time AS start_time,
     e.end_time AS end_time
-FROM events_full AS e
+FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (has(e.metadata_names, {param2:String}) AND like(arrayStringConcat(e.metadata_values), {param3:String}) AND (position(e.metadata_values[indexOf(e.metadata_names, {param2:String})], {param4:String}) > 0))
+    AND ((e.project_id = {param2:String}) AND ((lower(e.name) LIKE lower({param3:String})) AND (position(e.name, {param4:String}) > 0)))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
@@ -7836,107 +7978,17 @@ LIMIT {param5:Int32}",
 ]
 `;
 
-exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=null 1`] = `
+exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=stringOptions 1`] = `
 [
   {
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": 51,
-    },
-    "route": "unknown",
-    "sql": "SELECT
-    e.span_id AS id,
-    e.trace_id AS trace_id,
-    e.project_id AS project_id,
-    e.type AS type,
-    e.parent_span_id AS parent_observation_id,
-    e.start_time AS start_time,
-    e.end_time AS end_time
-FROM events_core AS e
-WHERE (e.project_id = {param1:String})
-    AND ((e.parent_span_id = '') OR (e.parent_span_id IS NULL))
-ORDER BY
-    e.project_id DESC,
-    toStartOfMinute(e.start_time) DESC,
-    e.start_time DESC,
-    xxHash32(e.trace_id) DESC,
-    e.span_id DESC
-LIMIT {param2:Int32}",
-  },
-]
-`;
-
-exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=number 1`] = `
-[
-  {
-    "fn": "queryClickhouse",
-    "params": {
-      "param1": "golden-project",
-      "param2": "1.5",
-      "param3": 51,
-    },
-    "route": "unknown",
-    "sql": "SELECT
-    e.span_id AS id,
-    e.trace_id AS trace_id,
-    e.project_id AS project_id,
-    e.type AS type,
-    e.parent_span_id AS parent_observation_id,
-    e.start_time AS start_time,
-    e.end_time AS end_time
-FROM events_core AS e
-WHERE (e.project_id = {param1:String})
-    AND (if(isNull(e.end_time), NULL, dateDiff('millisecond', e.start_time, e.end_time) / 1000) > {param2:Decimal64(3)})
-ORDER BY
-    e.project_id DESC,
-    toStartOfMinute(e.start_time) DESC,
-    e.start_time DESC,
-    xxHash32(e.trace_id) DESC,
-    e.span_id DESC
-LIMIT {param3:Int32}",
-  },
-]
-`;
-
-exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=positionInTrace 1`] = `
-[
-  {
-    "fn": "queryClickhouse",
-    "params": {
-      "param1": "golden-project",
-      "param2": 51,
-    },
-    "route": "unknown",
-    "sql": "SELECT
-    e.span_id AS id,
-    e.trace_id AS trace_id,
-    e.project_id AS project_id,
-    e.type AS type,
-    e.parent_span_id AS parent_observation_id,
-    e.start_time AS start_time,
-    e.end_time AS end_time
-FROM events_core AS e
-WHERE e.project_id = {param1:String}
-ORDER BY
-    e.project_id DESC,
-    toStartOfMinute(e.start_time) DESC,
-    e.start_time DESC,
-    xxHash32(e.trace_id) DESC,
-    e.span_id DESC
-LIMIT {param2:Int32}",
-  },
-]
-`;
-
-exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=string 1`] = `
-[
-  {
-    "fn": "queryClickhouse",
-    "params": {
-      "param1": "golden-project",
-      "param2": "%needle%",
-      "param3": "needle",
+      "param2": "golden-project",
+      "param3": [
+        "GENERATION",
+        "SPAN",
+      ],
       "param4": 51,
     },
     "route": "unknown",
@@ -7950,7 +8002,7 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND ((lower(e.name) LIKE lower({param2:String})) AND (position(e.name, {param3:String}) > 0))
+    AND ((e.project_id = {param2:String}) AND (e.type IN ({param3:Array(String)})))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
@@ -7962,49 +8014,15 @@ LIMIT {param4:Int32}",
 ]
 `;
 
-exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=stringOptions 1`] = `
-[
-  {
-    "fn": "queryClickhouse",
-    "params": {
-      "param1": "golden-project",
-      "param2": [
-        "GENERATION",
-        "SPAN",
-      ],
-      "param3": 51,
-    },
-    "route": "unknown",
-    "sql": "SELECT
-    e.span_id AS id,
-    e.trace_id AS trace_id,
-    e.project_id AS project_id,
-    e.type AS type,
-    e.parent_span_id AS parent_observation_id,
-    e.start_time AS start_time,
-    e.end_time AS end_time
-FROM events_core AS e
-WHERE (e.project_id = {param1:String})
-    AND (e.type IN ({param2:Array(String)}))
-ORDER BY
-    e.project_id DESC,
-    toStartOfMinute(e.start_time) DESC,
-    e.start_time DESC,
-    xxHash32(e.trace_id) DESC,
-    e.span_id DESC
-LIMIT {param3:Int32}",
-  },
-]
-`;
-
 exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi advanced=stringOptions empty 1`] = `
 [
   {
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [],
-      "param3": 51,
+      "param2": "golden-project",
+      "param3": [],
+      "param4": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -8017,14 +8035,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (e.type IN ({param2:Array(String)}))
+    AND ((e.project_id = {param2:String}) AND (e.type IN ({param3:Array(String)})))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param3:Int32}",
+LIMIT {param4:Int32}",
   },
 ]
 `;
@@ -8035,8 +8053,9 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "needle",
-      "param3": 51,
+      "param2": "golden-project",
+      "param3": "needle",
+      "param4": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -8049,14 +8068,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
-    AND (position(e.input, {param2:String}) > 0)
+    AND ((e.project_id = {param2:String}) AND (position(e.input, {param3:String}) > 0))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param3:Int32}",
+LIMIT {param4:Int32}",
   },
 ]
 `;
@@ -8178,9 +8197,10 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "env",
-      "param3": "short",
-      "param4": 51,
+      "param2": "golden-project",
+      "param3": "env",
+      "param4": "short",
+      "param5": 51,
     },
     "route": "unknown",
     "sql": "WITH
@@ -8196,14 +8216,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
             e.end_time AS end_time
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND (has(e.metadata_names, {param2:String}) AND hasAllTokens(e.metadata_values, arraySlice(arrayDistinct(tokens({param3:String})), 1, 64)) AND ((e.metadata_values[indexOf(e.metadata_names, {param2:String})]) = {param3:String}))
+            AND ((e.project_id = {param2:String}) AND has(e.metadata_names, {param3:String}) AND hasAllTokens(e.metadata_values, arraySlice(arrayDistinct(tokens({param4:String})), 1, 64)) AND ((e.metadata_values[indexOf(e.metadata_names, {param3:String})]) = {param4:String}))
         ORDER BY
             e.project_id DESC,
             toStartOfMinute(e.start_time) DESC,
             e.start_time DESC,
             xxHash32(e.trace_id) DESC,
             e.span_id DESC
-        LIMIT {param4:Int32}
+        LIMIT {param5:Int32}
     ),
     io AS
     (
@@ -8255,10 +8275,11 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "env",
-      "param3": "%needle%",
-      "param4": "needle",
-      "param5": 51,
+      "param2": "golden-project",
+      "param3": "env",
+      "param4": "%needle%",
+      "param5": "needle",
+      "param6": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -8272,14 +8293,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata
 FROM events_full AS e
 WHERE (e.project_id = {param1:String})
-    AND (has(e.metadata_names, {param2:String}) AND like(arrayStringConcat(e.metadata_values), {param3:String}) AND (position(e.metadata_values[indexOf(e.metadata_names, {param2:String})], {param4:String}) > 0))
+    AND ((e.project_id = {param2:String}) AND has(e.metadata_names, {param3:String}) AND like(arrayStringConcat(e.metadata_values), {param4:String}) AND (position(e.metadata_values[indexOf(e.metadata_names, {param3:String})], {param5:String}) > 0))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param5:Int32}",
+LIMIT {param6:Int32}",
   },
 ]
 `;
@@ -8290,13 +8311,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [
+      "param2": "golden-project",
+      "param3": [
         "golden-span",
       ],
-      "param3": "golden-trace",
-      "param4": "2025-12-01 00:00:00.000",
-      "param5": "2026-01-02 00:00:00.000",
-      "param6": 2,
+      "param4": "golden-trace",
+      "param5": "2025-12-01 00:00:00.000",
+      "param6": "2026-01-02 00:00:00.000",
+      "param7": 2,
     },
     "route": "unknown",
     "sql": "WITH
@@ -8322,14 +8344,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
             e.end_time AS end_time
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND ((e.span_id IN ({param2:Array(String)})) AND (e.trace_id = {param3:String}) AND (e.start_time >= {param4:DateTime64(3, 'UTC')}) AND (e.start_time < {param5:DateTime64(3, 'UTC')}))
+            AND ((e.project_id = {param2:String}) AND (e.span_id IN ({param3:Array(String)})) AND (e.trace_id = {param4:String}) AND (e.start_time >= {param5:DateTime64(3, 'UTC')}) AND (e.start_time < {param6:DateTime64(3, 'UTC')}))
         ORDER BY
             e.project_id DESC,
             toStartOfMinute(e.start_time) DESC,
             e.start_time DESC,
             xxHash32(e.trace_id) DESC,
             e.span_id DESC
-        LIMIT {param6:Int32}
+        LIMIT {param7:Int32}
     ),
     io AS
     (
@@ -8393,40 +8415,8 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "golden-session-advanced",
-      "param3": 51,
-    },
-    "route": "unknown",
-    "sql": "SELECT
-    e.span_id AS id,
-    e.trace_id AS trace_id,
-    e.project_id AS project_id,
-    e.type AS type,
-    e.parent_span_id AS parent_observation_id,
-    e.start_time AS start_time,
-    e.end_time AS end_time
-FROM events_core AS e
-WHERE (e.project_id = {param1:String})
-    AND ((lower(e.session_id) = lower({param2:String})) AND (e.session_id = {param2:String}))
-ORDER BY
-    e.project_id DESC,
-    toStartOfMinute(e.start_time) DESC,
-    e.start_time DESC,
-    xxHash32(e.trace_id) DESC,
-    e.span_id DESC
-LIMIT {param3:Int32}",
-  },
-]
-`;
-
-exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi precedence=startTime-overrides-from+to 1`] = `
-[
-  {
-    "fn": "queryClickhouse",
-    "params": {
-      "param1": "golden-project",
-      "param2": "2026-01-01 00:00:00.000",
-      "param3": "2026-01-02 00:00:00.000",
+      "param2": "golden-project",
+      "param3": "golden-session-advanced",
       "param4": 51,
     },
     "route": "unknown",
@@ -8440,7 +8430,7 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND ((e.start_time >= {param2:DateTime64(3, 'UTC')}) AND (e.start_time < {param3:DateTime64(3, 'UTC')}))
+    AND ((e.project_id = {param2:String}) AND ((lower(e.session_id) = lower({param3:String})) AND (e.session_id = {param3:String})))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
@@ -8448,6 +8438,40 @@ ORDER BY
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
 LIMIT {param4:Int32}",
+  },
+]
+`;
+
+exports[`golden: observations public API filters family > getObservationsV2FromEventsTableForPublicApi precedence=startTime-overrides-from+to 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "golden-project",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": 51,
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.span_id AS id,
+    e.trace_id AS trace_id,
+    e.project_id AS project_id,
+    e.type AS type,
+    e.parent_span_id AS parent_observation_id,
+    e.start_time AS start_time,
+    e.end_time AS end_time
+FROM events_core AS e
+WHERE (e.project_id = {param1:String})
+    AND ((e.project_id = {param2:String}) AND (e.start_time >= {param3:DateTime64(3, 'UTC')}) AND (e.start_time < {param4:DateTime64(3, 'UTC')}))
+ORDER BY
+    e.project_id DESC,
+    toStartOfMinute(e.start_time) DESC,
+    e.start_time DESC,
+    xxHash32(e.trace_id) DESC,
+    e.span_id DESC
+LIMIT {param5:Int32}",
   },
 ]
 `;
@@ -8486,21 +8510,22 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-02 00:00:00.000",
-      "param11": "golden-version",
-      "param12": [
+      "param10": "2025-12-01 00:00:00.000",
+      "param11": "2026-01-02 00:00:00.000",
+      "param12": "golden-version",
+      "param13": [
         "production",
         "staging",
       ],
-      "param13": 51,
-      "param2": "golden-user",
-      "param3": "golden-session",
-      "param4": "golden-trace",
-      "param5": "golden-name",
-      "param6": "ERROR",
-      "param7": "GENERATION",
-      "param8": "golden-span",
-      "param9": "2025-12-01 00:00:00.000",
+      "param14": 51,
+      "param2": "golden-project",
+      "param3": "golden-user",
+      "param4": "golden-session",
+      "param5": "golden-trace",
+      "param6": "golden-name",
+      "param7": "ERROR",
+      "param8": "GENERATION",
+      "param9": "golden-span",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -8513,14 +8538,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (((lower(e.user_id) = lower({param2:String})) AND (e.user_id = {param2:String})) AND ((lower(e.session_id) = lower({param3:String})) AND (e.session_id = {param3:String})) AND (e.trace_id = {param4:String}) AND ((lower(e.name) = lower({param5:String})) AND (e.name = {param5:String})) AND (e.level = {param6:String}) AND (e.type = {param7:String}) AND (e.parent_span_id = {param8:String}) AND (e.start_time >= {param9:DateTime64(3, 'UTC')}) AND (e.start_time < {param10:DateTime64(3, 'UTC')}) AND (e.version = {param11:String}) AND (e.environment IN ({param12:Array(String)})))
+    AND ((e.project_id = {param2:String}) AND ((lower(e.user_id) = lower({param3:String})) AND (e.user_id = {param3:String})) AND ((lower(e.session_id) = lower({param4:String})) AND (e.session_id = {param4:String})) AND (e.trace_id = {param5:String}) AND ((lower(e.name) = lower({param6:String})) AND (e.name = {param6:String})) AND (e.level = {param7:String}) AND (e.type = {param8:String}) AND (e.parent_span_id = {param9:String}) AND (e.start_time >= {param10:DateTime64(3, 'UTC')}) AND (e.start_time < {param11:DateTime64(3, 'UTC')}) AND (e.version = {param12:String}) AND (e.environment IN ({param13:Array(String)})))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param13:Int32}",
+LIMIT {param14:Int32}",
   },
 ]
 `;
@@ -8531,8 +8556,9 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": [],
-      "param3": 51,
+      "param2": "golden-project",
+      "param3": [],
+      "param4": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -8545,14 +8571,14 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (e.environment IN ({param2:Array(String)}))
+    AND ((e.project_id = {param2:String}) AND (e.environment IN ({param3:Array(String)})))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param3:Int32}",
+LIMIT {param4:Int32}",
   },
 ]
 `;
@@ -8563,7 +8589,7 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param2": "",
+      "param2": "golden-project",
       "param3": 51,
     },
     "route": "unknown",
@@ -8577,7 +8603,7 @@ exports[`golden: observations public API filters family > getObservationsV2FromE
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (e.parent_span_id = {param2:String})
+    AND ((e.project_id = {param2:String}) AND ((e.parent_span_id = '') OR (e.parent_span_id IS NULL)))
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
@@ -8595,14 +8621,15 @@ exports[`golden: observations public API filters family > getObservationsV2PageF
     "fn": "queryClickhouseWithProgress",
     "params": {
       "param1": "golden-project",
-      "param2": "2025-12-30 00:00:00.000",
-      "param3": "2026-01-02 00:00:00.000",
-      "param4": "2025-12-30 00:00:00.000",
-      "param5": "2026-01-01 00:00:00.000",
+      "param10": 51,
+      "param2": "golden-project",
+      "param3": "2025-12-30 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": "2025-12-30 00:00:00.000",
       "param6": "2026-01-01 00:00:00.000",
-      "param7": "golden-trace",
-      "param8": "golden-span",
-      "param9": 51,
+      "param7": "2026-01-01 00:00:00.000",
+      "param8": "golden-trace",
+      "param9": "golden-span",
     },
     "route": "unknown",
     "sql": "WITH
@@ -8618,18 +8645,18 @@ exports[`golden: observations public API filters family > getObservationsV2PageF
             e.end_time AS end_time
         FROM events_core AS e
         WHERE (e.project_id = {param1:String})
-            AND ((e.start_time >= {param2:DateTime64(3, 'UTC')}) AND (e.start_time <= {param3:DateTime64(3, 'UTC')}))
-            AND (e.start_time >= {param4:DateTime64(3, 'UTC')})
-            AND (e.start_time <= {param5:DateTime64(3, 'UTC')})
-            AND (e.start_time <= {param6:DateTime64(6)})
-            AND ((e.start_time, xxHash32(e.trace_id), e.span_id) < ({param6:DateTime64(6)}, xxHash32({param7:String}), {param8:String}))
+            AND ((e.project_id = {param2:String}) AND (e.start_time >= {param3:DateTime64(3, 'UTC')}) AND (e.start_time <= {param4:DateTime64(3, 'UTC')}))
+            AND (e.start_time >= {param5:DateTime64(3, 'UTC')})
+            AND (e.start_time <= {param6:DateTime64(3, 'UTC')})
+            AND (e.start_time <= {param7:DateTime64(6)})
+            AND ((e.start_time, xxHash32(e.trace_id), e.span_id) < ({param7:DateTime64(6)}, xxHash32({param8:String}), {param9:String}))
         ORDER BY
             e.project_id DESC,
             toStartOfMinute(e.start_time) DESC,
             e.start_time DESC,
             xxHash32(e.trace_id) DESC,
             e.span_id DESC
-        LIMIT {param9:Int32}
+        LIMIT {param10:Int32}
     ),
     io AS
     (
@@ -8683,11 +8710,12 @@ exports[`golden: observations public API filters family > getObservationsV2PageF
     "fn": "queryClickhouseWithProgress",
     "params": {
       "param1": "golden-project",
-      "param2": "2025-12-23 00:00:00.000",
-      "param3": "2026-01-02 00:00:00.000",
-      "param4": "2025-12-26 00:00:00.000",
-      "param5": "2026-01-02 00:00:00.000",
-      "param6": 51,
+      "param2": "golden-project",
+      "param3": "2025-12-23 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": "2025-12-26 00:00:00.000",
+      "param6": "2026-01-02 00:00:00.000",
+      "param7": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -8700,26 +8728,27 @@ exports[`golden: observations public API filters family > getObservationsV2PageF
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND ((e.start_time >= {param2:DateTime64(3, 'UTC')}) AND (e.start_time < {param3:DateTime64(3, 'UTC')}))
-    AND (e.start_time >= {param4:DateTime64(3, 'UTC')})
-    AND (e.start_time <= {param5:DateTime64(3, 'UTC')})
+    AND ((e.project_id = {param2:String}) AND (e.start_time >= {param3:DateTime64(3, 'UTC')}) AND (e.start_time < {param4:DateTime64(3, 'UTC')}))
+    AND (e.start_time >= {param5:DateTime64(3, 'UTC')})
+    AND (e.start_time <= {param6:DateTime64(3, 'UTC')})
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param6:Int32}",
+LIMIT {param7:Int32}",
   },
   {
     "fn": "queryClickhouseWithProgress",
     "params": {
       "param1": "golden-project",
-      "param2": "2025-12-23 00:00:00.000",
-      "param3": "2026-01-02 00:00:00.000",
-      "param4": "2025-12-23 00:00:00.000",
-      "param5": "2025-12-26 00:00:00.000",
-      "param6": 51,
+      "param2": "golden-project",
+      "param3": "2025-12-23 00:00:00.000",
+      "param4": "2026-01-02 00:00:00.000",
+      "param5": "2025-12-23 00:00:00.000",
+      "param6": "2025-12-26 00:00:00.000",
+      "param7": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -8732,16 +8761,16 @@ LIMIT {param6:Int32}",
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND ((e.start_time >= {param2:DateTime64(3, 'UTC')}) AND (e.start_time < {param3:DateTime64(3, 'UTC')}))
-    AND (e.start_time >= {param4:DateTime64(3, 'UTC')})
-    AND (e.start_time < {param5:DateTime64(3, 'UTC')})
+    AND ((e.project_id = {param2:String}) AND (e.start_time >= {param3:DateTime64(3, 'UTC')}) AND (e.start_time < {param4:DateTime64(3, 'UTC')}))
+    AND (e.start_time >= {param5:DateTime64(3, 'UTC')})
+    AND (e.start_time < {param6:DateTime64(3, 'UTC')})
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param6:Int32}",
+LIMIT {param7:Int32}",
   },
 ]
 `;
@@ -8752,9 +8781,10 @@ exports[`golden: observations public API filters family > getObservationsV2PageF
     "fn": "queryClickhouseWithProgress",
     "params": {
       "param1": "golden-project",
-      "param2": "2025-12-30 00:00:00.000",
+      "param2": "golden-project",
       "param3": "2025-12-30 00:00:00.000",
-      "param4": 51,
+      "param4": "2025-12-30 00:00:00.000",
+      "param5": 51,
     },
     "route": "unknown",
     "sql": "SELECT
@@ -8767,15 +8797,15 @@ exports[`golden: observations public API filters family > getObservationsV2PageF
     e.end_time AS end_time
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
-    AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+    AND ((e.project_id = {param2:String}) AND (e.start_time >= {param3:DateTime64(3, 'UTC')}))
+    AND (e.start_time >= {param4:DateTime64(3, 'UTC')})
 ORDER BY
     e.project_id DESC,
     toStartOfMinute(e.start_time) DESC,
     e.start_time DESC,
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
-LIMIT {param4:Int32}",
+LIMIT {param5:Int32}",
   },
 ]
 `;

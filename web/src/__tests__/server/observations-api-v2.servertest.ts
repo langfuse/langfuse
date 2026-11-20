@@ -910,6 +910,63 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(matchedObs?.name).toBe("nested-metadata-obs-1");
     });
 
+    it("filters metadata by numeric comparison with numberObject", async () => {
+      const traceId = randomUUID();
+      const timeValue = Date.now() * 1000;
+      const attempts = { "20": randomUUID(), "20.0": randomUUID() };
+      const belowId = randomUUID();
+      const nonNumericId = randomUUID();
+      const event = (id: string, attempt: string, offset: number) =>
+        createEvent({
+          id,
+          span_id: id,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `attempt-${attempt}`,
+          type: "SPAN",
+          level: "DEFAULT",
+          start_time: timeValue + offset * 1000,
+          metadata_names: ["attempt"],
+          metadata_values: [attempt],
+        });
+
+      await createEventsCh([
+        event(attempts["20"], "20", 0),
+        event(attempts["20.0"], "20.0", 1),
+        event(belowId, "3", 2),
+        event(nonNumericId, "many", 3),
+      ]);
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            params: { projectId, traceId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(4);
+        },
+        5000,
+        10,
+      );
+
+      const filterParam = JSON.stringify([
+        {
+          type: "numberObject",
+          column: "metadata",
+          key: "attempt",
+          operator: ">",
+          value: 10,
+        },
+      ]);
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.map((obs) => obs.id).sort()).toEqual(
+        Object.values(attempts).sort(),
+      );
+    });
+
     it("supports indexed literal matches filters for IO and metadata", async () => {
       const traceId = randomUUID();
       const timestamp = new Date();
