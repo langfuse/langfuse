@@ -37,7 +37,7 @@ import {
 } from "../topic-trace-filters";
 import { type useTopicTraceFilters } from "../useTopicTraceFilters";
 import { useTopicResultsTraceSuggestions } from "../useTopicTraceFilter";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { ScatterMap } from "./ScatterMap";
 
 /** The scatter above one-line topic rows, with the selected topic's traces beside them. */
@@ -214,14 +214,12 @@ export function ScatterTopicsView({
               <>
                 {traceFieldMatchesError && (
                   <div className="p-2">
-                    <Alert variant="destructive" size="sm">
-                      <Alert.Description>
-                        <p className="break-words">
-                          Matching dots could not load:{" "}
-                          {traceFieldMatchesError.message}
-                        </p>
-                      </Alert.Description>
-                    </Alert>
+                    <Banner variant="error">
+                      <p className="break-words">
+                        Matching dots could not load:{" "}
+                        {traceFieldMatchesError.message}
+                      </p>
+                    </Banner>
                   </div>
                 )}
                 <div className="flex min-h-0 flex-1 flex-col">

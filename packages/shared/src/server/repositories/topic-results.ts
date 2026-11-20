@@ -307,7 +307,7 @@ const READ_OPTIONS = {
     cancel_http_readonly_queries_on_client_close: 1,
   },
 } as const;
-const TRACE_FILTER_TIMEOUT_SECONDS = 20;
+const TRACE_FILTER_TIMEOUT_SECONDS = 10;
 // A trace filter scans events, so its resolve reads stay off the primary with bounded CPU.
 const TRACE_FILTER_READ_OPTIONS = {
   preferredClickhouseService: "EventsReadOnly",
