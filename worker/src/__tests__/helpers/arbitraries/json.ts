@@ -20,16 +20,20 @@ export const jsonKeyArbitrary = fc.oneof(
 export function recursiveJsonArbitrary(
   depth: number,
   maxWidth: number,
+  numbers: Arbitrary<number> = fc.double({
+    noNaN: true,
+    noDefaultInfinity: true,
+  }),
 ): Arbitrary<Json> {
   const leaf = fc.oneof(
     { withCrossShrink: true },
     fc.constant(null),
     fc.boolean(),
-    fc.double({ noNaN: true, noDefaultInfinity: true }),
+    numbers,
     fc.string({ maxLength: 24, unit: "grapheme" }),
   ) as Arbitrary<Json>;
   if (depth === 0) return leaf;
-  const child = recursiveJsonArbitrary(depth - 1, maxWidth);
+  const child = recursiveJsonArbitrary(depth - 1, maxWidth, numbers);
 
   return fc.oneof(
     { withCrossShrink: true },

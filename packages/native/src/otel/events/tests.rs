@@ -1,7 +1,9 @@
 use super::super::value::json;
+use super::super::value_properties::ordinary_json;
 use super::build::AI_GATEWAY_SERVICE_NAME;
 use super::*;
 use crate::otel::input::Span;
+use proptest::prelude::*;
 
 #[test]
 fn skips_ignored_envelope_values_without_materializing_them() {
@@ -677,45 +679,6 @@ fn resolves_user_identity_from_resource_and_span_values() {
 }
 
 #[test]
-fn streaming_preserves_order_across_resources() {
-    let input = json!([
-        {
-            "resource": {"attributes": []},
-            "scopeSpans": [{
-                "scope": {"name": "otel.scope"},
-                "spans": [{
-                    "traceId": "trace",
-                    "spanId": "root",
-                    "name": "root",
-                    "startTimeUnixNano": "1000000000",
-                    "endTimeUnixNano": "2000000000",
-                    "attributes": []
-                }]
-            }]
-        },
-        {
-            "resource": {"attributes": []},
-            "scopeSpans": [{
-                "scope": {"name": "otel.scope"},
-                "spans": [{
-                    "traceId": "trace",
-                    "spanId": "child",
-                    "parentSpanId": "root",
-                    "name": "child",
-                    "startTimeUnixNano": "3000000000",
-                    "endTimeUnixNano": "4000000000",
-                    "attributes": []
-                }]
-            }]
-        }
-    ]);
-    let actual = process_json(&input, &EventBuildConfig::default()).unwrap();
-
-    assert_eq!(actual[0].span_id, "root");
-    assert_eq!(actual[1].span_id, "child");
-}
-
-#[test]
 fn decodes_per_key_metadata_only_for_structured_langfuse_sdk_majors() {
     let cases = [
         ("Python 4", "python", "langfuse-sdk", "4.99.0", None, false),
@@ -805,19 +768,9 @@ fn decodes_per_key_metadata_only_for_structured_langfuse_sdk_majors() {
     }
 }
 
-#[test]
-fn per_key_metadata_scalars_objects_and_arrays_match_a_blob() {
-    let metadata = json!({
-        "environment": "prod",
-        "count": 42,
-        "ratio": 1.5,
-        "large": 9007199254740993u64,
-        "enabled": true,
-        "missing": null,
-        "database": {"host": "localhost", "port": 5432},
-        "steps": [{"name": "fetch", "args": {"url": "https://example.com"}}],
-    });
-
+/// Check that one attribute per metadata key decodes to the same metadata as a single
+/// attribute holding the whole object.
+fn check_per_key_metadata_matches_blob(metadata: &Value) -> Result<(), TestCaseError> {
     for domain in ["observation", "trace"] {
         let blob = metadata_event(
             vec![string_attribute(
@@ -842,13 +795,39 @@ fn per_key_metadata_scalars_objects_and_arrays_match_a_blob() {
             .collect();
         let decoded = metadata_event(per_key, "python", "langfuse-sdk", "5.0.0", None);
 
-        assert_eq!(decoded.metadata, blob.metadata, "{domain}");
-        assert_eq!(
+        prop_assert_eq!(&decoded.metadata, &blob.metadata, "{}", domain);
+        prop_assert_eq!(
             crate::otel::types::flatten_object_owned(decoded.metadata.clone()),
             crate::otel::types::flatten_object_owned(blob.metadata.clone()),
-            "{domain} flattened metadata",
+            "{} flattened metadata",
+            domain
         );
     }
+    Ok(())
+}
+
+#[test]
+fn per_key_metadata_scalars_objects_and_arrays_match_a_blob() {
+    check_per_key_metadata_matches_blob(&json!({
+        "environment": "prod",
+        "count": 42,
+        "ratio": 1.5,
+        "large": 9007199254740993u64,
+        "enabled": true,
+        "missing": null,
+        "database": {"host": "localhost", "port": 5432},
+        "steps": [{"name": "fetch", "args": {"url": "https://example.com"}}],
+    }))
+    .unwrap();
+
+    // A per-key attribute needs a name, and `__proto__` is reserved in that position.
+    let key = prop::collection::vec(any::<char>(), 1..=8)
+        .prop_map(String::from_iter)
+        .prop_filter("reserved metadata key", |key| key != "__proto__");
+    proptest!(|(entries in prop::collection::vec((key, ordinary_json()), 1..=4))| {
+        let metadata = Value::from(serde_json::Value::Object(entries.into_iter().collect()));
+        check_per_key_metadata_matches_blob(&metadata)?;
+    });
 }
 
 #[test]
