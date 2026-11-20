@@ -310,7 +310,9 @@ type CandidateRow = {
  * Picks candidates from the table that can satisfy the filter: assignments
  * when the filter needs an assignment (or rows are assignments), otherwise
  * summaries. Ordering by the summaries' hour key prefix lets ClickHouse read in
- * order and stop after one batch, instead of scanning the whole window.
+ * order and stop after one batch, instead of scanning the whole window. Assignment
+ * candidates cannot, as run and topic precede the hour; they sort the published
+ * runs' rows, which nightly refits keep to about a day of online placements.
  */
 function candidateQuery(
   input: ListInput & { kind: "summaries" | "assignments" },
