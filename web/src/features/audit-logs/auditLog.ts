@@ -70,6 +70,7 @@ type AuditableResource =
   | "gatewayAiConnection"
   | "gatewaySpendLimit"
   | "topicConfig"
+  | "group"
   | "supportAccess"
   // legacy resources
   | "membership";

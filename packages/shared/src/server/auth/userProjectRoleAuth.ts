@@ -1,23 +1,15 @@
-import { prisma, Prisma, Role, ProjectMembership } from "../../db";
+import { prisma, Prisma, Role } from "../../db";
 import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { usersTableCols } from "../../tableDefinitions/usersTable";
 import { hasProjectAccessByRole } from "../../features/rbac/projectAccessRights";
 
-export function resolveProjectRole({
-  projectId,
-  projectMemberships,
-  orgMembershipRole,
-}: {
-  projectId: string;
-  projectMemberships: ProjectMembership[];
-  orgMembershipRole: Role;
-}): Role {
-  return (
-    projectMemberships.find((membership) => membership.projectId === projectId)
-      ?.role ?? orgMembershipRole
-  );
-}
+export {
+  resolveOrganizationScopes,
+  resolveProjectRole,
+  resolveProjectScopes,
+  type GroupRoleGrant,
+} from "../../features/rbac/effectiveAccess";
 
 /**
  * Generates a SQL query to fetch users with their project roles, respecting role hierarchy.

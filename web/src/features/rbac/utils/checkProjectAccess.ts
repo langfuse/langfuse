@@ -1,5 +1,4 @@
 import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
-import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
@@ -60,12 +59,14 @@ export const useHasProjectAccess = (p: {
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   if (isDemoProjectLlmRestricted(p)) return false;
 
-  const projectRole: Role | undefined = p.session?.user?.organizations
+  const project = p.session?.user?.organizations
     .flatMap((org) => org.projects)
-    .find((project) => project.id === p.projectId)?.role;
-  if (projectRole === undefined) return false;
+    .find((project) => project.id === p.projectId);
+  if (!project) return false;
 
-  return projectRoleAccessRights[projectRole].includes(p.scope);
+  return (project.scopes ?? projectRoleAccessRights[project.role]).includes(
+    p.scope,
+  );
 }
 
 /** isDemoProjectLlmRestricted reports whether scope is an LLM operation on the demo project the user may not run outside the internal view. */

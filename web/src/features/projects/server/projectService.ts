@@ -10,7 +10,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { deleteProjectMemberships } from "@langfuse/shared/memberships";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
-import { transferApiKeyRoles } from "@langfuse/shared/rbac/server";
+import {
+  revokeGroupRoles,
+  transferApiKeyRoles,
+} from "@langfuse/shared/rbac/server";
 import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
@@ -96,6 +99,7 @@ export class ProjectService {
         data: { orgId: targetOrganizationId },
       });
       await deleteProjectMemberships(tx, { projectId });
+      await revokeGroupRoles(tx, { ownerId: ProjectId(projectId) });
       await transferApiKeyRoles(tx, {
         ownerId: ProjectId(projectId),
         newTenantId: OrganizationId(targetOrganizationId),

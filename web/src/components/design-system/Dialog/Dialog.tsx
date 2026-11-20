@@ -58,6 +58,7 @@ type DialogProps = {
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
   title: string;
+  description?: React.ReactNode;
 } & (
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
@@ -78,6 +79,7 @@ function DialogRoot({
   size,
   text,
   title,
+  description,
 }: DialogProps) {
   const container = useLayerContainer("modal");
   const [popoverContainer, setPopoverContainer] =
@@ -108,7 +110,7 @@ function DialogRoot({
         onClick={(event) => event.stopPropagation()}
       />
       <DialogPrimitive.Content
-        aria-describedby={undefined}
+        {...(description === undefined && { "aria-describedby": undefined })}
         className={cn(
           motionStyles.content,
           dialogContentVariants({ size }),
@@ -185,6 +187,11 @@ function DialogRoot({
                 </DialogPrimitive.Close>
               )}
             </div>
+            {description !== undefined && (
+              <DialogPrimitive.Description className="text-sm leading-relaxed">
+                {description}
+              </DialogPrimitive.Description>
+            )}
           </header>
           <PopoverLayerProvider container={popoverContainer}>
             {text !== undefined ? <DialogBody>{text}</DialogBody> : children}
@@ -267,16 +274,20 @@ function DialogRoot({
 function DialogBody({
   children,
   separators = "none",
+  spacing = "default",
 }: {
   children: React.ReactNode;
   /** Separates the scrolling body from the header and footer with borders. */
   separators?: "none" | "both";
+  /** "compact" starts the body right under the header, for short forms. */
+  spacing?: "default" | "compact";
 }) {
   return (
     <div
       className={cn(
         "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed",
         separators === "both" && "border-y",
+        spacing === "compact" && separators === "none" && "pt-0",
       )}
     >
       {children}

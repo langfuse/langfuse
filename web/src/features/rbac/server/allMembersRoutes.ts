@@ -18,6 +18,7 @@ import {
   escapeSqlLikePattern,
   formatAuthProviderName,
 } from "@langfuse/shared/src/server";
+import { groupRoleGrants } from "@langfuse/shared/rbac";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
@@ -96,6 +97,21 @@ async function getMembers(
             },
           },
         },
+        // or access through a group
+        {
+          groupMemberships: {
+            some: {
+              group: {
+                roleAssignments: {
+                  some: {
+                    OR: [{ projectId: null }, { projectId }],
+                    systemRole: { notIn: rolesWithoutProjectRead },
+                  },
+                },
+              },
+            },
+          },
+        },
       ],
     });
   }
@@ -147,6 +163,27 @@ async function getMembers(
           },
         },
       },
+      groupMemberships: {
+        select: {
+          group: {
+            select: {
+              id: true,
+              displayName: true,
+              source: true,
+              _count: { select: { members: true } },
+              roleAssignments: {
+                where: {
+                  OR: [
+                    { projectId: null },
+                    ...(projectId ? [{ projectId }] : []),
+                  ],
+                },
+                select: { projectId: true, systemRole: true },
+              },
+            },
+          },
+        },
+      },
     },
     orderBy: {
       user: {
@@ -178,8 +215,19 @@ async function getMembers(
       : [];
 
   return {
-    memberships: orgMemberships.map((om) => ({
+    memberships: orgMemberships.map(({ groupMemberships, ...om }) => ({
       ...om,
+      groupRoles: groupRoleGrants(
+        groupMemberships.map(({ group }) => group),
+      ).map(({ group, projectId, role }) => ({
+        groupId: group.id,
+        groupName: group.displayName,
+        groupSource: group.source,
+        memberCount: group._count.members,
+        role,
+        level:
+          projectId === null ? ("organization" as const) : ("project" as const),
+      })),
       user: {
         ...om.user,
         accounts: om.user.accounts.map((account) => ({
