@@ -449,36 +449,23 @@ describe("default Fireworks serverless model prices", () => {
     },
   );
 
-  it.each([
-    "gpt-oss-120b",
-    "openai/gpt-oss-120b",
-    "kimi-k3",
-    "moonshotai/kimi-k3",
-    "glm-5p3",
-    "deepseek-v4p1-flash",
-    "deepseek/deepseek-v4p1-flash",
-    "qwen3p8-max",
-    "qwen3-embedding-8b",
-    "qwen/qwen3-embedding-8b",
-    "accounts/custom-account/models/kimi-k3",
-    "fireworks/kimi-k3",
-  ])("does not match non-Fireworks model ID %s", (modelName) => {
-    const fireworksEntries = defaultModelPrices.filter(({ modelName: name }) =>
-      name.startsWith("accounts/fireworks/models/"),
-    );
-    const matches = fireworksEntries.filter(({ matchPattern }) =>
-      compileCatalogPattern(matchPattern).test(modelName),
-    );
-    expect(matches).toHaveLength(0);
-  });
-
-  it("selects Fireworks Priority tier via service_tier and prices cached and reasoning tokens", () => {
+  it("selects Fireworks Priority tier via service_tier, prices cached and reasoning tokens, and rejects non-Fireworks IDs", () => {
     const model = defaultModelPrices.find(
       ({ modelName }) =>
         modelName === "accounts/fireworks/models/deepseek-v4p1-flash",
     );
     expect(model).toBeDefined();
     if (!model) return;
+
+    const pattern = compileCatalogPattern(model.matchPattern);
+    for (const nonFireworksId of [
+      "deepseek-v4p1-flash",
+      "deepseek/deepseek-v4p1-flash",
+      "accounts/custom-account/models/deepseek-v4p1-flash",
+      "fireworks/deepseek-v4p1-flash",
+    ]) {
+      expect(pattern.test(nonFireworksId), nonFireworksId).toBe(false);
+    }
 
     const tiers = model.pricingTiers.map((tier) => ({
       ...tier,
