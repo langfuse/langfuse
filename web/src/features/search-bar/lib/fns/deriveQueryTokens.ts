@@ -185,6 +185,7 @@ function valueCollection(
     label: `${subject} ${relation} ${segment.values.length} values`,
     previewLabel: subject,
     previewDetail: `${relation.charAt(0).toUpperCase()}${relation.slice(1)} ${segment.values.length} values`,
+    selection: relation === "none of" ? "excluded" : "included",
     values: segment.values,
     compact,
     groups,

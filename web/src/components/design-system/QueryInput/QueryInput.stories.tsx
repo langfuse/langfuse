@@ -679,6 +679,7 @@ function collectionArgs(
           label: `Status any of ${values.length} values`,
           previewLabel: "Status",
           previewDetail: `Any of ${values.length} values`,
+          selection: "included",
           values,
           groups: [
             {

@@ -95,6 +95,8 @@ export function QueryTokens({
       previewLabel: string;
       /** Preview subtitle, e.g. "Any of 6 values". */
       previewDetail: string;
+      /** Whether `values` are the kept set or the excluded set. */
+      selection: "included" | "excluded";
       values: readonly string[];
       compact: boolean;
     };
