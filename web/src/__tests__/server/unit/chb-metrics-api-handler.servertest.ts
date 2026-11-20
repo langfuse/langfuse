@@ -197,7 +197,7 @@ describe("chbMetricsApiHandler", () => {
     });
   });
 
-  it("rejects a window wider than 35 days with 400", async () => {
+  it("rejects a window wider than 24 hours with 400", async () => {
     // Guards against unbounded ledger scans.
     const response = await chbMetricsApiHandler(
       createRequest({
@@ -208,7 +208,25 @@ describe("chbMetricsApiHandler", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
-      message: "Requested window exceeds the 35 day maximum",
+      message: "Requested window exceeds the 24 hour maximum",
+    });
+    expect(mocks.ledgerCounts).not.toHaveBeenCalled();
+  });
+
+  it("rejects a window that ends in the future with 400", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-07-01T00:10:00Z"));
+
+    const response = await chbMetricsApiHandler(
+      createRequest({
+        startTime: "2026-07-01T00:00:00Z",
+        endTime: "2026-07-01T00:15:00Z",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      message: "endTime must not be in the future",
     });
     expect(mocks.ledgerCounts).not.toHaveBeenCalled();
   });

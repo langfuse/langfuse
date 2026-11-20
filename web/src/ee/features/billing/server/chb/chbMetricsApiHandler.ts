@@ -29,9 +29,9 @@ import {
  * failures.
  */
 
-// Reject windows above 35 days: keeps a misbehaving caller from issuing
-// unbounded ledger scans; CHB polls short trailing windows.
-const MAX_WINDOW_MS = 35 * 24 * 60 * 60 * 1000;
+// Reject windows above 24 hours: the ledger read holds every unit of the
+// window in memory. CHB polls windows of at most an hour.
+const MAX_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const METRIC_BY_EVENT_TYPE = {
   trace: "traces",
@@ -125,15 +125,22 @@ export async function chbMetricsApiHandler(req: NextRequest) {
   }
   if (end.getTime() - start.getTime() > MAX_WINDOW_MS) {
     return NextResponse.json(
-      { message: "Requested window exceeds the 35 day maximum" },
+      { message: "Requested window exceeds the 24 hour maximum" },
+      { status: 400 },
+    );
+  }
+  const now = Date.now();
+  if (end.getTime() > now) {
+    return NextResponse.json(
+      { message: "endTime must not be in the future" },
       { status: 400 },
     );
   }
   // Rows stamped just before endTime can take a moment to become readable.
-  // Answering early would under-bill the window for good, so ask CHB to retry
-  // once it has settled.
+  // That is a state of our ingestion, not a client error: answering now would
+  // under-bill the window for good, so ask CHB to retry once it has settled.
   const settlesAt = end.getTime() + BILLING_SETTLE_MS;
-  if (settlesAt > Date.now()) {
+  if (settlesAt > now) {
     recordIncrement("langfuse.billing_metrics.unsettled_window", 1, {
       unit: "requests",
     });
@@ -142,7 +149,7 @@ export async function chbMetricsApiHandler(req: NextRequest) {
       {
         status: 503,
         headers: {
-          "Retry-After": String(Math.ceil((settlesAt - Date.now()) / 1000)),
+          "Retry-After": String(Math.ceil((settlesAt - now) / 1000)),
         },
       },
     );
