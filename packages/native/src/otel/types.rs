@@ -14,6 +14,9 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
 use indexmap::IndexMap;
 
 use super::attributes::{for_each_javascript_object_entry_owned, javascript_json_stringify};
+use super::events::{
+    AI_GATEWAY_COST_SOURCE_CALCULATED, AI_GATEWAY_COST_SOURCE_METADATA_KEY, AI_GATEWAY_SERVICE_NAME,
+};
 use super::value::{Object, Value};
 
 /// An owned object map used during normalization.
@@ -120,9 +123,19 @@ impl OwnedEvent {
         row.input = json_storage_string(self.input);
         row.output = json_storage_string(self.output);
         row.model_parameters = json_storage_string(self.model_parameters);
+        let gateway_calculated_cost = row.service_name.as_deref() == Some(AI_GATEWAY_SERVICE_NAME)
+            && self
+                .metadata
+                .get(AI_GATEWAY_COST_SOURCE_METADATA_KEY)
+                .and_then(Value::as_str)
+                == Some(AI_GATEWAY_COST_SOURCE_CALCULATED);
         (row.metadata_names, row.metadata_values) = flatten_object_owned(self.metadata);
         row.provided_usage_details = storage_map(self.provided_usage_details);
-        row.provided_cost_details = storage_map(self.provided_cost_details);
+        row.provided_cost_details = if gateway_calculated_cost {
+            BTreeMap::new()
+        } else {
+            storage_map(self.provided_cost_details)
+        };
         row.prompt_id = enrichment.prompt_id;
         row.model_id = enrichment.model_id;
         row.usage_details = storage_map(enrichment.usage_details);

@@ -29,9 +29,12 @@ use super::EventBuildConfig;
 use crate::native_schema::OtelStorageRow;
 
 const INTERNAL_LLM_JUDGE_ENVIRONMENT: &str = "langfuse-llm-as-a-judge";
-pub(super) const AI_GATEWAY_SERVICE_NAME: &str = "langfuse-ai-gateway";
+pub(in crate::otel) const AI_GATEWAY_SERVICE_NAME: &str = "langfuse-ai-gateway";
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX: &str = "gateway:";
 const AI_GATEWAY_KEY_ID_METADATA_KEY: &str = "langfuse.gateway.api_key.id";
+pub(in crate::otel) const AI_GATEWAY_COST_SOURCE_METADATA_KEY: &str =
+    "langfuse.gateway.cost.source";
+pub(in crate::otel) const AI_GATEWAY_COST_SOURCE_CALCULATED: &str = "calculated";
 
 pub(super) fn build_event(
     span: Span,

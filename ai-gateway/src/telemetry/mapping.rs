@@ -10,11 +10,13 @@ use crate::{
 };
 
 const USER_ID_ATTRIBUTE: &str = "user.id";
+const GATEWAY_COST_SOURCE_METADATA_KEY: &str = "langfuse.gateway.cost.source";
+const GATEWAY_COST_SOURCE_CALCULATED: &str = "calculated";
 
 pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value {
     let full = facts.metadata.get("ingestion_mode").and_then(Value::as_str) == Some("full");
     let (level, message) = observation_status(&facts);
-    let metadata = observation_metadata(&facts, context);
+    let mut metadata = observation_metadata(&facts, context);
     let observation_type = observation_type(facts.api_format);
     let mut attributes = vec![attribute("langfuse.observation.type", observation_type)];
     attributes.extend(context.attributes.iter().map(|(key, value)| {
@@ -44,13 +46,20 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         ));
     }
     if let Some(usage) = inference.usage_details {
-        attributes.extend(usage_attributes(
+        let usage = usage_attributes(
             facts.api_format,
             &facts.metadata,
             &usage,
             inference.provider_metadata.as_ref(),
             facts.charged_cost_details.as_ref(),
-        ));
+        );
+        attributes.extend(usage.attributes);
+        if usage.cost_calculated_by_gateway {
+            metadata.insert(
+                GATEWAY_COST_SOURCE_METADATA_KEY.into(),
+                json!(GATEWAY_COST_SOURCE_CALCULATED),
+            );
+        }
     }
     if full {
         if let Some(input) = inference.input {
@@ -419,13 +428,18 @@ fn observation_type(api_format: ApiFormat) -> &'static str {
     }
 }
 
+struct UsageAttributes {
+    attributes: Vec<Value>,
+    cost_calculated_by_gateway: bool,
+}
+
 fn usage_attributes(
     api_format: ApiFormat,
     metadata: &Value,
     usage: &Value,
     provider_metadata: Option<&Value>,
     charged_cost_details: Option<&crate::spend::UsageCostType>,
-) -> Vec<Value> {
+) -> UsageAttributes {
     let provider = metadata.get("provider").and_then(Value::as_str);
     let usage =
         crate::providers::usage::provider_usage(api_format, provider, usage, provider_metadata);
@@ -435,12 +449,19 @@ fn usage_attributes(
             details.to_json().to_string(),
         )
     });
-    let cost_details = usage
-        .provided_cost_details
-        .as_ref()
-        .or(charged_cost_details)
+    let (cost_details, cost_calculated_by_gateway) = match usage.provided_cost_details.as_ref() {
+        Some(cost) => (Some(cost), false),
+        None => match charged_cost_details.filter(|cost| !cost.is_empty()) {
+            Some(cost) => (Some(cost), true),
+            None => (None, false),
+        },
+    };
+    let cost_details = cost_details
         .map(|cost| attribute("langfuse.observation.cost_details", json!(cost).to_string()));
-    usage_details.into_iter().chain(cost_details).collect()
+    UsageAttributes {
+        attributes: usage_details.into_iter().chain(cost_details).collect(),
+        cost_calculated_by_gateway,
+    }
 }
 
 #[cfg(test)]
@@ -1031,24 +1052,32 @@ mod tests {
 
     #[test]
     fn a_spend_limited_key_s_charge_becomes_the_generation_cost() {
-        let cost_details = |provider: &str, usage: Value| {
+        let cost_and_source = |provider: &str, usage: Value| {
             let mut facts = facts();
             facts.metadata["provider"] = json!(provider);
             facts.inference.usage_details = Some(usage);
             facts.charged_cost_details =
                 Some([("input".into(), 0.1), ("total".into(), 0.1)].into());
-            attributes(&span(facts, &context()))
+            let attrs = attributes(&span(facts, &context()));
+            let cost = attrs
                 .get("langfuse.observation.cost_details")
-                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
+                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap());
+            let source = metadata(&attrs)
+                .get("langfuse.gateway.cost.source")
+                .cloned();
+            (cost, source)
         };
         assert_eq!(
-            cost_details("openai", json!({"input_tokens": 20})),
-            Some(json!({"input": 0.1, "total": 0.1}))
+            cost_and_source("openai", json!({"input_tokens": 20})),
+            (
+                Some(json!({"input": 0.1, "total": 0.1})),
+                Some(json!("calculated")),
+            )
         );
         // The provider's own cost wins, as it does when the charge is priced.
         assert_eq!(
-            cost_details("openrouter", json!({"input_tokens": 20, "cost": 0.25})),
-            Some(json!({"total": 0.25}))
+            cost_and_source("openrouter", json!({"input_tokens": 20, "cost": 0.25})),
+            (Some(json!({"total": 0.25})), None)
         );
     }
 

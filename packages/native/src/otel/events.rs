@@ -8,6 +8,9 @@
 mod build;
 
 use build::build_event;
+pub(super) use build::{
+    AI_GATEWAY_COST_SOURCE_CALCULATED, AI_GATEWAY_COST_SOURCE_METADATA_KEY, AI_GATEWAY_SERVICE_NAME,
+};
 
 use super::value::{Object, Value};
 use serde::de::{SeqAccess, Visitor};

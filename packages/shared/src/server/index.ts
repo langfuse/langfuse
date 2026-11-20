@@ -950,6 +950,8 @@ export { isExecutionIssue } from "./transcript/context";
 export type { ExecutionIssue } from "./transcript/types";
 export type { TranscriptContext } from "./transcript/types";
 export { getTracingCountsByProjectInCreationIntervalFromEventsTable } from "./repositories/events";
+export { AI_GATEWAY_COST_SOURCE_CALCULATED } from "./otel/OtelIngestionProcessor";
+export { AI_GATEWAY_COST_SOURCE_METADATA_KEY } from "./otel/OtelIngestionProcessor";
 export { AI_GATEWAY_KEY_ID_METADATA_KEY } from "./otel/OtelIngestionProcessor";
 export { aiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";
 export { isAiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";
