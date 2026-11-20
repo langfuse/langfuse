@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     unit_start_time DateTime64(3, 'UTC'),
     trigger_type LowCardinality(String),
     execution_id String DEFAULT '',
-    processing_state Enum8('complete' = 2, 'not_applicable' = 3, 'insufficient_input' = 4),
+    processing_state Enum8('not_applicable' = 1, 'insufficient_input' = 2, 'complete' = 3),
     summary String CODEC(ZSTD(3)),
     embedding Array(BFloat16),
     transcript_id String,
