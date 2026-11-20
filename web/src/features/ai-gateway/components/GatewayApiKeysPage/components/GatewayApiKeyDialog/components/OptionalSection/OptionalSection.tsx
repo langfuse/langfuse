@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { X } from "@langfuse/icons";
+import { Trash2 } from "@langfuse/icons";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 
@@ -20,7 +20,7 @@ export function OptionalSection({ remove, children }: OptionalSectionProps) {
       {remove ? (
         <div className="absolute top-1.5 right-1.5">
           <IconButton
-            icon={X}
+            icon={Trash2}
             label={remove.label}
             size="sm"
             onClick={remove.onRemove}
