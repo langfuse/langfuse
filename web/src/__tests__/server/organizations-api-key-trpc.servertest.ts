@@ -177,6 +177,13 @@ describe("organization API keys trpc", () => {
         createdBy: UserId("user-1"),
         name: "Gateway key",
       });
+      const legacyGatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Legacy gateway key",
+      });
       const ingestKey = await createApiKey(prisma, {
         tenant: OrganizationId(organizationId),
         scope: OrganizationId(organizationId),
@@ -191,6 +198,7 @@ describe("organization API keys trpc", () => {
       const ids = apiKeys.map((key) => key.id);
 
       expect(ids).not.toContain(gatewayKey.id);
+      expect(ids).not.toContain(legacyGatewayKey.id);
       expect(ids).toContain(ingestKey.id);
 
       const allApiKeys = await ownerCaller.organizationApiKeys.byOrganizationId(
@@ -199,6 +207,7 @@ describe("organization API keys trpc", () => {
       const allIds = allApiKeys.map((key) => key.id);
 
       expect(allIds).toContain(gatewayKey.id);
+      expect(allIds).toContain(legacyGatewayKey.id);
       expect(allIds).toContain(ingestKey.id);
     });
 
@@ -409,24 +418,26 @@ describe("organization API keys trpc", () => {
     });
 
     it("rejects a blank name for a gateway key but not for other keys", async () => {
-      const gatewayKey = await createApiKey(prisma, {
-        tenant: OrganizationId(organizationId),
-        scope: OrganizationId(organizationId),
-        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
-        createdBy: UserId("user-1"),
-        name: "Named gateway key",
-      });
+      for (const role of ["AI_GATEWAY_INFERENCE", "AI_GATEWAY"] as const) {
+        const gatewayKey = await createApiKey(prisma, {
+          tenant: OrganizationId(organizationId),
+          scope: OrganizationId(organizationId),
+          role: SystemRoleId(role),
+          createdBy: UserId("user-1"),
+          name: `Named ${role} key`,
+        });
 
-      await expect(
-        ownerCaller.organizationApiKeys.updateName({
-          orgId: organizationId,
-          keyId: gatewayKey.id,
-          name: "  ",
-        }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-      await expect(
-        prisma.apiKey.findUniqueOrThrow({ where: { id: gatewayKey.id } }),
-      ).resolves.toMatchObject({ note: "Named gateway key" });
+        await expect(
+          ownerCaller.organizationApiKeys.updateName({
+            orgId: organizationId,
+            keyId: gatewayKey.id,
+            name: "  ",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+        await expect(
+          prisma.apiKey.findUniqueOrThrow({ where: { id: gatewayKey.id } }),
+        ).resolves.toMatchObject({ note: `Named ${role} key` });
+      }
 
       const otherKey = await ownerCaller.organizationApiKeys.create({
         orgId: organizationId,
