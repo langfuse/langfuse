@@ -10,15 +10,21 @@ export type BillableEventType =
 const BILLING_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * How long rows stamped with an `ingested_at` before a given moment can take
+ * to become readable: the async insert flush that stamps them commits a moment
+ * later. Counting a window before its end has settled under-bills it.
+ */
+export const BILLING_SETTLE_MS = 60 * 1000;
+
+/**
  * Counts the billable units per project and event type ingested in
  * `[windowFrom, windowTo)` of `billable_events.ingested_at`. Each unit counts
  * once per window, and not at all if its id was also ingested in the 24 hours
  * before `windowFrom`. A re-sent or long-running trace is therefore billed once
  * as long as it never goes 24 hours without new data.
  *
- * `billable_events` is never deleted from, so a closed window always
- * recomputes to the same counts. A window still receives inserts until a few
- * minutes after `windowTo`; counting it earlier under-bills.
+ * `billable_events` is never deleted from, so a window that has settled (see
+ * `BILLING_SETTLE_MS`) always recomputes to the same counts.
  *
  * The table is created by ClickHouse migration `0057_create_billable_events`
  * and holds only usage ingested after that migration ran.

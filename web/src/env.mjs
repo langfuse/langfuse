@@ -562,11 +562,6 @@ export const env = createEnv({
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
-    // Compares each GET /api/billing/metrics poll with the billable_events
-    // ledger and reports the gap. Keep in sync with worker/src/env.ts.
-    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
     // ARN of CHB's cross-account EventBridge bus we publish project lifecycle
     // events to. Unset = no events are emitted. The ARN carries the bus region,
     // so it is the only input needed; authentication is SigV4 from the task
@@ -1339,8 +1334,6 @@ export const env = createEnv({
     LANGFUSE_CLOUD_COUPON_CODES: process.env.LANGFUSE_CLOUD_COUPON_CODES,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
-    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED:
-      process.env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
     CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,

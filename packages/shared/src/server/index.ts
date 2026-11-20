@@ -746,7 +746,10 @@ export { getAuditLogResourceRefs } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForUserId } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
-export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
+export {
+  BILLING_SETTLE_MS,
+  getBillableUnitCountsByProjectInWindow,
+} from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
 export {
   getTopicSetupTraceBounds,
