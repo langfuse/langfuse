@@ -16,6 +16,7 @@
 
 - App shell/providers: `src/pages/_app.tsx`
 - tRPC context/procedures: `src/server/api/trpc.ts`
+- tRPC HTTP handler: `src/pages/api/trpc/[trpc].ts` sets `x-build-id`, `x-request-id`, and `x-dd-trace-id` on every response (one HTTP call, batched or single). The client copies the safe ids onto tRPC Sentry events.
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`

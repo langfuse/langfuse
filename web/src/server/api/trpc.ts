@@ -147,7 +147,9 @@ const t = trpcBuilder.create({
         ...shape.data,
         // OTEL trace id of the failing request, for frontend/support correlation
         // with Datadog. Absent when OTEL is not running or the trace was not
-        // sampled (an unsampled id never reaches the tracing backend).
+        // sampled (an unsampled id never reaches the tracing backend). The
+        // HTTP handler also sends this id as `x-dd-trace-id` so a response
+        // whose body is not JSON can still be correlated.
         traceId: getActiveTraceId(),
         zodError:
           error.cause instanceof ZodError ? z.flattenError(error.cause) : null,

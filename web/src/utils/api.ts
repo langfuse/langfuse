@@ -30,6 +30,10 @@ import { versionUpdateStore } from "@/src/features/version-update/versionUpdateS
 import { type AppRouter } from "@/src/server/api/root";
 import { reportError } from "@/src/utils/reportError";
 import { setUpSuperjson } from "@/src/utils/superjson";
+import {
+  annotateTrpcParseError,
+  trpcCorrelationTags,
+} from "@/src/utils/trpcCorrelation";
 import { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
@@ -281,6 +285,8 @@ const REQUEST_TOO_LARGE_STATUSES = [414, 431];
  *  - when a JSON body still fails to parse, replaces the engine error with
  *    {@link TrpcNonJsonResponseError} so status and classification do not
  *    depend on which browser threw.
+ * Both `httpLink` and `httpBatchLink` drop `meta.response` when `res.json()`
+ * throws, so the safe correlation headers are copied onto that error.
  * Exported for tests.
  */
 export const fetchWithParseErrorStatus: typeof fetch = async (input, init) => {
@@ -288,13 +294,19 @@ export const fetchWithParseErrorStatus: typeof fetch = async (input, init) => {
   const originalJson = response.json.bind(response);
   response.json = async () => {
     if (!shouldParseResponseAsJson(response.headers.get("content-type"))) {
-      throw new TrpcNonJsonResponseError(response.status);
+      throw annotateTrpcParseError(
+        new TrpcNonJsonResponseError(response.status),
+        response,
+      );
     }
     try {
       return await originalJson();
     } catch (error) {
       if (isResponseJsonParseFailure(error)) {
-        throw new TrpcNonJsonResponseError(response.status, error);
+        throw annotateTrpcParseError(
+          new TrpcNonJsonResponseError(response.status, error),
+          response,
+        );
       }
       throw error;
     }
@@ -499,6 +511,7 @@ const handleTrpcError = (
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
+    const correlationTags = trpcCorrelationTags(error);
 
     // Version mismatch UX is owned by VersionUpdateBanner (fed by
     // buildIdLink / versionUpdateStore). 400/404 here are real API errors.
@@ -518,6 +531,7 @@ const handleTrpcError = (
           code: getTrpcErrorCode(error),
           path: getTrpcErrorPath(error),
           httpStatus,
+          ...correlationTags,
         },
       });
     } else if (isTrpcResponseParseError(error)) {
@@ -533,6 +547,7 @@ const handleTrpcError = (
           message: error.message,
           status: getResponseStatus(error),
           path: getTrpcErrorPath(error),
+          ...correlationTags,
         },
       });
     } else {
@@ -554,6 +569,7 @@ const handleTrpcError = (
           ...(nonJsonStatus !== undefined
             ? { "http.status": String(nonJsonStatus) }
             : {}),
+          ...correlationTags,
         },
       });
     }
