@@ -10,6 +10,7 @@ import { type RowHeight } from "@/src/components/table/data-table-row-height-swi
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type GetModelResult } from "@/src/features/models/validation";
 import {
   type ModelMaintainer,
@@ -23,6 +24,8 @@ export type ModelTableRow = {
   matchPattern: string;
   /** Owned by the page's owner; other definitions can only be cloned. */
   editable: boolean;
+  /** A higher-precedence scope defines the same name. */
+  isOverridden: boolean;
   serverResponse: GetModelResult;
 };
 
@@ -34,7 +37,9 @@ const modelConfigDescriptions = {
   startDate:
     "Date to start pricing model. If not set, model is active unless a more recent version exists.",
   maintainer:
-    "Maintainer of the model. Langfuse and organization managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse or organization managed model, set the custom model name to its model name.",
+    "Where the model is defined. Project models take precedence over organization models, which take precedence over Langfuse defaults. Clone a model to override it with the same name.",
+  overridden:
+    "A higher-precedence model with the same name applies instead. Best effort: generations match by pattern, not by name.",
   lastUsed: "Start time of the latest generation using this model",
 } as const;
 
@@ -47,6 +52,7 @@ export function ModelDefinitionsTable({
   lastUsed,
   toolbarActions,
   modelActions,
+  cloneLabel,
   onRowClick,
 }: {
   data: TableProps<ModelTableRow>["data"];
@@ -54,7 +60,8 @@ export function ModelDefinitionsTable({
   search: { value: string; onChange: (value: string) => void };
   rowHeight: RowHeight;
   onRowHeightChange: (height: RowHeight) => void;
-  lastUsed?: Record<string, Date>;
+  /** Omit to hide the column; pass "loading" while it is fetched. */
+  lastUsed?: Record<string, Date> | "loading";
   toolbarActions?: TableCardProps<ModelTableRow>["toolbarActions"];
   modelActions: {
     canEdit: boolean;
@@ -62,20 +69,44 @@ export function ModelDefinitionsTable({
     onEdit: (model: ModelTableRow) => void;
     onDelete: (model: ModelTableRow) => void;
   };
+  /** Clone targets the page's owner, e.g. "Clone to project". */
+  cloneLabel: string;
   onRowClick: (model: ModelTableRow) => void;
 }) {
   const columns: LangfuseColumnDef<ModelTableRow>[] = [
-    createTextTableColumn<ModelTableRow>({
+    {
       accessorKey: "modelName",
+      id: "modelName",
       header: "Model Name",
       headerTooltip: {
         description: modelConfigDescriptions.modelName,
       },
       size: 120,
-    }),
+      cell: ({ row }) =>
+        row.original.isOverridden ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <span
+              className="text-muted-foreground truncate"
+              title={row.original.modelName}
+            >
+              {row.original.modelName}
+            </span>
+            <Badge
+              size="sm"
+              color="filled"
+              text="Overridden"
+              title={modelConfigDescriptions.overridden}
+            />
+          </span>
+        ) : (
+          <span className="truncate" title={row.original.modelName}>
+            {row.original.modelName}
+          </span>
+        ),
+    },
     createBadgeTableColumn<ModelTableRow>({
       accessorKey: "maintainer",
-      header: "Maintainer",
+      header: "Scope",
       headerTooltip: {
         description: modelConfigDescriptions.maintainer,
       },
@@ -94,21 +125,25 @@ export function ModelDefinitionsTable({
       header: "Match Pattern",
       size: 200,
     }),
-    createDateTableColumn<ModelTableRow>({
-      accessorFn: () => undefined,
-      id: "lastUsed",
-      header: "Last used",
-      emptyValue: "-",
-      headerTooltip: {
-        description: modelConfigDescriptions.lastUsed,
-      },
-      enableHiding: true,
-      size: 120,
-      getValue: (_, { row }) => {
-        if (!lastUsed) return { type: "loading" };
-        return lastUsed[row.original.modelId];
-      },
-    }),
+    ...(lastUsed === undefined
+      ? []
+      : [
+          createDateTableColumn<ModelTableRow>({
+            accessorFn: () => undefined,
+            id: "lastUsed",
+            header: "Last used",
+            emptyValue: "-",
+            headerTooltip: {
+              description: modelConfigDescriptions.lastUsed,
+            },
+            enableHiding: true,
+            size: 120,
+            getValue: (_, { row }) => {
+              if (lastUsed === "loading") return { type: "loading" };
+              return lastUsed[row.original.modelId];
+            },
+          }),
+        ]),
   ];
 
   return (
@@ -121,7 +156,7 @@ export function ModelDefinitionsTable({
               {
                 id: "clone",
                 type: "item",
-                title: "Clone model",
+                title: cloneLabel,
                 icon: Copy,
                 disabled: modelActions.canEdit
                   ? undefined

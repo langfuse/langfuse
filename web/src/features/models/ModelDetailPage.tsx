@@ -24,6 +24,8 @@ import {
   useCanEditModels,
 } from "@/src/features/models/modelOwner";
 import { useModelDefinition } from "@/src/features/models/hooks/useModelDefinitionApi";
+import { OrganizationModelsNotice } from "@/src/features/models/components/OrganizationModelsNotice/OrganizationModelsNotice";
+import { useOrganizationModelsNotice } from "@/src/features/models/hooks/useOrganizationModelsNotice";
 import { default as Generations } from "@/src/features/tracing-tables/observations/ObservationsTable";
 import Page from "@/src/components/layouts/Page";
 import { SquareArrowOutUpRight, Info as InfoIcon } from "@langfuse/icons";
@@ -61,6 +63,9 @@ export function ModelDetailPage({ owner }: { owner: ModelOwner }) {
       : `/organization/${owner.organizationId}/settings`;
 
   const { data: model, isLoading } = useModelDefinition(owner, modelId);
+  const organizationNotice = useOrganizationModelsNotice(
+    owner.scope === "project" ? owner.projectId : null,
+  );
 
   // Get default tier or first tier by priority
   const defaultTier = useMemo(() => {
@@ -153,6 +158,11 @@ export function ModelDetailPage({ owner }: { owner: ModelOwner }) {
       }}
     >
       <div className="grid grid-cols-2 gap-6 p-2">
+        {organizationNotice && model.scope === "ORGANIZATION" ? (
+          <div className="col-span-2">
+            <OrganizationModelsNotice {...organizationNotice} />
+          </div>
+        ) : null}
         <Card>
           <CardHeader>
             <CardTitle>Model configuration</CardTitle>
@@ -167,7 +177,7 @@ export function ModelDetailPage({ owner }: { owner: ModelOwner }) {
 
             <div>
               <div className="text-muted-foreground text-sm font-bold">
-                Maintained by
+                Scope
               </div>
               <div className="mt-1 text-sm">
                 {modelMaintainerByScope[model.scope]}

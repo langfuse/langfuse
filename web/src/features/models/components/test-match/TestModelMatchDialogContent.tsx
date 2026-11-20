@@ -83,6 +83,9 @@ export function TestModelMatchDialogContent({
           <DialogDescription className="mt-1">
             Test which model and pricing tier your ingestion data would match
             against.
+            {owner.scope === "organization"
+              ? " A project model can still take precedence in individual projects."
+              : null}
           </DialogDescription>
         </DialogHeader>
 
