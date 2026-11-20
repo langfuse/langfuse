@@ -67,8 +67,8 @@ import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
 import { eventsDispatchQueueProcessor } from "./queues/eventsDispatchQueue";
-import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
-import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
+import { TraceDispatcher } from "./features/traceDispatch/traceDispatcher";
+import { TraceDispatchMetricsRunner } from "./features/traceDispatch/TraceDispatchMetricsRunner";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -163,10 +163,10 @@ const eventsDispatchConsumerEnabled =
   isEventsDispatchEnabled() &&
   env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true";
 
-export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
+export let traceDispatcher: TraceDispatcher | null = null;
 if (eventsDispatchConsumerEnabled) {
-  traceBatchDispatcher = new TraceBatchDispatcher();
-  traceBatchDispatcher.start();
+  traceDispatcher = new TraceDispatcher();
+  traceDispatcher.start();
 }
 
 // Consumed only on worker-cpu; Topics jobs it enqueues run on the main worker.
@@ -178,10 +178,10 @@ if (eventsDispatchConsumerEnabled) {
   );
 }
 
-export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
+export let traceDispatchMetricsRunner: TraceDispatchMetricsRunner | null = null;
 if (eventsDispatchConsumerEnabled) {
-  traceBatchMetricsRunner = new TraceBatchMetricsRunner();
-  traceBatchMetricsRunner.start();
+  traceDispatchMetricsRunner = new TraceDispatchMetricsRunner();
+  traceDispatchMetricsRunner.start();
 }
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {

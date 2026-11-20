@@ -22,7 +22,7 @@ import {
   writeTopicSummaries,
   type TopicRuleSetup,
 } from "@langfuse/shared/topics/server";
-import { seedTraceDispatch } from "../traceBatching/traceRuleRecording";
+import { seedTraceDispatch } from "../traceDispatch/traceRuleRecording";
 import { tickTopicRuleSetup } from "./ruleSetup";
 
 // Queue handoffs and model settings are not under test; seeding has its own dispatch test.
@@ -32,7 +32,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   getEnabledTopicsModels: vi.fn(),
   isTopicsProjectEnabled: () => true,
 }));
-vi.mock("../traceBatching/traceRuleRecording", () => ({
+vi.mock("../traceDispatch/traceRuleRecording", () => ({
   seedTraceDispatch: vi.fn(),
 }));
 

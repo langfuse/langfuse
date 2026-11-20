@@ -132,6 +132,7 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_OTEL_DIRECT_IMPLEMENTATION: z.enum(["ts", "rust"]).default("ts"),
   LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -167,16 +168,6 @@ const EnvSchema = z.object({
     .positive()
     .max(1_000)
     .default(120),
-  // Experiment: also records traces without a matching rule, by deterministic trace-ID sample.
-  LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0),
-  // Experiment: read and store every dispatched trace, enqueueing consumers only where rules apply.
-  LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL: z
-    .enum(["true", "false"])
-    .default("false"),
   QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -859,6 +850,17 @@ export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
 const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
+const validateOtelDirectImplementationConfig = (parsed: ParsedEnv): void => {
+  if (
+    parsed.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
+    parsed.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED !== "true"
+  ) {
+    throw new Error(
+      "Rust OTEL processing requires early media extraction to be enabled",
+    );
+  }
+};
+
 const validateV4Flags = (parsed: ParsedEnv): void => {
   const mode = parsed.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   const otel = parsed.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR;
@@ -907,6 +909,7 @@ const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
 const parseEnv = (): ParsedEnv => {
   const source = { ...removeEmptyEnvVariables(process.env) };
   const parsed = EnvSchema.parse(source);
+  validateOtelDirectImplementationConfig(parsed);
   validateV4Flags(parsed);
   validateInAppAgentSandboxConfig(parsed);
   return parsed;

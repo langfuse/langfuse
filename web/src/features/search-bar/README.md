@@ -447,7 +447,7 @@ setters so a commit can change the scope and the phrase together. Views with
 1. **Derive the field registry from the view's FACETS, not its raw columns.** Use
    `fieldRegistryFromColumns(cols, overlay)` — never hand-author a second
    47-entry list; ~70% is mechanical (`type → kind`, `nullable`,
-   `options → observed values`, `unit`). But feed it the columns the _facet
+   `options → observed values`, `unit`). A short static `stringOptions` or `arrayOptions` list with no separate display label is a closed enum: the bar also suggests `field:value` when typed text matches one of those values, before facet options have loaded. But feed it the columns the _facet
    sidebar_ exposes, as `sessionsSearchRegistry.ts` does, not the whole
    `ColumnDefinition[]`. A view's column list also carries internals the sidebar
    deliberately never offers — a duplicate (`usage` = `totalTokens`), a column

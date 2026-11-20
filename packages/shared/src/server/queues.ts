@@ -562,7 +562,7 @@ export enum QueueJobs {
   EventsDispatchJob = "events-dispatch-job",
 }
 
-export const TraceBatchTraceSchema = z.object({
+export const EventsDispatchTraceSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
   minStart: z.number(),
@@ -575,7 +575,7 @@ export const TraceBatchTraceSchema = z.object({
   serializedEventBytes: z.number().nonnegative().optional(),
 });
 
-/** One trace's Topics summaries, from the transcript trace-batch stored for this revision. */
+/** One trace's Topics summaries, from the transcript stored for this revision. */
 export const TopicsTraceEventSchema = z.object({
   projectId: z.string().min(1),
   traceId: z.string().min(1),
@@ -597,7 +597,7 @@ export const EventsDispatchEventSchema = z.object({
   id: z.string(),
   name: z.literal(QueueJobs.EventsDispatchJob),
   payload: z.object({
-    traces: z.array(TraceBatchTraceSchema).min(1),
+    traces: z.array(EventsDispatchTraceSchema).min(1),
     // Set by a snapshot, which enqueues its traces directly instead of through the dispatch maps.
     batchActionId: z.string().min(1).optional(),
   }),

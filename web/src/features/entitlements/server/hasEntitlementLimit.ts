@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   entitlementAccess,
   type EntitlementLimit,
@@ -12,6 +11,16 @@ type HasEntitlementLimitParams = {
   entitlementLimit: EntitlementLimit;
   sessionUser: NonNullable<Session["user"]>;
 } & ({ projectId: string } | { orgId: string });
+
+const hasEntitlementLimitBasedOnPlan = ({
+  plan,
+  entitlementLimit,
+}: {
+  plan: Plan | null;
+  entitlementLimit: EntitlementLimit;
+}) => {
+  return entitlementAccess[plan ?? "oss"].entitlementLimits[entitlementLimit];
+};
 
 /**
  * Get the limit for a specific entitlement based on the session user (to be used server-side).
@@ -32,16 +41,6 @@ export const hasEntitlementLimit = (
     plan,
     entitlementLimit: p.entitlementLimit,
   });
-};
-
-const hasEntitlementLimitBasedOnPlan = ({
-  plan,
-  entitlementLimit,
-}: {
-  plan: Plan | null;
-  entitlementLimit: EntitlementLimit;
-}) => {
-  return entitlementAccess[plan ?? "oss"].entitlementLimits[entitlementLimit];
 };
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;

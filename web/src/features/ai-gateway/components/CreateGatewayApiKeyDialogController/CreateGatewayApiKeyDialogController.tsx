@@ -1,10 +1,10 @@
 import { useState, type ComponentProps, type ReactNode } from "react";
-import { useSession } from "next-auth/react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConnectedGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/ConnectedGatewayApiKeyDialog/ConnectedGatewayApiKeyDialog";
 import { GeneratedKeyDialog } from "@/src/features/ai-gateway/components/CreateGatewayApiKeyDialogController/components/GeneratedKeyDialog/GeneratedKeyDialog";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
+import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
@@ -32,7 +32,7 @@ export function CreateGatewayApiKeyDialogController({
   );
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const session = useSession();
+  const captureBudgetChange = useCaptureGatewayBudgetChange(organizationId);
   const create = api.aiGateway.createApiKey.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-api-keys"),
@@ -50,17 +50,22 @@ export function CreateGatewayApiKeyDialogController({
       });
       capture("ai_gateway:api_key_created", {
         orgId: organizationId,
-        creatorRole:
-          session.data?.user?.organizations.find(
-            (organization) => organization.id === organizationId,
-          )?.role ?? null,
         isServiceAccount: input.issuedAs === "serviceAccount",
         hasMetadata: metadataCount > 0,
         metadataCount,
         hasDescription: input.name.length > 0,
         expiryPreset,
         spendBudgetInterval: input.spendLimit?.interval ?? null,
+        modelPatternCount: input.allowedModels?.length ?? 0,
       });
+      if (input.spendLimit) {
+        captureBudgetChange({
+          surface: "api_key_dialog",
+          scope: "API_KEY",
+          subjectCount: 1,
+          spendLimit: input.spendLimit,
+        });
+      }
       setGeneratedSecretKey(created.secretKey);
       await Promise.all([
         utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId }),

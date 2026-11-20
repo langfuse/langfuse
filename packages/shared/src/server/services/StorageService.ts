@@ -163,7 +163,10 @@ function createS3RequestHandler(
   connectionValidation?: OutboundUrlConnectionValidationOptions,
   s3RequestTimeoutMs?: number,
 ): NodeHttpHandler {
-  const maxSockets = env.LANGFUSE_S3_CONCURRENT_WRITES;
+  const agentOptions = {
+    maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
+    timeout: env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS,
+  };
   const timeout =
     s3RequestTimeoutMs === undefined
       ? {}
@@ -174,14 +177,14 @@ function createS3RequestHandler(
     // httpAgent, which otherwise stays at the SDK default of 50 sockets.
     return new NodeHttpHandler({
       ...timeout,
-      httpAgent: { maxSockets },
-      httpsAgent: { maxSockets },
+      httpAgent: agentOptions,
+      httpsAgent: agentOptions,
     });
   }
 
   const { httpAgent, httpsAgent } = getSecureOutboundHttpAgents(
     connectionValidation,
-    { maxSockets },
+    agentOptions,
   );
 
   return new NodeHttpHandler({

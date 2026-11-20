@@ -3,7 +3,7 @@ import { createMocks } from "node-mocks-http";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import type { Session } from "next-auth";
 
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
@@ -40,9 +40,6 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
   return { ...actual, env: { ...actual.env } };
 });
-
-type SessionUser = NonNullable<Session["user"]>;
-type SessionOrganization = SessionUser["organizations"][number];
 
 const plan: Plan = "cloud:team";
 
@@ -128,41 +125,19 @@ describe("membership role assignments", () => {
       ? [
           {
             id: ownedOrgId,
-            name: ownedOrgId,
             role: Role.OWNER,
+            name: ownedOrgId,
             plan,
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
             aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                name: projectId,
-                role: Role.OWNER,
-                retentionDays: 30,
-                deletedAt: null,
-                metadata: {},
-              },
-            ],
-          } as unknown as SessionOrganization,
+            projects: [{ id: projectId, name: projectId }],
+          },
         ]
       : [];
-    return {
-      expires: "1",
-      user: {
-        id: userId,
-        email: `${userId}@example.com`,
-        name: userId,
-        canCreateOrganizations: true,
-        organizations,
-        featureFlags: testFeatureFlags(),
-      } as SessionUser,
-      environment: {
-        enableExperimentalFeatures: false,
-        selfHostedInstancePlan: plan,
-      },
-    };
+    return createSession({
+      user: { id: userId, email: `${userId}@example.com`, name: userId },
+      organizations,
+      environment: { selfHostedInstancePlan: plan },
+    });
   }
 
   /** callerFor calls tRPC as a user who may own an organization. */
@@ -240,8 +215,10 @@ describe("membership role assignments", () => {
       data: { name: randomUUID(), orgId: org.id },
     });
     const owner = await createUser();
-    await prisma.organizationMembership.create({
-      data: { orgId: org.id, userId: owner.id, role: Role.OWNER },
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: owner.id,
+      role: Role.OWNER,
     });
     orgId = org.id;
     projectId = project.id;
@@ -405,8 +382,10 @@ describe("membership role assignments", () => {
         const otherOrg = await prisma.organization.create({
           data: { name: randomUUID() },
         });
-        const otherMembership = await prisma.organizationMembership.create({
-          data: { orgId: otherOrg.id, userId: user.id, role: Role.VIEWER },
+        const otherMembership = await createOrgMembership(prisma, {
+          orgId: otherOrg.id,
+          userId: user.id,
+          role: Role.VIEWER,
         });
 
         await expect(
@@ -421,9 +400,66 @@ describe("membership role assignments", () => {
         expect(
           await prisma.projectMembership.count({ where: { userId: user.id } }),
         ).toBe(0);
-        expect(await rolesOf(user.id)).toEqual([]);
+        expect(await rolesOf(user.id)).toEqual([org(otherOrg.id, "VIEWER")]);
       },
     );
+
+    it.each([
+      ["saveProjectMembership", saveProjectMembership],
+      ["createProjectMembership", createProjectMembership],
+      ["findOrCreateProjectMembership", findOrCreateProjectMembership],
+    ])(
+      "%s rejects an organization membership in another organization",
+      async (_, writeProjectMembership) => {
+        const user = await createUser();
+        const otherOrg = await prisma.organization.create({
+          data: { name: randomUUID() },
+        });
+        const otherMembership = await createOrgMembership(prisma, {
+          orgId: otherOrg.id,
+          userId: user.id,
+          role: Role.VIEWER,
+        });
+
+        await expect(
+          writeProjectMembership(prisma, {
+            orgId,
+            orgMembershipId: otherMembership.id,
+            projectId,
+            userId: user.id,
+            role: Role.ADMIN,
+          }),
+        ).rejects.toBeInstanceOf(LangfuseNotFoundError);
+        expect(
+          await prisma.projectMembership.count({ where: { userId: user.id } }),
+        ).toBe(0);
+        expect(await rolesOf(user.id)).toEqual([org(otherOrg.id, "VIEWER")]);
+      },
+    );
+
+    it("rejects a membership role change that skips its role assignment", async () => {
+      const user = await createUser();
+      await createOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.VIEWER,
+      });
+
+      await expect(
+        prisma.$executeRaw`
+          UPDATE organization_memberships SET role = 'ADMIN'
+          WHERE org_id = ${orgId} AND user_id = ${user.id}
+        `,
+      ).rejects.toThrow(/do not match membership role ADMIN/);
+      expect(await rolesOf(user.id)).toEqual([org(orgId, "VIEWER")]);
+
+      await updateOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.ADMIN,
+      });
+      expect(await rolesOf(user.id)).toEqual([org(orgId, "ADMIN")]);
+    });
 
     it("saveProjectMembership waits for a concurrent project transfer", async () => {
       const user = await createUser();
@@ -605,8 +641,10 @@ describe("membership role assignments", () => {
       const otherOrg = await prisma.organization.create({
         data: { name: randomUUID() },
       });
-      await prisma.organizationMembership.create({
-        data: { orgId: otherOrg.id, userId: ownerId, role: Role.OWNER },
+      await createOrgMembership(prisma, {
+        orgId: otherOrg.id,
+        userId: ownerId,
+        role: Role.OWNER,
       });
       await callerFor(ownerId, otherOrg.id).members.create({
         orgId: otherOrg.id,
@@ -651,13 +689,12 @@ describe("membership role assignments", () => {
       });
       expect(await rolesOf(user.id)).toEqual([org(orgId, "VIEWER")]);
 
-      await prisma.projectMembership.create({
-        data: {
-          projectId,
-          userId: user.id,
-          role: Role.ADMIN,
-          orgMembershipId: await orgMembershipId(user.id),
-        },
+      await createProjectMembership(prisma, {
+        orgId,
+        projectId,
+        userId: user.id,
+        role: Role.ADMIN,
+        orgMembershipId: await orgMembershipId(user.id),
       });
       await callOrgMemberships("DELETE", authorization, { userId: user.id });
       expect(await rolesOf(user.id)).toEqual([]);

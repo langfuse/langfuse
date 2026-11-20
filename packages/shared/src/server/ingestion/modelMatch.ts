@@ -13,6 +13,7 @@ import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
 import type { PricingTierWithPrices } from "../pricing-tiers/types";
+import { modelScopeRankSql, visibleModelsSql } from "./modelVisibility";
 
 export type ModelMatchProps = {
   projectId: string;
@@ -282,6 +283,7 @@ export async function findModelInPostgres(
       updated_at AS "updatedAt",
       scope,
       project_id AS "projectId",
+      organization_id AS "organizationId",
       model_name AS "modelName",
       match_pattern AS "matchPattern",
       start_date AS "startDate",
@@ -293,12 +295,15 @@ export async function findModelInPostgres(
       tokenizer_config AS "tokenizerConfig"
     FROM
       models
-      WHERE (project_id = ${projectId}
-      OR scope = 'LANGFUSE')
+    WHERE ${visibleModelsSql(projectId)}
     ${modelCondition}
+    -- Scope wins over pattern specificity: any matching project model beats
+    -- any matching organization model, which beats any Langfuse model.
     ORDER BY
-      project_id ASC,
-      start_date DESC NULLS LAST
+      ${modelScopeRankSql()},
+      start_date DESC NULLS LAST,
+      updated_at DESC,
+      id
     LIMIT 1
   `;
 
@@ -372,12 +377,16 @@ const getModelMatchKeyPrefix = () => {
 };
 
 export const redisModelToPrismaModel = (
-  redisModel: Omit<Model, "scope"> & { scope?: Model["scope"] },
+  redisModel: Omit<Model, "scope" | "organizationId"> & {
+    scope?: Model["scope"];
+    organizationId?: Model["organizationId"];
+  },
 ): Model => {
   return {
     ...redisModel,
-    // Entries cached before models had a scope column only ever held project or Langfuse rows.
+    // Entries cached before the scope or organization columns existed only ever held project or Langfuse rows.
     scope: redisModel.scope ?? (redisModel.projectId ? "PROJECT" : "LANGFUSE"),
+    organizationId: redisModel.organizationId ?? null,
     createdAt: new Date(redisModel.createdAt),
     updatedAt: new Date(redisModel.updatedAt),
     inputPrice:
@@ -419,6 +428,45 @@ export async function clearModelCacheForProject(
   } catch (error) {
     logger.error(
       `Error clearing model cache for project ${projectId}: ${error}`,
+    );
+  }
+}
+
+/**
+ * Clears cached matches of every project in the organization. Call after
+ * changing an organization's model definitions.
+ */
+export async function clearModelCacheForOrganization(
+  orgId: string,
+): Promise<void> {
+  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false" || !redis) {
+    return;
+  }
+
+  try {
+    const projects = await prisma.project.findMany({
+      where: { orgId },
+      select: { id: true },
+    });
+    if (projects.length === 0) return;
+
+    // SCAN walks the whole keyspace per pattern, so scan the prefix once
+    // instead of once per project.
+    const projectIds = new Set(projects.map((p) => p.id));
+    const prefix = `${getModelMatchKeyPrefix()}:`;
+    const keys = (await scanKeys(redis, `${prefix}*`)).filter((key) =>
+      projectIds.has(key.slice(prefix.length).split(":")[0]),
+    );
+
+    if (keys.length > 0) {
+      await safeMultiDel(redis, keys);
+      logger.info(
+        `Cleared ${keys.length} model cache entries for organization ${orgId}`,
+      );
+    }
+  } catch (error) {
+    logger.error(
+      `Error clearing model cache for organization ${orgId}: ${error}`,
     );
   }
 }

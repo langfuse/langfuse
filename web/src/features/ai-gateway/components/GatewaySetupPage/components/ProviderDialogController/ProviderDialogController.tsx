@@ -297,6 +297,7 @@ export function ProviderDialogController({
           provider: selectedConnection.provider,
           isRenamed: name.trim() !== selectedConnection.name,
           isCredentialReplaced: Boolean(credential),
+          ...toEndpointUsage(saved),
         });
       } else {
         saved = await create.mutateAsync({
@@ -312,6 +313,7 @@ export function ProviderDialogController({
           surface,
           provider,
           isFirstCredential: existingNames.length === 0,
+          ...toEndpointUsage(saved),
         });
         onAfterCreate?.({ provider });
       }
@@ -572,6 +574,24 @@ export function ProviderDialogController({
       }}
     </DialogController>
   );
+}
+
+/**
+ * Reads the saved connection, as the server drops blank header rows it has no
+ * value for. Azure's endpoint is its resource, not a custom base URL.
+ */
+function toEndpointUsage(
+  connection: Pick<
+    GatewayConnection,
+    "provider" | "baseURL" | "extraHeaderKeys"
+  >,
+) {
+  return {
+    hasCustomBaseUrl:
+      supportsCustomEndpoint(connection.provider) &&
+      Boolean(connection.baseURL),
+    extraHeaderCount: connection.extraHeaderKeys.length,
+  };
 }
 
 function isValidAzureResource({ name, project }: AzureResourceFieldValue) {

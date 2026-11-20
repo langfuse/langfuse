@@ -38,6 +38,7 @@ vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
 }));
 
 import { getAuthOptions } from "@/src/server/auth";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const loginAt = new Date("2026-09-09T12:00:00.000Z").getTime();
 
@@ -54,21 +55,14 @@ const dbUser = {
   organizationMemberships: [],
 };
 
-const baseSession: Session = {
-  expires: "2026-09-23T12:00:00.000Z",
+const baseSession: Session = createSession({
   user: {
-    id: "user-1",
     name: "Test User",
     email: "user@example.com",
-    canCreateOrganizations: true,
-    organizations: [],
     featureFlags: testFeatureFlags({ templateFlag: false }),
   },
-  environment: {
-    enableExperimentalFeatures: false,
-    selfHostedInstancePlan: null,
-  },
-};
+  expires: "2026-09-23T12:00:00.000Z",
+});
 
 async function getCallbacks() {
   const callbacks = (await getAuthOptions()).callbacks;
