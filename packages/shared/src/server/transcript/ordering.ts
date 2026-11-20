@@ -28,7 +28,12 @@ export function orderObservations<T extends TranscriptObservation>(
       byId.has(observation.parentObservationId)
         ? observation.parentObservationId
         : null;
-    children.set(parentId, [...(children.get(parentId) ?? []), observation]);
+    const siblings = children.get(parentId);
+    if (siblings) {
+      siblings.push(observation);
+    } else {
+      children.set(parentId, [observation]);
+    }
   }
 
   const byStartTime = (a: T, b: T) =>
