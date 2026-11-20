@@ -44,7 +44,26 @@ export type SandboxSession = {
   /**
    * Executes a sandbox shell command within the session workspace.
    */
-  bash(params: { command: string; timeoutMs?: number }): Promise<unknown>;
+  bash(params: SandboxBashParams): Promise<unknown>;
+  /**
+   * Kills the process group of a running bash command started with `commandId`.
+   * Bypasses the guest's operation queue, which that command is holding.
+   */
+  cancelBash?(params: { commandId: string }): Promise<void>;
+  /**
+   * Kills every guest process except the sandbox server. Queued behind
+   * running operations.
+   */
+  reap?(): Promise<unknown>;
+};
+
+export type SandboxBashParams = {
+  command: string;
+  timeoutMs?: number;
+  /** Process environment for this command only, kept out of the command string and logs. */
+  env?: Readonly<Record<string, string>>;
+  /** Lets `cancelBash` target this command while it runs. */
+  commandId?: string;
 };
 
 /**
@@ -96,5 +115,9 @@ export type InAppAgentSandbox = {
     oldText: string;
     newText: string;
   }) => Promise<unknown>;
-  bash: (params: { command: string; timeoutMs?: number }) => Promise<unknown>;
+  bash: (params: SandboxBashParams) => Promise<unknown>;
+  /** No-op when no session has been opened in this turn. */
+  cancelBash?: (params: { commandId: string }) => Promise<void>;
+  /** Kills leftover guest processes and reports how many are still alive. */
+  reap?: () => Promise<{ killed: number; survivors: number }>;
 };
