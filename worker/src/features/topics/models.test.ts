@@ -7,6 +7,8 @@ const state = vi.hoisted(() => ({
     LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: ["project"],
   },
   call: vi.fn(),
+  startNamingCall: vi.fn(),
+  finishNamingCall: vi.fn(),
   findModel: vi.fn(),
   embed: vi.fn(),
   increment: vi.fn(),
@@ -48,6 +50,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
     await importOriginal<typeof import("@langfuse/shared/topics/server")>()
   ).topicMessages,
   generateTopicText: (...args: unknown[]) => state.call(...args),
+  startTopicNamingCall: state.startNamingCall,
+  finishTopicNamingCall: state.finishNamingCall,
   generateTopicEmbeddings: (...args: unknown[]) => state.embed(...args),
   getTopicTextResponseMetadata: (error: unknown) =>
     state.responseMetadata(error),
@@ -81,6 +85,7 @@ async function nameTopicGroup(
   return namePreparedTopicGroup(
     models,
     await prepareTopicNamingGroup(group, "naming-test"),
+    { run_id: "naming-run" },
   );
 }
 
@@ -128,6 +133,8 @@ beforeEach(() => {
     "project",
   ];
   state.call.mockReset();
+  state.startNamingCall.mockReset();
+  state.finishNamingCall.mockReset();
   state.findModel.mockReset().mockResolvedValue({
     model: null,
     pricingTiers: [
@@ -728,6 +735,9 @@ describe("Topics naming boundary", () => {
       summary: `Request ${index}: ${"Invoice request details. ".repeat(60)} END-${index}`,
     }));
     const summaries = members.map(({ summary }) => summary);
+    state.finishNamingCall.mockRejectedValueOnce(
+      new Error("database unavailable"),
+    );
     state.call.mockResolvedValue({
       output: {
         name: "Invoice assistance",
@@ -757,6 +767,10 @@ describe("Topics naming boundary", () => {
       model: "us.openai.gpt-5.6-terra",
     });
     expect(result.costDetails.total).toBeCloseTo(0.01615, 10);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Failed to save Topics naming cost",
+      expect.objectContaining({ projectId: "project" }),
+    );
     const submitted = JSON.parse(state.call.mock.calls[0][0].input);
     expect(
       submitted.members
@@ -811,9 +825,10 @@ describe("Topics naming boundary", () => {
       },
       usage: {},
       usageDetails: {},
-      providedCostDetails: {},
+      providedCostDetails: { total: 0 },
     }));
-    await namePreparedTopicGroup(topicsModels(), prepared);
+    const metadata = { run_id: "naming-run" };
+    await namePreparedTopicGroup(topicsModels(), prepared, metadata);
     const conflict = {
       name: "Billing support",
       description: "Support for billing problems.",
@@ -822,7 +837,12 @@ describe("Topics naming boundary", () => {
         "A billing question.",
       ],
     };
-    await namePreparedTopicGroup(topicsModels(), prepared, undefined, conflict);
+    await namePreparedTopicGroup(topicsModels(), prepared, metadata, conflict);
+    const callIds = state.startNamingCall.mock.calls.map(([, id]) => id);
+    expect(new Set(callIds).size).toBe(2);
+    expect(state.finishNamingCall.mock.calls).toEqual(
+      callIds.map((id) => [id, 0]),
+    );
     const [initialCall, renameCall] = state.call.mock.calls.map(
       ([call]) => call,
     );
@@ -862,7 +882,9 @@ describe("Topics naming boundary", () => {
       providedCostDetails: {},
     });
     await expect(
-      namePreparedTopicGroup(topicsModels(), prepared),
+      namePreparedTopicGroup(topicsModels(), prepared, {
+        run_id: "naming-run",
+      }),
     ).rejects.toThrow("Evidence must cite a submitted cluster member.");
   });
 
@@ -992,6 +1014,14 @@ describe("Topics naming boundary", () => {
       });
       await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
+      expect(state.startNamingCall).toHaveBeenCalledExactlyOnceWith(
+        "naming-run",
+        expect.any(String),
+      );
+      expect(state.finishNamingCall).toHaveBeenCalledExactlyOnceWith(
+        state.startNamingCall.mock.calls[0][1],
+        0.00025,
+      );
       expect(tokenCalls()).toEqual([
         [
           "langfuse.topics.tokens",

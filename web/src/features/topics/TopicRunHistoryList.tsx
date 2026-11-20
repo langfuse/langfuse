@@ -5,7 +5,6 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import {
-  createsSummaries,
   executionBadgeTypes,
   executionLabels,
   formatTopicRunCost,
@@ -139,9 +138,9 @@ function ActiveRun({
         </div>
       )}
       <div className="flex items-center justify-between gap-2.5 text-xs">
-        <span className="text-muted-foreground">Summaries and embeddings</span>
+        <span className="text-muted-foreground">Estimated model cost</span>
         <span className="font-mono">
-          {formatTopicRunCost(run.input, run.estimatedCost)}
+          {formatTopicRunCost(run.input, run.costBreakdown)}
         </span>
       </div>
     </div>
@@ -170,9 +169,9 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
         <span className="text-muted-foreground text-xs">
           {run.input.operation === "process" &&
             `${formatCount(traceCount(run))} traces · `}
-          {createsSummaries(run.input) && "Summaries and embeddings · "}
+          Estimated model cost ·{" "}
           <span className="whitespace-nowrap">
-            {formatTopicRunCost(run.input, run.estimatedCost)}
+            {formatTopicRunCost(run.input, run.costBreakdown)}
           </span>
         </span>
         {problem && (

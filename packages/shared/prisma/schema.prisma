@@ -2424,25 +2424,36 @@ model CloudSpendAlert {
 }
 
 model TopicClusteringRun {
-  id              String           @id @default(cuid())
-  projectId       String           @map("project_id")
-  facetId         String           @map("facet_id")
-  facetVersion    Int              @map("facet_version")
-  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  facet           EvaluatorVersion @relation(fields: [facetId, facetVersion], references: [evaluatorId, version], onDelete: Cascade)
-  status          String           @default("pending")
-  config          Json             @default("{}")
+  id              String            @id @default(cuid())
+  projectId       String            @map("project_id")
+  facetId         String            @map("facet_id")
+  facetVersion    Int               @map("facet_version")
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  facet           EvaluatorVersion  @relation(fields: [facetId, facetVersion], references: [evaluatorId, version], onDelete: Cascade)
+  status          String            @default("pending")
+  config          Json              @default("{}")
   error           String?
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
-  finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
-  topicVersionIds String[]         @default([]) @map("topic_version_ids")
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt       DateTime?         @map("started_at") @db.Timestamptz(3)
+  finishedAt      DateTime?         @map("finished_at") @db.Timestamptz(3)
+  topicVersionIds String[]          @default([]) @map("topic_version_ids")
   // Topics rule of a continuous map, or the batch action of a one-off analysis; null on runs written before either existed.
-  ruleId          String?          @map("rule_id")
-  batchActionId   String?          @map("batch_action_id")
+  ruleId          String?           @map("rule_id")
+  batchActionId   String?           @map("batch_action_id")
+  namingCalls     TopicNamingCall[]
 
   @@index([projectId, facetId, status, facetVersion(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "topic_clustering_runs_serving_map_idx")
   @@index([projectId, ruleId, facetId, status], map: "topic_clustering_runs_rule_serving_map_idx")
   @@index([projectId, batchActionId])
   @@map("topic_clustering_runs")
+}
+
+model TopicNamingCall {
+  id      String             @id
+  runId   String             @map("run_id")
+  run     TopicClusteringRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  costUsd Decimal?           @map("cost_usd")
+
+  @@index([runId])
+  @@map("topic_naming_calls")
 }

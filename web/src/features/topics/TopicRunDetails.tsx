@@ -15,6 +15,7 @@ import {
   createsSummaries,
   executionBadgeTypes,
   executionLabels,
+  formatTopicCost,
   formatTopicRunCost,
   runLabel,
   type TopicRunWithCost as Run,
@@ -189,9 +190,15 @@ export function TopicRunDetails({
     ? Math.min(total, ...counts.map((c) => c.complete))
     : counts.reduce((sum, c) => sum + c.complete, 0);
   const isBusy = busy(execution.status);
-  const costDescription = createsSummaries(execution.input)
-    ? "Estimated provider cost for this run’s priced summaries and embeddings. Excludes topic naming and failed calls. Retries can temporarily inflate the estimate, and replacing or deleting summaries can change it."
-    : "This run reuses stored summaries. Your provider may charge for topic naming. Naming cost is unavailable.";
+  const costs = execution.costBreakdown;
+  const summaryCost = createsSummaries(execution.input)
+    ? formatTopicCost(costs ? costs.summaries : costs)
+    : "No new summaries";
+  const namingCost = costs?.naming.cost;
+  const namingValue =
+    !isUpdate && namingCost == null
+      ? "Not part of this run"
+      : formatTopicCost(costs ? namingCost : costs, costs?.naming.partial);
   const failed = execution.status === "failed";
   const resumable = canWrite && !isBusy && canResume(execution);
   const minimum =
@@ -308,15 +315,21 @@ export function TopicRunDetails({
             <span className="font-mono text-xs">{summaryValue}</span>
           )}
         </div>
-        <div className="flex items-center justify-between gap-2.5">
-          <span className="text-muted-foreground text-xs">
-            Summaries and embeddings
-          </span>
-          <span className="font-mono text-xs">
-            {formatTopicRunCost(execution.input, execution.estimatedCost)}
-          </span>
-        </div>
-        <p className="text-muted-foreground text-xs">{costDescription}</p>
+        <dl className="grid grid-cols-[1fr_auto] gap-x-2.5 gap-y-1 text-xs">
+          <dt className="font-medium">Estimated model cost</dt>
+          <dd className="text-right font-mono font-medium">
+            {formatTopicRunCost(execution.input, costs)}
+          </dd>
+          <dt className="text-muted-foreground">Summaries and embeddings</dt>
+          <dd className="text-right font-mono">{summaryCost}</dd>
+          <dt className="text-muted-foreground">Topic naming</dt>
+          <dd className="text-right font-mono">{namingValue}</dd>
+        </dl>
+        <p className="text-muted-foreground text-xs">
+          Estimates use recorded provider costs and model prices. Unpriced or
+          unsaved calls can be missing. Summary and embedding costs can change
+          when summaries are retried, replaced or deleted.
+        </p>
       </div>
       <div className="flex flex-col">
         <h3 className="text-muted-foreground px-4 pt-3.5 pb-0.5 text-xs font-bold">

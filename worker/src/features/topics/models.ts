@@ -1,5 +1,5 @@
 import { get_encoding } from "tiktoken";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@langfuse/shared/src/env";
@@ -15,8 +15,11 @@ import {
   generateTopicEmbeddings,
   generateTopicText,
   getTopicTextResponseMetadata,
+  startTopicNamingCall,
+  finishTopicNamingCall,
   topicMessages,
   type TopicPromptPart,
+  type TopicTextUsageDetails,
   type TopicsModel,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
@@ -184,7 +187,31 @@ async function structuredCall<T>(
   projectId: string,
   metadata?: Record<string, unknown>,
   traceName = `topics-${stage}`,
+  namingCallId?: string,
 ): Promise<ModelResult<T>> {
+  async function priceResponse(response: TopicTextUsageDetails) {
+    const priced = await priceTopicUsage(
+      stage,
+      model,
+      projectId,
+      response.usageDetails,
+      response.providedCostDetails,
+    );
+    const cost = priced.costDetails.total;
+    if (namingCallId && cost !== undefined) {
+      try {
+        await finishTopicNamingCall(namingCallId, cost);
+      } catch (error) {
+        // The reservation remains unpriced; a storage failure must never repeat inference.
+        logger.warn("Failed to save Topics naming cost", {
+          projectId,
+          callId: namingCallId,
+          error,
+        });
+      }
+    }
+    return priced;
+  }
   const trace = await topicTraceSink(traceName, projectId, metadata);
   const result = await topicModelCall(
     stage,
@@ -203,22 +230,19 @@ async function structuredCall<T>(
         schema,
         maxOutputTokens: outputLimit,
         trace,
+        onFailedResponseUsage: namingCallId
+          ? async (usage) => {
+              await priceResponse(usage);
+            }
+          : undefined,
       }),
   );
   recordTopicTokenUsage(stage, {
     input: result.usage.inputTokens,
     output: result.usage.outputTokens,
   });
-  return {
-    output: schema.parse(result.output),
-    ...(await priceTopicUsage(
-      stage,
-      model,
-      projectId,
-      result.usageDetails,
-      result.providedCostDetails,
-    )),
-  };
+  const priced = await priceResponse(result);
+  return { output: schema.parse(result.output), ...priced };
 }
 
 async function topicTraceSink(
@@ -612,7 +636,7 @@ async function prepareNamingConflict(conflict: NamingConflict) {
 export async function nameTopicGroup(
   models: TopicsModels,
   group: PreparedTopicNamingGroup & { facetName?: string },
-  metadata?: Record<string, unknown>,
+  metadata: Record<string, unknown> & { run_id: string },
   conflict?: NamingConflict,
 ) {
   const memberIds = new Set(group.members.map((member) => member.id));
@@ -639,6 +663,8 @@ export async function nameTopicGroup(
   const inputLimit = namingInputTokens(
     group.rawInputTokens + (conflictingTopic?.tokens ?? 0),
   );
+  const callId = randomUUID();
+  await startTopicNamingCall(metadata.run_id, callId);
   return structuredCall(
     [
       {
@@ -662,6 +688,7 @@ export async function nameTopicGroup(
       naming_input_tokens_estimated: inputLimit,
     },
     conflict ? "topics-naming-conflict" : undefined,
+    callId,
   );
 }
 

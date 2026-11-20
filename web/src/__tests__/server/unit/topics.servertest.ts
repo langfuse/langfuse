@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   createTopicExecution: vi.fn(),
   readTopicExecutionSummary: vi.fn(),
   getTopicExecutionCosts: vi.fn(),
+  getTopicExecutionNamingCosts: vi.fn(),
   getTopicSummaryCounts: vi.fn(),
   listTopicExecutions: vi.fn(),
   listTopicFacets: vi.fn(),
@@ -249,6 +250,15 @@ describe("Topics project allowlist", () => {
       "run costs",
       () => outside().executionCosts({ projectId, executionIds: ["run-a"] }),
     ],
+    [
+      "run cost breakdown",
+      () =>
+        outside().executionCostBreakdown({
+          projectId,
+          executionIds: ["run-a"],
+          summaryExecutionIds: [],
+        }),
+    ],
     ["model settings", () => outside().modelSettings({ projectId })],
     ["tracing filter options", () => outside().filterOptions({ projectId })],
     [
@@ -276,6 +286,7 @@ describe("Topics project allowlist", () => {
     expect(mocks.listTopicRules).not.toHaveBeenCalled();
     expect(mocks.listTopicExecutions).not.toHaveBeenCalled();
     expect(mocks.getTopicExecutionCosts).not.toHaveBeenCalled();
+    expect(mocks.getTopicExecutionNamingCosts).not.toHaveBeenCalled();
     expect(mocks.getTopicsModels).not.toHaveBeenCalled();
   });
 
@@ -755,6 +766,34 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
       projectId,
       visible.executionIds,
+    );
+  });
+
+  it("combines recorded stages for visible snapshots and restricts the summary read to the requested subset", async () => {
+    mocks.getTopicExecutionCosts.mockResolvedValue({ legacy: 0, priced: 0.42 });
+    mocks.getTopicExecutionNamingCosts.mockResolvedValue({
+      reuse: { cost: 0.08, partial: false },
+      priced: { cost: 0.03, partial: true },
+    });
+    const executionIds = ["legacy", "reuse", "priced"];
+    expect(
+      await caller("VIEWER").executionCostBreakdown({
+        projectId,
+        executionIds,
+        summaryExecutionIds: ["priced", "legacy", "outside"],
+      }),
+    ).toEqual({
+      legacy: { summaries: 0, naming: { cost: null, partial: false } },
+      reuse: { summaries: null, naming: { cost: 0.08, partial: false } },
+      priced: { summaries: 0.42, naming: { cost: 0.03, partial: true } },
+    });
+    expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+      ["legacy", "priced"],
+    );
+    expect(mocks.getTopicExecutionNamingCosts).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+      executionIds,
     );
   });
 
