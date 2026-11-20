@@ -547,8 +547,10 @@ export async function getPublishedTopicMaps(
     ruleIds: [
       ...new Set(current.flatMap(({ ruleId }) => (ruleId ? [ruleId] : []))),
     ],
-    maps: unique.map((run) => ({
+    maps: current.map(({ ruleId, run }) => ({
       facetId: run.facetId,
+      runId: run.id,
+      ruleId,
       topics: run.topicVersionIds.flatMap((id) => names.get(id) ?? []),
     })),
   };

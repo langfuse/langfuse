@@ -1303,9 +1303,10 @@ export async function readCurrentTraceTopics(
     topicId: string;
     topicVersionId: string;
     runId: string;
+    ruleId: string;
   }>({
     query: `SELECT trace_id AS traceId, facet_id AS facetId, topic_id AS topicId,
-        topic_version_id AS topicVersionId, clustering_run_id AS runId
+        topic_version_id AS topicVersionId, clustering_run_id AS runId, rule_id AS ruleId
       FROM topic_assignments_by_trace
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
         AND facet_id IN {facetIds:Array(String)} AND trace_id IN {traceIds:Array(String)}
