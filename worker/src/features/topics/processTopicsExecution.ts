@@ -412,8 +412,9 @@ async function clusterFacet(
       });
     }
     const reused = new Map<string, TopicDefinition>();
-    // Continued topics whose name still fits: candidate version ID -> previous version.
+    // Continued topics, by candidate version ID: names that still fit are kept, others are renamed in context.
     const keptNames = new Map<string, TopicDefinition>();
+    const renamedFrom = new Map<string, TopicDefinition>();
     candidates = candidates.map((candidate) => {
       const old = previous?.topics.find(
         (topic) => topic.topicId === candidate.topicId,
@@ -432,8 +433,11 @@ async function clusterFacet(
           radius: old.radius,
         };
       }
-      if (compatiblePrevious && old && keepsName(old, candidate))
-        keptNames.set(candidate.topicVersionId, old);
+      if (compatiblePrevious && old && !old.metadata.namingFailure)
+        (keepsName(old, candidate) ? keptNames : renamedFrom).set(
+          candidate.topicVersionId,
+          old,
+        );
       return candidate;
     });
     // Final version IDs also determine the serving classifier's distance ties.
@@ -512,7 +516,11 @@ async function clusterFacet(
               metrics,
               models,
               named,
-              { ...prepared, facetName },
+              {
+                ...prepared,
+                facetName,
+                previousTopic: renamedFrom.get(group.id),
+              },
               {
                 facet_id: facet.facetId,
                 facet_name: facetName,
