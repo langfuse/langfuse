@@ -1241,6 +1241,25 @@ const declaredTypeExamples = [
 ] as const;
 
 const directedProviderExamples: ProviderReplaySeed[][] = [
+  [
+    {
+      scope: "genkit-tracer",
+      spanName: null,
+      events: [],
+      sources: [
+        { key: "genkit:output", value: "null" },
+        { key: "gen_ai.tool.name", value: false },
+      ],
+      toolMetadata: { root: false, attributes: "none", name: "a" },
+    },
+    {
+      scope: "ai",
+      spanName: "",
+      events: [],
+      sources: [],
+      toolMetadata: { root: false, attributes: "none", name: "a" },
+    },
+  ],
   declaredTypeExamples.flatMap(([key, alias]) =>
     [[alias], [[alias]], [alias, ""]].map((value) =>
       aiProviderSeed([{ key, value }]),
