@@ -3,7 +3,10 @@ import {
   supportedModels,
   type FilterState,
 } from "@langfuse/shared";
-import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
+import {
+  DEFAULT_TOPIC_FACETS,
+  DEFAULT_TOPIC_RULE_NAME,
+} from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
 export const TOPIC_SETUP_QUESTIONS = [
@@ -47,6 +50,8 @@ export type TopicSetupDraft = {
   samplePercent: number;
   /** Observation filter of the first rule; empty means every trace. */
   filter: FilterState;
+  /** Name of the map the setup creates or updates. */
+  name: string;
 };
 
 // Best family first; within a family the highest version wins (6.1 over 6).
@@ -194,6 +199,8 @@ export function initialTopicSetupDraft(input: {
   enabledFacetIds: ReadonlySet<string> | null;
   /** The first rule's stored filter, when the project has one. */
   filter?: FilterState;
+  /** The first rule's stored name, when the project has one. */
+  name?: string;
   traceIdleMs: number | null;
 }): TopicSetupDraft {
   const summaryGroups = topicProviderGroups(
@@ -241,6 +248,7 @@ export function initialTopicSetupDraft(input: {
     advancedOpen: false,
     samplePercent: 100,
     filter: input.filter ?? [],
+    name: input.name ?? DEFAULT_TOPIC_RULE_NAME,
   };
 }
 
