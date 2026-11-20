@@ -135,6 +135,20 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
     { column: "name", type: "string", operator: "starts with", value: "acc" },
   ],
   [
+    "string name ends-with",
+    { column: "name", type: "string", operator: "ends with", value: "acy" },
+  ],
+  [
+    "string name is-not-empty",
+    { column: "name", type: "string", operator: "is not empty", value: "" },
+  ],
+  // The `*Name` fallback: an unknown `fooName` column resolves to the `name`
+  // dimension, so it renders the `name=` SQL; pins the branch.
+  [
+    "string scoreName= fallback",
+    { column: "scoreName", type: "string", operator: "=", value: "accuracy" },
+  ],
+  [
     "stringOptions source any-of",
     {
       column: "source",
@@ -186,6 +200,19 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
     },
   ],
   [
+    "string nullIf datasetRunId is-not-empty",
+    {
+      column: "datasetRunId",
+      type: "string",
+      operator: "is not empty",
+      value: "",
+    },
+  ],
+  [
+    "null nullIf datasetRunId is-null",
+    { column: "datasetRunId", type: "null", operator: "is null", value: "" },
+  ],
+  [
     "number value>=",
     { column: "value", type: "number", operator: ">=", value: 0.5 },
   ],
@@ -193,6 +220,15 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
   [
     "boolean isEvaluatorTest=",
     { column: "isEvaluatorTest", type: "boolean", operator: "=", value: true },
+  ],
+  [
+    "boolean isEvaluatorTest<>",
+    {
+      column: "isEvaluatorTest",
+      type: "boolean",
+      operator: "<>",
+      value: true,
+    },
   ],
   [
     "datetime timestamp>=",
@@ -206,6 +242,17 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
   [
     "null environment is-null",
     { column: "environment", type: "null", operator: "is null", value: "" },
+  ],
+  // Legacy oddity: `null` on the `tags` array (a trace attribute, so a
+  // semi-join) compares it with NULL: `is null` never matches, `is not null`
+  // always does.
+  [
+    "null tags is-null",
+    { column: "tags", type: "null", operator: "is null", value: "" },
+  ],
+  [
+    "null tags is-not-null",
+    { column: "tags", type: "null", operator: "is not null", value: "" },
   ],
   [
     "null environment is-not-null",
@@ -236,6 +283,24 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       value: "eu",
     },
   ],
+  ...(
+    [
+      "does not contain",
+      "starts with",
+      "ends with",
+      "is set",
+      "is not set",
+    ] as const
+  ).map((operator): [string, Filter] => [
+    `stringObject metadata ${operator.replaceAll(" ", "-")}`,
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: "region",
+      operator,
+      value: operator.startsWith("is") ? "" : "eu",
+    },
+  ]),
 ];
 
 // `tags` is an `events_traces` column: filter-only, so each renders the
@@ -445,6 +510,23 @@ describeWithClickhouse("golden: executeQuery v2 scores", () => {
               operator: "any of",
               value: ["a"],
             },
+          ],
+        }),
+      ).toMatchSnapshot();
+    });
+
+    // A score filter next to a semi-join: the scored-ids prefilter carries it.
+    it("build semi-join filters=name,userId", async () => {
+      expect(
+        await golden({
+          filters: [
+            {
+              column: "name",
+              type: "string",
+              operator: "=",
+              value: "accuracy",
+            },
+            { column: "userId", type: "string", operator: "=", value: "u1" },
           ],
         }),
       ).toMatchSnapshot();
@@ -729,11 +811,53 @@ describeWithClickhouse("golden: executeQuery v2 scores", () => {
       ).toMatchSnapshot();
     });
 
+    it("build join=events_observations filter=null observationName is-null", async () => {
+      expect(
+        await golden({
+          filters: [
+            {
+              column: "observationName",
+              type: "null",
+              operator: "is null",
+              value: "",
+            },
+          ],
+        }),
+      ).toMatchSnapshot();
+    });
+
     it("build filter=string on number value throws", async () => {
       await expect(
         golden({
           filters: [
             { column: "value", type: "string", operator: "=", value: "1" },
+          ],
+        }),
+      ).rejects.toThrowErrorMatchingSnapshot();
+    });
+
+    // Neither a dimension, the time dimension, `metadata` nor `*Name`.
+    it("build filter=invalid column throws", async () => {
+      await expect(
+        golden({
+          filters: [
+            { column: "unknown", type: "string", operator: "=", value: "x" },
+          ],
+        }),
+      ).rejects.toThrowErrorMatchingSnapshot();
+    });
+
+    // Rejected by the zod refine on `stringOptionsFilter`.
+    it("build filter=stringOptions source any-of empty throws", async () => {
+      await expect(
+        golden({
+          filters: [
+            {
+              column: "source",
+              type: "stringOptions",
+              operator: "any of",
+              value: [],
+            },
           ],
         }),
       ).rejects.toThrowErrorMatchingSnapshot();
