@@ -152,6 +152,14 @@ impl JsString {
             .and_then(|suffix| Self::from_wtf8(suffix.to_vec()).ok())
     }
 
+    /// Strip `prefix` and the `.` that follows it.
+    pub fn strip_dotted_prefix(&self, prefix: &str) -> Option<Self> {
+        self.as_bytes()
+            .strip_prefix(prefix.as_bytes())?
+            .strip_prefix(b".")
+            .and_then(|suffix| Self::from_wtf8(suffix.to_vec()).ok())
+    }
+
     pub fn with_capacity(capacity: usize) -> Self {
         Self::Utf8(String::with_capacity(capacity))
     }
