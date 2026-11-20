@@ -1,4 +1,4 @@
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 import {
@@ -131,11 +131,22 @@ export const AdminViewingOwner = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const roleSelectFor = (name: RegExp) =>
-      within(canvas.getByRole("row", { name })).getByRole("combobox");
+    const openRoleDialogFor = async (name: RegExp) => {
+      const row = within(canvas.getByRole("row", { name }));
+      await userEvent.click(
+        row.getByRole("button", { name: /Open role details/ }),
+      );
+      return within(await screen.findByRole("dialog"));
+    };
 
-    await expect(roleSelectFor(/Barbara Liskov/)).toBeDisabled();
-    await expect(roleSelectFor(/Ada Lovelace/)).toBeEnabled();
+    const owner = await openRoleDialogFor(/Barbara Liskov/);
+    await expect(owner.getByText("Requires owner access")).toBeInTheDocument();
+    await expect(owner.getByRole("button", { name: "Save" })).toBeDisabled();
+    await userEvent.click(owner.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    const admin = await openRoleDialogFor(/Ada Lovelace/);
+    await expect(admin.queryByText("Requires owner access")).toBeNull();
   },
 });
 
@@ -243,9 +254,10 @@ export const EffectiveRoleFromGroup = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const vera = within(canvas.getByRole("row", { name: /Vera Viewer/ }));
-    await expect(vera.getByRole("combobox")).toHaveTextContent("Admin");
     await expect(
-      vera.getByLabelText("Admin, inherited from langfuse-org-admins"),
+      vera.getByRole("button", {
+        name: "Admin, From langfuse-org-admins. Open role details",
+      }),
     ).toBeInTheDocument();
   },
 });
