@@ -1,59 +1,66 @@
 "use client";
 
 import { type KeyboardEvent, useState } from "react";
-import {
-  Activity,
-  Bug,
-  DollarSign,
-  History,
-  TrendingUp,
-  type IconComponent,
-} from "@langfuse/icons";
+import { History } from "@langfuse/icons";
 import { formatDistanceToNow, subDays } from "date-fns";
 
-import { Button } from "@/src/components/design-system/Button/Button";
+import { ControlledDropdownMenu } from "@/src/components/design-system/ControlledDropdownMenu/ControlledDropdownMenu";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { Button } from "@/src/components/ui/button";
 import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 import { InAppAgentAskButton } from "@/src/features/in-app-agent/components/InAppAgentAskButton";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import {
+  IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
+  IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS,
+  IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS,
+  getInAppAgentQuickActions,
+  type InAppAgentQuickActionContext,
+} from "@/src/features/in-app-agent/quickActions";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-type HomeStarter = {
-  id: string;
-  label: string;
-  icon: IconComponent;
-  prompt: string;
-};
+type HomeStartOption = { id: string; label: string; prompt: string };
 
-const HOME_STARTERS: readonly HomeStarter[] = [
+// Home's own wording for the Observe group; the other groups use the
+// assistant's quick actions as they are.
+const HOME_OBSERVE_OPTIONS: readonly HomeStartOption[] = [
   {
-    id: "failures",
+    id: "home-failure-patterns",
     label: "Failure patterns",
-    icon: Bug,
     prompt:
       "Run a structured error analysis on failed traces. Group failures by cause, show counts, and link an example trace for each group.",
   },
   {
-    id: "activity",
+    id: "home-recent-activity",
     label: "Recent activity",
-    icon: Activity,
     prompt:
       "Summarize what changed in this project recently: new trace names, shifts in volume, and new models or prompts in use.",
   },
   {
-    id: "unusual",
+    id: "home-unusual-patterns",
     label: "Unusual patterns",
-    icon: TrendingUp,
     prompt:
       "Find unusual patterns in traces, such as spikes in latency, error rate or token use, and show when each one started.",
   },
   {
-    id: "cost",
+    id: "home-cost-changes",
     label: "Cost changes",
-    icon: DollarSign,
     prompt:
       "Explain how model costs changed. Break the change down by model and trace name, and flag the biggest drivers.",
   },
 ];
+
+const HOME_START_GROUPS: ReadonlyArray<{
+  context: InAppAgentQuickActionContext;
+  options: readonly HomeStartOption[];
+}> = IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => ({
+  context,
+  options:
+    context === "observability"
+      ? HOME_OBSERVE_OPTIONS
+      : getInAppAgentQuickActions(context),
+}));
 
 const DEFAULT_PLACEHOLDER = "Ask about your traces, costs or scores…";
 // How far back the latest conversation still counts as one to continue.
@@ -76,17 +83,16 @@ export function InAppAgentHomeComposer() {
     latestConversation.updatedAt > subDays(new Date(), CONTINUE_WINDOW_DAYS)
       ? latestConversation
       : null;
+  const capture = usePostHogClientCapture();
   const [request, setRequest] = useState("");
-  // The starter whose prompt currently fills the composer, until it is edited.
-  const [pickedStarterId, setPickedStarterId] = useState<string | null>(null);
-  // The starter under the pointer or keyboard focus. Its prompt shows as the
-  // placeholder, so it only previews while the field is empty.
-  const [previewedStarterId, setPreviewedStarterId] = useState<string | null>(
-    null,
-  );
-  const previewedPrompt = HOME_STARTERS.find(
-    (starter) => starter.id === previewedStarterId,
-  )?.prompt;
+  // The group whose option currently fills the composer, until it is edited.
+  const [pickedGroup, setPickedGroup] =
+    useState<InAppAgentQuickActionContext | null>(null);
+  const [openGroup, setOpenGroup] =
+    useState<InAppAgentQuickActionContext | null>(null);
+  // Prompt of the menu option under the pointer or keyboard focus. It shows as
+  // the placeholder, so it only previews while the field is empty.
+  const [previewedPrompt, setPreviewedPrompt] = useState<string | null>(null);
   const trimmedRequest = request.trim();
 
   const startConversation = () => {
@@ -96,7 +102,7 @@ export function InAppAgentHomeComposer() {
 
     setLayoutMode("full");
     setRequest("");
-    setPickedStarterId(null);
+    setPickedGroup(null);
     // `submit` reports its own failures in the conversation.
     submit(trimmedRequest, {
       newConversation: true,
@@ -146,7 +152,7 @@ export function InAppAgentHomeComposer() {
           value={request}
           onChange={(event) => {
             setRequest(event.target.value);
-            setPickedStarterId(null);
+            setPickedGroup(null);
           }}
           onKeyDown={handleKeyDown}
           // The card draws the focus state, so the field's own border and ring
@@ -162,37 +168,63 @@ export function InAppAgentHomeComposer() {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground text-sm">Start from</span>
-        {HOME_STARTERS.map((starter) => (
-          <span
-            key={starter.id}
-            className="inline-flex"
-            onMouseEnter={() => {
-              setPreviewedStarterId(starter.id);
-            }}
-            onMouseLeave={() => {
-              setPreviewedStarterId(null);
-            }}
-            onFocus={() => {
-              setPreviewedStarterId(starter.id);
-            }}
-            onBlur={() => {
-              setPreviewedStarterId(null);
-            }}
-          >
-            <Button
-              text={starter.label}
-              variant={starter.id === pickedStarterId ? "secondary" : "outline"}
-              size="sm"
-              icon={starter.icon}
-              onClick={() => {
-                setRequest(starter.prompt);
-                setPickedStarterId(starter.id);
-                setPreviewedStarterId(null);
-                homeAskInputRef.current?.focus();
+        {HOME_START_GROUPS.map(({ context, options }) => {
+          const GroupIcon = IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS[context];
+          const label = IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context];
+
+          return (
+            <ControlledDropdownMenu
+              key={context}
+              ariaLabel={`${label} starters`}
+              open={openGroup === context}
+              onOpenChange={(isOpen) => {
+                setOpenGroup(isOpen ? context : null);
+                setPreviewedPrompt(null);
               }}
-            />
-          </span>
-        ))}
+              onActiveItemChange={(optionId) => {
+                setPreviewedPrompt(
+                  options.find((option) => option.id === optionId)?.prompt ??
+                    null,
+                );
+              }}
+              items={options.map((option, position) => ({
+                type: "item" as const,
+                id: option.id,
+                title: option.label,
+                onClick: () => {
+                  capture("in_app_agent:quick_action_started", {
+                    quickActionKey: option.id,
+                    quickActionCategory: context,
+                    position,
+                    entryPoint: "home_composer",
+                  });
+                  setRequest(option.prompt);
+                  setPickedGroup(context);
+                  setPreviewedPrompt(null);
+                  // After the closing menu has handed focus back to its
+                  // trigger, so the box keeps it.
+                  window.requestAnimationFrame(() => {
+                    homeAskInputRef.current?.focus();
+                  });
+                },
+              }))}
+            >
+              {({ getTriggerProps }) => (
+                <Button
+                  {...getTriggerProps()}
+                  type="button"
+                  variant={pickedGroup === context ? "secondary" : "outline"}
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs"
+                >
+                  <GroupIcon size="base" color="inherit" aria-hidden />
+                  <span>{label}</span>
+                  <DropdownIndicator size="sm" />
+                </Button>
+              )}
+            </ControlledDropdownMenu>
+          );
+        })}
       </div>
       {conversationToContinue ? (
         <div className="flex flex-wrap items-center gap-2">
