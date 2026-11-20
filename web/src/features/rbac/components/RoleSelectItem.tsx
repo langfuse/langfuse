@@ -13,6 +13,12 @@ import {
   type RoleDisplay,
 } from "@/src/features/rbac/components/roleDisplay";
 
+/** viewPermissionsButtonPlacements sizes the button beside the label or at the row's end. */
+const viewPermissionsButtonPlacements = {
+  inline: "h-5 gap-1 pr-1 pl-2 text-xs whitespace-nowrap tabular-nums",
+  trailing: "ml-auto h-6 w-6 justify-center self-center",
+};
+
 /** RoleSelectItem adds a permission preview to a role option. */
 export const RoleSelectItem = ({
   role,
@@ -57,7 +63,7 @@ export const RoleSelectItem = ({
                 label={label}
                 countLabel={rolePermissionCountLabel(role, resourceKinds)}
                 onClick={() => onViewPermissions(role)}
-                className="h-5 gap-1 pr-1 pl-2 text-xs whitespace-nowrap tabular-nums"
+                placement="inline"
               />
             )}
           </span>
@@ -72,7 +78,7 @@ export const RoleSelectItem = ({
           <ViewPermissionsButton
             label={label}
             onClick={() => onViewPermissions(role)}
-            className="ml-auto h-6 w-6 justify-center self-center"
+            placement="trailing"
           />
         )}
       </div>
@@ -85,12 +91,12 @@ function ViewPermissionsButton({
   label,
   countLabel,
   onClick,
-  className,
+  placement,
 }: {
   label: string;
   countLabel?: string;
   onClick: () => void;
-  className: string;
+  placement: keyof typeof viewPermissionsButtonPlacements;
 }) {
   return (
     <Tooltip label="View permissions" hoverableContent={false} delay={0}>
@@ -108,7 +114,7 @@ function ViewPermissionsButton({
           aria-label={`View ${label} permissions`}
           className={cn(
             "text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto flex shrink-0 items-center rounded-full opacity-0 group-hover:opacity-100 group-data-disabled:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100",
-            className,
+            viewPermissionsButtonPlacements[placement],
           )}
         >
           {countLabel}
