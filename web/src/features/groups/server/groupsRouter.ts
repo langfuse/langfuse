@@ -7,9 +7,10 @@ import {
   OrganizationId,
   ProjectId,
   SystemRoleId,
+  type OrganizationScope,
 } from "@langfuse/shared/rbac";
 import { assignRole } from "@langfuse/shared/rbac/server";
-import { projectRoleAccessRights } from "@langfuse/shared";
+import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -27,28 +28,23 @@ import {
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 // No OWNER (too broad) and no NONE (adds nothing).
-const GroupRole = z.enum([Role.ADMIN, Role.MEMBER, Role.VIEWER]);
-// AI Gateway only grants organization permissions, so only an org-wide group
-// role can be AI Gateway; project group roles stay on the ladder.
-const OrgGroupRole = z.enum([
-  Role.ADMIN,
-  Role.MEMBER,
-  Role.VIEWER,
-  Role.AI_GATEWAY,
-]);
+const groupRoles = [Role.ADMIN, Role.MEMBER, Role.VIEWER] as const;
+const GroupRole = z.enum(groupRoles);
+// AI Gateway grants only org permissions, so only org-wide group roles can be AI Gateway.
+const OrgGroupRole = z.enum([...groupRoles, Role.AI_GATEWAY]);
 
 const groupRoleAssignmentsSelect = {
   select: { projectId: true, systemRole: true },
 } as const;
 
+const roleOf = (assignment: { systemRole: string } | undefined) =>
+  (assignment?.systemRole as Role | undefined) ?? null;
+
 function toGroupRoles(
   assignments: { projectId: string | null; systemRole: string }[],
 ) {
   return {
-    orgRole:
-      (assignments.find((a) => a.projectId === null)?.systemRole as
-        | Role
-        | undefined) ?? null,
+    orgRole: roleOf(assignments.find((a) => a.projectId === null)),
     projectRoles: assignments
       .filter((a): a is { projectId: string; systemRole: string } =>
         Boolean(a.projectId),
@@ -59,16 +55,14 @@ function toGroupRoles(
 
 const DisplayName = z.string().trim().min(1).max(256);
 
-/** Guards shared by every org-level group write. */
-function throwIfCannotManageGroups(
-  session: Session & { user: NonNullable<Session["user"]> },
+type AuthedSession = Session & { user: NonNullable<Session["user"]> };
+
+function throwIfNoOrgGroupAccess(
+  session: AuthedSession,
   orgId: string,
+  scope: OrganizationScope = "organizationMembers:CUD",
 ) {
-  throwIfNoOrganizationAccess({
-    session,
-    organizationId: orgId,
-    scope: "organizationMembers:CUD",
-  });
+  throwIfNoOrganizationAccess({ session, organizationId: orgId, scope });
   throwIfNoEntitlement({
     entitlement: "admin-api",
     sessionUser: session.user,
@@ -76,27 +70,43 @@ function throwIfCannotManageGroups(
   });
 }
 
-async function findGroupOrThrow(
+function throwIfNoProjectGroupAccess(
+  session: AuthedSession & { orgId: string },
+  projectId: string,
+  scope: ProjectScope,
+) {
+  throwIfNoProjectAccess({ session, projectId, scope });
+  throwIfNoEntitlement({
+    entitlement: "admin-api",
+    sessionUser: session.user,
+    orgId: session.orgId,
+  });
+}
+
+function throwIfGroupNotFound<T>(group: T | null): asserts group is T {
+  if (!group) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Group not found" });
+  }
+}
+
+const editableGroupSelect = {
+  id: true,
+  displayName: true,
+  externalId: true,
+  source: true,
+} as const;
+
+/** The IdP owns SCIM groups' name, members and existence (the next sync would undo edits); roles stay editable since IdPs never send them. */
+async function findEditableGroupOrThrow(
   db: typeof prisma,
   orgId: string,
   groupId: string,
 ) {
   const group = await db.group.findFirst({
     where: { id: groupId, orgId },
-    select: { id: true, displayName: true, externalId: true, source: true },
+    select: editableGroupSelect,
   });
-  if (!group) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Group not found" });
-  }
-  return group;
-}
-
-/**
- * SCIM groups mirror the identity provider: their name, members and existence
- * are owned there, so changing them here would be undone by the next sync.
- * Their roles stay editable, since the IdP never sends roles.
- */
-function throwIfScimManaged(group: { source: GroupSource }) {
+  throwIfGroupNotFound(group);
   if (group.source === GroupSource.SCIM) {
     throw new TRPCError({
       code: "FORBIDDEN",
@@ -104,12 +114,10 @@ function throwIfScimManaged(group: { source: GroupSource }) {
         "This group is synced from your identity provider. Change its name and members, or delete it, there.",
     });
   }
+  return group;
 }
 
-/**
- * Project admins may only hand out (or take away) a project role whose every
- * permission they hold on the project themselves, directly or through groups.
- */
+/** Project admins may only grant or revoke a project role whose every permission they hold on the project. */
 function throwIfRoleNotCovered(
   session: Session,
   projectId: string,
@@ -127,11 +135,10 @@ function throwIfRoleNotCovered(
 }
 
 export const groupsRouter = createTRPCRouter({
-  /** Org members to pick from when adding group members. */
   orgMembers: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfCannotManageGroups(ctx.session, input.orgId);
+      throwIfNoOrgGroupAccess(ctx.session, input.orgId);
       const memberships = await ctx.prisma.organizationMembership.findMany({
         where: { orgId: input.orgId },
         select: { user: { select: { id: true, name: true, email: true } } },
@@ -143,7 +150,7 @@ export const groupsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string(), displayName: DisplayName }))
     .mutation(async ({ input, ctx }) => {
-      throwIfCannotManageGroups(ctx.session, input.orgId);
+      throwIfNoOrgGroupAccess(ctx.session, input.orgId);
       const group = await ctx.prisma.group.create({
         data: {
           orgId: input.orgId,
@@ -171,17 +178,16 @@ export const groupsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfCannotManageGroups(ctx.session, input.orgId);
-      const before = await findGroupOrThrow(
+      throwIfNoOrgGroupAccess(ctx.session, input.orgId);
+      const before = await findEditableGroupOrThrow(
         ctx.prisma,
         input.orgId,
         input.groupId,
       );
-      throwIfScimManaged(before);
       const after = await ctx.prisma.group.update({
         where: { id: before.id },
         data: { displayName: input.displayName },
-        select: { id: true, displayName: true, externalId: true, source: true },
+        select: editableGroupSelect,
       });
       await auditLog({
         session: ctx.session,
@@ -194,20 +200,16 @@ export const groupsRouter = createTRPCRouter({
       return after;
     }),
 
-  /**
-   * Deletes a user-created group with its memberships and role assignments
-   * (FK cascade). SCIM groups are deleted by the IdP through `DELETE /scim/Groups`.
-   */
+  /** Memberships and role assignments go by FK cascade; SCIM groups are deleted by the IdP. */
   delete: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string(), groupId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      throwIfCannotManageGroups(ctx.session, input.orgId);
-      const group = await findGroupOrThrow(
+      throwIfNoOrgGroupAccess(ctx.session, input.orgId);
+      const group = await findEditableGroupOrThrow(
         ctx.prisma,
         input.orgId,
         input.groupId,
       );
-      throwIfScimManaged(group);
       await ctx.prisma.group.delete({ where: { id: group.id } });
       await auditLog({
         session: ctx.session,
@@ -218,11 +220,7 @@ export const groupsRouter = createTRPCRouter({
       });
     }),
 
-  /**
-   * Adds org members to a group. Members gain the group's roles, which are
-   * capped at ADMIN, and only org admins/owners (organizationMembers:CUD) can
-   * call this, so it cannot hand out more than the caller could grant directly.
-   */
+  /** Group roles are capped at ADMIN and this needs organizationMembers:CUD, so it grants no more than the caller could directly. */
   addMembers: protectedOrganizationProcedure
     .input(
       z.object({
@@ -232,13 +230,12 @@ export const groupsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfCannotManageGroups(ctx.session, input.orgId);
-      const group = await findGroupOrThrow(
+      throwIfNoOrgGroupAccess(ctx.session, input.orgId);
+      const group = await findEditableGroupOrThrow(
         ctx.prisma,
         input.orgId,
         input.groupId,
       );
-      throwIfScimManaged(group);
       const userIds = [...new Set(input.userIds)];
       const memberships = await ctx.prisma.organizationMembership.findMany({
         where: { orgId: input.orgId, userId: { in: userIds } },
@@ -271,13 +268,12 @@ export const groupsRouter = createTRPCRouter({
       z.object({ orgId: z.string(), groupId: z.string(), userId: z.string() }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfCannotManageGroups(ctx.session, input.orgId);
-      const group = await findGroupOrThrow(
+      throwIfNoOrgGroupAccess(ctx.session, input.orgId);
+      const group = await findEditableGroupOrThrow(
         ctx.prisma,
         input.orgId,
         input.groupId,
       );
-      throwIfScimManaged(group);
       await ctx.prisma.groupMembership.deleteMany({
         where: {
           groupId: group.id,
@@ -296,16 +292,11 @@ export const groupsRouter = createTRPCRouter({
   list: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "organizationMembers:read",
-      });
-      throwIfNoEntitlement({
-        entitlement: "admin-api",
-        sessionUser: ctx.session.user,
-        orgId: input.orgId,
-      });
+      throwIfNoOrgGroupAccess(
+        ctx.session,
+        input.orgId,
+        "organizationMembers:read",
+      );
 
       const groups = await ctx.prisma.group.findMany({
         where: { orgId: input.orgId },
@@ -321,7 +312,6 @@ export const groupsRouter = createTRPCRouter({
                   user: {
                     select: { id: true, name: true, email: true, image: true },
                   },
-                  // Org-wide roles from all of the member's groups
                   groupMemberships: {
                     select: {
                       group: {
@@ -373,7 +363,6 @@ export const groupsRouter = createTRPCRouter({
       }));
     }),
 
-  /** Replaces all role assignments of a group. */
   setRoleAssignments: protectedOrganizationProcedure
     .input(
       z.object({
@@ -390,16 +379,7 @@ export const groupsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "organizationMembers:CUD",
-      });
-      throwIfNoEntitlement({
-        entitlement: "admin-api",
-        sessionUser: ctx.session.user,
-        orgId: input.orgId,
-      });
+      throwIfNoOrgGroupAccess(ctx.session, input.orgId);
       if (
         input.projectRoles.length > 0 &&
         !hasEntitlement({
@@ -419,9 +399,7 @@ export const groupsRouter = createTRPCRouter({
         where: { id: input.groupId, orgId: input.orgId },
         include: { roleAssignments: groupRoleAssignmentsSelect },
       });
-      if (!group) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Group not found" });
-      }
+      throwIfGroupNotFound(group);
 
       const tenantId = OrganizationId(input.orgId);
       const principalId = GroupId(group.id);
@@ -463,7 +441,6 @@ export const groupsRouter = createTRPCRouter({
       return after;
     }),
 
-  /** Sets or removes (role: null) one group's org-wide role; project roles stay untouched. */
   setOrgRole: protectedOrganizationProcedure
     .input(
       z.object({
@@ -473,7 +450,7 @@ export const groupsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfCannotManageGroups(ctx.session, input.orgId);
+      throwIfNoOrgGroupAccess(ctx.session, input.orgId);
       const group = await ctx.prisma.group.findFirst({
         where: { id: input.groupId, orgId: input.orgId },
         select: {
@@ -484,11 +461,8 @@ export const groupsRouter = createTRPCRouter({
           },
         },
       });
-      if (!group) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Group not found" });
-      }
-      const before =
-        (group.roleAssignments[0]?.systemRole as Role | undefined) ?? null;
+      throwIfGroupNotFound(group);
+      const before = roleOf(group.roleAssignments[0]);
 
       const tenantId = OrganizationId(input.orgId);
       await ctx.prisma.$transaction(async (tx) => {
@@ -517,20 +491,14 @@ export const groupsRouter = createTRPCRouter({
       return { role: input.role };
     }),
 
-  /** Every group of the project's org, with its role on this project and its org-wide role. */
   projectList: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "projectMembers:read",
-      });
-      throwIfNoEntitlement({
-        entitlement: "admin-api",
-        sessionUser: ctx.session.user,
-        orgId: ctx.session.orgId,
-      });
+      throwIfNoProjectGroupAccess(
+        ctx.session,
+        input.projectId,
+        "projectMembers:read",
+      );
 
       const groups = await ctx.prisma.group.findMany({
         where: { orgId: ctx.session.orgId },
@@ -574,16 +542,15 @@ export const groupsRouter = createTRPCRouter({
           email: user.email,
           image: user.image,
         })),
-        orgRole:
-          (group.roleAssignments.find((a) => a.projectId === null)
-            ?.systemRole as Role | undefined) ?? null,
-        projectRole:
-          (group.roleAssignments.find((a) => a.projectId === input.projectId)
-            ?.systemRole as Role | undefined) ?? null,
+        orgRole: roleOf(
+          group.roleAssignments.find((a) => a.projectId === null),
+        ),
+        projectRole: roleOf(
+          group.roleAssignments.find((a) => a.projectId === input.projectId),
+        ),
       }));
     }),
 
-  /** Sets or removes (role: null) one group's role on this project; other grants stay untouched. */
   setProjectRole: protectedProjectProcedure
     .input(
       z.object({
@@ -593,16 +560,11 @@ export const groupsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "projectMembers:CUD",
-      });
-      throwIfNoEntitlement({
-        entitlement: "admin-api",
-        sessionUser: ctx.session.user,
-        orgId: ctx.session.orgId,
-      });
+      throwIfNoProjectGroupAccess(
+        ctx.session,
+        input.projectId,
+        "projectMembers:CUD",
+      );
       throwIfNoEntitlement({
         entitlement: "rbac-project-roles",
         sessionUser: ctx.session.user,
@@ -619,11 +581,8 @@ export const groupsRouter = createTRPCRouter({
           },
         },
       });
-      if (!group) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Group not found" });
-      }
-      const before =
-        (group.roleAssignments[0]?.systemRole as Role | undefined) ?? null;
+      throwIfGroupNotFound(group);
+      const before = roleOf(group.roleAssignments[0]);
 
       if (before) throwIfRoleNotCovered(ctx.session, input.projectId, before);
       if (input.role) {
