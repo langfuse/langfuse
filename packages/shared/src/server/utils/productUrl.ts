@@ -206,6 +206,9 @@ export const buildDashboardWidgetUrl = (params: {
   widgetId: string;
 }) => buildProductUrl(buildDashboardWidgetPath(params));
 
+export const buildDashboardsUrl = (params: { projectId: string }) =>
+  buildProductUrl(buildDashboardsPath(params));
+
 export const buildDashboardUrl = (params: {
   projectId: string;
   dashboardId: string;

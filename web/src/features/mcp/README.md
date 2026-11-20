@@ -116,6 +116,18 @@ All write operations should audit-log entries with before/after snapshots.
 
 Tools that return trace, observation, score or experiment data declare `accessAudit` on `defineTool` and report the returned rows through the handler's `audit` argument (`audit.refs`, `audit.count`). Each successful call is then recorded as an access event (`surface = mcp`, the tool name as route) for orgs that record access events, before the result is returned.
 
+### MCP Apps
+
+`renderWidget` is an [MCP App](https://github.com/modelcontextprotocol/ext-apps): hosts that support the extension (Claude, ChatGPT, …) render its result as an interactive chart next to the tool call. Hosts without support only show the text result.
+
+How a call flows:
+
+1. The model calls `renderWidget` (`server/apps/tools/renderWidget.ts`). The server runs the same query a dashboard tile runs and returns a text summary for the model (`widgetSummary.ts`) plus the widget definition and rows in the result's `_meta.widget`, which hosts keep away from the model.
+2. The tool definition points at `ui://langfuse/widget.html` (`ui` option of `defineTool`). The host reads that resource (`server/apps/resources.ts`) and loads it into a sandboxed iframe.
+3. The view (`views/widget/WidgetApp.tsx`) connects to the host with the `@modelcontextprotocol/ext-apps` SDK, receives the tool result and renders the dashboard's `WidgetChartCard`.
+
+Hosts' iframes cannot load scripts or styles from Langfuse, so the resource is self-contained: it inlines the view's script bundle (`scripts/build-mcp-apps.mjs`) and the CSS Next.js compiles for `/mcp-apps/widget`, which the server fetches from itself. In development the bundle is rebuilt on every resource read, so view changes show up without a build step; `pnpm --filter web run build` prebuilds it for production. Hosts may cache the resource per conversation, so check view changes in a new one.
+
 ---
 
 # Connecting Clients

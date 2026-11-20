@@ -211,6 +211,9 @@ const nextConfig = {
     // worker URL keeps resolving across a deploy. See
     // pages/api/workers/elk-worker.ts.
     "/api/workers/elk-worker": ["./node_modules/elkjs/lib/elk-worker.min.js"],
+    // MCP App view scripts from scripts/build-mcp-apps.mjs, inlined into
+    // ui:// resources by the MCP server.
+    "/api/public/mcp": ["./.mcp-apps/*.js"],
   },
 
   async redirects() {

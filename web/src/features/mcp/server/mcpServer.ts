@@ -25,6 +25,8 @@ import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
 import { registerSkillResources } from "./skills/resources";
+import { registerResources } from "./resources";
+import { isAppToolResult } from "../core/mcp-app";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
 
@@ -87,6 +89,7 @@ export function createMcpServer(context: ServerContext): Server {
   );
 
   registerSkillResources(server);
+  registerResources(server);
 
   // ListTools handler - dynamically load from registry
   server.setRequestHandler("tools/list", async () => {
@@ -139,6 +142,13 @@ export function createMcpServer(context: ServerContext): Server {
       );
 
       if (isInputRequiredResult(result)) return result;
+
+      if (isAppToolResult(result)) {
+        return {
+          content: [{ type: "text", text: result.text }],
+          _meta: result.meta,
+        };
+      }
 
       return {
         content: [
