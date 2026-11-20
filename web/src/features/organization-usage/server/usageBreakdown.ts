@@ -100,10 +100,12 @@ const getBucketStarts = (
 };
 
 /**
- * Billable units per bucket, project and unit type. Mirrors the metering
- * definition used for Stripe and ClickHouse Billing: rows counted by
+ * Billable units per bucket, project and unit type: rows counted by
  * `created_at` in a half-open window, no FINAL. Scores include the listable
  * data types, plus CORRECTION rows created at or after the billing cutoff.
+ * Stripe and ClickHouse Billing meter from the billable_events ledger instead,
+ * which deletes and retention never lower, so this chart can run slightly
+ * below the billed usage.
  */
 const getBillableUnitsByBucket = async ({
   projectIds,

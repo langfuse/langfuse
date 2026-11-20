@@ -31,10 +31,14 @@ const {
   mockEnv: {
     STRIPE_SECRET_KEY: "sk_test",
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: undefined,
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: "dual",
   },
 }));
 
-vi.mock("@langfuse/shared", () => ({
+// Partial mock: the real worker env module, loaded for v4WritesToEventsTable,
+// needs the rest of this module.
+vi.mock("@langfuse/shared", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared")>()),
   getBillingProvider: () => "stripe",
   parseDbOrg: (org: unknown) => org,
   Prisma: { DbNull: "DbNull" },
@@ -52,8 +56,10 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-vi.mock("@langfuse/shared/src/server", () => ({
-  BILLING_SETTLE_MS: 60 * 1000,
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  BILLING_SETTLE_MS: (
+    await importOriginal<typeof import("@langfuse/shared/src/server")>()
+  ).BILLING_SETTLE_MS,
   CloudUsageMeteringQueue: {
     getInstance: () => ({ add: mockUsageMeteringQueueAdd }),
   },
@@ -80,7 +86,10 @@ vi.mock("stripe", () => ({
   },
 }));
 
-vi.mock("../../../env", () => ({ env: mockEnv }));
+vi.mock("../../../env", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../env")>()),
+  env: mockEnv,
+}));
 
 import { handleCloudUsageMeteringJob } from "../handleCloudUsageMeteringJob";
 import { CloudUsageMeteringDbCronJobStates } from "../constants";
@@ -127,6 +136,7 @@ describe("handleCloudUsageMeteringJob", () => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(NOW);
+    mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
 
     mockCronJobsUpsert.mockResolvedValue({
       name: "cloud_usage_metering",
@@ -330,5 +340,32 @@ describe("handleCloudUsageMeteringJob", () => {
       callsForMeter(eventName)[0]?.[0].payload.value;
     expect(valueOf("tracing_observations")).toBe("5");
     expect(valueOf("tracing_events")).toBe("14");
+  });
+
+  it("refuses to meter when the worker does not write events_full", async () => {
+    // The ledger's trace and observation rows come from events_full, so a
+    // legacy-only worker would meter scores alone.
+    mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+
+    await expect(handleCloudUsageMeteringJob(createJob())).rejects.toThrow(
+      /events_full/,
+    );
+
+    expect(mockCronJobsUpdate).not.toHaveBeenCalled();
+    expect(mockMeterEventsCreate).not.toHaveBeenCalled();
+  });
+
+  it("still meters known units when the ledger holds an unknown unit type", async () => {
+    mockLedgerCounts.mockResolvedValue([
+      { projectId: "project-1", eventType: "trace", count: 3 },
+      { projectId: "project-1", eventType: "not_yet_priced", count: 7 },
+    ]);
+
+    await handleCloudUsageMeteringJob(createJob());
+
+    expect(callsForMeter("tracing_events")[0]?.[0].payload.value).toBe("3");
+    expect(mockTraceException).toHaveBeenCalledWith(
+      expect.stringContaining("not_yet_priced"),
+    );
   });
 });
