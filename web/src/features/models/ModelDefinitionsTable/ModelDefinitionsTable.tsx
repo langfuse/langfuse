@@ -94,7 +94,7 @@ export function ModelDefinitionsTable({
       headerTooltip: {
         description: modelConfigDescriptions.maintainer,
       },
-      size: 60,
+      size: 90,
       range: "decorative",
       getBadge: (maintainer, { row }) => ({
         value: maintainer,
