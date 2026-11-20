@@ -9,6 +9,7 @@ import {
   createTraceScore,
   deleteEventsByTraceIds,
   deleteScoresByTraceIds,
+  getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
@@ -495,5 +496,83 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
     await expect(
       getBillableUnitCountsByProjectInWindow({ windowFrom: T0, windowTo: T0 }),
     ).rejects.toThrow("must end after it starts");
+  });
+});
+
+describe("getBillableUnitCountsByProjectAndBucket", () => {
+  const T0 = new Date("2026-01-05T00:00:00.000Z");
+  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
+
+  it("bills each bucket as one window, deduplicated against the 24 hours before it", async () => {
+    const projectId = randomUUID();
+    await insertBillableEvents(projectId, [
+      { eventType: "trace", eventId: "lookback-only", at: at(-2 * HOUR) },
+      { eventType: "trace", eventId: "resent", at: at(-2 * HOUR) },
+      { eventType: "trace", eventId: "resent", at: at(30 * MINUTE) },
+      { eventType: "trace", eventId: "twice-in-hour", at: at(10 * MINUTE) },
+      { eventType: "trace", eventId: "twice-in-hour", at: at(50 * MINUTE) },
+      { eventType: "trace", eventId: "across-hours", at: at(50 * MINUTE) },
+      { eventType: "trace", eventId: "across-hours", at: at(70 * MINUTE) },
+      { eventType: "trace", eventId: "after-gap", at: at(70 * MINUTE) },
+      { eventType: "trace", eventId: "after-gap", at: at(26 * HOUR) },
+      { eventType: "observation", eventId: "obs", at: at(5 * MINUTE) },
+    ]);
+    const to = at(27 * HOUR);
+    const bucketed = (from: Date, granularity: "hour" | "day") =>
+      getBillableUnitCountsByProjectAndBucket({
+        projectIds: [projectId],
+        from,
+        to,
+        granularity,
+      }).then((rows) =>
+        rows
+          .map((row) => ({
+            bucket: row.bucket.toISOString(),
+            eventType: row.eventType,
+            count: row.count,
+          }))
+          .sort(
+            (a, b) =>
+              a.bucket.localeCompare(b.bucket) ||
+              a.eventType.localeCompare(b.eventType),
+          ),
+      );
+
+    const hourly = await bucketed(T0, "hour");
+    expect(hourly).toEqual([
+      { bucket: at(0).toISOString(), eventType: "observation", count: 1 },
+      { bucket: at(0).toISOString(), eventType: "trace", count: 2 },
+      { bucket: at(HOUR).toISOString(), eventType: "trace", count: 1 },
+      { bucket: at(26 * HOUR).toISOString(), eventType: "trace", count: 1 },
+    ]);
+    // Hourly buckets add up to what an hourly meter bills.
+    const hourWindows = await Promise.all(
+      Array.from({ length: 27 }, (_, hour) =>
+        countsInWindow(projectId, at(hour * HOUR), at((hour + 1) * HOUR)),
+      ),
+    );
+    expect(
+      hourWindows.flatMap((counts, hour) =>
+        Object.entries(counts).map(([eventType, count]) => ({
+          bucket: at(hour * HOUR).toISOString(),
+          eventType,
+          count,
+        })),
+      ),
+    ).toEqual(expect.arrayContaining(hourly));
+    expect(hourWindows.flatMap(Object.keys)).toHaveLength(hourly.length);
+
+    // One daily window counts "after-gap" once; hourly windows count it twice.
+    expect(await bucketed(T0, "day")).toEqual([
+      { bucket: at(0).toISOString(), eventType: "observation", count: 1 },
+      { bucket: at(0).toISOString(), eventType: "trace", count: 3 },
+    ]);
+
+    // A range starting mid-bucket clips the first window to its start.
+    expect(await bucketed(at(30 * MINUTE), "hour")).toEqual([
+      { bucket: at(0).toISOString(), eventType: "trace", count: 1 },
+      { bucket: at(HOUR).toISOString(), eventType: "trace", count: 1 },
+      { bucket: at(26 * HOUR).toISOString(), eventType: "trace", count: 1 },
+    ]);
   });
 });

@@ -7,7 +7,26 @@ export type BillableEventType =
   | "score"
   | "topic_facet_summary";
 
+export type BillableUnitBucketGranularity = "hour" | "day" | "week" | "month";
+
 const BILLING_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+
+/** UTC bucket start of a DateTime expression; weeks start on Monday. */
+const bucketStartSql = (
+  column: string,
+  granularity: BillableUnitBucketGranularity,
+): string => {
+  switch (granularity) {
+    case "hour":
+      return `toStartOfHour(${column}, 'UTC')`;
+    case "day":
+      return `toStartOfDay(${column}, 'UTC')`;
+    case "week":
+      return `toDateTime(toStartOfWeek(${column}, 1, 'UTC'), 'UTC')`;
+    case "month":
+      return `toDateTime(toStartOfMonth(${column}, 'UTC'), 'UTC')`;
+  }
+};
 
 /**
  * How long rows stamped with an `ingested_at` before a given moment can take
@@ -101,4 +120,118 @@ export const getBillableUnitCountsByProjectInWindow = async ({
     eventType: row.event_type,
     count: Number(row.count),
   }));
+};
+
+/**
+ * Counts the billable units per UTC bucket, project and event type ingested in
+ * `[from, to)` of `billable_events.ingested_at`. Every bucket, clipped to
+ * `[from, to)`, is one billing window with the rules of
+ * `getBillableUnitCountsByProjectInWindow`: a unit counts once in a bucket
+ * when it appears there and its id was not ingested in the 24 hours before
+ * the bucket starts. Hourly buckets therefore add up to what is metered per
+ * hour. A longer bucket can count slightly less, because hourly windows count
+ * a unit again once it reappears more than 24 hours after its last row.
+ *
+ * Memory grows with the number of distinct units in the range, so callers
+ * bound the range.
+ */
+export const getBillableUnitCountsByProjectAndBucket = async ({
+  projectIds,
+  from,
+  to,
+  granularity,
+}: {
+  projectIds: string[];
+  from: Date;
+  to: Date;
+  granularity: BillableUnitBucketGranularity;
+}): Promise<
+  Array<{
+    bucket: Date;
+    projectId: string;
+    eventType: BillableEventType;
+    count: number;
+  }>
+> => {
+  if (to.getTime() <= from.getTime()) {
+    throw new Error(
+      `Billing range must end after it starts, got ${from.toISOString()} to ${to.toISOString()}`,
+    );
+  }
+  if (projectIds.length === 0) return [];
+
+  const bucket = bucketStartSql("seen_at", granularity);
+
+  // Each unit's ingestion times, sorted, cover the range plus the 24 hours
+  // before it. A time inside the range is billed when the time before it lies
+  // more than 24 hours before its bucket's window starts. Later times in the
+  // same window follow a time inside that window, so they are not billed.
+  const query = `
+    SELECT
+      toUnixTimestamp(${bucket}) AS bucket,
+      project_id,
+      event_type,
+      count() AS count
+    FROM (
+      SELECT
+        project_id,
+        event_type,
+        arraySort(groupArray(ingested_at)) AS ingested
+      FROM billable_events
+      WHERE project_id IN {projectIds: Array(String)}
+      AND ingested_at >= {lookbackFrom: DateTime64(3, 'UTC')}
+      AND ingested_at < {to: DateTime64(3, 'UTC')}
+      GROUP BY project_id, event_type, event_id
+      HAVING max(ingested_at) >= {from: DateTime64(3, 'UTC')}
+    )
+    ARRAY JOIN ingested AS seen_at, arrayEnumerate(ingested) AS i
+    WHERE seen_at >= {from: DateTime64(3, 'UTC')}
+    AND (
+      i = 1
+      OR ingested[i - 1] < greatest(${bucket}, {from: DateTime64(3, 'UTC')}) - INTERVAL 24 HOUR
+    )
+    GROUP BY bucket, project_id, event_type
+  `;
+
+  const rows = await queryClickhouse<{
+    bucket: string | number;
+    project_id: string;
+    event_type: BillableEventType;
+    count: string;
+  }>({
+    query,
+    params: {
+      projectIds,
+      from: convertDateToClickhouseDateTime(from),
+      to: convertDateToClickhouseDateTime(to),
+      lookbackFrom: convertDateToClickhouseDateTime(
+        new Date(from.getTime() - BILLING_LOOKBACK_MS),
+      ),
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000,
+    },
+  });
+
+  return rows.map((row) => ({
+    bucket: new Date(Number(row.bucket) * 1000),
+    projectId: row.project_id,
+    eventType: row.event_type,
+    count: Number(row.count),
+  }));
+};
+
+/**
+ * When the ledger got its first row, or null while it is empty. Usage before
+ * that was never recorded, because the ledger is not backfilled. `min` and
+ * `count` of the partition key column are answered from part metadata.
+ */
+export const getBillableEventsLedgerStart = async (): Promise<Date | null> => {
+  const [row] = await queryClickhouse<{ start: number; rows: string }>({
+    query: `
+      SELECT toUnixTimestamp(min(ingested_at)) AS start, count() AS rows
+      FROM billable_events
+    `,
+  });
+  return row && Number(row.rows) > 0 ? new Date(row.start * 1000) : null;
 };
