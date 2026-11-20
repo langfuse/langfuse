@@ -1,7 +1,11 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import type { z } from "zod";
 import { singleFilterList } from "@langfuse/shared";
-import { type ViewVersion, type views } from "@langfuse/shared/query";
+import {
+  isNumericMetadataFilter,
+  type ViewVersion,
+  type views,
+} from "@langfuse/shared/query";
 
 export const FilterArray = singleFilterList;
 
@@ -494,11 +498,6 @@ export const viewLowersNumericMetadata = (
   view: z.infer<typeof views>,
   viewVersion: ViewVersion,
 ): boolean => viewVersion === "v2" && view === "observations";
-
-export const isNumericMetadataFilter = (filter: {
-  column: string;
-  type: string;
-}): boolean => filter.column === "metadata" && filter.type === "numberObject";
 
 /**
  * partitionWidgetQueryFiltersToView partitions editor rows for a query on the

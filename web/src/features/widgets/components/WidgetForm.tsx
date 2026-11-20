@@ -12,6 +12,7 @@ import { type ImportedWidgetFormSnapshot } from "@/src/features/widgets/utils/im
 import {
   buildWidgetOrderBy,
   getValidAggregationsForMeasureType,
+  isNumericMetadataFilter,
   isV2BreakdownChart,
   validateQuery,
   viewDeclarations,
@@ -22,7 +23,6 @@ import {
   type metricAggregations,
 } from "@langfuse/shared/query";
 import {
-  isNumericMetadataFilter,
   mapWidgetUiTableFilterToView,
   partitionWidgetQueryFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
