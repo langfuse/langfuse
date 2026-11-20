@@ -15,6 +15,7 @@ const model: ModelTableRow = {
   modelName: "example-model",
   matchPattern: "^example-model$",
   prices: { input: 0.000001, output: 0.000002 },
+  editable: false,
   serverResponse: {
     id: "model-1",
     scope: "LANGFUSE",
@@ -38,9 +39,11 @@ export const Default = meta.story({
           modelId: "model-2",
           modelName: "custom-model",
           maintainer: "User",
+          editable: true,
           serverResponse: {
             ...model.serverResponse,
             id: "model-2",
+            scope: "PROJECT",
             projectId: "project-1",
           },
         },

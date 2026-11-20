@@ -1,11 +1,17 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint @repo/no-style-props: "off" */
 import cloneDeep from "lodash/cloneDeep";
 import isEqual from "lodash/isEqual";
-import { useImperativeHandle, useRef, useState, type Ref } from "react";
+import {
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogContent,
@@ -25,43 +31,34 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { buildFormValues } from "@/src/features/models/fns/buildFormValues";
+import {
+  buildFormValues,
+  type ModelFormSource,
+} from "@/src/features/models/fns/buildFormValues";
 import { matchPatternFor } from "@/src/features/models/fns/matchPatternFor";
-import { toPricingTierInputs } from "@/src/features/models/fns/toPricingTierInputs";
 import {
   type FormUpsertModel,
   FormUpsertModelSchema,
-  type GetModelResult,
 } from "@/src/features/models/validation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { api } from "@/src/utils/api";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/router";
-
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { PricingSection } from "@/src/features/models/components/PricingSection/PricingSection";
+import { useRouter } from "next/router";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { toPricingTierInputs } from "@/src/features/models/fns/toPricingTierInputs";
+import { useUpsertModelDefinition } from "@/src/features/models/hooks/useModelDefinitionApi";
+import {
+  modelDetailHref,
+  type ModelOwner,
+} from "@/src/features/models/modelOwner";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 type DialogChild = (control: { openDialog: () => void }) => React.ReactNode;
-type ModelFormSource =
-  | {
-      action: "create";
-      projectId: string;
-      prefilledModelData?: {
-        modelName?: string;
-        prices?: Record<string, number>;
-      };
-      /** Called after the model is created, in place of opening its page. */
-      onCreated?: () => void;
-    }
-  | {
-      action: "edit" | "clone";
-      projectId: string;
-      modelData: GetModelResult;
-    };
-type UpsertModelDialogProps = ModelFormSource & { children: DialogChild };
-
-const DISCARD_CHANGES_MESSAGE =
-  "Discard your unsaved changes to this model definition?";
+type UpsertModelFormProps = ModelFormSource & {
+  owner: ModelOwner;
+  /** Called after the model is created, in place of opening its page. */
+  onCreated?: () => void;
+};
+type UpsertModelDialogProps = UpsertModelFormProps & { children: DialogChild };
 
 export const UpsertModelFormDialogController = (({
   children,
@@ -91,21 +88,114 @@ export const UpsertModelFormDialogController = (({
   );
 }) as React.FC<UpsertModelDialogProps>;
 
+const titleByAction = {
+  create: "Create Model",
+  clone: "Clone Model",
+  edit: "Edit Model",
+} as const satisfies Record<ModelFormSource["action"], string>;
+
+const describeSource = (source: ModelFormSource) => {
+  if (source.action === "edit") return source.modelData.modelName;
+  if (source.action === "create")
+    return "Create a new model configuration to track generation costs.";
+  return undefined;
+};
+
 export function UpsertModelFormDialogContent({
+  owner,
+  onCreated,
   closeDialog,
   closeGuardRef,
-  ...props
-}: ModelFormSource & {
+  ...source
+}: UpsertModelFormProps & {
   closeDialog: () => void;
   closeGuardRef?: Ref<() => boolean>;
 }) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
+  const { upsert, isPending } = useUpsertModelDefinition(owner);
+  const isEdit = source.action === "edit";
+
+  const onSubmit = async (values: FormUpsertModel) => {
+    capture("models:new_form_submit");
+    const upsertedModel = await upsert({
+      modelId: source.action === "edit" ? source.modelData.id : null,
+      modelName:
+        source.action === "edit"
+          ? source.modelData.modelName
+          : values.modelName,
+      matchPattern: values.matchPattern,
+      pricingTiers: toPricingTierInputs(values),
+      tokenizerId: values.tokenizerId,
+      tokenizerConfig:
+        values.tokenizerConfig &&
+        typeof JSON.parse(values.tokenizerConfig) === "object"
+          ? (JSON.parse(values.tokenizerConfig) as Record<string, number>)
+          : undefined,
+    });
+
+    showSuccessToast({
+      operation: isEdit ? "model.update" : "model.create",
+      title: `Model ${isEdit ? "updated" : "created"}`,
+      description: `The model '${upsertedModel.modelName}' has been successfully ${isEdit ? "updated" : "created"}. New generations will use these model prices.`,
+    });
+    return upsertedModel;
+  };
+
+  return (
+    <ModelFormDialogContent
+      source={source}
+      title={titleByAction[source.action]}
+      description={describeSource(source)}
+      isSubmitting={isPending}
+      onSubmit={onSubmit}
+      onCreated={(modelId) => {
+        closeDialog();
+        if (onCreated) {
+          onCreated();
+          return;
+        }
+        router.push(modelDetailHref(owner, modelId));
+      }}
+      onCancel={closeDialog}
+      closeGuardRef={closeGuardRef}
+    />
+  );
+}
+
+const DISCARD_CHANGES_MESSAGE =
+  "Discard your unsaved changes to this model definition?";
+
+/**
+ * The model form without its data source: the caller saves the values and
+ * decides where a created model leads. Editing keeps the dialog open.
+ */
+export function ModelFormDialogContent({
+  source,
+  title,
+  description,
+  notice,
+  isSubmitting,
+  onSubmit,
+  onCreated,
+  onCancel,
+  closeGuardRef,
+}: {
+  source: ModelFormSource;
+  title: string;
+  description?: ReactNode;
+  /** Shown above the fields, e.g. where the definition applies. */
+  notice?: ReactNode;
+  isSubmitting: boolean;
+  onSubmit: (values: FormUpsertModel) => Promise<{ id: string }>;
+  onCreated: (modelId: string) => void;
+  onCancel: () => void;
+  closeGuardRef?: Ref<() => boolean>;
+}) {
   const [formError, setFormError] = useState<string | null>(null);
-  const utils = api.useUtils();
   const form = useForm({
     resolver: zodResolver(FormUpsertModelSchema),
-    defaultValues: buildFormValues(props),
+    defaultValues: buildFormValues(source),
   });
   useImperativeHandle(
     closeGuardRef,
@@ -113,10 +203,7 @@ export function UpsertModelFormDialogContent({
       !form.formState.isDirty || window.confirm(DISCARD_CHANGES_MESSAGE),
   );
 
-  const upsertModelMutation = api.models.upsert.useMutation();
-
-  const onSubmit = async (values: FormUpsertModel) => {
-    capture("models:new_form_submit");
+  const handleSubmit = async (values: FormUpsertModel) => {
     setFormError(null);
     // Snapshot before the await: nothing typed while the save is in flight may
     // become part of the saved baseline, or the dirty guard would let it go.
@@ -124,32 +211,10 @@ export function UpsertModelFormDialogContent({
     const submitted = cloneDeep(form.getValues());
 
     try {
-      const upsertedModel = await upsertModelMutation.mutateAsync({
-        modelId: props.action === "edit" ? props.modelData.id : null,
-        projectId: props.projectId,
-        modelName:
-          props.action === "edit"
-            ? props.modelData.modelName
-            : values.modelName,
-        matchPattern: values.matchPattern,
-        pricingTiers: toPricingTierInputs(values),
-        tokenizerId: values.tokenizerId,
-        tokenizerConfig:
-          values.tokenizerConfig &&
-          typeof JSON.parse(values.tokenizerConfig) === "object"
-            ? (JSON.parse(values.tokenizerConfig) as Record<string, number>)
-            : undefined,
-      });
-
-      utils.models.invalidate();
-      showSuccessToast({
-        operation: props.action === "edit" ? "model.update" : "model.create",
-        title: `Model ${props.action === "edit" ? "updated" : "created"}`,
-        description: `The model '${upsertedModel.modelName}' has been successfully ${props.action === "edit" ? "updated" : "created"}. New generations will use these model prices.`,
-      });
+      const saved = await onSubmit(values);
 
       // Editing is a checkpoint, not an exit: keep the dialog and its context.
-      if (props.action === "edit") {
+      if (source.action === "edit") {
         const live = form.getValues();
         form.reset(submitted); // what we saved is the new clean baseline
         if (!isEqual(live, submitted)) {
@@ -160,14 +225,7 @@ export function UpsertModelFormDialogContent({
       }
 
       form.reset(submitted);
-      closeDialog();
-      if (props.action === "create" && props.onCreated) {
-        props.onCreated();
-        return;
-      }
-      router.push(
-        `/project/${props.projectId}/settings/models/${upsertedModel.id}`,
-      );
+      onCreated(saved.id);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : String(error));
     }
@@ -176,32 +234,22 @@ export function UpsertModelFormDialogContent({
   return (
     <DialogContent size="lg">
       <DialogHeader>
-        <DialogTitle>
-          {props.action === "create"
-            ? "Create Model"
-            : props.action === "clone"
-              ? "Clone Model"
-              : "Edit Model"}
-        </DialogTitle>
-        {props.action === "edit" && (
-          <DialogDescription>{props.modelData.modelName}</DialogDescription>
-        )}
-        {props.action === "create" && (
-          <DialogDescription>
-            Create a new model configuration to track generation costs.
-          </DialogDescription>
-        )}
+        <DialogTitle>{title}</DialogTitle>
+        {description ? (
+          <DialogDescription>{description}</DialogDescription>
+        ) : null}
       </DialogHeader>
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={form.handleSubmit(handleSubmit)}
           className="flex flex-1 flex-col overflow-hidden"
         >
           <DialogBody className="space-y-6">
+            {notice}
             <FormField
               control={form.control}
               name="modelName"
-              disabled={props.action === "edit"}
+              disabled={source.action === "edit"}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Model Name</FormLabel>
@@ -262,12 +310,12 @@ export function UpsertModelFormDialogContent({
           </DialogBody>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={closeDialog}>
+            <Button type="button" variant="outline" onClick={onCancel}>
               Cancel
             </Button>
 
-            <Button type="submit" loading={upsertModelMutation.isPending}>
-              {props.action === "edit" ? "Save" : "Submit"}
+            <Button type="submit" loading={isSubmitting}>
+              {source.action === "edit" ? "Save" : "Submit"}
             </Button>
           </DialogFooter>
         </form>

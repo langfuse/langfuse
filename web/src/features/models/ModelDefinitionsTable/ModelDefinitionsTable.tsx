@@ -19,7 +19,6 @@ import {
 import { PriceBreakdownTooltip } from "@/src/features/models/components/PriceBreakdownTooltip";
 import {
   type ModelMaintainer,
-  isProjectEditableModel,
   modelMaintainerBadgeVariant,
 } from "@/src/features/models/modelMaintainer";
 
@@ -29,6 +28,8 @@ export type ModelTableRow = {
   modelName: string;
   matchPattern: string;
   prices?: Record<string, number>;
+  /** Owned by the page's owner; other definitions can only be cloned. */
+  editable: boolean;
   serverResponse: GetModelResult;
 };
 
@@ -159,7 +160,7 @@ export function ModelDefinitionsTable({
       tableName="models"
       columns={columns}
       actions={(model) =>
-        !isProjectEditableModel(model.serverResponse.scope)
+        !model.editable
           ? [
               {
                 id: "clone",

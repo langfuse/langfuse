@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { FlaskConical, PlusIcon } from "@langfuse/icons";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { StringParam, useQueryParams, withDefault } from "use-query-params";
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -14,28 +14,36 @@ import {
 } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { TestModelMatchDialogContent } from "@/src/features/models/components/test-match/TestModelMatchDialogContent";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
+import {
+  useDeleteModelDefinition,
+  useModelDefinitionList,
+  useModelLastUsed,
+} from "@/src/features/models/hooks/useModelDefinitionApi";
 import { modelMaintainerByScope } from "@/src/features/models/modelMaintainer";
+import {
+  isEditableIn,
+  modelDetailHref,
+  type ModelOwner,
+  useCanEditModels,
+} from "@/src/features/models/modelOwner";
 import { type GetModelResult } from "@/src/features/models/validation";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
+import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import {
   ModelDefinitionsTable,
   type ModelTableRow,
 } from "./ModelDefinitionsTable";
 
 export function ConnectedModelDefinitionsTable({
-  projectId,
+  owner,
 }: {
-  projectId: string;
+  owner: ModelOwner;
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const utils = api.useUtils();
-  const deleteModel = api.models.delete.useMutation({
-    onSuccess: () => utils.models.invalidate(),
-  });
+  const deleteModel = useDeleteModelDefinition(owner);
+  const [deleteError, setDeleteError] = useState<string | undefined>();
   const editCloseGuard = useRef<() => boolean>(() => true);
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -44,38 +52,18 @@ export function ConnectedModelDefinitionsTable({
   const [queryParams, setQueryParams] = useQueryParams({
     search: withDefault(StringParam, ""),
   });
-  const models = api.models.getAll.useQuery(
-    {
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
-      projectId,
-      searchString: queryParams.search,
-    },
-    {
-      refetchOnWindowFocus: false,
-      refetchOnMount: true,
-      refetchOnReconnect: false,
-      staleTime: 1000 * 60 * 10,
-    },
-  );
+  const models = useModelDefinitionList(owner, {
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+    searchString: queryParams.search,
+  });
   const modelIds = models.data?.models.map((model) => model.id) ?? [];
-  const lastUsed = api.models.lastUsedByModelIds.useQuery(
-    { projectId, modelIds },
-    {
-      enabled: models.isSuccess && modelIds.length > 0,
-      refetchOnWindowFocus: false,
-      refetchOnMount: true,
-      refetchOnReconnect: false,
-      staleTime: 1000 * 60 * 10,
-    },
-  );
+  const lastUsed = useModelLastUsed(owner, models.isSuccess ? modelIds : []);
   const { priceUnit, priceUnitMultiplier } = usePriceUnitMultiplier();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "m");
-  const hasWriteAccess = useHasProjectAccess({
-    projectId,
-    scope: "models:CUD",
-  });
+  const hasWriteAccess = useCanEditModels(owner);
 
+  const ownerScope = owner.scope;
   const data = useMemo<AsyncTableData<ModelTableRow[]>>(() => {
     if (models.isPending) {
       return { status: "loading" };
@@ -85,18 +73,16 @@ export function ConnectedModelDefinitionsTable({
     }
     return {
       status: "success",
-      data: (models.data?.models ?? []).map(convertToTableRow),
+      data: (models.data?.models ?? []).map((model) =>
+        convertToTableRow(ownerScope, model),
+      ),
     };
-  }, [models.isPending, models.isError, models.error, models.data]);
+  }, [ownerScope, models.isPending, models.isError, models.error, models.data]);
 
   return (
     <DialogController
       renderDialog={({ closeDialog }) => (
-        <TestModelMatchDialogContent
-          projectId={projectId}
-          open
-          onClose={closeDialog}
-        />
+        <TestModelMatchDialogContent owner={owner} open onClose={closeDialog} />
       )}
     >
       {({ openDialog: openTestMatchDialog }) => (
@@ -107,7 +93,7 @@ export function ConnectedModelDefinitionsTable({
           onBeforeClose={() => editCloseGuard.current()}
           renderDialog={({ state, closeDialog }) => (
             <UpsertModelFormDialogContent
-              projectId={projectId}
+              owner={owner}
               action={state.action}
               modelData={state.model}
               closeDialog={closeDialog}
@@ -130,10 +116,7 @@ export function ConnectedModelDefinitionsTable({
             };
 
             return (
-              <UpsertModelFormDialogController
-                projectId={projectId}
-                action="create"
-              >
+              <UpsertModelFormDialogController owner={owner} action="create">
                 {({ openDialog: openCreateDialog }) => (
                   <ConfirmationDialogController<GetModelResult>
                     title="Delete model?"
@@ -141,16 +124,18 @@ export function ConnectedModelDefinitionsTable({
                     confirmLabel="Delete model"
                     variant="destructive"
                     loading={deleteModel.isPending}
-                    error={deleteModel.error?.message}
-                    onAfterDismiss={deleteModel.reset}
+                    error={deleteError}
+                    onAfterDismiss={() => setDeleteError(undefined)}
                     onConfirm={async (model) => {
                       capture("models:delete_button_click");
                       try {
-                        await deleteModel.mutateAsync({
-                          projectId,
-                          modelId: model.id,
-                        });
+                        await deleteModel.remove(model.id);
                       } catch (error) {
+                        setDeleteError(
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                        );
                         reportTrpcErrorWithoutToast(error, "models");
                         throw error;
                       }
@@ -198,14 +183,12 @@ export function ConnectedModelDefinitionsTable({
                           onClone: openCloneDialog,
                           onEdit: openEditDialog,
                           onDelete: (model) => {
-                            deleteModel.reset();
+                            setDeleteError(undefined);
                             openDeleteDialog(model.serverResponse);
                           },
                         }}
                         onRowClick={(model) => {
-                          router.push(
-                            `/project/${projectId}/settings/models/${model.modelId}`,
-                          );
+                          router.push(modelDetailHref(owner, model.modelId));
                         }}
                       />
                     )}
@@ -220,7 +203,10 @@ export function ConnectedModelDefinitionsTable({
   );
 }
 
-function convertToTableRow(model: GetModelResult): ModelTableRow {
+function convertToTableRow(
+  ownerScope: ModelOwner["scope"],
+  model: GetModelResult,
+): ModelTableRow {
   const prices = model.pricingTiers.find((tier) => tier.isDefault)?.prices;
   return {
     modelId: model.id,
@@ -228,6 +214,7 @@ function convertToTableRow(model: GetModelResult): ModelTableRow {
     modelName: model.modelName,
     matchPattern: model.matchPattern,
     prices,
+    editable: isEditableIn(ownerScope, model.scope),
     serverResponse: model,
   };
 }
