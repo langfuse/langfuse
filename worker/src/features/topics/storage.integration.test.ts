@@ -523,14 +523,15 @@ describe("Topics definition persistence", () => {
     });
     const rows = await clickhouseClient().query({
       query: `SELECT unit_type FROM topic_facet_summaries
-        WHERE project_id = {projectId:String} AND unit_hash = cityHash64({sharedId:String}) ORDER BY unit_type`,
+        WHERE project_id = {projectId:String} AND unit_hash = cityHash64({sharedId:String})`,
       query_params: { projectId, sharedId },
       format: "JSONEachRow",
     });
-    expect(await rows.json()).toEqual([
-      { unit_type: "trace" },
-      { unit_type: "session" },
-    ]);
+    expect(
+      (await rows.json<{ unit_type: string }>())
+        .map((row) => row.unit_type)
+        .sort(),
+    ).toEqual(["session", "trace"]);
   });
 
   it("partitions by source time while preserving replacement and published map identities", async () => {

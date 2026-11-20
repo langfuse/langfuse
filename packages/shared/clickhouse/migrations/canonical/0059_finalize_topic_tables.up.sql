@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     session_id String DEFAULT '',
     CONSTRAINT topic_source_present CHECK notEmpty(trace_id) OR notEmpty(session_id),
     unit_hash UInt64 MATERIALIZED cityHash64(if(trace_id = '', session_id, trace_id)),
-    unit_type Enum8('trace' = 1, 'session' = 2) MATERIALIZED if(trace_id = '', 'session', 'trace'),
+    unit_type LowCardinality(String) MATERIALIZED if(trace_id = '', 'session', 'trace'),
     rule_ids Array(String) DEFAULT [],
     environment LowCardinality(String),
     trace_name String DEFAULT '',
