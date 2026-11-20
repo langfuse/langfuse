@@ -199,6 +199,7 @@ export const slackRouter = createTRPCRouter({
 
       const integration = await ctx.prisma.slackIntegration.findUnique({
         where: { projectId: input.projectId },
+        omit: { botToken: true },
       });
 
       if (!integration) {
