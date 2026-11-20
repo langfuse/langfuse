@@ -83,6 +83,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
       storageClient: getS3MediaStorageClient(
         env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
       ),
+      retentionCutoffDate: cutoffDate,
     });
     logger.info(
       `[Data Retention] Deleted ${deletedMediaCount} media files for project ${projectId}`,
