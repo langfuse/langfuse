@@ -2,25 +2,25 @@ import { randomUUID } from "node:crypto";
 import { type Job } from "bullmq";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  getTraceBatchEventStream,
+  getEventsDispatchEventStream,
   QueueJobs,
   redis,
   type QueueName,
   type TQueueJobTypes,
-  type TraceBatchInputStorage,
+  type TraceTranscriptStorage,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { getTraceBatchShard } from "../../features/traceBatching/traceBatchReadiness";
+import { getTraceDispatchShard } from "../../features/traceDispatch/traceReadiness";
 import {
   ACKNOWLEDGE_RECORDING_SCRIPT,
   getRecordingKeys,
   recordTraceActivity,
-} from "../../features/traceBatching/traceRuleRecording";
+} from "../../features/traceDispatch/traceRuleRecording";
 import { eventsDispatchQueueProcessor } from "../eventsDispatchQueue";
 
 const inputStorage = vi.hoisted(() => ({
-  put: vi.fn<TraceBatchInputStorage["put"]>(),
-  get: vi.fn<TraceBatchInputStorage["get"]>(),
+  put: vi.fn<TraceTranscriptStorage["put"]>(),
+  get: vi.fn<TraceTranscriptStorage["get"]>(),
 }));
 const topicsTraceAdd = vi.hoisted(() => vi.fn());
 
@@ -32,10 +32,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     redis: original.createNewRedisInstance({
       keyPrefix: `events-dispatch-test-${randomUUID()}:`,
     }),
-    getTraceBatchEventStream: vi.fn(),
+    getEventsDispatchEventStream: vi.fn(),
     recordIncrement: vi.fn(),
     recordDistribution: vi.fn(),
-    createTraceBatchInputStorage: () => inputStorage,
+    createTraceTranscriptStorage: () => inputStorage,
     TopicsTraceQueue: { getInstance: () => ({ add: topicsTraceAdd }) },
   };
 });
@@ -68,7 +68,7 @@ const MINUTE_MS = 60_000;
 const projectId = `project-${randomUUID()}`;
 const member = (traceId: string) => JSON.stringify([projectId, traceId]);
 const keysOf = (traceId: string) =>
-  getRecordingKeys(getTraceBatchShard(member(traceId)));
+  getRecordingKeys(getTraceDispatchShard(member(traceId)));
 const readPending = async (traceId: string) => {
   const value = await redis!.hget(keysOf(traceId).pending, member(traceId));
   return value === null ? null : JSON.parse(value);
@@ -96,29 +96,31 @@ async function recordAndAcknowledge(traceIds: string[], acknowledge = true) {
 }
 
 function streamRows(traceIds: string[]) {
-  vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
-    for (const traceId of traceIds)
-      yield {
-        project_id: projectId,
-        trace_id: traceId,
-        session_id: "",
-        environment: "default",
-        span_id: `span-${traceId}`,
-        parent_span_id: null,
-        start_time: "2026-11-05 00:00:00.000000",
-        event_ts: "2026-11-05 00:00:00.000000",
-        type: "GENERATION",
-        name: "generation",
-        input: JSON.stringify([{ role: "user", content: "hello" }]),
-        output: "",
-        metadata: {},
-        level: "DEFAULT",
-        status_message: null,
-        tool_definitions: {},
-        tool_calls: [],
-        tool_call_names: [],
-      };
-  });
+  vi.mocked(getEventsDispatchEventStream).mockImplementation(
+    async function* () {
+      for (const traceId of traceIds)
+        yield {
+          project_id: projectId,
+          trace_id: traceId,
+          session_id: "",
+          environment: "default",
+          span_id: `span-${traceId}`,
+          parent_span_id: null,
+          start_time: "2026-11-05 00:00:00.000000",
+          event_ts: "2026-11-05 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: JSON.stringify([{ role: "user", content: "hello" }]),
+          output: "",
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    },
+  );
 }
 
 const job = (

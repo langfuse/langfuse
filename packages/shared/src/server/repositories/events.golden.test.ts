@@ -64,7 +64,7 @@ import {
 } from "./events";
 import { TRACE_AGGREGATION_SQL } from "./events-selects";
 import { getEventsStreamForEval } from "./events-stream";
-import { getTraceBatchEventStream } from "./trace-batch";
+import { getEventsDispatchEventStream } from "./events-dispatch";
 import { ALL_SESSION_EVENTS_FIELDS } from "../queries/clickhouse-sql/event-query-builder";
 import { buildEventsBlobExportStreamQuery } from "../queries/clickhouse-sql/events-stream-query";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
@@ -545,8 +545,8 @@ describeWithClickhouse(
       expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
     });
 
-    it("getTraceBatchEventStream", async () => {
-      for await (const _ of getTraceBatchEventStream({
+    it("getEventsDispatchEventStream", async () => {
+      for await (const _ of getEventsDispatchEventStream({
         traces: [
           {
             projectId: FIXED_PROJECT_ID,

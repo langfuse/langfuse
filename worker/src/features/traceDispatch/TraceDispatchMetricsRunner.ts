@@ -5,7 +5,7 @@ import {
   redis,
 } from "@langfuse/shared/src/server";
 import { PeriodicRunner } from "../../utils/PeriodicRunner";
-import { MEMORY_SCRIPT } from "./traceBatchReadiness";
+import { MEMORY_SCRIPT } from "./traceReadiness";
 import { getRecordingBoundsKey, getRecordingKeys } from "./traceRuleRecording";
 import {
   isEventsDispatchEnabled,
@@ -25,15 +25,15 @@ end
 return result
 `;
 
-export class TraceBatchMetricsRunner extends PeriodicRunner {
+export class TraceDispatchMetricsRunner extends PeriodicRunner {
   private lastMemorySampleAt: number | null = null;
 
   constructor() {
-    super("trace_batch_metrics");
+    super("trace_dispatch_metrics");
   }
 
   protected get name(): string {
-    return "trace-batch-metrics";
+    return "trace-dispatch-metrics";
   }
 
   protected get defaultIntervalMs(): number {
@@ -62,7 +62,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     for (const result of results) {
       if (result.status === "rejected") {
         this.markRunFailed(result.reason);
-        logger.error("Trace batch metrics collection failed", {
+        logger.error("Trace dispatch metrics collection failed", {
           error: result.reason,
         });
       }
@@ -106,7 +106,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
 
   /** Bounds are one key per trace without an index; sample the bounds of a few pending traces per shard instead of scanning. */
   private async collectRecordingMemory(): Promise<void> {
-    if (!redis) throw new Error("Trace batch metrics require Redis");
+    if (!redis) throw new Error("Trace dispatch metrics require Redis");
     const totals = [0, 0, 0, 0];
     let sampledBoundsBytes = 0;
     let sampledBoundsKeys = 0;

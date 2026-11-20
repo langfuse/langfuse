@@ -33,8 +33,8 @@ import type {
   TopicRule,
   TopicRun,
 } from "@langfuse/shared/topics";
-import { resolveTraceIdleMs } from "../traceBatching/traceBatchReadiness";
-import { seedTraceDispatch } from "../traceBatching/traceRuleRecording";
+import { resolveTraceIdleMs } from "../traceDispatch/traceReadiness";
+import { seedTraceDispatch } from "../traceDispatch/traceRuleRecording";
 import { currentRuleMap } from "./nightlyRefit";
 
 export const TOPIC_RULE_SETUP_TICK_MS = 15_000;

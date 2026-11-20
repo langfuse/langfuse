@@ -36,7 +36,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
 vi.mock("../observationEval/createSchedulerDeps", () => ({
   createObservationEvalSchedulerDeps: mocks.createObservationDeps,
 }));
-vi.mock("../../traceBatching/traceRuleRecording", () => ({
+vi.mock("../../traceDispatch/traceRuleRecording", () => ({
   recordTraceActivity: async (projectId: string, events: unknown) =>
     mocks.record(projectId, structuredClone(events)),
 }));

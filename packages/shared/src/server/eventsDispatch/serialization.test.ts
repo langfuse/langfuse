@@ -5,9 +5,9 @@ import { convertObservation } from "../repositories/observations_converters";
 import { orderObservations } from "../transcript/ordering";
 import { assembleTranscript } from "../transcript/transcript";
 import { toStoredTranscriptV1, fromStoredTranscriptV1 } from "./serialization";
-import { traceBatchInputsV1Schema } from "./versions/v1";
+import { traceTranscriptV1Schema } from "./versions/v1";
 
-describe("trace batch input serialization", () => {
+describe("trace transcript serialization", () => {
   it.each(transcriptFixtures)("round trips $name", (fixture) => {
     const observations = fixture.observations.map((observation) =>
       convertObservation(createObservation(observation)),
@@ -26,7 +26,7 @@ describe("trace batch input serialization", () => {
         },
       }),
     );
-    const parsed = traceBatchInputsV1Schema.parse(stored);
+    const parsed = traceTranscriptV1Schema.parse(stored);
 
     expect(
       parsed.transcript === null

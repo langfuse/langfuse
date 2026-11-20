@@ -13,7 +13,7 @@ import { isEventsDispatchEnabled } from "../eventsDispatch/config";
  * A trace is admitted when it passes its project's Topics rule sampling, using
  * the deterministic trace-ID value.
  */
-export async function resolveTraceBatchSamplingRate(
+export async function resolveTraceDispatchSamplingRate(
   projectId: string,
 ): Promise<number> {
   if (!isEventsDispatchEnabled()) return 0;
@@ -31,7 +31,7 @@ export async function resolveTraceBatchSamplingRate(
   }
 }
 
-export function isTraceBatchSampled(
+export function isTraceDispatchSampled(
   traceId: string,
   samplingRate: number,
 ): boolean {

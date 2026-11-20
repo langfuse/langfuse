@@ -4,7 +4,7 @@ import {
 } from "../queries/clickhouse-sql/event-query-builder";
 import { queryClickhouseStream, TupleParam } from "./clickhouse";
 
-export type TraceBatchEventRow = {
+export type EventsDispatchEventRow = {
   project_id: string;
   trace_id: string;
   session_id: string;
@@ -42,7 +42,7 @@ const chunkItems = <T>(items: readonly T[], size: number) => {
   return chunks;
 };
 
-type TraceBatchEventStreamProps = {
+type EventsDispatchEventStreamProps = {
   traces: ReadonlyArray<{
     projectId: string;
     traceId: string;
@@ -51,7 +51,9 @@ type TraceBatchEventStreamProps = {
   }>;
 };
 
-const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
+const buildEventsDispatchEventQuery = (
+  props: EventsDispatchEventStreamProps,
+) => {
   // Bound the total IDs before grouping: one popular time window may contain
   // the entire job, and still must fit into a single HTTP parameter field.
   const timeGroupChunks = chunkItems(
@@ -209,8 +211,8 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
  * Rows reflect the events table's current merge state, as in other event reads;
  * this read does not deduplicate versions or enrich model data.
  */
-export async function* getTraceBatchEventStream(
-  props: TraceBatchEventStreamProps,
+export async function* getEventsDispatchEventStream(
+  props: EventsDispatchEventStreamProps,
   options: {
     maxThreads?: number;
     maxBlockSize?: number;
@@ -219,11 +221,11 @@ export async function* getTraceBatchEventStream(
     maxExecutionTimeS?: number;
     queryId?: string;
   } = {},
-): AsyncGenerator<TraceBatchEventRow> {
+): AsyncGenerator<EventsDispatchEventRow> {
   if (props.traces.length === 0) return;
 
-  const { query, params, projectIds } = buildTraceBatchEventQuery(props);
-  yield* queryClickhouseStream<TraceBatchEventRow>({
+  const { query, params, projectIds } = buildEventsDispatchEventQuery(props);
+  yield* queryClickhouseStream<EventsDispatchEventRow>({
     query,
     queryId: options.queryId,
     params,

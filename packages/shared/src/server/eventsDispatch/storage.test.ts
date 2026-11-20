@@ -4,7 +4,7 @@ import type { StorageService } from "../services/StorageService";
 import type { ExecutionIssue, Transcript } from "../transcript/types";
 import storedV1 from "./fixtures/inputs-v1.json";
 import { createEventUploadStorageService } from "../s3";
-import { createTraceBatchInputStorage } from "./storage";
+import { createTraceTranscriptStorage } from "./storage";
 
 const storage = vi.hoisted(() => ({
   uploadFile: vi.fn<StorageService["uploadFile"]>(),
@@ -21,7 +21,7 @@ vi.mock("../../env", () => ({
   },
 }));
 
-const inputStorage = createTraceBatchInputStorage();
+const inputStorage = createTraceTranscriptStorage();
 
 const reference = {
   projectId: "project",
@@ -41,13 +41,13 @@ beforeEach(() => {
   storage.download.mockReset().mockResolvedValue(JSON.stringify(storedV1));
 });
 
-describe("trace batch input storage", () => {
+describe("trace transcript storage", () => {
   it("initializes the provider lazily and reuses it across storage instances", async () => {
     vi.resetModules();
     vi.mocked(createEventUploadStorageService).mockClear();
-    const { createTraceBatchInputStorage } = await import("./storage.js");
-    const first = createTraceBatchInputStorage();
-    const second = createTraceBatchInputStorage();
+    const { createTraceTranscriptStorage } = await import("./storage.js");
+    const first = createTraceTranscriptStorage();
+    const second = createTraceTranscriptStorage();
     expect(createEventUploadStorageService).not.toHaveBeenCalled();
 
     await first.get("stored.json");

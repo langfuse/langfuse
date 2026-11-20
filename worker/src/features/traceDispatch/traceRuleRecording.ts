@@ -2,10 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import calculateSlot from "cluster-key-slot";
 import { recordIncrement, redis } from "@langfuse/shared/src/server";
 import {
-  getTraceBatchFirstMember,
-  getTraceBatchShard,
+  getTraceDispatchFirstMember,
+  getTraceDispatchShard,
   resolveTraceIdleMs,
-} from "./traceBatchReadiness";
+} from "./traceReadiness";
 import { traceDispatchConfig } from "../eventsDispatch/config";
 
 const REDIS_BATCH_SIZE = 50;
@@ -43,7 +43,7 @@ export function getRecordingKeys(shard: number) {
 export function getRecordingBoundsKey(shard: number, member: string): Buffer {
   return Buffer.concat([
     Buffer.from(`${getRecordingTag(shard)}:b:`),
-    getTraceBatchFirstMember(member),
+    getTraceDispatchFirstMember(member),
   ]);
 }
 
@@ -397,7 +397,7 @@ export async function recordTraceActivity(
 
   const idleMs = await resolveTraceIdleMs(projectId);
   if (!Number.isSafeInteger(idleMs) || idleMs <= 0)
-    throw new Error("Trace batch idle time must be a positive integer");
+    throw new Error("Trace idle time must be a positive integer");
 
   const shards = new Map<
     number,
@@ -412,7 +412,7 @@ export async function recordTraceActivity(
   >();
   for (const [traceId, update] of updatesByTrace) {
     const member = JSON.stringify([projectId, traceId]);
-    const shard = getTraceBatchShard(member);
+    const shard = getTraceDispatchShard(member);
     const entries = shards.get(shard) ?? [];
     entries.push({ member, ...update });
     shards.set(shard, entries);
@@ -477,7 +477,7 @@ export async function seedTraceDispatch(
   >();
   traces.forEach((trace, index) => {
     const member = JSON.stringify([projectId, trace.traceId]);
-    const shard = getTraceBatchShard(member);
+    const shard = getTraceDispatchShard(member);
     const dueOffset = dueInMs + Math.floor((index * spreadMs) / traces.length);
     shards.set(shard, [
       ...(shards.get(shard) ?? []),

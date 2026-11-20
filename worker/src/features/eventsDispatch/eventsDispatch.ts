@@ -3,25 +3,25 @@ import pLimit from "p-limit";
 import type { z } from "zod";
 import {
   assembleTranscriptContext,
-  createTraceBatchInputStorage,
+  createTraceTranscriptStorage,
   getCurrentSpan,
-  getTraceBatchEventStream,
+  getEventsDispatchEventStream,
   instrumentAsync,
   isInternalEvalEnvironment,
   logger,
   orderObservations,
   recordIncrement,
-  TRACE_BATCH_INPUT_MAX_CHARACTERS,
+  TRACE_TRANSCRIPT_MAX_CHARACTERS,
   traceException,
   type EventsDispatchEventSchema,
 } from "@langfuse/shared/src/server";
-import { getTraceBatchShard } from "../traceBatching/traceBatchReadiness";
+import { getTraceDispatchShard } from "../traceDispatch/traceReadiness";
 import {
   evalRecording,
   getRecordingBoundsKey,
   getRecordingKeys,
   RESTORE_RECORDING_SCRIPT,
-} from "../traceBatching/traceRuleRecording";
+} from "../traceDispatch/traceRuleRecording";
 import { routeRules, SNAPSHOT_JOBS } from "./consumers";
 import {
   newestEvent,
@@ -65,7 +65,7 @@ const READ_MAX_BLOCK_SIZE = 512;
 const MAX_PENDING_BYTES = 100 * 1024 * 1024;
 const UPLOAD_CONCURRENCY = 20;
 
-const inputStorage = createTraceBatchInputStorage();
+const inputStorage = createTraceTranscriptStorage();
 
 /**
  * Routes each trace's recorded rules to consumers. Traces without any end here,
@@ -191,7 +191,7 @@ function dispatchTrace(
       if (stored.outcome === "too_large") {
         traceException(
           new Error(
-            `Transcript exceeds ${TRACE_BATCH_INPUT_MAX_CHARACTERS} characters`,
+            `Transcript exceeds ${TRACE_TRANSCRIPT_MAX_CHARACTERS} characters`,
           ),
           span,
         );
@@ -309,7 +309,7 @@ async function streamTraces(
     let current: TraceEventObservation[] = [];
     let currentKey: string | undefined;
     let currentBytes = 0;
-    for await (const row of getTraceBatchEventStream(
+    for await (const row of getEventsDispatchEventStream(
       { traces },
       {
         maxThreads: READ_MAX_THREADS,
@@ -374,7 +374,7 @@ async function restoreFailedTraces(
       });
       continue;
     }
-    const shard = getTraceBatchShard(traceKey(projectId, traceId));
+    const shard = getTraceDispatchShard(traceKey(projectId, traceId));
     shards.set(shard, [...(shards.get(shard) ?? []), entry]);
   }
   for (const [shard, entries] of shards) {

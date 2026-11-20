@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getTraceBatchEventStream } from "./trace-batch";
+import { getEventsDispatchEventStream } from "./events-dispatch";
 import { queryClickhouseStream } from "./clickhouse";
 
 // Exercise the real query builder, intercepting execution before any client loads.
@@ -15,7 +15,7 @@ vi.mock("../clickhouse/client", () => ({
 
 afterEach(() => vi.clearAllMocks());
 
-describe("trace batch query controls", () => {
+describe("events dispatch query controls", () => {
   const traces = Array.from({ length: 2_001 }, (_, index) => ({
     projectId: index % 2 ? "one" : "two",
     traceId: `trace-${index}`,
@@ -33,7 +33,7 @@ describe("trace batch query controls", () => {
         minStart: 1_000 + (sharedWindow ? 0 : index),
         maxStart: 2_000 + (sharedWindow ? 0 : index),
       }));
-      for await (const _ of getTraceBatchEventStream({ traces: members })) {
+      for await (const _ of getEventsDispatchEventStream({ traces: members })) {
         throw new Error("Unexpected row");
       }
       const sent = vi.mocked(queryClickhouseStream).mock.lastCall![0];
@@ -78,14 +78,14 @@ describe("trace batch query controls", () => {
     });
 
     for (const members of [traces.slice(1, 2), traces]) {
-      const baselineStream = getTraceBatchEventStream({ traces: members });
+      const baselineStream = getEventsDispatchEventStream({ traces: members });
       await baselineStream.next();
       const baseline = vi.mocked(queryClickhouseStream).mock.lastCall![0];
       expect(baseline.query).toContain("e.environment");
       await baselineStream.return(undefined);
       for (const maxBlockSize of [undefined, 512]) {
         requestedSecondRow = false;
-        const stream = getTraceBatchEventStream(
+        const stream = getEventsDispatchEventStream(
           { traces: members },
           {
             maxThreads: 1,
