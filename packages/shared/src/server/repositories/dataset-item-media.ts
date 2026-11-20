@@ -196,14 +196,14 @@ export async function declarePendingDatasetItemMedia(props: {
  * Writes the dataset_item_media rows for an item version (enroll in the item
  * write transaction). Associations are derived from the item JSON; a matching
  * pending row declared at upload is consumed. `replaceExisting` unlinks removed
- * references for in-place (STATEFUL) updates where the version is unchanged.
+ * references for in-place updates where the version is unchanged.
  */
 export async function linkDatasetItemMedia(
   tx: Prisma.TransactionClient,
   props: {
     projectId: string;
     items: DatasetItemMediaSource[];
-    // true for in-place (STATEFUL) updates, false when inserting a fresh version
+    // true for in-place updates, false when inserting a fresh version
     replaceExisting: boolean;
   },
 ) {

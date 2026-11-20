@@ -7,15 +7,9 @@ import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { LangfuseConflictError } from "../../errors/ConflictError";
 import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { DatasetItemValidator } from "../services/DatasetService/DatasetItemValidator";
-import {
-  executeWithDatasetServiceStrategy,
-  Implementation,
-  OperationType,
-} from "../datasets/executeWithDatasetServiceStrategy";
 import { addTagsToCurrentSpan } from "../instrumentation";
 import { v4 } from "uuid";
 import {
-  deleteDatasetItemMediaLinks,
   findUnresolvableMediaReferences,
   linkDatasetItemMedia,
   validateDatasetItemMediaReferences,
@@ -393,96 +387,60 @@ export async function upsertDatasetItem(
       replaceExisting: true,
     });
 
-  // 6. Update item
-  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-    [Implementation.STATEFUL]: async () => {
-      await prisma.$transaction(async (tx) => {
-        const res = existingItem
-          ? await tx.datasetItem.update({
-              where: {
-                id_projectId_validFrom: {
-                  id: existingItem.id,
-                  projectId: props.projectId,
-                  validFrom: existingItem.validFrom,
-                },
-                datasetId: dataset.id,
-              },
-              data: {
-                ...itemData,
-              },
-            })
-          : await tx.datasetItem.create({
-              data: {
-                ...itemData,
-                datasetId: dataset.id,
-                projectId: props.projectId,
-              },
-            });
-        addTagsToCurrentSpan({
-          "langfuse.dataset_item.upsert.updated_count": existingItem ? 1 : 0,
-          "langfuse.dataset_item.upsert.created_count": existingItem ? 0 : 1,
-        });
-        item = res;
-        await linkWrittenItemMedia(tx, res);
-      });
-    },
-    [Implementation.VERSIONED]: async () => {
-      // VERSIONED: Invalidate old row by setting valid_to, then create new row
-      await prisma.$transaction(async (tx) => {
-        // 0. Re-read if there is an existing item to get the validFrom timestamp
-        const current = await tx.datasetItem.findFirst({
-          where: {
-            id: itemId,
+  // 6. Update item: invalidate old row by setting valid_to, then create new row
+  await prisma.$transaction(async (tx) => {
+    // 0. Re-read if there is an existing item to get the validFrom timestamp
+    const current = await tx.datasetItem.findFirst({
+      where: {
+        id: itemId,
+        projectId: props.projectId,
+        validTo: null,
+      },
+      orderBy: {
+        validFrom: "desc",
+      },
+    });
+
+    if (current && current.datasetId !== dataset.id) {
+      throw new LangfuseConflictError(
+        `Dataset item id ${itemId} already exists in another dataset (id ${current.datasetId}) in this project; item ids are unique per project across datasets. Use a different id or target dataset ${current.datasetId}.`,
+      );
+    }
+
+    const baseTs = current?.validFrom.getTime() ?? 0;
+    const newValidFrom = new Date(Math.max(Date.now(), baseTs + 1));
+
+    // 1. If updating existing item, invalidate the current version
+    if (current) {
+      await tx.datasetItem.update({
+        where: {
+          id_projectId_validFrom: {
+            id: current.id,
             projectId: props.projectId,
-            validTo: null,
+            validFrom: current.validFrom,
           },
-          orderBy: {
-            validFrom: "desc",
-          },
-        });
-
-        if (current && current.datasetId !== dataset.id) {
-          throw new LangfuseConflictError(
-            `Dataset item id ${itemId} already exists in another dataset (id ${current.datasetId}) in this project; item ids are unique per project across datasets. Use a different id or target dataset ${current.datasetId}.`,
-          );
-        }
-
-        const baseTs = current?.validFrom.getTime() ?? 0;
-        const newValidFrom = new Date(Math.max(Date.now(), baseTs + 1));
-
-        // 1. If updating existing item, invalidate the current version
-        if (current) {
-          await tx.datasetItem.update({
-            where: {
-              id_projectId_validFrom: {
-                id: current.id,
-                projectId: props.projectId,
-                validFrom: current.validFrom,
-              },
-            },
-            data: {
-              validTo: newValidFrom,
-            },
-          });
-        }
-        addTagsToCurrentSpan({
-          "langfuse.dataset_item.upsert.updated_count": current ? 1 : 0,
-          "langfuse.dataset_item.upsert.created_count": current ? 0 : 1,
-        });
-
-        // 2. Create new version
-        const res = await tx.datasetItem.create({
-          data: {
-            ...itemData,
-            projectId: props.projectId,
-            datasetId: dataset.id,
-            validFrom: newValidFrom,
-          },
-        });
-        item = res;
-        await linkWrittenItemMedia(tx, res);
+        },
+        data: {
+          validTo: newValidFrom,
+        },
       });
-    },
+    }
+    addTagsToCurrentSpan({
+      "langfuse.dataset_item.upsert.updated_count": current ? 1 : 0,
+      "langfuse.dataset_item.upsert.created_count": current ? 0 : 1,
+    });
+
+    // 2. Create new version
+    const res = await tx.datasetItem.create({
+      data: {
+        ...itemData,
+        projectId: props.projectId,
+        datasetId: dataset.id,
+        validFrom: newValidFrom,
+      },
+    });
+    item = res;
+    await linkWrittenItemMedia(tx, res);
   });
 
   if (!item) {
@@ -514,64 +472,38 @@ export async function deleteDatasetItem(props: {
     );
   }
 
-  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-    [Implementation.STATEFUL]: async () => {
-      await prisma.$transaction(async (tx) => {
-        await tx.datasetItem.delete({
-          where: {
-            id_projectId_validFrom: {
-              id: item.id,
-              validFrom: item.validFrom,
-              projectId: props.projectId,
-            },
-          },
-        });
-        await deleteDatasetItemMediaLinks(tx, {
+  // Invalidate old row, then create delete marker
+  await prisma.$transaction(async (tx) => {
+    const newValidFrom = new Date();
+
+    // 1. Invalidate the current version
+    await tx.datasetItem.update({
+      where: {
+        id_projectId_validFrom: {
+          id: props.datasetItemId,
           projectId: props.projectId,
-          itemVersions: [
-            {
-              datasetItemId: item.id,
-              datasetItemValidFrom: item.validFrom,
-            },
-          ],
-        });
-      });
-    },
-    [Implementation.VERSIONED]: async () => {
-      // VERSIONED: Invalidate old row, then create delete marker
-      await prisma.$transaction(async (tx) => {
-        const newValidFrom = new Date();
+          validFrom: item.validFrom,
+        },
+      },
+      data: {
+        validTo: newValidFrom,
+      },
+    });
 
-        // 1. Invalidate the current version
-        await tx.datasetItem.update({
-          where: {
-            id_projectId_validFrom: {
-              id: props.datasetItemId,
-              projectId: props.projectId,
-              validFrom: item.validFrom,
-            },
-          },
-          data: {
-            validTo: newValidFrom,
-          },
-        });
+    // 2. Create delete marker
+    await tx.datasetItem.create({
+      data: {
+        projectId: props.projectId,
+        id: props.datasetItemId,
+        isDeleted: true,
+        datasetId: item.datasetId,
+        validFrom: newValidFrom,
+      },
+    });
 
-        // 2. Create delete marker
-        await tx.datasetItem.create({
-          data: {
-            projectId: props.projectId,
-            id: props.datasetItemId,
-            isDeleted: true,
-            datasetId: item.datasetId,
-            validFrom: newValidFrom,
-          },
-        });
-
-        // Versioning preserves history: keep the invalidated version's
-        // dataset_item_media rows so the historical view still resolves its
-        // media. They are dropped when the dataset itself is deleted.
-      });
-    },
+    // Versioning preserves history: keep the invalidated version's
+    // dataset_item_media rows so the historical view still resolves its
+    // media. They are dropped when the dataset itself is deleted.
   });
 
   return { success: true, deletedItem: item };
@@ -822,76 +754,53 @@ export async function createManyDatasetItems(props: {
       "langfuse.dataset_items.create.media_item_count": mediaItems.length,
     });
 
-    await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-      [Implementation.STATEFUL]: async () => {
-        await prisma.$transaction(async (tx) => {
-          const createResult = await tx.datasetItem.createMany({
-            data: preparedItems.map((item) => ({
-              ...item,
-              validFrom: newValidFrom,
-            })),
-          });
-          addTagsToCurrentSpan({
-            "langfuse.dataset_items.create.created_count": createResult.count,
-          });
-          await linkDatasetItemMedia(tx, {
-            projectId: props.projectId,
-            items: mediaItems,
-            replaceExisting: false,
-          });
-        });
-      },
-      [Implementation.VERSIONED]: async () => {
-        // VERSIONED: Bulk create/replace with optional user-provided IDs
-        //
-        // API contract allows optional IDs (for test fixtures, future CSV re-imports).
-        // Behavior:
-        // - New IDs: Creates new items (invalidation updates 0 rows)
-        // - Existing IDs: Replaces with new version (invalidates old, creates new)
-        //
-        // Note: This is replace semantics, NOT merge. Existing items are fully overwritten.
-        await prisma.$transaction(async (tx) => {
-          // 1. Get unique IDs from preparedItems
-          const itemIds = [...new Set(preparedItems.map((item) => item.id))];
-          addTagsToCurrentSpan({
-            "langfuse.dataset_items.create.unique_item_id_count":
-              itemIds.length,
-          });
+    // Bulk create/replace with optional user-provided IDs
+    //
+    // API contract allows optional IDs (for test fixtures, future CSV re-imports).
+    // Behavior:
+    // - New IDs: Creates new items (invalidation updates 0 rows)
+    // - Existing IDs: Replaces with new version (invalidates old, creates new)
+    //
+    // Note: This is replace semantics, NOT merge. Existing items are fully overwritten.
+    await prisma.$transaction(async (tx) => {
+      // 1. Get unique IDs from preparedItems
+      const itemIds = [...new Set(preparedItems.map((item) => item.id))];
+      addTagsToCurrentSpan({
+        "langfuse.dataset_items.create.unique_item_id_count": itemIds.length,
+      });
 
-          // 2. Invalidate current versions if IDs already exist (no-op for new IDs)
-          const updateResult = await tx.datasetItem.updateMany({
-            where: {
-              id: { in: itemIds },
-              projectId: props.projectId,
-              validTo: null, // Only update current versions
-            },
-            data: {
-              validTo: newValidFrom,
-            },
-          });
-          addTagsToCurrentSpan({
-            "langfuse.dataset_items.create.updated_count": updateResult.count,
-          });
+      // 2. Invalidate current versions if IDs already exist (no-op for new IDs)
+      const updateResult = await tx.datasetItem.updateMany({
+        where: {
+          id: { in: itemIds },
+          projectId: props.projectId,
+          validTo: null, // Only update current versions
+        },
+        data: {
+          validTo: newValidFrom,
+        },
+      });
+      addTagsToCurrentSpan({
+        "langfuse.dataset_items.create.updated_count": updateResult.count,
+      });
 
-          // 3. Create all new versions with the same validFrom timestamp
-          const createResult = await tx.datasetItem.createMany({
-            data: preparedItems.map((item) => ({
-              ...item,
-              validFrom: newValidFrom,
-            })),
-          });
-          addTagsToCurrentSpan({
-            "langfuse.dataset_items.create.created_count": createResult.count,
-          });
+      // 3. Create all new versions with the same validFrom timestamp
+      const createResult = await tx.datasetItem.createMany({
+        data: preparedItems.map((item) => ({
+          ...item,
+          validFrom: newValidFrom,
+        })),
+      });
+      addTagsToCurrentSpan({
+        "langfuse.dataset_items.create.created_count": createResult.count,
+      });
 
-          // 4. Link media in the same transaction as the write
-          await linkDatasetItemMedia(tx, {
-            projectId: props.projectId,
-            items: mediaItems,
-            replaceExisting: false,
-          });
-        });
-      },
+      // 4. Link media in the same transaction as the write
+      await linkDatasetItemMedia(tx, {
+        projectId: props.projectId,
+        items: mediaItems,
+        replaceExisting: false,
+      });
     });
   }
 
@@ -1080,172 +989,6 @@ export function createDatasetItemFilterState(options: {
   }
 
   return filterState;
-}
-
-/**
- * Converts FilterState to Prisma where clause for STATEFUL mode.
- * This is a temporary helper for the deprecated STATEFUL implementation.
- * VERSIONED mode uses SQL directly and doesn't need this.
- */
-function buildPrismaWhereFromFilterState(filterState: FilterState): any {
-  const where: any = {};
-
-  for (const filter of filterState) {
-    switch (filter.column) {
-      case "datasetId":
-        if (filter.type === "stringOptions" && filter.value.length > 0) {
-          where.datasetId = { in: filter.value };
-        }
-        break;
-      case "id":
-        if (filter.type === "stringOptions" && filter.value.length > 0) {
-          where.id = { in: filter.value };
-        }
-        break;
-      case "sourceTraceId":
-        if (filter.type === "null" && filter.operator === "is null") {
-          where.sourceTraceId = null;
-        } else if (filter.type === "string") {
-          where.sourceTraceId = filter.value;
-        }
-        break;
-      case "sourceObservationId":
-        if (filter.type === "null" && filter.operator === "is null") {
-          where.sourceObservationId = null;
-        } else if (filter.type === "string") {
-          where.sourceObservationId = filter.value;
-        }
-        break;
-      case "status":
-        if (filter.type === "stringOptions" && filter.value.length > 0) {
-          const statuses = filter.value.map((v) => v as DatasetStatus);
-          where.status =
-            filter.operator === "none of"
-              ? { notIn: statuses }
-              : { in: statuses };
-        }
-        break;
-      case "createdAt":
-        if (filter.type === "datetime") {
-          where.createdAt = { lte: filter.value };
-        }
-        break;
-      // metadata filters are not supported in Prisma path (need raw SQL)
-    }
-  }
-
-  return where;
-}
-
-/**
- * Builds SQL query for STATEFUL dataset items with search support.
- * Simple direct query without version logic.
- */
-function buildStatefulDatasetItemsQuery(
-  projectId: string,
-  includeIO: boolean,
-  includeDatasetName: boolean,
-  filter: FilterState,
-  searchQuery?: string,
-  searchType?: TracingSearchType[],
-  limit?: number,
-  offset?: number,
-): Prisma.Sql {
-  const ioFields = includeIO
-    ? Prisma.sql`di.input, di.expected_output, di.metadata,`
-    : Prisma.empty;
-
-  const datasetJoin = includeDatasetName
-    ? Prisma.sql`LEFT JOIN datasets d ON di.dataset_id = d.id AND di.project_id = d.project_id`
-    : Prisma.empty;
-
-  const datasetNameField = includeDatasetName
-    ? Prisma.sql`, d.name as dataset_name`
-    : Prisma.empty;
-
-  const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    filter,
-    datasetItemsFilterCols,
-    "dataset_item_events",
-  );
-
-  const searchCondition = postgresSearchCondition({
-    searchQuery,
-    searchType: searchType ?? ["content"],
-    tablePrefix: "di",
-    metadataColumns: ["id"],
-    contentColumns: {
-      content: ["input", "expected_output", "metadata"],
-      input: "input",
-      output: "expected_output",
-    },
-  });
-
-  const paginationClause =
-    limit !== undefined
-      ? Prisma.sql`LIMIT ${limit}${offset !== undefined ? Prisma.sql` OFFSET ${offset}` : Prisma.empty}`
-      : Prisma.empty;
-
-  return Prisma.sql`
-    SELECT
-      di.id,
-      di.project_id,
-      di.valid_from,
-      di.dataset_id,
-      ${ioFields}
-      di.source_trace_id,
-      di.source_observation_id,
-      di.status,
-      di.created_at,
-      di.updated_at
-      ${datasetNameField}
-    FROM dataset_items di
-    ${datasetJoin}
-    WHERE di.project_id = ${projectId}
-    ${filterCondition}
-    ${searchCondition}
-    ORDER BY di.created_at DESC, di.id ASC
-    ${paginationClause}
-  `;
-}
-
-/**
- * Builds SQL count query for STATEFUL dataset items with search support.
- */
-function buildStatefulDatasetItemsCountQuery(
-  projectId: string,
-  filter: FilterState,
-  searchQuery?: string,
-  searchType?: TracingSearchType[],
-): Prisma.Sql {
-  const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    filter,
-    datasetItemsFilterCols,
-    "dataset_item_events",
-  );
-
-  const searchCondition = postgresSearchCondition({
-    searchQuery,
-    searchType: searchType ?? ["content"],
-    tablePrefix: "di",
-    metadataColumns: ["id"],
-    contentColumns: {
-      content: ["input", "expected_output", "metadata"],
-      input: "input",
-      output: "expected_output",
-    },
-  });
-
-  // Match VERSIONED / countDatasetItemVariableMatches: current, non-deleted rows only.
-  return Prisma.sql`
-    SELECT COUNT(*) as count
-    FROM dataset_items di
-    WHERE di.project_id = ${projectId}
-      AND di.is_deleted = false
-      AND di.valid_to IS NULL
-    ${filterCondition}
-    ${searchCondition}
-  `;
 }
 
 /**
@@ -1564,79 +1307,45 @@ export async function getDatasetItemById<
   const status = props.status;
   const includeIO = (props.includeIO ?? true) as IncludeIO;
 
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () => {
-      // OLD: Simple lookup in dataset_items
-      const item = await prisma.datasetItem.findFirst({
-        select: includeIO
-          ? undefined
-          : {
-              id: true,
-              projectId: true,
-              datasetId: true,
-              sourceTraceId: true,
-              sourceObservationId: true,
-              status: true,
-              createdAt: true,
-              updatedAt: true,
-              validFrom: true,
-              isDeleted: true,
-            },
-        where: {
-          id: props.datasetItemId,
-          projectId: props.projectId,
-          ...(props.datasetId ? { datasetId: props.datasetId } : {}),
-          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
-        },
-        orderBy: {
-          validFrom: "desc",
-        },
-      });
-      if (item?.isDeleted) return null;
-      return item ? toDomainType(item, includeIO) : null;
-    },
-    [Implementation.VERSIONED]: async () => {
-      // VERSIONED: Get version at or before specified timestamp, returns null if doesn't exist
-      const selectFields = includeIO
-        ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom", is_deleted AS "isDeleted"'
-        : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom", is_deleted AS "isDeleted"';
+  // Get version at or before specified timestamp, returns null if doesn't exist
+  const selectFields = includeIO
+    ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom", is_deleted AS "isDeleted"'
+    : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom", is_deleted AS "isDeleted"';
 
-      const datasetFilter = props.datasetId
-        ? Prisma.sql`AND dataset_id = ${props.datasetId}`
-        : Prisma.empty;
+  const datasetFilter = props.datasetId
+    ? Prisma.sql`AND dataset_id = ${props.datasetId}`
+    : Prisma.empty;
 
-      const statusFilter =
-        status === "ACTIVE" ? Prisma.sql`AND status = 'ACTIVE'` : Prisma.empty;
+  const statusFilter =
+    status === "ACTIVE" ? Prisma.sql`AND status = 'ACTIVE'` : Prisma.empty;
 
-      // Temporal filter using valid_from and valid_to
-      const versionFilter = props.version
-        ? Prisma.sql`
-            AND valid_from <= ${props.version}
-            AND (valid_to IS NULL OR valid_to > ${props.version})
-          `
-        : Prisma.sql`AND valid_to IS NULL`;
+  // Temporal filter using valid_from and valid_to
+  const versionFilter = props.version
+    ? Prisma.sql`
+        AND valid_from <= ${props.version}
+        AND (valid_to IS NULL OR valid_to > ${props.version})
+      `
+    : Prisma.sql`AND valid_to IS NULL`;
 
-      // Newest open row wins, including a delete marker. Filtering
-      // is_deleted first would skip that marker and return an older open row.
-      const result = await prisma.$queryRaw<DatasetItem[]>(
-        Prisma.sql`
-          SELECT ${Prisma.raw(selectFields)}
-          FROM dataset_items
-          WHERE project_id = ${props.projectId}
-            AND id = ${props.datasetItemId}
-            ${datasetFilter}
-            ${statusFilter}
-            ${versionFilter}
-          ORDER BY valid_from DESC
-          LIMIT 1
-        `,
-      );
+  // Newest open row wins, including a delete marker. Filtering
+  // is_deleted first would skip that marker and return an older open row.
+  const result = await prisma.$queryRaw<DatasetItem[]>(
+    Prisma.sql`
+      SELECT ${Prisma.raw(selectFields)}
+      FROM dataset_items
+      WHERE project_id = ${props.projectId}
+        AND id = ${props.datasetItemId}
+        ${datasetFilter}
+        ${statusFilter}
+        ${versionFilter}
+      ORDER BY valid_from DESC
+      LIMIT 1
+    `,
+  );
 
-      const item = result[0];
-      if (!item || item.isDeleted) return null;
-      return toDomainType(item, includeIO);
-    },
-  });
+  const item = result[0];
+  if (!item || item.isDeleted) return null;
+  return toDomainType(item, includeIO);
 }
 
 /**
@@ -1670,92 +1379,22 @@ export async function getDatasetItems<
       : DatasetItemDomainWithoutIO[]
 > {
   const includeIO = (props.includeIO ?? true) as IncludeIO;
-  const includeDatasetName = props.includeDatasetName ?? false;
   const offset =
     props.limit !== undefined && props.page !== undefined
       ? props.page * props.limit
       : undefined;
 
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () => {
-      // STATEFUL: Version parameter ignored, always returns current state
-      // Use raw SQL if search or metadata filters are present
-      const hasSearch = props.searchQuery && props.searchQuery !== "";
-      const hasMetadataFilter = props.filterState.some(
-        (f) =>
-          (f.column === "metadata" || f.column === "Metadata") &&
-          f.type === "stringObject",
-      );
-
-      if (hasSearch || hasMetadataFilter) {
-        const query = buildStatefulDatasetItemsQuery(
-          props.projectId,
-          includeIO,
-          includeDatasetName,
-          props.filterState,
-          props.searchQuery,
-          props.searchType,
-          props.limit,
-          offset,
-        );
-
-        const result =
-          await prisma.$queryRaw<QueryGetLatestDatasetItemRow[]>(query);
-
-        return result.map((row) =>
-          convertLatestRowToDomain(row, includeIO, includeDatasetName),
-        ) as any;
-      }
-
-      // Otherwise use Prisma
-      const where = {
-        projectId: props.projectId,
-        ...buildPrismaWhereFromFilterState(props.filterState),
-      };
-
-      const selectFields = includeIO
-        ? undefined
-        : {
-            id: true,
-            projectId: true,
-            datasetId: true,
-            sourceTraceId: true,
-            sourceObservationId: true,
-            status: true,
-            createdAt: true,
-            updatedAt: true,
-            validFrom: true,
-          };
-
-      const items = await prisma.datasetItem.findMany({
-        where,
-        ...(selectFields && { select: selectFields }),
-        ...(props.limit !== undefined && { take: props.limit }),
-        ...(offset !== undefined && { skip: offset }),
-        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-        ...(includeDatasetName && {
-          include: { dataset: { select: { name: true } } },
-        }),
-      });
-
-      return items.map((item) =>
-        toDomainType(item, includeIO, includeDatasetName),
-      ) as any;
-    },
-    [Implementation.VERSIONED]: async () => {
-      // VERSIONED: FilterState → SQL directly, version-aware
-      return getDatasetItemsInternal({
-        projectId: props.projectId,
-        includeIO,
-        includeDatasetName,
-        filter: props.filterState,
-        version: props.version,
-        searchQuery: props.searchQuery,
-        searchType: props.searchType,
-        limit: props.limit,
-        offset,
-      });
-    },
+  // FilterState → SQL directly, version-aware
+  return getDatasetItemsInternal({
+    projectId: props.projectId,
+    includeIO,
+    includeDatasetName: props.includeDatasetName,
+    filter: props.filterState,
+    version: props.version,
+    searchQuery: props.searchQuery,
+    searchType: props.searchType,
+    limit: props.limit,
+    offset,
   });
 }
 
@@ -1774,49 +1413,13 @@ export async function getDatasetItemsCount(props: {
   searchQuery?: string;
   searchType?: TracingSearchType[];
 }): Promise<number> {
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () => {
-      // STATEFUL: Use raw SQL if search or metadata filters are present
-      const hasSearch = props.searchQuery && props.searchQuery !== "";
-      const hasMetadataFilter = props.filterState.some(
-        (f) =>
-          (f.column === "metadata" || f.column === "Metadata") &&
-          f.type === "stringObject",
-      );
-
-      if (hasSearch || hasMetadataFilter) {
-        const query = buildStatefulDatasetItemsCountQuery(
-          props.projectId,
-          props.filterState,
-          props.searchQuery,
-          props.searchType,
-        );
-
-        const result = await prisma.$queryRaw<Array<{ count: bigint }>>(query);
-        return result.length > 0 ? Number(result[0].count) : 0;
-      }
-
-      // Otherwise use Prisma. Same current-row rules as
-      // countDatasetItemVariableMatchesInternal (is_deleted / valid_to).
-      const where = {
-        projectId: props.projectId,
-        isDeleted: false,
-        validTo: null,
-        ...buildPrismaWhereFromFilterState(props.filterState),
-      };
-
-      return await prisma.datasetItem.count({ where });
-    },
-    [Implementation.VERSIONED]: async () => {
-      // VERSIONED: FilterState → SQL directly
-      return getDatasetItemsCountAtVersionInternal({
-        projectId: props.projectId,
-        version: props.version,
-        filterState: props.filterState,
-        searchQuery: props.searchQuery,
-        searchType: props.searchType,
-      });
-    },
+  // FilterState → SQL directly
+  return getDatasetItemsCountAtVersionInternal({
+    projectId: props.projectId,
+    version: props.version,
+    filterState: props.filterState,
+    searchQuery: props.searchQuery,
+    searchType: props.searchType,
   });
 }
 
@@ -1843,15 +1446,7 @@ export async function countDatasetItemVariableMatches(props: {
     return {};
   }
 
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () =>
-      countDatasetItemVariableMatchesInternal({
-        ...props,
-        version: undefined,
-      }),
-    [Implementation.VERSIONED]: async () =>
-      countDatasetItemVariableMatchesInternal(props),
-  });
+  return countDatasetItemVariableMatchesInternal(props);
 }
 
 async function countDatasetItemVariableMatchesInternal(params: {
@@ -1927,40 +1522,18 @@ export async function getDatasetItemsCountGrouped(props: {
   projectId: string;
   datasetIds: string[];
 }): Promise<Array<{ datasetId: string; count: number }>> {
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () => {
-      const results = await prisma.datasetItem.groupBy({
-        by: ["datasetId"],
-        where: {
-          projectId: props.projectId,
-          datasetId: { in: props.datasetIds },
-          status: DatasetStatus.ACTIVE, // Filter by ACTIVE status to match VERSIONED
-        },
-        _count: true,
-      });
+  const query = buildDatasetItemsLatestCountGroupedQuery(
+    props.projectId,
+    props.datasetIds,
+  );
 
-      return results.map((r) => ({
-        datasetId: r.datasetId,
-        count: r._count,
-      }));
-    },
-    [Implementation.VERSIONED]: async () => {
-      const query = buildDatasetItemsLatestCountGroupedQuery(
-        props.projectId,
-        props.datasetIds,
-      );
+  const result =
+    await prisma.$queryRaw<Array<{ dataset_id: string; count: bigint }>>(query);
 
-      const result =
-        await prisma.$queryRaw<Array<{ dataset_id: string; count: bigint }>>(
-          query,
-        );
-
-      return result.map((row) => ({
-        datasetId: row.dataset_id,
-        count: Number(row.count),
-      }));
-    },
-  });
+  return result.map((row) => ({
+    datasetId: row.dataset_id,
+    count: Number(row.count),
+  }));
 }
 
 /**
@@ -1974,27 +1547,18 @@ export async function listDatasetVersions(props: {
   projectId: string;
   datasetId: string;
 }): Promise<Date[]> {
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () => {
-      // In STATEFUL mode, there are no versions
-      // Return empty array or could return array with single date
-      return [];
-    },
-    [Implementation.VERSIONED]: async () => {
-      // Get all distinct validFrom timestamps for this dataset
-      const result = await prisma.$queryRaw<Array<{ valid_from: Date }>>(
-        Prisma.sql`
-          SELECT DISTINCT valid_from
-          FROM dataset_items
-          WHERE project_id = ${props.projectId}
-            AND dataset_id = ${props.datasetId}
-          ORDER BY valid_from DESC
-        `,
-      );
+  // Get all distinct validFrom timestamps for this dataset
+  const result = await prisma.$queryRaw<Array<{ valid_from: Date }>>(
+    Prisma.sql`
+      SELECT DISTINCT valid_from
+      FROM dataset_items
+      WHERE project_id = ${props.projectId}
+        AND dataset_id = ${props.datasetId}
+      ORDER BY valid_from DESC
+    `,
+  );
 
-      return result.map((row) => row.valid_from);
-    },
-  });
+  return result.map((row) => row.valid_from);
 }
 
 /**
@@ -2010,70 +1574,61 @@ export async function getDatasetVersionForRun(params: {
   datasetId: string;
   runId: string;
 }): Promise<Date | null> {
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () => {
-      // No versioning in stateful mode
-      return null;
-    },
-    [Implementation.VERSIONED]: async () => {
-      // Step 1: Get the latest creation timestamp from dataset run items (ClickHouse)
-      const maxCreatedAtResult = await queryClickhouse<{
-        max_created_at: string | null;
-        max_dataset_item_version: string | null;
-      }>({
-        query: `
-          SELECT 
-            maxOrNull(created_at) as max_created_at,
-            maxOrNull(dataset_item_version) as max_dataset_item_version
-          FROM dataset_run_items_rmt
-          WHERE project_id = {projectId: String}
-            AND dataset_id = {datasetId: String}
-            AND dataset_run_id = {runId: String}
-        `,
-        params: {
-          projectId: params.projectId,
-          datasetId: params.datasetId,
-          runId: params.runId,
-        },
-      });
-
-      const maxCreatedAt = maxCreatedAtResult[0]?.max_created_at ?? null;
-      const maxDatasetItemVersion =
-        maxCreatedAtResult[0]?.max_dataset_item_version ?? null;
-
-      if (maxDatasetItemVersion) {
-        return parseClickhouseUTCDateTimeFormat(maxDatasetItemVersion);
-      }
-
-      if (!maxCreatedAt) {
-        return null;
-      }
-
-      // dataset item version takes precedence over created_at
-      // max_created_at as fallback for experiments that ran before dataset item versioning was introduced
-      const formattedTimestamp = parseClickhouseUTCDateTimeFormat(maxCreatedAt);
-      // Step 2: Resolve to dataset version using temporal query (PostgreSQL)
-      const result = await prisma.$queryRaw<Array<{ valid_from: Date | null }>>(
-        Prisma.sql`
-          SELECT MAX(valid_from) as valid_from
-          FROM dataset_items
-          WHERE project_id = ${params.projectId}
-            AND dataset_id = ${params.datasetId}
-            AND is_deleted = false
-            AND valid_from <= ${formattedTimestamp}
-            AND (valid_to IS NULL OR valid_to > ${formattedTimestamp})
-        `,
-      );
-
-      return result[0]?.valid_from ?? null;
+  // Step 1: Get the latest creation timestamp from dataset run items (ClickHouse)
+  const maxCreatedAtResult = await queryClickhouse<{
+    max_created_at: string | null;
+    max_dataset_item_version: string | null;
+  }>({
+    query: `
+      SELECT
+        maxOrNull(created_at) as max_created_at,
+        maxOrNull(dataset_item_version) as max_dataset_item_version
+      FROM dataset_run_items_rmt
+      WHERE project_id = {projectId: String}
+        AND dataset_id = {datasetId: String}
+        AND dataset_run_id = {runId: String}
+    `,
+    params: {
+      projectId: params.projectId,
+      datasetId: params.datasetId,
+      runId: params.runId,
     },
   });
+
+  const maxCreatedAt = maxCreatedAtResult[0]?.max_created_at ?? null;
+  const maxDatasetItemVersion =
+    maxCreatedAtResult[0]?.max_dataset_item_version ?? null;
+
+  if (maxDatasetItemVersion) {
+    return parseClickhouseUTCDateTimeFormat(maxDatasetItemVersion);
+  }
+
+  if (!maxCreatedAt) {
+    return null;
+  }
+
+  // dataset item version takes precedence over created_at
+  // max_created_at as fallback for experiments that ran before dataset item versioning was introduced
+  const formattedTimestamp = parseClickhouseUTCDateTimeFormat(maxCreatedAt);
+  // Step 2: Resolve to dataset version using temporal query (PostgreSQL)
+  const result = await prisma.$queryRaw<Array<{ valid_from: Date | null }>>(
+    Prisma.sql`
+      SELECT MAX(valid_from) as valid_from
+      FROM dataset_items
+      WHERE project_id = ${params.projectId}
+        AND dataset_id = ${params.datasetId}
+        AND is_deleted = false
+        AND valid_from <= ${formattedTimestamp}
+        AND (valid_to IS NULL OR valid_to > ${formattedTimestamp})
+    `,
+  );
+
+  return result[0]?.valid_from ?? null;
 }
 
 /**
  * Gets the version history for a specific dataset item.
  * Returns all distinct validFrom timestamps when item was modified.
- * Only applicable in VERSIONED mode.
  *
  * @returns Array of Date objects representing when item changed
  */
@@ -2082,26 +1637,18 @@ export async function getDatasetItemVersionHistory(props: {
   datasetId: string;
   itemId: string;
 }): Promise<Date[]> {
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () => {
-      // In STATEFUL mode, there's no version history
-      return [];
-    },
-    [Implementation.VERSIONED]: async () => {
-      const result = await prisma.$queryRaw<Array<{ valid_from: Date }>>(
-        Prisma.sql`
-          SELECT DISTINCT valid_from
-          FROM dataset_items
-          WHERE project_id = ${props.projectId}
-            AND dataset_id = ${props.datasetId}
-            AND id = ${props.itemId}
-          ORDER BY valid_from DESC
-        `,
-      );
+  const result = await prisma.$queryRaw<Array<{ valid_from: Date }>>(
+    Prisma.sql`
+      SELECT DISTINCT valid_from
+      FROM dataset_items
+      WHERE project_id = ${props.projectId}
+        AND dataset_id = ${props.datasetId}
+        AND id = ${props.itemId}
+      ORDER BY valid_from DESC
+    `,
+  );
 
-      return result.map((row) => row.valid_from);
-    },
-  });
+  return result.map((row) => row.valid_from);
 }
 
 /**
@@ -2115,31 +1662,23 @@ export async function getDatasetItemChangesSinceVersion(props: {
   datasetId: string;
   sinceVersion: Date;
 }): Promise<{ upserts: number; deletes: number }> {
-  return executeWithDatasetServiceStrategy(OperationType.READ, {
-    [Implementation.STATEFUL]: async () => {
-      // STATEFUL: No versioning, so no changes to count
-      return { upserts: 0, deletes: 0 };
-    },
-    [Implementation.VERSIONED]: async () => {
-      // Count all changes after the specified version
-      const result = await prisma.$queryRaw<
-        Array<{ upserts: bigint; deletes: bigint }>
-      >(
-        Prisma.sql`
-          SELECT
-            COUNT(*) FILTER (WHERE is_deleted = false) as upserts,
-            COUNT(*) FILTER (WHERE is_deleted = true) as deletes
-          FROM dataset_items
-          WHERE project_id = ${props.projectId}
-            AND dataset_id = ${props.datasetId}
-            AND valid_from > ${props.sinceVersion}
-        `,
-      );
+  // Count all changes after the specified version
+  const result = await prisma.$queryRaw<
+    Array<{ upserts: bigint; deletes: bigint }>
+  >(
+    Prisma.sql`
+      SELECT
+        COUNT(*) FILTER (WHERE is_deleted = false) as upserts,
+        COUNT(*) FILTER (WHERE is_deleted = true) as deletes
+      FROM dataset_items
+      WHERE project_id = ${props.projectId}
+        AND dataset_id = ${props.datasetId}
+        AND valid_from > ${props.sinceVersion}
+    `,
+  );
 
-      return {
-        upserts: Number(result[0]?.upserts ?? 0),
-        deletes: Number(result[0]?.deletes ?? 0),
-      };
-    },
-  });
+  return {
+    upserts: Number(result[0]?.upserts ?? 0),
+    deletes: Number(result[0]?.deletes ?? 0),
+  };
 }
