@@ -13,6 +13,7 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
   type GatewaySpendBudgetAlertThreshold,
@@ -23,7 +24,6 @@ import {
 } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import type { GatewaySpendBudgetFormValue } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
-import { PresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/PresetOption/PresetOption";
 
 const requestsBySubject = {
   key: "requests with this key",
@@ -137,13 +137,15 @@ function GatewaySpendBudgetRow<T extends FieldValues>({
       <Controller
         control={control}
         name={`${name}.interval`}
-        render={({ field }) => (
-          <IntervalPresets
-            label={`${label} budget resets`}
-            value={field.value}
-            disabled={disabled}
-            onSelect={field.onChange}
-          />
+        render={({ field, fieldState }) => (
+          <div className="w-36">
+            <IntervalSelect
+              ariaLabel={`${label} budget resets`}
+              field={field}
+              hasError={!!fieldState.error}
+              disabled={disabled}
+            />
+          </div>
         )}
       />
     </div>
@@ -195,17 +197,23 @@ function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
           )}
         </Form.Field>
       </div>
-      <Form.Field control={control} name="spendBudget.interval" label="Resets">
-        {(field) => (
-          <IntervalPresets
-            id={field.id}
-            label="Resets"
-            value={field.value}
-            disabled={disabled}
-            onSelect={field.onChange}
-          />
-        )}
-      </Form.Field>
+      <div className="w-36">
+        <Form.Field
+          control={control}
+          name="spendBudget.interval"
+          label="Resets"
+        >
+          {(field) => (
+            <IntervalSelect
+              id={field.id}
+              ariaDescribedBy={field.inputDescribedById}
+              field={field}
+              hasError={!!field.error}
+              disabled={disabled}
+            />
+          )}
+        </Form.Field>
+      </div>
     </div>
   );
 }
@@ -354,40 +362,39 @@ function AmountInput({
   );
 }
 
-function IntervalPresets({
+function IntervalSelect({
   id,
-  label,
-  value,
+  ariaLabel,
+  ariaDescribedBy,
+  field,
+  hasError,
   disabled,
-  onSelect,
 }: {
   id?: string;
-  label: string;
-  value: GatewaySpendBudgetInterval;
+  ariaLabel?: string;
+  ariaDescribedBy?: string;
+  field: Pick<
+    ControllerRenderProps<Record<string, GatewaySpendBudgetInterval>, string>,
+    "value" | "onChange" | "onBlur" | "ref"
+  >;
+  hasError: boolean;
   disabled: boolean;
-  onSelect: (value: GatewaySpendBudgetInterval) => void;
 }) {
-  const radioName = useId();
   return (
-    <div
+    <SelectInput<GatewaySpendBudgetInterval>
       id={id}
-      role="radiogroup"
-      aria-label={label}
-      aria-disabled={disabled || undefined}
-      className="flex flex-wrap gap-2"
-    >
-      {gatewaySpendBudgetIntervalOptions.map((option) => (
-        <PresetOption
-          key={option.value}
-          name={radioName}
-          value={option.value}
-          label={option.label}
-          checked={value === option.value}
-          disabled={disabled}
-          onSelect={onSelect}
-        />
-      ))}
-    </div>
+      aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
+      aria-invalid={hasError}
+      error={hasError}
+      placeholder="Select reset period"
+      options={gatewaySpendBudgetIntervalOptions}
+      value={field.value}
+      onValueChange={field.onChange}
+      onBlur={field.onBlur}
+      ref={field.ref}
+      disabled={disabled}
+    />
   );
 }
 

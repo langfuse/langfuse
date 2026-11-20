@@ -84,7 +84,7 @@ export function GatewayAddBudgetDialog({
     resolver: zodResolver(gatewayAddBudgetFormSchema),
     defaultValues: {
       targets: initialTargets,
-      spendBudget: createDefaultGatewaySpendBudget("MONTHLY"),
+      spendBudget: createDefaultGatewaySpendBudget(),
     },
     mode: "onChange",
   });
