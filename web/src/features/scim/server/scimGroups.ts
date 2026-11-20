@@ -1,12 +1,13 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { GroupSource, Prisma, prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
+import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeScimError } from "@/src/features/public-api/server/writeError";
 
-// SCIM 2.0 Groups (RFC 7643 4.2, RFC 7644 3), as sent by Okta and Entra ID.
-// Syncs groups and members only; never touches role assignments.
+// SCIM 2.0 Groups (RFC 7643 4.2, RFC 7644 3) as sent by Okta and Entra ID. Never touches role assignments;
+// MANUAL and SYSTEM groups are invisible to SCIM.
 
 const SCIM_GROUP_SCHEMA = "urn:ietf:params:scim:schemas:core:2.0:Group";
 const SCIM_PATCH_OP_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
@@ -15,10 +16,6 @@ const SCIM_LIST_RESPONSE_SCHEMA =
 const SCIM_ERROR_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:Error";
 
 export const SCIM_GROUPS_MAX_RESULTS = 100;
-
-// The IdP only sees, changes and deletes groups it provisioned. Groups created
-// in the Langfuse UI (MANUAL) or by Langfuse (SYSTEM) are invisible to SCIM.
-const SCIM_SOURCE = GroupSource.SCIM;
 
 class ScimError extends Error {
   constructor(
@@ -48,7 +45,16 @@ export function writeScimErrorResponse(
 export async function authorizeScimGroupsRequest(
   req: NextApiRequest,
   res: NextApiResponse,
+  { route, methods }: { route: string; methods: string[] },
 ): Promise<{ orgId: string; apiKeyId: string } | null> {
+  await runMiddleware(req, res, cors);
+
+  if (!methods.includes(req.method ?? "")) {
+    logger.error(`[SCIM] Method not allowed for ${req.method} on ${route}`);
+    writeScimErrorResponse(res, 405, "Method not allowed");
+    return null;
+  }
+
   const authCheck = await shadowAuth({
     req,
     action:
@@ -125,9 +131,7 @@ const groupWithMembers = {
   },
 } satisfies Prisma.GroupDefaultArgs;
 
-export type ScimGroupWithMembers = Prisma.GroupGetPayload<
-  typeof groupWithMembers
->;
+type ScimGroupWithMembers = Prisma.GroupGetPayload<typeof groupWithMembers>;
 
 export function toScimGroup(
   group: ScimGroupWithMembers,
@@ -159,7 +163,7 @@ export function toScimGroup(
 
 export async function getScimGroup(orgId: string, groupId: string) {
   return prisma.group.findFirst({
-    where: { id: groupId, orgId, source: SCIM_SOURCE },
+    where: { id: groupId, orgId, source: GroupSource.SCIM },
     ...groupWithMembers,
   });
 }
@@ -192,7 +196,11 @@ export async function listScimGroups(params: {
   startIndex: number;
   count: number;
 }) {
-  const where = { ...params.where, orgId: params.orgId, source: SCIM_SOURCE };
+  const where = {
+    ...params.where,
+    orgId: params.orgId,
+    source: GroupSource.SCIM,
+  };
   const [totalResults, groups] = await Promise.all([
     prisma.group.count({ where }),
     prisma.group.findMany({
@@ -243,7 +251,6 @@ function parseMemberIds(value: unknown): string[] {
 
 type Tx = Prisma.TransactionClient;
 
-/** Rejects user ids that are not in the org. */
 async function resolveOrgMemberships(
   tx: Tx,
   orgId: string,
@@ -297,7 +304,6 @@ async function replaceMembers(
   groupId: string,
   userIds: string[],
 ) {
-  // Validate before deleting
   await resolveOrgMemberships(tx, orgId, userIds);
   await tx.groupMembership.deleteMany({
     where: {
@@ -324,18 +330,23 @@ function requireDisplayName(value: unknown): string {
   return displayName;
 }
 
-function rethrowUniqueness(error: unknown): never {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  ) {
-    throw new ScimError(
-      409,
-      "A group with this externalId already exists in the organization",
-      "uniqueness",
-    );
+/** Runs `fn` in a transaction, mapping an externalId collision to a SCIM 409. */
+async function transactOrConflict<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  try {
+    return await prisma.$transaction(fn);
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new ScimError(
+        409,
+        "A group with this externalId already exists in the organization",
+        "uniqueness",
+      );
+    }
+    throw error;
   }
-  throw error;
 }
 
 export async function createScimGroup(
@@ -346,18 +357,14 @@ export async function createScimGroup(
   const externalId = optionalString(body.externalId, "externalId");
   const memberIds = parseMemberIds(body.members);
 
-  try {
-    const groupId = await prisma.$transaction(async (tx) => {
-      const group = await tx.group.create({
-        data: { orgId, displayName, externalId },
-      });
-      await addMembers(tx, orgId, group.id, memberIds);
-      return group.id;
+  const groupId = await transactOrConflict(async (tx) => {
+    const group = await tx.group.create({
+      data: { orgId, displayName, externalId },
     });
-    return (await getScimGroup(orgId, groupId))!;
-  } catch (error) {
-    rethrowUniqueness(error);
-  }
+    await addMembers(tx, orgId, group.id, memberIds);
+    return group.id;
+  });
+  return (await getScimGroup(orgId, groupId))!;
 }
 
 export async function replaceScimGroup(
@@ -369,17 +376,13 @@ export async function replaceScimGroup(
   const externalId = optionalString(body.externalId, "externalId") ?? null;
   const memberIds = parseMemberIds(body.members);
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.group.update({
-        where: { id: groupId, orgId },
-        data: { displayName, externalId },
-      });
-      await replaceMembers(tx, orgId, groupId, memberIds);
+  await transactOrConflict(async (tx) => {
+    await tx.group.update({
+      where: { id: groupId, orgId },
+      data: { displayName, externalId },
     });
-  } catch (error) {
-    rethrowUniqueness(error);
-  }
+    await replaceMembers(tx, orgId, groupId, memberIds);
+  });
   return (await getScimGroup(orgId, groupId))!;
 }
 
@@ -411,20 +414,16 @@ export async function patchScimGroup(
   }
   const operations = body.Operations as PatchOperation[];
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      for (const operation of operations) {
-        await applyPatchOperation(tx, orgId, groupId, operation);
-      }
-      // Bump lastModified on member-only changes
-      await tx.group.update({
-        where: { id: groupId, orgId },
-        data: { updatedAt: new Date() },
-      });
+  await transactOrConflict(async (tx) => {
+    for (const operation of operations) {
+      await applyPatchOperation(tx, orgId, groupId, operation);
+    }
+    // Bump lastModified on member-only changes
+    await tx.group.update({
+      where: { id: groupId, orgId },
+      data: { updatedAt: new Date() },
     });
-  } catch (error) {
-    rethrowUniqueness(error);
-  }
+  });
   return (await getScimGroup(orgId, groupId))!;
 }
 
@@ -544,7 +543,7 @@ async function applyPatchOperation(
 
 export async function deleteScimGroup(orgId: string, groupId: string) {
   await prisma.group.delete({
-    where: { id: groupId, orgId, source: SCIM_SOURCE },
+    where: { id: groupId, orgId, source: GroupSource.SCIM },
   });
 }
 

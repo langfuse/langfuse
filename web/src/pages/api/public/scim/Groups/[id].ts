@@ -1,4 +1,3 @@
-import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { logger } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -19,19 +18,14 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  await runMiddleware(req, res, cors);
-
-  if (!["GET", "PUT", "PATCH", "DELETE"].includes(req.method || "")) {
-    logger.error(
-      `[SCIM] Method not allowed for ${req.method} on /api/public/scim/Groups/[id]`,
-    );
-    return writeScimErrorResponse(res, 405, "Method not allowed");
-  }
-
-  const scope = await authorizeScimGroupsRequest(req, res);
+  const scope = await authorizeScimGroupsRequest(req, res, {
+    route: "/api/public/scim/Groups/[id]",
+    methods: ["GET", "PUT", "PATCH", "DELETE"],
+  });
   if (!scope) return;
 
   const groupId = req.query.id as string;
+  const excludeMembers = isMembersExcluded(req);
   logger.info(
     `[SCIM] Received request for /api/public/scim/Groups/[id] with method ${req.method} for orgId ${scope.orgId} and groupId ${groupId}`,
   );
@@ -45,11 +39,7 @@ export default async function handler(
 
     switch (req.method) {
       case "GET":
-        return res
-          .status(200)
-          .json(
-            toScimGroup(existing, { excludeMembers: isMembersExcluded(req) }),
-          );
+        return res.status(200).json(toScimGroup(existing, { excludeMembers }));
 
       case "PUT":
       case "PATCH": {
@@ -67,11 +57,7 @@ export default async function handler(
           apiKeyId: scope.apiKeyId,
           orgId: scope.orgId,
         });
-        return res
-          .status(200)
-          .json(
-            toScimGroup(updated, { excludeMembers: isMembersExcluded(req) }),
-          );
+        return res.status(200).json(toScimGroup(updated, { excludeMembers }));
       }
 
       case "DELETE": {

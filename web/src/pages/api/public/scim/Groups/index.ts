@@ -1,4 +1,3 @@
-import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { logger } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -13,23 +12,16 @@ import {
   SCIM_GROUPS_MAX_RESULTS,
   toListResponse,
   toScimGroup,
-  writeScimErrorResponse,
 } from "@/src/features/scim/server/scimGroups";
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  await runMiddleware(req, res, cors);
-
-  if (req.method !== "GET" && req.method !== "POST") {
-    logger.error(
-      `[SCIM] Method not allowed for ${req.method} on /api/public/scim/Groups`,
-    );
-    return writeScimErrorResponse(res, 405, "Method not allowed");
-  }
-
-  const scope = await authorizeScimGroupsRequest(req, res);
+  const scope = await authorizeScimGroupsRequest(req, res, {
+    route: "/api/public/scim/Groups",
+    methods: ["GET", "POST"],
+  });
   if (!scope) return;
 
   logger.info(
@@ -68,7 +60,6 @@ export default async function handler(
         );
     }
 
-    // POST
     const group = await createScimGroup(scope.orgId, parseScimBody(req));
     await auditLog({
       resourceType: "group",
