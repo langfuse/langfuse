@@ -37,6 +37,9 @@ export function buildOpenAIModel(params: {
       headers: extraHeaders,
       fetch: params.fetch,
       supportsStructuredOutputs: true,
+      // Without stream_options.include_usage, compatible servers send no
+      // usage chunk, so streamed generations record no tokens or cost.
+      includeUsage: true,
     });
 
     return provider.languageModel(modelId);
