@@ -9,6 +9,11 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   traceException: vi.fn(),
 }));
 
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return { ...actual, env: { ...actual.env } };
+});
+
 import type { Session } from "next-auth";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
@@ -25,85 +30,143 @@ import {
   createTRPCRouter,
   protectedProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
+import { env } from "@/src/env.mjs";
+
+const throwClickHouseResourceError = async (message: string) => {
+  const router = createTRPCRouter({
+    clickhouse: protectedProcedureWithoutTracing
+      .input(z.object({}))
+      .query(() => {
+        throw ClickHouseResourceError.wrapIfResourceError(new Error(message));
+      }),
+  });
+  const caller = router.createCaller(
+    createInnerTRPCContext({
+      session: { user: { id: "user-1" } } as Session,
+      headers: {},
+    }),
+  );
+  try {
+    await caller.clickhouse({});
+  } catch (caught) {
+    return caught as TRPCError;
+  }
+  throw new Error("expected the procedure to throw");
+};
+
+const formatClickHouseError = (error: TRPCError) => {
+  const formatter = (createTRPCRouter({}) as any)._def._config
+    .errorFormatter as (args: any) => {
+    data: Record<string, unknown>;
+  };
+  return formatter({
+    shape: {
+      code: -32603,
+      message: error.message,
+      data: {
+        code: error.code,
+        httpStatus: 422,
+      },
+    },
+    error,
+  });
+};
+
+const GENERIC_ADVICE =
+  /^Your query could not be completed\..*narrow your request/;
+const MEMORY_ADVICE = /^ClickHouse ran out of memory.*narrow your request/;
+const RESULT_SIZE_ADVICE = /result is too large.*date range.*filters/i;
+
+const clickHouseErrorCases = [
+  {
+    errorType: "MEMORY_LIMIT",
+    message: "Memory limit exceeded",
+    adviceByDefault: GENERIC_ADVICE,
+    adviceWhenDetailed: MEMORY_ADVICE,
+  },
+  {
+    errorType: "OVERCOMMIT",
+    message:
+      "Memory limit (total) exceeded. OvercommitTracker decision: Query was selected to stop by OvercommitTracker",
+    adviceByDefault: GENERIC_ADVICE,
+    adviceWhenDetailed: MEMORY_ADVICE,
+  },
+  {
+    errorType: "RESULT_SIZE",
+    message:
+      "Limit for result exceeded, max bytes: 10.00 MiB. (TOO_MANY_ROWS_OR_BYTES) SELECT private_column FROM private_table",
+    adviceByDefault: RESULT_SIZE_ADVICE,
+    adviceWhenDetailed: RESULT_SIZE_ADVICE,
+  },
+  {
+    errorType: "TIMEOUT",
+    message: "Request timed out after 30000ms",
+    adviceByDefault: GENERIC_ADVICE,
+    adviceWhenDetailed: GENERIC_ADVICE,
+  },
+];
 
 describe("tRPC error formatting", () => {
+  const originalDetailedErrors = env.LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS;
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it.each([
-    { errorType: "MEMORY_LIMIT", message: "Memory limit exceeded" },
-    {
-      errorType: "RESULT_SIZE",
-      message:
-        "Limit for result exceeded, max bytes: 10.00 MiB. (TOO_MANY_ROWS_OR_BYTES) SELECT private_column FROM private_table",
-    },
-  ])("ClickHouseResourceError $errorType", async ({ errorType, message }) => {
-    const session = {
-      user: {
-        id: "user-1",
-      },
-    } as Session;
-
-    const formatterTestRouter = createTRPCRouter({
-      clickhouse: protectedProcedureWithoutTracing
-        .input(z.object({}))
-        .query(() => {
-          throw ClickHouseResourceError.wrapIfResourceError(new Error(message));
-        }),
+  afterEach(() => {
+    Object.assign(env, {
+      LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS: originalDetailedErrors,
     });
-
-    const formatter = (formatterTestRouter as any)._def._config
-      .errorFormatter as (args: any) => {
-      data: Record<string, unknown>;
-    };
-
-    const context = createInnerTRPCContext({
-      session,
-      headers: {},
-    });
-    const caller = formatterTestRouter.createCaller(context);
-
-    let error: TRPCError | undefined;
-    try {
-      await caller.clickhouse({});
-    } catch (caught) {
-      error = caught as TRPCError;
-    }
-
-    expect(error).toBeInstanceOf(TRPCError);
-    expect(error!.code).toBe("UNPROCESSABLE_CONTENT");
-    expect(error!.message).not.toContain(message);
-    if (errorType === "RESULT_SIZE") {
-      expect(error!.message).toMatch(/result is too large/i);
-      expect(error!.message).toMatch(/date range.*filters/i);
-    }
-
-    const formatted = formatter({
-      shape: {
-        code: -32603,
-        message: error!.message,
-        data: {
-          code: error!.code,
-          httpStatus: 422,
-        },
-      },
-      error: error!,
-    });
-
-    expect(formatted.data["errorName"]).toBe("ClickHouseResourceError");
-    expect(formatted.data["stack"]).toBeNull();
-    expect(formatted.data["zodError"]).toBeNull();
-    expect(logger.warn).toHaveBeenCalledTimes(1);
-    expect(logger.warn).toHaveBeenCalledWith(
-      "ClickHouse resource limit exceeded",
-      expect.objectContaining({
-        errorType,
-        message,
-      }),
-    );
-    expect(logger.error).not.toHaveBeenCalled();
   });
+
+  it.each(clickHouseErrorCases)(
+    "ClickHouseResourceError $errorType hides the error type by default",
+    async ({ errorType, message, adviceByDefault }) => {
+      Object.assign(env, { LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS: "false" });
+
+      const error = await throwClickHouseResourceError(message);
+      const formatted = formatClickHouseError(error);
+
+      expect(error).toBeInstanceOf(TRPCError);
+      expect(error.code).toBe("UNPROCESSABLE_CONTENT");
+      expect(error.message).not.toContain(message);
+      expect(error.message).toMatch(adviceByDefault);
+      expect(error.message).not.toMatch(/memory/i);
+
+      expect(formatted.data["errorName"]).toBe("ClickHouseResourceError");
+      expect(formatted.data).not.toHaveProperty("clickhouseErrorType");
+      expect(formatted.data["stack"]).toBeNull();
+      expect(formatted.data["zodError"]).toBeNull();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "ClickHouse resource limit exceeded",
+        expect.objectContaining({
+          errorType,
+          message,
+        }),
+      );
+      expect(logger.error).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(clickHouseErrorCases)(
+    "ClickHouseResourceError $errorType exposes the error type when LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS is on",
+    async ({ errorType, message, adviceWhenDetailed }) => {
+      Object.assign(env, { LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS: "true" });
+
+      const error = await throwClickHouseResourceError(message);
+      const formatted = formatClickHouseError(error);
+
+      expect(error.code).toBe("UNPROCESSABLE_CONTENT");
+      expect(error.message).not.toContain(message);
+      expect(error.message).toMatch(adviceWhenDetailed);
+      expect(error.message).not.toMatch(/https?:\/\//);
+
+      expect(formatted.data["errorName"]).toBe("ClickHouseResourceError");
+      expect(formatted.data["clickhouseErrorType"]).toBe(errorType);
+      expect(formatted.data["stack"]).toBeNull();
+    },
+  );
 
   it("preserves the default stack behavior for non-ClickHouse errors", () => {
     const formatterTestRouter = createTRPCRouter({});

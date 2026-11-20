@@ -11,8 +11,7 @@ import { OrganizationId } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
 import { getPoliciesForApiKey } from "@/src/features/auth/policy/contextResolver";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@langfuse/shared/src/server";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -24,6 +23,7 @@ import {
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {
@@ -36,6 +36,7 @@ import {
   GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR,
   GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES,
 } from "@/src/features/ai-gateway/server/spendLimits/gatewayDefaultSpendLimits";
+import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "@/src/features/ai-gateway/server/spendLimits/gatewayOrganizationSpendLimitScope";
 
 export type GatewayApiKeyAuthContext = Omit<
   CachedResolveContext,
@@ -184,6 +185,7 @@ export class GatewayApiKeyAuthenticator {
       ),
       // The key's limits, then its owner's limits in the key's organization;
       // either falls back to the organization's default when there are none.
+      // The organization's own limits apply to every key, whichever is reached first.
       spendLimits: [
         ...toResolveSpendLimits({
           own: row.gatewaySpendLimits,
@@ -204,6 +206,11 @@ export class GatewayApiKeyAuthenticator {
               subjectId: row.userId,
             })
           : []),
+        ...organization.gatewaySpendLimits
+          .filter(
+            (limit) => limit.scope === GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
+          )
+          .map((limit) => toResolveSpendLimit(limit, "organization")),
       ],
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
@@ -218,23 +225,6 @@ export class GatewayApiKeyAuthenticator {
           GatewayProviderConfigSchema.safeParse(connection.config).data ?? null,
       })),
     };
-
-    // Runs on cache misses only, so a role change takes effect within
-    // LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS.
-    if (row.userId) {
-      const ownerRole = row.user?.organizationMemberships.find(
-        (membership) => membership.orgId === organizationId,
-      )?.role;
-      if (
-        !ownerRole ||
-        !hasOrganizationAccess({ role: ownerRole, scope: "gateway:invoke" })
-      ) {
-        throw new GatewayControlPlaneError(
-          "API key owner is not allowed to invoke the gateway",
-          403,
-        );
-      }
-    }
 
     // Any organization key may call the gateway when its roles grant
     // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.
@@ -282,6 +272,7 @@ type ResolvedSpendLimit = {
   scope: GatewaySpendLimitScope;
   interval: GatewaySpendLimitInterval;
   limitUsd: Prisma.Decimal;
+  alertThresholds: number[];
   countingStartedAt: Date;
 };
 
@@ -309,13 +300,23 @@ function toResolveSpendLimits(params: {
           },
         ];
   const scope = params.scope === "API_KEY" ? "api_key" : "user";
-  return limits.map((limit) => ({
+  return limits.map((limit) => toResolveSpendLimit(limit, scope));
+}
+
+function toResolveSpendLimit(
+  limit: ResolvedSpendLimit,
+  scope: CachedResolveContext["spendLimits"][number]["scope"],
+) {
+  return {
     id: limit.id,
     scope,
     interval: limit.interval.toLowerCase() as Lowercase<typeof limit.interval>,
     limit_usd: limit.limitUsd.toNumber(),
     counting_started_at: limit.countingStartedAt.getTime(),
-  }));
+    alert_thresholds: normalizeGatewaySpendBudgetAlertThresholds(
+      limit.alertThresholds,
+    ),
+  };
 }
 
 function supportedProviders(apiFormat: GatewayApiFormat): GatewayProvider[] {

@@ -174,7 +174,7 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
           expect(response.headers.get("retry-after")).toBeNull();
           await expectGatewayError(response, 429, {
             error: {
-              message: expect.stringContaining("total spend limit"),
+              message: expect.stringContaining("total budget"),
               type: "insufficient_quota",
               param: null,
               code: "spend_limit_exceeded",

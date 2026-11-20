@@ -1,3 +1,4 @@
+import { visibleModelsWhere } from "../ingestion/modelVisibility";
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { isTopicFilter } from "../../topics";
 import { topicFilterConditions } from "../topics/trace-filter";
@@ -8,7 +9,6 @@ import {
   type ClickHouseSettings,
 } from "@clickhouse/client";
 import {
-  sql,
   type AliasableExpression,
   type AliasedExpression,
   type Expression,
@@ -43,6 +43,7 @@ import {
   byteLength,
   count,
   dateDiff,
+  emptyMap,
   startsWith,
   leftUTF8,
   limitBy,
@@ -386,7 +387,7 @@ async function enrichObservationsWithModelData(
                 id: {
                   in: uniqueModels,
                 },
-                OR: [{ projectId: projectId }, { scope: "LANGFUSE" }],
+                ...visibleModelsWhere(projectId),
               },
               include: {
                 Price: {
@@ -1345,7 +1346,7 @@ export const getTraceByIdFromEventsTable = async ({
       .orderBy("timestamp", "desc");
 
   const metadataSelect = excludeMetadata
-    ? sql`map()`.as("metadata")
+    ? emptyMap<string>().as("metadata")
     : "t.metadata";
 
   const builder = db
@@ -2303,6 +2304,7 @@ async function runObservationsScanQuery<T>(
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
     abortSignal,
+    callerDeadline: true,
     clickhouseConfigs: { request_timeout: OBSERVATIONS_SCAN_BUDGET_MS },
     clickhouseSettings: {
       read_in_order_use_buffering: 0,
@@ -4448,10 +4450,13 @@ const GATEWAY_KEY_OWNER_USER_ID_EXPRESSION = `e.metadata_values[indexOf(e.metada
 const GATEWAY_SPEND_SUBJECT_COLUMNS = {
   API_KEY: "e.ingestion_api_key",
   USER: GATEWAY_KEY_OWNER_USER_ID_EXPRESSION,
+  // The gateway records all of an organization's requests in its one ingestion project.
+  ORGANIZATION: "e.project_id",
 } as const;
 
 /**
- * USD each gateway key, or each user's gateway keys, spent since the subject's
+ * USD each gateway key, each user's gateway keys, or the organization (by its
+ * ingestion project's id) spent since the subject's
  * own `since`, in one scan from the earliest. Subjects without spend in their
  * window are absent from the result.
  */

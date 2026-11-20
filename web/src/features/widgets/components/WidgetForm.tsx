@@ -36,7 +36,7 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Label } from "@/src/components/ui/label";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 import { type z } from "zod";
 
@@ -63,13 +63,7 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import {
-  Plus,
-  X,
-  AlertCircle,
-  Sparkles,
-  type IconComponent,
-} from "@langfuse/icons";
+import { Plus, X, Sparkles, type IconComponent } from "@langfuse/icons";
 import { dashboardWidgetChartTypeIcons } from "@/src/features/widgets/chart-library/chartTypeIcons";
 import {
   Popover,
@@ -554,14 +548,14 @@ export function WidgetForm({
         </CardHeader>
         <CardContent className="space-y-4 overflow-y-auto">
           {isV4 && selectedView === "traces" && (
-            <Alert variant="warning" icon={AlertCircle}>
-              <Alert.Title>Traces view is not available in v4</Alert.Title>
-              <Alert.Description>
-                This widget uses the traces view which is not supported in v4.
-                It will continue to use v3 definitions. To use v4, change the
-                view to observations or scores.
-              </Alert.Description>
-            </Alert>
+            <Banner
+              variant="warning"
+              title="Traces view is not available in v4"
+            >
+              This widget uses the traces view which is not supported in v4. It
+              will continue to use v3 definitions. To use v4, change the view to
+              observations or scores.
+            </Banner>
           )}
           {/* Data Selection Section */}
           <div className="space-y-4">

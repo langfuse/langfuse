@@ -30,9 +30,7 @@ const session: Session = {
     canCreateOrganizations: false,
     featureFlags: {
       templateFlag: false,
-      excludeClickhouseRead: false,
       v4BetaToggleVisible: false,
-      observationEvals: false,
       experimentsV4Enabled: false,
       langfuseTopics: false,
     },

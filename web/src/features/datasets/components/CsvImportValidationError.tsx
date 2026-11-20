@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { useState } from "react";
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 
 type CsvImportValidationErrorProps = {
@@ -18,75 +18,70 @@ export const CsvImportValidationError: React.FC<
 
   return (
     <div className="mt-4">
-      <Alert variant="destructive">
-        <Alert.Title>Schema Validation Failed</Alert.Title>
-        <Alert.Description>
-          <div className="mt-2 flex flex-col gap-3">
-            <p className="text-sm">
-              {hasMoreThan10
-                ? `${errorCount}+ items failed validation. Showing first ${errorCount} errors.`
-                : `${errorCount} item${errorCount === 1 ? "" : "s"} failed validation.`}
-            </p>
-            <p className="text-muted-foreground text-sm">
-              The CSV data does not match the required schema for this dataset.
-              Fix the errors in your CSV file and try importing again.
-            </p>
+      <Banner variant="error" title="Schema validation failed">
+        <div className="flex flex-col gap-3">
+          <p>
+            {hasMoreThan10
+              ? `${errorCount}+ items failed validation. Showing first ${errorCount} errors.`
+              : `${errorCount} item${errorCount === 1 ? "" : "s"} failed validation.`}
+          </p>
+          <p>
+            The CSV data does not match the required schema for this dataset.
+            Fix the errors in your CSV file and try importing again.
+          </p>
 
-            <ExpandToggle
-              variant="icon"
-              expanded={isExpanded}
-              label="Show error details"
-              expandedLabel="Hide error details"
-              onExpandedChange={setIsExpanded}
-            />
+          <ExpandToggle
+            variant="icon"
+            expanded={isExpanded}
+            label="Show error details"
+            expandedLabel="Hide error details"
+            onExpandedChange={setIsExpanded}
+          />
 
-            {isExpanded && (
-              <div className="border-destructive/20 bg-destructive/5 mt-3 max-h-[400px] space-y-3 overflow-y-auto rounded-md border p-3">
-                {errors.map((error, idx) => (
-                  <div
-                    key={`${error.itemIndex}-${error.field}`}
-                    className="border-destructive/10 space-y-1 border-b pb-3 last:border-0 last:pb-0"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground font-mono text-xs">
-                        #{idx + 1}
-                      </span>
-                      <span className="text-sm font-bold">
-                        CSV Row {error.itemIndex + 2}:{" "}
-                        {error.field === "input"
-                          ? "Input"
-                          : error.field === "metadata"
-                            ? "Metadata"
-                            : "Expected Output"}
-                      </span>
-                    </div>
-
-                    <ul className="ml-6 space-y-1 text-sm">
-                      {error.errors.map((err, errIdx) => (
-                        <li key={errIdx} className="text-destructive">
-                          {err.path !== "/" && (
-                            <span className="text-muted-foreground font-mono text-xs">
-                              {err.path}:{" "}
-                            </span>
-                          )}
-                          {err.message}
-                        </li>
-                      ))}
-                    </ul>
+          {isExpanded && (
+            <div className="border-destructive/20 bg-destructive/5 mt-3 max-h-[400px] space-y-3 overflow-y-auto rounded-md border p-3">
+              {errors.map((error, idx) => (
+                <div
+                  key={`${error.itemIndex}-${error.field}`}
+                  className="border-destructive/10 space-y-1 border-b pb-3 last:border-0 last:pb-0"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs">#{idx + 1}</span>
+                    <span>
+                      CSV Row {error.itemIndex + 2}:{" "}
+                      {error.field === "input"
+                        ? "Input"
+                        : error.field === "metadata"
+                          ? "Metadata"
+                          : "Expected Output"}
+                    </span>
                   </div>
-                ))}
 
-                {hasMoreThan10 && (
-                  <p className="text-muted-foreground pt-2 text-xs">
-                    Fix these errors to see if there are additional validation
-                    issues.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </Alert.Description>
-      </Alert>
+                  <ul className="ml-6 space-y-1">
+                    {error.errors.map((err, errIdx) => (
+                      <li key={errIdx}>
+                        {err.path !== "/" && (
+                          <span className="font-mono text-xs">
+                            {err.path}:{" "}
+                          </span>
+                        )}
+                        {err.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+
+              {hasMoreThan10 && (
+                <p className="pt-2">
+                  Fix these errors to see if there are additional validation
+                  issues.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </Banner>
     </div>
   );
 };

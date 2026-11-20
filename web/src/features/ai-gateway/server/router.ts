@@ -46,10 +46,15 @@ import {
   requireGatewayInvoke,
 } from "./gatewayAccess";
 import {
+  GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+  type GatewaySpendBudgetAlertThreshold,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
+import {
   GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_USD,
 } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import { GatewaySpendLimitService } from "./spendLimits/gatewaySpendLimitService";
 import { GatewaySpendLimitRepository } from "./spendLimits/gatewaySpendLimitRepository";
 import { GatewayTeamService } from "./team/gatewayTeamService";
@@ -86,10 +91,26 @@ const allowedModelsSchema = z
   .nullable();
 const customModelSchema = z.string().trim().min(1).max(500);
 
+const gatewaySpendLimitAlertThresholdInput = z
+  .number()
+  .int()
+  .refine(
+    (value): value is GatewaySpendBudgetAlertThreshold =>
+      (GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS as readonly number[]).includes(
+        value,
+      ),
+    "Unsupported alert threshold",
+  );
+
 /** A key's or user's single spend limit. */
 const gatewaySpendLimitInput = z.object({
   interval: z.enum(GatewaySpendLimitInterval),
   limitUsd: z.number().positive().max(GATEWAY_SPEND_BUDGET_MAX_USD),
+  // Omitted by older clients: updates preserve stored thresholds, creates default to [100].
+  alertThresholds: z
+    .array(gatewaySpendLimitAlertThresholdInput)
+    .transform(normalizeGatewaySpendBudgetAlertThresholds)
+    .optional(),
 });
 const gatewaySpendLimitScopeInput = z.enum(["API_KEY", "USER"]);
 /** The keys or users a budget change applies to, at most one table page. */
@@ -809,6 +830,32 @@ export const aiGatewayRouter = createTRPCRouter({
       await new GatewaySpendLimitService(ctx.prisma).setDefault({
         organizationId: input.orgId,
         scope: input.scope,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
+  /** The organization's own budget, capping all of its gateway spend, with its spend; null when none is set. */
+  getOrganizationSpendLimit: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).getOrganizationBudget(
+        input.orgId,
+      );
+    }),
+
+  /** Sets or removes (null) the organization's own budget. */
+  setOrganizationSpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        spendLimit: gatewaySpendLimitInput.nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).setOrganizationBudget({
+        organizationId: input.orgId,
         limit: input.spendLimit,
         session: ctx.session,
       });

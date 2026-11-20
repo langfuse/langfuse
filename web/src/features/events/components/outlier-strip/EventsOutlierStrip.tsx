@@ -425,7 +425,7 @@ export function EventsOutlierStrip({
           </AggDropdownController>
         )}
         {topicStripe && (
-          <div className="ml-auto w-80 min-w-0 self-center">
+          <div className="ml-auto w-80 min-w-0 -translate-y-px">
             <TopicStripe {...topicStripe} />
           </div>
         )}
@@ -451,11 +451,11 @@ export function EventsOutlierStrip({
       stale={queryResult.isPlaceholderData && queryResult.isFetching}
       header={header}
       // Ready height (header + plot + time labels), so loading doesn't jump.
-      contentHeightClass="h-22.25"
+      contentHeightClass="h-22.75"
     >
       {!canApplyFilters ? (
         <OutlierBarStrip
-          className="mt-2 mr-2 ml-6"
+          className="mt-2.5 mr-2 ml-6"
           dense={[]}
           maxValue={0}
           ticks={[]}
@@ -466,7 +466,7 @@ export function EventsOutlierStrip({
         />
       ) : (
         <OutlierBarStrip
-          className={cn("mt-2 mr-2", yGutter.className)}
+          className={cn("mt-2.5 mr-2", yGutter.className)}
           dense={series.dense}
           maxValue={series.maxValue}
           ticks={series.ticks}

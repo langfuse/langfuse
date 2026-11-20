@@ -59,6 +59,8 @@ export * from "./utils/jsonSchemaValidation";
 export * from "./utils/chatml";
 export * from "./utils/math";
 export * from "./features/entitlements/plans";
+export * from "./features/entitlements/entitlements";
+export * from "./features/entitlements/stripeProducts";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
@@ -72,6 +74,7 @@ export * from "./domain/dashboard-studio-presets";
 // llm api
 export * from "./server/llm/types";
 export * from "./server/llm/promptToolConfig";
+export * from "./server/llm/llmBaseUrlRules";
 
 // evals
 export * from "./features/evals/types";

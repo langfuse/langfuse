@@ -81,8 +81,8 @@ from `utils/normalized-io/schema.ts`. `types.ts` infers the output types from th
 schemas; assembly inputs and options remain separate. Assembly does not parse
 each intermediate object at runtime.
 
-Persisted trace-batch inputs have their own frozen schemas and serialization
-adapters under [`../traceBatch`](../traceBatch/README.md). They version the
+Persisted trace transcripts have their own frozen schemas and serialization
+adapters under [`../eventsDispatch`](../eventsDispatch/README.md). They version the
 complete storage envelope, including the transcript and trace context.
 The transcript fixture suite validates the current assembled shape independently
 of that storage format.

@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { NextRequest } from "next/server";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 
 import type * as SfdcService from "@/src/ee/features/sfdc-sync/server/sfdcService";
 
@@ -712,12 +713,15 @@ describe("chbWebhookHandler", () => {
       cloudBillingCycleAnchor: anchor,
     });
 
+    // Plan resolution reads the region from shared's env, not env.mjs.
+    const originalRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     beforeEach(() => {
-      // Plan resolution reads the region from process.env, not the env module.
-      vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "EU");
+      Object.assign(sharedEnv, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
     });
     afterEach(() => {
-      vi.unstubAllEnvs();
+      Object.assign(sharedEnv, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion,
+      });
     });
 
     it.each([

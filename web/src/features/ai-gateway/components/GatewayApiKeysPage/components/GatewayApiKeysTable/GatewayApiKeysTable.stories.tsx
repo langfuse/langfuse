@@ -65,6 +65,7 @@ const actions = {
   spend: { status: "success" },
   onEdit,
   onRevoke,
+  onCreateKey: fn(),
   pagination: {
     mode: "offset",
     totalCount: 1,
@@ -74,7 +75,13 @@ const actions = {
   search: { value: "", onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  "lastUsed" | "spend" | "onEdit" | "onRevoke" | "pagination" | "search"
+  | "lastUsed"
+  | "spend"
+  | "onEdit"
+  | "onRevoke"
+  | "onCreateKey"
+  | "pagination"
+  | "search"
 >;
 
 const lastUsedCell = (canvas: {

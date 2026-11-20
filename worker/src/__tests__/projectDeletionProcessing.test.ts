@@ -25,6 +25,7 @@ import {
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteEventsOlderThanDays,
+  findAllMediaByProjectId,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
@@ -343,6 +344,40 @@ describe("ProjectDeletionProcessingJob", () => {
       where: { mediaId },
     });
     expect(datasetItemMedia).toBeNull();
+  });
+
+  it("should page through project media with the afterId cursor", async () => {
+    const projectId = randomUUID();
+    await prisma.project.create({
+      data: { id: projectId, orgId, name: `Project-${randomUUID()}` },
+    });
+    const mediaIds = Array.from({ length: 5 }, () => randomUUID());
+    await prisma.media.createMany({
+      data: mediaIds.map((id) => ({
+        id,
+        sha256Hash: randomUUID(),
+        projectId,
+        bucketPath: `${randomUUID()}.txt`,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: "text/plain",
+        contentLength: 0,
+      })),
+    });
+
+    const pagedIds: string[] = [];
+    let afterId: string | undefined;
+    for (let page = 0; page < mediaIds.length; page++) {
+      const batch = await findAllMediaByProjectId({
+        projectId,
+        limit: 2,
+        afterId,
+      });
+      if (batch.length === 0) break;
+      pagedIds.push(...batch.map((media) => media.id));
+      afterId = batch[batch.length - 1].id;
+    }
+
+    expect(pagedIds).toEqual([...mediaIds].sort());
   });
 
   describe("delete functions with hasAny probe", () => {

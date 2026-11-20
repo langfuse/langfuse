@@ -1,20 +1,16 @@
-import { AlertCircle } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 export const SupportOrUpgradePage = () => {
   return (
     <div className="flex h-full w-full items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <Alert icon={AlertCircle}>
-          <Alert.Title>Access Restricted</Alert.Title>
-          <Alert.Description>
-            <p className="mb-2">This feature requires additional permissions</p>
-            <p>
-              Contact your system/project administrator for access or upgrade
-              your plan. Need help? Reach out to support.
-            </p>
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access restricted">
+          <p className="mb-2">This feature requires additional permissions</p>
+          <p>
+            Contact your system/project administrator for access or upgrade your
+            plan. Need help? Reach out to support.
+          </p>
+        </Banner>
       </div>
     </div>
   );

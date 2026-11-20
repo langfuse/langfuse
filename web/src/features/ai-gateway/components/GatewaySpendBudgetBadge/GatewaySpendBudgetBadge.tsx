@@ -4,36 +4,23 @@ import {
   getGatewaySpendLimitWindowEnd,
   getGatewaySpendLimitWindowStart,
 } from "@/src/features/ai-gateway/fns/gatewaySpendLimitWindow";
-import { usdFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
+import { formatGatewayBudgetUsd } from "@/src/features/ai-gateway/fns/formatGatewayBudgetUsd";
+import { formatGatewaySpendBudget } from "@/src/features/ai-gateway/fns/formatGatewaySpendBudget";
 import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
-
-/** Share of the limit from which a budget shows as nearly used up. */
-const NEAR_LIMIT_SHARE = 0.8;
-
-const dotClasses = {
-  reached: "bg-dark-red",
-  // `dark-yellow` reads as brown in light mode.
-  near: "bg-yellow-400 dark:bg-dark-yellow",
-} as const;
-
-const intervalLabels: Record<GatewaySpendBudgetInterval, string> = {
-  DAILY: "daily",
-  WEEKLY: "weekly",
-  MONTHLY: "monthly",
-  TOTAL: "total",
-};
+import { GatewaySpendBudgetStatusDot } from "@/src/features/ai-gateway/components/GatewaySpendBudgetStatusDot/GatewaySpendBudgetStatusDot";
+import { getGatewaySpendBudgetStatus } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetStatus";
 
 const requestsBySubject = {
   key: "Requests with this key",
   user: "Requests with this user's keys",
+  organization: "Requests in this organization",
 } as const;
 
 type GatewaySpendBudgetBadgeProps = {
-  /** What the budget caps: one key, or all keys of a user. */
+  /** What the budget caps: one key, all keys of a user, or the whole organization. */
   subject: keyof typeof requestsBySubject;
   spendLimit: GatewaySpendLimit;
-  /** Undefined while spend is not recorded, so only the limit is shown. */
+  /** Undefined while spend is not recorded, so only the budget is shown. */
   spentUsd: number | undefined;
   /** "amounts" leaves out the interval, for tables that show it in a column of its own. */
   format?: "withInterval" | "amounts";
@@ -47,8 +34,8 @@ export function GatewaySpendBudgetBadge({
 }: GatewaySpendBudgetBadgeProps) {
   const limit =
     format === "amounts"
-      ? formatUsd(spendLimit.limitUsd)
-      : `${formatUsd(spendLimit.limitUsd)} ${intervalLabels[spendLimit.interval]}`;
+      ? formatGatewayBudgetUsd(spendLimit.limitUsd)
+      : formatGatewaySpendBudget(spendLimit);
   const { title, description } = describeBudget(
     spendLimit,
     spentUsd,
@@ -56,9 +43,13 @@ export function GatewaySpendBudgetBadge({
   );
 
   const status =
-    spentUsd === undefined ? "ok" : budgetStatus(spentUsd, spendLimit.limitUsd);
+    spentUsd === undefined
+      ? "ok"
+      : getGatewaySpendBudgetStatus(spentUsd, spendLimit.limitUsd);
   const text =
-    spentUsd === undefined ? limit : `${formatUsd(spentUsd)} / ${limit}`;
+    spentUsd === undefined
+      ? limit
+      : `${formatGatewayBudgetUsd(spentUsd)} / ${limit}`;
 
   return (
     <CustomTooltip
@@ -76,15 +67,7 @@ export function GatewaySpendBudgetBadge({
           className="inline-flex items-center gap-1.5 font-mono text-xs"
         >
           {text}
-          {status !== "ok" && (
-            <span
-              aria-hidden
-              className={cn(
-                "size-1.5 shrink-0 rounded-full",
-                dotClasses[status],
-              )}
-            />
-          )}
+          {status !== "ok" && <GatewaySpendBudgetStatusDot status={status} />}
         </span>
       )}
     </CustomTooltip>
@@ -100,7 +83,7 @@ function describeBudget(
     return {
       title: "Spend unavailable",
       description:
-        "Spend is counted only while gateway requests are recorded, so only the limit is shown.",
+        "Spend is counted only while gateway requests are recorded, so only the budget is shown.",
     };
   }
   const resetsAt = formatResetsAt(interval);
@@ -115,7 +98,7 @@ function describeBudget(
   const used = `${Math.floor((spentUsd / limitUsd) * 100)}% of the budget is used.`;
   return {
     title:
-      budgetStatus(spentUsd, limitUsd) === "near"
+      getGatewaySpendBudgetStatus(spentUsd, limitUsd) === "near"
         ? "Budget nearly reached"
         : "Within budget",
     description: resetsAt
@@ -129,14 +112,4 @@ function formatResetsAt(interval: GatewaySpendBudgetInterval) {
     interval,
     getGatewaySpendLimitWindowStart(interval),
   )?.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
-
-function budgetStatus(spentUsd: number, limitUsd: number) {
-  if (spentUsd >= limitUsd) return "reached";
-  if (spentUsd >= limitUsd * NEAR_LIMIT_SHARE) return "near";
-  return "ok";
-}
-
-function formatUsd(value: number) {
-  return usdFormatter(value, 0, 2);
 }

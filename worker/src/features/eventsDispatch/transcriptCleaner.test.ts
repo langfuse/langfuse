@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getS3EventStorageClient,
-  TRACE_BATCH_INPUT_PREFIX,
+  TRACE_TRANSCRIPT_PREFIX,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { EventsDispatchTranscriptCleaner } from "./transcriptCleaner";
@@ -14,7 +14,7 @@ const retention = vi.hoisted(() => ({ ms: 0 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
-  get TRACE_BATCH_INPUT_RETENTION_MS() {
+  get TRACE_TRANSCRIPT_RETENTION_MS() {
     return retention.ms;
   },
 }));
@@ -48,7 +48,7 @@ describe("EventsDispatchTranscriptCleaner", () => {
     });
 
   it("deletes expired transcripts across list pages and keeps newer ones", async () => {
-    const prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${TRACE_BATCH_INPUT_PREFIX}`;
+    const prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${TRACE_TRANSCRIPT_PREFIX}`;
     const expired = ["a1", "a2", "a3"].map((name) => `${prefix}${name}.json`);
     const fresh = `${prefix}b.json`;
 

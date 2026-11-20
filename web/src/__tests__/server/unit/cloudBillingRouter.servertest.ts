@@ -1,4 +1,3 @@
-import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -38,6 +37,7 @@ vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
 
 import { cloudBillingRouter } from "@/src/ee/features/billing/server/cloudBillingRouter";
 import { logger } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 /** Metadata payloads passed to `logger.error`, where the labels land. */
 const loggedErrors = () =>
@@ -48,15 +48,10 @@ const loggedErrors = () =>
 const ORG_ID = "org-1";
 
 const caller = () => {
-  const session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      name: "Demo User",
-      email: "demo@langfuse.com",
-      organizations: [{ id: ORG_ID, name: "Org", role: "OWNER", projects: [] }],
-    },
-  } as unknown as Session;
+  const session = createSession({
+    user: { email: "demo@langfuse.com" },
+    organizations: [{ id: ORG_ID, role: "OWNER", name: "Org" }],
+  });
 
   return cloudBillingRouter.createCaller({
     session,

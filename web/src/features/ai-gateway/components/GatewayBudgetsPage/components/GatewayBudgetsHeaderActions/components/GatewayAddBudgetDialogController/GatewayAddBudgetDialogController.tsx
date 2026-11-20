@@ -8,6 +8,7 @@ import {
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { useAddGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useAddGatewayBudgets";
+import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
@@ -21,10 +22,19 @@ type GatewayAddBudgetDialogProps = ComponentProps<
   typeof GatewayAddBudgetDialog
 >;
 
+type GatewayBudgetRow =
+  RouterOutputs["aiGateway"]["listBudgets"]["rows"][number];
+
+type GatewayAddedBudgets = {
+  targetType: GatewaySpendTab;
+  /** Rows selected in the table; those without a budget of their own start selected. */
+  selectedRows: GatewayBudgetRow[];
+};
+
 type GatewayAddBudgetDialogControllerProps = {
   organizationId: string;
   children: (control: {
-    openDialog: (targetType: GatewaySpendTab) => void;
+    openDialog: (budgets: GatewayAddedBudgets) => void;
   }) => ReactNode;
 };
 
@@ -36,15 +46,19 @@ export function GatewayAddBudgetDialogController({
   const { spendBudgetUnavailableReason } =
     useGatewaySettingsAccess(organizationId);
   const { addBudgets, mutation } = useAddGatewayBudgets(organizationId);
+  const captureBudgetChange = useCaptureGatewayBudgetChange(organizationId);
 
   return (
-    <DialogController<GatewaySpendTab>
+    <DialogController<GatewayAddedBudgets>
       onBeforeClose={() => !mutation.isPending}
       onDismiss={() => mutation.reset()}
       renderDialog={({ state, closeDialog }) => (
         <ConnectedGatewayAddBudgetDialog
           organizationId={organizationId}
-          targetType={state}
+          targetType={state.targetType}
+          initialTargets={state.selectedRows
+            .map((row) => toTargetOption(state.targetType, row))
+            .filter((option) => !option.disabled)}
           unavailableReason={spendBudgetUnavailableReason}
           errorMessage={
             mutation.isError ? (mutation.error?.message ?? "Try again.") : null
@@ -52,11 +66,17 @@ export function GatewayAddBudgetDialogController({
           isSubmitting={mutation.isPending}
           onSubmit={async ({ targetIds, spendLimit }) => {
             const added = await addBudgets({
-              tab: state,
+              tab: state.targetType,
               subjectIds: targetIds,
               spendLimit,
             });
             if (!added) return;
+            captureBudgetChange({
+              surface: "budgets_page",
+              scope: GATEWAY_SPEND_TABS[state.targetType].scope,
+              subjectCount: targetIds.length,
+              spendLimit,
+            });
             closeDialog();
             mutation.reset();
           }}
@@ -109,7 +129,7 @@ function ConnectedGatewayAddBudgetDialog({
 /** Keys show their user; users show their email. Those with a budget are disabled. */
 function toTargetOption(
   targetType: GatewaySpendTab,
-  row: RouterOutputs["aiGateway"]["listBudgets"]["rows"][number],
+  row: GatewayBudgetRow,
 ): GatewayAddBudgetDialogProps["targetPicker"]["options"][number] {
   // Rows on the default have no budget of their own, so one can be added.
   const budgeted =

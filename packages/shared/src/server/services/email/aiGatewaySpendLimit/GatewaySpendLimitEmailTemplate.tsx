@@ -25,12 +25,17 @@ export type GatewaySpendLimitEmailScope =
       type: "USER";
       name: string;
       email: string;
+    }
+  | {
+      type: "ORGANIZATION";
     };
 
 type GatewaySpendLimitEmailLimit = {
   /** Lowercase interval, e.g. "daily"; "total" for a limit that never resets. */
   interval: string;
   limitUsd: number;
+  /** Usage percentage that triggered the alert; 100 means the budget was reached. */
+  thresholdPercent?: number;
   /** When the limit resets, formatted for display; absent for total limits. */
   resetsAt?: string;
 };
@@ -40,7 +45,7 @@ type GatewaySpendLimitEmailTemplateProps = {
   audience: "keyOwner" | "orgOwner";
   orgName: string;
   scope: GatewaySpendLimitEmailScope;
-  /** The limits one request reached, at least one. */
+  /** The limits one request triggered alerts for, at least one. */
   limits: GatewaySpendLimitEmailLimit[];
   receiverEmail: string;
   /** Greets the receiver by name when known. */
@@ -59,16 +64,19 @@ export const GatewaySpendLimitEmailTemplate = ({
   link,
   emailFromAddress,
 }: GatewaySpendLimitEmailTemplateProps) => {
-  const subject = describeScope(scope, audience);
+  const subject = describeScope(scope, audience, orgName);
   const [onlyLimit] = limits.length === 1 ? limits : [];
+  const onlyThreshold = onlyLimit ? getThresholdPercent(onlyLimit) : 100;
+  const allExceeded = limits.every(
+    (limit) => getThresholdPercent(limit) >= 100,
+  );
+  const hasExceeded = limits.some((limit) => getThresholdPercent(limit) >= 100);
 
   return (
     <Html>
       <Head />
       <Preview>
-        {onlyLimit
-          ? `${subject.name} reached its ${formatLimit(onlyLimit)} spend limit`
-          : `${subject.name} reached ${limits.length} spend limits`}
+        {getPreviewText(subject.name, limits, onlyLimit, allExceeded)}
       </Preview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
@@ -83,44 +91,51 @@ export const GatewaySpendLimitEmailTemplate = ({
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-              <strong>{subject.name}</strong> reached its spend{" "}
-              {onlyLimit ? "limit" : "limits"}
+              <strong>{subject.name}</strong>{" "}
+              {getHeadingAction(onlyLimit, onlyThreshold, allExceeded)}
             </Heading>
             <Text className="text-sm leading-6 text-black">
               {receiverName ? `Hello ${receiverName},` : "Hello,"}
             </Text>
             {onlyLimit ? (
-              <Text className="text-sm leading-6 text-black">
-                {subject.label} <strong>{subject.name}</strong> (
-                {subject.identifier}) in the <strong>{orgName}</strong>{" "}
-                organization has spent its{" "}
-                <strong>{formatLimit(onlyLimit)}</strong> limit on the AI
-                Gateway. {subject.requests} are rejected{" "}
-                {onlyLimit.resetsAt
-                  ? `until the limit resets on ${onlyLimit.resetsAt}`
-                  : "until an admin raises or removes the limit"}
-                .
-              </Text>
+              <SingleLimitBody
+                subject={subject}
+                orgName={orgName}
+                limit={onlyLimit}
+                thresholdPercent={onlyThreshold}
+              />
             ) : (
               <>
                 <Text className="text-sm leading-6 text-black">
-                  {subject.label} <strong>{subject.name}</strong> (
-                  {subject.identifier}) in the <strong>{orgName}</strong>{" "}
-                  organization has spent these limits on the AI Gateway:
+                  <SubjectIntro subject={subject} orgName={orgName} />{" "}
+                  {allExceeded
+                    ? "has spent these budgets on the AI Gateway:"
+                    : "has reached alerts for these budgets on the AI Gateway:"}
                 </Text>
                 <ul className="my-0 pl-5 text-sm leading-6 text-black">
-                  {limits.map((limit) => (
-                    <li key={limit.interval}>
-                      <strong>{formatLimit(limit)}</strong>,{" "}
-                      {limit.resetsAt
-                        ? `resets on ${limit.resetsAt}`
-                        : "does not reset on its own"}
-                    </li>
-                  ))}
+                  {limits.map((limit) => {
+                    const threshold = getThresholdPercent(limit);
+                    return (
+                      <li key={`${limit.interval}-${threshold}`}>
+                        <strong>
+                          {threshold < 100
+                            ? `${threshold}% of ${formatLimit(limit)}`
+                            : formatLimit(limit)}
+                        </strong>
+                        ,{" "}
+                        {limit.resetsAt
+                          ? `resets on ${limit.resetsAt}`
+                          : "does not reset on its own"}
+                      </li>
+                    );
+                  })}
                 </ul>
                 <Text className="text-sm leading-6 text-black">
-                  {subject.requests} are rejected until each of these limits
-                  resets or is raised.
+                  {getMultipleLimitsOutcome(
+                    subject.requests,
+                    allExceeded,
+                    hasExceeded,
+                  )}
                 </Text>
               </>
             )}
@@ -158,12 +173,141 @@ export const GatewaySpendLimitEmailTemplate = ({
 export function getGatewaySpendLimitEmailSubject(
   scope: GatewaySpendLimitEmailScope,
   orgName: string,
-  limitCount: number,
+  limits: readonly Pick<GatewaySpendLimitEmailLimit, "thresholdPercent">[],
 ): string {
-  const { noun, name } = describeScope(scope, "orgOwner");
-  const reached =
-    limitCount === 1 ? "its spend limit" : `${limitCount} spend limits`;
-  return `${noun[0]!.toUpperCase()}${noun.slice(1)} "${name}" reached ${reached} in "${orgName}"`;
+  const { noun, name, includeOrgInSubject } = describeScope(
+    scope,
+    "orgOwner",
+    orgName,
+  );
+  const inOrg = includeOrgInSubject ? ` in "${orgName}"` : "";
+  const prefix = `${noun[0]!.toUpperCase()}${noun.slice(1)} "${name}"`;
+  if (limits.length === 1) {
+    const threshold = getThresholdPercent(limits[0]!);
+    const reached =
+      threshold < 100 ? `${threshold}% of its budget` : "its budget";
+    return `${prefix} reached ${reached}${inOrg}`;
+  }
+  const allExceeded = limits.every(
+    (limit) => getThresholdPercent(limit) >= 100,
+  );
+  const reached = allExceeded
+    ? `${limits.length} budgets`
+    : `${limits.length} budget alerts`;
+  return `${prefix} reached ${reached}${inOrg}`;
+}
+
+function SubjectIntro({
+  subject,
+  orgName,
+}: {
+  subject: ReturnType<typeof describeScope>;
+  orgName: string;
+}) {
+  if (!subject.includeOrgInSubject) {
+    return (
+      <>
+        {subject.label} <strong>{subject.name}</strong>
+      </>
+    );
+  }
+  return (
+    <>
+      {subject.label} <strong>{subject.name}</strong> ({subject.identifier}) in
+      the <strong>{orgName}</strong> organization
+    </>
+  );
+}
+
+function SingleLimitBody({
+  subject,
+  orgName,
+  limit,
+  thresholdPercent,
+}: {
+  subject: ReturnType<typeof describeScope>;
+  orgName: string;
+  limit: GatewaySpendLimitEmailLimit;
+  thresholdPercent: number;
+}) {
+  if (thresholdPercent < 100) {
+    return (
+      <Text className="text-sm leading-6 text-black">
+        <SubjectIntro subject={subject} orgName={orgName} /> has reached{" "}
+        <strong>{thresholdPercent}%</strong> of its{" "}
+        <strong>{formatLimit(limit)}</strong> budget on the AI Gateway.{" "}
+        {subject.requests} will be rejected once the budget is reached
+        {limit.resetsAt ? `, until it resets on ${limit.resetsAt}` : ""}.
+      </Text>
+    );
+  }
+  return (
+    <Text className="text-sm leading-6 text-black">
+      <SubjectIntro subject={subject} orgName={orgName} /> has spent its{" "}
+      <strong>{formatLimit(limit)}</strong> budget on the AI Gateway.{" "}
+      {subject.requests} are rejected{" "}
+      {limit.resetsAt
+        ? `until the budget resets on ${limit.resetsAt}`
+        : "until an admin raises or removes the budget"}
+      .
+    </Text>
+  );
+}
+
+function getThresholdPercent(
+  limit: Pick<GatewaySpendLimitEmailLimit, "thresholdPercent">,
+) {
+  return limit.thresholdPercent ?? 100;
+}
+
+function getPreviewText(
+  subjectName: string,
+  limits: readonly GatewaySpendLimitEmailLimit[],
+  onlyLimit: GatewaySpendLimitEmailLimit | undefined,
+  allExceeded: boolean,
+) {
+  if (onlyLimit) {
+    const threshold = getThresholdPercent(onlyLimit);
+    if (threshold < 100) {
+      return `${subjectName} reached ${threshold}% of its ${formatLimit(onlyLimit)} budget`;
+    }
+    return `${subjectName} reached its ${formatLimit(onlyLimit)} budget`;
+  }
+  if (allExceeded) {
+    return `${subjectName} reached ${limits.length} budgets`;
+  }
+  return `${subjectName} reached ${limits.length} budget alerts`;
+}
+
+function getHeadingAction(
+  onlyLimit: GatewaySpendLimitEmailLimit | undefined,
+  onlyThreshold: number,
+  allExceeded: boolean,
+) {
+  if (onlyLimit) {
+    if (onlyThreshold < 100) {
+      return `reached ${onlyThreshold}% of its budget`;
+    }
+    return "reached its budget";
+  }
+  if (allExceeded) {
+    return "reached its budgets";
+  }
+  return "reached budget alerts";
+}
+
+function getMultipleLimitsOutcome(
+  requests: string,
+  allExceeded: boolean,
+  hasExceeded: boolean,
+) {
+  if (allExceeded) {
+    return `${requests} are rejected until each of these budgets resets or is raised.`;
+  }
+  if (hasExceeded) {
+    return `${requests} are rejected until each exceeded budget resets or is raised.`;
+  }
+  return `${requests} will be rejected once a budget is reached.`;
 }
 
 function formatLimit({ interval, limitUsd }: GatewaySpendLimitEmailLimit) {
@@ -173,6 +317,7 @@ function formatLimit({ interval, limitUsd }: GatewaySpendLimitEmailLimit) {
 function describeScope(
   scope: GatewaySpendLimitEmailScope,
   audience: GatewaySpendLimitEmailTemplateProps["audience"],
+  orgName: string,
 ) {
   switch (scope.type) {
     case "API_KEY":
@@ -184,6 +329,7 @@ function describeScope(
         requests: "Requests with this key",
         ownerReason: "you own this gateway key",
         linkLabel: "View gateway keys",
+        includeOrgInSubject: true,
       };
     case "USER":
       return {
@@ -192,8 +338,20 @@ function describeScope(
         name: scope.name,
         identifier: scope.email,
         requests: "Requests with this user's gateway keys",
-        ownerReason: "this spend limit applies to you",
+        ownerReason: "this budget applies to you",
         linkLabel: "View gateway budgets",
+        includeOrgInSubject: true,
+      };
+    case "ORGANIZATION":
+      return {
+        noun: "organization",
+        label: "The organization",
+        name: orgName,
+        identifier: "",
+        requests: "Requests in this organization",
+        ownerReason: "you are an owner of this organization",
+        linkLabel: "View gateway budgets",
+        includeOrgInSubject: false,
       };
   }
 }
