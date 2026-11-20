@@ -278,6 +278,7 @@ async function processEvent(
       executionIssues: inputs.executionIssues,
       models,
       facets,
+      revision: event.revision,
       attempt: deps.attempt ? "retry" : "first",
       executionId: event.batchActionId,
     });
