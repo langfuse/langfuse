@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { v4 } from "uuid";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { type QueryType } from "@langfuse/shared/query";
@@ -26,6 +25,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
 import { env } from "@/src/env.mjs";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // Skip when events table is not enabled (v2 queries require events_core).
 const maybe =
@@ -481,40 +481,17 @@ describe("dashboard v1 vs v2 consistency", () => {
   }
 
   function makeCaller() {
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        canCreateOrganizations: true,
-        name: "Test User",
-        organizations: [
-          {
-            id: orgId,
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: true,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-      },
-      environment: {} as any,
-    };
+    const session: Session = createSession({
+      user: { name: "Test User" },
+      organizations: [
+        {
+          id: orgId,
+          role: "OWNER",
+          aiTelemetryEnabled: true,
+          projects: [{ id: projectId, role: "ADMIN", hasTraces: true }],
+        },
+      ],
+    });
     const ctx = createInnerTRPCContext({ session, headers: {} });
     return appRouter.createCaller({ ...ctx, prisma });
   }

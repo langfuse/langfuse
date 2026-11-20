@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -91,19 +92,18 @@ function createRequest(body: Record<string, unknown>) {
   });
 }
 
-function createSession(projectId = baseBody.projectId) {
-  return {
-    user: {
-      id: "user-1",
-      organizations: [{ projects: [{ id: projectId, role: "ADMIN" }] }],
-    },
-  };
+function adminSession(projectId = baseBody.projectId) {
+  return createSession({
+    organizations: [
+      { id: "org-1", role: "ADMIN", projects: [{ id: projectId }] },
+    ],
+  });
 }
 
 describe("chatCompletionHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.session.mockResolvedValue(createSession());
+    mocks.session.mockResolvedValue(adminSession());
     mocks.findConnection.mockResolvedValue({
       id: "connection-1",
       secretKey: "encrypted-key",
@@ -117,7 +117,7 @@ describe("chatCompletionHandler", () => {
 
   it("blocks demo project admins before resolving credentials or calling a model", async () => {
     const projectId = "demo-project";
-    mocks.session.mockResolvedValue(createSession(projectId));
+    mocks.session.mockResolvedValue(adminSession(projectId));
 
     const response = await chatCompletionHandler(
       createRequest({ ...baseBody, projectId }),
@@ -131,14 +131,17 @@ describe("chatCompletionHandler", () => {
 
   it("allows staff members in Internal view to run demo completions", async () => {
     const projectId = "demo-project";
-    mocks.session.mockResolvedValue({
-      user: {
-        id: "user-1",
-        email: "member@clickhouse.com",
-        featureFlags: testFeatureFlags({ internalFeatures: true }),
-        organizations: [{ projects: [{ id: projectId, role: "MEMBER" }] }],
-      },
-    });
+    mocks.session.mockResolvedValue(
+      createSession({
+        user: {
+          email: "member@clickhouse.com",
+          featureFlags: testFeatureFlags({ internalFeatures: true }),
+        },
+        organizations: [
+          { id: "org-1", role: "MEMBER", projects: [{ id: projectId }] },
+        ],
+      }),
+    );
     mocks.generate.mockResolvedValue({ text: "Hello back", finalStep: {} });
 
     const response = await chatCompletionHandler(

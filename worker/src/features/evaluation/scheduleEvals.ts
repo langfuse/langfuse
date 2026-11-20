@@ -12,10 +12,7 @@ import {
 } from "./observationEval/scheduleObservationEvals";
 import type { ObservationForEval } from "./observationEval/types";
 import type { EvalRules } from "./fetchEvalRules";
-import {
-  getTraceBatchExperimentRuleIds,
-  scheduleTraceTranscriptEvals,
-} from "./traceTranscriptEval/scheduleTraceTranscriptEvals";
+import { scheduleTraceTranscriptEvals } from "./traceTranscriptEval/scheduleTraceTranscriptEvals";
 import { prepareTraceBatchRules } from "../traceBatching/traceBatchRules";
 import {
   recordTraceActivity,
@@ -103,9 +100,7 @@ export async function scheduleEvals({
 }): Promise<readonly string[] | undefined> {
   if (isInternalEvalEnvironment(environment)) traceActivity = undefined;
   let matchedRuleIds: readonly string[] | undefined =
-    traceActivity && rules.traceTranscriptRules.length === 0
-      ? getTraceBatchExperimentRuleIds(traceActivity.traceId)
-      : undefined;
+    traceActivity && rules.traceTranscriptRules.length === 0 ? [] : undefined;
   if (
     rules.observationRules.length === 0 &&
     !(traceActivity && rules.traceTranscriptRules.length > 0)

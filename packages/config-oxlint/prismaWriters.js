@@ -1,9 +1,3 @@
-const membershipTestWriters = [
-  "__tests__/**",
-  "*.test.ts",
-  "scripts/seeder/**",
-];
-
 /**
  * allowedPrismaWriters contains the list of files allowed to write to Prisma collections.
  * Writes are permitted from the entire application unless otherwise specified.
@@ -16,11 +10,9 @@ export const allowedPrismaWriters = {
   ),
   organizationMembership: allowPrismaWrites(
     "packages/shared/src/features/memberships/orgMembershipRepository.ts",
-    ...membershipTestWriters,
   ),
   projectMembership: allowPrismaWrites(
     "packages/shared/src/features/memberships/projectMembershipRepository.ts",
-    ...membershipTestWriters,
   ),
 };
 

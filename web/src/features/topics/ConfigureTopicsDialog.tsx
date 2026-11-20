@@ -11,6 +11,10 @@ import {
   JudgeModelPickerTrigger,
 } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
+import {
+  TOPICS_MAX_EMBEDDING_DIMENSIONS,
+  TOPICS_MIN_EMBEDDING_DIMENSIONS,
+} from "@langfuse/shared/topics";
 
 export type TopicSlotCheck = {
   status: "idle" | "testing" | "ok" | "error";
@@ -350,6 +354,8 @@ function ModelSlot({
             aria-label="Embedding dimensions"
             type="number"
             inputMode="numeric"
+            min={TOPICS_MIN_EMBEDDING_DIMENSIONS}
+            max={TOPICS_MAX_EMBEDDING_DIMENSIONS}
             value={dimensions}
             disabled={inactive}
             onChange={(event) => onDimensionsChange?.(event.target.value)}

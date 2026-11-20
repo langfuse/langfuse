@@ -1,9 +1,8 @@
 import { useState, type ComponentProps, type ReactNode } from "react";
-import { useSession } from "next-auth/react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConnectedGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/ConnectedGatewayApiKeyDialog/ConnectedGatewayApiKeyDialog";
-import { GeneratedKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/components/GeneratedKeyDialog/GeneratedKeyDialog";
+import { GeneratedKeyDialog } from "@/src/features/ai-gateway/components/CreateGatewayApiKeyDialogController/components/GeneratedKeyDialog/GeneratedKeyDialog";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -15,9 +14,12 @@ import {
 
 export function CreateGatewayApiKeyDialogController({
   organizationId,
+  onAfterCreatedKeyDismiss,
   children,
 }: {
   organizationId: string;
+  /** Called once the new key's secret has been shown and its dialog closed. */
+  onAfterCreatedKeyDismiss?: () => void;
   children: (control: { openDialog: () => void }) => ReactNode;
 }) {
   const canIssueServiceAccountKeys = useHasOrganizationAccess({
@@ -29,7 +31,6 @@ export function CreateGatewayApiKeyDialogController({
   );
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const session = useSession();
   const create = api.aiGateway.createApiKey.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-api-keys"),
@@ -47,10 +48,6 @@ export function CreateGatewayApiKeyDialogController({
       });
       capture("ai_gateway:api_key_created", {
         orgId: organizationId,
-        creatorRole:
-          session.data?.user?.organizations.find(
-            (organization) => organization.id === organizationId,
-          )?.role ?? null,
         isServiceAccount: input.issuedAs === "serviceAccount",
         hasMetadata: metadataCount > 0,
         metadataCount,
@@ -73,6 +70,9 @@ export function CreateGatewayApiKeyDialogController({
   return (
     <DialogController
       onBeforeClose={() => !create.isPending}
+      onDismiss={() => {
+        if (generatedSecretKey) onAfterCreatedKeyDismiss?.();
+      }}
       renderDialog={({ isOpen }) =>
         generatedSecretKey ? (
           <GeneratedKeyDialog>

@@ -96,10 +96,7 @@ export function CreateProjectMemberDialog({
       form.reset();
       onSuccess();
     } catch (error) {
-      const placed = placeMemberInviteError(error, {
-        orgRole: !hasOnlySingleProjectAccess,
-        projectRole: project !== undefined && hasProjectRoleEntitlement,
-      });
+      const placed = placeMemberInviteError(error);
       form.setError(placed.field, {
         type: "manual",
         message: placed.message,

@@ -10,7 +10,6 @@ import {
   type TraceBatchInputStorage,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { EXPERIMENT_RULE_ID } from "../../features/evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
 import { getTraceBatchShard } from "../../features/traceBatching/traceBatchReadiness";
 import {
   ACKNOWLEDGE_RECORDING_SCRIPT,
@@ -63,7 +62,6 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
 const originals = {
   region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   eventsDispatch: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
-  storeAll: env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL,
 };
 const MINUTE_MS = 60_000;
 // Keys share the local Redis, so each run uses its own project.
@@ -153,7 +151,6 @@ describe("events dispatch consumer", () => {
   beforeEach(async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = originals.storeAll;
     vi.clearAllMocks();
     inputStorage.put.mockResolvedValue({
       outcome: "stored",
@@ -165,7 +162,6 @@ describe("events dispatch consumer", () => {
   afterAll(async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originals.region;
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = originals.eventsDispatch;
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = originals.storeAll;
     redis?.disconnect();
   });
 
@@ -264,54 +260,19 @@ describe("events dispatch consumer", () => {
     expect(restored.revision).not.toBe(revisions.get("early"));
   });
 
-  it("stores traces without consumer rules only in the store-all experiment, still enqueueing Topics where rules apply", async () => {
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = "true";
-    streamRows(["marker", "topics"]);
+  it("skips traces whose recorded rules route to no consumer, still enqueueing Topics where rules apply", async () => {
+    streamRows(["topics"]);
 
     const result = await eventsDispatchQueueProcessor(
       job([
-        {
-          traceId: "marker",
-          revision: "r1",
-          ruleIds: [EXPERIMENT_RULE_ID],
-        },
+        { traceId: "unrouted", revision: "r1", ruleIds: ["deleted-rule"] },
         { traceId: "topics", revision: "r2" },
       ]),
     );
 
-    expect(result).toEqual({ stored: 1, enqueued: 1 });
-    expect(inputStorage.put).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ skipped: 1, enqueued: 1 });
+    expect(inputStorage.put).toHaveBeenCalledTimes(1);
     expect(topicsTraceAdd).toHaveBeenCalledTimes(1);
     expect(topicsTraceAdd.mock.calls[0][1].payload.traceId).toBe("topics");
-  });
-
-  it("does not return a failed storage-only trace to Redis, while a failed Topics trace is restored", async () => {
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = "true";
-    const revisions = await recordAndAcknowledge(["topics"]);
-    // Bounds without a pending selection, as recorded for experiment-only traces.
-    await recordTraceActivity(projectId, [
-      {
-        traceId: "marker",
-        spanStartTimeISO: new Date(1_000_000).toISOString(),
-        ruleIds: [],
-        serializedEventBytes: 100,
-      },
-    ]);
-    streamRows(["marker", "topics"]);
-    inputStorage.put.mockRejectedValue(new Error("SlowDown"));
-
-    await eventsDispatchQueueProcessor(
-      job([
-        { traceId: "marker", revision: "r1", ruleIds: [EXPERIMENT_RULE_ID] },
-        { traceId: "topics", revision: revisions.get("topics")! },
-      ]),
-    );
-
-    expect(topicsTraceAdd).not.toHaveBeenCalled();
-    expect(await readPending("marker")).toBeNull();
-    expect(await readPending("topics")).toMatchObject({
-      rules: ["rule"],
-      failed_cnt: 1,
-    });
   });
 });
