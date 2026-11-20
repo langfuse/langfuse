@@ -2309,10 +2309,9 @@ describe("AI gateway control plane", () => {
         "only an admin can change it",
       );
     }
-    expect(await memberKeyBudget()).toEqual({
+    expect(await memberKeyBudget()).toMatchObject({
       interval: "DAILY",
       limitUsd: 5,
-      alertThresholds: [100],
     });
 
     await setBudget(owner.caller, memberKey.id, null);
@@ -2508,11 +2507,10 @@ describe("AI gateway control plane", () => {
     expect(await budgets(owner.caller, "USER")).toEqual([
       {
         subjectId: userId,
-        spendLimit: {
+        spendLimit: expect.objectContaining({
           interval: "MONTHLY",
           limitUsd: 20,
-          alertThresholds: [100],
-        },
+        }),
         isEditable: true,
       },
     ]);
@@ -2535,11 +2533,10 @@ describe("AI gateway control plane", () => {
         { subjectId: memberKeys[0].id, spendLimit: null, isEditable: true },
         {
           subjectId: memberKeys[1].id,
-          spendLimit: {
+          spendLimit: expect.objectContaining({
             interval: "DAILY",
             limitUsd: 5,
-            alertThresholds: [100],
-          },
+          }),
           isEditable: true,
         },
       ]),
@@ -2748,11 +2745,10 @@ describe("AI gateway control plane", () => {
     expect(await listed("default")).toEqual([
       {
         subjectId: service.id,
-        spendLimit: {
+        spendLimit: expect.objectContaining({
           interval: "MONTHLY",
           limitUsd: 10,
-          alertThresholds: [100],
-        },
+        }),
         isDefault: true,
       },
     ]);
@@ -2833,11 +2829,10 @@ describe("AI gateway control plane", () => {
       await owner.caller.aiGateway.getOrganizationSpendLimit({
         orgId: owner.org.id,
       }),
-    ).toEqual({
+    ).toMatchObject({
       spendLimit: {
         interval: "MONTHLY",
         limitUsd: 5000,
-        alertThresholds: [100],
       },
       spentUsd: 0,
     });

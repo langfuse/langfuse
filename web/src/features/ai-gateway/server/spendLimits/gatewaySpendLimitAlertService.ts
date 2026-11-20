@@ -12,7 +12,6 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import type { GatewaySpendBudgetAlertThreshold } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   getGatewaySpendLimitWindowEnd,
@@ -25,15 +24,6 @@ import {
 import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
 
 const REPORTED_USER_SELECT = { id: true, email: true, name: true } as const;
-
-const ALERT_TYPE_BY_THRESHOLD: Record<
-  GatewaySpendBudgetAlertThreshold,
-  GatewaySpendLimitAlertType
-> = {
-  85: GatewaySpendLimitAlertType.WARNING_85,
-  95: GatewaySpendLimitAlertType.WARNING_95,
-  100: GatewaySpendLimitAlertType.EXCEEDED,
-};
 
 type GatewaySpendLimitReachedEmail = Extract<
   NotificationEventType,
@@ -67,13 +57,13 @@ type AlertKey = {
   /** The key or user a default limit was reached for; empty for their own limits. */
   subjectId: string;
   type: GatewaySpendLimitAlertType;
+  thresholdPercent: number;
   countingStartedAt: Date;
   windowStart: Date;
 };
 type ClaimedAlert = {
   limit: ReportedLimit;
   alert: AlertKey;
-  thresholdPercent: GatewaySpendBudgetAlertThreshold;
 };
 type Recipient = {
   to: string;
@@ -90,7 +80,7 @@ export class GatewaySpendLimitAlertService {
       limitId: string;
       countingStartedAt: Date;
       windowStart: Date;
-      thresholdPercent?: GatewaySpendBudgetAlertThreshold;
+      thresholdPercent?: number;
     }[];
   }): Promise<void> {
     // A deleted limit, an unconfigured threshold, or a report from an earlier counting start no longer applies.
@@ -130,12 +120,16 @@ export class GatewaySpendLimitAlertService {
         const alert: AlertKey = {
           spendLimitId: limit.id,
           subjectId,
-          type: ALERT_TYPE_BY_THRESHOLD[thresholdPercent],
+          type:
+            thresholdPercent < 100
+              ? GatewaySpendLimitAlertType.WARNING
+              : GatewaySpendLimitAlertType.EXCEEDED,
+          thresholdPercent,
           countingStartedAt: limit.countingStartedAt,
           windowStart,
         };
         if (await this.claimAlert(alert)) {
-          claimed.push({ limit, alert, thresholdPercent });
+          claimed.push({ limit, alert });
         }
       }
       // A request can trigger alerts across key, user, and organization limits; each scope gets its own email.
@@ -203,7 +197,7 @@ async function findReportedLimits(
       limitId: string;
       countingStartedAt: Date;
       windowStart: Date;
-      thresholdPercent?: GatewaySpendBudgetAlertThreshold;
+      thresholdPercent?: number;
     }[];
   },
 ) {
@@ -406,7 +400,7 @@ function toNotificationJob(claimed: ClaimedAlert[], recipient: Recipient) {
   const scope = toEmailScope(limit);
   const needsAlertPayload =
     scope.type === "ORGANIZATION" ||
-    claimed.some(({ thresholdPercent }) => thresholdPercent < 100);
+    claimed.some(({ alert }) => alert.thresholdPercent < 100);
   const base = {
     orgId: limit.organization.id,
     orgName: limit.organization.name,
@@ -419,10 +413,10 @@ function toNotificationJob(claimed: ClaimedAlert[], recipient: Recipient) {
         ...base,
         type: "AI_GATEWAY_SPEND_LIMIT_ALERT",
         scope,
-        limits: claimed.map(({ limit, alert, thresholdPercent }) => ({
+        limits: claimed.map(({ limit, alert }) => ({
           interval: limit.interval,
           limitUsd: limit.limitUsd.toNumber(),
-          thresholdPercent,
+          thresholdPercent: alert.thresholdPercent,
           resetsAt: getGatewaySpendLimitWindowEnd(
             limit.interval,
             alert.windowStart,
@@ -447,7 +441,7 @@ function toNotificationJob(claimed: ClaimedAlert[], recipient: Recipient) {
       claimed
         .map(
           ({ alert }) =>
-            `${alert.spendLimitId}-${alert.subjectId}-${alert.type}-${alert.countingStartedAt.getTime()}-${alert.windowStart.getTime()}`,
+            `${alert.spendLimitId}-${alert.subjectId}-${alert.type}-${alert.thresholdPercent}-${alert.countingStartedAt.getTime()}-${alert.windowStart.getTime()}`,
         )
         .toSorted()
         .join(","),

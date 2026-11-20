@@ -15,6 +15,7 @@ import {
 } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "./gatewayDefaultSpendLimits";
 import type { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
+import { GATEWAY_SPEND_LIMIT_DTO_SELECT } from "./gatewaySpendLimitDto";
 import {
   type GatewaySpendLimitScope,
   toScopeColumns,
@@ -25,9 +26,7 @@ const GATEWAY_SPEND_LIMIT_SELECT = {
   scope: true,
   apiKeyId: true,
   userId: true,
-  interval: true,
-  limitUsd: true,
-  alertThresholds: true,
+  ...GATEWAY_SPEND_LIMIT_DTO_SELECT,
   countingStartedAt: true,
   ownerUserId: true,
   createdAt: true,

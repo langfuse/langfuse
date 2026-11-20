@@ -37,6 +37,7 @@ import {
 } from "@/src/features/ai-gateway/server/gatewayUsageScope";
 import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
+import { toGatewaySpendLimitDto } from "./gatewaySpendLimitDto";
 import {
   GatewaySpendLimitRepository,
   type GatewaySpendLimitRecord,
@@ -279,15 +280,7 @@ export class GatewaySpendLimitService {
         subjectId,
         name,
         user,
-        spendLimit: applied
-          ? {
-              interval: applied.interval,
-              limitUsd: applied.limitUsd.toNumber(),
-              alertThresholds: normalizeGatewaySpendBudgetAlertThresholds(
-                applied.alertThresholds,
-              ),
-            }
-          : null,
+        spendLimit: applied ? toGatewaySpendLimitDto(applied) : null,
         isDefault: limit === null && applied !== null,
         spentUsd: applied && spend ? (spend.get(subjectId) ?? 0) : undefined,
         // Members may add a budget to their own keys, and change only budgets they set.
@@ -424,17 +417,8 @@ export class GatewaySpendLimitService {
     const kept = limit
       ? existing.find((candidate) => candidate.interval === limit.interval)
       : undefined;
-    const normalizedThresholds = limit
-      ? resolveAlertThresholds(limit.alertThresholds, kept?.alertThresholds)
-      : undefined;
-    const isUnchanged =
-      kept !== undefined &&
-      limit !== null &&
-      kept.limitUsd.toNumber() === limit.limitUsd &&
-      areGatewaySpendBudgetAlertThresholdsEqual(
-        kept.alertThresholds,
-        normalizedThresholds!,
-      );
+    const { alertThresholds: normalizedThresholds, isUnchanged } =
+      resolveSpendLimitChange(kept, limit);
     const changed = existing.filter(
       (candidate) => candidate !== kept || !isUnchanged,
     );
@@ -494,15 +478,7 @@ export class GatewaySpendLimitService {
         (candidate) =>
           candidate.scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[scope],
       );
-      return limit
-        ? {
-            interval: limit.interval,
-            limitUsd: limit.limitUsd.toNumber(),
-            alertThresholds: normalizeGatewaySpendBudgetAlertThresholds(
-              limit.alertThresholds,
-            ),
-          }
-        : null;
+      return limit ? toGatewaySpendLimitDto(limit) : null;
     };
     return { API_KEY: toBudget("API_KEY"), USER: toBudget("USER") };
   }
@@ -553,13 +529,7 @@ export class GatewaySpendLimitService {
         )
       : undefined;
     return {
-      spendLimit: {
-        interval: limit.interval,
-        limitUsd: limit.limitUsd.toNumber(),
-        alertThresholds: normalizeGatewaySpendBudgetAlertThresholds(
-          limit.alertThresholds,
-        ),
-      },
+      spendLimit: toGatewaySpendLimitDto(limit),
       spentUsd,
     };
   }
@@ -598,20 +568,9 @@ export class GatewaySpendLimitService {
       scope,
     });
     const kept = existing?.interval === limit?.interval ? existing : null;
-    const normalizedThresholds = limit
-      ? resolveAlertThresholds(limit.alertThresholds, kept?.alertThresholds)
-      : undefined;
-    if (
-      kept &&
-      limit &&
-      kept.limitUsd.toNumber() === limit.limitUsd &&
-      areGatewaySpendBudgetAlertThresholdsEqual(
-        kept.alertThresholds,
-        normalizedThresholds!,
-      )
-    ) {
-      return;
-    }
+    const { alertThresholds: normalizedThresholds, isUnchanged } =
+      resolveSpendLimitChange(kept, limit);
+    if (isUnchanged) return;
     if (!limit && !existing) return;
     if (limit) await this.requireRecordingProjectId(organizationId);
 
@@ -824,11 +783,26 @@ async function update(
   });
 }
 
-function resolveAlertThresholds(
-  thresholds: GatewaySpendBudgetAlertThreshold[] | undefined,
-  fallback: readonly number[] = DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
-): GatewaySpendBudgetAlertThreshold[] {
-  return normalizeGatewaySpendBudgetAlertThresholds(thresholds ?? fallback);
+function resolveSpendLimitChange(
+  kept: GatewaySpendLimitRecord | null | undefined,
+  limit: SpendLimitInput | null,
+) {
+  if (!limit) {
+    return { alertThresholds: undefined, isUnchanged: false };
+  }
+  const alertThresholds = normalizeGatewaySpendBudgetAlertThresholds(
+    limit.alertThresholds ??
+      kept?.alertThresholds ??
+      DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+  );
+  const isUnchanged =
+    kept != null &&
+    kept.limitUsd.toNumber() === limit.limitUsd &&
+    areGatewaySpendBudgetAlertThresholdsEqual(
+      kept.alertThresholds,
+      alertThresholds,
+    );
+  return { alertThresholds, isUnchanged };
 }
 
 /** Deleting stays possible without ingestion, so a limit can always be removed. */

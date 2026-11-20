@@ -45,7 +45,10 @@ import {
   requireGatewayAdmin,
   requireGatewayInvoke,
 } from "./gatewayAccess";
-import { GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
+import {
+  GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+  type GatewaySpendBudgetAlertThreshold,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
 import {
   GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
@@ -88,11 +91,16 @@ const allowedModelsSchema = z
   .nullable();
 const customModelSchema = z.string().trim().min(1).max(500);
 
-const gatewaySpendLimitAlertThresholdInput = z.union([
-  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[0]),
-  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[1]),
-  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[2]),
-]);
+const gatewaySpendLimitAlertThresholdInput = z
+  .number()
+  .int()
+  .refine(
+    (value): value is GatewaySpendBudgetAlertThreshold =>
+      (GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS as readonly number[]).includes(
+        value,
+      ),
+    "Unsupported alert threshold",
+  );
 
 /** A key's or user's single spend limit. */
 const gatewaySpendLimitInput = z.object({

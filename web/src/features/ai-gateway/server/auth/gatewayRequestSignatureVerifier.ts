@@ -13,7 +13,6 @@ import {
   type GatewayApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 
-import { GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 
@@ -35,11 +34,6 @@ const resolveBodySchema = z
   );
 /** Bounds a report; a key has at most one limit per interval today. */
 const MAX_REPORTED_SPEND_LIMITS = 20;
-const spendLimitAlertThresholdSchema = z.union([
-  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[0]),
-  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[1]),
-  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[2]),
-]);
 const spendLimitAlertBodySchema = z
   .object({
     limits: z
@@ -51,7 +45,7 @@ const spendLimitAlertBodySchema = z
             countingStartedAt: z.number().int().nonnegative(),
             windowStart: z.number().int().nonnegative(),
             // Omitted for 100% by older gateways and for rolling-deploy compatibility.
-            thresholdPercent: spendLimitAlertThresholdSchema.default(100),
+            thresholdPercent: z.number().int().min(1).max(100).default(100),
           })
           .strict(),
       )
