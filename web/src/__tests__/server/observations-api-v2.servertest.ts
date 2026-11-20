@@ -241,6 +241,33 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
     });
 
+    it.each([
+      [
+        "positionInTrace",
+        {
+          column: "positionInTrace",
+          type: "positionInTrace",
+          operator: "=",
+          key: "root",
+        },
+      ],
+      [
+        "ill-typed",
+        {
+          column: "parentObservationId",
+          type: "number",
+          operator: ">",
+          value: 1,
+        },
+      ],
+    ])("returns 400 for a %s advanced filter", async (_name, filter) => {
+      const response = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(JSON.stringify([filter]))}`,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
     it("returns core and basic fields when fields is omitted", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
