@@ -699,8 +699,9 @@ describe("isExpectedTrpcClientError", () => {
 
   it("treats BAD_REQUEST on an allowlisted procedure as expected", () => {
     // Each path throws BAD_REQUEST for rejected user input the UI already
-    // explains: a remote-experiment URL, a model or gateway connection, or
-    // an invite for someone who is already a member or already invited.
+    // explains: a remote-experiment URL, a model or gateway connection, an
+    // invite for someone who is already a member or already invited, or a
+    // prompt export over the version limit.
     for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
       expect(
         isExpectedTrpcClientError(
@@ -714,6 +715,32 @@ describe("isExpectedTrpcClientError", () => {
         ),
       ).toBe(true);
     }
+  });
+
+  it("treats the prompt export version limit as expected and still reports a server failure", () => {
+    // The export dialog shows this BAD_REQUEST inline. The allowlist covers
+    // every bad request on prompts.exportAll. A 500 on the same procedure
+    // is still a real failure.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "prompts.exportAll",
+          message:
+            "This project has 10,001 prompt versions, which is over the export limit of 10,000. Narrow the export to fewer prompts. The limit counts every version in the project, so exporting only the latest version does not reduce it. Contact support if you need a bulk export.",
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path: "prompts.exportAll",
+        }),
+      ),
+    ).toBe(false);
   });
 
   it("does not treat BAD_REQUEST on other procedures as expected", () => {

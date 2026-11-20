@@ -154,10 +154,10 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, plus PRECONDITION_FAILED on
  * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}. Empty/too-short fields, stale
  * in-app-agent approvals, a rejected user-configured remote-experiment URL,
- * an invite for someone who is already a member or already invited, and an
- * organization delete while projects are still being purged are the product
- * working as designed — the UI already explains them; Sentry
- * must not log them.
+ * an invite for someone who is already a member or already invited, a prompt
+ * export over the 10,000 version limit, and an organization delete while
+ * projects are still being purged are the product working as designed — the
+ * UI already explains them; Sentry must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
  * any non-tRPC error is not expected and keeps flowing to Sentry.
