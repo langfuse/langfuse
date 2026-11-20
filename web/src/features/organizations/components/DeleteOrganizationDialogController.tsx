@@ -18,6 +18,7 @@ export function DeleteOrganizationDialogController({
 
   return (
     <DialogController
+      onBeforeClose={() => !deleteOrganization.isSubmitting}
       onDismiss={deleteOrganization.onDismiss}
       renderDialog={({ closeDialog }) => (
         <DeleteOrganizationDialog
