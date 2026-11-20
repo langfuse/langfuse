@@ -2612,6 +2612,80 @@ LIMIT {param4:Int32}",
 ]
 `;
 
+exports[`golden: events metadata map and session resolution > getEventsDispatchEventStream 1`] = `
+[
+  {
+    "fn": "queryClickhouseStream",
+    "params": {
+      "param1": [
+        "golden-project",
+      ],
+      "param2": [
+        "golden-trace",
+      ],
+      "param3": [
+        TupleParam {
+          "values": [
+            "golden-project",
+            "golden-trace",
+          ],
+        },
+      ],
+      "param4": 1764547080000,
+      "param5": 1767225720000,
+      "param6": [
+        "golden-project",
+      ],
+      "param7": [
+        [
+          "golden-trace",
+        ],
+      ],
+      "param8": [
+        1764547080000,
+      ],
+      "param9": [
+        1767225720000,
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT
+    e.tool_definitions AS tool_definitions,
+    e.tool_calls AS tool_calls,
+    e.tool_call_names AS tool_call_names,
+    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
+    input,
+    output,
+    e.project_id,
+    e.trace_id,
+    e.session_id,
+    e.environment,
+    e.trace_name,
+    e.span_id,
+    e.parent_span_id,
+    e.start_time,
+    e.event_ts,
+    e.type,
+    e.name,
+    e.level,
+    e.status_message
+FROM events_full AS e
+WHERE (e.project_id IN ({param1:Array(String)}))
+    AND (e.trace_id IN ({param2:Array(String)}))
+    AND ((e.project_id, e.trace_id) IN ({param3:Array(Tuple(String, String))}))
+    AND (xxHash32(e.trace_id) IN (
+        SELECT arrayJoin(arrayMap(id -> xxHash32(id), {param2:Array(String)}))
+    ))
+    AND (e.start_time >= fromUnixTimestamp64Milli({param4:Int64}))
+    AND (e.start_time <= fromUnixTimestamp64Milli({param5:Int64}))
+    AND (arrayExists((group_project_id, group_trace_ids, min_ms, max_ms) -> ((e.project_id = group_project_id) AND has(group_trace_ids, e.trace_id) AND ((e.start_time >= fromUnixTimestamp64Milli(min_ms)) AND (e.start_time <= fromUnixTimestamp64Milli(max_ms)))), {param6:Array(String)}, {param7:Array(Array(String))}, {param8:Array(Int64)}, {param9:Array(Int64)}))
+ORDER BY
+    e.project_id ASC,
+    e.trace_id ASC",
+  },
+]
+`;
+
 exports[`golden: events metadata map and session resolution > getEventsForAnalyticsIntegrations 1`] = `
 [
   {
@@ -2850,80 +2924,6 @@ ORDER BY
     xxHash32(e.trace_id) DESC,
     e.span_id DESC
 LIMIT {param3:Int32}",
-  },
-]
-`;
-
-exports[`golden: events metadata map and session resolution > getEventsDispatchEventStream 1`] = `
-[
-  {
-    "fn": "queryClickhouseStream",
-    "params": {
-      "param1": [
-        "golden-project",
-      ],
-      "param2": [
-        "golden-trace",
-      ],
-      "param3": [
-        TupleParam {
-          "values": [
-            "golden-project",
-            "golden-trace",
-          ],
-        },
-      ],
-      "param4": 1764547080000,
-      "param5": 1767225720000,
-      "param6": [
-        "golden-project",
-      ],
-      "param7": [
-        [
-          "golden-trace",
-        ],
-      ],
-      "param8": [
-        1764547080000,
-      ],
-      "param9": [
-        1767225720000,
-      ],
-    },
-    "route": "unknown",
-    "sql": "SELECT
-    e.tool_definitions AS tool_definitions,
-    e.tool_calls AS tool_calls,
-    e.tool_call_names AS tool_call_names,
-    mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) AS metadata,
-    input,
-    output,
-    e.project_id,
-    e.trace_id,
-    e.session_id,
-    e.environment,
-    e.trace_name,
-    e.span_id,
-    e.parent_span_id,
-    e.start_time,
-    e.event_ts,
-    e.type,
-    e.name,
-    e.level,
-    e.status_message
-FROM events_full AS e
-WHERE (e.project_id IN ({param1:Array(String)}))
-    AND (e.trace_id IN ({param2:Array(String)}))
-    AND ((e.project_id, e.trace_id) IN ({param3:Array(Tuple(String, String))}))
-    AND (xxHash32(e.trace_id) IN (
-        SELECT arrayJoin(arrayMap(id -> xxHash32(id), {param2:Array(String)}))
-    ))
-    AND (e.start_time >= fromUnixTimestamp64Milli({param4:Int64}))
-    AND (e.start_time <= fromUnixTimestamp64Milli({param5:Int64}))
-    AND (arrayExists((group_project_id, group_trace_ids, min_ms, max_ms) -> ((e.project_id = group_project_id) AND has(group_trace_ids, e.trace_id) AND ((e.start_time >= fromUnixTimestamp64Milli(min_ms)) AND (e.start_time <= fromUnixTimestamp64Milli(max_ms)))), {param6:Array(String)}, {param7:Array(Array(String))}, {param8:Array(Int64)}, {param9:Array(Int64)}))
-ORDER BY
-    e.project_id ASC,
-    e.trace_id ASC",
   },
 ]
 `;
