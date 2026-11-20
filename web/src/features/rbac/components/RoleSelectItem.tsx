@@ -60,15 +60,10 @@ export const RoleSelectItem = ({
         </div>
         <div
           className={cn(
-            "relative ml-auto flex shrink-0 items-center self-center",
+            "relative ml-auto h-6 w-6 shrink-0 self-center",
             showPermissionCount && "-mt-0.5 self-start",
           )}
         >
-          {showPermissionCount && (
-            <span className="text-muted-foreground pointer-events-none absolute right-full pr-1 text-xs whitespace-nowrap tabular-nums opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100">
-              {rolePermissionCountLabel(role, resourceKinds)}
-            </span>
-          )}
           <Tooltip label="View permissions" hoverableContent={false} delay={0}>
             {({ getTriggerProps }) => (
               <button
@@ -82,8 +77,14 @@ export const RoleSelectItem = ({
                   onViewPermissions(role);
                 }}
                 aria-label={`View ${label} permissions`}
-                className="text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-disabled:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
+                className={cn(
+                  "text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto absolute top-0 right-0 flex h-6 w-6 items-center justify-center rounded-full opacity-0 group-hover:opacity-100 group-data-disabled:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100",
+                  showPermissionCount &&
+                    "w-auto gap-1 pr-1 pl-2 text-xs whitespace-nowrap tabular-nums",
+                )}
               >
+                {showPermissionCount &&
+                  rolePermissionCountLabel(role, resourceKinds)}
                 <SquareArrowOutUpRight size="base" />
               </button>
             )}
