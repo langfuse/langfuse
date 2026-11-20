@@ -351,7 +351,7 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   embedding: number[];
   transcriptId: string;
   transcriptVersion: string;
-  /** UTF-8 bytes of the rendered text the summarizer read; 0 when none was rendered. Repeats on every facet row of a unit. */
+  /** This row's share of the UTF-8 bytes of the rendered text the summarizer read, split across the call's rows like usage; 0 when none was rendered. */
   transcriptBytes: number;
   summaryModel: string;
   embeddingModel: string;

@@ -246,10 +246,13 @@ async function summarizeEnabledTrace(
         });
     }
     const shares = splitTopicModelUsage(traceUsage, generated.length);
+    // The transcript's bytes split like its usage; the remainder goes to the first rows.
+    const bytes = Math.floor(summarized.transcriptBytes / generated.length);
+    const extra = summarized.transcriptBytes - bytes * generated.length;
     rows = generated.map((row, index) => ({
       ...row,
       ...shares[index],
-      transcriptBytes: summarized.transcriptBytes,
+      transcriptBytes: bytes + (index < extra ? 1 : 0),
     }));
   }
   return { outcome: "summarized", rows, failure, failedStage };

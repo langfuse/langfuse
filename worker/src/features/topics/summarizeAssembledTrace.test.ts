@@ -321,6 +321,11 @@ describe("summarizeAssembledTrace", () => {
       const { total, ...parts } = usageDetails;
       expect(total).toBe(Object.values(parts).reduce((a, b) => a + b, 0));
     }
+    // Transcript bytes split the same way, so they add up to the text the call read.
+    const submittedText = state.summarize.mock.calls[0][2] as string;
+    expect(summaries.reduce((sum, row) => sum + row.transcriptBytes, 0)).toBe(
+      Buffer.byteLength(submittedText, "utf8"),
+    );
   });
 
   it("stores a not-applicable result that carries stray text instead of failing the trace", async () => {
