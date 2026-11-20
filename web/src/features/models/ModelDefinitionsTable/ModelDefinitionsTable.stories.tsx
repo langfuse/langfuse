@@ -1,7 +1,6 @@
 import { fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { PriceUnit } from "@/src/features/models/validation";
 import {
   ModelDefinitionsTable,
   type ModelTableRow,
@@ -14,7 +13,6 @@ const model: ModelTableRow = {
   maintainer: "Langfuse",
   modelName: "example-model",
   matchPattern: "^example-model$",
-  prices: { input: 0.000001, output: 0.000002 },
   editable: false,
   serverResponse: {
     id: "model-1",
@@ -58,8 +56,6 @@ export const Default = meta.story({
     search: { value: "", onChange: fn() },
     rowHeight: "m",
     onRowHeightChange: fn(),
-    priceUnit: PriceUnit.PerUnit,
-    priceUnitMultiplier: 1,
     lastUsed: { "model-1": new Date("2026-09-01") },
     toolbarActions: [
       { id: "add-model", label: "Add Model Definition", onClick: fn() },

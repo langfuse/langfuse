@@ -7,13 +7,11 @@ import { type AsyncTableData } from "@/src/components/design-system/table/Table"
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import {
   UpsertModelFormDialogController,
   UpsertModelFormDialogContent,
 } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { TestModelMatchDialogContent } from "@/src/features/models/components/test-match/TestModelMatchDialogContent";
-import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import {
   useDeleteModelDefinition,
   useModelDefinitionList,
@@ -58,7 +56,6 @@ export function ConnectedModelDefinitionsTable({
   });
   const modelIds = models.data?.models.map((model) => model.id) ?? [];
   const lastUsed = useModelLastUsed(owner, models.isSuccess ? modelIds : []);
-  const { priceUnit, priceUnitMultiplier } = usePriceUnitMultiplier();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "m");
   const hasWriteAccess = useCanEditModels(owner);
 
@@ -150,9 +147,6 @@ export function ConnectedModelDefinitionsTable({
                         }}
                         rowHeight={rowHeight}
                         onRowHeightChange={setRowHeight}
-                        priceUnit={priceUnit}
-                        priceUnitMultiplier={priceUnitMultiplier}
-                        priceUnitSelector={<PriceUnitSelector />}
                         lastUsed={lastUsed.data}
                         toolbarActions={[
                           {
@@ -201,13 +195,11 @@ function convertToTableRow(
   ownerScope: ModelOwner["scope"],
   model: GetModelResult,
 ): ModelTableRow {
-  const prices = model.pricingTiers.find((tier) => tier.isDefault)?.prices;
   return {
     modelId: model.id,
     maintainer: modelMaintainerByScope[model.scope],
     modelName: model.modelName,
     matchPattern: model.matchPattern,
-    prices,
     editable: isEditableIn(ownerScope, model.scope),
     serverResponse: model,
   };
