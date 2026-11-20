@@ -15,7 +15,7 @@ import {
 } from "../observationEval/__tests__/fixtures";
 
 const mocks = vi.hoisted(() => ({
-  env: { LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL: 0 },
+  env: {},
   topicsEnabled: vi.fn(),
   topicsActive: vi.fn(),
   createObservationDeps: vi.fn(),
@@ -73,7 +73,6 @@ const facetRule: EvalRules["traceTranscriptRules"][number] = {
 describe("scheduleEvals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 0;
     mocks.topicsEnabled.mockReturnValue(true);
     mocks.topicsActive.mockResolvedValue(true);
     mocks.record.mockResolvedValue(undefined);
@@ -153,7 +152,6 @@ describe("scheduleEvals", () => {
   );
 
   it("records sampled traces without converting payloads when no rules need them", async () => {
-    mocks.env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 1;
     const rules = { observationRules: [], traceTranscriptRules: [] };
     const parseObservation = vi.fn(() => createTestObservation());
     const buildFailureContext = vi.fn();
@@ -165,7 +163,7 @@ describe("scheduleEvals", () => {
       rules,
       schedulerDeps: createEvalSchedulerDeps(projectId, rules),
     });
-    expect(matched).toEqual(["__trace_batch_experiment__"]);
+    expect(matched).toEqual([]);
     expect(parseObservation).not.toHaveBeenCalled();
     expect(buildFailureContext).not.toHaveBeenCalled();
   });

@@ -168,16 +168,6 @@ const EnvSchema = z.object({
     .positive()
     .max(1_000)
     .default(120),
-  // Experiment: also records traces without a matching rule, by deterministic trace-ID sample.
-  LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0),
-  // Experiment: read and store every dispatched trace, enqueueing consumers only where rules apply.
-  LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL: z
-    .enum(["true", "false"])
-    .default("false"),
   QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
