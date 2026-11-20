@@ -1790,13 +1790,14 @@ export function getViewDeclaration(
 /**
  * Check whether a widget's selected fields require v2 view declarations.
  * Returns true if any dimension or measure only exists in the v2 declaration
- * for the given view (e.g. pairExpand dimensions, requiresDimension measures).
+ * for the given view (e.g. pairExpand dimensions, requiresDimension measures),
+ * or if a filter compares metadata as a number, which only v2 lowers.
  */
 export function requiresV2(params: {
   view: string;
   dimensions: { field: string }[];
   measures: { measure: string }[];
-  filters?: { column: string }[];
+  filters?: { column: string; type?: string }[];
 }): boolean {
   const v1View =
     viewDeclarations.v1[params.view as keyof (typeof viewDeclarations)["v1"]];
@@ -1814,7 +1815,11 @@ export function requiresV2(params: {
   return (
     params.dimensions.some((d) => v2OnlyDims.includes(d.field)) ||
     params.measures.some((m) => v2OnlyMeasures.includes(m.measure)) ||
-    (params.filters ?? []).some((f) => v2OnlyDims.includes(f.column))
+    (params.filters ?? []).some(
+      (f) =>
+        v2OnlyDims.includes(f.column) ||
+        (f.column === "metadata" && f.type === "numberObject"),
+    )
   );
 }
 
