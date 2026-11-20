@@ -5,9 +5,7 @@ import {
   Activity,
   ArrowUp,
   Bug,
-  CalendarRange,
   DollarSign,
-  Layers,
   Sparkles,
   TrendingUp,
   type IconComponent,
@@ -15,7 +13,6 @@ import {
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 type HomeStarter = {
@@ -56,35 +53,27 @@ const HOME_STARTERS: readonly HomeStarter[] = [
   },
 ];
 
-function formatEnvironmentCount(environmentCount: number) {
-  if (environmentCount === 0) {
-    return "All environments";
-  }
+const DEFAULT_PLACEHOLDER = "Ask about your traces, costs or scores…";
 
-  return environmentCount === 1
-    ? "1 environment"
-    : `${environmentCount} environments`;
-}
-
-/**
- * Project home entry point: asking here turns Home into the conversation.
- * The scope tags mirror the page's own time range and environment selection,
- * which stay editable in the page header.
- */
+/** Project home entry point: asking here turns Home into the conversation. */
 export function InAppAgentHomeComposer({
   projectName,
-  timeRangeLabel,
-  environmentCount,
 }: {
   projectName: string;
-  timeRangeLabel: string;
-  environmentCount: number;
 }) {
   const { openAssistant, setLayoutMode, submit } = useInAppAiAgent();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [request, setRequest] = useState("");
   // The starter whose prompt currently fills the composer, until it is edited.
   const [pickedStarterId, setPickedStarterId] = useState<string | null>(null);
+  // The starter under the pointer or keyboard focus. Its prompt shows as the
+  // placeholder, so it only previews while the field is empty.
+  const [previewedStarterId, setPreviewedStarterId] = useState<string | null>(
+    null,
+  );
+  const previewedPrompt = HOME_STARTERS.find(
+    (starter) => starter.id === previewedStarterId,
+  )?.prompt;
   const trimmedRequest = request.trim();
 
   const startConversation = () => {
@@ -116,15 +105,22 @@ export function InAppAgentHomeComposer({
   return (
     <section
       aria-labelledby="home-ask-title"
-      className="mx-auto flex w-full max-w-3xl flex-col gap-3"
+      className="mx-auto flex w-full max-w-3xl flex-col gap-3.5"
     >
-      <div className="flex items-center gap-2">
-        <span className="bg-primary-accent/10 text-primary-accent flex size-6 items-center justify-center rounded-md">
-          <Sparkles size="base" color="inherit" aria-hidden />
-        </span>
-        <h2 id="home-ask-title" className="text-lg font-bold">
-          Ask about {projectName}
+      <div className="flex flex-col items-center gap-1.5 pb-2.5 text-center">
+        <h2
+          id="home-ask-title"
+          className="flex items-center gap-2 text-xl font-bold"
+        >
+          <span className="text-primary-accent flex">
+            <Sparkles size="lg" color="inherit" aria-hidden />
+          </span>
+          <span>Ask about {projectName}</span>
         </h2>
+        <p className="text-muted-foreground text-base text-pretty">
+          Get answers from your traces, costs and scores. Write your own
+          question or start from a common one.
+        </p>
       </div>
       <div className="bg-card border-border-contrast focus-within:border-primary-accent/55 focus-within:ring-primary-accent/12 flex flex-col rounded-xl border shadow-md focus-within:ring-3">
         <label htmlFor="home-ask-input" className="sr-only">
@@ -136,7 +132,7 @@ export function InAppAgentHomeComposer({
           autoComplete="off"
           maxLength={4000}
           rows={3}
-          placeholder="Ask about your traces, costs or scores…"
+          placeholder={previewedPrompt ?? DEFAULT_PLACEHOLDER}
           value={request}
           onChange={(event) => {
             setRequest(event.target.value);
@@ -147,11 +143,7 @@ export function InAppAgentHomeComposer({
           // are off.
           className="placeholder:text-foreground-tertiary min-h-24 w-full resize-none border-0 bg-transparent px-4 pt-4 pb-1 text-base leading-relaxed outline-none focus:ring-0"
         />
-        <div className="flex flex-wrap items-center gap-2 py-2 pr-2 pl-3">
-          <span className="text-muted-foreground text-xs">Scope</span>
-          <Tag text={timeRangeLabel} icon={CalendarRange} />
-          <Tag text={formatEnvironmentCount(environmentCount)} icon={Layers} />
-          <span className="grow" />
+        <div className="flex flex-wrap items-center justify-end gap-2 py-2 pr-2 pl-3">
           <KeyboardShortcut
             keys={["Mod", "Enter"]}
             variant="subtle"
@@ -170,18 +162,35 @@ export function InAppAgentHomeComposer({
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground text-sm">Start from</span>
         {HOME_STARTERS.map((starter) => (
-          <Button
+          <span
             key={starter.id}
-            text={starter.label}
-            variant={starter.id === pickedStarterId ? "secondary" : "outline"}
-            size="sm"
-            icon={starter.icon}
-            onClick={() => {
-              setRequest(starter.prompt);
-              setPickedStarterId(starter.id);
-              textareaRef.current?.focus();
+            className="inline-flex"
+            onMouseEnter={() => {
+              setPreviewedStarterId(starter.id);
             }}
-          />
+            onMouseLeave={() => {
+              setPreviewedStarterId(null);
+            }}
+            onFocus={() => {
+              setPreviewedStarterId(starter.id);
+            }}
+            onBlur={() => {
+              setPreviewedStarterId(null);
+            }}
+          >
+            <Button
+              text={starter.label}
+              variant={starter.id === pickedStarterId ? "secondary" : "outline"}
+              size="sm"
+              icon={starter.icon}
+              onClick={() => {
+                setRequest(starter.prompt);
+                setPickedStarterId(starter.id);
+                setPreviewedStarterId(null);
+                textareaRef.current?.focus();
+              }}
+            />
+          </span>
         ))}
       </div>
     </section>

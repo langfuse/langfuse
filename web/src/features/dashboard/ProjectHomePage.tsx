@@ -58,6 +58,17 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { InAppAgentHomeComposer } from "@/src/features/in-app-agent/components/InAppAgentHomeComposer";
+import { HomeAtAGlance } from "@/src/features/dashboard/components/HomeAtAGlance";
+
+function formatEnvironmentScope(environmentCount: number) {
+  if (environmentCount === 0) {
+    return "all environments";
+  }
+
+  return environmentCount === 1
+    ? "1 environment"
+    : `${environmentCount} environments`;
+}
 
 // Controller: no widget query may fire before the session resolves the v3/v4
 // read path — an unresolved session used to read as v3, fire a full wave of
@@ -83,8 +94,9 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const { project } = useQueryProjectOrOrganization();
-  // With the assistant usable, Home leads with its Ask section. Otherwise
-  // Home is unchanged.
+  // With the assistant usable, Home is the Ask section plus "At a glance",
+  // and the dashboard with its picker and edit link lives on the dashboard
+  // page that section links to. Otherwise Home is the dashboard, unchanged.
   const showAssistantComposer = useCanUseInAppAgent();
   const { data: hasTracingConfigured, isLoading: isTracingCheckLoading } =
     api.traces.hasTracingConfigured.useQuery(
@@ -261,6 +273,8 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   // Usage analytics: which dashboard Home actually shows (default vs peek)
   const viewedRef = useRef<string | null>(null);
   useEffect(() => {
+    // With the assistant, Home links to the dashboard instead of showing it.
+    if (showAssistantComposer) return;
     if (!displayedDashboard || viewedRef.current === displayedDashboard.id)
       return;
     viewedRef.current = displayedDashboard.id;
@@ -275,6 +289,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     peekId,
     homeDashboard.data?.homeDashboardId,
     capture,
+    showAssistantComposer,
   ]);
 
   // Home is a viewing surface: no in-place editing (that lives in the
@@ -291,6 +306,13 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
       ...environmentFilter,
     ],
     [displayedDashboard?.filters, userFilterState, environmentFilter],
+  );
+
+  // "At a glance" is scoped by the page's own filters only, not by filters
+  // saved on whichever dashboard the project uses for Home.
+  const pageFilterState: FilterState = useMemo(
+    () => [...userFilterState, ...environmentFilter],
+    [userFilterState, environmentFilter],
   );
 
   const getWidgetSchedulerId = useCallback(
@@ -351,6 +373,16 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     });
   };
 
+  // How the Ask section and "At a glance" name the scope the page header sets.
+  const projectName = project?.name ?? "your project";
+  const scopeTimeRangeLabel =
+    "from" in timeRange
+      ? formatDateRange(timeRange.from, timeRange.to)
+      : getTimeRangeLabel(timeRange.range).toLowerCase();
+  const scopeEnvironmentsLabel = formatEnvironmentScope(
+    selectedEnvironments.length,
+  );
+
   return (
     <DashboardQuerySchedulerProvider
       store={schedulerStore}
@@ -386,39 +418,43 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           ),
           actionButtonsRight: (
             <>
-              <HomeDashboardSelect
-                projectId={projectId}
-                value={dashboardId}
-                defaultDashboardId={appliedDefaultId}
-                onValueChange={handleDashboardChange}
-                currentDashboardName={dashboardName}
-              />
-              {Boolean(peekId) && hasRbacCUDAccess && (
-                <Button
-                  variant="outline"
-                  loading={setHomeDashboard.isPending}
-                  title="Show this dashboard on Home for everyone in this project"
-                  onClick={handleSetDefaultDashboard}
-                >
-                  Set default
-                </Button>
+              {!showAssistantComposer && (
+                <>
+                  <HomeDashboardSelect
+                    projectId={projectId}
+                    value={dashboardId}
+                    defaultDashboardId={appliedDefaultId}
+                    onValueChange={handleDashboardChange}
+                    currentDashboardName={dashboardName}
+                  />
+                  {Boolean(peekId) && hasRbacCUDAccess && (
+                    <Button
+                      variant="outline"
+                      loading={setHomeDashboard.isPending}
+                      title="Show this dashboard on Home for everyone in this project"
+                      onClick={handleSetDefaultDashboard}
+                    >
+                      Set default
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title="Edit this dashboard in Dashboards"
+                    asChild
+                  >
+                    <Link
+                      href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
+                      onClick={handleEditDashboard}
+                    >
+                      <PencilIcon size="base" color="default" />
+                      <span className="sr-only">
+                        Edit this dashboard in Dashboards
+                      </span>
+                    </Link>
+                  </Button>
+                </>
               )}
-              <Button
-                variant="outline"
-                size="icon"
-                title="Edit this dashboard in Dashboards"
-                asChild
-              >
-                <Link
-                  href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
-                  onClick={handleEditDashboard}
-                >
-                  <PencilIcon size="base" color="default" />
-                  <span className="sr-only">
-                    Edit this dashboard in Dashboards
-                  </span>
-                </Link>
-              </Button>
               {!isTracingCheckLoading &&
                 !hasTracingConfigured &&
                 project &&
@@ -442,46 +478,50 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           actionButtonsMenu: ({ closeMenu }) => (
             <>
               <div className="flex flex-col gap-1">
-                <span className="text-muted-foreground px-2 text-xs">
-                  Dashboard
-                </span>
-                <div className="[&_[role=combobox]]:w-full [&_[role=combobox]]:max-w-none">
-                  <HomeDashboardSelect
-                    projectId={projectId}
-                    value={dashboardId}
-                    defaultDashboardId={appliedDefaultId}
-                    onValueChange={handleDashboardChange}
-                    currentDashboardName={dashboardName}
-                  />
-                </div>
-                {Boolean(peekId) && hasRbacCUDAccess && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    loading={setHomeDashboard.isPending}
-                    onClick={handleSetDefaultDashboard}
-                    className="w-full justify-start font-normal"
-                  >
-                    Set as project default
-                  </Button>
+                {!showAssistantComposer && (
+                  <>
+                    <span className="text-muted-foreground px-2 text-xs">
+                      Dashboard
+                    </span>
+                    <div className="[&_[role=combobox]]:w-full [&_[role=combobox]]:max-w-none">
+                      <HomeDashboardSelect
+                        projectId={projectId}
+                        value={dashboardId}
+                        defaultDashboardId={appliedDefaultId}
+                        onValueChange={handleDashboardChange}
+                        currentDashboardName={dashboardName}
+                      />
+                    </div>
+                    {Boolean(peekId) && hasRbacCUDAccess && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        loading={setHomeDashboard.isPending}
+                        onClick={handleSetDefaultDashboard}
+                        className="w-full justify-start font-normal"
+                      >
+                        Set as project default
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      asChild
+                      className="w-full justify-start gap-2 font-normal"
+                    >
+                      <Link
+                        href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
+                        onClick={() => {
+                          handleEditDashboard();
+                          closeMenu();
+                        }}
+                      >
+                        <PencilIcon size="base" color="default" />
+                        Edit dashboard
+                      </Link>
+                    </Button>
+                  </>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  asChild
-                  className="w-full justify-start gap-2 font-normal"
-                >
-                  <Link
-                    href={`/project/${projectId}/dashboards/${encodeURIComponent(dashboardId)}`}
-                    onClick={() => {
-                      handleEditDashboard();
-                      closeMenu();
-                    }}
-                  >
-                    <PencilIcon size="base" color="default" />
-                    Edit dashboard
-                  </Link>
-                </Button>
                 {!isTracingCheckLoading &&
                   !hasTracingConfigured &&
                   project &&
@@ -555,38 +595,45 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           />
         </PageHeaderControlsPortal>
         {showAssistantComposer && (
-          <div className="pt-9 pb-10">
-            <InAppAgentHomeComposer
-              projectName={project?.name ?? "your project"}
-              timeRangeLabel={
-                "from" in timeRange
-                  ? formatDateRange(timeRange.from, timeRange.to)
-                  : getTimeRangeLabel(timeRange.range)
-              }
-              environmentCount={selectedEnvironments.length}
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-18 px-3 pt-21 pb-11">
+            <InAppAgentHomeComposer projectName={projectName} />
+            <HomeAtAGlance
+              projectId={projectId}
+              projectName={projectName}
+              scopeTimeRangeLabel={scopeTimeRangeLabel}
+              scopeEnvironmentsLabel={scopeEnvironmentsLabel}
+              dashboard={{
+                id: appliedDefaultId,
+                name: homeDashboard.data?.dashboard?.name ?? "Langfuse Home",
+              }}
+              filterState={pageFilterState}
+              dateRange={absoluteTimeRange}
+              metricsVersion={metricsVersion}
+              isLoading={!isDashboardDataReady}
             />
           </div>
         )}
-        {!isDashboardDataReady || isResolvingDashboard ? (
-          <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
-            <Skeleton className="h-full w-full" />
-          </div>
-        ) : (
-          <DashboardGrid
-            widgets={definition.widgets}
-            onChange={() => undefined}
-            canEdit={false}
-            dashboardId={dashboardId}
-            projectId={projectId}
-            readPath={readPath}
-            dateRange={absoluteTimeRange}
-            filterState={gridFilterState}
-            onDeleteWidget={() => undefined}
-            dashboardOwner={dashboardOwner}
-            getWidgetSchedulerId={getWidgetSchedulerId}
-            readOnly
-          />
-        )}
+        {!showAssistantComposer &&
+          (!isDashboardDataReady || isResolvingDashboard ? (
+            <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+              <Skeleton className="h-full w-full" />
+            </div>
+          ) : (
+            <DashboardGrid
+              widgets={definition.widgets}
+              onChange={() => undefined}
+              canEdit={false}
+              dashboardId={dashboardId}
+              projectId={projectId}
+              readPath={readPath}
+              dateRange={absoluteTimeRange}
+              filterState={gridFilterState}
+              onDeleteWidget={() => undefined}
+              dashboardOwner={dashboardOwner}
+              getWidgetSchedulerId={getWidgetSchedulerId}
+              readOnly
+            />
+          ))}
       </Page>
     </DashboardQuerySchedulerProvider>
   );
