@@ -25,6 +25,7 @@ import {
   isMultipartPartLimitError,
   BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
 } from "./partLimitError";
+import { setLastError } from "./planDisable";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { isFinalBullmqAttempt } from "../integrations/bullmqAttempts";
 import { WORKER_HOST_ID } from "../../utils/hostId";
@@ -217,14 +218,6 @@ const removeBlobExportDeprecationNotice = async (params: {
   }
 };
 
-// A run that finishes after the integration was disabled mid-run (for example
-// by a plan downgrade) keeps the disable reason.
-const clearLastErrorIfEnabled = (projectId: string) =>
-  prisma.blobStorageIntegration.updateMany({
-    where: { projectId, enabled: true },
-    data: { lastError: null, lastErrorAt: null },
-  });
-
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
@@ -336,7 +329,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
           : {}),
       },
     });
-    await clearLastErrorIfEnabled(projectId);
+    await setLastError(projectId, null);
     return;
   }
 
@@ -579,7 +572,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         },
       },
     );
-    await clearLastErrorIfEnabled(projectId);
+    await setLastError(projectId, null);
     if (persisted === 0) {
       logger.info(
         `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after successful export`,
@@ -634,12 +627,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
       try {
         integration = await prisma.blobStorageIntegration.update({
           where: { projectId },
-          data: {
-            lastError: BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
-            lastErrorAt: new Date(),
-            runStartedAt: null,
-          },
+          data: { runStartedAt: null },
         });
+        await setLastError(projectId, BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE);
       } catch (persistError) {
         if (isRecordNotFoundError(persistError)) {
           logger.info(

@@ -11,6 +11,7 @@ import {
   BLOB_INTEGRATION_DISABLED_METRIC,
   type CustomerFaultReason,
 } from "./isCustomerFaultError";
+import { setLastError } from "./planDisable";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { env } from "../../env";
 
@@ -42,12 +43,9 @@ export async function recordTerminalExportError({
   try {
     const updated = await prisma.blobStorageIntegration.update({
       where: { projectId },
-      data: {
-        lastError: errorMessage,
-        lastErrorAt: new Date(),
-        runStartedAt: null,
-      },
+      data: { runStartedAt: null },
     });
+    await setLastError(projectId, errorMessage);
 
     if (disableReason === undefined) {
       return { kind: "error-recorded", stillEnabled: updated.enabled };
