@@ -69,8 +69,8 @@ const loadStyles = async (): Promise<string> => {
 };
 
 // Inline text must not close the surrounding element early.
-const escapeInline = (text: string, tag: "style" | "script") =>
-  text.replace(new RegExp(`</${tag}`, "gi"), `<\\/${tag}`);
+const escapeStyle = (css: string) => css.replace(/<\/style/gi, "<\\/style");
+const escapeScript = (js: string) => js.replace(/<\/script/gi, "<\\/script");
 
 const toShell = (css: string, script: string) => `<!doctype html>
 <html lang="en">
@@ -78,11 +78,11 @@ const toShell = (css: string, script: string) => `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Langfuse widget</title>
-<style>${escapeInline(css, "style")}</style>
+<style>${escapeStyle(css)}</style>
 </head>
 <body>
 <div id="root"></div>
-<script>${escapeInline(script, "script")}</script>
+<script>${escapeScript(script)}</script>
 </body>
 </html>
 `;
