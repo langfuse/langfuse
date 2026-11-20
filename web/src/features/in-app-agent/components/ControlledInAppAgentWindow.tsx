@@ -35,7 +35,7 @@ type ControlledInAppAgentWindowBaseProps = {
   onExpandedChange: (isExpanded: boolean) => void;
   headerLeading?: ReactNode;
   headerActions?: ReactNode;
-  showExpandToggle?: boolean;
+  expandToggleLabels?: { expand: string; collapse: string };
   isFlush?: boolean;
 };
 
@@ -222,7 +222,7 @@ export function ControlledInAppAgentWindow(
       titleActions={titleActions}
       headerLeading={props.headerLeading}
       headerActions={props.headerActions}
-      showExpandToggle={props.showExpandToggle}
+      expandToggleLabels={props.expandToggleLabels}
       isFlush={props.isFlush}
       onLoadMoreConversations={loadMoreConversations}
       onOpenConversationHistory={invalidateConversations}

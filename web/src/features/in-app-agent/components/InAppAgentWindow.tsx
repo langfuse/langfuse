@@ -691,8 +691,9 @@ export type InAppAgentWindowProps = {
   headerLeading?: ReactNode;
   /** Rendered first in the header's action cluster. */
   headerActions?: ReactNode;
-  /** False when the host owns the window size (docked or full page). */
-  showExpandToggle?: boolean;
+  /** Names the expand toggle when it switches something other than the
+   * floating window's size, e.g. docked and full page. */
+  expandToggleLabels?: { expand: string; collapse: string };
   /** Drops the window chrome when the host supplies the frame. */
   isFlush?: boolean;
 } & InAppAgentWindowCloseButtonProps;
@@ -791,7 +792,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     titleActions,
     headerLeading,
     headerActions,
-    showExpandToggle = true,
+    expandToggleLabels = {
+      expand: "Expand window",
+      collapse: "Collapse window",
+    },
     isFlush = false,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
@@ -944,7 +948,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           !isHandheld && "select-none",
         )}
         onDoubleClick={
-          isHandheld || !showExpandToggle
+          isHandheld
             ? undefined
             : (event) => {
                 // The action cluster owns its own double-clicks.
@@ -1125,9 +1129,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </DropdownMenuContent>
           </DropdownMenu>
           {/* Mobile is always full-screen, so there is nothing to expand. */}
-          {!isHandheld && showExpandToggle ? (
+          {!isHandheld ? (
             <Tooltip
-              label={isExpanded ? "Collapse window" : "Expand window"}
+              label={
+                isExpanded
+                  ? expandToggleLabels.collapse
+                  : expandToggleLabels.expand
+              }
               delay={100}
               hoverableContent={false}
             >
@@ -1138,7 +1146,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   variant="ghost"
                   size="icon"
                   className="size-6"
-                  aria-label={isExpanded ? "Collapse window" : "Expand window"}
+                  aria-label={
+                    isExpanded
+                      ? expandToggleLabels.collapse
+                      : expandToggleLabels.expand
+                  }
                   onClick={() => {
                     onExpandedChange(!isExpanded);
                   }}

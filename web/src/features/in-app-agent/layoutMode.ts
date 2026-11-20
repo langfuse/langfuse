@@ -16,8 +16,19 @@ export const IN_APP_AGENT_LAYOUT_MODES = [
 
 export type InAppAgentLayoutMode = (typeof IN_APP_AGENT_LAYOUT_MODES)[number];
 
-export const IN_APP_AGENT_DEFAULT_LAYOUT_MODE: InAppAgentLayoutMode =
-  "floating";
+export type InAppAgentDockLayoutMode = Extract<
+  InAppAgentLayoutMode,
+  "dock-right" | "dock-left"
+>;
+
+export const IN_APP_AGENT_DEFAULT_LAYOUT_MODE: InAppAgentDockLayoutMode =
+  "dock-right";
+
+export function isInAppAgentDockLayoutMode(
+  value: unknown,
+): value is InAppAgentDockLayoutMode {
+  return value === "dock-right" || value === "dock-left";
+}
 
 export const IN_APP_AGENT_LAYOUT_MODE_OPTIONS: Record<
   InAppAgentLayoutMode,

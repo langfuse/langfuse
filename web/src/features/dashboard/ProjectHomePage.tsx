@@ -559,7 +559,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
         }}
       >
         {showAssistantComposer ? (
-          <div className="mx-auto w-full max-w-3xl pt-6 pb-8">
+          <div className="mx-auto w-full max-w-3xl pt-2 pb-5">
             <InAppAgentHomeComposer
               scopeControls={
                 <>

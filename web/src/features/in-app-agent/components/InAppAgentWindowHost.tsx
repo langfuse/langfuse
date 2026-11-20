@@ -74,6 +74,7 @@ export function InAppAgentWindowHost() {
     isExpanded,
     setIsExpanded,
     layoutMode,
+    dockLayoutMode,
     setLayoutMode,
   } = useInAppAiAgent();
   const currentPath = stripQueryAndHash(router.asPath);
@@ -88,7 +89,7 @@ export function InAppAgentWindowHost() {
 
     const handleRouteChangeStart = (url: string) => {
       if (!stripQueryAndHash(url).endsWith(currentPath)) {
-        setLayoutMode("dock-right");
+        setLayoutMode(dockLayoutMode);
       }
     };
 
@@ -97,7 +98,7 @@ export function InAppAgentWindowHost() {
     return () => {
       router.events.off("routeChangeStart", handleRouteChangeStart);
     };
-  }, [currentPath, layoutMode, router.events, setLayoutMode]);
+  }, [currentPath, dockLayoutMode, layoutMode, router.events, setLayoutMode]);
   const [deleteConversationWithLoading, isDeletingConversation] =
     useWatchedPromiseCallback(deleteConversation, [deleteConversation]);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -188,21 +189,21 @@ export function InAppAgentWindowHost() {
           >
             <ControlledInAppAgentWindow
               isFlush
-              showExpandToggle={false}
               isExpanded={inlinePresentation === "full"}
+              expandToggleLabels={{
+                expand: "Open full page",
+                collapse: "Dock to side",
+              }}
               headerLeading={
-                inlinePresentation === "full" ? (
+                inlinePresentation === "full" &&
+                router.pathname === PROJECT_HOME_PATHNAME ? (
                   <Button
                     variant="ghost"
                     size="sm"
                     icon={ArrowLeft}
-                    text={
-                      router.pathname === PROJECT_HOME_PATHNAME
-                        ? "Home"
-                        : "Back"
-                    }
+                    text="Home"
                     onClick={() => {
-                      setLayoutMode("dock-right");
+                      setOpen(false);
                     }}
                   />
                 ) : undefined
@@ -211,7 +212,9 @@ export function InAppAgentWindowHost() {
               onDeleteConversation={(conversation) => {
                 deleteConversationDialog.openDialog(conversation);
               }}
-              onExpandedChange={() => undefined}
+              onExpandedChange={(nextIsExpanded) => {
+                setLayoutMode(nextIsExpanded ? "full" : dockLayoutMode);
+              }}
               onClose={() => {
                 setOpen(false);
               }}

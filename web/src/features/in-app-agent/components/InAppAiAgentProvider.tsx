@@ -72,7 +72,9 @@ import {
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
 import {
   IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
+  isInAppAgentDockLayoutMode,
   parseInAppAgentLayoutMode,
+  type InAppAgentDockLayoutMode,
   type InAppAgentLayoutMode,
 } from "@/src/features/in-app-agent/layoutMode";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -89,6 +91,7 @@ const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
 const LAYOUT_MODE_STORAGE_KEY = "langfuse:in-app-ai-agent-layout-mode";
+const DOCK_LAYOUT_MODE_STORAGE_KEY = "langfuse:in-app-ai-agent-dock-side";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   messages: EMPTY_MESSAGES,
@@ -136,6 +139,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isExpanded: false,
   setIsExpanded: () => undefined,
   layoutMode: IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
+  dockLayoutMode: IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
   setLayoutMode: () => undefined,
   isRunning: false,
   isSubmitting: false,
@@ -199,6 +203,8 @@ type InAppAiAgentContextType = {
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
   /** Where the window sits: full page, docked beside the content, or floating. */
   layoutMode: InAppAgentLayoutMode;
+  /** The side the window docks to when it leaves full page. */
+  dockLayoutMode: InAppAgentDockLayoutMode;
   setLayoutMode: (layoutMode: InAppAgentLayoutMode) => void;
   isRunning: boolean;
   isSubmitting: boolean;
@@ -338,14 +344,25 @@ function InAppAiAgentProviderInner({
     LAYOUT_MODE_STORAGE_KEY,
     IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
   );
+  const [storedDockLayoutMode, setStoredDockLayoutMode] =
+    useLocalStorage<string>(
+      DOCK_LAYOUT_MODE_STORAGE_KEY,
+      IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
+    );
   const layoutMode = parseInAppAgentLayoutMode(storedLayoutMode);
+  const dockLayoutMode = isInAppAgentDockLayoutMode(storedDockLayoutMode)
+    ? storedDockLayoutMode
+    : IN_APP_AGENT_DEFAULT_LAYOUT_MODE;
   const setLayoutMode = useCallback(
     (nextLayoutMode: InAppAgentLayoutMode) => {
       // Expanded is a variant of the floating window only.
       setIsExpanded(false);
       setStoredLayoutMode(nextLayoutMode);
+      if (isInAppAgentDockLayoutMode(nextLayoutMode)) {
+        setStoredDockLayoutMode(nextLayoutMode);
+      }
     },
-    [setStoredLayoutMode],
+    [setStoredDockLayoutMode, setStoredLayoutMode],
   );
   // Key by conversation so another conversation cannot release its submit lock.
   const [submittingConversationId, setSubmittingConversationId] = useState<
@@ -1279,6 +1296,10 @@ function InAppAiAgentProviderInner({
       if (!nextOpen) {
         // Collapse the drawer when closing
         setIsExpanded(false);
+        // Full page does not outlive the conversation view it was opened for.
+        if (layoutMode === "full") {
+          setLayoutMode(dockLayoutMode);
+        }
 
         backgroundSessionRef.current?.detach();
         releaseSubmitLock(selectedConversationId);
@@ -1292,9 +1313,12 @@ function InAppAiAgentProviderInner({
     },
     [
       attachToConversation,
+      dockLayoutMode,
+      layoutMode,
       open,
       releaseSubmitLock,
       selectedConversationId,
+      setLayoutMode,
       setOpen,
     ],
   );
@@ -1308,10 +1332,23 @@ function InAppAiAgentProviderInner({
         return false;
       }
 
+      // Full page belongs to Home's composer. Every other entry point opens
+      // beside the page it was triggered from.
+      if (source !== "home_composer" && layoutMode === "full") {
+        setLayoutMode(dockLayoutMode);
+      }
+
       setAgentOpen(true);
       return true;
     },
-    [capture, organization, setAgentOpen],
+    [
+      capture,
+      dockLayoutMode,
+      layoutMode,
+      organization,
+      setAgentOpen,
+      setLayoutMode,
+    ],
   );
 
   const isCancellingRun = Boolean(
@@ -1506,6 +1543,7 @@ function InAppAiAgentProviderInner({
       isExpanded,
       setIsExpanded,
       layoutMode,
+      dockLayoutMode,
       setLayoutMode,
       isRunning,
       isSubmitting,
@@ -1546,6 +1584,7 @@ function InAppAiAgentProviderInner({
       alwaysAllowToolCall,
       isExpanded,
       layoutMode,
+      dockLayoutMode,
       setLayoutMode,
       conversations,
       effectiveError,

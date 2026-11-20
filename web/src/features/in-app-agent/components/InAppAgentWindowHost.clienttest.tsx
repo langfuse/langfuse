@@ -13,6 +13,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useInAppAiAgent: () => ({
     deleteConversation: vi.fn(),
     isExpanded: false,
+    dockLayoutMode: "dock-right",
     layoutMode: "floating",
     open: mocks.open,
     setIsExpanded: vi.fn(),
