@@ -855,7 +855,7 @@ export const AutomationForm = ({
                       <Button
                         type="button"
                         variant="outline"
-                        className="border-light-red flex items-center"
+                        className="border-dark-red/30 flex items-center"
                         disabled={disabled !== undefined}
                         onClick={openDialog}
                       >
