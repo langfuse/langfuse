@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomBytes } from "crypto";
-import { LRUCache } from "lru-cache";
 import { Model, Prisma } from "../../";
 import { instrumentAsync, logger, recordIncrement, redis } from "../";
 import { LocalCache } from "../cache/localCache";
@@ -41,13 +40,6 @@ const GLOBAL_EPOCH_TTL_SECONDS = Math.max(
   30 * 24 * 60 * 60,
   2 * env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
 );
-// Bounds how long another process keeps reading a namespace after a clear.
-const EPOCH_PROCESS_CACHE_TTL_MS = 3_000;
-const modelMatchEpochCache = new LRUCache<string, ModelMatchEpochs>({
-  max: 10_000,
-  ttl: EPOCH_PROCESS_CACHE_TTL_MS,
-});
-
 const DEFAULT_LOCAL_CACHE_MODEL_MATCH_TTL_MS = 10_000;
 const DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX = 20_000;
 // This L1 cache is intentionally TTL-only. Cross-container consistency continues
@@ -206,7 +198,6 @@ function getPositiveNumberOrDefault(value: unknown, fallback: number): number {
 
 export const clearModelMatchLocalCache = (): void => {
   modelMatchLocalCache.clear();
-  modelMatchEpochCache.clear();
 };
 
 const getModelWithPricesFromRedis = async (
@@ -410,18 +401,13 @@ const getModelMatchEpochs = async (
 ): Promise<ModelMatchEpochs | null> => {
   if (!redis) return null;
 
-  const cached = modelMatchEpochCache.get(projectId);
-  if (cached) return cached;
-
   try {
     // Both keys share the prefix hash tag, so MGET is valid on a cluster.
     const [global, project] = await redis.mget(
       getGlobalEpochKey(),
       getProjectEpochKey(projectId),
     );
-    const epochs = { global: global ?? null, project: project ?? null };
-    modelMatchEpochCache.set(projectId, epochs);
-    return epochs;
+    return { global: global ?? null, project: project ?? null };
   } catch (error) {
     logger.error(`Error reading model cache epochs for ${projectId}`, error);
     return null;
@@ -483,7 +469,6 @@ export async function clearModelCacheForProject(
       "EX",
       PROJECT_EPOCH_TTL_SECONDS,
     );
-    modelMatchEpochCache.delete(projectId);
   } catch (error) {
     logger.error(
       `Error clearing model cache for project ${projectId}: ${error}`,
@@ -522,9 +507,6 @@ export async function clearModelCacheForOrganization(
     const results = await pipeline.exec();
     const failed = results?.find(([error]) => error);
     if (failed) throw failed[0];
-    for (const { id } of projects) {
-      modelMatchEpochCache.delete(id);
-    }
   } catch (error) {
     logger.error(
       `Error clearing model cache for organization ${orgId}: ${error}`,
@@ -548,7 +530,6 @@ export async function clearFullModelCache() {
       "EX",
       GLOBAL_EPOCH_TTL_SECONDS,
     );
-    modelMatchEpochCache.clear();
     logger.info("Cleared full model cache.");
   } catch (error) {
     logger.error(`Error clearing full model cache: ${error}`);
