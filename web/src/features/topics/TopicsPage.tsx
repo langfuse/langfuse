@@ -397,7 +397,8 @@ function TopicsWorkspaceContent({
     {
       projectId,
       executionId: analysisId ?? "",
-      includeSessionCounts: showSessionCounts,
+      // Omitted when off, so the input matches the map picker preview's cached query.
+      includeSessionCounts: showSessionCounts || undefined,
     },
     {
       enabled: analysisId !== null,
@@ -439,7 +440,7 @@ function TopicsWorkspaceContent({
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
     refreshAfter: Math.max(refreshAfter, refitAfter),
     ruleId: selectedRule?.id,
-    includeSessionCounts: showSessionCounts,
+    includeSessionCounts: showSessionCounts || undefined,
     enabled: !analysisId,
   });
   const shownResults = analysisId
