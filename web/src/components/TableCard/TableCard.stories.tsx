@@ -2,11 +2,11 @@ import { expect, fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
-import { SettingsTable } from "./SettingsTable";
+import { TableCard } from "./TableCard";
 
 type Member = { id: string; name: string };
 
-const meta = preview.meta({ component: SettingsTable<Member> });
+const meta = preview.meta({ component: TableCard<Member> });
 
 const members: Member[] = [
   { id: "1", name: "Ada Andersen" },
