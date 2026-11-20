@@ -57,12 +57,12 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     calculated_output_cost Decimal(18,12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
     calculated_total_cost Decimal(18,12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 OR positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
     total_cost Decimal(18,12) ALIAS cost_details['total'],
-    processed_at DateTime64(3, 'UTC'),
+    created_at DateTime64(3, 'UTC'),
     metadata String CODEC(ZSTD(3)),
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.0001) GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter(0.0001) GRANULARITY 1
 )
-ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(processed_at)
+ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(unit_start_time)
 PRIMARY KEY (project_id, toStartOfHour(unit_start_time), facet_id, facet_version, unit_type, unit_hash)
 ORDER BY (project_id, toStartOfHour(unit_start_time), facet_id, facet_version, unit_type, unit_hash)
@@ -91,11 +91,11 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
     runner_up_distance Nullable(Float32),
     origin Enum8('initial' = 1, 'online' = 2),
     coordinates Array(Float32) DEFAULT [],
-    assigned_at DateTime64(3, 'UTC'),
+    created_at DateTime64(3, 'UTC'),
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.0001) GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter(0.0001) GRANULARITY 1
 )
-ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(assigned_at)
+ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(unit_start_time)
 PRIMARY KEY (project_id, facet_id, clustering_run_id, topic_stable_id, toStartOfHour(unit_start_time))
 ORDER BY (project_id, facet_id, clustering_run_id, topic_stable_id, toStartOfHour(unit_start_time), unit_hash, origin)
@@ -116,15 +116,15 @@ CREATE TABLE IF NOT EXISTS topic_assignments_by_trace {CLICKHOUSE_CLUSTER_CLAUSE
     topic_stable_id String,
     topic_id String,
     origin Enum8('initial' = 1, 'online' = 2),
-    assigned_at DateTime64(3, 'UTC'),
+    created_at DateTime64(3, 'UTC'),
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.0001) GRANULARITY 1
 )
-ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(assigned_at)
+ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(created_at)
 PARTITION BY toYYYYMM(unit_start_time)
 PRIMARY KEY (project_id, toStartOfMinute(unit_start_time), facet_id)
 ORDER BY (project_id, toStartOfMinute(unit_start_time), facet_id, trace_id, session_id, rule_id, clustering_run_id)
 SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS topic_assignments_by_trace_mv {CLICKHOUSE_CLUSTER_CLAUSE} TO topic_assignments_by_trace AS
-SELECT project_id, unit_start_time, facet_id, rule_id, trace_id, session_id, clustering_run_id, topic_stable_id, topic_id, origin, assigned_at
+SELECT project_id, unit_start_time, facet_id, rule_id, trace_id, session_id, clustering_run_id, topic_stable_id, topic_id, origin, created_at
 FROM topic_assignments;

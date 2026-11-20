@@ -128,7 +128,7 @@ function summaryConditionSql(
     case "timestamp":
       return dateSql("unit_start_time", condition.match, params);
     case "processedAt":
-      return dateSql("processed_at", condition.match, params);
+      return dateSql("created_at", condition.match, params);
     case "state":
       return inSql("toString(processing_state)", condition.match, params);
     case "topicId":
@@ -190,7 +190,7 @@ function currentResultsSql(
   const latestScopeSql = [summaryScopeSql, ...traceIdConditions].join(" AND ");
   return `
   summaries AS (
-    SELECT trace_id, facet_id, facet_version, unit_start_time, processed_at,
+    SELECT trace_id, facet_id, facet_version, unit_start_time, created_at AS summary_created_at,
       processing_state, summary, trace_name, environment
     FROM topic_facet_summaries
     WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${summaryScopeSql}
@@ -207,24 +207,24 @@ function currentResultsSql(
       facet_version AS a_facet_version, unit_start_time AS a_unit_start_time,
       summary_processed_at AS a_summary_processed_at, topic_stable_id AS a_topic_stable_id,
       topic_id AS a_topic_id, clustering_run_id AS a_run_id,
-      assigned_at AS a_assigned_at
+      created_at AS a_created_at
     FROM topic_assignments
     WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${assignmentScopeSql}
       AND clustering_run_id IN {publishedRunIds:Array(String)}
       ${and(traceIdConditions)}
-    ORDER BY facet_version DESC, assigned_at DESC, origin DESC
+    ORDER BY facet_version DESC, created_at DESC, origin DESC
     LIMIT 1 BY a_facet_id, a_run_id, a_trace_id
   ),
   current AS (
-    SELECT trace_id, facet_id, facet_version, unit_start_time, processed_at,
+    SELECT trace_id, facet_id, facet_version, unit_start_time, summary_created_at,
       processing_state, summary, trace_name, environment,
       processing_state = 'complete' AND a_trace_id != ''
         AND a_facet_version = facet_version AND a_unit_start_time = unit_start_time
-        AND a_summary_processed_at = processed_at AS matched,
+        AND a_summary_processed_at = summary_created_at AS matched,
       if(matched, a_topic_stable_id, '') AS topic_stable_id,
       if(matched, a_topic_id, '') AS topic_id,
       if(matched, a_run_id, '') AS clustering_run_id,
-      a_assigned_at AS assigned_at,
+      a_created_at AS assignment_created_at,
       multiIf(
         processing_state != 'complete', toString(processing_state),
         NOT matched, 'awaiting_map',
@@ -265,7 +265,7 @@ function resolveRowsSql(args: {
         groupArrayIf(topic_stable_id, topic_status = 'assigned') OVER (PARTITION BY facet_id, trace_id) AS key_topic_stable_ids,
         row_number() OVER (PARTITION BY facet_id, trace_id ORDER BY
           ${positiveTopics.map((ids) => `(topic_status = 'assigned' AND topic_stable_id IN ${ids}) DESC, `).join("")}matched DESC,
-          topic_status = 'assigned' DESC, assigned_at DESC) AS key_rank
+          topic_status = 'assigned' DESC, assignment_created_at DESC) AS key_rank
       FROM current WHERE ${args.inCandidates}
     )
     SELECT ${args.input.select} FROM ranked WHERE key_rank = 1 ${conditionSql}`;
@@ -577,7 +577,7 @@ export async function listCurrentTopicSummaries(
     state: TopicSummaryState;
     summary_text: string;
     summary_truncated: number;
-    processed_at: string;
+    summary_created_at: string;
     topic_status?: string;
     topic_stable_id?: string;
     topic_id?: string;
@@ -589,7 +589,7 @@ export async function listCurrentTopicSummaries(
       toString(processing_state) AS state,
       {truncate:Bool} AND lengthUTF8(summary) > {previewLength:UInt32} AS summary_truncated,
       if({truncate:Bool}, leftUTF8(summary, {previewLength:UInt32}), summary) AS summary_text,
-      processed_at${assignmentSelect}`,
+      summary_created_at${assignmentSelect}`,
     extraParams: {
       truncate: input.truncateSummaries,
       previewLength: TOPIC_SUMMARY_PREVIEW_LENGTH,
@@ -606,7 +606,7 @@ export async function listCurrentTopicSummaries(
       state: row.state,
       summary: row.summary_text,
       summaryTruncated: Boolean(Number(row.summary_truncated)),
-      processedAt: parseClickhouseUTCDateTimeFormat(row.processed_at),
+      processedAt: parseClickhouseUTCDateTimeFormat(row.summary_created_at),
       ...(input.includeAssignment
         ? {
             assignment: {
@@ -637,12 +637,12 @@ export async function listCurrentTopicAssignments(
     topic_stable_id: string;
     topic_id: string;
     clustering_run_id: string;
-    assigned_at: string;
+    assignment_created_at: string;
   }>({
     ...input,
     kind: "assignments",
     select: `trace_id, facet_id, facet_version, unit_start_time, topic_status,
-      topic_stable_id, topic_id, clustering_run_id, assigned_at`,
+      topic_stable_id, topic_id, clustering_run_id, assignment_created_at`,
   });
   return {
     rows: rows.map((row) => ({
@@ -654,7 +654,7 @@ export async function listCurrentTopicAssignments(
       topicId: row.topic_stable_id || null,
       topicVersionId: row.topic_id || null,
       runId: row.clustering_run_id || null,
-      assignedAt: parseClickhouseUTCDateTimeFormat(row.assigned_at),
+      assignedAt: parseClickhouseUTCDateTimeFormat(row.assignment_created_at),
     })),
     next,
   };

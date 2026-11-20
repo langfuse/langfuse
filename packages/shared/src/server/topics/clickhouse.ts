@@ -36,7 +36,7 @@ export const unitTimeFilterSql =
   "unit_start_time >= {from:DateTime64(3)} AND unit_start_time < {to:DateTime64(3)}";
 
 const summaryVersionKeySql =
-  "facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), unit_start_time, processed_at";
+  "facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), unit_start_time, created_at";
 export const summarySourceKeySql =
   "facet_id, trace_id, if(trace_id = '', session_id, '')";
 
@@ -56,7 +56,7 @@ export function latestSummaryFilterSql(
         WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
         GROUP BY ${summarySourceKeySql}
       )
-    ORDER BY facet_version DESC, processed_at DESC
+    ORDER BY facet_version DESC, created_at DESC
     LIMIT 1 BY ${latestKeySql}
   )`;
 }
@@ -328,7 +328,7 @@ const summaryColumns = `project_id AS projectId, facet_id AS facetId,
   summary_model AS summaryModel, embedding_model AS embeddingModel,
   provided_usage_details AS providedUsageDetails, usage_details AS usageDetails,
   provided_cost_details AS providedCostDetails, cost_details AS costDetails,
-  toUnixTimestamp64Milli(processed_at) AS processedAtMs, metadata AS metadataJson`;
+  toUnixTimestamp64Milli(created_at) AS processedAtMs, metadata AS metadataJson`;
 
 type SummaryRow = Omit<
   TopicSummary,
@@ -402,11 +402,11 @@ export async function getLatestFacetSummaries(
       facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId,
       processing_state AS state, summary, environment,
       toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
-      toUnixTimestamp64Milli(processed_at) AS processedAtMs
+      toUnixTimestamp64Milli(created_at) AS processedAtMs
       FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
         ${facetVersion ? "" : `AND ${latestSummaryFilterSql(scopeSql, summarySourceKeySql)}`}
-      ORDER BY ${facetVersion ? "" : "facet_version DESC, "}processed_at DESC
+      ORDER BY ${facetVersion ? "" : "facet_version DESC, "}created_at DESC
       LIMIT 1 BY ${facetVersion ? sourceKeySql : "project_id, trace_id, if(trace_id = '', session_id, '')"}`,
       params: {
         projectId,
@@ -490,7 +490,7 @@ function clusteringSummariesSql(
         SELECT ${rowColumns}, embedding.size0 AS dimensions FROM topic_facet_summaries
         WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
           AND ${latestSummaryFilterSql(scopeSql)}
-        ORDER BY processed_at DESC
+        ORDER BY created_at DESC
         LIMIT 1 BY ${sourceKeySql}
       ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
         AND dimensions = {embeddingDimensions:UInt32}
@@ -666,8 +666,8 @@ export async function getSampledTopicClusteringSummaries(
       : null;
   const sampleSql = sampleBound ? " AND unit_hash < {sampleBound:UInt64}" : "";
   const keysSql = `${clusteringSummariesSql(
-    "trace_id, unit_start_time, processed_at",
-    "trace_id, unit_start_time, processed_at, processing_state, embedding_model, environment, unit_hash",
+    "trace_id, unit_start_time, created_at",
+    "trace_id, unit_start_time, created_at, processing_state, embedding_model, environment, unit_hash",
     cohort,
     sampleSql,
   )}
@@ -678,7 +678,7 @@ export async function getSampledTopicClusteringSummaries(
     query: `SELECT ${summaryColumns} FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
         AND ${clusteringSummaryScopeSql}${sampleSql}
-        AND (trace_id, unit_start_time, processed_at) IN (${keysSql})
+        AND (trace_id, unit_start_time, created_at) IN (${keysSql})
       ORDER BY unit_hash, trace_id
       LIMIT 1 BY ${sourceKeySql}`,
     params: { ...params, ...(sampleBound ? { sampleBound } : {}) },
@@ -843,7 +843,7 @@ export async function getTopicSummaryCounts(
         FROM topic_facet_summaries
         WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
           AND ${latestSummaryFilterSql(scopeSql)}
-        ORDER BY processed_at DESC
+        ORDER BY created_at DESC
         LIMIT 1 BY ${sourceKeySql}
       ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
         AND dimensions = {embeddingDimensions:UInt32}
@@ -962,7 +962,7 @@ export async function countTopicTraceSummaries(
         AND unit_start_time >= {from:DateTime64(3)}
         AND trace_id IN {traceIds:Array(String)}
         AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})
-        AND processed_at >= {since:DateTime64(3)}
+        AND created_at >= {since:DateTime64(3)}
       GROUP BY facet_id`,
     params: {
       projectId,
@@ -1052,7 +1052,7 @@ export function topicSummaryRecord(row: TopicSummary) {
     usage_details: row.usageDetails,
     provided_cost_details: row.providedCostDetails,
     cost_details: row.costDetails,
-    processed_at: convertDateToClickhouseDateTime(new Date(row.processedAt)),
+    created_at: convertDateToClickhouseDateTime(new Date(row.processedAt)),
     metadata: JSON.stringify(row.metadata),
   };
 }
@@ -1086,7 +1086,7 @@ export function topicAssignmentRecord(row: TopicAssignment) {
     runner_up_distance: row.runnerUpDistance,
     origin: row.origin,
     coordinates: row.coordinates ?? [],
-    assigned_at: convertDateToClickhouseDateTime(new Date(row.assignedAt)),
+    created_at: convertDateToClickhouseDateTime(new Date(row.assignedAt)),
   };
 }
 
@@ -1105,7 +1105,7 @@ const assignmentColumns = `project_id AS projectId, facet_id AS facetId,
       clustering_run_id AS runId, rule_id AS ruleId,
       topic_stable_id AS topicId, topic_id AS topicVersionId, distance,
       runner_up_distance AS runnerUpDistance, origin,
-      toUnixTimestamp64Milli(assigned_at) AS assignedAtMs`;
+      toUnixTimestamp64Milli(created_at) AS assignedAtMs`;
 type AssignmentRow = Omit<
   TopicAssignment,
   | "unitStartTime"
@@ -1199,7 +1199,7 @@ export async function readTopicMapAssignments(
         AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
         AND clustering_run_id = {runId:String}
         AND origin = 'initial' AND trace_id != ''
-      ORDER BY assigned_at DESC
+      ORDER BY created_at DESC
       LIMIT 1 BY ${sourceKeySql}`,
     params: {
       projectId,
@@ -1228,7 +1228,7 @@ export async function readTopicAssignments(
       FROM topic_assignments WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
         AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
         AND clustering_run_id = {runId:String} AND ${sourceFilterSql}
-      ORDER BY assigned_at DESC, origin DESC
+      ORDER BY created_at DESC, origin DESC
       LIMIT 1 BY ${sourceKeySql}`,
         params: {
           projectId,
@@ -1259,7 +1259,7 @@ export async function readLatestTopicAssignments(
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND facet_id = {facetId:String}
         AND clustering_run_id IN {publishedRunIds:Array(String)}
         ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}
-      ORDER BY facet_version DESC, assigned_at DESC, origin DESC
+      ORDER BY facet_version DESC, created_at DESC, origin DESC
       LIMIT 1 BY project_id, facet_id, clustering_run_id, trace_id, if(trace_id = '', session_id, '')`,
     params: {
       projectId,
@@ -1311,7 +1311,7 @@ export async function readCurrentTraceTopics(
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
         AND facet_id IN {facetIds:Array(String)} AND trace_id IN {traceIds:Array(String)}
         AND clustering_run_id IN {runIds:Array(String)}
-      ORDER BY assigned_at DESC, origin DESC
+      ORDER BY created_at DESC, origin DESC
       LIMIT 1 BY facet_id, rule_id, trace_id`,
     params: {
       projectId,
@@ -1384,7 +1384,7 @@ function currentTraceAssignmentsSql(scopeSql: string) {
     FROM topic_assignments
     WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
       AND clustering_run_id IN {publishedRunIds:Array(String)}
-    ORDER BY assigned_at DESC, origin DESC
+    ORDER BY created_at DESC, origin DESC
     LIMIT 1 BY facet_id, clustering_run_id, trace_id`;
 }
 

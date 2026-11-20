@@ -696,7 +696,7 @@ describe("Topics summary storage", () => {
         sessionId: identity.sessionId ?? "",
         traceName: inserted.trace_name,
         unitStartTimeMs: Date.parse(summary.unitStartTime).toString(),
-        processedAtMs: Date.parse(summary.processedAt).toString(),
+        processedAtMs: Date.parse(inserted.created_at).toString(),
         providedUsageDetails: clickhouseNumberMap(summary.providedUsageDetails),
         usageDetails: clickhouseNumberMap(summary.usageDetails),
         providedCostDetails: clickhouseNumberMap(summary.providedCostDetails),
@@ -805,6 +805,7 @@ describe("Topics classifications", () => {
         topic_stable_id: "",
         topic_id: "",
         summary_processed_at: row.summaryProcessedAt,
+        created_at: row.assignedAt,
         coordinates: [],
       });
       mocks.query.mockResolvedValue([
@@ -842,7 +843,7 @@ describe("Topics classifications", () => {
         "AND clustering_run_id IN {publishedRunIds:Array(String)}",
       );
       expect(query).toContain(
-        "ORDER BY facet_version DESC, assigned_at DESC, origin DESC",
+        "ORDER BY facet_version DESC, created_at DESC, origin DESC",
       );
       expect(query).toContain(
         "LIMIT 1 BY project_id, facet_id, clustering_run_id, trace_id, if(trace_id = '', session_id, '')",
