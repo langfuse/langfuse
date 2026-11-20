@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { FlaskConical, PlusIcon } from "@langfuse/icons";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { StringParam, useQueryParams, withDefault } from "use-query-params";
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -43,7 +43,6 @@ export function ConnectedModelDefinitionsTable({
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const deleteModel = useDeleteModelDefinition(owner);
-  const [deleteError, setDeleteError] = useState<string | undefined>();
   const editCloseGuard = useRef<() => boolean>(() => true);
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -124,18 +123,13 @@ export function ConnectedModelDefinitionsTable({
                     confirmLabel="Delete model"
                     variant="destructive"
                     loading={deleteModel.isPending}
-                    error={deleteError}
-                    onAfterDismiss={() => setDeleteError(undefined)}
+                    error={deleteModel.error}
+                    onAfterDismiss={deleteModel.reset}
                     onConfirm={async (model) => {
                       capture("models:delete_button_click");
                       try {
                         await deleteModel.remove(model.id);
                       } catch (error) {
-                        setDeleteError(
-                          error instanceof Error
-                            ? error.message
-                            : String(error),
-                        );
                         reportTrpcErrorWithoutToast(error, "models");
                         throw error;
                       }
@@ -183,7 +177,7 @@ export function ConnectedModelDefinitionsTable({
                           onClone: openCloneDialog,
                           onEdit: openEditDialog,
                           onDelete: (model) => {
-                            setDeleteError(undefined);
+                            deleteModel.reset();
                             openDeleteDialog(model.serverResponse);
                           },
                         }}
