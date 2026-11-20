@@ -448,6 +448,67 @@ fn ordinary_auth_clears_a_spoofed_gateway_service() {
 }
 
 #[test]
+fn gateway_calculated_cost_keeps_cost_details_and_clears_provided_cost_details() {
+    let context = crate::otel::StorageContext {
+        blob_storage_file_path: "otel/raw.json".into(),
+        created_at: "2026-01-01T00:00:00.000Z".into(),
+        updated_at: "2026-01-01T00:00:00.000Z".into(),
+        event_ts: "2026-01-01T00:00:00.000Z".into(),
+    };
+    let ingest = |ingestion_api_key: &str, metadata: serde_json::Value| {
+        let input = json!([{
+            "resource": {"attributes": [{"key":"service.name","value":{"stringValue":AI_GATEWAY_SERVICE_NAME}}]},
+            "scopeSpans": [{"scope":{"name":"langfuse-ai-gateway","version":"1.0.0"},"spans":[{
+                "traceId":"trace","spanId":"span","name":"chat",
+                "startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000",
+                "attributes":[
+                    {"key":"langfuse.observation.cost_details","value":{"stringValue":r#"{"input":0.1,"total":0.1}"#}},
+                    {"key":"langfuse.observation.metadata","value":{"stringValue":metadata.to_string()}}
+                ]
+            }]}]
+        }]);
+        let event = process_json(
+            &input,
+            &EventBuildConfig {
+                ingestion_api_key: ingestion_api_key.into(),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .pop()
+        .unwrap();
+        let enrichment = crate::otel_enrichment::enrich(
+            &event,
+            &Value::Null,
+            &mut crate::otel_enrichment::PricingRegexCache::default(),
+        );
+        event.into_storage(enrichment, &context)
+    };
+
+    for (key, meta, expects_cleared) in [
+        (
+            "gateway:grant",
+            serde_json::json!({"langfuse.gateway.api_key.id": "k", "langfuse.gateway.cost.source": "calculated"}),
+            true,
+        ),
+        (
+            "gateway:grant",
+            serde_json::json!({"langfuse.gateway.api_key.id": "k"}),
+            false,
+        ),
+        (
+            "project-key",
+            serde_json::json!({"langfuse.gateway.cost.source": "calculated"}),
+            false,
+        ),
+    ] {
+        let row = ingest(key, meta);
+        assert_eq!(row.cost_details["total"], serde_json::json!(0.1));
+        assert_eq!(row.provided_cost_details.is_empty(), expects_cleared);
+    }
+}
+
+#[test]
 fn preserves_legacy_metadata_nesting_and_environment_normalization() {
     let input = json!([{
         "resource": {"attributes": [{"key":"deployment.environment","value":{"stringValue":"Langfuse-Prod"}}]},
