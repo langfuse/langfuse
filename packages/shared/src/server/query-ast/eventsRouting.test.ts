@@ -578,6 +578,19 @@ describe("logical events routing", () => {
     );
   });
 
+  it("cuts a sql.ref like a builder reference once events_truncated reads events_full", () => {
+    expect(
+      routeAlone(
+        db
+          .selectFrom("events_truncated as e")
+          .select(sql.ref<string>("e.input").as("x"))
+          .where("e.output", "=", "x"),
+      ),
+    ).toBe(
+      "select leftUTF8(e.input, 200) as x from events_full as e where e.output = {p1:String}",
+    );
+  });
+
   it("rejects a read of events_truncated it cannot cut once a filter routes it to events_full", () => {
     expect(() =>
       routeAlone(

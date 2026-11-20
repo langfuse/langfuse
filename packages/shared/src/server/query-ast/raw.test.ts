@@ -163,4 +163,16 @@ describe("inlined text", () => {
       "select - -1 as a, t.id from traces as t where t.project_id = {p1:String} and t.id = '\nproject_id, id from scores --'",
     );
   });
+
+  it("rejects an operator ClickHouse does not parse, such as the comment opener #", () => {
+    const query = db
+      .selectFrom("traces as t")
+      .select((eb) => [
+        eb("t.id", "#", literal("\n, id from scores --")).as("a"),
+        "t.id",
+      ]);
+    expect(() => compileClickhouseQuery(query, "proj-A")).toThrow(
+      'Operator "#" is rejected',
+    );
+  });
 });

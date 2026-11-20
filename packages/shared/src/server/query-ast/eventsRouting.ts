@@ -104,6 +104,7 @@ import { arrayMap, leftUTF8 } from "./extensions";
 import {
   ArrayIndexNode,
   FinalTableNode,
+  isRawReference,
   MetadataPrefilterNode,
   TypedParam,
   walkNodes,
@@ -528,6 +529,11 @@ function starError(star: string): QueryCompileError {
   );
 }
 
+/** The column reference inside a `sql.ref`, or `node` itself. */
+function unwrapRawReference(node: OperationNode): OperationNode {
+  return isRawReference(node) ? node.parameters[0] : node;
+}
+
 class EventsTableRouter extends ClickHouseOperationNodeTransformer {
   constructor(
     private readonly fullRelations: ReadonlySet<OperationNode>,
@@ -550,31 +556,29 @@ class EventsTableRouter extends ClickHouseOperationNodeTransformer {
     node: SelectionNode,
     queryId?: QueryId,
   ): SelectionNode {
-    const { selection } = node;
-    const cut = this.cutRead(selection);
-    if (
-      !cut ||
-      !ReferenceNode.is(selection) ||
-      !ColumnNode.is(selection.column)
-    ) {
+    const read = unwrapRawReference(node.selection);
+    const cut = this.cutRead(read);
+    if (!cut || !ReferenceNode.is(read) || !ColumnNode.is(read.column)) {
       return super.transformSelection(node, queryId);
     }
     return SelectionNode.create(
-      AliasNode.create(
-        cut,
-        IdentifierNode.create(selection.column.column.name),
-      ),
+      AliasNode.create(cut, IdentifierNode.create(read.column.column.name)),
     );
   }
 
-  /** `node` cut, when it is a read of an `events_truncated` relation routed to `events_full`. */
+  /**
+   * `node` cut, when it is a read of an `events_truncated` relation routed to
+   * `events_full`. A `sql.ref` is cut whole, so no raw node is left around
+   * the function call.
+   */
   private cutRead(node: OperationNode): OperationNode | undefined {
-    const relation = this.copyReads.get(node);
+    const read = unwrapRawReference(node);
+    const relation = this.copyReads.get(read);
     if (relation === undefined || !this.fullRelations.has(relation)) {
       return undefined;
     }
-    return ReferenceNode.is(node) && ColumnNode.is(node.column)
-      ? cutTruncatedColumn(node, node.column.column.name)
+    return ReferenceNode.is(read) && ColumnNode.is(read.column)
+      ? cutTruncatedColumn(read, read.column.column.name)
       : undefined;
   }
 

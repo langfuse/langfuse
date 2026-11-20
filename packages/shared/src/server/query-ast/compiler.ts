@@ -58,6 +58,42 @@ const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
 
 const TUPLE_INDEX = /^[1-9][0-9]*$/;
 
+/**
+ * Operators ClickHouse parses as operators. Kysely also builds others that
+ * ClickHouse reads as SQL text: `#` opens a line comment.
+ */
+const CLICKHOUSE_OPERATORS = new Set([
+  "=",
+  "==",
+  "!=",
+  "<>",
+  "<",
+  "<=",
+  ">",
+  ">=",
+  "+",
+  "-",
+  "*",
+  "/",
+  "%",
+  "||",
+  "and",
+  "or",
+  "not",
+  "in",
+  "not in",
+  "is",
+  "is not",
+  "like",
+  "not like",
+  "ilike",
+  "not ilike",
+  "between",
+  "exists",
+  "not exists",
+  "->",
+]);
+
 const DATE_WRAPPER_FNS = new Set([
   "toDate",
   "toDateTime",
@@ -361,6 +397,15 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     _node: OperationNode,
   ): _node is OperatorNode {
     return false;
+  }
+
+  protected override visitOperator(node: OperatorNode): void {
+    if (!CLICKHOUSE_OPERATORS.has(node.operator)) {
+      throw new UnscopedRelationError(
+        `Operator "${node.operator}" is rejected: ClickHouse does not parse it as an operator. Use a function from extensions.ts or eb.fn.`,
+      );
+    }
+    super.visitOperator(node);
   }
 
   // Emit identifiers unquoted. `clickhouse format` normalizes to unquoted
