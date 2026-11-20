@@ -18,18 +18,17 @@ import {
 } from "../../services/exportStalenessMetric";
 import { notifyBlobStorageExportFailed } from "./handleBlobStorageIntegrationProjectJob";
 import { BLOB_INTEGRATION_DISABLED_METRIC } from "./isCustomerFaultError";
+import { PLAN_DISABLED_ERROR } from "./planDisable";
 
 let legacyJobsDrained = false;
-
-export const PLAN_DISABLED_ERROR =
-  "Scheduled blob storage exports are not included in your organization's plan. Upgrade the plan to re-enable the export, or delete the integration.";
 
 // An unknown plan keeps exporting: disabling a paying customer's export over a
 // config we cannot read is worse than one more run. Unknown covers a cloudConfig
 // that fails to parse, a ClickHouse Billing plan code dropped as unrecognized,
 // and a Stripe product id missing from the product map. The plan resolver maps
-// the last two to the free tier. A ClickHouse Billing org without any stored
-// plan code (cancelled or never subscribed) is a known free-tier org.
+// the last two to the free tier. A ClickHouse Billing org with an attached
+// plan but no plan code is unknown too; one without either (cancelled or never
+// subscribed) is a known free-tier org.
 const isPlanUnknown = (cloudConfig: unknown): boolean => {
   const parsed = CloudConfigSchema.safeParse(cloudConfig ?? {});
   if (!parsed.success) return true;
@@ -39,7 +38,10 @@ const isPlanUnknown = (cloudConfig: unknown): boolean => {
     const rawPlanCode = (
       cloudConfig as { clickhouse?: { planCode?: unknown } } | null
     )?.clickhouse?.planCode;
-    return rawPlanCode != null && !config.clickhouse.planCode;
+    return (
+      !config.clickhouse.planCode &&
+      (rawPlanCode != null || Boolean(config.clickhouse.attachedPlanId))
+    );
   }
   const productId = config.stripe?.activeProductId;
   return productId ? !mapStripeProductIdToPlan(productId) : false;

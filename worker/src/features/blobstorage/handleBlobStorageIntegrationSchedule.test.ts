@@ -42,10 +42,8 @@ vi.mock("@langfuse/shared/src/server", () => ({
   getOrganizationPlanServerSide,
 }));
 
-import {
-  PLAN_DISABLED_ERROR,
-  handleBlobStorageIntegrationSchedule,
-} from "./handleBlobStorageIntegrationSchedule";
+import { handleBlobStorageIntegrationSchedule } from "./handleBlobStorageIntegrationSchedule";
+import { PLAN_DISABLED_ERROR } from "./planDisable";
 import { EXPORT_STALENESS_METRIC } from "../../services/exportStalenessMetric";
 import { BLOB_INTEGRATION_DISABLED_METRIC } from "./isCustomerFaultError";
 
@@ -214,6 +212,15 @@ describe("handleBlobStorageIntegrationSchedule", () => {
           clickhouse: {
             organizationId: "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a",
             planCode: "scale",
+          },
+        },
+      },
+      {
+        label: "an attached ClickHouse Billing plan without a plan code",
+        cloudConfig: {
+          clickhouse: {
+            organizationId: "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a",
+            attachedPlanId: "plan_1",
           },
         },
       },

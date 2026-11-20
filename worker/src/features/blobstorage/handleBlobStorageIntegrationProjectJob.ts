@@ -53,6 +53,7 @@ import {
   classifyCustomerFault,
   type CustomerFaultReason,
 } from "./isCustomerFaultError";
+import { unlessPlanDisabled } from "./planDisable";
 import { isMultipartPartLimitError } from "./partLimitError";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { isFinalBullmqAttempt } from "../integrations/bullmqAttempts";
@@ -1159,12 +1160,10 @@ const removeBlobExportDeprecationNotice = async (params: {
   }
 };
 
-// A run that finishes after the integration was disabled mid-run (for example
-// by a plan downgrade) keeps the disable reason.
-const clearLastErrorIfEnabled = (projectId: string) =>
+const setLastError = (projectId: string, lastError: string | null) =>
   prisma.blobStorageIntegration.updateMany({
-    where: { projectId, enabled: true },
-    data: { lastError: null, lastErrorAt: null },
+    where: unlessPlanDisabled(projectId),
+    data: { lastError, lastErrorAt: lastError === null ? null : new Date() },
   });
 
 export const handleBlobStorageIntegrationProjectJob = async (
@@ -1278,7 +1277,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
           : {}),
       },
     });
-    await clearLastErrorIfEnabled(projectId);
+    await setLastError(projectId, null);
     return;
   }
 
@@ -1521,7 +1520,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         },
       },
     );
-    await clearLastErrorIfEnabled(projectId);
+    await setLastError(projectId, null);
     if (persisted === 0) {
       logger.info(
         `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after successful export`,
@@ -1569,12 +1568,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
       try {
         integration = await prisma.blobStorageIntegration.update({
           where: { projectId },
-          data: {
-            lastError: BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE,
-            lastErrorAt: new Date(),
-            runStartedAt: null,
-          },
+          data: { runStartedAt: null },
         });
+        await setLastError(projectId, BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE);
       } catch (persistError) {
         if (isRecordNotFoundError(persistError)) {
           logger.info(
@@ -1698,12 +1694,9 @@ async function recordTerminalExportError({
   try {
     const updated = await prisma.blobStorageIntegration.update({
       where: { projectId },
-      data: {
-        lastError: errorMessage,
-        lastErrorAt: new Date(),
-        runStartedAt: null,
-      },
+      data: { runStartedAt: null },
     });
+    await setLastError(projectId, errorMessage);
 
     if (disableReason === undefined) {
       return { kind: "error-recorded", stillEnabled: updated.enabled };
