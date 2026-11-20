@@ -18,14 +18,12 @@
 // Not reachable on these views, so no case: ARRAY JOIN (`explodeArray`,
 // `pairExpand`), `aggregationFunction` dimensions, `filterSql` raw WHERE parts,
 // the `rootEventCondition` subquery, the events_core -> events_full switch
-// (base table is `scores`) and the ngram/FTS filter branches (relation filters
-// sit on the `events_traces`/`events_observations` aliases). The `*Name`
-// filter fallback (`fooName` -> `name`) renders the `name=` SQL.
+// (base table is `scores`) and the ngram/FTS filter branches (score views
+// filter the joined relations without index prefilters). The `*Name` filter
+// fallback (`fooName` -> `name`) renders the `name=` SQL.
 //
-// Legacy oddities pinned throughout, kept for byte-equality with prod:
-// - FROM aliases `scores AS scores_<view>`, but standard filters and time
-//   buckets qualify `scores.<col>`; segments and dimensions use the alias.
-// - no `is_deleted` predicate anywhere: the column is never written.
+// Legacy oddity pinned throughout: no `is_deleted` predicate anywhere, the
+// column is never written.
 import {
   afterAll,
   beforeAll,
@@ -243,9 +241,8 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
     "null environment is-null",
     { column: "environment", type: "null", operator: "is null", value: "" },
   ],
-  // Legacy oddity: `null` on the `tags` array (a trace attribute, so a
-  // semi-join) compares it with NULL: `is null` never matches, `is not null`
-  // always does.
+  // `null` on the `tags` array (a trace attribute, so a semi-join) tests
+  // emptiness, since ClickHouse arrays are never NULL.
   [
     "null tags is-null",
     { column: "tags", type: "null", operator: "is null", value: "" },
@@ -414,8 +411,6 @@ describeWithClickhouse("golden: executeQuery v2 scores", () => {
       ).toMatchSnapshot();
     });
 
-    // Legacy oddity: `stringValue` reads the unqualified `string_value`, unlike
-    // every other dimension; it resolves to the only scores table in FROM.
     it("build view=scores-categorical dim=stringValue", async () => {
       expect(
         await golden({
@@ -604,9 +599,9 @@ describeWithClickhouse("golden: executeQuery v2 scores", () => {
       ).toMatchSnapshot();
     });
 
-    // Legacy oddity: the inner select emits two `AS value` columns, the
-    // `value` dimension (`any(scores_numeric.value)`) and the `value` measure
-    // input (`any(value)`). ClickHouse accepts the duplicate; pinned as rendered.
+    // Legacy oddity: the inner select emits two `any(scores.value) AS value`
+    // columns, the `value` dimension and the `value` measure input.
+    // ClickHouse accepts the duplicate; pinned as rendered.
     it("build level=two dim=value measure=value", async () => {
       expect(
         await golden({
@@ -706,8 +701,7 @@ describeWithClickhouse("golden: executeQuery v2 scores", () => {
   });
 
   describe("aggregations", () => {
-    // Legacy oddity: the `value` measure reads the unqualified `value`, and
-    // single-level strips `@@AGG1@@` to `(value)` inside the aggregate.
+    // Single-level drops the `@@AGG1@@` slot: `<aggregation>(scores.value)`.
     it.each(metricAggregations.options)(
       "build level=single measure=value agg=%s",
       async (aggregation) => {

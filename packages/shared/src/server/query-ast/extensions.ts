@@ -403,9 +403,25 @@ export function ifNull<T>(
   return functionCall("ifNull", [value, fallback]);
 }
 
-/** ClickHouse `toBool(value)`. */
-export function toBool(value: Expression<SqlBool>): ChExpression<boolean> {
+/** ClickHouse `toBool(value)`: a condition, or a number (0 is false). */
+export function toBool(
+  value: Expression<SqlBool | number>,
+): ChExpression<boolean> {
   return functionCall("toBool", [value]);
+}
+
+/**
+ * ClickHouse `mapContains(map, key)`: the map has the key. A string key is
+ * bound; pass `literal(...)` for a code constant so it is inlined.
+ */
+export function mapContains<V>(
+  map: Expression<Record<string, V>>,
+  key: string | Expression<string>,
+): ChExpression<SqlBool> {
+  return functionCall("mapContains", [
+    map,
+    typeof key === "string" ? ValueNode.create(key) : key,
+  ]);
 }
 
 /** ClickHouse `isNull(value)`. */

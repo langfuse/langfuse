@@ -63,6 +63,7 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "like",
   "lower",
   "map",
+  "mapContains",
   "mapExists",
   "mapFilter",
   "mapFromArrays",
