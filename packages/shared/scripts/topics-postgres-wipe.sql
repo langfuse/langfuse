@@ -6,7 +6,8 @@
 -- Deletes:
 --   topic_clustering_runs                 all rows (Topics-only table)
 --   batch_actions                         only action_type = 'topics' (snapshots)
---   evaluation_rules + their assignments  only Topics rules: target 'trace_transcript' whose evaluators are all facets
+--   evaluation_rules + their assignments  only Topics rules: target 'trace_transcript' with no evaluator other than its project's facets
+--                                         (also rules left without evaluators; only Topics writes this target)
 --   evaluators + evaluator_versions       only type = 'FACET' (the evals product excludes facets)
 --   topic_configs                         all rows (Topics-only table)
 -- Keeps every other evaluator, rule, assignment, batch action, audit log and tracing_readiness_settings.
@@ -23,7 +24,6 @@ BEGIN;
 CREATE TEMP TABLE topics_rules ON COMMIT DROP AS
 SELECT r.id FROM evaluation_rules r
 WHERE r.target_object = 'trace_transcript'
-  AND EXISTS (SELECT 1 FROM evaluation_rule_evaluator_assignments a WHERE a.evaluation_rule_id = r.id)
   AND NOT EXISTS (
     SELECT 1 FROM evaluation_rule_evaluator_assignments a JOIN evaluators e ON e.id = a.evaluator_id
     WHERE a.evaluation_rule_id = r.id AND (e.type <> 'FACET' OR e.project_id <> r.project_id));
