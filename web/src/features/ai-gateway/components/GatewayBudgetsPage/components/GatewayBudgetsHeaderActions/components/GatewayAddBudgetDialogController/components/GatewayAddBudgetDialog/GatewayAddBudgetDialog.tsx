@@ -1,6 +1,6 @@
 import { type ComponentProps, useId } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
@@ -80,6 +80,9 @@ export function GatewayAddBudgetDialog({
   onSubmit,
 }: GatewayAddBudgetDialogProps) {
   const formId = useId();
+  const targetsId = useId();
+  const targetsDescriptionId = useId();
+  const targetsErrorId = useId();
   const form = useForm<GatewayAddBudgetFormValues>({
     resolver: zodResolver(gatewayAddBudgetFormSchema),
     defaultValues: {
@@ -119,34 +122,70 @@ export function GatewayAddBudgetDialog({
           actions={[]}
           onSubmit={form.handleSubmit(handleValidSubmit)}
         >
-          <Form.Field
+          <Controller
             control={form.control}
             name="targets"
-            label={labels.field}
-            description={labels.description}
-          >
-            {(field) => (
-              <AsyncMultiSelectTagInput
-                id={field.id}
-                value={field.value}
-                onValueChange={field.onChange}
-                options={targetPicker.options}
-                placeholder={labels.placeholder}
-                search={{
-                  placeholder: "Search…",
-                  value: targetPicker.search,
-                  onValueChange: targetPicker.onSearchChange,
-                }}
-                loading={
-                  targetPicker.isLoading ? { message: "Loading…" } : undefined
-                }
-                emptyMessage="No matches."
-                disabled={unavailableReason !== undefined}
-                error={!!field.error}
-                aria-invalid={!!field.error}
-              />
-            )}
-          </Form.Field>
+            render={({ field, fieldState }) => {
+              const targetError = fieldState.error?.message;
+              const describedBy = [
+                targetError ? targetsErrorId : undefined,
+                targetsDescriptionId,
+              ]
+                .filter(Boolean)
+                .join(" ");
+
+              return (
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label
+                      htmlFor={targetsId}
+                      className="text-sm leading-none font-bold"
+                    >
+                      {labels.field}
+                    </label>
+                    <p
+                      id={targetsDescriptionId}
+                      className="text-muted-foreground text-sm"
+                    >
+                      {labels.description}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <AsyncMultiSelectTagInput
+                      id={targetsId}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      options={targetPicker.options}
+                      placeholder={labels.placeholder}
+                      search={{
+                        placeholder: "Search…",
+                        value: targetPicker.search,
+                        onValueChange: targetPicker.onSearchChange,
+                      }}
+                      loading={
+                        targetPicker.isLoading
+                          ? { message: "Loading…" }
+                          : undefined
+                      }
+                      emptyMessage="No matches."
+                      disabled={unavailableReason !== undefined}
+                      error={!!fieldState.error}
+                      aria-describedby={describedBy}
+                      aria-invalid={!!fieldState.error}
+                    />
+                    {targetError ? (
+                      <p
+                        id={targetsErrorId}
+                        className="text-destructive text-sm"
+                      >
+                        {targetError}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            }}
+          />
           <GatewaySpendBudgetField.Inputs
             subject={GATEWAY_SPEND_TABS[targetType].subject}
             control={form.control}
