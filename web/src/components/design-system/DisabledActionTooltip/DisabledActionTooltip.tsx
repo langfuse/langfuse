@@ -1,20 +1,29 @@
 "use client";
 
+import { cva } from "class-variance-authority";
 import { type ReactElement } from "react";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
+const disabledActionTooltipVariants = cva("relative inline-flex", {
+  variants: {
+    width: {
+      fill: "w-full sm:w-auto",
+    },
+  },
+});
+
 // A disabled button is not a hover target. The trigger is this wrapper, and
 // the layer above the button receives the pointer so the button can stay as it is.
 export function DisabledActionTooltip({
   label,
-  fill = false,
+  shouldFill = false,
   children,
 }: {
   label: string;
   /** Match a dialog footer action that stretches on narrow screens. */
-  fill?: boolean;
+  shouldFill?: boolean;
   children: ReactElement;
 }) {
   return (
@@ -28,8 +37,9 @@ export function DisabledActionTooltip({
               typeof triggerProps.className === "string"
                 ? triggerProps.className
                 : undefined,
-              "relative inline-flex",
-              fill && "w-full sm:w-auto",
+              disabledActionTooltipVariants({
+                width: shouldFill ? "fill" : undefined,
+              }),
             )}
           >
             {children}

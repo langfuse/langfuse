@@ -30,6 +30,9 @@ const buttonVariants = cva(
         default: "h-8 px-3 py-1 text-sm",
         sm: "h-7 px-2 text-xs",
       },
+      width: {
+        full: "w-full",
+      },
     },
     compoundVariants: [
       { variant: "text", class: "h-auto px-0 py-0" },
@@ -48,7 +51,7 @@ const buttonVariants = cva(
 type ButtonProps = {
   text: string;
   /** Stretch to the width of the parent. Used by dialog footer actions. */
-  fill?: boolean;
+  shouldFill?: boolean;
   variant?:
     | "primary"
     | "secondary"
@@ -94,8 +97,8 @@ export function Button(props: ButtonProps) {
     buttonVariants({
       variant: props.variant,
       size: props.size,
+      width: props.shouldFill ? "full" : undefined,
     }),
-    props.fill && "w-full",
   );
   const iconColor = props.variant === "ghost" ? "default" : "inherit";
 

@@ -229,7 +229,9 @@ function DialogRoot({
                       }}
                       text={label}
                       {...buttonProps}
-                      fill={Boolean(buttonProps.disabled && disabledReason)}
+                      shouldFill={Boolean(
+                        buttonProps.disabled && disabledReason,
+                      )}
                       variant={
                         variant === undefined || variant === "default"
                           ? "primary"
@@ -242,7 +244,7 @@ function DialogRoot({
                     <DisabledActionTooltip
                       key={label}
                       label={disabledReason}
-                      fill
+                      shouldFill
                     >
                       {button}
                     </DisabledActionTooltip>
