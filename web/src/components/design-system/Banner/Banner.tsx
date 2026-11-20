@@ -28,8 +28,8 @@ const bannerVariants = cva(
   },
 );
 
-// One line tall, 1px low: centers the icon on the first line's lowercase letters.
-const iconVariants = cva("flex h-lh shrink-0 translate-y-px items-center", {
+// One line tall: centers the icon on the first line of the text.
+const iconVariants = cva("flex h-lh shrink-0 items-center", {
   variants: {
     variant: {
       neutral: "text-icon-foreground",
