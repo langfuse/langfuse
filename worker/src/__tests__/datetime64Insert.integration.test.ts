@@ -3,6 +3,7 @@ import {
   clickhouseClient,
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
+import { jsonWriteStrategyFactory } from "../services/ClickhouseWriter/writeStrategies";
 
 const TABLE_MS = "datetime64_insert_probe_ms";
 const TICKS_MS = Date.UTC(2024, 10, 6, 20, 37, 0, 123);
@@ -51,10 +52,11 @@ describe("DateTime64 JSONEachRow inserts", () => {
   });
 
   const insertAndRead = async (id: string, value: number | string) => {
-    await clickhouseClient().insert({
+    // The same insert the ClickHouse writer makes for JSON rows.
+    await jsonWriteStrategyFactory.create().write(clickhouseClient(), {
       table: TABLE_MS,
-      format: "JSONEachRow",
-      values: [{ id, t: value }],
+      records: [{ id, t: value }] as any,
+      clickhouse_settings: { log_comment: "datetime64-insert-test" },
     });
 
     const result = await clickhouseClient().query({

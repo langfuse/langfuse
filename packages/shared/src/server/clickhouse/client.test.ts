@@ -25,9 +25,6 @@ const mocks = vi.hoisted(() => ({
     CLICKHOUSE_UPDATE_PARALLEL_MODE: "auto",
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
     CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "auto",
-    LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING: "true" as
-      | "true"
-      | "false",
     LANGFUSE_LOG_LEVEL: "error",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
   },
@@ -62,19 +59,6 @@ describe("ClickHouseClientManager compatibility settings", () => {
     mocks.env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION = "auto";
     mocks.env.CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN = "auto";
     setClickHouseCompatibilityVersionForTests(null);
-  });
-
-  it("sends best-effort datetime parsing unless it is switched off", () => {
-    clickhouseClient();
-    mocks.env.LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING = "false";
-    clickhouseClient({ request_timeout: 1 });
-    mocks.env.LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING = "true";
-
-    const [enabled, disabled] = mocks.createClient.mock.calls.map(
-      ([config]) => config.clickhouse_settings,
-    );
-    expect(enabled.date_time_input_format).toBe("best_effort");
-    expect(disabled).not.toHaveProperty("date_time_input_format");
   });
 
   it("applies resolved compatibility settings globally", () => {

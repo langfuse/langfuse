@@ -206,6 +206,13 @@ const EnvSchema = z.object({
     .positive()
     .default(5),
   LANGFUSE_SECONDARY_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z.string().optional(),
+  // Sends `date_time_input_format = best_effort` with the ClickHouse writer's
+  // JSONEachRow inserts. ClickHouse before 26.5 defaults to `basic`, which
+  // rejects a datetime string that carries a zone such as `Z` or `+02:00` and
+  // fails the whole insert. Set to "false" to keep the server's own setting.
+  LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
