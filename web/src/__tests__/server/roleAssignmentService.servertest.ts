@@ -19,6 +19,7 @@ import {
 } from "@langfuse/shared/memberships";
 import {
   ApiKeyId,
+  GroupId,
   OrganizationId,
   ProjectId,
   SystemRoleId,
@@ -70,6 +71,27 @@ describe("role assignment integrity", () => {
       ).toBe(0);
     },
   );
+
+  it("rejects a group principal outside the assignment tenant", async () => {
+    const { orgId } = await createOrgProjectAndApiKey();
+    const tenant = await prisma.organization.create({ data: { name: v4() } });
+    const group = await prisma.group.create({
+      data: { orgId, displayName: v4() },
+    });
+
+    await expect(
+      assignRole(prisma, {
+        tenantId: OrganizationId(tenant.id),
+        ownerId: OrganizationId(tenant.id),
+        principalId: GroupId(group.id),
+        roleId: SystemRoleId("ADMIN"),
+        tags: [],
+      }),
+    ).rejects.toBeInstanceOf(InvalidRequestError);
+    expect(
+      await prisma.roleAssignment.count({ where: { groupId: group.id } }),
+    ).toBe(0);
+  });
 
   it("holds project tenancy stable until assignment commit during a transfer", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();

@@ -47,6 +47,7 @@ export async function assignRole(
       tx,
       ra.tenantId,
       ra.ownerId,
+      ra.principalId,
     );
     return await tx.roleAssignment.create({
       data: {
@@ -194,13 +195,25 @@ async function getImpliedRoles(
   ];
 }
 
-/** validateTenancy holds project ownership stable until the transaction ends. */
+/** validateTenancy rejects a group principal outside the tenant and holds project ownership stable until the transaction ends. */
 async function validateTenancy(
   tx: Prisma.TransactionClient,
   tenantId: TenantId,
   ownerId: OwnerId,
+  principalId?: PrincipalId,
 ) {
   const orgId = untag(tenantId);
+  if (principalId && hasGroupKind(principalId)) {
+    const group = await tx.group.findFirst({
+      where: { id: untag(principalId), orgId },
+      select: { id: true },
+    });
+    if (!group) {
+      throw new InvalidRequestError(
+        "Role assignment group must belong to its tenant",
+      );
+    }
+  }
   if (hasOrganizationKind(ownerId)) {
     if (ownerId !== tenantId) {
       throw new InvalidRequestError(
