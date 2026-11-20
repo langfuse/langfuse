@@ -70,8 +70,6 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
-  LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
-  LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
@@ -113,7 +111,6 @@ const EnvSchema = z.object({
     .positive()
     .default(24),
   BATCH_EXPORT_S3_PART_SIZE_MIB: z.coerce.number().min(5).max(100).default(10),
-  BATCH_ACTION_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
   LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z.coerce
     .number()
     .positive()
