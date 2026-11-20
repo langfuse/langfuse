@@ -1,5 +1,8 @@
--- Re-keys the Topics summaries and assignments and recreates topics (tags renamed to labels), all empty. The old tables are kept as *_old (not read or written) and dropped later.
-RENAME TABLE topic_facet_summaries TO topic_facet_summaries_old, topic_assignments TO topic_assignments_old, topics TO topics_old {CLICKHOUSE_CLUSTER_CLAUSE};
+-- Drops the Topics tables and recreates them empty: summaries and assignments re-keyed, topics with tags renamed to labels.
+-- Their rows came from older prompts and clustering and are not carried over. The limit is lifted so tables over 50 GB drop.
+DROP TABLE IF EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE} SYNC SETTINGS max_table_size_to_drop = 0;
+DROP TABLE IF EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE} SYNC SETTINGS max_table_size_to_drop = 0;
+DROP TABLE IF EXISTS topics {CLICKHOUSE_CLUSTER_CLAUSE} SYNC SETTINGS max_table_size_to_drop = 0;
 
 CREATE TABLE IF NOT EXISTS topics {CLICKHOUSE_CLUSTER_CLAUSE}
 (
