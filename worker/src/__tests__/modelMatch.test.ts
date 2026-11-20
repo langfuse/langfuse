@@ -18,6 +18,7 @@ let clearModelMatchLocalCache: SharedServerModule["clearModelMatchLocalCache"];
 let findModel: SharedServerModule["findModel"];
 let findModelInPostgres: SharedServerModule["findModelInPostgres"];
 let getRedisModelKey: SharedServerModule["getRedisModelKey"];
+let sharedPrisma: typeof prisma;
 let clearModelCacheForProject: SharedServerModule["clearModelCacheForProject"];
 let clearModelCacheForOrganization: SharedServerModule["clearModelCacheForOrganization"];
 
@@ -42,6 +43,9 @@ describe("modelMatch", () => {
       clearModelCacheForProject,
       clearModelCacheForOrganization,
     } = sharedServer);
+    // The module registry was reset, so the shared module has its own client.
+    ({ prisma: sharedPrisma } =
+      await import("../../../packages/shared/src/db"));
   });
 
   afterAll(() => {
@@ -58,6 +62,12 @@ describe("modelMatch", () => {
   beforeEach(() => {
     clearModelMatchLocalCache();
   });
+
+  const currentRedisKey = async (p: { projectId: string; model: string }) => {
+    const key = await getRedisModelKey(p);
+    if (!key) throw new Error("Model match cache needs Redis");
+    return key;
+  };
 
   describe("findModel", () => {
     it("should return model with prices from Redis if available", async () => {
@@ -132,7 +142,7 @@ describe("modelMatch", () => {
       expect(result.pricingTiers[0].prices[0].price.toString()).toEqual("0.03");
 
       // Verify the model with pricing tiers exists in Redis
-      const redisKey = getRedisModelKey({
+      const redisKey = await currentRedisKey({
         projectId,
         model: "gpt-4",
       });
@@ -188,7 +198,7 @@ describe("modelMatch", () => {
       expect(result2.pricingTiers).toEqual([]);
 
       // Verify the not-found token exists in Redis
-      const redisKey = getRedisModelKey({
+      const redisKey = await currentRedisKey({
         projectId,
         model: nonExistentModel,
       });
@@ -210,7 +220,7 @@ describe("modelMatch", () => {
 
       await findModel({ projectId, model: "gpt-4o" });
 
-      const redisKey = getRedisModelKey({ projectId, model: "gpt-4o" });
+      const redisKey = await currentRedisKey({ projectId, model: "gpt-4o" });
       await redis?.del(redisKey);
 
       const result = await findModel({ projectId, model: "gpt-4o" });
@@ -225,7 +235,7 @@ describe("modelMatch", () => {
 
       await findModel({ projectId, model: modelName });
 
-      const redisKey = getRedisModelKey({ projectId, model: modelName });
+      const redisKey = await currentRedisKey({ projectId, model: modelName });
       await redis?.del(redisKey);
 
       await prisma.model.create({
@@ -305,7 +315,7 @@ describe("modelMatch", () => {
       async ({ cachedProjectId, expectedScope }) => {
         const { projectId } = await createOrgProjectAndApiKey();
         const modelName = `legacy-${uuidv4()}`;
-        const redisKey = getRedisModelKey({ projectId, model: modelName });
+        const redisKey = await currentRedisKey({ projectId, model: modelName });
         await redis?.set(
           redisKey,
           JSON.stringify({
@@ -339,6 +349,42 @@ describe("modelMatch", () => {
     );
   });
 
+  describe("clearModelCacheForProject during a cache fill", () => {
+    it("does not serve a match read from Postgres before a concurrent clear", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const modelName = `racing-${uuidv4()}`;
+      const model = await prisma.model.create({
+        data: {
+          scope: "PROJECT",
+          projectId,
+          modelName,
+          matchPattern: modelName,
+          unit: "TOKENS",
+        },
+      });
+
+      // The fill reads the model, then the model is deleted and the project
+      // cleared before the fill writes its result to Redis.
+      const queryRaw = sharedPrisma.$queryRaw.bind(sharedPrisma);
+      vi.spyOn(sharedPrisma, "$queryRaw").mockImplementationOnce(
+        async (...args: Parameters<typeof sharedPrisma.$queryRaw>) => {
+          const rows = await queryRaw(...args);
+          await prisma.model.delete({ where: { id: model.id } });
+          await clearModelCacheForProject(projectId);
+          return rows;
+        },
+      );
+
+      const racingResult = await findModel({ projectId, model: modelName });
+      expect(racingResult.model?.id).toBe(model.id);
+
+      clearModelMatchLocalCache();
+      const result = await findModel({ projectId, model: modelName });
+
+      expect(result.model).toBeNull();
+    });
+  });
+
   describe("clearModelCacheForOrganization", () => {
     it("clears cached matches of every project in the organization only", async () => {
       const { projectId, orgId } = await createOrgProjectAndApiKey();
@@ -357,16 +403,16 @@ describe("modelMatch", () => {
       await clearModelCacheForOrganization(orgId);
 
       expect(
-        await redis?.get(getRedisModelKey({ projectId, model })),
+        await redis?.get(await currentRedisKey({ projectId, model })),
       ).toBeNull();
       expect(
         await redis?.get(
-          getRedisModelKey({ projectId: secondProjectId, model }),
+          await currentRedisKey({ projectId: secondProjectId, model }),
         ),
       ).toBeNull();
       expect(
         await redis?.get(
-          getRedisModelKey({ projectId: otherOrgProjectId, model }),
+          await currentRedisKey({ projectId: otherOrgProjectId, model }),
         ),
       ).toBe("LANGFUSE_MODEL_MATCH_NOT_FOUND");
     });
@@ -404,8 +450,11 @@ describe("modelMatch", () => {
       await findModel({ projectId, model: "gpt-3.5-turbo" });
 
       // Verify models are cached in Redis
-      const redisKey1 = getRedisModelKey({ projectId, model: "gpt-4" });
-      const redisKey2 = getRedisModelKey({ projectId, model: "gpt-3.5-turbo" });
+      const redisKey1 = await currentRedisKey({ projectId, model: "gpt-4" });
+      const redisKey2 = await currentRedisKey({
+        projectId,
+        model: "gpt-3.5-turbo",
+      });
 
       const cachedModel1 = await redis?.get(redisKey1);
       const cachedModel2 = await redis?.get(redisKey2);
@@ -417,8 +466,12 @@ describe("modelMatch", () => {
       await clearModelCacheForProject(projectId);
 
       // Verify models are no longer cached
-      const clearedModel1 = await redis?.get(redisKey1);
-      const clearedModel2 = await redis?.get(redisKey2);
+      const clearedModel1 = await redis?.get(
+        await currentRedisKey({ projectId, model: "gpt-4" }),
+      );
+      const clearedModel2 = await redis?.get(
+        await currentRedisKey({ projectId, model: "gpt-3.5-turbo" }),
+      );
 
       expect(clearedModel1).toBeNull();
       expect(clearedModel2).toBeNull();
@@ -432,7 +485,10 @@ describe("modelMatch", () => {
       await findModel({ projectId, model: nonExistentModel });
 
       // Verify the not-found token is cached
-      const redisKey = getRedisModelKey({ projectId, model: nonExistentModel });
+      const redisKey = await currentRedisKey({
+        projectId,
+        model: nonExistentModel,
+      });
       const cachedValue = await redis?.get(redisKey);
       expect(cachedValue).toBe("LANGFUSE_MODEL_MATCH_NOT_FOUND");
 
@@ -440,7 +496,9 @@ describe("modelMatch", () => {
       await clearModelCacheForProject(projectId);
 
       // Verify the not-found token is cleared
-      const clearedValue = await redis?.get(redisKey);
+      const clearedValue = await redis?.get(
+        await currentRedisKey({ projectId, model: nonExistentModel }),
+      );
       expect(clearedValue).toBeNull();
     });
   });
