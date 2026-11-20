@@ -1243,22 +1243,14 @@ const declaredTypeExamples = [
 const directedProviderExamples: ProviderReplaySeed[][] = [
   [
     {
-      scope: "genkit-tracer",
-      spanName: null,
-      events: [],
-      sources: [
-        { key: "genkit:output", value: "null" },
+      ...aiProviderSeed([
         { key: "gen_ai.tool.name", value: false },
-      ],
-      toolMetadata: { root: false, attributes: "none", name: "a" },
+        { key: "flue.operation.result", value: "" },
+      ]),
+      scope: "@flue/opentelemetry",
+      spanName: null,
     },
-    {
-      scope: "ai",
-      spanName: "",
-      events: [],
-      sources: [],
-      toolMetadata: { root: false, attributes: "none", name: "a" },
-    },
+    aiProviderSeed([]),
   ],
   declaredTypeExamples.flatMap(([key, alias]) =>
     [[alias], [[alias]], [alias, ""]].map((value) =>
