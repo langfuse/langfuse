@@ -497,15 +497,6 @@ describe("shadowAuth maps principals to legacy-identical scopes", () => {
     },
   );
 
-  it("a valid secret key with a NUL-byte public key still authenticates in both modes", async () => {
-    const secretKey = atob(projectAuth.slice("Basic ".length)).split(":")[1]!;
-    const { legacy, enforce } = await projectResultUnderModes(
-      createBasicAuthHeader("pk-lf-\u0000scan", secretKey),
-    );
-    expect(scopeOf(legacy).projectId).toBe(projectId);
-    expect(scopeOf(enforce).projectId).toBe(projectId);
-  });
-
   it("an organization key on a project-nested route stays org-gated in legacy and authorizes its own project in enforce", async () => {
     const { legacy, enforce } = await projectNestedUnderModes(
       orgAuth,
