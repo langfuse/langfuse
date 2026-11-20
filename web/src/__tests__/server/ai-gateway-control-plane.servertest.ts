@@ -3521,6 +3521,7 @@ describe("AI gateway control plane", () => {
         interval: "daily",
         limit_usd: 10,
         counting_started_at: limit.countingStartedAt.getTime(),
+        alert_thresholds: [100],
       },
     ]);
     expect(first.pricing).toEqual({
@@ -3638,11 +3639,13 @@ describe("AI gateway control plane", () => {
           {
             interval: "DAILY",
             limitUsd: 10,
+            thresholdPercent: 100,
             resetsAt: "2026-11-17T00:00:00.000Z",
           },
           {
             interval: "MONTHLY",
             limitUsd: 100,
+            thresholdPercent: 100,
             resetsAt: "2026-12-01T00:00:00.000Z",
           },
         ],
@@ -3740,6 +3743,131 @@ describe("AI gateway control plane", () => {
     });
     await report(keys[1], keys[1].id);
     expect(keyOwnerEmails()).toEqual(["Laptop", "CI"]);
+  });
+
+  it("persists alert thresholds, emails per enabled threshold once per window, and supports organization budget alerts", async () => {
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    const owner = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Warned key",
+      metadata: {},
+      spendLimit: {
+        interval: "MONTHLY",
+        limitUsd: 100,
+        alertThresholds: [100, 85],
+      },
+    });
+    await owner.caller.aiGateway.setOrganizationSpendLimit({
+      orgId: owner.org.id,
+      spendLimit: {
+        interval: "MONTHLY",
+        limitUsd: 500,
+        alertThresholds: [85, 95],
+      },
+    });
+
+    const keyLimit = await prisma.gatewaySpendLimit.findFirstOrThrow({
+      where: { apiKeyId: memberKey.id },
+    });
+    const orgLimit = await prisma.gatewaySpendLimit.findFirstOrThrow({
+      where: { organizationId: owner.org.id, scope: "ORGANIZATION" },
+    });
+    expect(keyLimit.alertThresholds).toEqual([85, 100]);
+    expect(orgLimit.alertThresholds).toEqual([85, 95]);
+
+    const alerts = new GatewaySpendLimitAlertService(prisma);
+    const windowStart = new Date("2026-11-01T00:00:00Z");
+    const report = (
+      entries: {
+        limit: { id: string; countingStartedAt: Date };
+        thresholdPercent: 85 | 95 | 100;
+      }[],
+    ) =>
+      alerts.reportReached({
+        fastHashedSecretKey: createShaHash(memberKey.secretKey, env.SALT),
+        limits: entries.map(({ limit, thresholdPercent }) => ({
+          limitId: limit.id,
+          countingStartedAt: limit.countingStartedAt,
+          windowStart,
+          thresholdPercent,
+        })),
+      });
+
+    // Unconfigured 95% on key and 100% on org are ignored; configured 85% on both send once.
+    await report([
+      { limit: keyLimit, thresholdPercent: 85 },
+      { limit: keyLimit, thresholdPercent: 95 },
+      { limit: orgLimit, thresholdPercent: 85 },
+      { limit: orgLimit, thresholdPercent: 100 },
+    ]);
+    await report([{ limit: keyLimit, thresholdPercent: 85 }]);
+
+    expect(queuedNotifications()).toEqual([
+      expect.objectContaining({
+        audience: "keyOwner",
+        scope: expect.objectContaining({ type: "API_KEY", name: "Warned key" }),
+        limits: [
+          expect.objectContaining({
+            interval: "MONTHLY",
+            limitUsd: 100,
+            thresholdPercent: 85,
+          }),
+        ],
+      }),
+      expect.objectContaining({
+        to: owner.user.email,
+        audience: "orgOwner",
+        scope: expect.objectContaining({ type: "API_KEY", name: "Warned key" }),
+        limits: [expect.objectContaining({ thresholdPercent: 85 })],
+      }),
+      expect.objectContaining({
+        to: owner.user.email,
+        audience: "orgOwner",
+        scope: { type: "ORGANIZATION" },
+        limits: [
+          expect.objectContaining({
+            interval: "MONTHLY",
+            limitUsd: 500,
+            thresholdPercent: 85,
+          }),
+        ],
+      }),
+    ]);
+
+    // Adding 95% without changing limitUsd preserves the already-sent 85% alert.
+    await member.aiGateway.updateApiKey({
+      orgId: owner.org.id,
+      id: memberKey.id,
+      name: "Warned key",
+      metadata: {},
+      allowedModels: null,
+      previousAllowedModels: null,
+      spendLimit: {
+        interval: "MONTHLY",
+        limitUsd: 100,
+        alertThresholds: [85, 95, 100],
+      },
+    });
+    const before = queuedNotifications().length;
+    await report([
+      { limit: keyLimit, thresholdPercent: 85 },
+      { limit: keyLimit, thresholdPercent: 95 },
+    ]);
+    const added = queuedNotifications().slice(before);
+    expect(added).toHaveLength(2);
+    expect(added[0]).toMatchObject({
+      limits: [expect.objectContaining({ thresholdPercent: 95 })],
+    });
   });
 
   it("routes unprefixed models by provider and rejects unknown models", async () => {

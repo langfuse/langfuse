@@ -46,10 +46,15 @@ import {
   requireGatewayInvoke,
 } from "./gatewayAccess";
 import {
+  DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+  GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
+import {
   GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
   GATEWAY_SPEND_BUDGET_MAX_USD,
 } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
 import { GatewaySpendLimitService } from "./spendLimits/gatewaySpendLimitService";
 import { GatewaySpendLimitRepository } from "./spendLimits/gatewaySpendLimitRepository";
 import { GatewayTeamService } from "./team/gatewayTeamService";
@@ -86,10 +91,20 @@ const allowedModelsSchema = z
   .nullable();
 const customModelSchema = z.string().trim().min(1).max(500);
 
+const gatewaySpendLimitAlertThresholdInput = z.union([
+  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[0]),
+  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[1]),
+  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[2]),
+]);
+
 /** A key's or user's single spend limit. */
 const gatewaySpendLimitInput = z.object({
   interval: z.enum(GatewaySpendLimitInterval),
   limitUsd: z.number().positive().max(GATEWAY_SPEND_BUDGET_MAX_USD),
+  alertThresholds: z
+    .array(gatewaySpendLimitAlertThresholdInput)
+    .default([...DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS])
+    .transform(normalizeGatewaySpendBudgetAlertThresholds),
 });
 const gatewaySpendLimitScopeInput = z.enum(["API_KEY", "USER"]);
 /** The keys or users a budget change applies to, at most one table page. */

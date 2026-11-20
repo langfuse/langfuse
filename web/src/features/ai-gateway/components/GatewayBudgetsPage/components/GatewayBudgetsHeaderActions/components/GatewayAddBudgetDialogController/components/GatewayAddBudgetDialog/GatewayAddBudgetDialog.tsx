@@ -12,6 +12,7 @@ import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
 import { GATEWAY_SPEND_BUDGET_MAX_SUBJECTS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { toGatewaySpendLimit } from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
 import { requiredGatewaySpendBudgetFormSchema } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
@@ -83,7 +84,11 @@ export function GatewayAddBudgetDialog({
     resolver: zodResolver(gatewayAddBudgetFormSchema),
     defaultValues: {
       targets: initialTargets,
-      spendBudget: { interval: "MONTHLY", limitUsd: "" },
+      spendBudget: {
+        interval: "MONTHLY",
+        limitUsd: "",
+        alertThresholds: [...DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS],
+      },
     },
     mode: "onChange",
   });

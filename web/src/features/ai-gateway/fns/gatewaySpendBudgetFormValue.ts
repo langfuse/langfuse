@@ -1,3 +1,5 @@
+import { DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
 import {
   emptyGatewaySpendBudget,
   type GatewaySpendBudgetFormValue,
@@ -8,10 +10,19 @@ import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewayS
 export function toGatewaySpendBudgetFormValue(
   spendLimit: GatewaySpendLimit | null,
 ): GatewaySpendBudgetFormValue {
-  if (!spendLimit) return emptyGatewaySpendBudget;
+  if (!spendLimit) {
+    return {
+      ...emptyGatewaySpendBudget,
+      alertThresholds: [...emptyGatewaySpendBudget.alertThresholds],
+    };
+  }
   return {
     interval: spendLimit.interval,
     limitUsd: String(spendLimit.limitUsd),
+    alertThresholds: normalizeGatewaySpendBudgetAlertThresholds(
+      spendLimit.alertThresholds ??
+        DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+    ),
   };
 }
 
@@ -19,5 +30,11 @@ export function toGatewaySpendBudgetFormValue(
 export function toGatewaySpendLimit(
   value: GatewaySpendBudgetFormValue,
 ): GatewaySpendLimit {
-  return { interval: value.interval, limitUsd: Number(value.limitUsd.trim()) };
+  return {
+    interval: value.interval,
+    limitUsd: Number(value.limitUsd.trim()),
+    alertThresholds: normalizeGatewaySpendBudgetAlertThresholds(
+      value.alertThresholds,
+    ),
+  };
 }

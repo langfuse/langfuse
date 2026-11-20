@@ -48,9 +48,10 @@ export async function handleGatewaySpendLimitNotification({
       audience,
       orgName,
       scope,
-      limits: limits.map(({ interval, limitUsd, resetsAt }) => ({
+      limits: limits.map(({ interval, limitUsd, thresholdPercent, resetsAt }) => ({
         interval: interval.toLowerCase(),
         limitUsd,
+        thresholdPercent,
         resetsAt: resetsAt
           ? `${new Date(resetsAt).toLocaleString("en-US", {
               dateStyle: "medium",
@@ -61,7 +62,7 @@ export async function handleGatewaySpendLimitNotification({
       })),
       receiverEmail: to,
       receiverName,
-      link: `${baseUrl}/organization/${orgId}/ai-gateway/${scope.type === "USER" ? "budgets" : "api-keys"}`,
+      link: `${baseUrl}/organization/${orgId}/ai-gateway/${scope.type === "API_KEY" ? "api-keys" : "budgets"}`,
       emailFromAddress: env.EMAIL_FROM_ADDRESS,
     }),
   );
@@ -69,7 +70,7 @@ export async function handleGatewaySpendLimitNotification({
   await createMailTransport(env.SMTP_CONNECTION_URL).sendMail({
     to,
     from: `Langfuse <${env.EMAIL_FROM_ADDRESS}>`,
-    subject: getGatewaySpendLimitEmailSubject(scope, orgName, limits.length),
+    subject: getGatewaySpendLimitEmailSubject(scope, orgName, limits),
     html,
   });
 }

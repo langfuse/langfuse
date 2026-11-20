@@ -23,6 +23,7 @@ import {
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {
@@ -271,6 +272,7 @@ type ResolvedSpendLimit = {
   scope: GatewaySpendLimitScope;
   interval: GatewaySpendLimitInterval;
   limitUsd: Prisma.Decimal;
+  alertThresholds: number[];
   countingStartedAt: Date;
 };
 
@@ -311,6 +313,9 @@ function toResolveSpendLimit(
     interval: limit.interval.toLowerCase() as Lowercase<typeof limit.interval>,
     limit_usd: limit.limitUsd.toNumber(),
     counting_started_at: limit.countingStartedAt.getTime(),
+    alert_thresholds: normalizeGatewaySpendBudgetAlertThresholds(
+      limit.alertThresholds,
+    ),
   };
 }
 

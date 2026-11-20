@@ -132,7 +132,7 @@ fn a_spent_user_limit_rejects_the_key_and_counts_across_the_users_keys() {
             limit,
             Window::current("org", limit, now),
             Some(counted),
-            false,
+            Vec::new(),
         )
     };
 
@@ -166,13 +166,75 @@ fn a_spent_organization_limit_rejects_every_key_of_the_organization() {
         &limit,
         Window::current("org", &limit, now),
         Some(10.0),
-        false,
+        Vec::new(),
     );
     assert!(usage.is_exceeded());
     assert_eq!(
         usage.rejection(now).message(),
         "This organization has spent $10.00 of its $10.00 total budget. An admin can raise or remove the budget."
     );
+}
+
+#[test]
+fn alert_thresholds_trigger_only_highest_unreported_threshold_and_respect_opt_out() {
+    let defaulted: SpendLimit = serde_json::from_value(json!({
+        "id": "defaulted", "scope": "api_key", "interval": "total", "limit_usd": 100,
+        "counting_started_at": 0,
+    }))
+    .unwrap();
+    assert_eq!(defaulted.alert_thresholds, vec![100]);
+
+    let limit: SpendLimit = serde_json::from_value(json!({
+        "id": "warn-limit", "scope": "api_key", "interval": "total", "limit_usd": 100,
+        "counting_started_at": 0, "alert_thresholds": [85, 95, 100],
+    }))
+    .unwrap();
+    let now = DateTime::<Utc>::from(SystemTime::now());
+    let make_counted = |alerted: &[u8]| {
+        let window = Window::current("org", &limit, now);
+        let thresholds = limit
+            .alert_thresholds
+            .iter()
+            .copied()
+            .map(|percent| AlertThreshold {
+                percent,
+                flag: window.counter.alerted_flag(limit.limit_usd, percent),
+                alerted: alerted.contains(&percent),
+            })
+            .collect();
+        LimitUsage::new(&limit, window, Some(0.0), thresholds).counted()
+    };
+
+    assert_eq!(make_counted(&[]).into_unreported_alert(84.99), None);
+    let warn_85 = make_counted(&[]).into_unreported_alert(85.0).unwrap();
+    assert_eq!(warn_85.threshold_percent, 85);
+    assert_eq!(
+        warn_85.alerted_flag,
+        "gateway-spend:{org}:warn-limit:0:0:alerted:100:85"
+    );
+
+    // Jumping across 85% and 95% in one request reports only 95%.
+    let warn_95 = make_counted(&[]).into_unreported_alert(96.0).unwrap();
+    assert_eq!(warn_95.threshold_percent, 95);
+    assert_eq!(make_counted(&[95]).into_unreported_alert(97.0), None);
+
+    // 100% keeps the legacy Redis flag suffix.
+    let exceeded = make_counted(&[85, 95]).into_unreported_alert(100.0).unwrap();
+    assert_eq!(exceeded.threshold_percent, 100);
+    assert_eq!(
+        exceeded.alerted_flag,
+        "gateway-spend:{org}:warn-limit:0:0:alerted:100"
+    );
+
+    // Empty thresholds suppress alerts even past 100%.
+    let silent = LimitUsage::new(
+        &limit,
+        Window::current("org", &limit, now),
+        Some(120.0),
+        Vec::new(),
+    );
+    assert!(silent.is_exceeded());
+    assert_eq!(silent.unreported_alert(), None);
 }
 
 #[test]

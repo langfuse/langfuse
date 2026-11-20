@@ -13,6 +13,7 @@ import {
   type GatewayApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 
+import { GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 
@@ -34,6 +35,11 @@ const resolveBodySchema = z
   );
 /** Bounds a report; a key has at most one limit per interval today. */
 const MAX_REPORTED_SPEND_LIMITS = 20;
+const spendLimitAlertThresholdSchema = z.union([
+  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[0]),
+  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[1]),
+  z.literal(GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS[2]),
+]);
 const spendLimitAlertBodySchema = z
   .object({
     limits: z
@@ -44,6 +50,8 @@ const spendLimitAlertBodySchema = z
             // Unix milliseconds, as resolve returned them.
             countingStartedAt: z.number().int().nonnegative(),
             windowStart: z.number().int().nonnegative(),
+            // Omitted for 100% by older gateways and for rolling-deploy compatibility.
+            thresholdPercent: spendLimitAlertThresholdSchema.default(100),
           })
           .strict(),
       )
@@ -51,8 +59,13 @@ const spendLimitAlertBodySchema = z
       .max(MAX_REPORTED_SPEND_LIMITS)
       .refine(
         (limits) =>
-          new Set(limits.map(({ limitId }) => limitId)).size === limits.length,
-        "Each limit may be reported once",
+          new Set(
+            limits.map(
+              ({ limitId, thresholdPercent }) =>
+                `${limitId}:${thresholdPercent}`,
+            ),
+          ).size === limits.length,
+        "Each limit threshold may be reported once",
       ),
   })
   .strict();

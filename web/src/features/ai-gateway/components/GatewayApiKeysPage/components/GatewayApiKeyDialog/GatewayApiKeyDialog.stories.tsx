@@ -89,7 +89,7 @@ export const WithAllSections = meta.story({
       customExpiry: "2099-01-01",
       metadata: [{ key: "team", value: "growth" }],
       modelPatterns: ["openai:*"],
-      spendBudget: { interval: "MONTHLY", limitUsd: "250" },
+      spendBudget: { interval: "MONTHLY", limitUsd: "250", alertThresholds: [85, 100] },
       sections: ["expiration", "spendBudget", "models", "metadata"],
     },
   },
@@ -113,7 +113,11 @@ const editArgs = {
     customExpiry: "2020-01-01",
     metadata: [{ key: "environment", value: "production" }],
     modelPatterns: ["openai:*", "-*mini*"],
-    spendBudget: { interval: "MONTHLY" as const, limitUsd: "250" },
+    spendBudget: {
+      interval: "MONTHLY" as const,
+      limitUsd: "250",
+      alertThresholds: [100 as const],
+    },
     sections: [
       "expiration" as const,
       "spendBudget" as const,

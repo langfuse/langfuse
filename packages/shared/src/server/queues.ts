@@ -346,12 +346,17 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
         name: z.string(),
         email: z.string(),
       }),
+      z.object({
+        type: z.literal("ORGANIZATION"),
+      }),
     ]),
     limits: z
       .array(
         z.object({
           interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
           limitUsd: z.number(),
+          /** Usage percentage threshold that fired; defaults to 100 for older jobs. */
+          thresholdPercent: z.number().int().min(1).max(100).default(100),
           /** ISO timestamp of the next window; absent for total limits. */
           resetsAt: z.string().optional(),
         }),

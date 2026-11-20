@@ -1,0 +1,5 @@
+ALTER TYPE "GatewaySpendLimitAlertType" ADD VALUE IF NOT EXISTS 'WARNING_85';
+ALTER TYPE "GatewaySpendLimitAlertType" ADD VALUE IF NOT EXISTS 'WARNING_95';
+
+ALTER TABLE "gateway_spend_limits"
+  ADD COLUMN IF NOT EXISTS "alert_thresholds" INTEGER[] NOT NULL DEFAULT ARRAY[100]::INTEGER[];

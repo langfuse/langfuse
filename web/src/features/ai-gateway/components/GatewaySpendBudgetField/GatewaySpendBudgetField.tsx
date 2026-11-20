@@ -8,26 +8,38 @@ import {
   type FieldValues,
 } from "react-hook-form";
 
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
 import {
+  GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+  type GatewaySpendBudgetAlertThreshold,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
+import {
   gatewaySpendBudgetIntervalOptions,
   type GatewaySpendBudgetInterval,
 } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
 import type { GatewaySpendBudgetFormValue } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import { PresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/PresetOption/PresetOption";
-
-type GatewaySpendBudgetFormValues = {
-  spendBudget: GatewaySpendBudgetFormValue;
-};
 
 const requestsBySubject = {
   key: "requests with this key",
   user: "requests with this user's keys",
   organization: "requests in this organization",
 } as const;
+
+const alertRecipientsBySubject = {
+  key: "the key owner and organization owners",
+  user: "the user and organization owners",
+  organization: "organization owners",
+} as const;
+
+type GatewaySpendBudgetFormValues = {
+  spendBudget: GatewaySpendBudgetFormValue;
+};
 
 type GatewaySpendBudgetFieldProps<T extends GatewaySpendBudgetFormValues> = {
   control: Control<T>;
@@ -64,9 +76,14 @@ export function GatewaySpendBudgetField<
               id={group.id}
               role="group"
               aria-label="Spend budget"
-              className="pt-1"
+              className="flex flex-col gap-4 pt-1"
             >
               <SpendBudgetControls budget={budget} />
+              <AlertThresholdField
+                control={budget.control}
+                subject={subject}
+                disabled={budget.disabled}
+              />
             </div>
           )}
         </FormField>
@@ -75,7 +92,7 @@ export function GatewaySpendBudgetField<
   );
 }
 
-/** The budget's amount and reset inputs without a group heading, for forms that are only about the budget. */
+/** The budget's amount, reset, and alert inputs without a group heading, for forms that are only about the budget. */
 function GatewaySpendBudgetInputs<T extends GatewaySpendBudgetFormValues>({
   control,
   subject,
@@ -84,9 +101,16 @@ function GatewaySpendBudgetInputs<T extends GatewaySpendBudgetFormValues>({
   const budget = useSpendBudget(control, subject, disabledReason);
 
   return (
-    <div className="space-y-2">
-      <SpendBudgetControls budget={budget} />
-      <p className="text-muted-foreground text-sm">{budget.description}</p>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <SpendBudgetControls budget={budget} />
+        <p className="text-muted-foreground text-sm">{budget.description}</p>
+      </div>
+      <AlertThresholdField
+        control={budget.control}
+        subject={subject}
+        disabled={budget.disabled}
+      />
     </div>
   );
 }
@@ -149,31 +173,6 @@ function GatewaySpendBudgetRow<T extends FieldValues>({
 
 GatewaySpendBudgetField.Row = GatewaySpendBudgetRow;
 
-type SpendBudget = ReturnType<typeof useSpendBudget>;
-
-function useSpendBudget<T extends GatewaySpendBudgetFormValues>(
-  formControl: Control<T>,
-  subject: keyof typeof requestsBySubject,
-  disabledReason: string | undefined,
-) {
-  // React Hook Form cannot narrow the paths of a generic form; every form here has `spendBudget`.
-  const control =
-    formControl as unknown as Control<GatewaySpendBudgetFormValues>;
-  const requests = capitalize(requestsBySubject[subject]);
-  const interval = useWatch({ control, name: "spendBudget.interval" });
-  const description =
-    disabledReason ??
-    (interval === "TOTAL"
-      ? `${requests} are rejected once the budget is reached.`
-      : `${requests} are rejected once the budget is reached, until it resets.`);
-
-  return {
-    control,
-    description,
-    disabled: disabledReason !== undefined,
-  };
-}
-
 function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
   const { control, disabled } = budget;
 
@@ -207,6 +206,115 @@ function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
         )}
       </Form.Field>
     </div>
+  );
+}
+
+function AlertThresholdField({
+  control,
+  subject,
+  disabled,
+}: {
+  control: Control<GatewaySpendBudgetFormValues>;
+  subject: keyof typeof alertRecipientsBySubject;
+  disabled: boolean;
+}) {
+  return (
+    <Controller
+      control={control}
+      name="spendBudget.alertThresholds"
+      render={({ field }) => (
+        <AlertThresholdCheckboxes
+          subject={subject}
+          selected={field.value}
+          disabled={disabled}
+          onChange={field.onChange}
+        />
+      )}
+    />
+  );
+}
+
+function AlertThresholdCheckboxes({
+  subject,
+  selected,
+  disabled,
+  onChange,
+}: {
+  subject: keyof typeof alertRecipientsBySubject;
+  selected: readonly GatewaySpendBudgetAlertThreshold[];
+  disabled: boolean;
+  onChange: (next: GatewaySpendBudgetAlertThreshold[]) => void;
+}) {
+  const labelText = `Email ${alertRecipientsBySubject[subject]} when usage reaches:`;
+
+  const handleToggle = (
+    threshold: GatewaySpendBudgetAlertThreshold,
+    checked: boolean,
+  ) => {
+    const next = checked
+      ? [...selected, threshold]
+      : selected.filter((current) => current !== threshold);
+    onChange(normalizeGatewaySpendBudgetAlertThresholds(next));
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-muted-foreground text-sm">{labelText}</span>
+      <div
+        role="group"
+        aria-label={labelText}
+        className="flex flex-wrap items-center gap-4"
+      >
+        {GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS.map((threshold) => (
+          <AlertThresholdCheckbox
+            key={threshold}
+            threshold={threshold}
+            checked={selected.includes(threshold)}
+            disabled={disabled}
+            onToggle={handleToggle}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AlertThresholdCheckbox({
+  threshold,
+  checked,
+  disabled,
+  onToggle,
+}: {
+  threshold: GatewaySpendBudgetAlertThreshold;
+  checked: boolean;
+  disabled: boolean;
+  onToggle: (
+    threshold: GatewaySpendBudgetAlertThreshold,
+    checked: boolean,
+  ) => void;
+}) {
+  const id = useId();
+  const handleCheckedChange = (next: boolean | "indeterminate") => {
+    onToggle(threshold, next === true);
+  };
+
+  return (
+    <label
+      htmlFor={id}
+      className={
+        disabled
+          ? "text-muted-foreground inline-flex cursor-not-allowed items-center gap-2 text-sm"
+          : "inline-flex cursor-pointer items-center gap-2 text-sm"
+      }
+    >
+      <Checkbox
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={handleCheckedChange}
+      />
+      <span>{threshold}%</span>
+    </label>
   );
 }
 
@@ -277,6 +385,31 @@ function IntervalPresets({
       ))}
     </div>
   );
+}
+
+type SpendBudget = ReturnType<typeof useSpendBudget>;
+
+function useSpendBudget<T extends GatewaySpendBudgetFormValues>(
+  formControl: Control<T>,
+  subject: keyof typeof requestsBySubject,
+  disabledReason: string | undefined,
+) {
+  // React Hook Form cannot narrow the paths of a generic form; every form here has `spendBudget`.
+  const control =
+    formControl as unknown as Control<GatewaySpendBudgetFormValues>;
+  const requests = capitalize(requestsBySubject[subject]);
+  const interval = useWatch({ control, name: "spendBudget.interval" });
+  const description =
+    disabledReason ??
+    (interval === "TOTAL"
+      ? `${requests} are rejected once the budget is reached.`
+      : `${requests} are rejected once the budget is reached, until it resets.`);
+
+  return {
+    control,
+    description,
+    disabled: disabledReason !== undefined,
+  };
 }
 
 function capitalize(text: string) {

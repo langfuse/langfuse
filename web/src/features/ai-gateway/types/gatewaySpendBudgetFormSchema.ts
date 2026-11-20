@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import {
+  DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+  type GatewaySpendBudgetAlertThreshold,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
 import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/getGatewaySpendBudgetLimitError";
 
@@ -7,6 +11,7 @@ import { getGatewaySpendBudgetLimitError } from "@/src/features/ai-gateway/fns/g
 export const gatewaySpendBudgetFormSchema = z.object({
   interval: z.custom<GatewaySpendBudgetInterval>(),
   limitUsd: z.string(),
+  alertThresholds: z.array(z.custom<GatewaySpendBudgetAlertThreshold>()),
 });
 
 /** The same, with the amount checked, for forms where the budget is required. */
@@ -33,7 +38,8 @@ export type GatewaySpendBudgetFormValue = z.infer<
 >;
 
 /** The spend budget of a key without one, and of a newly added section. */
-export const emptyGatewaySpendBudget = {
+export const emptyGatewaySpendBudget: GatewaySpendBudgetFormValue = {
   interval: "DAILY",
   limitUsd: "",
-} as const satisfies GatewaySpendBudgetFormValue;
+  alertThresholds: [...DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS],
+};

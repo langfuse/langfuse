@@ -3,6 +3,7 @@ import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
 import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/normalizeGatewaySpendBudgetAlertThresholds";
 import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider/registry";
 
 const GATEWAY_API_KEY_SELECT = {
@@ -33,7 +34,7 @@ const GATEWAY_API_KEY_LIST_SELECT = {
     select: {
       ...GATEWAY_API_KEY_SELECT.apiKey.select,
       gatewaySpendLimits: {
-        select: { interval: true, limitUsd: true },
+        select: { interval: true, limitUsd: true, alertThresholds: true },
         orderBy: { createdAt: "asc" },
         take: 2,
       },
@@ -118,6 +119,9 @@ export class GatewayApiKeyRepository {
           ? {
               interval: gatewaySpendLimits[0].interval,
               limitUsd: gatewaySpendLimits[0].limitUsd.toNumber(),
+              alertThresholds: normalizeGatewaySpendBudgetAlertThresholds(
+                gatewaySpendLimits[0].alertThresholds,
+              ),
             }
           : null,
         hasSeveralSpendLimits: gatewaySpendLimits.length > 1,
