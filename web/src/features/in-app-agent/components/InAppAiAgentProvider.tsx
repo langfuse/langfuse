@@ -92,6 +92,8 @@ const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
 const LAYOUT_MODE_STORAGE_KEY = "langfuse:in-app-ai-agent-layout-mode";
 const DOCK_LAYOUT_MODE_STORAGE_KEY = "langfuse:in-app-ai-agent-dock-side";
+const FULL_PAGE_QUERY_PARAM = "halo";
+const FULL_PAGE_QUERY_VALUE = "full";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   messages: EMPTY_MESSAGES,
@@ -324,6 +326,7 @@ function InAppAiAgentProviderInner({
   setOpen,
 }: InAppAiAgentProviderInnerProps) {
   const utils = api.useUtils();
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const session = useSession();
   const canUseAssistant = useCanUseInAppAgent();
@@ -349,20 +352,87 @@ function InAppAiAgentProviderInner({
       DOCK_LAYOUT_MODE_STORAGE_KEY,
       IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
     );
-  const layoutMode = parseInAppAgentLayoutMode(storedLayoutMode);
   const dockLayoutMode = isInAppAgentDockLayoutMode(storedDockLayoutMode)
     ? storedDockLayoutMode
     : IN_APP_AGENT_DEFAULT_LAYOUT_MODE;
+  // Full page is a view of one page, not a stored preference. It needs both
+  // a request made in this page session and the marker in the URL: a fresh
+  // load never restores it, and any navigation to a URL without the marker
+  // (nav item, link in an answer, browser Back) leaves it.
+  const [isFullPageRequested, setIsFullPageRequested] = useState(false);
+  const hasFullPageMarker =
+    router.query[FULL_PAGE_QUERY_PARAM] === FULL_PAGE_QUERY_VALUE;
+  const isFullPage = isFullPageRequested && hasFullPageMarker;
+  // Whether leaving full page should pop the history entry entering it pushed.
+  const didPushFullPageEntryRef = useRef(false);
+  const parsedStoredLayoutMode = parseInAppAgentLayoutMode(storedLayoutMode);
+  // The mode the window rests in when it is not full page.
+  const restingLayoutMode =
+    parsedStoredLayoutMode === "full" ? dockLayoutMode : parsedStoredLayoutMode;
+  const layoutMode: InAppAgentLayoutMode = isFullPage
+    ? "full"
+    : restingLayoutMode;
+  const leaveFullPage = useCallback(() => {
+    setIsFullPageRequested(false);
+
+    if (!isFullPage) {
+      return;
+    }
+
+    if (didPushFullPageEntryRef.current) {
+      didPushFullPageEntryRef.current = false;
+      router.back();
+      return;
+    }
+
+    const { [FULL_PAGE_QUERY_PARAM]: _marker, ...query } = router.query;
+    router
+      .replace({ pathname: router.pathname, query }, undefined, {
+        shallow: true,
+      })
+      .catch(() => undefined);
+  }, [isFullPage, router]);
   const setLayoutMode = useCallback(
     (nextLayoutMode: InAppAgentLayoutMode) => {
       // Expanded is a variant of the floating window only.
       setIsExpanded(false);
+
+      if (nextLayoutMode === "full") {
+        setIsFullPageRequested(true);
+
+        if (!hasFullPageMarker) {
+          didPushFullPageEntryRef.current = true;
+          router
+            .push(
+              {
+                pathname: router.pathname,
+                query: {
+                  ...router.query,
+                  [FULL_PAGE_QUERY_PARAM]: FULL_PAGE_QUERY_VALUE,
+                },
+              },
+              undefined,
+              { shallow: true },
+            )
+            .catch(() => undefined);
+        }
+
+        return;
+      }
+
       setStoredLayoutMode(nextLayoutMode);
       if (isInAppAgentDockLayoutMode(nextLayoutMode)) {
         setStoredDockLayoutMode(nextLayoutMode);
       }
+      leaveFullPage();
     },
-    [setStoredDockLayoutMode, setStoredLayoutMode],
+    [
+      hasFullPageMarker,
+      leaveFullPage,
+      router,
+      setStoredDockLayoutMode,
+      setStoredLayoutMode,
+    ],
   );
   // Key by conversation so another conversation cannot release its submit lock.
   const [submittingConversationId, setSubmittingConversationId] = useState<
@@ -1297,9 +1367,7 @@ function InAppAiAgentProviderInner({
         // Collapse the drawer when closing
         setIsExpanded(false);
         // Full page does not outlive the conversation view it was opened for.
-        if (layoutMode === "full") {
-          setLayoutMode(dockLayoutMode);
-        }
+        leaveFullPage();
 
         backgroundSessionRef.current?.detach();
         releaseSubmitLock(selectedConversationId);
@@ -1313,12 +1381,10 @@ function InAppAiAgentProviderInner({
     },
     [
       attachToConversation,
-      dockLayoutMode,
-      layoutMode,
+      leaveFullPage,
       open,
       releaseSubmitLock,
       selectedConversationId,
-      setLayoutMode,
       setOpen,
     ],
   );
@@ -1332,23 +1398,10 @@ function InAppAiAgentProviderInner({
         return false;
       }
 
-      // Full page belongs to Home's composer. Every other entry point opens
-      // beside the page it was triggered from.
-      if (source !== "home_composer" && layoutMode === "full") {
-        setLayoutMode(dockLayoutMode);
-      }
-
       setAgentOpen(true);
       return true;
     },
-    [
-      capture,
-      dockLayoutMode,
-      layoutMode,
-      organization,
-      setAgentOpen,
-      setLayoutMode,
-    ],
+    [capture, organization, setAgentOpen],
   );
 
   const isCancellingRun = Boolean(

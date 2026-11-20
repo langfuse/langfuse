@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-null-render */
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { ArrowLeft } from "@langfuse/icons";
 import { useRouter } from "next/router";
 
@@ -25,10 +25,6 @@ import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback
 import { cn } from "@/src/utils/tailwind";
 
 const PROJECT_HOME_PATHNAME = "/project/[projectId]";
-
-function stripQueryAndHash(url: string) {
-  return url.replace(/[?#].*$/, "");
-}
 
 /**
  * The layout mode the window currently renders inline with the page content,
@@ -77,28 +73,6 @@ export function InAppAgentWindowHost() {
     dockLayoutMode,
     setLayoutMode,
   } = useInAppAiAgent();
-  const currentPath = stripQueryAndHash(router.asPath);
-
-  // External system: the Next router's event emitter. Full page stands in for
-  // the page it was opened on, so navigating elsewhere docks the conversation
-  // beside the destination instead of covering it.
-  useEffect(() => {
-    if (layoutMode !== "full") {
-      return;
-    }
-
-    const handleRouteChangeStart = (url: string) => {
-      if (!stripQueryAndHash(url).endsWith(currentPath)) {
-        setLayoutMode(dockLayoutMode);
-      }
-    };
-
-    router.events.on("routeChangeStart", handleRouteChangeStart);
-
-    return () => {
-      router.events.off("routeChangeStart", handleRouteChangeStart);
-    };
-  }, [currentPath, dockLayoutMode, layoutMode, router.events, setLayoutMode]);
   const [deleteConversationWithLoading, isDeletingConversation] =
     useWatchedPromiseCallback(deleteConversation, [deleteConversation]);
   const panelRef = useRef<HTMLDivElement>(null);
