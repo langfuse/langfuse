@@ -29,7 +29,7 @@ export const RoleSelectItem = ({
   isProjectRole?: boolean;
   /** disabledReason makes the option unselectable and explains why. */
   disabledReason?: string;
-  /** showPermissionCount shows the permission count beside the view-permissions icon on hover. */
+  /** showPermissionCount moves the view-permissions button beside the label and adds the permission count. */
   showPermissionCount?: boolean;
   /** resourceKinds limits the permission count to the kinds that apply. */
   resourceKinds?: ResourceKind[];
@@ -47,9 +47,19 @@ export const RoleSelectItem = ({
       <div className="flex w-full items-start gap-2 text-left">
         <Icon size="base" __rawClassName="mt-1" />
         <div className="flex flex-col">
-          <span className="font-bold">
-            {label}
-            {keepDefaultNote ? " (keep default role)" : ""}
+          <span className="flex items-center gap-1">
+            <span className="font-bold">
+              {label}
+              {keepDefaultNote ? " (keep default role)" : ""}
+            </span>
+            {showPermissionCount && (
+              <ViewPermissionsButton
+                label={label}
+                countLabel={rolePermissionCountLabel(role, resourceKinds)}
+                onClick={() => onViewPermissions(role)}
+                className="h-5 gap-1 pr-1 pl-2 text-xs whitespace-nowrap tabular-nums"
+              />
+            )}
           </span>
           <span className="text-muted-foreground text-xs">{description}</span>
           {disabledReason !== undefined && (
@@ -58,39 +68,53 @@ export const RoleSelectItem = ({
             </span>
           )}
         </div>
-        <div
-          className={cn(
-            "relative ml-auto h-6 w-6 shrink-0 self-center",
-            showPermissionCount && "-mt-0.5 self-start",
-          )}
-        >
-          <Tooltip label="View permissions" hoverableContent={false} delay={0}>
-            {({ getTriggerProps }) => (
-              <button
-                type="button"
-                {...getTriggerProps()}
-                onPointerDown={(e) => e.stopPropagation()}
-                onPointerUp={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onViewPermissions(role);
-                }}
-                aria-label={`View ${label} permissions`}
-                className={cn(
-                  "text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto absolute top-0 right-0 flex h-6 w-6 items-center justify-center rounded-full opacity-0 group-hover:opacity-100 group-data-disabled:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100",
-                  showPermissionCount &&
-                    "w-auto gap-1 pr-1 pl-2 text-xs whitespace-nowrap tabular-nums",
-                )}
-              >
-                {showPermissionCount &&
-                  rolePermissionCountLabel(role, resourceKinds)}
-                <SquareArrowOutUpRight size="base" />
-              </button>
-            )}
-          </Tooltip>
-        </div>
+        {!showPermissionCount && (
+          <ViewPermissionsButton
+            label={label}
+            onClick={() => onViewPermissions(role)}
+            className="ml-auto h-6 w-6 justify-center self-center"
+          />
+        )}
       </div>
     </SelectItem>
   );
 };
+
+/** ViewPermissionsButton opens a role's permissions, shown while its option is hovered. */
+function ViewPermissionsButton({
+  label,
+  countLabel,
+  onClick,
+  className,
+}: {
+  label: string;
+  countLabel?: string;
+  onClick: () => void;
+  className: string;
+}) {
+  return (
+    <Tooltip label="View permissions" hoverableContent={false} delay={0}>
+      {({ getTriggerProps }) => (
+        <button
+          type="button"
+          {...getTriggerProps()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onClick();
+          }}
+          aria-label={`View ${label} permissions`}
+          className={cn(
+            "text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto flex shrink-0 items-center rounded-full opacity-0 group-hover:opacity-100 group-data-disabled:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100",
+            className,
+          )}
+        >
+          {countLabel}
+          <SquareArrowOutUpRight size="base" />
+        </button>
+      )}
+    </Tooltip>
+  );
+}
