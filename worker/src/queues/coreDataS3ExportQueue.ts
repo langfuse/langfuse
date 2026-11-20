@@ -635,6 +635,82 @@ export const uploadTableCoreDataJsonl = async <TRow>({
   logger.info(`[CORE DATA] Finished table ${tableName} (${rowCount} rows)`);
 };
 
+type MediaUsageDailyQueryRow = {
+  projectId: string;
+  contentType: string;
+  createdDate: string;
+  isUploaded: boolean;
+  uploadHttpStatus: number | null;
+  mediaCount: bigint | number;
+  totalContentLength: bigint | number;
+};
+
+/** Exports the BigInt aggregates as numbers, since JSON.stringify throws on BigInt. */
+export const mapMediaUsageDailyToCoreDataRow = (
+  row: MediaUsageDailyQueryRow,
+  snapshotAt: Date,
+) => ({
+  projectId: row.projectId,
+  contentType: row.contentType,
+  createdDate: row.createdDate,
+  isUploaded: row.isUploaded,
+  uploadHttpStatus: row.uploadHttpStatus,
+  mediaCount: Number(row.mediaCount),
+  totalContentLength: Number(row.totalContentLength),
+  snapshotAt,
+});
+
+// `created_at` is timestamp without time zone. The day is read from the stored
+// wall-clock value, so it is the UTC day only if the writer stored UTC. The raw
+// insert in mediaService omits created_at, so the column default applies and
+// uses the session TimeZone. The (project_id, created_at) index is not used:
+// this is one full scan of media.
+const queryMediaUsageDaily = () =>
+  prisma.$queryRaw<MediaUsageDailyQueryRow[]>`
+    SELECT
+      project_id AS "projectId",
+      content_type AS "contentType",
+      to_char(created_at, 'YYYY-MM-DD') AS "createdDate",
+      (uploaded_at IS NOT NULL) AS "isUploaded",
+      upload_http_status AS "uploadHttpStatus",
+      COUNT(*)::bigint AS "mediaCount",
+      SUM(content_length)::bigint AS "totalContentLength"
+    FROM media
+    GROUP BY
+      project_id,
+      content_type,
+      to_char(created_at, 'YYYY-MM-DD'),
+      (uploaded_at IS NOT NULL),
+      upload_http_status
+    ORDER BY
+      project_id ASC,
+      to_char(created_at, 'YYYY-MM-DD') ASC,
+      content_type ASC,
+      (uploaded_at IS NOT NULL) ASC,
+      upload_http_status ASC NULLS LAST
+  `;
+
+// Runs the aggregate once per export and pages over that result, so a media
+// row whose upload finishes mid-export cannot appear in two groups. The result
+// is one row per project, day, content type and upload state, which is small.
+export const createMediaUsageDailyFetchPage = () => {
+  let rows: Promise<MediaUsageDailyQueryRow[]> | undefined;
+
+  return async ({
+    lastRow,
+    take,
+  }: TablePageArgs<MediaUsageDailyQueryRow>): Promise<
+    MediaUsageDailyQueryRow[]
+  > => {
+    if (!rows) {
+      rows = queryMediaUsageDaily();
+    }
+    const allRows = await rows;
+    const start = lastRow ? allRows.indexOf(lastRow) + 1 : 0;
+    return allRows.slice(start, start + take);
+  };
+};
+
 // One entry per exported table. The tableName doubles as the S3 object base
 // name — keep names stable, downstream DWH consumers depend on them.
 export const coreDataTableExports: Array<
@@ -1859,6 +1935,16 @@ export const coreDataTableExports: Array<
           },
         }),
     }),
+  (args) => {
+    const snapshotAt = new Date();
+    return uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "mediaUsageDaily",
+      /** Counts and bytes only. Omits ids, hashes, bucket locations, errors, and media association tables. */
+      fetchPage: createMediaUsageDailyFetchPage(),
+      mapRow: (row) => mapMediaUsageDailyToCoreDataRow(row, snapshotAt),
+    });
+  },
 ];
 
 export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
