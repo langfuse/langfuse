@@ -460,12 +460,6 @@ const EnvSchema = z.object({
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
-  // Comma-separated list of project IDs to exclude from event propagation dual-write
-  LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS: z
-    .string()
-    .optional()
-    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
-
   LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS: z.coerce
     .number()
     .int()
