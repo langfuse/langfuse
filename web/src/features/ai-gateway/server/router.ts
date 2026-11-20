@@ -262,7 +262,8 @@ export const aiGatewayRouter = createTRPCRouter({
           connection.provider === "BEDROCK" ||
           connection.provider === "OPENROUTER" ||
           connection.provider === "VERCEL" ||
-          connection.provider === "AZURE"
+          connection.provider === "AZURE" ||
+          connection.provider === "FIREWORKS"
         ) {
           return ["OPENAI", "ANTHROPIC"] satisfies GatewayApiFamily[];
         }

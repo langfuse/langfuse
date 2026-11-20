@@ -61,12 +61,47 @@ describe("AI gateway provider registry", () => {
     ).toEqual(["OPENAI", "VERCEL"]);
   });
 
-  it("routes Embeddings to OpenAI, Azure, aggregators and Google AI Studio", () => {
+  it("routes Embeddings to OpenAI, Azure, aggregators, Google AI Studio and Fireworks", () => {
     expect(
       gatewayProviders.filter((provider) =>
         providerSupportsApiFormat(provider, "openai.embeddings"),
       ),
-    ).toEqual(["OPENAI", "OPENROUTER", "VERCEL", "AZURE", "GOOGLE_AI_STUDIO"]);
+    ).toEqual([
+      "OPENAI",
+      "OPENROUTER",
+      "VERCEL",
+      "AZURE",
+      "GOOGLE_AI_STUDIO",
+      "FIREWORKS",
+    ]);
+  });
+
+  it("checks a Fireworks key against the serverless models endpoint", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ models: [] }))
+      .mockResolvedValueOnce(new Response("", { status: 401 }));
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+    const service = new GatewayProviderService({} as PrismaClient);
+    const testCredential = () =>
+      service.testCredential({
+        organizationId: "org-1",
+        provider: "FIREWORKS",
+        credential: "fw-test-key",
+      });
+
+    await expect(testCredential()).resolves.toEqual({
+      modelListingDenied: false,
+    });
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+      "https://api.fireworks.ai/v1/accounts/fireworks/models?pageSize=1",
+    );
+    expect(
+      new Headers(fetcher.mock.calls[0]?.[1]?.headers).get("authorization"),
+    ).toBe("Bearer fw-test-key");
+    await expect(testCredential()).rejects.toThrow(
+      "Provider connection test failed",
+    );
   });
 
   it("rejects xAI keys that are disabled or blocked", () => {

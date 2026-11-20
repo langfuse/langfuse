@@ -1377,6 +1377,45 @@ mod tests {
     }
 
     #[test]
+    fn fireworks_responses_usage_normalizes_chat_counter_names_and_keeps_standard_ones() {
+        for (input, expected) in [
+            (
+                json!({
+                    "prompt_tokens": 20,
+                    "completion_tokens": 10,
+                    "total_tokens": 30,
+                    "prompt_tokens_details": {"cached_tokens": 4},
+                    "completion_tokens_details": {"reasoning_tokens": 6},
+                }),
+                json!({
+                    "input_tokens": 20,
+                    "output_tokens": 10,
+                    "total_tokens": 30,
+                    "input_tokens_details": {"cached_tokens": 4},
+                    "output_tokens_details": {"reasoning_tokens": 6},
+                }),
+            ),
+            (
+                json!({"input_tokens": 12, "output_tokens": 8, "total_tokens": 20}),
+                json!({"input_tokens": 12, "output_tokens": 8, "total_tokens": 20}),
+            ),
+        ] {
+            let mut facts = facts();
+            facts.api_format = ApiFormat::OpenAiResponses;
+            facts.metadata["provider"] = json!("fireworks");
+            facts.inference.usage_details = Some(input);
+            let attrs = attributes(&span(facts, &context()));
+            let usage: Value = serde_json::from_str(
+                attrs["langfuse.observation.usage_details"]
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(usage, expected);
+        }
+    }
+
+    #[test]
     fn provider_request_metadata_is_namespaced_and_keeps_native_types() {
         let mut facts = facts();
         facts.inference.request_metadata = serde_json::from_value(json!({

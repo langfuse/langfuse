@@ -20,6 +20,7 @@ const CREDENTIAL_SOURCES = {
   AZURE: "Resource name and API key",
   GOOGLE_AI_STUDIO: "API key from aistudio.google.com",
   VERTEX: "Service account key and location",
+  FIREWORKS: "API key from app.fireworks.ai",
 } satisfies Record<GatewayProvider, string>;
 
 export type GatewayNoProvidersEmptyStateProps = {

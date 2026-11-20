@@ -12,12 +12,13 @@ export type GatewayProvider =
   | "VERCEL"
   | "AZURE"
   | "GOOGLE_AI_STUDIO"
-  | "VERTEX";
+  | "VERTEX"
+  | "FIREWORKS";
 
 /**
- * The client-facing API a provider speaks; Bedrock, OpenRouter, Vercel and Azure
- * serve both, xAI and Google AI Studio serve OpenAI formats from their own
- * hosted API, and Vertex AI serves OpenAI Chat Completions.
+ * The client-facing API a provider speaks; Bedrock, OpenRouter, Vercel, Azure
+ * and Fireworks serve both, xAI and Google AI Studio serve OpenAI formats from
+ * their own hosted API, and Vertex AI serves OpenAI Chat Completions.
  */
 export type GatewayApiFamily = Exclude<
   GatewayProvider,
@@ -28,6 +29,7 @@ export type GatewayApiFamily = Exclude<
   | "AZURE"
   | "GOOGLE_AI_STUDIO"
   | "VERTEX"
+  | "FIREWORKS"
 >;
 
 /** Providers whose connections may set a custom base URL and extra headers. */

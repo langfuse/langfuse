@@ -28,7 +28,11 @@ export function getGatewayModelApiFormats(
   if (reportedFormats) {
     return reportedFormats.map((apiFormat) => apiFormatLabels[apiFormat]);
   }
-  if (provider === "OPENROUTER" || provider === "VERCEL") {
+  if (
+    provider === "OPENROUTER" ||
+    provider === "VERCEL" ||
+    provider === "FIREWORKS"
+  ) {
     return [
       apiFormatLabels["openai.responses"],
       apiFormatLabels["openai.chat-completions"],
