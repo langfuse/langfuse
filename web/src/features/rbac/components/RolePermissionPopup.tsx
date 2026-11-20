@@ -8,6 +8,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
@@ -68,9 +69,6 @@ export function RolePermissionPopup({
                   </BadgeShell>
                 </span>
               </DialogTitle>
-              {shown.note && (
-                <p className="text-muted-foreground text-xs">{shown.note}</p>
-              )}
             </DialogHeader>
             <DialogBody className={showEmptyStateComment ? undefined : "p-0"}>
               {showEmptyStateComment ? (
@@ -81,6 +79,11 @@ export function RolePermissionPopup({
                 <RolePermissionList role={role} resourceKinds={resourceKinds} />
               )}
             </DialogBody>
+            {shown.note && (
+              <DialogFooter className="px-4 py-3 sm:justify-start">
+                <p className="text-muted-foreground text-xs">* {shown.note}</p>
+              </DialogFooter>
+            )}
           </>
         )}
       </DialogContent>
