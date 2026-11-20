@@ -9,6 +9,7 @@ import {
   CreateObservationBatchEvaluationActionSchema,
 } from "@/src/features/batch-actions/validation";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE } from "@langfuse/shared/topics";
 import { describe, expect, it } from "vitest";
 
@@ -57,9 +58,9 @@ describe("topic filters in batch jobs", () => {
         tableName: BatchExportTableName.Traces,
         actionType: BatchActionType.Delete,
         session: {
-          user: { id: "user-a" },
+          ...createSession({ user: { id: "user-a" } }),
           orgId: "org-a",
-          orgRole: "OWNER",
+          projectId: "project-a",
         },
         query,
       }),

@@ -52,6 +52,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 /**
  * Audit log records are an enterprise feature, so they are only persisted when
@@ -104,7 +105,7 @@ describe("audit log license gate", () => {
       action: "update",
       resourceType: "job",
       resourceId: resourceIds[1],
-      session: { user: { id: userId }, orgId, projectId },
+      session: { ...createSession({ user: { id: userId } }), orgId, projectId },
     });
     await auditLog({
       action: "delete",
