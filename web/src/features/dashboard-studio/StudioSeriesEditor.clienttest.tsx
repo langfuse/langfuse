@@ -72,7 +72,7 @@ afterAll(() => {
 });
 
 describe("studio series sort scope", () => {
-  it("updates a generated metric label when its measure changes without renaming the formula reference", async () => {
+  it("preserves an authored metric label and its formula reference when its measure changes", async () => {
     const onChange = renderEditor({
       ...query,
       metrics: [
@@ -89,8 +89,23 @@ describe("studio series sort scope", () => {
             id: "count",
             measure: "totalCost",
             aggregation: "sum",
-            label: undefined,
+            label: "Count",
           }),
+        ],
+      }),
+    );
+  });
+  it("adds a different metric instead of duplicating an existing output alias", () => {
+    const onChange = renderEditor({
+      ...query,
+      metrics: [{ id: "count", measure: "count", aggregation: "count" }],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add metric" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        metrics: [
+          { id: "count", measure: "count", aggregation: "count" },
+          { id: "metric_1", measure: "latency", aggregation: "avg" },
         ],
       }),
     );

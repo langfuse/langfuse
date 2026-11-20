@@ -34,7 +34,7 @@ export function currentWidgetSaveConstraintReason(
         ),
     )
   )
-    return "The current editor did not retain the selected score origin, type or definition. Use the multi-query editor to save this question without changing its population.";
+    return "The classic editor could not retain the selected score origin, type or definition. Use the chart editor to keep this population.";
   return null;
 }
 
@@ -42,14 +42,14 @@ export function currentWidgetRepresentationReason(
   config: StudioWidgetConfig,
 ): string | null {
   if (config.queries.length !== 1)
-    return "The current editor supports one query per chart. This question needs independent queries; use the multi-query editor.";
+    return "The classic editor supports one query per chart. This chart uses several independent queries.";
   if (config.expressions.length)
-    return "Calculated metrics are not available in the current editor. Your formula draft is preserved in the other builders.";
+    return "The chart editor holds the formulas used by this chart.";
   const query = config.queries[0]!;
   if (query.hidden || config.display.hiddenSeriesIds?.length)
-    return "This chart has saved series visibility that the current editor cannot edit.";
+    return "This chart has saved series visibility that the classic editor cannot edit.";
   if (query.scoreTarget && query.scoreTarget !== "all")
-    return "The current editor cannot select this score attachment scope.";
+    return "This score attachment scope requires the chart editor.";
   if (
     query.metrics.some(
       (metric) =>
@@ -59,19 +59,19 @@ export function currentWidgetRepresentationReason(
     ) ||
     config.display.histogramEdges?.length
   )
-    return "This question uses an experimental metric option. Use the future builder to retain its meaning.";
+    return "This chart uses an experimental metric or histogram setting. The chart editor preserves its configuration.";
   const pivot = config.display.chartType === "PIVOT_TABLE";
   if (
     (!pivot && query.metrics.length > 1) ||
     query.dimensions.length > (pivot ? 2 : 1)
   )
-    return "The current editor only combines multiple metrics in a table. Use the multi-query editor for this chart.";
+    return "This combination of metrics and breakdowns requires the chart editor.";
   if (
     (config.display.timeSeries ??
       config.display.chartType.endsWith("TIME_SERIES")) !==
     config.display.chartType.endsWith("TIME_SERIES")
   )
-    return "This chart separates time grouping from its visualization. The current editor cannot express that choice.";
+    return "This chart has a time grouping independent of its visualization. The chart editor supports that choice.";
   return null;
 }
 

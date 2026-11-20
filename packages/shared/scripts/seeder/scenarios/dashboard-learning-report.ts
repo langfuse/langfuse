@@ -291,7 +291,7 @@ export function buildDashboardLearningReport({
   note(
     "dream_contract",
     "Read a proposed relationship before it runs",
-    "How many observations started in the report period whose latest numeric API quality score within 24 hours was below 0.6?\n\n1. On a chart above choose **Edit chart → Future builder → Plan a future query**.\n2. Under **Question**, choose **Filter observations by attached scores**. Enter `quality`, choose origin **API** and type **Numeric**, and set the threshold to `0.6`.\n3. Select **Latest score per observation** and **Scores recorded within 24 hours after each observation**. Read the resulting population, time basis and count in the plan.\n\nThe custom percentile and fixed-band charts execute through the prototype. The relationship form records a proposed execution contract. Its Run button stays disabled until the backend can implement that contract.",
+    "How many observations started in the report period whose latest numeric API quality score within 24 hours was below 0.6?\n\n1. On a chart above choose **Edit chart → Editor options (⋮) → Plan a future query**.\n2. Under **Question**, choose **Filter observations by attached scores**. Enter `quality`, choose origin **API** and type **Numeric**, and set the threshold to `0.6`.\n3. Select **Latest score per observation** and **Scores recorded within 24 hours after each observation**. Read the resulting population, time basis and count in the plan.\n\nThe custom percentile and fixed-band charts execute through the prototype. The relationship form records a proposed execution contract. Its Run button stays disabled until the backend can implement that contract.",
   );
 
   chapter(

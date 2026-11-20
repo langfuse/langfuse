@@ -1,25 +1,26 @@
-import { useState } from "react";
-import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { type ReactNode, useEffect, useState } from "react";
 import {
   StudioWidgetConfigSchema,
   type StudioQuery,
   type StudioWidgetConfig,
   type FilterState,
 } from "@langfuse/shared";
-import { PlayIcon, ChevronRightIcon } from "@langfuse/icons";
+import { CalendarDays } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/src/components/ui/resizable";
+import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
+import { cn } from "@/src/utils/tailwind";
+import { formatDateRange } from "@/src/utils/date-range-utils";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
-import { useIsMobile } from "@/src/hooks/use-mobile";
+import { useStudioQueryView } from "./useStudioQueryView";
+import { StudioCalculationPreview } from "./StudioCalculationPreview";
 import { StudioWidgetPreview } from "./StudioWidgetPreview";
 import { useStudioWidgetResult } from "./useStudioWidgetResult";
 import { StudioQueryWorkspace } from "./StudioQueryWorkspace";
+import {
+  applyStudioSeriesVisibility,
+  createStudioFormulaOperands,
+  studioAuthoringError,
+} from "./studioFormulaAuthoring";
 import { StudioWidgetAppearance } from "./StudioWidgetAppearance";
 import { createStudioQuery } from "./catalog";
 import {
@@ -29,6 +30,7 @@ import {
 import { resolveStudioQueryVersion, withStudioQueries } from "./studioConfig";
 import {
   getStudioRenderConfig,
+  canPreviewStudioFormulasLocally,
   getStudioApplyBlockReason,
   hasStudioQueryChanges,
 } from "./studioQueryConfig";
@@ -91,34 +93,53 @@ export function StudioWidgetEditor({
   onCancel,
   active = true,
   applyContext = "dashboard",
+  renderEditorOptions,
 }: StudioWidgetEditorProps) {
   const [config, setConfig] = useState(initialValue);
   const [preview, setPreview] = useState(initialValue);
-  const [error, setError] = useState<string | null>(null);
-  const [mobileArea, setMobileArea] = useState("queries");
+  const [expandedId, setExpandedId] = useState<string | null>(
+    () =>
+      initialValue.expressions.find((item) => !item.hidden)?.id ??
+      initialValue.queries.find((query) =>
+        initialValue.display.activeQueryIds?.includes(query.id),
+      )?.id ??
+      initialValue.queries.find((query) => !query.hidden)?.id ??
+      initialValue.queries[0]?.id ??
+      null,
+  );
+  const [mobileArea, setMobileArea] = useState<"series" | "preview">("series");
   const [invalidQueryIds, setInvalidQueryIds] = useState<string[]>([]);
   const invalidQueries = config.queries.filter((query) =>
     invalidQueryIds.includes(query.id),
   );
   const filterError = invalidQueries.length
-    ? `Complete or remove incomplete filters in ${invalidQueries.map((query) => `query ${query.id.toUpperCase()}`).join(", ")} before running or applying.`
+    ? `Complete or remove the unfinished filters in ${invalidQueries.map((query) => query.label || query.id).join(", ")} to update the preview.`
     : null;
-  const isMobile = useIsMobile();
   const previewPending = hasStudioQueryChanges(config, preview);
   const renderConfig = getStudioRenderConfig(preview, config);
-  const runtime = useStudioWidgetResult(preview, {
-    projectId,
-    readPath,
-    dateRange,
-    filterState,
+  const { displayed, picker, resetView } = useStudioQueryView(
+    renderConfig,
+    "editor",
+    setExpandedId,
+  );
+  const context = { projectId, readPath, dateRange, filterState };
+  const defaultResult = useStudioWidgetResult(preview, {
+    ...context,
     enabled: active,
   });
-  const previewApplyBlockReason = getStudioApplyBlockReason(
-    config,
-    preview,
-    runtime.result,
-  );
-  const prepared = prepareStudioChart(runtime.result.data, renderConfig);
+  const viewingAlternate = displayed !== renderConfig;
+  const alternateResult = useStudioWidgetResult(displayed, {
+    ...context,
+    enabled: active && viewingAlternate,
+  });
+  const runtime = viewingAlternate ? alternateResult : defaultResult;
+  // A temporary series selection can never validate a different saved default.
+  const previewApplyBlockReason =
+    getStudioApplyBlockReason(config, preview, defaultResult.result) ??
+    (viewingAlternate
+      ? getStudioApplyBlockReason(preview, preview, runtime.result)
+      : null);
+  const prepared = prepareStudioChart(runtime.result.data, displayed);
   const environmentOverrides = filterState.some(
     (filter) => filter.column === "environment",
   )
@@ -150,11 +171,35 @@ export function StudioWidgetEditor({
       ),
   );
   const scoreDefinitionReason = unselectedScore
-    ? `Choose a score definition in query ${unselectedScore.id.toUpperCase()} before running.`
+    ? `Choose a score definition in ${unselectedScore.label || unselectedScore.id} to preview this series.`
     : null;
-  const applyBlockReason = capabilityValidation.valid
-    ? (scoreDefinitionReason ?? previewApplyBlockReason)
-    : capabilityValidation.reason;
+  const schema = StudioWidgetConfigSchema.safeParse(config);
+  const formulaError = !currentCapabilities
+    ? config.expressions
+        .map((expression, index) =>
+          studioAuthoringError(
+            expression.formula,
+            createStudioFormulaOperands(
+              config.queries,
+              config.expressions.slice(0, index),
+              queryVersion === "v2",
+            ),
+          ),
+        )
+        .find(Boolean)
+    : null;
+  const message =
+    filterError ??
+    scoreDefinitionReason ??
+    (capabilityValidation.valid ? formulaError : capabilityValidation.reason) ??
+    (schema.success ? null : schema.error.issues[0]?.message);
+  const applyBlockReason = message ?? previewApplyBlockReason;
+  // Coalesce edits before committing a valid query shape to the request scheduler.
+  useEffect(() => {
+    if (!active || !previewPending || message) return;
+    const timer = window.setTimeout(() => setPreview(config), 350);
+    return () => window.clearTimeout(timer);
+  }, [active, config, message, previewPending]);
   const track = useDashboardStudioCapture(queryVersion === "v2");
   const newApplyLabel =
     applyContext === "report" ? "Add to report" : "Add to dashboard";
@@ -168,24 +213,25 @@ export function StudioWidgetEditor({
       0,
     ),
   };
-  const validate = () => {
-    if (filterError) {
-      setError(filterError);
-      return null;
-    }
-    const parsed = StudioWidgetConfigSchema.safeParse(config);
-    if (!parsed.success) {
-      setError(parsed.error.issues.map((issue) => issue.message).join(". "));
-      return null;
-    }
-    setError(null);
-    return parsed.data;
-  };
   const appearance = (
     <StudioWidgetAppearance
       config={config}
       experimental={!currentCapabilities}
       series={prepared.availableSeries}
+      onOpenChartType={() =>
+        track("view_changed", {
+          ...metadata,
+          scope: "display",
+          target: "chart_type",
+        })
+      }
+      onOpenSettings={() =>
+        track("view_changed", {
+          ...metadata,
+          scope: "widget",
+          target: "configuration_visualization",
+        })
+      }
       onChange={(next) => {
         setConfig(next);
         if (next.display !== config.display)
@@ -232,9 +278,25 @@ export function StudioWidgetEditor({
       }}
     />
   );
+  const updateCalculations = (
+    expressions: StudioWidgetConfig["expressions"],
+  ) => {
+    const next = { ...config, expressions };
+    setConfig(next);
+    if (
+      !filterError &&
+      !scoreDefinitionReason &&
+      defaultResult.result.data?.status === "complete" &&
+      canPreviewStudioFormulasLocally(next, preview, queryVersion)
+    ) {
+      setPreview(next);
+    }
+  };
   const queries = (
     <StudioQueryWorkspace
       config={config}
+      expandedId={expandedId}
+      onExpand={setExpandedId}
       executionMode={currentCapabilities ? "current" : "prototype"}
       projectId={projectId}
       isV4={queryVersion === "v2"}
@@ -249,6 +311,7 @@ export function StudioWidgetEditor({
         })
       }
       onDefaultQueryIdsChange={(activeQueryIds) => {
+        resetView();
         setConfig((current) => ({
           ...current,
           display: { ...current.display, activeQueryIds },
@@ -261,6 +324,26 @@ export function StudioWidgetEditor({
           selectedCount: activeQueryIds?.length ?? config.queries.length,
         });
       }}
+      onSeriesVisibilityChange={(visibility, interaction) => {
+        resetView();
+        setConfig((current) =>
+          applyStudioSeriesVisibility(current, visibility),
+        );
+        track("configuration_changed", {
+          ...metadata,
+          controlId: "formula",
+          scope: "display",
+          interaction,
+        });
+      }}
+      onFormulaCommit={() =>
+        track("configuration_changed", {
+          ...metadata,
+          controlId: "formula",
+          scope: "widget",
+          interaction: "apply",
+        })
+      }
       onQueryChange={(id, next) => {
         const previous = config.queries.find((query) => query.id === id)!;
         if (previous.view !== next.view)
@@ -306,6 +389,7 @@ export function StudioWidgetEditor({
       }}
       onQueryDuplicate={(query) => {
         const id = nextStudioId(config, "query");
+        setExpandedId(id);
         setConfig({
           ...config,
           queries: [
@@ -320,12 +404,11 @@ export function StudioWidgetEditor({
         });
       }}
       onQueryAdd={() => {
+        const id = nextStudioId(config, "query");
+        setExpandedId(id);
         setConfig({
           ...config,
-          queries: [
-            ...config.queries,
-            createStudioQuery(nextStudioId(config, "query")),
-          ],
+          queries: [...config.queries, createStudioQuery(id)],
         });
         track("series_added", {
           ...metadata,
@@ -337,13 +420,15 @@ export function StudioWidgetEditor({
         const previous = config.expressions.find(
           (item) => item.id === expression.id,
         );
-        setConfig({
-          ...config,
-          expressions: config.expressions.map((item) =>
+        updateCalculations(
+          config.expressions.map((item) =>
             item.id === expression.id ? expression : item,
           ),
-        });
-        if (previous?.unit !== expression.unit)
+        );
+        if (
+          previous?.unit !== expression.unit ||
+          Boolean(previous?.hidden) !== Boolean(expression.hidden)
+        )
           track("configuration_changed", {
             ...metadata,
             scope: "display",
@@ -351,10 +436,7 @@ export function StudioWidgetEditor({
           });
       }}
       onFormulaRemove={(id) => {
-        setConfig({
-          ...config,
-          expressions: config.expressions.filter((item) => item.id !== id),
-        });
+        updateCalculations(config.expressions.filter((item) => item.id !== id));
         track("series_removed", {
           ...metadata,
           controlId: "formula",
@@ -362,17 +444,16 @@ export function StudioWidgetEditor({
         });
       }}
       onFormulaAdd={() => {
-        setConfig({
-          ...config,
-          expressions: [
-            ...config.expressions,
-            {
-              id: nextStudioId(config, "formula"),
-              label: "Calculated metric",
-              formula: `${config.queries[0]?.id}.${config.queries[0]?.metrics[0]?.id}`,
-            },
-          ],
-        });
+        const id = nextStudioId(config, "formula");
+        setExpandedId(id);
+        updateCalculations([
+          ...config.expressions,
+          {
+            id,
+            label: "Computed series",
+            formula: `${config.queries[0]?.id}.${config.queries[0]?.metrics[0]?.id}`,
+          },
+        ]);
         track("series_added", {
           ...metadata,
           controlId: "formula",
@@ -381,173 +462,180 @@ export function StudioWidgetEditor({
       }}
     />
   );
-  const result = (
-    <div className="flex h-full min-h-0 min-w-0 flex-col">
-      {previewPending ? (
-        <p
-          role="status"
-          className="bg-yellow-50 px-4 py-2 text-xs text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-300"
-        >
-          Preview shows the last run. Run preview to include your query changes.
-        </p>
-      ) : null}
-      <StudioWidgetPreview
-        config={renderConfig}
-        runtime={runtime}
-        prepared={prepared}
-      />
-    </div>
+  const hasCalculation = displayed.expressions.some(
+    (expression) => !expression.hidden,
   );
+  const panelCount = prepared.unitPanels.length;
+  const failed = (result: typeof runtime.result) =>
+    result.isError ||
+    result.data?.status === "partial" ||
+    result.data?.status === "error";
+  const failedDefault = failed(defaultResult.result);
+  const failedAlternate = viewingAlternate && failed(runtime.result);
+  const updating =
+    !message &&
+    (previewPending ||
+      runtime.result.isPending ||
+      runtime.result.isFetching ||
+      defaultResult.result.isFetching);
   return (
     <section
       aria-label="Widget editor"
-      className="ph-no-capture bg-background flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+      className="ph-no-capture bg-background @container/editor flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
     >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
-        <div className="flex w-full min-w-0 items-center gap-2 md:w-auto md:flex-1">
-          <span
+      <header className="border-border/40 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-3 @min-[860px]/editor:px-6">
+        <div className="min-w-0 basis-full @min-[660px]/editor:flex-1">
+          <p
             title={dashboardName}
-            className="text-muted-foreground max-w-40 truncate text-xs"
+            className="text-muted-foreground mb-1 truncate text-xs"
           >
             {dashboardName}
-          </span>
-          <ChevronRightIcon color="tertiary" aria-hidden />
-          <h1
-            title={config.title || (isNew ? "New chart" : "Edit widget")}
-            className="min-w-0 truncate text-sm font-bold"
-          >
-            {config.title || (isNew ? "New chart" : "Edit widget")}
+          </p>
+          <h1 className="-ml-1 min-w-0 text-lg font-bold tracking-tight">
+            <InlineEditText
+              aria-label="Edit chart title"
+              value={config.title}
+              placeholder="Untitled chart"
+              required
+              onSave={(title) => setConfig({ ...config, title })}
+            />
           </h1>
-          {previewPending ? (
-            <Badge text="Preview out of date" color="warning" />
-          ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          {renderEditorOptions?.(config, setConfig)}
           <Button text="Cancel" variant="ghost" onClick={onCancel} />
           <Button
-            text="Run preview"
-            icon={PlayIcon}
-            variant="outline"
-            disabled={
-              Boolean(filterError || scoreDefinitionReason) ||
-              !capabilityValidation.valid
-            }
-            loading={runtime.result.isFetching}
-            onClick={() => {
-              const next = validate();
-              if (next) {
-                setPreview(next);
-                if (!hasStudioQueryChanges(next, preview))
-                  runtime.result.refetch();
-                track("configuration_changed", {
-                  ...metadata,
-                  scope: "widget",
-                });
-              }
-            }}
-          />
-          <Button
             text={isNew ? newApplyLabel : "Apply changes"}
-            disabled={Boolean(filterError || applyBlockReason)}
+            disabled={Boolean(applyBlockReason)}
             onClick={() => {
-              if (applyBlockReason) return;
-              const next = validate();
-              if (next) {
-                onApply(next);
-                track("widget_saved", metadata);
-              }
+              if (applyBlockReason || !schema.success) return;
+              onApply(schema.data);
+              track("widget_saved", metadata);
             }}
           />
         </div>
-        <p
-          role={applyBlockReason ? "status" : undefined}
-          className="text-muted-foreground w-full text-[11px]"
-        >
-          {applyBlockReason ??
-            (applyContext === "report"
-              ? "Apply changes saves this chart to the report."
-              : "Changes apply to the dashboard draft. Save the dashboard to publish them.")}
-        </p>
-      </div>
-      {filterError ? (
-        <p
-          role="status"
-          className="bg-destructive/5 text-destructive shrink-0 border-b px-4 py-2 text-xs"
-        >
-          {filterError}
-        </p>
-      ) : null}
-      {error ? (
+      </header>
+      {message ? (
         <p
           role="alert"
-          className="bg-destructive/5 text-destructive shrink-0 border-b px-4 py-2 text-sm"
+          className="bg-destructive/5 text-destructive border-b px-5 py-2 text-xs"
         >
-          {error}
+          {message}
         </p>
       ) : null}
-      <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_300px]">
-        <ResizablePanelGroup orientation="vertical" className="min-h-0 min-w-0">
-          <ResizablePanel
-            id="widget-preview"
-            defaultSize="50%"
-            minSize="200px"
-            className="min-h-0 min-w-0"
-          >
-            {result}
-          </ResizablePanel>
-          <ResizableHandle withHandle aria-label="Resize preview and queries" />
-          <ResizablePanel
-            id="widget-queries"
-            minSize="180px"
-            className="flex min-h-0 min-w-0 flex-col"
-          >
-            <Tabs
-              value={isMobile ? mobileArea : "queries"}
-              layout="fill"
-              onValueChange={(value) => {
-                if (value === mobileArea) return;
-                setMobileArea(value);
-                track("view_changed", {
-                  ...metadata,
-                  scope: "widget",
-                  target:
-                    value === "queries"
-                      ? "configuration_data"
-                      : "configuration_visualization",
-                });
-              }}
-            >
-              {isMobile ? (
-                <Tabs.List variant="underline" aria-label="Editor areas">
-                  <Tabs.Trigger value="queries" label="Queries" />
-                  <Tabs.Trigger value="appearance" label="Appearance" />
-                </Tabs.List>
-              ) : null}
-              <TabsPrimitive.Content
-                forceMount
-                value="queries"
-                className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
-              >
-                {queries}
-              </TabsPrimitive.Content>
-              <TabsPrimitive.Content
-                value="appearance"
-                className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
-              >
-                {isMobile ? appearance : null}
-              </TabsPrimitive.Content>
-            </Tabs>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-        <div className="hidden min-h-0 min-w-0 border-l md:block">
-          {isMobile ? null : appearance}
+      <div
+        className="flex shrink-0 gap-1 px-3 py-1.5 @min-[860px]/editor:hidden"
+        role="group"
+        aria-label="Editor panels"
+      >
+        {(["series", "preview"] as const).map((area) => (
+          <Button
+            key={area}
+            size="sm"
+            text={area === "series" ? "Series" : "Preview"}
+            variant={mobileArea === area ? "secondary" : "ghost"}
+            aria-pressed={mobileArea === area}
+            onClick={() => {
+              setMobileArea(area);
+              track("view_changed", {
+                ...metadata,
+                scope: "widget",
+                target: area === "series" ? "configuration_data" : "chart",
+              });
+            }}
+          />
+        ))}
+      </div>
+      <div className="grid min-h-0 flex-1 @min-[860px]/editor:grid-cols-[clamp(23rem,34%,28rem)_minmax(0,1fr)]">
+        <div
+          className={cn(
+            "min-h-0 min-w-0 flex-col @min-[860px]/editor:flex",
+            mobileArea === "series" ? "flex" : "hidden",
+          )}
+        >
+          {queries}
         </div>
+        <section
+          aria-label="Chart preview"
+          className={cn(
+            "bg-background min-h-0 min-w-0 flex-col overflow-y-auto px-4 pb-5 @min-[860px]/editor:flex @min-[860px]/editor:px-6",
+            mobileArea === "preview" ? "flex" : "hidden",
+          )}
+        >
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 py-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+              <h2 className="text-sm font-bold">
+                {message && previewPending ? "Last valid preview" : "Preview"}
+              </h2>
+              <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+                <CalendarDays size="sm" aria-hidden />
+                {formatDateRange(dateRange.from, dateRange.to)}
+              </span>
+              <span role="status" className="text-muted-foreground text-xs">
+                {updating ? "Updating…" : null}
+              </span>
+            </div>
+            {appearance}
+          </div>
+          {!message && !updating && (failedDefault || failedAlternate) ? (
+            <div
+              role="status"
+              className="text-muted-foreground mb-2 flex items-center gap-2 text-xs"
+            >
+              {previewApplyBlockReason}
+              <Button
+                text="Retry preview"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (failedDefault) defaultResult.result.refetch();
+                  if (failedAlternate) runtime.result.refetch();
+                }}
+              />
+            </div>
+          ) : null}
+          <div
+            style={
+              panelCount > 1
+                ? { minHeight: `${7 + panelCount * 13}rem` }
+                : undefined
+            }
+            className={cn(
+              "flex min-w-0 flex-col overflow-hidden",
+              hasCalculation
+                ? "h-[clamp(19rem,45dvh,34rem)] min-h-64 shrink-0"
+                : "min-h-72 flex-1",
+            )}
+          >
+            <StudioWidgetPreview
+              config={displayed}
+              runtime={runtime}
+              prepared={prepared}
+              queryView={picker}
+            />
+          </div>
+          {hasCalculation && runtime.result.data?.status === "complete" ? (
+            <div className="mt-3 shrink-0">
+              <StudioCalculationPreview
+                config={displayed}
+                result={runtime.result.data}
+                isV4={runtime.version === "v2"}
+                expressionId={expandedId ?? undefined}
+                onSelectExpression={setExpandedId}
+              />
+            </div>
+          ) : null}
+        </section>
       </div>
     </section>
   );
 }
 
 type StudioWidgetEditorProps = {
+  renderEditorOptions?: (
+    config: StudioWidgetConfig,
+    onChange: (next: StudioWidgetConfig) => void,
+  ) => ReactNode;
   active?: boolean;
   applyContext?: "dashboard" | "report";
   initialValue: StudioWidgetConfig;

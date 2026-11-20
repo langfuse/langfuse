@@ -14,31 +14,33 @@ export function CurrentWidgetExperience({
   initialValue,
   projectId,
   dateRange,
-  active,
   onApply,
   onCancel,
-  onOpenMultiQuery,
+  onBack,
   applyContext = "dashboard",
 }: {
   initialValue: StudioWidgetConfig;
   projectId: string;
   dateRange: { from: Date; to: Date };
-  active: boolean;
   onApply: (config: StudioWidgetConfig) => void;
   onCancel: () => void;
-  onOpenMultiQuery: () => void;
+  onBack: () => void;
   applyContext?: "dashboard" | "report";
 }) {
   const [error, setError] = useState<string | null>(null);
-  const reason = currentWidgetRepresentationReason(initialValue);
+  const reason =
+    currentWidgetRepresentationReason(initialValue) ??
+    (initialValue.executionMode === "prototype"
+      ? "This chart uses experimental queries. Turn them off in Editor options to use the classic editor."
+      : null);
   return (
     <section
-      aria-label="Current widget editor"
+      aria-label="Classic widget editor"
       className="ph-no-capture flex h-full min-h-0 flex-col"
     >
       <div className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
         <p className="text-muted-foreground text-xs">
-          The existing widget creator.{" "}
+          Classic editor.{" "}
           {applyContext === "report"
             ? "Save updates this report cell."
             : "Save applies this widget to the dashboard draft."}
@@ -53,10 +55,10 @@ export function CurrentWidgetExperience({
       {reason ? (
         <div className="flex flex-1 flex-col items-start justify-center gap-4 p-8">
           <h2 className="text-lg font-bold">
-            This question needs a different builder
+            Open this chart in the chart editor
           </h2>
           <p className="text-muted-foreground max-w-xl text-sm">{reason}</p>
-          <Button text="Open multi-query editor" onClick={onOpenMultiQuery} />
+          <Button text="Back to chart editor" onClick={onBack} />
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto p-4">
@@ -64,7 +66,6 @@ export function CurrentWidgetExperience({
             projectId={projectId}
             initialValues={toCurrentWidgetInitialValues(initialValue)}
             initialDateRange={dateRange}
-            previewEnabled={active}
             onSave={(payload) => {
               const constraintReason = currentWidgetSaveConstraintReason(
                 initialValue,

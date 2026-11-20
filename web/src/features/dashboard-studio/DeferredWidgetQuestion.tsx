@@ -5,12 +5,10 @@ import { SelectInput } from "@/src/components/design-system/SelectInput/SelectIn
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export function DeferredWidgetQuestion({
-  onTryLive,
-  onCancel,
+  onBack,
   dateRange,
 }: {
-  onTryLive: () => void;
-  onCancel: () => void;
+  onBack: () => void;
   dateRange: { from: Date; to: Date };
 }) {
   const [question, setQuestion] = useState<
@@ -65,7 +63,7 @@ export function DeferredWidgetQuestion({
           <h2 className="text-sm font-bold">Plan a deferred query</h2>
           <Badge color="warning" text="Backend work required" />
         </div>
-        <Button text="Cancel" variant="ghost" onClick={onCancel} />
+        <Button text="Back to chart editor" variant="ghost" onClick={onBack} />
       </div>
       <div className="mx-auto grid w-full max-w-6xl gap-8 p-6 lg:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-5">
@@ -323,11 +321,6 @@ export function DeferredWidgetQuestion({
           <Button
             text="Run unavailable — backend capability required"
             disabled
-          />
-          <Button
-            text="Try a live custom percentile"
-            variant="outline"
-            onClick={onTryLive}
           />
         </div>
       </div>

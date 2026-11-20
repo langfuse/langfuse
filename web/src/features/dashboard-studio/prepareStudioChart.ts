@@ -20,6 +20,7 @@ import {
 } from "@/src/features/widgets/chart-library/seriesColors";
 import { readableField } from "./catalog";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { prepareStudioUnitPanels, studioUnitKey } from "./studioUnitPanels";
 
 function histogramBinDescription(
   row: StudioRow,
@@ -86,18 +87,18 @@ function chartDimension(
 
 export function studioMetricFormatter(
   unit: string | undefined,
+  percentFractionDigits = 2,
 ): MetricFormatterFunction {
+  if (unit === "percent" || unit === "%") {
+    const percent = new Intl.NumberFormat("en", {
+      maximumFractionDigits: percentFractionDigits,
+    });
+    return (value) => ({ main: percent.format(value * 100), suffix: "%" });
+  }
   return (value, options) => {
     if (unit === "milliseconds" && Math.abs(value) >= 1000)
       return {
         main: `${value < 0 ? "-" : ""}${formatIntervalSeconds(Math.abs(value) / 1000)}`,
-      };
-    if (unit === "percent" || unit === "%")
-      return {
-        main: new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(
-          value * 100,
-        ),
-        suffix: "%",
       };
     return formatMetric(value, { ...options, unit: parseMetricUnit(unit) });
   };
@@ -361,7 +362,9 @@ export function prepareStudioChart(
       { label: series.label, ...palette.get(series.id)! },
     ]),
   );
-  const units = new Set(visibleSeries.map((series) => series.unit));
+  const units = new Set(
+    visibleSeries.map((series) => studioUnitKey(series.unit)),
+  );
   const hasIncompatibleUnits = units.size > 1;
   const unit = hasIncompatibleUnits
     ? undefined
@@ -533,8 +536,44 @@ export function prepareStudioChart(
         ],
       })),
   };
+  const chartRequirement:
+    | Extract<Visualization, { type: "empty" }>
+    | undefined = (() => {
+    if (
+      config.display.chartType === "NUMBER" &&
+      (visibleMetricRefs.size !== 1 || summaries.length !== 1)
+    )
+      return {
+        type: "empty",
+        message: "A big number needs one full-period metric",
+        description:
+          "Show one metric with a full-period summary and run preview, or choose a table. All executed values remain available in Data.",
+      };
+    if (
+      config.display.chartType === "HISTOGRAM" &&
+      visibleSeries.some((series) => series.aggregation !== "histogram")
+    )
+      return {
+        type: "empty",
+        message: "A histogram needs a distribution",
+        description:
+          "Choose the histogram aggregation for a metric and run preview, or choose a bar or line chart for these values. All executed values remain available in Data.",
+      };
+    return undefined;
+  })();
   return {
     data,
+    chartRequirement,
+    unitPanels: hasIncompatibleUnits
+      ? prepareStudioUnitPanels(
+          data,
+          visibleSeries,
+          colors,
+          config,
+          selectedRows,
+          (unit) => studioMetricFormatter(unit, 4),
+        )
+      : [],
     histogram,
     mobileHistogram,
     colors,

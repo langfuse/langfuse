@@ -184,7 +184,7 @@ WHERE project_id = {project: String}
 GROUP BY hour, model
 \`\`\`
 
-Changing the display from line to bars does not change membership. Changing the source, filter, metric, grouping or required result shape does. The editor marks those query changes until **Run preview** succeeds. Appearance changes reuse measured results when their shape remains compatible.
+Switching from lines to bars over the same dates reuses the returned series. A change to the source, filter, metric, grouping or required result shape automatically refreshes the preview. Apply the chart once the new results arrive.
 
 A database \`LIMIT\` after aggregation bounds returned rows. The database may still process every eligible row and group to choose them.`,
       },

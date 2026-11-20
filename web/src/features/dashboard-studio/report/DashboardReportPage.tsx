@@ -37,7 +37,7 @@ import { useDashboardStudioCapture } from "../analytics";
 import { createStudioWidget } from "../catalog";
 import {
   WidgetVisionEditor,
-  type WidgetVisionEditorMode,
+  readWidgetEditorMode,
 } from "../WidgetVisionEditor";
 import { ReportCells } from "./ReportCells";
 import { ReportMarkdown } from "./ReportMarkdown";
@@ -162,13 +162,6 @@ function ReportNotebook({
   );
   const selectedChart = stored?.type === "query" ? stored : newChart;
   const editing = canEdit ? selectedChart : undefined;
-  const defaultMode =
-    editing?.config.executionMode === "current" ? "multi-query" : "future";
-  const mode = router.query.editor;
-  const initialMode: WidgetVisionEditorMode =
-    mode === "current" || mode === "future" || mode === "multi-query"
-      ? mode
-      : defaultMode;
   const routeState = (
     changes: Record<string, string | undefined>,
     replace = false,
@@ -199,21 +192,17 @@ function ReportNotebook({
     });
     sectionHeading.current?.scrollIntoView({ block: "start" });
   };
-  const openChart = (
-    cell: ReportQuery,
-    mode: WidgetVisionEditorMode = cell.config.executionMode === "current"
-      ? "multi-query"
-      : "future",
-  ) => {
+  const openChart = (cell: ReportQuery) => {
     setFailure("");
     track("report_open_editor", {
       sectionIndex,
-      editorMode: mode,
+      editorMode:
+        cell.config.executionMode === "current" ? "multi-query" : "future",
       widgetKind: "query",
     });
-    routeState({ section: section.id, cell: cell.id, editor: mode });
+    routeState({ section: section.id, cell: cell.id, editor: undefined });
   };
-  const addChart = (mode: WidgetVisionEditorMode) => {
+  const addChart = () => {
     const config = createStudioWidget();
     config.executionMode = "current";
     config.title = "Observation count";
@@ -229,7 +218,7 @@ function ReportNotebook({
     };
     setNewChart(cell);
     track("chart_added", { scope: "dashboard" });
-    openChart(cell, mode);
+    openChart(cell);
   };
   const closeChart = () => {
     setNewChart(undefined);
@@ -353,7 +342,7 @@ function ReportNotebook({
             )}
             <ReportChartSession
               key={editing.id}
-              initialMode={initialMode}
+              initialMode={readWidgetEditorMode(router.query.editor)}
               cell={editing}
               isNew={!stored}
               dashboardName={dashboard.name}
@@ -444,17 +433,6 @@ function ReportNotebook({
                     </button>
                   ))}
                 </div>
-                {canEdit && (
-                  <div className="mt-5 hidden lg:block">
-                    <Button
-                      text="Compare editors"
-                      size="sm"
-                      variant="outline"
-                      disabled={navigationDisabled}
-                      onClick={() => addChart("current")}
-                    />
-                  </div>
-                )}
               </nav>
               <article aria-label={section.title} className="min-w-0 space-y-7">
                 <div className="space-y-3">
@@ -512,7 +490,7 @@ function ReportNotebook({
                       size="sm"
                       icon={PlusIcon}
                       variant="outline"
-                      onClick={() => addChart("multi-query")}
+                      onClick={addChart}
                     />
                     <Button
                       text="Add Markdown"
@@ -521,14 +499,6 @@ function ReportNotebook({
                       variant="outline"
                       onClick={addNote}
                     />
-                    <div className="lg:hidden">
-                      <Button
-                        text="Compare editors"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => addChart("current")}
-                      />
-                    </div>
                   </div>
                 )}
                 {sections[sectionIndex + 1] && !note && (

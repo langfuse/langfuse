@@ -573,9 +573,7 @@ export function normalizeCurrentStudioResults(
       durationMs: 0,
       queryCount: indexes.length,
       resultRows,
-      ...(failed.has(source.id)
-        ? { error: "Production query failed. Run preview to retry." }
-        : {}),
+      ...(failed.has(source.id) ? { error: "The query failed." } : {}),
     });
   }
   const compute = (destination: StudioRow[], summary: boolean) => {

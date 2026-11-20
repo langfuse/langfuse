@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { type FilterState, type StudioWidgetConfig } from "@langfuse/shared";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
+import { useStudioQueryView } from "./useStudioQueryView";
 import { prepareStudioChart } from "./prepareStudioChart";
 import { useStudioWidgetResult } from "./useStudioWidgetResult";
 import { StudioWidgetResultView } from "./StudioWidgetResultView";
@@ -25,41 +25,22 @@ export function StudioQueryWidget({
   actions,
   onHiddenSeriesChange,
 }: StudioQueryWidgetProps) {
-  const [selectedQuery, setSelectedQuery] = useState("configured");
-  const selection =
-    selectedQuery === "all" ||
-    config.queries.some((query) => query.id === selectedQuery)
-      ? selectedQuery
-      : "configured";
-  const effectiveConfig =
-    selection === "configured"
-      ? config
-      : {
-          ...config,
-          display: {
-            ...config.display,
-            activeQueryIds: selection === "all" ? undefined : [selection],
-          },
-        };
-  const runtime = useStudioWidgetResult(effectiveConfig, {
+  const { displayed, picker } = useStudioQueryView(config, "dashboard");
+  const runtime = useStudioWidgetResult(displayed, {
     projectId,
     readPath,
     dateRange,
     filterState,
   });
-  const prepared = prepareStudioChart(runtime.result.data, effectiveConfig);
+  const prepared = prepareStudioChart(runtime.result.data, displayed);
   return (
     <StudioWidgetResultView
-      config={effectiveConfig}
+      config={displayed}
       runtime={runtime}
       prepared={prepared}
       actions={actions}
       onHiddenSeriesChange={onHiddenSeriesChange}
-      queryView={{
-        value: selection,
-        onChange: setSelectedQuery,
-        configuredQueryIds: config.display.activeQueryIds,
-      }}
+      queryView={picker}
     />
   );
 }

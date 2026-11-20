@@ -219,7 +219,7 @@ export function buildDashboardResearchReport(
   note(
     "score_boundary",
     "When the question changes",
-    "“Which traces contain an observation with a poor score?” changes the unit from evaluations to distinct traces. It needs a defined score-to-observation relationship, deduplication, and an explicit choice of event time or score time. Try the proposed relationship in **Future builder**. A trace-name filter should say which records it can reach.",
+    "“Which traces contain an observation with a poor score?” changes the unit from evaluations to distinct traces. It needs a defined score-to-observation relationship, deduplication, and an explicit choice of event time or score time. Open **Editor options (⋮) → Plan a future query** to explore this relationship. A trace-name filter should say which records it can reach.",
   );
 
   chapter(
@@ -325,7 +325,7 @@ export function buildDashboardResearchReport(
   note(
     "authoring",
     "One place to build and explain",
-    "Inline charts, editable Markdown and section headings turn a dashboard into a working report. Open **Edit chart** to compare the current wizard, the multi-query editor, and the future builder on the same saved question. The Home recipes teach users what they can plot.\n\nFor the wizard replacement, keep the existing source, filter, metric and visualization abstractions. Validate everyday editing details such as legend selection, score pickers, empty results and the path from a chart back to its records with users.",
+    "Inline charts, editable Markdown and section headings turn a dashboard into a working report. Open **Edit chart** to explore the saved question. Under **Editor options (⋮)**, compare it with the classic editor or try experimental queries. The Home recipes teach users what they can plot.\n\nFor the wizard replacement, keep the existing source, filter, metric and visualization abstractions. Validate everyday editing details such as legend selection, score pickers, empty results and the path from a chart back to its records with users.",
   );
   note(
     "halo",

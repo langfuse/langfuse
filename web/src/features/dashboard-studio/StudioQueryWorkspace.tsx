@@ -3,16 +3,26 @@ import {
   type StudioQuery,
   type StudioWidgetConfig,
 } from "@langfuse/shared";
+import { useState } from "react";
 import { PlusIcon, BracesIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { StudioInlineSelect } from "./StudioInlineSelect";
 import { formatFilterPreview } from "@/src/components/table/table-view-presets/lib/viewPreview";
 import { readableField } from "./catalog";
 import { StudioSeriesEditor } from "./StudioSeriesEditor";
 import { StudioFormulaEditor } from "./StudioFormulaEditor";
+import {
+  createStudioFormulaOperands,
+  getStudioFormulaOnlyVisibility,
+  getStudioSeriesVisibility,
+  studioSeriesLetter,
+  type StudioSeriesVisibility,
+} from "./studioFormulaAuthoring";
 
 export function StudioQueryWorkspace({
   config,
+  expandedId,
+  onExpand,
   executionMode,
   projectId,
   isV4,
@@ -29,12 +39,16 @@ export function StudioQueryWorkspace({
   onFormulaChange,
   onFormulaRemove,
   onFormulaAdd,
+  onSeriesVisibilityChange,
+  onFormulaCommit,
 }: StudioQueryWorkspaceProps) {
   const queryLimit = executionMode === "current" ? 5 : 8;
-  const references = config.queries.flatMap((query) =>
-    query.metrics.map((metric) => `${query.id}.${metric.id}`),
-  );
+  const [isolated, setIsolated] = useState<{
+    id: string;
+    previous: StudioSeriesVisibility;
+  } | null>(null);
   const activeIds = config.display.activeQueryIds;
+  const visibleQueries = config.queries.filter((query) => !query.hidden);
   const defaultView = (() => {
     if (activeIds?.length === 1) return `query:${activeIds[0]}`;
     if (activeIds?.length) return "configured";
@@ -43,52 +57,21 @@ export function StudioQueryWorkspace({
   return (
     <section
       aria-label="Query workspace"
-      className="bg-muted/20 flex h-full min-h-0 min-w-0 flex-col"
+      className="bg-background flex h-full min-h-0 min-w-0 flex-col"
     >
-      <div className="bg-background flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2 border-y px-4 py-1">
+      <div className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-2 px-4 pt-2">
         <div className="flex min-w-0 items-center gap-3">
           <h2 className="shrink-0 text-sm font-bold">
-            Queries{" "}
+            Series{" "}
             <span className="text-muted-foreground ml-1 font-normal">
               {config.queries.length + config.expressions.length}
             </span>
           </h2>
-          {config.queries.length > 1 ? (
-            <label className="flex min-w-0 items-center gap-2 text-xs">
-              <span className="text-muted-foreground shrink-0">
-                Default view
-              </span>
-              <div className="w-40 min-w-0">
-                <SelectInput
-                  noCapture
-                  aria-label="Default view"
-                  placeholder="All queries"
-                  value={defaultView}
-                  options={[
-                    ...(defaultView === "configured"
-                      ? [{ value: "configured", label: "Selected queries" }]
-                      : []),
-                    { value: "all", label: "All queries" },
-                    ...config.queries.map((query) => ({
-                      value: `query:${query.id}`,
-                      label: query.label || query.id,
-                    })),
-                  ]}
-                  onValueChange={(value) => {
-                    if (value === defaultView) return;
-                    onDefaultQueryIdsChange(
-                      value === "all" ? undefined : [value.slice(6)],
-                    );
-                  }}
-                />
-              </div>
-            </label>
-          ) : null}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {config.queries.length < queryLimit ? (
             <Button
-              text="Add query"
+              text="Add series"
               icon={PlusIcon}
               variant="ghost"
               size="sm"
@@ -106,42 +89,73 @@ export function StudioQueryWorkspace({
           ) : null}
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-        <div
-          className="ph-no-capture text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
-          aria-label="Dashboard scope"
-        >
-          <span>
-            {dateRange.from.toLocaleDateString()} –{" "}
-            {dateRange.to.toLocaleDateString()}
-          </span>
-          {!filterState.length ? (
-            <span>No dashboard filters</span>
-          ) : (
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pt-2 pb-6">
+        {visibleQueries.length > 1 ? (
+          <label className="mb-2 flex min-w-0 items-center gap-2 px-1 text-xs">
+            <span className="text-muted-foreground shrink-0">Default view</span>
+            <div className="w-40 min-w-0">
+              <StudioInlineSelect
+                label="Default view"
+                placeholder="All series"
+                value={defaultView}
+                options={[
+                  ...(defaultView === "configured"
+                    ? [{ value: "configured", label: "Selected queries" }]
+                    : []),
+                  { value: "all", label: "All series" },
+                  ...config.queries
+                    .filter(
+                      (query) => !query.hidden || activeIds?.includes(query.id),
+                    )
+                    .map((query) => ({
+                      value: `query:${query.id}`,
+                      label: query.label || query.id,
+                    })),
+                ]}
+                onValueChange={(value) => {
+                  if (value === defaultView) return;
+                  onDefaultQueryIdsChange(
+                    value === "all" ? undefined : [value.slice(6)],
+                  );
+                }}
+              />
+            </div>
+          </label>
+        ) : null}
+        {filterState.length ? (
+          <div
+            className="ph-no-capture text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
+            aria-label="Dashboard scope"
+          >
             <span>Dashboard filters:</span>
-          )}
-          {filterState.map((filter, index) => (
-            <span
-              key={index}
-              className="bg-background text-foreground-secondary max-w-full rounded border px-2 py-0.5 break-words whitespace-pre-wrap"
-            >
-              {formatFilterPreview({
-                ...filter,
-                column: readableField(filter.column),
-              })}
-            </span>
-          ))}
-        </div>
+            {filterState.map((filter, index) => (
+              <span
+                key={index}
+                className="bg-background text-foreground-secondary max-w-full rounded border px-2 py-0.5 break-words whitespace-pre-wrap"
+              >
+                {formatFilterPreview({
+                  ...filter,
+                  column: readableField(filter.column),
+                })}
+              </span>
+            ))}
+          </div>
+        ) : null}
         {environmentOverrides.length ? (
           <p className="ph-no-capture text-muted-foreground text-xs">
             Query environment filters override the dashboard environment for{" "}
             {environmentOverrides.join(", ")}.
           </p>
         ) : null}
-        {config.queries.map((query) => (
+        {config.queries.map((query, index) => (
           <StudioSeriesEditor
             key={query.id}
             query={query}
+            letter={studioSeriesLetter(index)}
+            expanded={expandedId === query.id}
+            onExpandedChange={(expanded) =>
+              onExpand(expanded ? query.id : null)
+            }
             executionMode={executionMode}
             isV4={isV4}
             timeSeries={
@@ -171,11 +185,34 @@ export function StudioQueryWorkspace({
           <StudioFormulaEditor
             key={expression.id}
             expression={expression}
-            references={[
-              ...references,
-              ...config.expressions.slice(0, index).map((item) => item.id),
-            ]}
+            operands={createStudioFormulaOperands(
+              config.queries,
+              config.expressions.slice(0, index),
+              isV4,
+            )}
+            letter={studioSeriesLetter(config.queries.length + index)}
+            expanded={expandedId === expression.id}
+            onExpandedChange={(expanded) =>
+              onExpand(expanded ? expression.id : null)
+            }
             onChange={onFormulaChange}
+            onCommit={() => onFormulaCommit(expression.id)}
+            isolationActive={isolated?.id === expression.id}
+            onIsolationChange={() => {
+              if (isolated?.id === expression.id) {
+                onSeriesVisibilityChange(isolated.previous, "reset");
+                setIsolated(null);
+              } else {
+                setIsolated({
+                  id: expression.id,
+                  previous: getStudioSeriesVisibility(config),
+                });
+                onSeriesVisibilityChange(
+                  getStudioFormulaOnlyVisibility(config, expression.id),
+                  "isolate",
+                );
+              }
+            }}
             onRemove={() => onFormulaRemove(expression.id)}
           />
         ))}
@@ -185,6 +222,8 @@ export function StudioQueryWorkspace({
 }
 
 type StudioQueryWorkspaceProps = {
+  expandedId: string | null;
+  onExpand: (id: string | null) => void;
   executionMode: "current" | "prototype";
   config: StudioWidgetConfig;
   projectId: string;
@@ -204,4 +243,9 @@ type StudioQueryWorkspaceProps = {
   ) => void;
   onFormulaRemove: (id: string) => void;
   onFormulaAdd: () => void;
+  onSeriesVisibilityChange: (
+    visibility: StudioSeriesVisibility,
+    interaction: "isolate" | "reset",
+  ) => void;
+  onFormulaCommit: (id: string) => void;
 };

@@ -77,12 +77,15 @@ export type DashboardStudioEventProperties = {
   interaction?: "show" | "hide" | "isolate" | "reset" | "apply";
   target?:
     | "chart"
+    | "chart_type"
     | "table"
     | "summary"
     | "diagnostics"
     | "configuration_data"
     | "configuration_visualization"
     | "configuration_details"
+    | "calculation_formula"
+    | "calculation_point"
     | "template_library"
     | "legacy_library"
     | "metadata_comparison"

@@ -16,6 +16,7 @@ import {
 } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { PopoverController } from "@/src/components/ui/popover";
@@ -23,25 +24,7 @@ import { getStudioSource, readableField, studioSourceOptions } from "./catalog";
 import { StudioFilterEditor } from "./StudioFilterEditor";
 import { StudioScoreDefinitionPicker } from "./StudioScoreDefinitionPicker";
 import { StudioScoreFilters } from "./StudioScoreFilters";
-
-function labelAfterMetricChange(metric: StudioMetric) {
-  if (!metric.label) return undefined;
-  const generated = [
-    metricCaption(metric),
-    readableField(metric.measure),
-    "Count",
-    "Observation count",
-    "Observations",
-    "Average score",
-    "Pass rate (0–1)",
-    "Score records",
-  ];
-  return generated.some(
-    (label) => label.toLowerCase() === metric.label!.toLowerCase(),
-  )
-    ? undefined
-    : metric.label;
-}
+import { studioMetricCaption as metricCaption } from "./studioFormulaAuthoring";
 
 function MetricDetails({
   queryId,
@@ -78,7 +61,7 @@ function MetricDetails({
               const next = source.measures[value];
               onChange({
                 ...metric,
-                label: labelAfterMetricChange(metric),
+                label: metric.label,
                 measure: value,
                 summary: undefined,
                 percentile: undefined,
@@ -110,7 +93,7 @@ function MetricDetails({
               onValueChange={(aggregation) =>
                 onChange({
                   ...metric,
-                  label: labelAfterMetricChange(metric),
+                  label: metric.label,
                   aggregation,
                   percentile: undefined,
                   summary: undefined,
@@ -125,16 +108,19 @@ function MetricDetails({
               {queryId}.{metric.id}
             </code>
           </p>
-          <Input
-            aria-label="Metric label"
-            placeholder="Optional metric label"
-            value={metric.label ?? ""}
-            onChange={(event) =>
-              onChange({ ...metric, label: event.target.value })
-            }
-          />
         </div>
       </details>
+      <label className="flex min-w-0 flex-col gap-1 text-xs">
+        Metric name
+        <Input
+          aria-label="Metric label"
+          placeholder={metricCaption(metric)}
+          value={metric.label ?? ""}
+          onChange={(event) =>
+            onChange({ ...metric, label: event.target.value })
+          }
+        />
+      </label>
       {experimental && metric.aggregation.startsWith("p") ? (
         <label className="flex items-center gap-2 text-xs">
           Custom percentile
@@ -221,30 +207,6 @@ function MetricDetails({
   );
 }
 
-function metricCaption(metric: StudioMetric): string {
-  const field = readableField(metric.measure).toLowerCase();
-  if (
-    metric.measure === "count" &&
-    (metric.aggregation === "count" || metric.aggregation === "sum")
-  )
-    return "Count";
-  if (metric.aggregation.startsWith("p"))
-    return `p${metric.percentile ?? metric.aggregation.slice(1)} ${field}`;
-  if (metric.aggregation === "sum")
-    return field.startsWith("total ")
-      ? readableField(metric.measure)
-      : `Total ${field}`;
-  const prefix: Record<string, string> = {
-    avg: "Average",
-    min: "Minimum",
-    max: "Maximum",
-    uniq: "Distinct",
-    histogram: "Distribution of",
-    count: "Count",
-  };
-  return `${prefix[metric.aggregation] ?? readableField(metric.aggregation)} ${field}`;
-}
-
 function MetricEditor(
   props: Parameters<typeof MetricDetails>[0] & {
     onRemove: (() => void) | undefined;
@@ -284,6 +246,15 @@ function MetricEditor(
               <span className="truncate" title={caption}>
                 {caption}
               </span>
+              {props.metric.label &&
+              props.metric.label !== metricCaption(props.metric) ? (
+                <span
+                  className="text-muted-foreground max-w-32 truncate"
+                  title={metricCaption(props.metric)}
+                >
+                  {metricCaption(props.metric)}
+                </span>
+              ) : null}
               <ChevronDown size="sm" color="tertiary" />
             </button>
           </Trigger>
@@ -313,6 +284,9 @@ export function StudioSeriesEditor({
   filtersValid = true,
   onFilterValidityChange,
   executionMode = "prototype",
+  letter,
+  expanded,
+  onExpandedChange,
 }: {
   query: StudioQuery;
   isV4: boolean;
@@ -325,8 +299,16 @@ export function StudioSeriesEditor({
   filtersValid?: boolean;
   onFilterValidityChange?: (valid: boolean) => void;
   executionMode?: "current" | "prototype";
+  letter?: string;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [locallyCollapsed, setLocallyCollapsed] = useState(false);
+  const collapsed = expanded === undefined ? locallyCollapsed : !expanded;
+  const toggleExpanded = () =>
+    onExpandedChange
+      ? onExpandedChange(collapsed)
+      : setLocallyCollapsed(!collapsed);
   const bodyId = useId();
   const source = getStudioSource(query.view, isV4);
   const onChange = (next: StudioQuery) => {
@@ -362,92 +344,34 @@ export function StudioSeriesEditor({
   return (
     <section
       data-query-id={query.id}
-      className="ph-no-capture bg-background min-w-0 rounded-lg border"
+      className={`ph-no-capture group/series min-w-0 rounded-md ${collapsed ? "hover:bg-muted/50" : "bg-muted/40"}`}
     >
-      <div className="bg-muted/20 flex min-w-0 flex-wrap items-center gap-2 rounded-t-lg px-2 py-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-1 px-1.5 pt-2 pb-1">
         <IconButton
           label={`${collapsed ? "Expand" : "Collapse"} query ${query.id}`}
           icon={collapsed ? ChevronRight : ChevronDown}
           size="sm"
           aria-expanded={!collapsed}
           aria-controls={bodyId}
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleExpanded}
         />
         <span
-          className="text-muted-foreground max-w-24 shrink-0 truncate font-mono text-xs font-medium"
-          title={query.id}
+          className="bg-foreground/7 text-foreground-secondary flex size-6 shrink-0 items-center justify-center rounded font-mono text-xs font-bold"
+          title={`Series ${letter ?? query.id.toUpperCase()}`}
         >
-          {query.id.toUpperCase()}
+          {letter ?? query.id.toUpperCase()}
         </span>
         {!filtersValid ? (
           <span className="text-destructive text-xs" role="status">
             Incomplete filter
           </span>
         ) : null}
-        <div className="min-w-24 flex-1">
-          <Input
+        <div className="min-w-20 flex-1 text-sm font-medium">
+          <InlineEditText
             aria-label={`Query ${query.id} name`}
             value={query.label}
-            onChange={(event) =>
-              onChange({ ...query, label: event.target.value })
-            }
-            placeholder="Query name"
-          />
-        </div>
-        <div className="order-1 w-full min-w-0 sm:order-none sm:w-44 sm:shrink-0">
-          <SelectInput
-            aria-label={`Query ${query.id} source`}
-            placeholder="Choose data"
-            value={query.view}
-            options={[...studioSourceOptions]}
-            onValueChange={(view) => {
-              onFilterValidityChange?.(true);
-              const defaults: Record<string, { type: string; label: string }> =
-                {
-                  "scores-numeric": { type: "NUMERIC", label: "Average score" },
-                  "scores-boolean": {
-                    type: "BOOLEAN",
-                    label: "Pass rate (0–1)",
-                  },
-                  "scores-categorical": {
-                    type: "CATEGORICAL",
-                    label: "Score records",
-                  },
-                };
-              const scoreDefaults = defaults[view];
-              let metrics: StudioMetric[] = [
-                { id: "count", measure: "count", aggregation: "count" },
-              ];
-              const filters: StudioQuery["filters"] = [];
-              if (scoreDefaults) {
-                metrics = [
-                  {
-                    id: "score",
-                    measure: view === "scores-categorical" ? "count" : "value",
-                    aggregation:
-                      view === "scores-categorical" ? "count" : "avg",
-                    label: scoreDefaults.label,
-                  },
-                ];
-                filters.push({
-                  type: "string",
-                  column: "dataType",
-                  operator: "=",
-                  value: scoreDefaults.type,
-                });
-              }
-              onChange({
-                ...query,
-                view,
-                scoreTarget: scoreDefaults
-                  ? (query.scoreTarget ?? "all")
-                  : undefined,
-                dimensions: [],
-                metrics,
-                filters,
-                orderBy: undefined,
-              });
-            }}
+            onSave={(label) => onChange({ ...query, label })}
+            placeholder="Series name"
           />
         </div>
         <IconButton
@@ -461,27 +385,110 @@ export function StudioSeriesEditor({
           aria-pressed={query.hidden ?? false}
           onClick={() => onChange({ ...query, hidden: !query.hidden })}
         />
-        {onDuplicate ? (
-          <IconButton
-            label="Duplicate query"
-            icon={CopyPlusIcon}
-            size="sm"
-            onClick={onDuplicate}
-          />
-        ) : null}
-        {onRemove ? (
-          <IconButton
-            label="Remove query"
-            icon={TrashIcon}
-            size="sm"
-            onClick={onRemove}
-          />
-        ) : null}
+        <div className="flex gap-1 pointer-fine:opacity-0 pointer-fine:group-focus-within/series:opacity-100 pointer-fine:group-hover/series:opacity-100">
+          {onDuplicate ? (
+            <IconButton
+              label="Duplicate query"
+              icon={CopyPlusIcon}
+              size="sm"
+              onClick={onDuplicate}
+            />
+          ) : null}
+          {onRemove ? (
+            <IconButton
+              label="Remove query"
+              icon={TrashIcon}
+              size="sm"
+              onClick={onRemove}
+            />
+          ) : null}
+        </div>
       </div>
+      {collapsed ? (
+        <p className="text-muted-foreground pr-2 pb-2 pl-10 text-xs leading-relaxed break-words">
+          {
+            studioSourceOptions.find((option) => option.value === query.view)
+              ?.label
+          }{" "}
+          ·{" "}
+          {query.metrics
+            .map((metric) => metric.label || metricCaption(metric))
+            .join(", ")}
+          {query.dimensions.length
+            ? ` · By ${query.dimensions.map((dimension) => readableField(dimension.field)).join(", ")}`
+            : ""}
+          {query.filters.length
+            ? ` · ${query.filters.length} ${query.filters.length === 1 ? "filter" : "filters"}`
+            : ""}
+          {query.hidden ? " · Hidden in chart" : ""}
+        </p>
+      ) : null}
       <div
         id={bodyId}
-        className={`${collapsed ? "hidden" : "flex"} min-w-0 flex-col gap-2 border-t px-3 py-1.5`}
+        className={`${collapsed ? "hidden" : "flex"} min-w-0 flex-col gap-3 px-3.5 pt-2 pb-4`}
       >
+        <label className="flex min-w-0 flex-col gap-1 text-xs">
+          Data source
+          <div className="w-full min-w-0">
+            <SelectInput
+              aria-label={`Query ${query.id} source`}
+              placeholder="Choose data"
+              value={query.view}
+              options={[...studioSourceOptions]}
+              onValueChange={(view) => {
+                onFilterValidityChange?.(true);
+                const defaults: Record<
+                  string,
+                  { type: string; label: string }
+                > = {
+                  "scores-numeric": { type: "NUMERIC", label: "Average score" },
+                  "scores-boolean": {
+                    type: "BOOLEAN",
+                    label: "Pass rate (0–1)",
+                  },
+                  "scores-categorical": {
+                    type: "CATEGORICAL",
+                    label: "Score records",
+                  },
+                };
+                const scoreDefaults = defaults[view];
+                let metrics: StudioMetric[] = [
+                  { id: "count", measure: "count", aggregation: "count" },
+                ];
+                const filters: StudioQuery["filters"] = [];
+                if (scoreDefaults) {
+                  metrics = [
+                    {
+                      id: "score",
+                      measure:
+                        view === "scores-categorical" ? "count" : "value",
+                      aggregation:
+                        view === "scores-categorical" ? "count" : "avg",
+                      label: scoreDefaults.label,
+                    },
+                  ];
+                  filters.push({
+                    type: "string",
+                    column: "dataType",
+                    operator: "=",
+                    value: scoreDefaults.type,
+                  });
+                }
+                onChange({
+                  ...query,
+                  view,
+                  scoreTarget: scoreDefaults
+                    ? (query.scoreTarget ?? "all")
+                    : undefined,
+                  dimensions: [],
+                  metrics,
+                  filters,
+                  orderBy: undefined,
+                });
+              }}
+            />
+          </div>
+        </label>
         {query.view.startsWith("scores-") ? (
           <StudioScoreDefinitionPicker
             query={query}
@@ -535,14 +542,40 @@ export function StudioSeriesEditor({
                     )
                   )
                     index++;
+                  const measures = [
+                    "latency",
+                    "totalCost",
+                    "totalTokens",
+                    "count",
+                    ...Object.keys(source.measures),
+                  ];
+                  const nextMeasure = measures.find((field) => {
+                    const measure = source.measures[field];
+                    if (
+                      !measure ||
+                      (executionMode === "current" && field === "activeDays")
+                    )
+                      return false;
+                    const aggregation =
+                      measure.defaultAggregation ??
+                      (field === "count" ? "count" : "sum");
+                    return !query.metrics.some(
+                      (metric) =>
+                        metric.measure === field &&
+                        metric.aggregation === aggregation,
+                    );
+                  });
+                  if (!nextMeasure) return;
                   onChange({
                     ...query,
                     metrics: [
                       ...query.metrics,
                       {
                         id: `metric_${index}`,
-                        measure: "count",
-                        aggregation: "count",
+                        measure: nextMeasure,
+                        aggregation:
+                          source.measures[nextMeasure]?.defaultAggregation ??
+                          (nextMeasure === "count" ? "count" : "sum"),
                       },
                     ],
                   });
@@ -550,7 +583,7 @@ export function StudioSeriesEditor({
               />
             ) : null}
           </div>
-          <span className="text-muted-foreground text-xs">by</span>
+          <span className="text-muted-foreground w-full text-xs">Group by</span>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
             {query.dimensions.map((dimension, index) => (
               <div className="flex w-44 min-w-0 items-center gap-1" key={index}>

@@ -22,8 +22,8 @@ export function StudioFilterEditor({
   onValidityChange?: (valid: boolean) => void;
 }) {
   return (
-    <div className="ph-no-capture flex min-w-0 items-start gap-3">
-      <div className="text-muted-foreground flex w-16 shrink-0 items-center gap-1 pt-2 text-xs">
+    <div className="ph-no-capture flex min-w-0 flex-col gap-1.5">
+      <div className="text-muted-foreground flex items-center gap-1 text-xs">
         Filters
         {filters.some(
           (filter) =>
@@ -42,9 +42,9 @@ export function StudioFilterEditor({
           </Tooltip>
         ) : null}
       </div>
-      <div className="min-w-0 flex-1 overflow-x-auto">
+      <div className="min-w-0 pr-2 [&_[data-slot=selected-filter-values]]:flex-wrap [&_button:has([data-slot=selected-filter-values])]:h-auto [&_button:has([data-slot=selected-filter-values])]:min-h-8 [&_button:has([data-slot=selected-filter-values])]:py-1">
         <ConnectedMetricsFilterBuilder
-          compact={false}
+          compact
           version={isV4 ? "v2" : "v1"}
           view={view}
           projectId={projectId}

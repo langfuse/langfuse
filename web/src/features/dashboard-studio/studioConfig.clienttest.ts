@@ -1,6 +1,10 @@
 import { type StudioQuery, StudioWidgetConfigSchema } from "@langfuse/shared";
 import { createStudioWidget } from "./catalog";
-import { resolveStudioQueryVersion, withStudioQueries } from "./studioConfig";
+import {
+  getStudioEditorExecutionMode,
+  resolveStudioQueryVersion,
+  withStudioQueries,
+} from "./studioConfig";
 
 describe("studio configuration edits", () => {
   it("keeps view and headline references valid after query and metric removal", () => {
@@ -36,6 +40,35 @@ describe("studio configuration edits", () => {
 });
 
 describe("studio execution version", () => {
+  it("preserves saved execution modes and chooses a supported API for new charts", () => {
+    const config = createStudioWidget();
+    const newChart = {
+      isNew: true,
+      experimental: false,
+      version: "v2" as const,
+    };
+    expect(getStudioEditorExecutionMode(config, newChart)).toBe("current");
+    expect(
+      getStudioEditorExecutionMode(config, { ...newChart, isNew: false }),
+    ).toBe("prototype");
+    expect(
+      getStudioEditorExecutionMode(
+        { ...config, executionMode: "prototype" },
+        newChart,
+      ),
+    ).toBe("prototype");
+    expect(
+      getStudioEditorExecutionMode(
+        { ...config, executionMode: "current" },
+        { ...newChart, experimental: true },
+      ),
+    ).toBe("prototype");
+    config.queries[0]!.metrics = [
+      { id: "latency", measure: "latency", aggregation: "p50", percentile: 10 },
+    ];
+    expect(getStudioEditorExecutionMode(config, newChart)).toBe("prototype");
+  });
+
   it("keeps common shapes on v1 unless the viewer is using v2", () => {
     expect(resolveStudioQueryVersion(createStudioWidget(), "v1", [])).toBe(
       "v1",

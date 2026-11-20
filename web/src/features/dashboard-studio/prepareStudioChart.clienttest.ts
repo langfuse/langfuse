@@ -11,6 +11,296 @@ import { renderHook } from "@testing-library/react";
 import { usePreparedWidgetChart } from "@/src/features/widgets/components/usePreparedWidgetChart";
 
 describe("studio chart preparation", () => {
+  it("requires one logical metric for a big number even when only one of two metrics returned a summary", () => {
+    const config = createStudioWidget();
+    config.display = { chartType: "NUMBER", showHeadline: true };
+    config.queries[0]!.metrics = [
+      { id: "cost", measure: "totalCost", aggregation: "sum" },
+      { id: "input", measure: "inputCost", aggregation: "sum" },
+    ];
+    const rows = config.queries[0]!.metrics.map((metric) => ({
+      seriesId: `a.${metric.id}`,
+      queryId: "a",
+      metricId: metric.id,
+      label: metric.id,
+      dimensions: {},
+      dimension: null,
+      time: null,
+      value: 4,
+    }));
+    const result: StudioResult = {
+      status: "complete",
+      rows,
+      summaries: [rows[0]!],
+      diagnostics: [],
+      warnings: [],
+      series: rows.map((row) => ({
+        id: row.seriesId,
+        queryId: row.queryId,
+        metricId: row.metricId,
+        label: row.label,
+        dimensions: {},
+        unit: "USD",
+        aggregation: "sum",
+      })),
+    };
+    expect(prepareStudioChart(result, config).chartRequirement?.type).toBe(
+      "empty",
+    );
+    config.display.hiddenSeriesIds = ["a.input"];
+    expect(prepareStudioChart(result, config).chartRequirement).toBeUndefined();
+  });
+  it.each(["VERTICAL_BAR", "HORIZONTAL_BAR"] as const)(
+    "keeps an added ratio plotted in a separate %s panel with exact nulls and colors",
+    (chartType) => {
+      const config = createStudioWidget();
+      config.display.chartType = chartType;
+      config.queries = ["Support", "Search", "Coding", "Unknown", "Other"].map(
+        (label, index) => ({
+          ...config.queries[0]!,
+          id: String.fromCharCode(97 + index),
+          label,
+          metrics: [{ id: "cost", measure: "totalCost", aggregation: "sum" }],
+        }),
+      );
+      config.expressions = [
+        { id: "ratio", label: "Ratio", formula: "a.cost / (a.cost * 2)" },
+      ];
+      const series = [
+        ...config.queries.map((query) => ({
+          id: `${query.id}.cost`,
+          queryId: query.id,
+          metricId: "cost",
+          label: query.label,
+          dimensions: {},
+          unit: "USD",
+          aggregation: "sum",
+        })),
+        {
+          id: "ratio",
+          queryId: "ratio",
+          metricId: "ratio",
+          label: "Ratio",
+          dimensions: {},
+          unit: "ratio",
+          aggregation: "expression",
+        },
+      ];
+      const amounts = [100, 1296, 800, null, 800, 0.5];
+      const rows = series.map((series, index) => ({
+        seriesId: series.id,
+        queryId: series.queryId,
+        metricId: series.metricId,
+        label: series.label,
+        dimensions: {},
+        dimension: null,
+        time: null,
+        value: amounts[index]!,
+      }));
+      const result: StudioResult = {
+        status: "complete",
+        series,
+        rows,
+        summaries: [],
+        diagnostics: [],
+        warnings: [],
+      };
+      const prepared = prepareStudioChart(result, config);
+      expect(prepared.unitPanels.map((panel) => panel.label)).toEqual([
+        "US dollars",
+        "Ratio",
+      ]);
+      const type = chartType === "VERTICAL_BAR" ? "bar" : "horizontal-bar";
+      const ordered =
+        chartType === "HORIZONTAL_BAR" ? [1, 2, 4, 0, 3] : [0, 1, 2, 3, 4];
+      expect(prepared.unitPanels[0]!.visualization.data).toEqual(
+        ordered.map((index) =>
+          expect.objectContaining({
+            value: amounts[index],
+            color: prepared.colors[series[index]!.id]!.fillColor,
+          }),
+        ),
+      );
+      for (const panel of prepared.unitPanels)
+        expect(panel.visualization.type).toBe(type);
+      expect(prepared.unitPanels[1]!.visualization.data[0]).toMatchObject({
+        value: 0.5,
+        color: prepared.colors.ratio!.fillColor,
+      });
+      config.display.rowLimit = 2;
+      const limited = prepareStudioChart(result, config);
+      expect(limited.unitPanels[0]!.visualization.data).toEqual(
+        ordered
+          .slice(0, 2)
+          .map((index) => expect.objectContaining({ value: amounts[index] })),
+      );
+      config.queries[0]!.orderBy = [
+        { field: "sum_totalCost", direction: "asc" },
+      ];
+      expect(
+        prepareStudioChart(result, config).unitPanels[0]!.visualization.data,
+      ).toEqual([
+        expect.objectContaining({ value: 100 }),
+        expect.objectContaining({ value: 1296 }),
+      ]);
+      const missing = prepareStudioChart(
+        {
+          ...result,
+          rows: rows.map((row, index) => ({ ...row, value: index ? null : 0 })),
+        },
+        config,
+      );
+      expect(
+        missing.unitPanels.map((panel) => panel.visualization.data[0]),
+      ).toEqual([
+        expect.objectContaining({ value: 0 }),
+        expect.objectContaining({ value: null }),
+      ]);
+    },
+  );
+  it.each(["LINE_TIME_SERIES", "AREA_TIME_SERIES", "BAR_TIME_SERIES"] as const)(
+    "separates cost and ratio into aligned %s panels without changing values, colors or table data",
+    (chartType) => {
+      const config = createStudioWidget();
+      config.display = { chartType, timeSeries: true, unit: "USD" };
+      config.queries = ["a", "b", "c"].map((id) => ({
+        ...config.queries[0]!,
+        id,
+        label: `Cost ${id}`,
+        metrics: [{ id: "cost", measure: "totalCost", aggregation: "sum" }],
+      }));
+      config.expressions = [
+        { id: "share", label: "Cost ratio", formula: "a.cost / b.cost" },
+      ];
+      const series = [
+        ...config.queries.map((query) => ({
+          id: `${query.id}.cost`,
+          queryId: query.id,
+          metricId: "cost",
+          label: query.label,
+          dimensions: {},
+          unit: "USD",
+          aggregation: "sum",
+        })),
+        {
+          id: "share",
+          queryId: "share",
+          metricId: "share",
+          label: "Cost ratio",
+          dimensions: {},
+          unit: "ratio",
+          rawUnit: "ratio",
+          aggregation: "expression",
+        },
+      ];
+      const times = [
+        "2026-11-18T00:00:00Z",
+        "2026-11-19T00:00:00Z",
+        "2026-11-20T00:00:00Z",
+      ];
+      const rows = series.flatMap((series, index) =>
+        (index === 3 ? [1] : [0, 1, 2]).map((bucket) => ({
+          seriesId: series.id,
+          queryId: series.queryId,
+          metricId: series.metricId,
+          label: series.label,
+          dimensions: {},
+          dimension: null,
+          time: times[bucket],
+          value: [
+            [4, null, 4],
+            [8, 8, 8],
+            [12, 12, 12],
+            [null, 0.125, null],
+          ][index]![bucket]!,
+        })),
+      );
+      const result: StudioResult = {
+        status: "complete",
+        series,
+        rows,
+        summaries: [],
+        diagnostics: [],
+        warnings: [],
+      };
+      const prepared = prepareStudioChart(result, config);
+      expect(prepared.unitPanels.map((panel) => panel.label)).toEqual([
+        "US dollars",
+        "Ratio",
+      ]);
+      expect(
+        prepared.unitPanels.map((panel) =>
+          panel.visibleSeries.map((series) => series.id),
+        ),
+      ).toEqual([["a.cost", "b.cost", "c.cost"], ["share"]]);
+      for (const panel of prepared.unitPanels) {
+        expect([
+          ...new Set(panel.data.map((point) => point.time_dimension)),
+        ]).toEqual(times);
+        for (const series of panel.visibleSeries)
+          expect(panel.colors[series.id]).toEqual(prepared.colors[series.id]);
+        expect(panel.visualization.type).toBe(
+          (
+            {
+              LINE_TIME_SERIES: "line",
+              AREA_TIME_SERIES: "area",
+              BAR_TIME_SERIES: "stacked-bar",
+            } as const
+          )[chartType],
+        );
+        expect(panel.visualization.data).toHaveLength(times.length);
+      }
+      expect(prepared.unitPanels[1]!.visualization.valueFormatter!(0.125)).toBe(
+        "0.125",
+      );
+      expect(prepared.unitPanels[0]!.visualization.valueFormatter!(4)).toBe(
+        "$4.00",
+      );
+      expect(prepared.unitPanels[1]!.data.map((point) => point.metric)).toEqual(
+        [null, 0.125, null],
+      );
+      expect(
+        prepared.unitPanels[0]!.data.find(
+          (point) =>
+            point.dimension === "a.cost" && point.time_dimension === times[1],
+        )?.metric,
+      ).toBeNull();
+      expect(prepared.data).toHaveLength(rows.length);
+      const compatible = prepareStudioChart(
+        {
+          ...result,
+          series: series.slice(0, 3),
+          rows: rows.filter((row) => row.queryId !== "share"),
+        },
+        config,
+      );
+      expect(compatible.unitPanels).toHaveLength(0);
+      for (const units of [
+        ["percent", "%"],
+        [undefined, "number"],
+      ]) {
+        const aliases = prepareStudioChart(
+          {
+            ...result,
+            series: series.map((series, index) => ({
+              ...series,
+              unit: units[index % 2],
+              rawUnit: undefined,
+            })),
+          },
+          config,
+        );
+        expect(aliases.hasIncompatibleUnits).toBe(false);
+        expect(aliases.unitPanels).toHaveLength(0);
+      }
+      const table = prepareStudioChart(result, {
+        ...config,
+        display: { chartType: "PIVOT_TABLE" },
+      });
+      expect(table.unitPanels).toHaveLength(0);
+      expect(table.pivotTable).toEqual(prepared.pivotTable);
+    },
+  );
   it("identifies a parameterized percentile in the data used to audit a chart", () => {
     const config = createStudioWidget();
     config.queries[0]!.metrics = [

@@ -8,6 +8,24 @@ import {
   type ViewVersion,
   viewDeclarations,
 } from "@langfuse/shared/query";
+import { validateCurrentStudioConfig } from "./currentStudioExecution";
+
+export function getStudioEditorExecutionMode(
+  config: StudioWidgetConfig,
+  {
+    isNew,
+    experimental,
+    version,
+  }: { isNew: boolean; experimental: boolean; version: ViewVersion },
+): "current" | "prototype" {
+  if (experimental) return "prototype";
+  if (config.executionMode) return config.executionMode;
+  // Saved widgets that predate executionMode run on the prototype endpoint.
+  if (!isNew) return "prototype";
+  return validateCurrentStudioConfig(config, version).valid
+    ? "current"
+    : "prototype";
+}
 
 export function withStudioQueries(
   config: StudioWidgetConfig,

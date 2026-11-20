@@ -1,199 +1,209 @@
 import { type ComponentProps, useState } from "react";
-import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { EllipsisVertical } from "@langfuse/icons";
 import { type StudioWidgetConfig } from "@langfuse/shared";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Button } from "@/src/components/design-system/Button/Button";
-import { StudioWidgetEditor } from "./StudioWidgetEditor";
+import { type ViewVersion } from "@langfuse/shared/query";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { CurrentWidgetExperience } from "./CurrentWidgetExperience";
 import { DeferredWidgetQuestion } from "./DeferredWidgetQuestion";
+import { StudioWidgetEditor } from "./StudioWidgetEditor";
 import { useDashboardStudioCapture } from "./analytics";
+import { validateCurrentStudioConfig } from "./currentStudioExecution";
+import {
+  getStudioEditorExecutionMode,
+  resolveStudioQueryVersion,
+} from "./studioConfig";
 
-function percentileExperiment(): StudioWidgetConfig {
-  return {
-    version: 1,
-    executionMode: "prototype",
-    title: "Custom latency percentile",
-    description:
-      "A live experimental percentile query. The percentile can be changed in the metric editor.",
-    queries: [
-      {
-        id: "a",
-        label: "Latency",
-        view: "observations",
-        metrics: [
-          {
-            id: "latency",
-            measure: "latency",
-            aggregation: "p50",
-            percentile: 10,
-          },
-        ],
-        dimensions: [],
-        filters: [],
-      },
-    ],
-    expressions: [],
-    display: {
-      chartType: "LINE_TIME_SERIES",
-      timeSeries: true,
-      legend: true,
-    },
-  };
+type WidgetVisionEditorMode = "current" | "multi-query" | "future";
+
+export function readWidgetEditorMode(
+  value: unknown,
+): WidgetVisionEditorMode | undefined {
+  return value === "current" || value === "multi-query" || value === "future"
+    ? value
+    : undefined;
 }
 
-export type WidgetVisionEditorMode = "current" | "multi-query" | "future";
+type EditorPane =
+  | { type: "chart" }
+  | { type: "classic"; config: StudioWidgetConfig; openedFromChart: boolean }
+  | { type: "plan" };
+
 export function WidgetVisionEditor({
   initialMode = "multi-query",
+  initialValue,
   ...props
 }: WidgetVisionEditorProps) {
-  const [mode, setMode] = useState<WidgetVisionEditorMode>(initialMode);
-  const [visited, setVisited] = useState<WidgetVisionEditorMode[]>([
-    initialMode,
-  ]);
-  const [futurePlan, setFuturePlan] = useState<"draft" | "custom" | "plan">(
-    "draft",
+  const readableVersion = props.readPath === "v4" ? "v2" : "v1";
+  const [initialConfig] = useState(() => ({
+    ...initialValue,
+    executionMode: getStudioEditorExecutionMode(initialValue, {
+      isNew: props.isNew,
+      experimental: initialMode === "future",
+      version: resolveStudioQueryVersion(
+        initialValue,
+        readableVersion,
+        props.filterState,
+      ),
+    }),
+  }));
+  const [pane, setPane] = useState<EditorPane>(() =>
+    initialMode === "current"
+      ? { type: "classic", config: initialConfig, openedFromChart: false }
+      : { type: "chart" },
   );
-  const [experimentVisited, setExperimentVisited] = useState(false);
-  const track = useDashboardStudioCapture(props.readPath === "v4");
-  const selectMode = (next: WidgetVisionEditorMode) => {
-    if (next === mode) return;
-    setMode(next);
-    setVisited((current) =>
-      current.includes(next) ? current : [...current, next],
-    );
-    track("view_changed", {
-      editorMode: next,
-      scope: "widget",
-      target: "configuration_data",
-    });
-  };
-  const livePercentile = () => {
-    setExperimentVisited(true);
-    setFuturePlan("custom");
-    track("configuration_changed", {
-      editorMode: "future",
-      capability: "custom-percentile",
-      scope: "widget",
-    });
-  };
+  const backToChart = () => setPane({ type: "chart" });
+
   return (
     <section
-      aria-label="Widget builder comparison"
+      aria-label="Chart editor"
       className="ph-no-capture flex h-full min-h-0 min-w-0 flex-col"
     >
-      <Tabs
-        value={mode}
-        onValueChange={(value) => selectMode(value as WidgetVisionEditorMode)}
-        layout="fill"
-      >
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4">
-          <Tabs.List variant="underline" aria-label="Editor experience">
-            <Tabs.Trigger value="current" label="Current editor" />
-            <Tabs.Trigger value="multi-query" label="Multi-query" />
-            <Tabs.Trigger value="future" label="Future builder" />
-          </Tabs.List>
-          <p className="text-muted-foreground text-[11px]">
-            Each builder keeps its own draft.
-          </p>
+      {(pane.type !== "classic" || pane.openedFromChart) && (
+        <div hidden={pane.type !== "chart"} className="min-h-0 flex-1">
+          <StudioWidgetEditor
+            {...props}
+            initialValue={initialConfig}
+            active={pane.type === "chart"}
+            renderEditorOptions={(config, onChange) => (
+              <WidgetEditorOptions
+                config={config}
+                onChange={onChange}
+                version={resolveStudioQueryVersion(
+                  config,
+                  readableVersion,
+                  props.filterState,
+                )}
+                onPlan={() => setPane({ type: "plan" })}
+                onClassic={() =>
+                  setPane({ type: "classic", config, openedFromChart: true })
+                }
+              />
+            )}
+          />
         </div>
-        <TabsPrimitive.Content
-          forceMount
-          value="current"
-          className="min-h-0 flex-1 data-[state=inactive]:hidden"
-        >
-          {visited.includes("current") ? (
-            <CurrentWidgetExperience
-              initialValue={props.initialValue}
-              projectId={props.projectId}
-              dateRange={props.dateRange}
-              active={mode === "current"}
-              onApply={props.onApply}
-              onCancel={props.onCancel}
-              onOpenMultiQuery={() => selectMode("multi-query")}
-              applyContext={props.applyContext}
-            />
-          ) : null}
-        </TabsPrimitive.Content>
-        <TabsPrimitive.Content
-          forceMount
-          value="multi-query"
-          className="min-h-0 flex-1 data-[state=inactive]:hidden"
-        >
-          {visited.includes("multi-query") ? (
-            <StudioWidgetEditor
-              {...props}
-              initialValue={{ ...props.initialValue, executionMode: "current" }}
-              active={mode === "multi-query"}
-            />
-          ) : null}
-        </TabsPrimitive.Content>
-        <TabsPrimitive.Content
-          forceMount
-          value="future"
-          className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
-        >
-          {visited.includes("future") ? (
-            <>
-              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
-                <p className="text-muted-foreground text-xs">
-                  Experimental execution is separate from capabilities that
-                  still need backend work.
-                </p>
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    text="Live experiment"
-                    variant={futurePlan === "draft" ? "secondary" : "ghost"}
-                    onClick={() => setFuturePlan("draft")}
-                  />
-                  <Button
-                    size="sm"
-                    text="Plan a future query"
-                    variant={futurePlan === "plan" ? "secondary" : "ghost"}
-                    onClick={() => setFuturePlan("plan")}
-                  />
-                  <Button
-                    size="sm"
-                    text="Try custom percentile"
-                    variant="outline"
-                    onClick={livePercentile}
-                  />
-                </div>
-              </div>
-              <div hidden={futurePlan !== "draft"} className="min-h-0 flex-1">
-                <StudioWidgetEditor
-                  {...props}
-                  initialValue={{
-                    ...props.initialValue,
-                    executionMode: "prototype",
-                  }}
-                  active={mode === "future" && futurePlan === "draft"}
-                />
-              </div>
-              <div hidden={futurePlan !== "custom"} className="min-h-0 flex-1">
-                {experimentVisited ? (
-                  <StudioWidgetEditor
-                    {...props}
-                    initialValue={percentileExperiment()}
-                    active={mode === "future" && futurePlan === "custom"}
-                  />
-                ) : null}
-              </div>
-              <div hidden={futurePlan !== "plan"} className="min-h-0 flex-1">
-                <DeferredWidgetQuestion
-                  dateRange={props.dateRange}
-                  onTryLive={livePercentile}
-                  onCancel={props.onCancel}
-                />
-              </div>
-            </>
-          ) : null}
-        </TabsPrimitive.Content>
-      </Tabs>
+      )}
+      {pane.type === "classic" && (
+        <CurrentWidgetExperience
+          initialValue={pane.config}
+          projectId={props.projectId}
+          dateRange={props.dateRange}
+          onApply={props.onApply}
+          onCancel={pane.openedFromChart ? backToChart : props.onCancel}
+          onBack={backToChart}
+          applyContext={props.applyContext}
+        />
+      )}
+      {pane.type === "plan" && (
+        <DeferredWidgetQuestion
+          dateRange={props.dateRange}
+          onBack={backToChart}
+        />
+      )}
     </section>
   );
 }
 
-type WidgetVisionEditorProps = ComponentProps<typeof StudioWidgetEditor> & {
+function WidgetEditorOptions({
+  config,
+  version,
+  onChange,
+  onPlan,
+  onClassic,
+}: {
+  config: StudioWidgetConfig;
+  version: ViewVersion;
+  onChange: (config: StudioWidgetConfig) => void;
+  onPlan: () => void;
+  onClassic: () => void;
+}) {
+  const experimental = config.executionMode === "prototype";
+  const compatibility = experimental
+    ? validateCurrentStudioConfig(config, version)
+    : { valid: true as const };
+  const track = useDashboardStudioCapture(version === "v2");
+
+  return (
+    <DropdownMenu
+      ariaLabel="Editor options"
+      placement="bottom-end"
+      noCapture
+      items={[
+        {
+          id: "experimental",
+          type: "checkbox",
+          title: "Experimental queries",
+          checked: experimental,
+          disabled: compatibility.valid
+            ? undefined
+            : { reason: compatibility.reason },
+          onCheckedChange: (enabled) => {
+            if (enabled === experimental || (!enabled && !compatibility.valid))
+              return;
+            onChange({
+              ...config,
+              executionMode: enabled ? "prototype" : "current",
+            });
+            track("configuration_changed", {
+              scope: "widget",
+              editorMode: enabled ? "future" : "multi-query",
+            });
+          },
+          closeOnCheckedChange: true,
+        },
+        {
+          id: "plan",
+          type: "item",
+          title: "Plan a future query",
+          onClick: () => {
+            onPlan();
+            track("view_changed", {
+              editorMode: "future",
+              scope: "widget",
+              target: "configuration_details",
+            });
+          },
+        },
+        { id: "divider", type: "separator" },
+        {
+          id: "classic",
+          type: "item",
+          title: "Open classic editor",
+          onClick: () => {
+            onClassic();
+            track("view_changed", {
+              editorMode: "current",
+              scope: "widget",
+              target: "configuration_data",
+            });
+          },
+        },
+      ]}
+    >
+      {({ getTriggerProps }) => (
+        <IconButton
+          icon={EllipsisVertical}
+          label="Editor options"
+          title="Editor options"
+          {...getTriggerProps()}
+        />
+      )}
+    </DropdownMenu>
+  );
+}
+
+type WidgetVisionEditorProps = Pick<
+  ComponentProps<typeof StudioWidgetEditor>,
+  | "initialValue"
+  | "isNew"
+  | "dashboardName"
+  | "projectId"
+  | "readPath"
+  | "dateRange"
+  | "filterState"
+  | "onApply"
+  | "onCancel"
+  | "applyContext"
+> & {
   initialMode?: WidgetVisionEditorMode;
 };

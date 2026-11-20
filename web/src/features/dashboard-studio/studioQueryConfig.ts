@@ -1,5 +1,8 @@
 import { hashKey } from "@tanstack/react-query";
 import { type StudioResult, type StudioWidgetConfig } from "@langfuse/shared";
+import { type ViewVersion } from "@langfuse/shared/query";
+import { studioFormulaReferences } from "@/src/features/dashboard/lib/studioExpressions";
+import { validateCurrentStudioConfig } from "./currentStudioExecution";
 
 export function getStudioApplyBlockReason(
   draft: StudioWidgetConfig,
@@ -11,16 +14,14 @@ export function getStudioApplyBlockReason(
     data?: Pick<StudioResult, "status">;
   },
 ): string | null {
-  if (hasStudioQueryChanges(draft, lastRun))
-    return "Run preview before applying your query changes.";
+  if (hasStudioQueryChanges(draft, lastRun)) return "Updating the preview.";
   if (result.isPending || result.fetchStatus !== "idle")
     return "Wait for the preview to finish before applying.";
   if (result.isError || result.data?.status === "error")
-    return "Fix the query error and run preview before applying.";
+    return "The preview query failed.";
   if (result.data?.status === "partial")
-    return "Fix the failed queries and run preview before applying.";
-  if (result.data?.status !== "complete")
-    return "Run a successful preview before applying.";
+    return "Some series could not be loaded.";
+  if (result.data?.status !== "complete") return "Waiting for the preview.";
   return null;
 }
 
@@ -95,6 +96,37 @@ export function hasStudioQueryChanges(
     hashKey([toStudioQueryConfig(draft)]) !==
     hashKey([toStudioQueryConfig(lastRun)])
   );
+}
+
+/** Current-mode arithmetic can reuse the loaded source rows without submitting a new query. */
+export function canPreviewStudioFormulasLocally(
+  draft: StudioWidgetConfig,
+  lastRun: StudioWidgetConfig,
+  version: ViewVersion,
+) {
+  if (
+    draft.executionMode !== "current" ||
+    hasStudioQueryChanges(
+      { ...draft, expressions: lastRun.expressions },
+      lastRun,
+    ) ||
+    !validateCurrentStudioConfig(draft, version).valid
+  )
+    return false;
+  const requested = new Set(
+    lastRun.display.activeQueryIds?.length
+      ? lastRun.display.activeQueryIds
+      : lastRun.queries.map((query) => query.id),
+  );
+  const sourceIds = (config: StudioWidgetConfig) =>
+    config.expressions.flatMap((expression) =>
+      studioFormulaReferences(expression.formula).flatMap((ref) => {
+        const [query, metric] = ref.split(".");
+        return metric ? [query!] : [];
+      }),
+    );
+  for (const id of sourceIds(lastRun)) requested.add(id);
+  return sourceIds(draft).every((id) => requested.has(id));
 }
 
 /** Keep unrun data definitions frozen while applying current presentation intent. */

@@ -21,7 +21,7 @@ import { PaginationBar } from "@/src/components/design-system/PaginationBar/Pagi
 import { type useStudioWidgetResult } from "./useStudioWidgetResult";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 
-export type StudioWidgetResultProps = {
+type StudioWidgetResultProps = {
   config: StudioWidgetConfig;
   runtime: ReturnType<typeof useStudioWidgetResult>;
   prepared: ReturnType<typeof prepareStudioChart>;
@@ -34,7 +34,7 @@ export type StudioWidgetCardResultProps = StudioWidgetResultProps & {
   queryView?: {
     value: string;
     onChange: (value: string) => void;
-    configuredQueryIds: string[] | undefined;
+    options: { value: string; label: string }[];
   };
 };
 
@@ -48,8 +48,10 @@ export function StudioWidgetResultPresentation({
   actions,
   onHiddenSeriesChange,
   queryView,
+  compactData = false,
 }: StudioWidgetCardResultProps & {
   Frame: ComponentType<StudioWidgetResultFrameProps>;
+  compactData?: boolean;
 }) {
   const [view, setView] = useState("chart");
   const [focusedBucket, setFocusedBucket] = useState<string>();
@@ -63,7 +65,6 @@ export function StudioWidgetResultPresentation({
   const isMobile = useIsMobile();
   const result = runtime.result;
   const track = useDashboardStudioCapture(runtime.version === "v2");
-  const selectedQuery = queryView?.value ?? "configured";
   const effectiveConfig = config;
   const scoreSeries =
     prepared.visibleSeries.length === 1
@@ -100,7 +101,7 @@ export function StudioWidgetResultPresentation({
       ? prepareStudioData(result.data, effectiveConfig, {
           ...dataView,
           scope: dataScope,
-          compact: isMobile,
+          compact: isMobile || compactData,
         })
       : undefined;
   const onLegendInteraction: ChartProps["onLegendInteraction"] = (event) =>
@@ -115,11 +116,11 @@ export function StudioWidgetResultPresentation({
       ? { activeKey: focusedBucket, onActiveKeyChange: setFocusedBucket }
       : undefined,
     chartType: config.display.chartType,
-    active: true,
+    active: prepared.unitPanels.length === 0,
     data: prepared.data,
     config: prepared.colors,
     rowLimit: config.display.rowLimit ?? 100,
-    metricFormatter: studioMetricFormatter(prepared.unit),
+    metricFormatter: studioMetricFormatter(prepared.unit, 4),
     legendPosition: config.display.legend === false ? "none" : "below",
     legendLayout:
       !isMobile &&
@@ -208,6 +209,7 @@ export function StudioWidgetResultPresentation({
         description,
       };
     }
+    if (prepared.chartRequirement) return prepared.chartRequirement;
     if (!prepared.hasMeasuredValues)
       return {
         type: "empty",
@@ -215,16 +217,49 @@ export function StudioWidgetResultPresentation({
         description: "Try a wider time range or different filters.",
       };
     if (view === "chart" && prepared.hasIncompatibleUnits) {
-      if (config.display.chartType === "NUMBER") return prepared.table;
-      return prepared.pivotTable;
+      if (config.display.chartType === "PIVOT_TABLE")
+        return prepared.pivotTable;
+      if (prepared.unitPanels.length > 1)
+        return (
+          chart.confirmation ?? {
+            type: "panels",
+            panels: prepared.unitPanels.map((panel) => ({
+              id: panel.id,
+              label: panel.label,
+              content:
+                panel.visualization.type === "line" ||
+                panel.visualization.type === "area" ||
+                panel.visualization.type === "stacked-bar"
+                  ? {
+                      ...panel.visualization,
+                      legend:
+                        panel.visualization.legend?.visibility === "hidden"
+                          ? panel.visualization.legend
+                          : {
+                              visibility: "visible" as const,
+                              interaction: "toggle" as const,
+                              summary: "none" as const,
+                              layout:
+                                !isMobile &&
+                                panel.visualization.series.length <= 4
+                                  ? ("wrap" as const)
+                                  : undefined,
+                              onInteraction: onLegendInteraction,
+                            },
+                    }
+                  : panel.visualization,
+            })),
+          }
+        );
+      return {
+        type: "empty",
+        message: "These series use different units",
+        description:
+          "Choose a bar, top list, line, area or bars over time chart to plot each unit in its own panel, select a table, or hide the other units. All executed values remain available in Data.",
+      };
     }
     if (config.display.chartType === "PIVOT_TABLE" && view === "chart")
       return prepared.pivotTable;
-    if (
-      config.display.chartType === "PIVOT_TABLE" ||
-      (config.display.chartType === "NUMBER" && prepared.summaries.length !== 1)
-    )
-      return prepared.table;
     if (config.display.chartType === "NUMBER") {
       const summary = prepared.summaries[0];
       return summary?.value === null || !summary
@@ -281,12 +316,13 @@ export function StudioWidgetResultPresentation({
       };
     if (
       prepared.hasIncompatibleUnits &&
+      prepared.unitPanels.length < 2 &&
       config.display.chartType !== "PIVOT_TABLE"
     )
       return {
         text: "Different units",
         description:
-          "Shown as a table so each metric keeps its own unit. Use separate charts to compare different units.",
+          "Choose a bar or time-series chart for separate unit panels, a table, or one compatible set of series.",
       };
     return undefined;
   })();
@@ -342,36 +378,17 @@ export function StudioWidgetResultPresentation({
         }
         actions={actions}
         controls={[
-          ...(queryView?.configuredQueryIds &&
-          config.queries.filter((query) => !query.hidden).length > 1
+          ...(queryView
             ? [
                 {
                   id: "series-view",
                   label: "View",
                   type: "select" as const,
                   noCapture: true,
-                  value: selectedQuery,
-                  options: [
-                    {
-                      value: "configured",
-                      label:
-                        config.queries
-                          .filter((query) =>
-                            queryView.configuredQueryIds?.includes(query.id),
-                          )
-                          .map((query) => query.label)
-                          .join(" + ") || "Overview",
-                    },
-                    ...config.queries
-                      .filter((query) => !query.hidden)
-                      .map((query) => ({
-                        value: query.id,
-                        label: query.label,
-                      })),
-                    { value: "all", label: "All series" },
-                  ],
+                  value: queryView.value,
+                  options: queryView.options,
                   onValueChange: (value: string) => {
-                    queryView?.onChange(value);
+                    queryView.onChange(value);
                     track("view_changed", {
                       target: "chart",
                       widgetKind: "query",
@@ -491,7 +508,8 @@ export function StudioWidgetResultPresentation({
           options: [
             {
               value: "chart",
-              label: prepared.hasIncompatibleUnits ? "Table" : "Chart",
+              label:
+                config.display.chartType === "PIVOT_TABLE" ? "Table" : "Chart",
             },
             { value: "table", label: "Data" },
             { value: "inspect", label: "Inspect" },
@@ -612,17 +630,6 @@ export function StudioWidgetResultPresentation({
       {selectionError ? (
         <p role="alert" className="text-destructive shrink-0 px-3 py-1 text-xs">
           {selectionError}
-        </p>
-      ) : null}
-      {view === "chart" &&
-      prepared.hasIncompatibleUnits &&
-      config.display.chartType !== "PIVOT_TABLE" ? (
-        <p
-          role="status"
-          className="bg-muted text-muted-foreground shrink-0 rounded-b border px-3 py-2 text-xs"
-        >
-          These metrics use different units, so they are shown in a table.
-          Choose a table or use separate charts.
         </p>
       ) : null}
       {view === "inspect" && result.data?.warnings.length ? (

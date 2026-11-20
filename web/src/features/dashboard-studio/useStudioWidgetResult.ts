@@ -68,7 +68,7 @@ export function useStudioWidgetResult(
       toTimestamp: input.toTimestamp,
       filters: context.filterState,
     },
-    currentMode,
+    currentMode && context.enabled !== false,
     slot.canFetch && context.enabled !== false,
   );
   const result = currentMode ? current : prototype;
