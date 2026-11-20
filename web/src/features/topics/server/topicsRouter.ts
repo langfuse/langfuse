@@ -57,6 +57,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 import { createsSummaries } from "../topic-run-labels";
 import {
   previewTopicTraces,
@@ -84,7 +85,7 @@ import {
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
 const includeCosts = z.boolean().default(true);
-// Internal view only; adds a distinct-session aggregate to the topic counts.
+// Adds a distinct-session aggregate to the topic counts; ignored outside Internal view.
 const includeSessionCounts = z.boolean().optional();
 const mapInput = projectInput.extend({ runId: topicIdSchema });
 // Snapshots offer 7 or 14 days; longer windows risk an out-of-memory fit.
@@ -406,10 +407,11 @@ export const topicsRouter = createTRPCRouter({
         includeSessionCounts,
       }),
     )
-    .query(({ input }) =>
+    .query(({ ctx, input }) =>
       currentTopicResults(input.projectId, undefined, {
         ruleId: input.ruleId,
-        includeSessionCounts: input.includeSessionCounts,
+        includeSessionCounts:
+          input.includeSessionCounts && isInternalViewEnabled(ctx.session),
       }),
     ),
   /** One page of a facet's traces; filters and paging run in ClickHouse. */
@@ -440,9 +442,10 @@ export const topicsRouter = createTRPCRouter({
   ),
   analysisResults: topicsProcedure
     .input(executionInput.extend({ includeSessionCounts }))
-    .query(({ input }) =>
+    .query(({ ctx, input }) =>
       analysisTopicResults(input.projectId, input.executionId, {
-        includeSessionCounts: input.includeSessionCounts,
+        includeSessionCounts:
+          input.includeSessionCounts && isInternalViewEnabled(ctx.session),
       }),
     ),
   previewAnalysis: topicsProcedure
