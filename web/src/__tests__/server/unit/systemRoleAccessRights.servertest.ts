@@ -204,10 +204,6 @@ describe("systemRoleAccessRights", () => {
     ] as const) {
       expect(tagsFor(role)).toContain("principal:user");
     }
-    expect(tagsFor("AI_GATEWAY")).toEqual([
-      "principal:user",
-      "principal:apiKey",
-      "legacy",
-    ]);
+    expect(tagsFor("AI_GATEWAY")).toEqual(["principal:user"]);
   });
 });
