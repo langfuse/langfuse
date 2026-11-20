@@ -21,7 +21,8 @@ export function OrganizationModelsNotice({
           : undefined
       }
     >
-      Organization models apply to all projects in {organizationName}.
+      Organization models apply to all projects in {organizationName} when no
+      project model matches.
       {manageHref
         ? null
         : " Ask an organization owner or admin to change them."}
