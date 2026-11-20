@@ -347,6 +347,7 @@ export const topicsMapScenario: ScenarioDefinition = {
             : [],
           transcriptId: traceIds[index]!,
           transcriptVersion: "seed",
+          transcriptBytes: 0,
           summaryModel: "seed-summary",
           embeddingModel: "seed-embedding",
           providedUsageDetails: {},

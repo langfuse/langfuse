@@ -183,16 +183,17 @@ function currentResultsSql(
   summaryConditions: string[],
   traceIdConditions: string[],
 ) {
-  const scopeSql = `trace_id != '' AND facet_id IN {facetIds:Array(String)}`;
+  const summaryScopeSql = `unit_type = 'trace' AND facet_id IN {facetIds:Array(String)}`;
+  const assignmentScopeSql = `trace_id != '' AND facet_id IN {facetIds:Array(String)}`;
   const and = (conditions: string[]) =>
     conditions.map((sql) => `AND ${sql}`).join(" ");
-  const latestScopeSql = [scopeSql, ...traceIdConditions].join(" AND ");
+  const latestScopeSql = [summaryScopeSql, ...traceIdConditions].join(" AND ");
   return `
   summaries AS (
     SELECT trace_id, facet_id, facet_version, unit_start_time, processed_at,
       processing_state, summary, trace_name, environment
     FROM topic_facet_summaries
-    WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+    WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${summaryScopeSql}
       AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
       AND environment != {publicLlmJudgeEnvironment:String}
       ${and(summaryConditions)}
@@ -208,7 +209,7 @@ function currentResultsSql(
       topic_version_id AS a_topic_version_id, clustering_run_id AS a_run_id,
       assigned_at AS a_assigned_at
     FROM topic_assignments
-    WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+    WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${assignmentScopeSql}
       AND clustering_run_id IN {publishedRunIds:Array(String)}
       ${and(traceIdConditions)}
     ORDER BY facet_version DESC, assigned_at DESC, origin DESC
@@ -384,7 +385,7 @@ function candidateQuery(
         statuses[0] === "assigned" ? "topic_id != ''" : "topic_id = ''",
       );
   } else {
-    conditions.push("trace_id != ''");
+    conditions.push("unit_type = 'trace'");
     // Every assignment status needs a complete summary.
     if (statuses && !byTraceIds)
       conditions.push("processing_state = 'complete'");
@@ -692,8 +693,10 @@ export async function getTopicResultCounts(input: {
     publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     ...timeRangeParams(input.window),
   };
-  const scope = `project_id = {projectId:String} AND ${unitTimeFilterSql}
-    AND trace_id != '' AND facet_id IN {facetIds:Array(String)}
+  const scope = (
+    levelSql: string,
+  ) => `project_id = {projectId:String} AND ${unitTimeFilterSql}
+    AND ${levelSql} AND facet_id IN {facetIds:Array(String)}
     AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
     AND environment != {publicLlmJudgeEnvironment:String}`;
   const tags = { route: "topics-counts", projectId: input.projectId };
@@ -713,7 +716,7 @@ export async function getTopicResultCounts(input: {
             AND facet_version = {versions:Array(UInt32)}[indexOf({facetIds:Array(String)}, facet_id)]) AS usable,
           uniqCombinedIf(trace_id, processing_state = 'not_applicable') AS not_applicable,
           uniqCombinedIf(trace_id, processing_state = 'insufficient_input') AS insufficient_input
-        FROM topic_facet_summaries WHERE ${scope}
+        FROM topic_facet_summaries WHERE ${scope("unit_type = 'trace'")}
         GROUP BY facet_id`,
       params,
       tags,
@@ -730,7 +733,7 @@ export async function getTopicResultCounts(input: {
           uniqCombined(trace_id) AS count,
           uniqCombinedIf(trace_id, topic_id != '') AS assigned
         FROM topic_assignments
-        WHERE ${scope} AND clustering_run_id != ''
+        WHERE ${scope("trace_id != ''")} AND clustering_run_id != ''
           AND clustering_run_id = {runIds:Array(String)}[indexOf({facetIds:Array(String)}, facet_id)]
         GROUP BY GROUPING SETS ((facet_id, topic_id), (facet_id))`,
       params,

@@ -246,7 +246,11 @@ async function summarizeEnabledTrace(
         });
     }
     const shares = splitTopicModelUsage(traceUsage, generated.length);
-    rows = generated.map((row, index) => ({ ...row, ...shares[index] }));
+    rows = generated.map((row, index) => ({
+      ...row,
+      ...shares[index],
+      transcriptBytes: summarized.transcriptBytes,
+    }));
   }
   return { outcome: "summarized", rows, failure, failedStage };
 }
@@ -266,7 +270,12 @@ async function summarizeTraceFacets(params: {
   metadata: Record<string, unknown>;
   metrics: TopicMetrics;
 }): Promise<
-  { results: TraceFacetResult[]; usage: TopicModelUsage } | undefined
+  | {
+      results: TraceFacetResult[];
+      usage: TopicModelUsage;
+      transcriptBytes: number;
+    }
+  | undefined
 > {
   const { models, facets, config, metrics } = params;
   const outcome = (
@@ -347,6 +356,7 @@ async function summarizeTraceFacets(params: {
   getCurrentSpan()?.setAttributes(counts);
   return {
     results,
+    transcriptBytes: Buffer.byteLength(text, "utf8"),
     usage: {
       providedUsageDetails: result.providedUsageDetails,
       usageDetails: result.usageDetails,
@@ -395,6 +405,7 @@ function baseTopicSummary(params: {
     embedding: [],
     transcriptId: ASSEMBLED_TRANSCRIPT_ID,
     transcriptVersion: TOPICS_TEXT_VERSION,
+    transcriptBytes: 0,
     summaryModel: params.summaryModel,
     embeddingModel: params.embeddingModel,
     ...NO_USAGE,

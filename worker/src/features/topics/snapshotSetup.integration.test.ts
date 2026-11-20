@@ -202,6 +202,7 @@ describe("Topics snapshot summarizing", () => {
         embedding: Array<number>(DIMENSIONS).fill(1),
         transcriptId: "transcript",
         transcriptVersion: "v1",
+        transcriptBytes: 0,
         summaryModel: "summary",
         embeddingModel: "embed",
         providedUsageDetails: {},

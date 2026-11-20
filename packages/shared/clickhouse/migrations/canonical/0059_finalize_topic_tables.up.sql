@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     session_id String DEFAULT '',
     CONSTRAINT topic_source_present CHECK notEmpty(trace_id) OR notEmpty(session_id),
     unit_hash UInt64 MATERIALIZED cityHash64(if(trace_id = '', session_id, trace_id)),
+    unit_type Enum8('trace' = 1, 'session' = 2) MATERIALIZED if(trace_id = '', 'session', 'trace'),
     rule_ids Array(String) DEFAULT [],
     environment LowCardinality(String),
     trace_name String DEFAULT '',
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     embedding Array(BFloat16),
     transcript_id String,
     transcript_version LowCardinality(String),
+    transcript_bytes UInt32,
     summary_model LowCardinality(String),
     embedding_model LowCardinality(String),
     provided_usage_details Map(LowCardinality(String), UInt64),
@@ -39,8 +41,8 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(processed_at)
 PARTITION BY toYYYYMM(unit_start_time)
-PRIMARY KEY (project_id, toStartOfHour(unit_start_time), facet_id, facet_version, unit_hash)
-ORDER BY (project_id, toStartOfHour(unit_start_time), facet_id, facet_version, unit_hash)
+PRIMARY KEY (project_id, toStartOfHour(unit_start_time), facet_id, facet_version, unit_type, unit_hash)
+ORDER BY (project_id, toStartOfHour(unit_start_time), facet_id, facet_version, unit_type, unit_hash)
 SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}

@@ -116,6 +116,7 @@ async function topicsProject(userId: string) {
       embedding: [1, 0],
       transcriptId: "test",
       transcriptVersion: "test",
+      transcriptBytes: 0,
       summaryModel: "summary-model",
       embeddingModel: "embedding-model",
       providedUsageDetails: {},

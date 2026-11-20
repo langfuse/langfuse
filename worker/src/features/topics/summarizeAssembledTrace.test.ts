@@ -232,6 +232,29 @@ describe("summarizeAssembledTrace", () => {
       );
   });
 
+  it("records the rendered text's UTF-8 bytes, not its characters, on the row", async () => {
+    const accented = structuredClone(transcript);
+    accented.threads[0]!.currentTurn.messages[0]!.parts = [
+      { type: "text", text: "Exportiere die Umsätze für März 📈" },
+    ];
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      sessionId: null,
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript: accented,
+      models,
+      facets: state.facets(),
+    });
+    const submittedText = state.summarize.mock.calls[0][2] as string;
+    expect(summaries[0]?.transcriptBytes).toBe(
+      Buffer.byteLength(submittedText, "utf8"),
+    );
+    expect(summaries[0]?.transcriptBytes).toBeGreaterThan(submittedText.length);
+  });
+
   it("summarizes and embeds all pending facets in one call each and splits their usage across the rows", async () => {
     const issues: TopicFacet = {
       ...facet,

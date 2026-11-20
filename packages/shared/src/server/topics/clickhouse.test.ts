@@ -128,6 +128,7 @@ const summaryFixture: TopicSummary = {
   embedding: [0.1, 0.2],
   transcriptId: "poc",
   transcriptVersion: "poc",
+  transcriptBytes: 0,
   summaryModel: "gpt-4.1-nano",
   embeddingModel: "eu.cohere.embed-v4:0",
   providedUsageDetails: {

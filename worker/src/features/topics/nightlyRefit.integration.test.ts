@@ -56,6 +56,7 @@ describe("nightly Topics refits against storage", () => {
     embedding,
     transcriptId: "transcript",
     transcriptVersion: "v1",
+    transcriptBytes: 0,
     summaryModel: "summary",
     embeddingModel: embeddingConfig.embeddingModel,
     providedUsageDetails: {},

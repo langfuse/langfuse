@@ -474,6 +474,7 @@ describe("Topics definition persistence", () => {
     embedding: [1, ...Array<number>(255).fill(0)],
     transcriptId: "poc",
     transcriptVersion: "poc",
+    transcriptBytes: 0,
     summaryModel: "test",
     embeddingModel: "eu.cohere.embed-v4:0",
     providedUsageDetails: {},
@@ -495,6 +496,41 @@ describe("Topics definition persistence", () => {
         query_params: { projectIds: [projectId, otherProjectId] },
         clickhouse_settings: { mutations_sync: "1" },
       });
+  });
+
+  it("keeps a session and a trace with the same id apart after a merge", async () => {
+    // Its own month, so the forced merge stays small.
+    const unitStartTime = "2025-02-10T10:15:00.000Z";
+    const sharedId = randomUUID();
+    await writeTopicSummaries([
+      {
+        ...summary,
+        traceId: sharedId,
+        sessionId: "parent-session",
+        unitStartTime,
+      },
+      {
+        ...summary,
+        traceId: null,
+        sessionId: sharedId,
+        traceName: "",
+        unitStartTime,
+      },
+    ]);
+    await clickhouseClient().command({
+      query: "OPTIMIZE TABLE topic_facet_summaries PARTITION 202502 FINAL",
+      clickhouse_settings: { mutations_sync: "1" },
+    });
+    const rows = await clickhouseClient().query({
+      query: `SELECT unit_type FROM topic_facet_summaries
+        WHERE project_id = {projectId:String} AND unit_hash = cityHash64({sharedId:String}) ORDER BY unit_type`,
+      query_params: { projectId, sharedId },
+      format: "JSONEachRow",
+    });
+    expect(await rows.json()).toEqual([
+      { unit_type: "trace" },
+      { unit_type: "session" },
+    ]);
   });
 
   it("partitions by source time while preserving replacement and published map identities", async () => {

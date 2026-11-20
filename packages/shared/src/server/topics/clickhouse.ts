@@ -324,7 +324,7 @@ const summaryColumns = `project_id AS projectId, facet_id AS facetId,
   rule_ids AS ruleIds, execution_id AS executionId, environment, trace_name AS traceName,
   toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
   processing_state AS state, summary, embedding,
-  transcript_id AS transcriptId, transcript_version AS transcriptVersion,
+  transcript_id AS transcriptId, transcript_version AS transcriptVersion, transcript_bytes AS transcriptBytes,
   summary_model AS summaryModel, embedding_model AS embeddingModel,
   provided_usage_details AS providedUsageDetails, usage_details AS usageDetails,
   provided_cost_details AS providedCostDetails, cost_details AS costDetails,
@@ -435,7 +435,7 @@ export async function getLatestFacetSummaries(
     }));
 }
 
-const clusteringSummaryScopeSql = `trace_id != '' AND facet_id = {facetId:String}
+const clusteringSummaryScopeSql = `unit_type = 'trace' AND facet_id = {facetId:String}
   AND facet_version = {facetVersion:UInt32}`;
 
 /** Trace IDs selected inside ClickHouse; see selectTopicCohortTraces. */
@@ -719,7 +719,7 @@ export async function hasCompatibleTopicSummaries(
     query: `SELECT 1 AS found FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
         AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
-        AND trace_id != '' AND processing_state = 'complete'
+        AND unit_type = 'trace' AND processing_state = 'complete'
         AND embedding_model = {embeddingModel:String}
         AND embedding.size0 = {embeddingDimensions:UInt32}
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
@@ -759,7 +759,7 @@ export async function hasStoredTopicSummaries(
   const rows = await queryClickhouse<{ found: number }>({
     query: `SELECT 1 AS found FROM topic_facet_summaries
       WHERE project_id = {projectId:String}
-        AND trace_id != '' AND processing_state = 'complete'
+        AND unit_type = 'trace' AND processing_state = 'complete'
         AND NOT startsWith(environment, {internalEnvironmentPrefix:String})
         AND environment != {publicLlmJudgeEnvironment:String}
       LIMIT 1`,
@@ -830,7 +830,7 @@ export async function getTopicSummaryCounts(
   cohort?: TopicClusteringCohort,
 ): Promise<{ facetId: string; facetVersion: number; count: number }[]> {
   if (!facets.length) return [];
-  const scopeSql = `trace_id != ''
+  const scopeSql = `unit_type = 'trace'
     AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})`;
   const rows = await queryClickhouse<{
     facetId: string;
@@ -907,7 +907,7 @@ export async function getTopicSetupSummaryCounts(
     query: `SELECT facet_id AS facetId, uniqCombined(trace_id) AS count
       FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
-        AND trace_id != ''
+        AND unit_type = 'trace'
         AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})
         AND processing_state = 'complete'
         AND embedding_model = {embeddingModel:String}
@@ -1045,6 +1045,7 @@ export function topicSummaryRecord(row: TopicSummary) {
     embedding: row.embedding,
     transcript_id: row.transcriptId,
     transcript_version: row.transcriptVersion,
+    transcript_bytes: row.transcriptBytes,
     summary_model: row.summaryModel,
     embedding_model: row.embeddingModel,
     provided_usage_details: row.providedUsageDetails,

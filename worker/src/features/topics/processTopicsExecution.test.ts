@@ -325,6 +325,7 @@ function seedSummaries(
         embedding,
         transcriptId: ASSEMBLED_TRANSCRIPT_ID,
         transcriptVersion: TOPICS_TEXT_VERSION,
+        transcriptBytes: 0,
         summaryModel: "gpt-4.1-nano",
         embeddingModel: "eu.cohere.embed-v4:0",
         providedUsageDetails: {},
