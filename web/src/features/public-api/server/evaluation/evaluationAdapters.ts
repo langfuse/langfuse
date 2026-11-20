@@ -114,8 +114,11 @@ export function toApiReadMappings(
   return parsed.data.map((mapping) => {
     const source =
       INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE[mapping.selectedColumnId];
+    // One unknown column must not fail a whole page of evaluators or rules.
     if (!source && mapping.selectedColumnId.trim()) {
-      throw new InternalServerError("Evaluation rule mapping is corrupted");
+      logger.warn("Unknown column in public evaluation mapping", {
+        selectedColumnId: mapping.selectedColumnId,
+      });
     }
     return {
       variable: mapping.templateVariable,

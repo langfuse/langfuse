@@ -417,6 +417,26 @@ describe("stable evaluators public API", () => {
     ]);
   });
 
+  it("reads unknown column ids as a null source instead of failing", () => {
+    expect(
+      toApiReadMappings([
+        {
+          templateVariable: "input",
+          selectedColumnId: "input",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "thread",
+          selectedColumnId: "threads",
+          jsonSelector: null,
+        },
+      ]),
+    ).toEqual([
+      { variable: "input", source: "input" },
+      { variable: "thread", source: null },
+    ]);
+  });
+
   it("returns 404 when getting an invalid evaluator ID", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 
