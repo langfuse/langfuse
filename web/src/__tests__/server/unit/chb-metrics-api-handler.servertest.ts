@@ -25,7 +25,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
   return {
     ...actual,
-    getBillableUnitCountsByProjectInRange: mocks.ledgerCounts,
+    getBillableUnitCountsByProjectInWindow: mocks.ledgerCounts,
     recordIncrement: mocks.recordIncrement,
   };
 });
@@ -94,8 +94,8 @@ describe("chbMetricsApiHandler", () => {
     // The window is passed through as instants and scoped to the resource, so a
     // poll can never bill one org for another org's project.
     expect(mocks.ledgerCounts).toHaveBeenCalledWith({
-      from: new Date("2026-07-01T00:00:00Z"),
-      to: new Date("2026-07-02T00:00:00Z"),
+      windowFrom: new Date("2026-07-01T00:00:00Z"),
+      windowTo: new Date("2026-07-02T00:00:00Z"),
       projectId: PROJECT_ID,
     });
   });

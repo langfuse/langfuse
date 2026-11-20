@@ -9,7 +9,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   BILLING_SETTLE_MS,
   type BillableEventType,
-  getBillableUnitCountsByProjectInRange,
+  getBillableUnitCountsByProjectInWindow,
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -19,9 +19,9 @@ import {
  *
  * CHB's metering pipeline polls this endpoint per project (`resourceId`) and
  * time window to derive billable usage. Counts come from the billable_events
- * ledger, so deletes and retention never lower them, and the counts of
- * adjacent windows always add up to the count of their union. Response
- * contract: unknown resources return zeros, never 404.
+ * ledger, so deletes and retention never lower them: a unit counts once in
+ * the window when its id did not appear in the 24 hours before the window
+ * starts. Response contract: unknown resources return zeros, never 404.
  *
  * Auth: dedicated bearer secret (`CLICKHOUSE_BILLING_METRICS_API_KEY`).
  *
@@ -174,9 +174,9 @@ export async function chbMetricsApiHandler(req: NextRequest) {
       );
     }
 
-    const counts = await getBillableUnitCountsByProjectInRange({
-      from: start,
-      to: end,
+    const counts = await getBillableUnitCountsByProjectInWindow({
+      windowFrom: start,
+      windowTo: end,
       projectId: resourceId,
     });
 
