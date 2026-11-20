@@ -211,8 +211,9 @@ const getLedgerBillableUnitsByBucket = async (
 
 /**
  * Billable units of an organization's live projects over [from, to), bucketed
- * by an automatically chosen UTC granularity. Soft-deleted projects are left
- * out, as they are when usage is metered.
+ * by the given UTC granularity, or one chosen from the range's length. A `to`
+ * in the future is cut off at now. Soft-deleted projects are left out, as
+ * they are when usage is metered.
  *
  * The source follows the v4 write mode: `legacy` deployments count the legacy
  * tables, and `dual` and `events_only` deployments read the billable_events
@@ -225,16 +226,19 @@ export const getOrgUsageBreakdown = async ({
   orgId,
   from,
   to,
+  granularity: requestedGranularity,
   writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
 }: {
   prisma: PrismaClient;
   orgId: string;
   from: Date;
   to: Date;
+  granularity?: UsageBreakdownGranularity;
   writeMode?: V4WriteMode;
 }) => {
   const end = new Date(Math.min(to.getTime(), Date.now()));
-  const granularity = getUsageBreakdownGranularity(from, end);
+  const granularity =
+    requestedGranularity ?? getUsageBreakdownGranularity(from, end);
   const buckets = getBucketStarts(from, end, granularity).map((bucket) =>
     bucket.toISOString(),
   );
