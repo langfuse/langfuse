@@ -14,6 +14,9 @@ import { type ConnectedTraceObservationAddToDropdownMenuController } from "./Con
 const mocks = vi.hoisted(() => ({
   traceScope: false,
   unifiedTraceSessionViewEnabled: true,
+  isV4: true,
+  isMember: true,
+  traceContext: "fullscreen" as "fullscreen" | "annotation",
   annotate: vi.fn(),
   comment: vi.fn(),
   queue: vi.fn(),
@@ -100,13 +103,16 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 vi.mock("@/src/features/traces/contexts/ViewPreferencesProvider", () => ({
-  useViewPreferences: () => ({ isAnnotationMode: false }),
+  useViewPreferences: () => ({
+    isAnnotationMode: mocks.traceContext === "annotation",
+    traceContext: mocks.traceContext,
+  }),
 }));
 vi.mock("@/src/features/events/hooks/useReadPath", () => ({
-  useReadPath: () => ({ isV4: true }),
+  useReadPath: () => ({ isV4: mocks.isV4 }),
 }));
 vi.mock("@/src/features/auth/hooks", () => ({
-  useIsAuthenticatedAndProjectMember: () => true,
+  useIsAuthenticatedAndProjectMember: () => mocks.isMember,
 }));
 vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
   default: () => mocks.unifiedTraceSessionViewEnabled,
@@ -288,11 +294,50 @@ it("targets session annotation, comments and queues and displays their counts", 
   );
 });
 
-it.each([true, false])(
-  "shows the trace header session link only with unified view disabled (enabled=%s)",
-  (enabled) => {
+it.each([
+  {
+    enabled: true,
+    isV4: true,
+    isMember: true,
+    annotation: false,
+    showLink: false,
+  },
+  {
+    enabled: false,
+    isV4: true,
+    isMember: true,
+    annotation: false,
+    showLink: true,
+  },
+  {
+    enabled: true,
+    isV4: false,
+    isMember: true,
+    annotation: false,
+    showLink: true,
+  },
+  {
+    enabled: true,
+    isV4: true,
+    isMember: false,
+    annotation: false,
+    showLink: true,
+  },
+  {
+    enabled: true,
+    isV4: true,
+    isMember: true,
+    annotation: true,
+    showLink: true,
+  },
+])(
+  "keeps the session link unless session scope replaces it: %j",
+  ({ enabled, isV4, isMember, annotation, showLink }) => {
     mocks.traceScope = true;
     mocks.unifiedTraceSessionViewEnabled = enabled;
+    mocks.isV4 = isV4;
+    mocks.isMember = isMember;
+    mocks.traceContext = annotation ? "annotation" : "fullscreen";
     try {
       render(
         <TraceHeader
@@ -305,14 +350,17 @@ it.each([true, false])(
       const sessionMetric = screen.queryByText(
         /"href":"\/project\/project-1\/sessions\/session-1"/,
       );
-      if (enabled) {
-        expect(sessionMetric).not.toBeInTheDocument();
-      } else {
+      if (showLink) {
         expect(sessionMetric).toBeInTheDocument();
+      } else {
+        expect(sessionMetric).not.toBeInTheDocument();
       }
     } finally {
       mocks.traceScope = false;
       mocks.unifiedTraceSessionViewEnabled = true;
+      mocks.isV4 = true;
+      mocks.isMember = true;
+      mocks.traceContext = "fullscreen";
     }
   },
 );

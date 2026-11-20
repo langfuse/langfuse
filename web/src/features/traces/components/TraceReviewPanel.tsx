@@ -55,8 +55,14 @@ function TraceCommentsPanel({ projectId }: { projectId: string }) {
   const { trace: anchorTrace, sessionId, observations, scope } = useTraceData();
   const sessionTraces = scope.type === "session" ? scope.traces : undefined;
   const { selectedNodeId } = useSelection();
+  const observation = getSelectedObservation(
+    observations,
+    selectedNodeId,
+    anchorTrace?.id ?? "",
+  );
   const trace =
     sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
+    sessionTraces?.find((entry) => entry.id === observation?.traceId) ??
     anchorTrace;
   const session = useStore(store, (state) => state.comments);
   const active = query.comments === "open" && query.annotation !== "open";
@@ -141,15 +147,16 @@ function TraceAnnotationPanel() {
   } = useTraceData();
   const sessionTraces = scope.type === "session" ? scope.traces : undefined;
   const { selectedNodeId } = useSelection();
-  const trace =
-    sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
-    anchorTrace;
   const { isV4 } = useReadPath();
   const observation = getSelectedObservation(
     observations,
     selectedNodeId,
-    trace?.id ?? "",
+    anchorTrace?.id ?? "",
   );
+  const trace =
+    sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
+    sessionTraces?.find((entry) => entry.id === observation?.traceId) ??
+    anchorTrace;
   const active = useRouter().query.annotation === "open";
   const explicitTarget = useRef({
     annotation,

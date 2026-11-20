@@ -190,7 +190,7 @@ describe("usePeekNavigation detail state cleanup", () => {
     window.history.replaceState(
       {},
       "",
-      "/project/p1/sessions?peek=session-a&sessionPeek=peek%3Dtrace-a&observation=obs-a&filter=keep",
+      "/project/p1/sessions?peek=session-a&sessionPeek=peek%3Dtrace-a&observation=obs-a&filter=keep&traceView=messages&sessionView=list&traceFilter=working&tracesWithoutMatches=hide",
     );
   });
 
@@ -201,7 +201,19 @@ describe("usePeekNavigation detail state cleanup", () => {
         usePeekNavigation({
           tableName: "sessions",
           isV4: true,
-          queryParams: ["observation"],
+          queryParams: [
+            "observation",
+            "traceView",
+            "sessionView",
+            "traceFilter",
+            "tracesWithoutMatches",
+          ],
+          preserveOnDetailNavigation: [
+            "traceView",
+            "sessionView",
+            "traceFilter",
+            "tracesWithoutMatches",
+          ],
         }),
       );
       const target = new URL(
@@ -212,6 +224,10 @@ describe("usePeekNavigation detail state cleanup", () => {
       expect(Object.fromEntries(target.searchParams)).toEqual({
         peek: "session-b",
         filter: "keep",
+        traceView: "messages",
+        sessionView: "list",
+        traceFilter: "working",
+        tracesWithoutMatches: "hide",
         ...(params ?? {}),
       });
     },

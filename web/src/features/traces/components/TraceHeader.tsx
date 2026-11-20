@@ -45,6 +45,7 @@ import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/feat
 import { SessionHeaderMetricsControl } from "@/src/features/sessions/SessionHeaderMetricsControl/SessionHeaderMetricsControl";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import { useSessionViewSelection } from "@/src/features/sessions/hooks/useSessionViewSelection";
+import { resolveTraceScope } from "../fns/resolveTraceScope";
 
 export function TraceHeader({
   isLoading = false,
@@ -164,6 +165,17 @@ function LoadedTraceHeader({
     "unifiedTraceSessionView",
     { projectId: trace.projectId },
   );
+  const { isV4 } = useReadPath();
+  const isProjectMember = useIsAuthenticatedAndProjectMember(trace.projectId);
+  const { traceContext } = useViewPreferences();
+  const { canSelectSession } = resolveTraceScope({
+    unifiedTraceSessionViewEnabled,
+    isV4,
+    isProjectMember,
+    sessionId: trace.sessionId,
+    context: traceContext,
+    aggregation: undefined,
+  });
   const topicFacets = useTraceTopicFacets(trace);
 
   const aggregatedMetrics = useMemo(
@@ -234,7 +246,7 @@ function LoadedTraceHeader({
       details: aggregatedMetrics.usageDetails,
       searchText: `tokens ${aggregatedMetrics.totalUsage}`,
     });
-  if (trace.sessionId && !unifiedTraceSessionViewEnabled)
+  if (trace.sessionId && !canSelectSession)
     metrics.push({
       id: "session",
       type: "link",

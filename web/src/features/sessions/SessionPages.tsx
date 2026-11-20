@@ -1232,7 +1232,7 @@ const LoadedSessionEventsPage: React.FC<{
         if (change.origin === "user") hasUserFilterEditRef.current = true;
         onExplicitFilterStateChange(change);
       },
-      stateLocation: "urlAndSessionStorage",
+      stateLocation: embedded ? "memory" : "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     },
   );
@@ -1273,6 +1273,7 @@ const LoadedSessionEventsPage: React.FC<{
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.SessionDetail,
+    disabled: embedded,
     projectId,
     stateUpdaters: {
       setColumnOrder,
@@ -1416,6 +1417,7 @@ const LoadedSessionEventsPage: React.FC<{
   // "All observations", otherwise indistinguishable from a fresh load) or the
   // filter is non-empty (unambiguous). The filter itself is never changed.
   useEffect(() => {
+    if (embedded) return;
     if (isViewLoading) return;
     if (selectedViewId) return;
     if (viewControllers.viewUpdateTarget || hasUserFilterEditRef.current)
@@ -1434,7 +1436,13 @@ const LoadedSessionEventsPage: React.FC<{
       viewControllers.handleSetViewId(filterMatchedView.id, {
         updateType: "replaceIn",
       });
-  }, [isViewLoading, selectedViewId, visibleFilterState, viewControllers]);
+  }, [
+    embedded,
+    isViewLoading,
+    selectedViewId,
+    visibleFilterState,
+    viewControllers,
+  ]);
 
   // Whether this arrival is a Back/Forward revisit of an existing history
   // entry rather than a fresh navigation. Keyed to sessionId so in-place
@@ -1454,6 +1462,7 @@ const LoadedSessionEventsPage: React.FC<{
   // default would overwrite what the user deliberately left there
   // (LFE-10715).
   useEffect(() => {
+    if (embedded) return;
     if (defaultPresetResolvedSessionRef.current === sessionId) return;
     if (isViewLoading) return; // Wait for view manager to initialize
     defaultPresetResolvedSessionRef.current = sessionId;
@@ -1472,6 +1481,7 @@ const LoadedSessionEventsPage: React.FC<{
   }, [
     applySystemPreset,
     arrivedOnVisitedHistoryEntry,
+    embedded,
     isModernSessionEnabled,
     isSessionTimelineEnabled,
     isViewLoading,

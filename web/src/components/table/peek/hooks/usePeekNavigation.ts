@@ -23,6 +23,8 @@ interface BasePeekConfig {
   isV4: boolean;
   /** Additional URL parameters to clear when closing peek view and persist when expanding peek view */
   queryParams?: string[];
+  /** View preferences retained between detail entries, but cleared on close. */
+  preserveOnDetailNavigation?: string[];
   /**
    * Creates semantic URL parameters alongside the universal "peek" parameter.
    *
@@ -206,7 +208,10 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
       const params = new URLSearchParams(url.search);
 
       params.delete("sessionPeek");
-      config?.queryParams?.forEach((param) => params.delete(param));
+      config.queryParams?.forEach((param) => {
+        if (config.preserveOnDetailNavigation?.includes(param)) return;
+        params.delete(param);
+      });
 
       if (entry.params) {
         Object.entries(entry.params).forEach(([key, value]) => {

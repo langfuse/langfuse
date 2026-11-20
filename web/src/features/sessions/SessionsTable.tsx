@@ -154,6 +154,13 @@ export default function SessionsTable({
       tableName: "sessions",
       isV4,
       expandConfig: { basePath: `/project/${projectId}/sessions` },
+      preserveOnDetailNavigation: [
+        "traceView",
+        "traceFilter",
+        "tracesWithoutMatches",
+        "sessionView",
+        "traceTab",
+      ],
       queryParams: [
         "sessionPeek",
         "traceId",
