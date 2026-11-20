@@ -23,9 +23,9 @@
 //! the cache without copying that tree.
 
 use chrono::{DateTime, Utc};
+use indexmap::IndexMap;
 use num_bigint::BigUint;
 use num_traits::{Num, ToPrimitive};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::value::{JsString, JsonObject, Number, Object, Value};
@@ -146,6 +146,23 @@ pub fn any_value_to_json(value: Value) -> Value {
         return Value::Null;
     }
 
+    // An AnyValue normally holds one field. Read the common scalar kinds by position instead of
+    // hashing each candidate name in turn; every other shape takes the general path below.
+    if let (1, Some((name, value))) = (object.len(), object.get_index(0)) {
+        match name.as_bytes() {
+            b"stringValue" | b"boolValue" => {
+                return object.pop().expect("one field").1;
+            }
+            b"doubleValue" => return parse_double(value),
+            b"intValue" => {
+                if let Some(integer) = parse_int(value) {
+                    return integer;
+                }
+            }
+            _ => {}
+        }
+    }
+
     if let Some(value) = object.shift_remove("stringValue") {
         return value;
     }
@@ -234,15 +251,30 @@ pub(super) fn is_key_value_list(values: &[Value]) -> bool {
 }
 
 fn key_value_array_to_map(values: Vec<Value>) -> JsonObject {
-    let mut result = JsonObject::new();
+    let mut result = JsonObject::with_capacity(values.len());
     for entry in values {
         let Value::Object(mut entry) = entry else {
             continue;
         };
-        let Some(Value::String(key)) = entry.shift_remove("key") else {
+        // Nearly every entry is exactly `{"key": ..., "value": ...}`; take both fields by
+        // position instead of hashing their names.
+        let is_key_then_value = entry.len() == 2
+            && entry
+                .get_index(0)
+                .is_some_and(|(name, _)| name.as_bytes() == b"key")
+            && entry
+                .get_index(1)
+                .is_some_and(|(name, _)| name.as_bytes() == b"value");
+        let (key, value) = if is_key_then_value {
+            let value = entry.pop().map(|(_, value)| value);
+            (entry.pop().map(|(_, key)| key), value)
+        } else {
+            (entry.shift_remove("key"), entry.shift_remove("value"))
+        };
+        let Some(Value::String(key)) = key else {
             continue;
         };
-        let Some(value) = entry.shift_remove("value") else {
+        let Some(value) = value else {
             continue;
         };
         if value.is_null() || matches!(&value, Value::Object(object) if object.is_empty()) {
@@ -542,13 +574,30 @@ fn number_from_integer_like_f64(value: f64) -> Option<Number> {
 /// so tool normalization can preserve their original string representation.
 #[derive(Default)]
 pub struct JsonParseCache {
-    parsed_strings: HashMap<JsString, CachedParse>,
+    /// The first strings an event parses, found by comparison: hashing a payload costs more
+    /// than parsing it, and most events parse only a handful of strings.
+    compared: Vec<(JsString, CachedParse)>,
+    /// Strings parsed once `compared` is full.
+    hashed: IndexMap<JsString, CachedParse>,
 }
+
+/// Bounds the comparisons one lookup makes when a sender packs an event with JSON strings.
+const COMPARED_STRINGS: usize = 8;
 
 enum CachedParse {
     Parsed(Rc<Value>),
     DepthLimited,
     Invalid,
+}
+
+impl CachedParse {
+    fn of(text: &JsString) -> Self {
+        match super::value::parse_js_string(text) {
+            Ok(value) => Self::Parsed(Rc::new(value)),
+            Err(error) if is_depth_limit_error(&error) => Self::DepthLimited,
+            Err(_) => Self::Invalid,
+        }
+    }
 }
 
 impl JsonParseCache {
@@ -560,18 +609,30 @@ impl JsonParseCache {
         if !looks_like_json(text.as_str()) {
             return None;
         }
-        if !self.parsed_strings.contains_key(text) {
-            let parsed = match super::value::parse_js_string(text) {
-                Ok(value) => CachedParse::Parsed(Rc::new(value)),
-                Err(error) if is_depth_limit_error(&error) => CachedParse::DepthLimited,
-                Err(_) => CachedParse::Invalid,
-            };
-            self.parsed_strings.insert(text.clone(), parsed);
+        match self.entry(text) {
+            CachedParse::Parsed(value) => Some(value),
+            CachedParse::DepthLimited | CachedParse::Invalid => None,
         }
-        match self.parsed_strings.get(text) {
-            Some(CachedParse::Parsed(value)) => Some(value),
-            Some(CachedParse::DepthLimited | CachedParse::Invalid) | None => None,
+    }
+
+    /// The cached parse of `text`, which is parsed on first use.
+    fn entry(&mut self, text: &JsString) -> &CachedParse {
+        if let Some(index) = self.compared.iter().position(|(cached, _)| cached == text) {
+            return &self.compared[index].1;
         }
+        if self.compared.len() < COMPARED_STRINGS {
+            self.compared.push((text.clone(), CachedParse::of(text)));
+            return &self.compared[self.compared.len() - 1].1;
+        }
+        let index = match self.hashed.get_index_of(text) {
+            Some(index) => index,
+            None => {
+                self.hashed
+                    .insert_full(text.clone(), CachedParse::of(text))
+                    .0
+            }
+        };
+        &self.hashed[index]
     }
 
     pub fn parse_or_self<'a>(&'a mut self, value: Option<&'a Value>) -> Option<&'a Value> {
@@ -585,11 +646,13 @@ impl JsonParseCache {
         let Value::String(text) = value else {
             return ParsedJson::Borrowed(value);
         };
-        self.parse(Some(value));
-        match self.parsed_strings.get(text) {
-            Some(CachedParse::Parsed(parsed)) => ParsedJson::Shared(Rc::clone(parsed)),
-            Some(CachedParse::DepthLimited) => ParsedJson::DepthLimited(value),
-            Some(CachedParse::Invalid) | None => ParsedJson::Borrowed(value),
+        if !looks_like_json(text.as_str()) {
+            return ParsedJson::Borrowed(value);
+        }
+        match self.entry(text) {
+            CachedParse::Parsed(parsed) => ParsedJson::Shared(Rc::clone(parsed)),
+            CachedParse::DepthLimited => ParsedJson::DepthLimited(value),
+            CachedParse::Invalid => ParsedJson::Borrowed(value),
         }
     }
 }
@@ -725,7 +788,7 @@ mod tests {
         for text in ["text-", "false alarm", "nothing", "true false"] {
             assert!(cache.parse(Some(&json!(text))).is_none());
         }
-        assert!(cache.parsed_strings.is_empty());
+        assert!(cache.compared.is_empty());
         for (text, expected) in [
             ("true", json!(true)),
             (" \tfalse\r\n", json!(false)),
@@ -740,9 +803,22 @@ mod tests {
         let value = Value::String(r#"{"broken":}"#.into());
         let mut cache = JsonParseCache::default();
         assert!(cache.parse(Some(&value)).is_none());
-        assert_eq!(cache.parsed_strings.len(), 1);
+        assert_eq!(cache.compared.len(), 1);
         assert!(cache.parse(Some(&value)).is_none());
-        assert_eq!(cache.parsed_strings.len(), 1);
+        assert_eq!(cache.compared.len(), 1);
+    }
+
+    #[test]
+    fn parses_each_string_once_however_many_an_event_holds() {
+        let mut cache = JsonParseCache::default();
+        for _ in 0..2 {
+            for number in 0..COMPARED_STRINGS + 3 {
+                let text = Value::String(format!("[{number}]").into());
+                assert_eq!(cache.parse(Some(&text)), Some(&json!([number])));
+            }
+        }
+        assert_eq!(cache.compared.len(), COMPARED_STRINGS);
+        assert_eq!(cache.hashed.len(), 3);
     }
 
     #[test]

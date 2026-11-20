@@ -48,11 +48,13 @@ impl OtelProcessingContext {
             is_langfuse_internal: self.is_langfuse_internal,
             ..EventBuildConfig::default()
         };
+        // Every row stores these three timestamps, so convert the shared value once.
+        let stored_at = crate::otel::types::to_clickhouse_datetime(&self.now);
         let storage = StorageContext {
             blob_storage_file_path: self.file_key,
-            created_at: self.now.clone(),
-            updated_at: self.now.clone(),
-            event_ts: self.now,
+            created_at: stored_at.clone(),
+            updated_at: stored_at.clone(),
+            event_ts: stored_at,
         };
         (build, storage)
     }
@@ -351,21 +353,27 @@ impl RustOtelBatch {
 
     /// Apply media and lookup results; return final handles or oversized-field upload requests.
     #[napi(
-        ts_args_type = "mediaResults: OtelMediaResolution[], lookups: object[], overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]",
+        ts_args_type = "mediaResults: OtelMediaResolution[], lookupsJson: string, overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]",
         ts_return_type = "Promise<OtelCompletion>"
     )]
     pub fn complete(
         &self,
         media_results: Vec<OtelMediaResolution>,
-        lookups: Vec<serde_json::Value>,
+        lookups_json: String,
         overflow_limit_bytes: Option<f64>,
         include_evaluation_rows: bool,
         trace_activity_ids: Option<Vec<String>>,
     ) -> AsyncTask<OwnedTask<OtelCompletion>> {
         self.run(move |state| {
-            validate_completion(state, &media_results, lookups.len(), overflow_limit_bytes)?;
+            let lookups = rows::parse_lookups(&lookups_json)?;
+            validate_completion(
+                state,
+                &media_results,
+                lookups.indexes.len(),
+                overflow_limit_bytes,
+            )?;
             media::resolve_media_inner(state, media_results)?;
-            rows::enrich_inner(state, lookups)?;
+            rows::enrich_inner(state, &lookups)?;
             rows::finalize_or_request_overflow(
                 state,
                 overflow_limit_bytes,

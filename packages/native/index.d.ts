@@ -41,7 +41,7 @@ export declare class RustOtelBatch {
   dispose(): Promise<void>
   mediaBody(index: number): Promise<Buffer>
   /** Apply media and lookup results; return final handles or oversized-field upload requests. */
-  complete(mediaResults: OtelMediaResolution[], lookups: object[], overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]): Promise<OtelCompletion>
+  complete(mediaResults: OtelMediaResolution[], lookupsJson: string, overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]): Promise<OtelCompletion>
   overflowBody(index: number): Promise<Buffer>
   /** Apply oversized-field upload results and return immutable handles to the ClickHouse writer. */
   finalize(overflow: Array<OtelMediaResolution>, includeEvaluationRows: boolean, traceActivityIds?: Array<string> | undefined | null): Promise<FinalizedOtelBatch>
