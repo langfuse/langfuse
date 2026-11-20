@@ -66,22 +66,18 @@ const ASTRAL_SKILL_NAME = "😀".repeat(128);
 // Shared pricing validation accepts these patterns. Native unit tests cover the
 // deliberate fallback for usage keys containing UTF-16 surrogate pairs.
 const PRICING_REGEX_CASES = [
-  { pattern: "^\\w+$", key: "é", caseSensitive: true },
-  { pattern: "^\\d+$", key: "١", caseSensitive: true },
-  { pattern: "^\\s$", key: "\u0085", caseSensitive: true },
-  { pattern: "^\\bé\\b$", key: "é", caseSensitive: false },
-  { pattern: "^k$", key: "K", caseSensitive: false },
-  { pattern: "^s$", key: "ſ", caseSensitive: false },
-  { pattern: "^[a-z]+$", key: "K", caseSensitive: false },
-  {
-    pattern: "^(?=preinput$)preinput$",
-    key: "preinput",
-    caseSensitive: true,
-  },
-  { pattern: "^(?!output$)preinput$", key: "preinput", caseSensitive: true },
-  { pattern: "^(input)\\1$", key: "inputinput", caseSensitive: true },
-  { pattern: "^\\cA$", key: "\u0001", caseSensitive: true },
-  { pattern: "^\\k$", key: "k", caseSensitive: true },
+  { regex: /^\w+$/, key: "é" },
+  { regex: /^\d+$/, key: "١" },
+  { regex: /^\s$/, key: "\u0085" },
+  { regex: /^\bé\b$/i, key: "é" },
+  { regex: /^k$/i, key: "K" },
+  { regex: /^s$/i, key: "ſ" },
+  { regex: /^[a-z]+$/i, key: "K" },
+  { regex: /^(?=preinput$)preinput$/, key: "preinput" },
+  { regex: /^(?!output$)preinput$/, key: "preinput" },
+  { regex: /^(input)\1$/, key: "inputinput" },
+  { regex: new RegExp("^\\cA$"), key: "\u0001" },
+  { regex: new RegExp("^\\k$"), key: "k" },
 ] as const;
 const PRICED_USAGE_TYPES = ["input", "output", "cache_read"] as const;
 const TINY_PRICES = [
@@ -911,10 +907,7 @@ describe(
                 ),
               }[explicitParameterShape],
             );
-            const regex = new RegExp(
-              regexCase.pattern,
-              regexCase.caseSensitive ? "" : "i",
-            );
+            const { regex } = regexCase;
             const regexTotal = Object.entries(normalizedUsage)
               .filter(([key]) => regex.test(key))
               .reduce((sum, [, value]) => sum + value, 0);
@@ -924,10 +917,10 @@ describe(
               value: threshold,
             };
             const regexCondition = {
-              usageDetailPattern: regexCase.pattern,
+              usageDetailPattern: regex.source,
               operator: "eq" as const,
               value: regexTotal,
-              caseSensitive: regexCase.caseSensitive,
+              caseSensitive: !regex.ignoreCase,
             };
             const tiers = [
               {

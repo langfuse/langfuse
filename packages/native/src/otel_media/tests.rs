@@ -1149,6 +1149,9 @@ fn structural_work_stays_proportional_across_depth_width_and_embedded_json() {
     let input = nested_chains(&uri, 120, 32, true);
     check_structural_work(&input, &uri, &body, 32, 120, false).unwrap();
 
+    // Each complete four-character base64 group holds up to three body bytes.
+    let largest_inline_body = MIN_EARLY_MEDIA_BYTES.saturating_sub(data_uri(&[]).len() + 1) / 4 * 3;
+    let near_cutoff = largest_inline_body.saturating_sub(8)..=largest_inline_body + 8;
     proptest!(|(
         depth in 0usize..=120,
         width in 1usize..=32,
@@ -1157,8 +1160,7 @@ fn structural_work_stays_proportional_across_depth_width_and_embedded_json() {
         object_root in any::<bool>(),
         body in prop_oneof![
             prop::collection::vec(any::<u8>(), 1..24),
-            // Data URIs of these bodies are just below and just above the size cutoff.
-            prop::collection::vec(any::<u8>(), 745..=760),
+            prop::collection::vec(any::<u8>(), near_cutoff),
             prop::collection::vec(any::<u8>(), MIN_EARLY_MEDIA_BYTES..=MIN_EARLY_MEDIA_BYTES + 32),
         ],
     )| {

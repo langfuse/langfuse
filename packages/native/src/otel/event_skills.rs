@@ -394,7 +394,10 @@ mod tests {
             wrapped in any::<bool>(),
             suffix in prop::sample::select(vec!["", " space", "*literal", ";list", "😀"]),
             trailing_space in "[ \t]{0,2}",
-            unique_prefix in prop_oneof![Just(0usize), Just(1), Just(99), Just(100), Just(101)],
+            unique_prefix in prop_oneof![
+                0usize..=1,
+                MAX_SKILLS_PER_OBSERVATION - 1..=MAX_SKILLS_PER_OBSERVATION + 1,
+            ],
             candidates in prop::collection::vec((0usize..4, 0usize..16, 0u8..4, 0usize..3, 0usize..4), 0..32),
         ) {
             let available = (0..catalog_size).map(|index| SkillAvailableInput {
@@ -430,7 +433,9 @@ mod tests {
                 }
                 // Valid paths are constructed above; the expected values never call the parser.
                 let resource = (skill_name, file_name);
-                if kind == 0 && skill < catalog_size && !expected.contains(&resource) && expected.len() < 100 {
+                if kind == 0 && skill < catalog_size && !expected.contains(&resource)
+                    && expected.len() < MAX_SKILLS_PER_OBSERVATION
+                {
                     expected.push(resource);
                 }
             }
