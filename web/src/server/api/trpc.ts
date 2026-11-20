@@ -19,7 +19,7 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { getServerAuthSession } from "@/src/server/auth";
-import { prisma, type Role } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
@@ -417,9 +417,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: sessionProject.organization.id,
-        orgRole: sessionProject.organization.role,
         projectId: projectId,
-        projectRole: sessionProject.role,
       },
     },
   });
@@ -486,7 +484,6 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: orgId,
-        orgRole: sessionOrg.role,
       },
     },
   });
@@ -645,10 +642,6 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
 
     return next({
       ctx: {
-        session: {
-          ...ctx.session,
-          projectRole: sessionProject?.role,
-        },
         trace, // pass the trace to the next middleware so we do not need to fetch it again
       },
     });
@@ -723,14 +716,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
   addUserToSpan({ projectId }, ctx.requestSpan);
 
-  return next({
-    ctx: {
-      session: {
-        ...ctx.session,
-        projectRole: userSessionProject?.role,
-      },
-    },
-  });
+  return next({ ctx });
 });
 
 export const protectedGetSessionProcedure = withOtelTracingProcedure
@@ -792,15 +778,12 @@ export type AuthedSession = NonNullable<TRPCContext["session"]> & {
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {
     orgId: string;
-    orgRole: Role;
     projectId: string;
-    projectRole: Role;
   };
 };
 // After `enforceIsAuthedAndOrgMember`
 export type OrgAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {
     orgId: string;
-    orgRole: Role;
   };
 };

@@ -11,7 +11,6 @@ type Project = Extract<
 const createProject = (id: string, name: string): Project => ({
   id,
   name,
-  role: "ADMIN",
   deletedAt: null,
   retentionDays: null,
   hasTraces: false,

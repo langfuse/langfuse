@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import type { Session } from "next-auth";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { prisma, Role } from "@langfuse/shared/src/db";
@@ -42,34 +41,26 @@ describe("organizations.delete while projects are still purging", () => {
         name: "Organization Delete Test User",
       },
     });
-    const session: Session = {
-      expires: "1",
+    const session = createSession({
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: organization.id,
-            name: organization.name,
-            role: "OWNER",
-            plan: "self-hosted:enterprise",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            // The session omits soft-deleted projects, matching auth.ts.
-            projects: [],
-          },
-        ],
         featureFlags: testFeatureFlags({ templateFlag: false }),
       },
-      environment: {
-        enableExperimentalFeatures: false,
-        selfHostedInstancePlan: "self-hosted:enterprise",
-      },
-    };
+      organizations: [
+        {
+          id: organization.id,
+          name: organization.name,
+          role: "OWNER",
+          plan: "self-hosted:enterprise",
+          aiTelemetryEnabled: true,
+          // The session omits soft-deleted projects, matching auth.ts.
+          projects: [],
+        },
+      ],
+      environment: { selfHostedInstancePlan: "self-hosted:enterprise" },
+    });
     const ctx = createInnerTRPCContext({ session, headers: {} });
     const caller = appRouter.createCaller({ ...ctx, prisma });
 

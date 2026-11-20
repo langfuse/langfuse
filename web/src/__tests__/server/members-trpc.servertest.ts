@@ -1172,10 +1172,14 @@ describe("membersRouter.create - project organization consistency", () => {
         projectRole: Role.VIEWER,
       },
     );
-    session.user!.organizations.push(
-      ...memberSession(caller, callerOrg, callerProject, "cloud:team").user!
-        .organizations,
+    const callerSession = memberSession(
+      caller,
+      callerOrg,
+      callerProject,
+      "cloud:team",
     );
+    session.user.organizations.push(...callerSession.user.organizations);
+    session.policies[0].push(...callerSession.policies[0]);
     const ctx = createInnerTRPCContext({ session, headers: {} });
     const trpc = appRouter.createCaller({ ...ctx, prisma });
 
