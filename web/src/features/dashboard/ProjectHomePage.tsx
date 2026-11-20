@@ -19,6 +19,8 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
+  formatDateRange,
+  getTimeRangeLabel,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -81,8 +83,8 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const { project } = useQueryProjectOrOrganization();
-  // With the assistant usable, Home leads with its composer and the scoping
-  // controls move from the header into it. Otherwise Home is unchanged.
+  // With the assistant usable, Home leads with its Ask section. Otherwise
+  // Home is unchanged.
   const showAssistantComposer = useCanUseInAppAgent();
   const { data: hasTracingConfigured, isLoading: isTracingCheckLoading } =
     api.traces.hasTracingConfigured.useQuery(
@@ -349,48 +351,6 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     });
   };
 
-  const environmentSelect = (
-    <MultiSelect
-      title="Environment"
-      label="Env"
-      values={selectedEnvironments}
-      onValueChange={setSelectedEnvironmentsDebounced}
-      options={environmentOptions.map((env) => ({
-        value: env,
-      }))}
-      className="my-0 w-auto overflow-hidden"
-    />
-  );
-  const filterBuilder = (
-    <PopoverFilterBuilder
-      columns={filterColumns}
-      filterState={userFilterState}
-      onChange={setUserFilterStateDebounced}
-      // Analytics (LFE-10781): project-home dashboard filter — a
-      // v3/legacy surface (not the v4 events table).
-      tableName="home-dashboard"
-      isV4={false}
-    />
-  );
-  const timeRangePicker = (
-    <TimeRangePicker
-      timeRange={timeRange}
-      onTimeRangeChange={setTimeRange}
-      timeRangePresets={dashboardTimeRangePresets}
-      className="my-0 max-w-full overflow-x-auto"
-      triggerClassName="px-2"
-      disabled={
-        lookbackLimit
-          ? {
-              before: new Date(
-                new Date().getTime() - lookbackLimit * 24 * 60 * 60 * 1000,
-              ),
-            }
-          : undefined
-      }
-    />
-  );
-
   return (
     <DashboardQuerySchedulerProvider
       store={schedulerStore}
@@ -401,10 +361,27 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
         scrollable
         headerProps={{
           title: "Home",
-          actionButtonsLeft: showAssistantComposer ? undefined : (
+          actionButtonsLeft: (
             <>
-              {environmentSelect}
-              {filterBuilder}
+              <MultiSelect
+                title="Environment"
+                label="Env"
+                values={selectedEnvironments}
+                onValueChange={setSelectedEnvironmentsDebounced}
+                options={environmentOptions.map((env) => ({
+                  value: env,
+                }))}
+                className="my-0 w-auto overflow-hidden"
+              />
+              <PopoverFilterBuilder
+                columns={filterColumns}
+                filterState={userFilterState}
+                onChange={setUserFilterStateDebounced}
+                // Analytics (LFE-10781): project-home dashboard filter — a
+                // v3/legacy surface (not the v4 events table).
+                tableName="home-dashboard"
+                isV4={false}
+              />
             </>
           ),
           actionButtonsRight: (
@@ -558,20 +535,37 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           ),
         }}
       >
-        {showAssistantComposer ? (
-          <div className="mx-auto w-full max-w-3xl pt-2 pb-5">
+        <PageHeaderControlsPortal>
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            timeRangePresets={dashboardTimeRangePresets}
+            className="my-0 max-w-full overflow-x-auto"
+            triggerClassName="px-2"
+            disabled={
+              lookbackLimit
+                ? {
+                    before: new Date(
+                      new Date().getTime() -
+                        lookbackLimit * 24 * 60 * 60 * 1000,
+                    ),
+                  }
+                : undefined
+            }
+          />
+        </PageHeaderControlsPortal>
+        {showAssistantComposer && (
+          <div className="pt-9 pb-10">
             <InAppAgentHomeComposer
-              scopeControls={
-                <>
-                  {environmentSelect}
-                  {filterBuilder}
-                  {timeRangePicker}
-                </>
+              projectName={project?.name ?? "your project"}
+              timeRangeLabel={
+                "from" in timeRange
+                  ? formatDateRange(timeRange.from, timeRange.to)
+                  : getTimeRangeLabel(timeRange.range)
               }
+              environmentCount={selectedEnvironments.length}
             />
           </div>
-        ) : (
-          <PageHeaderControlsPortal>{timeRangePicker}</PageHeaderControlsPortal>
         )}
         {!isDashboardDataReady || isResolvingDashboard ? (
           <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
