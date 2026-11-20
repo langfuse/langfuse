@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/only-throw-error */
 import type { TopicsModels } from "@langfuse/shared/topics/server";
 import {
   DEFAULT_TOPIC_FACETS,

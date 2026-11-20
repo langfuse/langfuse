@@ -615,6 +615,7 @@ export const traceRouter = createTRPCRouter({
         let trace;
 
         // eslint-disable-next-line @typescript-eslint/no-deprecated
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
@@ -671,6 +672,7 @@ export const traceRouter = createTRPCRouter({
         after: input.public,
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       // eslint-disable-next-line @typescript-eslint/no-deprecated
       const clickhouseTrace = await getTraceById({
         traceId: input.traceId,

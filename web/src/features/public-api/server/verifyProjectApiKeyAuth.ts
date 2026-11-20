@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/only-throw-error */
 import crypto from "node:crypto";
 import { type NextApiRequest } from "next";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";

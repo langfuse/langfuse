@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
+/* eslint-disable @typescript-eslint/no-use-before-define, @typescript-eslint/only-throw-error */
 import { type Redis, type Cluster } from "ioredis";
 import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";

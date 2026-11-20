@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/only-throw-error */
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";

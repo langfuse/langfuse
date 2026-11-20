@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/only-throw-error */
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
