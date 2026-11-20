@@ -3,7 +3,6 @@
 import { type KeyboardEvent, useState } from "react";
 import {
   Activity,
-  ArrowUp,
   Bug,
   DollarSign,
   History,
@@ -13,9 +12,9 @@ import {
 import { formatDistanceToNow, subDays } from "date-fns";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
+import { InAppAgentAskButton } from "@/src/features/in-app-agent/components/InAppAgentAskButton";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 type HomeStarter = {
@@ -155,16 +154,7 @@ export function InAppAgentHomeComposer() {
           className="placeholder:text-foreground-tertiary min-h-24 w-full resize-none border-0 bg-transparent px-4 pt-4 pb-1 text-base leading-relaxed outline-none focus:ring-0"
         />
         <div className="flex flex-wrap items-center justify-end gap-2 py-2 pr-2 pl-3">
-          <KeyboardShortcut
-            keys={["Mod", "Enter"]}
-            variant="subtle"
-            size="xs"
-          />
-          <Button
-            text="Ask"
-            variant="primary"
-            size="sm"
-            icon={ArrowUp}
+          <InAppAgentAskButton
             disabled={!trimmedRequest}
             onClick={startConversation}
           />
