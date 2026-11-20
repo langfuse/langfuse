@@ -69,7 +69,7 @@ Use their technical rules, not their implementation or handoff workflows.
 - Test components only through Storybook. Use `.clienttest.ts` for frontend unit tests, not in-source tests. Keep backend and worker conventions.
 - Flag duplicates of existing coverage, and multiple tests where one meaningful test is enough. Suggest which one to keep. One representative input per distinct contract or path, plus each boundary.
 - Flag tests that hardcode limits, timeouts, or plan values copied from code when the test is not checking that value. Ask to import the constant instead. When the test pins a limit or boundary, keep an explicit expected value.
-- Flag skipped or commented-out tests being added.
+- Flag skipped or commented-out tests being added unless a TODO next to them names the ticket or the condition for bringing them back.
 - Flag unrelated side fixes bundled into the PR.
 - Do not ask for additional tests unless a specific behavior change is untested. Then ask for one focused test of that behavior.
 - Remove regression tests when types, schemas, or deleted paths prevent the bug. Check that runtime inputs cannot bypass those protections.
