@@ -232,6 +232,10 @@ const viewFilterDefinitions: Record<
       sourceSpec("Session", { uiTableId: "session" }),
       sourceSpec("Session", { uiTableId: "sessionId" }),
     ),
+    defineField(
+      "traceSessionId",
+      sourceSpec("Trace Session", { uiTableId: "traceSession" }),
+    ),
     defineField("metadata", sourceSpec("Metadata", { uiTableId: "metadata" })),
     defineField(
       "traceName",
@@ -280,6 +284,10 @@ const viewFilterDefinitions: Record<
       sourceSpec("Session", { uiTableId: "session" }),
       sourceSpec("Session", { uiTableId: "sessionId" }),
     ),
+    defineField(
+      "traceSessionId",
+      sourceSpec("Trace Session", { uiTableId: "traceSession" }),
+    ),
     defineField("metadata", sourceSpec("Metadata", { uiTableId: "metadata" })),
     defineField(
       "traceName",
@@ -327,6 +335,10 @@ const viewFilterDefinitions: Record<
       "sessionId",
       sourceSpec("Session", { uiTableId: "session" }),
       sourceSpec("Session", { uiTableId: "sessionId" }),
+    ),
+    defineField(
+      "traceSessionId",
+      sourceSpec("Trace Session", { uiTableId: "traceSession" }),
     ),
     defineField("metadata", sourceSpec("Metadata", { uiTableId: "metadata" })),
     defineField(
