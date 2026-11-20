@@ -207,6 +207,7 @@ export const EditSavedView = Default.extend({
     await userEvent.click(body.getByRole("button", { name: "Generations" }));
     await userEvent.click(body.getByRole("button", { name: "Save changes" }));
     await expect(args.onApply).toHaveBeenCalledWith({
+      ownership: undefined,
       name: "Renamed generations",
       filters: [
         { column: "type", type: "string", operator: "=", value: "GENERATION" },
@@ -214,6 +215,31 @@ export const EditSavedView = Default.extend({
       unmatchedTraces: "show",
       viewMode: "conversational",
     });
+  },
+});
+
+export const PromotePrivateView = meta.story({
+  name: "(Test) Promote private view",
+  args: {
+    variant: {
+      type: "edit",
+      initialName: "My view",
+      pending: false,
+      disabled: false,
+      ownership: "PRIVATE",
+      canPromoteToProject: true,
+    },
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    await userEvent.click(body.getByRole("radio", { name: "Project view" }));
+    await expect(
+      body.getByText(/It cannot be made private again/),
+    ).toBeInTheDocument();
+    await userEvent.click(body.getByRole("button", { name: "Save changes" }));
+    await expect(args.onApply).toHaveBeenCalledWith(
+      expect.objectContaining({ ownership: "PROJECT", name: "My view" }),
+    );
   },
 });
 
@@ -225,6 +251,8 @@ export const TestSessionNavigation = TestObservationFilters.extend({
         {...args}
         preview={{
           ...args.preview,
+          pending: args.preview?.pending ?? false,
+          error: args.preview?.error,
           navigation: {
             sessionId: `session-${index + 1}`,
             isCurrentSession: index === 0,
@@ -233,7 +261,7 @@ export const TestSessionNavigation = TestObservationFilters.extend({
             onPrevious: index > 0 ? () => setIndex(index - 1) : undefined,
             onNext: index < 1 ? () => setIndex(index + 1) : undefined,
           },
-          traces: args.preview.traces?.slice(index, index + 1),
+          traces: args.preview?.traces?.slice(index, index + 1),
         }}
       />
     );

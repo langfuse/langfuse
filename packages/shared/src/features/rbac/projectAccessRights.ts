@@ -97,6 +97,9 @@ export const projectScopes = [
 
   "sessions:read",
 
+  "SessionViews:CUD",
+  "SessionViews:read",
+
   "skills:CUD",
   "skills:read",
 
@@ -182,6 +185,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "skills:CUD",
     "skills:read",
     "TableViewPresets:CUD",
+    "SessionViews:CUD",
+    "SessionViews:read",
     "TableViewPresets:read",
     "topics:CUD",
     "topics:read",
@@ -254,6 +259,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "skills:CUD",
     "skills:read",
     "TableViewPresets:CUD",
+    "SessionViews:CUD",
+    "SessionViews:read",
     "TableViewPresets:read",
     "topics:CUD",
     "topics:read",
@@ -313,6 +320,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "skills:CUD",
     "skills:read",
     "TableViewPresets:CUD",
+    "SessionViews:CUD",
+    "SessionViews:read",
     "TableViewPresets:read",
     "topics:CUD",
     "topics:read",
@@ -320,6 +329,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "traces:read",
   ],
   VIEWER: [
+    "SessionViews:read",
     "alerts:read",
     "annotationQueues:read",
     "automations:read",

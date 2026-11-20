@@ -20,8 +20,8 @@ const BILLING_LOOKBACK_MS = 24 * 60 * 60 * 1000;
  * recomputes to the same counts. A window still receives inserts until a few
  * minutes after `windowTo`; counting it earlier under-bills.
  *
- * The table is created by `clickhouse/scripts/dev-tables.sh` locally and by
- * hand on Langfuse Cloud. Where it does not exist, the query fails.
+ * The table is created by ClickHouse migration `0057_create_billable_events`
+ * and holds only usage ingested after that migration ran.
  */
 export const getBillableUnitCountsByProjectInWindow = async ({
   windowFrom,

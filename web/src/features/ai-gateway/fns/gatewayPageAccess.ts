@@ -4,7 +4,6 @@ import {
   type GatewayPageSlug,
 } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { isGatewayBudgetsPageAvailable } from "@/src/features/ai-gateway/fns/isGatewayBudgetsPageAvailable";
 
 /** Which AI Gateway pages a member sees in an organization. */
 export function gatewayPageAccess({
@@ -54,8 +53,7 @@ export function gatewayPageVisibility(
   return {
     [GATEWAY_PAGE_SLUGS.overview]: showSetup || showOwnUsageAnalytics,
     [GATEWAY_PAGE_SLUGS.models]: access.showModels || showSetup,
-    [GATEWAY_PAGE_SLUGS.budgets]:
-      access.showApiKeys && isGatewayBudgetsPageAvailable(),
+    [GATEWAY_PAGE_SLUGS.budgets]: access.showApiKeys,
     [GATEWAY_PAGE_SLUGS.apiKeys]: access.showApiKeys,
   };
 }

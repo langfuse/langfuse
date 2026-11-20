@@ -90,6 +90,7 @@ import auth from "@/src/pages/api/auth/[...nextauth]";
 import signupVerify from "@/src/pages/api/auth/signup-verify";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { prisma, Role } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import {
   logger,
   sendResetPasswordVerificationRequest,
@@ -237,8 +238,10 @@ describe("cloud_signup_complete", () => {
     const organization = await prisma.organization.create({
       data: { name: `SCIM Org ${randomUUID()}` },
     });
-    await prisma.organizationMembership.create({
-      data: { orgId: organization.id, userId: user.id, role: Role.MEMBER },
+    await createOrgMembership(prisma, {
+      orgId: organization.id,
+      userId: user.id,
+      role: Role.MEMBER,
     });
 
     await linkLogin(email, "example.com.okta");

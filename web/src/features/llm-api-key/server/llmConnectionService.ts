@@ -17,6 +17,7 @@ import {
   EvaluatorBlockReason,
   GCPServiceAccountKeySchema,
   InvalidRequestError,
+  INVALID_LLM_BASE_URL_PREFIX,
   InternalServerError,
   isDecisionModelAdapter,
   LangfuseConflictError,
@@ -337,7 +338,7 @@ async function validateBaseUrlForWrite(params: {
     await validateBaseUrl(params);
   } catch (error) {
     throw new InvalidRequestError(
-      `Invalid base URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `${INVALID_LLM_BASE_URL_PREFIX}${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }

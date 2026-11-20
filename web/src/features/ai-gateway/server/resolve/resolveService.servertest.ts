@@ -55,7 +55,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
         ...params,
         model: "Production OpenAI:gpt-4o",
       });
-      return service.resolve({ context, apiFormat: params.apiFormat });
+      return service.resolve({
+        context,
+        apiFormat: params.apiFormat,
+        pricing: service.findPricing(context),
+      });
     },
   };
 };

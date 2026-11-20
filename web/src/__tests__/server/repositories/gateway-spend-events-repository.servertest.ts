@@ -59,6 +59,16 @@ maybe("getGatewaySpendSinceFromEvents", () => {
         { id: "daily", spendUsd: 3.5 },
         { id: "monthly", spendUsd: 3 },
       ]);
+      // The organization is its ingestion project: every key's gateway spend, not other events.
+      expect(
+        await getGatewaySpendSinceFromEvents({
+          projectId,
+          scope: "ORGANIZATION",
+          subjects: [
+            { id: projectId, since: new Date("2026-11-17T00:00:00Z") },
+          ],
+        }),
+      ).toEqual([{ id: projectId, spendUsd: 53.5 }]);
     });
   });
 });

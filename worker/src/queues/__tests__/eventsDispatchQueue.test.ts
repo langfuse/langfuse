@@ -187,6 +187,7 @@ describe("events dispatch consumer", () => {
       projectId,
       traceId: "stored",
       revision: revisions.get("stored"),
+      transcriptS3Path: "stored.json",
       ruleIds: ["rule"],
     });
     expect(await readPending("stored")).toBeNull();

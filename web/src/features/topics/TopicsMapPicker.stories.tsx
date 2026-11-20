@@ -5,6 +5,7 @@ import preview from "../../../.storybook/preview";
 import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
+import { refreshMapDisabledReason } from "./prepare-topics-actions";
 import { type TopicMapSelection, type TopicMapsOverview } from "./topic-maps";
 
 const now = Date.parse("2026-11-05T12:00:00.000Z");
@@ -65,9 +66,11 @@ const overview: TopicMapsOverview = {
     {
       id: "analysis-refunds",
       label: "Refund complaints",
+      summarize: { limit: 500, selection: "latest" },
       filter: [condition("traceName", "support-agent")],
       facetIds: ["issues"],
       status: "completed",
+      updatedAt: hoursAgo(5),
       createdAt: hoursAgo(5),
       timeRange: {
         from: new Date(now - 7 * 86_400_000),
@@ -81,6 +84,7 @@ const overview: TopicMapsOverview = {
       filter: [],
       facetIds: ["intent"],
       status: "running",
+      updatedAt: hoursAgo(1),
       createdAt: hoursAgo(1),
       timeRange: {
         from: new Date(now - 30 * 86_400_000),
@@ -117,7 +121,18 @@ const useStoryPreviewTopics: UsePreviewTopics = (_projectId, map) => ({
 });
 
 /** The Topics page header flow: pick a map, see its strip, or the building state of a new map. */
-function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
+function MapSwitcher({
+  initial,
+  refreshDisabledReason,
+  onRefresh,
+  onViewRun,
+}: {
+  initial: TopicMapSelection;
+  /** Why a live map can't be refreshed now. */
+  refreshDisabledReason?: string;
+  onRefresh?: (ruleId: string) => void;
+  onViewRun: (executionId: string) => void;
+}) {
   const [selection, setSelection] = useState(initial);
   const selectedRule =
     selection.kind === "rule"
@@ -128,7 +143,7 @@ function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
       ? overview.analyses.find((item) => item.id === selection.id)
       : undefined;
   return (
-    <div className="flex h-[420px] w-[760px] flex-col rounded-md border">
+    <div className="flex h-[420px] w-[min(760px,calc(100vw-2rem))] flex-col rounded-md border">
       <div className="flex items-center gap-3 border-b p-2">
         <TopicsMapPicker
           projectId="project"
@@ -142,13 +157,21 @@ function MapSwitcher({ initial }: { initial: TopicMapSelection }) {
             map: { onSelect: fn() },
             snapshot: { onSelect: fn() },
           }}
+          refresh={(rule) => ({
+            onSelect: () => onRefresh?.(rule.id),
+            disabledReason: refreshDisabledReason,
+          })}
         />
       </div>
       {selectedRule ? (
         <TopicMapStrip.Rule rule={selectedRule} now={now} />
       ) : null}
       {selectedAnalysis ? (
-        <TopicMapStrip.Analysis analysis={selectedAnalysis} />
+        <TopicMapStrip.Analysis
+          analysis={selectedAnalysis}
+          estimatedCost={selectedAnalysis.summarize ? 0.42 : null}
+          onViewRun={() => onViewRun(selectedAnalysis.id)}
+        />
       ) : null}
       {selectedRule?.enabled !== false && selectedRule?.lastRefitAt === null ? (
         <TopicRuleBuildingState rule={selectedRule} mapBuilt={false} />
@@ -166,6 +189,7 @@ const meta = preview.meta({
   parameters: { layout: "centered" },
   args: {
     initial: ruleMap("rule-all"),
+    onViewRun: fn(),
   },
 });
 
@@ -203,7 +227,7 @@ const openPicker = async (canvasElement: HTMLElement) => {
 
 export const TestSwitchesMaps = meta.story({
   name: "(Test) Switches between maps and snapshots",
-  play: async ({ canvasElement }) => {
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     let picker = await openPicker(canvasElement);
     await expect(
@@ -218,6 +242,11 @@ export const TestSwitchesMaps = meta.story({
       canvas.getByRole("button", { name: "Topic map: Refund complaints" }),
     ).toBeVisible();
     await expect(canvas.getByText(/1,840 traces/)).toBeVisible();
+    await expect(
+      canvas.getByText("Summaries and embeddings · ~$0.42"),
+    ).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "View run" }));
+    await expect(args.onViewRun).toHaveBeenCalledWith("analysis-refunds");
 
     picker = await openPicker(canvasElement);
     await userEvent.click(
@@ -250,6 +279,45 @@ export const TestExplainsNewEntries = meta.story({
   },
 });
 
+export const TestKeepsHeightWhilePreviewing = meta.story({
+  name: "(Test) Keeps its height while previewing",
+  play: async ({ canvasElement }) => {
+    // The preview pane only shows from the `sm` breakpoint up, wider than Vitest's default viewport.
+    const vitestPage =
+      "__vitest_browser__" in globalThis
+        ? (await import("vitest/browser")).page
+        : null;
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    await vitestPage?.viewport(1024, 768);
+    try {
+      const picker = await openPicker(canvasElement);
+      // A short list, so the preview pane sets the popover's height.
+      await userEvent.type(
+        picker.getByRole("searchbox", { name: "Search maps" }),
+        "Support",
+      );
+      const dialog = within(canvasElement.ownerDocument.body).getByRole(
+        "dialog",
+        { name: "Topic maps" },
+      );
+      // The selected live map: three top topics, a one-line filter, and Refresh available.
+      await expect(
+        picker.getByRole("button", { name: "Refresh" }),
+      ).toBeEnabled();
+      const height = dialog.getBoundingClientRect().height;
+      await userEvent.hover(
+        picker.getByRole("button", { name: "New snapshot" }),
+      );
+      await expect(
+        picker.getByText(/A snapshot doesn’t change afterwards/),
+      ).toBeVisible();
+      await expect(dialog.getBoundingClientRect().height).toBe(height);
+    } finally {
+      await vitestPage?.viewport(viewport.width, viewport.height);
+    }
+  },
+});
+
 export const TestPausedLast = meta.story({
   name: "(Test) Paused maps sort below active ones",
   play: async ({ canvasElement }) => {
@@ -267,5 +335,55 @@ export const TestPausedLast = meta.story({
       )
       .map((text) => text.split(/\d| ·/)[0]!.trim());
     await expect(names.at(-1)).toMatch(/^Legacy RAG/);
+  },
+});
+
+export const TestRefreshPreviewedMap = meta.story({
+  name: "(Test) Refresh acts on the previewed map",
+  args: { onRefresh: fn() },
+  play: async ({ args, canvasElement }) => {
+    const picker = await openPicker(canvasElement);
+    await userEvent.hover(
+      picker.getByRole("button", { name: /^Support agent/ }),
+    );
+    await waitFor(() =>
+      expect(
+        picker.getByText("Support agent", { selector: ".font-bold" }),
+      ).toBeVisible(),
+    );
+    await userEvent.click(picker.getByRole("button", { name: "Refresh" }));
+    await expect(args.onRefresh).toHaveBeenCalledWith("rule-support");
+  },
+});
+
+export const TestRefreshCooldown = meta.story({
+  name: "(Test) Refresh waits out its cooldown",
+  args: {
+    refreshDisabledReason: refreshMapDisabledReason({
+      canWrite: true,
+      state: { status: "on" },
+      rule: {
+        enabled: true,
+        refresh: {
+          availableAt: new Date(now + 10 * 60_000).toISOString(),
+          running: false,
+        },
+      },
+      setupActive: false,
+      now,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const picker = await openPicker(canvasElement);
+    // The preview card's top right; phones get a footer entry instead.
+    await expect(
+      picker.getByRole("button", { name: "Refresh" }),
+    ).toBeDisabled();
+    // Touch screens show no tooltip, so the reason must be on screen.
+    await expect(
+      picker.getByText("Refreshed recently. Available again in 10 min.", {
+        selector: "p",
+      }),
+    ).toBeVisible();
   },
 });

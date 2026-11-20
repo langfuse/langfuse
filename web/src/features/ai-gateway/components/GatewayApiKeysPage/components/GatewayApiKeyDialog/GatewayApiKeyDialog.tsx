@@ -84,7 +84,7 @@ type GatewayApiKeySubmission = Omit<
 type GatewayApiKeyDisabledField = "issuedAs" | "expiration" | "spendBudget";
 
 const LOCKED_SPEND_BUDGET_REASON =
-  "This key has more than one spend limit, so it can't be changed here. Its limits stay as they are.";
+  "This key has more than one budget, so it can't be changed here. Its budgets stay as they are.";
 
 type GatewayApiKeyDialogProps = {
   title: string;

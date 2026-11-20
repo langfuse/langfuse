@@ -26,8 +26,8 @@ type GatewayBudgetDialogProps = {
   description: ReactNode;
   /** Shown as a warning above the inputs, e.g. that saving replaces budgets. */
   warning?: string;
-  /** What the budget caps: one key, or all keys of a user. */
-  subject: "key" | "user";
+  /** What the budget caps: one key, all keys of a user, or the whole organization. */
+  subject: "key" | "user" | "organization";
   /** Prefills the form; null when there is no budget yet. */
   spendLimit: GatewaySpendLimit | null;
   saveLabel: string;
@@ -41,7 +41,7 @@ type GatewayBudgetDialogProps = {
   onRemove: () => void;
 };
 
-/** Sets or removes a budget: of keys, of users, or the organization's default for either. */
+/** Sets or removes a budget: of keys, of users, of the organization, or the organization's default for keys or users. */
 export function GatewayBudgetDialog({
   title,
   description,

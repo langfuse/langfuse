@@ -12,6 +12,7 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { traceTopicRows } from "@/src/features/topics/trace/trace-topic-rows";
+import { treemapBadgeColor } from "@/src/features/topics/topic-map-colors";
 /** Trace totals, session/user links and tags, above the panels. */
 
 import { useMemo } from "react";
@@ -30,7 +31,7 @@ import { AnnotationQueueObjectType } from "@langfuse/shared";
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
-import { AnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/AnnotationQueueSubmenuItemController";
+import { ConnectedAnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/ConnectedAnnotationQueueSubmenuItemController";
 import { useViewPreferences } from "../contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -186,6 +187,7 @@ function LoadedTraceHeader({
       id: "topics",
       type: "details",
       text,
+      color: lead ? treemapBadgeColor(lead.topicIndex) : undefined,
       title: "Topics",
       href: `/project/${encodeURIComponent(trace.projectId)}/topics`,
       linkText: "Open in Topics →",
@@ -400,13 +402,13 @@ function ConnectedTraceHeaderWorkflowActions({
       />
     );
   return (
-    <AnnotationQueueSubmenuItemController
+    <ConnectedAnnotationQueueSubmenuItemController
       projectId={trace.projectId}
       objectId={sessionId}
       objectType={AnnotationQueueObjectType.SESSION}
       analyticsData={{ source: "SessionDetail", isV4 }}
     >
       {({ item, totalCount }) => renderHeader([item], totalCount)}
-    </AnnotationQueueSubmenuItemController>
+    </ConnectedAnnotationQueueSubmenuItemController>
   );
 }

@@ -356,6 +356,12 @@ fn builds_owned_events_with_project_and_resource_fields() {
 }
 
 #[test]
+fn preserves_an_explicitly_empty_scope_name() {
+    let event = metadata_event(vec![], "sdk", "", "1", None);
+    assert_eq!(event.scope_name.as_deref(), Some(""));
+}
+
+#[test]
 fn trusted_gateway_attribution_uses_caller_key_and_scope_version() {
     let input = json!([{
         "resource": {"attributes": [
@@ -488,21 +494,32 @@ fn non_string_environment_uses_default_and_ingestion_cannot_bookmark() {
 }
 
 #[test]
-fn nullish_prompt_name_does_not_fall_through_an_explicit_empty_alias() {
-    let input = json!([{
-        "resource": {"attributes": []},
-        "scopeSpans": [{"scope":{"name":"otel.scope"},"spans":[{
-            "traceId":"trace","spanId":"span","name":"chat",
-            "startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000",
-            "attributes":[
-                {"key":"langfuse.observation.type","value":{"stringValue":"generation"}},
-                {"key":"langfuse.observation.prompt.name","value":{"stringValue":""}},
-                {"key":"langfuse.prompt.name","value":{"stringValue":"alias"}}
-            ]
-        }]}]
-    }]);
-    let events = process_json(&input, &EventBuildConfig::default()).unwrap();
-    assert_eq!(events[0].prompt_name.as_deref(), Some(""));
+fn prompt_lookup_preserves_raw_name_truthiness_and_alias_precedence() {
+    for (name, stored, lookup) in [
+        (json!({"boolValue": false}), "false", None),
+        (json!({"stringValue": ""}), "", None),
+        (json!({"intValue": "0"}), "0", None),
+        (json!({"stringValue": "false"}), "false", Some(4.0)),
+        (json!({"stringValue": "0"}), "0", Some(4.0)),
+    ] {
+        let input = json!([{
+            "resource": {"attributes": []},
+            "scopeSpans": [{"scope":{"name":"otel.scope"},"spans":[{
+                "traceId":"trace","spanId":"span","name":"chat",
+                "startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000",
+                "attributes":[
+                    {"key":"langfuse.observation.type","value":{"stringValue":"generation"}},
+                    {"key":"langfuse.observation.prompt.name","value":name},
+                    {"key":"langfuse.prompt.name","value":{"stringValue":"alias"}},
+                    {"key":"langfuse.prompt.version","value":{"intValue":"4"}}
+                ]
+            }]}]
+        }]);
+        let events = process_json(&input, &EventBuildConfig::default()).unwrap();
+        assert_eq!(events[0].prompt_name.as_deref(), Some(stored));
+        assert_eq!(events[0].prompt_version, Some(4));
+        assert_eq!(events[0].prompt_version_lookup, lookup, "{name:?}");
+    }
 }
 
 #[test]

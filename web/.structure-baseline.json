@@ -23,7 +23,6 @@
       "src/components/layouts/spinner.tsx: filename not PascalCase",
       "src/components/level-colors.tsx: filename not PascalCase; 2 components: LevelColors, LevelSymbols",
       "src/components/level-counts-display.tsx: filename not PascalCase",
-      "src/components/metric-strip/MetricStripBand.tsx: 3 components: MetricStripMessage, MetricStripHeaderRow, MetricStripBand",
       "src/components/ModelParameters/index.tsx: filename not PascalCase; 2 components: ModelParameters, ModelParameterSettings",
       "src/components/movable-resizable-panel.tsx: filename not PascalCase",
       "src/components/nav/book-a-call-button.tsx: filename not PascalCase",

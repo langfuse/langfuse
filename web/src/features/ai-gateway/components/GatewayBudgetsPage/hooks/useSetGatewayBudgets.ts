@@ -2,7 +2,7 @@ import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
-import { useInvalidateGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useInvalidateGatewayBudgets";
+import { useInvalidateGatewayBudgets } from "@/src/features/ai-gateway/hooks/useInvalidateGatewayBudgets";
 import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 import {
   api,

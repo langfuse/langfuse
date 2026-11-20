@@ -1,6 +1,7 @@
 import {
   extractOtelMedia,
   hasOtelMediaCandidate,
+  prepareOtelJson,
   validateOtelJson,
   type EarlyOtelBatch,
   type ValidatedOtelJson,
@@ -29,9 +30,9 @@ type PreparedInput =
   | { batch?: never; sourceUnchanged?: never; error: string | undefined };
 
 /**
- * Extract media before the ingestion graph is built. Without masking, marker-free
- * input skips native validation; the consumer's JSON parser still validates it.
- * Masking always receives validated, normalized bytes.
+ * Prepare JSON for ingestion, applying masking and media extraction when enabled.
+ * `retainNativeBatch` keeps JSON in Rust for native normalization. Other callers
+ * can reuse unchanged download bytes. Masking receives validated JSON bytes.
  */
 export async function prepareOtelBatch(params: {
   bytes: Buffer;
@@ -39,8 +40,10 @@ export async function prepareOtelBatch(params: {
   orgId?: string;
   propagatedHeaders?: Record<string, string>;
   extractMedia: boolean;
+  /** Keep JSON in Rust for native normalization, including media-free input. */
+  retainNativeBatch?: boolean;
 }): Promise<PreparedInput> {
-  const { bytes, extractMedia, ...context } = params;
+  const { bytes, extractMedia, retainNativeBatch = false, ...context } = params;
   const startedAt = performance.now();
   let outcome: "native" | "unchanged" | "masking_drop" | "error" = "error";
   let codepath: "inline_check" | "uv_dispatch" | "disabled" = "disabled";
@@ -48,6 +51,16 @@ export async function prepareOtelBatch(params: {
   let maskedInput: ValidatedOtelJson | undefined;
   try {
     if (!isIngestionMaskingEnabled()) {
+      if (retainNativeBatch) {
+        codepath = "uv_dispatch";
+        const batch = await measureOtelMainThread(
+          "input_handling",
+          () => prepareOtelJson(bytes, extractMedia),
+          { retain_native_batch: retainNativeBatch.toString() },
+        );
+        outcome = "native";
+        return { batch, sourceUnchanged: false };
+      }
       codepath = extractMedia ? "inline_check" : "disabled";
       const inputStartedAt = performance.now();
       const needsExtraction =
@@ -59,7 +72,11 @@ export async function prepareOtelBatch(params: {
       recordDistribution(
         "langfuse.ingestion.otel.main_thread_duration_ms",
         performance.now() - inputStartedAt,
-        { phase: "input_handling", media_path: "early" },
+        {
+          phase: "input_handling",
+          media_path: "early",
+          retain_native_batch: retainNativeBatch.toString(),
+        },
       );
       const batch = needsExtraction ? await extraction : null;
       outcome = batch ? "native" : "unchanged";
@@ -144,6 +161,7 @@ export async function prepareOtelBatch(params: {
           outcome,
           codepath,
           extract_media: extractMedia.toString(),
+          retain_native_batch: retainNativeBatch.toString(),
         };
         recordIncrement(
           "langfuse.ingestion.otel.early_media.preparation",
@@ -193,7 +211,11 @@ export async function parsePreparedOtelBatch(
 }
 
 // Measure synchronous result handling; awaited native work stays outside.
-function measureOtelMainThread<T>(phase: string, work: () => T): T {
+function measureOtelMainThread<T>(
+  phase: string,
+  work: () => T,
+  additionalTags: Record<string, string> = {},
+): T {
   const startedAt = performance.now();
   try {
     return work();
@@ -201,7 +223,7 @@ function measureOtelMainThread<T>(phase: string, work: () => T): T {
     recordDistribution(
       "langfuse.ingestion.otel.main_thread_duration_ms",
       performance.now() - startedAt,
-      { phase, media_path: "early" },
+      { phase, media_path: "early", ...additionalTags },
     );
   }
 }

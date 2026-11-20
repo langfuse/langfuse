@@ -1,27 +1,27 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useStore } from "zustand";
 
-import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { GatewayBudgetStatus } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { getGatewayBudgetsTableStore } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/stores/gatewayBudgetsTableStores";
 import { api } from "@/src/utils/api";
-
-const PAGE_SIZE = 10;
 
 /**
  * The budgets table's query and selection, shared with the spend chart so its
  * filter is always the selected rows, or every matching row under select-all.
  * The selection clears whenever the listed rows change, so it never outlives
- * them.
+ * them. The page header reads the same state, to start "Add budget" with the
+ * selected rows.
  */
 export function useGatewayBudgetsTableState(
   organizationId: string,
   tab: GatewaySpendTab,
 ) {
-  const [state, setState] = useState(initialState);
+  const store = getGatewayBudgetsTableStore(organizationId, tab);
+  const state = useStore(store);
   const { searchQuery, status, pagination, selectionStore } = state;
   const trimmedSearch = searchQuery.trim() || undefined;
 
@@ -45,7 +45,7 @@ export function useGatewayBudgetsTableState(
   const { clearSelection, toggleRow } = selectionStore.getState().actions;
   const update = (changes: Partial<typeof state>) => {
     clearSelection();
-    setState((current) => ({ ...current, ...changes }));
+    store.setState(changes);
   };
 
   return {
@@ -75,15 +75,6 @@ export function useGatewayBudgetsTableState(
       state: pagination,
       onChange: (value: typeof pagination) => update({ pagination: value }),
     },
-  };
-}
-
-function initialState() {
-  return {
-    searchQuery: "",
-    status: "all" as GatewayBudgetStatus,
-    pagination: { pageIndex: 0, pageSize: PAGE_SIZE },
-    selectionStore: createTableSelectionStore(),
   };
 }
 

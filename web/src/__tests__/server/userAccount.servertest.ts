@@ -14,6 +14,7 @@ import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils"
 import { INTERNAL_FEATURE_FLAG } from "@/src/features/feature-flags/available-flags";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -383,40 +384,12 @@ async function createCaller({
     },
   });
 
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: user.id,
       email: user.email,
       v4BetaEnabled: false,
       name: user.name,
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: org.aiFeaturesEnabled,
-          aiTelemetryEnabled: true,
-          projects: includeProjectInSession
-            ? [
-                {
-                  id: project.id,
-                  name: project.name,
-                  role: "ADMIN",
-                  deletedAt: null,
-                  retentionDays: null,
-                  hasTraces: false,
-                  metadata: {},
-                  createdAt: project.createdAt.toISOString(),
-                },
-              ]
-            : [],
-        },
-      ],
       featureFlags: testFeatureFlags({
         internalFeatures: !featureFlags.includes(
           getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
@@ -427,11 +400,29 @@ async function createCaller({
         templateFlag: featureFlags.includes("templateFlag"),
       }),
     },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:enterprise",
-    },
-  };
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: "OWNER",
+        plan,
+        aiFeaturesEnabled: org.aiFeaturesEnabled,
+        aiTelemetryEnabled: true,
+        projects: includeProjectInSession
+          ? [
+              {
+                id: project.id,
+                name: project.name,
+                role: "ADMIN",
+                retentionDays: null,
+                createdAt: project.createdAt.toISOString(),
+              },
+            ]
+          : [],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:enterprise" },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
 
