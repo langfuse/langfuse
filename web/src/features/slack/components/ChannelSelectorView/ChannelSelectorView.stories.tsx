@@ -100,7 +100,7 @@ export const ReauthenticatesForPrivateChannels = meta.story({
 
     await userEvent.click(
       canvas.getByRole("button", {
-        name: "re-authenticate your Slack integration",
+        name: "Re-authenticate your Slack integration",
       }),
     );
 

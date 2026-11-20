@@ -84,7 +84,7 @@ describe("ApiKeyList project access gating", () => {
   it("lists keys read-only for a MEMBER, who holds apiKeys:read but not apiKeys:CUD", () => {
     renderAsProjectRole("MEMBER");
 
-    expect(screen.queryByText("Access Denied")).not.toBeInTheDocument();
+    expect(screen.queryByText("Access denied")).not.toBeInTheDocument();
     expect(screen.getByTitle("pk-lf-1234")).toBeInTheDocument();
     expect(screen.getByText("sk-lf-...5678")).toBeInTheDocument();
     // Write controls stay behind apiKeys:CUD: no create button, and the note
@@ -99,7 +99,7 @@ describe("ApiKeyList project access gating", () => {
   it("shows write controls for an ADMIN, who holds apiKeys:CUD", () => {
     renderAsProjectRole("ADMIN");
 
-    expect(screen.queryByText("Access Denied")).not.toBeInTheDocument();
+    expect(screen.queryByText("Access denied")).not.toBeInTheDocument();
     expect(screen.getByTitle("pk-lf-1234")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /create new api keys/i }),
@@ -109,7 +109,7 @@ describe("ApiKeyList project access gating", () => {
   it("denies access to a VIEWER, who holds neither api key scope", () => {
     renderAsProjectRole("VIEWER");
 
-    expect(screen.getByText("Access Denied")).toBeInTheDocument();
+    expect(screen.getByText("Access denied")).toBeInTheDocument();
     expect(screen.queryByTitle("pk-lf-1234")).not.toBeInTheDocument();
   });
 });

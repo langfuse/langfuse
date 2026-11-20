@@ -11,7 +11,7 @@ import {
   Sparkles,
   type IconComponent,
 } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -703,11 +703,7 @@ function CreatePreview({
         <span className="text-muted-foreground">Best for: </span>
         {explanation.bestFor}
       </p>
-      {notice ? (
-        <Alert variant="warning">
-          <Alert.Description>{notice}</Alert.Description>
-        </Alert>
-      ) : null}
+      {notice ? <Banner variant="warning">{notice}</Banner> : null}
     </div>
   );
 }

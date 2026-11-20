@@ -1,6 +1,4 @@
-import { TriangleAlert } from "@langfuse/icons";
-
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export function ModelListingDeniedAlert({
@@ -9,10 +7,9 @@ export function ModelListingDeniedAlert({
   provider: GatewayProvider;
 }) {
   return (
-    <Alert variant="warning" icon={TriangleAlert}>
-      <Alert.Title>Models can&apos;t be listed</Alert.Title>
-      <Alert.Description>{listingDescription(provider)}</Alert.Description>
-    </Alert>
+    <Banner variant="warning" title="Models can't be listed">
+      {listingDescription(provider)}
+    </Banner>
   );
 }
 
