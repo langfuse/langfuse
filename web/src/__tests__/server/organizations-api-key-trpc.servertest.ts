@@ -173,7 +173,7 @@ describe("organization API keys trpc", () => {
       const gatewayKey = await createApiKey(prisma, {
         tenant: OrganizationId(organizationId),
         scope: OrganizationId(organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: UserId("user-1"),
         name: "Gateway key",
       });
@@ -365,7 +365,7 @@ describe("organization API keys trpc", () => {
       const gatewayKey = await createApiKey(prisma, {
         tenant: OrganizationId(organizationId),
         scope: OrganizationId(organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: UserId("user-1"),
         name: "Original gateway key",
       });
@@ -412,7 +412,7 @@ describe("organization API keys trpc", () => {
       const gatewayKey = await createApiKey(prisma, {
         tenant: OrganizationId(organizationId),
         scope: OrganizationId(organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: UserId("user-1"),
         name: "Named gateway key",
       });
@@ -536,7 +536,7 @@ describe("organization API keys trpc", () => {
       const gatewayKey = await createApiKey(prisma, {
         tenant: OrganizationId(organizationId),
         scope: OrganizationId(organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: UserId("user-1"),
         name: "Cached gateway key",
       });
@@ -712,7 +712,7 @@ describe("organization API keys trpc", () => {
       "VIEWER",
       "APPLICATION",
       "SCORES_INGEST",
-      "AI_GATEWAY",
+      "AI_GATEWAY_INFERENCE",
     ] as const)(
       "creates an organization key with %s when role selection is enabled",
       async (role) => {
@@ -739,7 +739,7 @@ describe("organization API keys trpc", () => {
       },
     );
 
-    it("rejects an AI_GATEWAY key without a name", async () => {
+    it("rejects an AI_GATEWAY_INFERENCE key without a name", async () => {
       Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
       const orgId = `org-${randomUUID()}`;
       await prisma.organization.create({
@@ -750,7 +750,7 @@ describe("organization API keys trpc", () => {
         ownerCallerForOrg(orgId).organizationApiKeys.create({
           orgId,
           name: "  ",
-          role: "AI_GATEWAY",
+          role: "AI_GATEWAY_INFERENCE",
         }),
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
       await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
@@ -809,6 +809,7 @@ describe("organization API keys trpc", () => {
             "LEGACY_ORGANIZATION_API_KEY",
             "",
             "OWNER",
+            "AI_GATEWAY",
             "invalid",
           ];
           if (migration !== "enforce" || enabled === "false")
@@ -817,7 +818,7 @@ describe("organization API keys trpc", () => {
               "VIEWER",
               "APPLICATION",
               "SCORES_INGEST",
-              "AI_GATEWAY",
+              "AI_GATEWAY_INFERENCE",
             );
           for (const role of rejectedRoles) {
             await expect(

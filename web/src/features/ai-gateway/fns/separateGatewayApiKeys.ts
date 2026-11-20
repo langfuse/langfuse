@@ -7,7 +7,7 @@ import { type SystemRole } from "@langfuse/shared/src/db";
  */
 export const SEPARATE_GATEWAY_API_KEYS = true;
 
-export const GATEWAY_ROLE: SystemRole = "AI_GATEWAY";
+export const GATEWAY_ROLE: SystemRole = "AI_GATEWAY_INFERENCE";
 
 /** withoutGatewayRole drops the gateway role from the roles offered when creating an organization API key. */
 export function withoutGatewayRole(roles: SystemRole[]): SystemRole[] {

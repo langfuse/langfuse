@@ -2,6 +2,7 @@ import { projectRoleAccessRights } from "@langfuse/shared";
 import {
   allOrganizationActions,
   allProjectActions,
+  apiKeyRolesForScope,
   organizationRoleAccessRights,
   systemRoleAccessRights,
   type ProjectAction,
@@ -128,6 +129,27 @@ describe("systemRoleAccessRights", () => {
     ]);
   });
 
+  it("grants AI_GATEWAY_INFERENCE only gateway:invoke at org scope", () => {
+    expect(systemRoleAccessRights.AI_GATEWAY_INFERENCE.policies).toEqual([
+      {
+        resourceKind: "organization",
+        effect: "ALLOW",
+        actions: ["gateway:invoke"],
+      },
+    ]);
+  });
+
+  it("offers AI_GATEWAY_INFERENCE only for organization API keys and never AI_GATEWAY", () => {
+    expect(apiKeyRolesForScope("organization")).toContain(
+      "AI_GATEWAY_INFERENCE",
+    );
+    expect(apiKeyRolesForScope("organization")).not.toContain("AI_GATEWAY");
+    expect(apiKeyRolesForScope("project")).not.toContain(
+      "AI_GATEWAY_INFERENCE",
+    );
+    expect(apiKeyRolesForScope("project")).not.toContain("AI_GATEWAY");
+  });
+
   it("grants the AI_GATEWAY membership role the AI_GATEWAY system role's access", () => {
     expect(organizationRoleAccessRights.AI_GATEWAY).toEqual([
       "gateway:read",
@@ -180,7 +202,11 @@ describe("systemRoleAccessRights", () => {
   it("tags api-key roles and user roles disjointly", () => {
     const tagsFor = (role: keyof typeof systemRoleAccessRights) =>
       systemRoleAccessRights[role].tags;
-    for (const role of ["SCORES_INGEST", "APPLICATION"] as const) {
+    for (const role of [
+      "SCORES_INGEST",
+      "APPLICATION",
+      "AI_GATEWAY_INFERENCE",
+    ] as const) {
       expect(tagsFor(role)).toEqual(["principal:apiKey"]);
     }
     for (const role of [
@@ -200,5 +226,6 @@ describe("systemRoleAccessRights", () => {
     ] as const) {
       expect(tagsFor(role)).toContain("principal:user");
     }
+    expect(tagsFor("AI_GATEWAY")).toEqual(["principal:user"]);
   });
 });

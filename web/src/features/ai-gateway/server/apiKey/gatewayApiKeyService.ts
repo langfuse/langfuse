@@ -27,6 +27,7 @@ import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gatewa
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
+import { GATEWAY_ROLE } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import { GatewayConfigRepository } from "@/src/features/ai-gateway/server/config/gatewayConfigRepository";
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
 import { getGatewayApiKeysLastUsedAt } from "./gatewayApiKeyLastUsedRepository";
@@ -115,7 +116,7 @@ export class GatewayApiKeyService {
             params.issuedAs === "serviceAccount"
               ? OrganizationId(params.organizationId)
               : UserId(params.session.user.id),
-          role: SystemRoleId("AI_GATEWAY"),
+          role: SystemRoleId(GATEWAY_ROLE),
           createdBy: UserId(params.session.user.id),
           name: params.name,
           expiresAt: params.expiresAt,

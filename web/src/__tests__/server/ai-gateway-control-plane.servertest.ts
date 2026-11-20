@@ -2091,6 +2091,14 @@ describe("AI gateway control plane", () => {
       expiresAt,
     });
     expect(created.secretKey).toMatch(/^sk-lf-/);
+    expect(
+      await prisma.roleAssignment.findFirstOrThrow({
+        where: { apiKeyId: created.id },
+      }),
+    ).toMatchObject({
+      systemRole: "AI_GATEWAY_INFERENCE",
+      roleId: "system/AI_GATEWAY_INFERENCE",
+    });
 
     const listed = await caller.aiGateway.listApiKeys({ orgId: org.id });
     expect(listed.data).toHaveLength(1);
