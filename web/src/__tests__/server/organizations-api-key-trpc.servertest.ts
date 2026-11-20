@@ -1,10 +1,6 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import type { Session } from "next-auth";
-
-// Session fixture sub-object types; casts keep the runtime fixtures unchanged
-// while satisfying newer required fields on the session user type.
-type SessionUser = NonNullable<Session["user"]>;
-type SessionOrg = SessionUser["organizations"][number];
+import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -74,71 +70,19 @@ describe("organization API keys trpc", () => {
   // Organization-scoped API keys require the `admin-api` entitlement, so the
   // default owner sits on a plan that carries it. `entitledOwnerCaller` /
   // `unentitledOwnerCaller` below cover the plan gate explicitly.
-  const ownerSession: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: organizationId,
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [] as SessionOrg["projects"],
-        } as SessionOrg,
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {} as any,
-  };
+  const ownerSession = createSession({
+    organizations: [{ id: organizationId, role: "OWNER", plan: "cloud:team" }],
+  });
 
-  const memberSession: Session = {
-    expires: "1",
-    user: {
-      id: "user-2",
-      canCreateOrganizations: true,
-      name: "Member User",
-      organizations: [
-        {
-          id: organizationId,
-          name: "Test Organization",
-          role: "MEMBER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [] as SessionOrg["projects"],
-        } as SessionOrg,
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {} as any,
-  };
+  const memberSession = createSession({
+    user: { id: "user-2", name: "Member User" },
+    organizations: [{ id: organizationId, role: "MEMBER" }],
+  });
 
-  const adminSession: Session = {
-    expires: "1",
-    user: {
-      id: "user-3",
-      canCreateOrganizations: true,
-      name: "Admin User",
-      organizations: [
-        {
-          id: organizationId,
-          name: "Test Organization",
-          role: "ADMIN",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [] as SessionOrg["projects"],
-        } as SessionOrg,
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {} as any,
-  };
+  const adminSession = createSession({
+    user: { id: "user-3", name: "Admin User" },
+    organizations: [{ id: organizationId, role: "ADMIN" }],
+  });
 
   const ownerCtx = createInnerTRPCContext({
     session: ownerSession,
@@ -162,27 +106,10 @@ describe("organization API keys trpc", () => {
   const unAuthedCaller = appRouter.createCaller({ ...unAuthedCtx, prisma });
 
   // Organization-scoped API keys are a paid feature (`admin-api` entitlement).
-  const ownerSessionOnPlan = (plan: SessionOrg["plan"]): Session => ({
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: organizationId,
-          name: "Test Organization",
-          role: "OWNER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [] as SessionOrg["projects"],
-        } as SessionOrg,
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {} as any,
-  });
+  const ownerSessionOnPlan = (plan: Plan) =>
+    createSession({
+      organizations: [{ id: organizationId, role: "OWNER", plan }],
+    });
 
   const callerForSession = (session: Session) =>
     appRouter.createCaller({
@@ -462,6 +389,7 @@ describe("organization API keys trpc", () => {
           userEmail: null,
           keyMetadata: {},
           keyAllowedModels: null,
+          spendLimits: [],
           ingestionProjectId: null,
           ingestionMode: null,
           plan: "cloud:hobby",
@@ -632,6 +560,7 @@ describe("organization API keys trpc", () => {
           userEmail: null,
           keyMetadata: {},
           keyAllowedModels: null,
+          spendLimits: [],
           ingestionProjectId: null,
           ingestionMode: null,
           plan: "cloud:hobby",
@@ -742,27 +671,18 @@ describe("organization API keys trpc", () => {
 
   describe("organizationApiKeys.create role scoping", () => {
     const ownerCallerForOrg = (orgId: string) =>
-      callerForSession({
-        expires: "1",
-        user: {
-          id: "user-1",
-          canCreateOrganizations: true,
-          name: "Demo User",
+      callerForSession(
+        createSession({
           organizations: [
             {
               id: orgId,
               name: "Scoped Org",
               role: "OWNER",
               plan: "cloud:team",
-              cloudConfig: undefined,
-              metadata: {},
-              projects: [] as SessionOrg["projects"],
-            } as SessionOrg,
+            },
           ],
-          featureFlags: testFeatureFlags(),
-        },
-        environment: {} as any,
-      });
+        }),
+      );
 
     // An org key owns a single assignment on the organization, and the resolver
     // expands that owner to the project-kind wildcard, so a project-capable role

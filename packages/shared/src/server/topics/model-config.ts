@@ -102,6 +102,7 @@ function resolveSlot(
     connection: {
       projectId: projectId ?? key.projectId ?? undefined,
       secretKey: key.secretKey,
+      externalId: key.externalId,
       extraHeaders: key.extraHeaders,
       baseURL: key.baseURL,
       config: key.config as LLMConnection["config"],
@@ -657,7 +658,7 @@ async function testTopicsModelSlots(
         return;
       }
       try {
-        const resolved = resolveSlot(name, llmApiKey, slot.model);
+        const resolved = resolveSlot(name, llmApiKey, slot.model, projectId);
         if (!resolved) {
           errors[name] = "LLM connection not found in this project.";
           return;

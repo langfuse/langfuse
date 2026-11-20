@@ -61,6 +61,7 @@ const APIModelDefinition = z
  */
 
 export function prismaToApiModelDefinition({
+  scope,
   projectId,
   inputPrice,
   outputPrice,
@@ -105,7 +106,7 @@ export function prismaToApiModelDefinition({
     outputPrice: flatPrices.output?.price ?? outputPrice?.toNumber() ?? null,
     totalPrice: flatPrices.total?.price ?? totalPrice?.toNumber() ?? null,
     prices: flatPrices,
-    isLangfuseManaged: !Boolean(projectId),
+    isLangfuseManaged: scope === "LANGFUSE",
     pricingTiers:
       pricingTiers?.map((tier) => ({
         id: tier.id,

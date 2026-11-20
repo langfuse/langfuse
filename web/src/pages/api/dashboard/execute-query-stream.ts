@@ -11,7 +11,6 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { getServerAuthSession } from "@/src/server/auth";
-import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import {
   prepareExecuteQuery,
   toClickhouseQueryOpts,
@@ -106,14 +105,6 @@ export default async function handler(
   if (!sessionProject) {
     res.status(403).json({ message: "Not a member of this project" });
     return;
-  }
-
-  if (sessionProject.organization.supportAccess === true) {
-    await sendAdminAccessWebhook({
-      email: session.user.email,
-      projectId,
-      orgId: sessionProject.organization.id,
-    });
   }
 
   if (session.user.v4BetaEnabled !== true) {

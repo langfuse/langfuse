@@ -63,6 +63,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
     }
     let inference_enabled = inference.is_some();
     let telemetry = inference.as_ref().and_then(InferenceService::telemetry);
+    let spend_tasks = inference.as_ref().map(InferenceService::spend_tasks);
     let state = if inference_enabled {
         GatewayLifecycleState::default()
     } else {
@@ -85,9 +86,18 @@ async fn run() -> Result<(), Box<dyn Error>> {
     .await;
     // Starts after draining so a drain that hits its deadline cannot consume the flush.
     let flush_deadline = tokio::time::Instant::now() + config.telemetry_shutdown_timeout;
-    if let Some(telemetry) = telemetry {
-        telemetry.shutdown(flush_deadline).await;
-    }
+    tokio::join!(
+        async {
+            if let Some(spend_tasks) = &spend_tasks {
+                spend_tasks.shutdown(flush_deadline).await;
+            }
+        },
+        async {
+            if let Some(telemetry) = &telemetry {
+                telemetry.shutdown(flush_deadline).await;
+            }
+        },
+    );
     if result.is_err() {
         tracing::error!("gateway shutdown failed");
     } else {

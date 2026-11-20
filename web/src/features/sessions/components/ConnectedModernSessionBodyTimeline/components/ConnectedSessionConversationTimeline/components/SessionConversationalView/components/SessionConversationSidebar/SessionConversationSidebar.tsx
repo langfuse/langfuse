@@ -75,6 +75,7 @@ export function SessionConversationSidebar(
       }
   ) & {
     searchVisibility?: "hidden";
+    sidebarToggle?: ReactNode;
     customization?: {
       activeFilterCount: number;
       onCustomizeView: () => void;
@@ -238,6 +239,7 @@ export function SessionConversationSidebar(
     return (
       <SessionSidebar
         label="Session messages and tools"
+        sidebarToggle={props.sidebarToggle}
         isLoading
         search={
           props.searchVisibility !== "hidden"
@@ -263,6 +265,7 @@ export function SessionConversationSidebar(
   return (
     <SessionSidebar
       label="Session messages and tools"
+      sidebarToggle={props.sidebarToggle}
       isListScrolled={isListScrolled}
       search={
         props.searchVisibility !== "hidden"

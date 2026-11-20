@@ -1,10 +1,9 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 import { format, setHours, startOfDay, subDays } from "date-fns";
 import preview from "../../../.storybook/preview";
-import { type RouterOutputs } from "@/src/utils/api";
 import { TopicRunHistoryList } from "./TopicRunHistoryList";
+import { type TopicRunWithCost as Run } from "./topic-run-labels";
 
-type Run = RouterOutputs["topics"]["executions"][number];
 type Counts = Partial<Run["facets"][number]["counts"]>;
 
 const facetRefs = [
@@ -55,7 +54,7 @@ function processRun(
   id: string,
   status: Run["status"],
   createdAt: string,
-  estimatedCost: number,
+  estimatedCost: number | null,
   counts: Counts = {},
   error: string | null = null,
 ): Run {
@@ -86,7 +85,7 @@ function updateRun(
   status: Run["status"],
   createdAt: string,
   error: string | null = null,
-): Run {
+) {
   return {
     id,
     projectId: "project",
@@ -95,7 +94,7 @@ function updateRun(
     createdAt,
     updatedAt: createdAt,
     error,
-    estimatedCost: 0,
+    estimatedCost: null,
     facets: facetRefs
       .slice(0, 2)
       .map(({ facetId, version }) =>
@@ -113,7 +112,7 @@ function updateRun(
       },
       exploratory: false,
     },
-  };
+  } satisfies Run;
 }
 
 // A snapshot that summarizes before it groups shows a progress bar while running.
@@ -122,6 +121,16 @@ function summarizingSnapshot(id: string, createdAt: string): Run {
   return {
     ...run,
     phase: "summarizing",
+    estimatedCost: 0.31,
+    input: {
+      ...run.input,
+      analysis: {
+        label: "Checkout",
+        filter: [],
+        seed: "seed",
+        summarize: { limit: 500, selection: "latest" },
+      },
+    },
     facets: run.facets.map((facet) => ({
       ...facet,
       outcome: "pending",
@@ -178,14 +187,14 @@ export const PinsRunningAndGroupsByDay = meta.story({
     executions: [
       updateRun("regenerate-done", "completed", atDaysAgo(4, 10)),
       summarizingSnapshot("snapshot-running", atDaysAgo(0, 9)),
-      processRun("analyze-done", "completed", atDaysAgo(1, 10), 4.2, {
+      processRun("analyze-done", "completed", atDaysAgo(1, 10), 0, {
         requested: 1_412,
       }),
       processRun(
         "analyze-issues",
         "completed_with_errors",
         atDaysAgo(2, 10),
-        3.95,
+        null,
         { requested: 1_330, complete: 1_318, failed: 12 },
       ),
       updateRun(
@@ -199,10 +208,10 @@ export const PinsRunningAndGroupsByDay = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const active = canvas.getByRole("status");
-    await expect(active).toHaveTextContent("Regenerate topics");
+    await expect(active).toHaveTextContent("Snapshot · Checkout");
     await expect(active).toHaveTextContent("640 / 1,280");
-    await expect(active).toHaveTextContent("Estimated cost");
-    await expect(active).toHaveTextContent("Not tracked");
+    await expect(active).toHaveTextContent("Summaries and embeddings");
+    await expect(active).toHaveTextContent("~$0.31");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
     ).toBeVisible();
@@ -212,19 +221,23 @@ export const PinsRunningAndGroupsByDay = meta.story({
     ).toEqual(["Yesterday", dayLabel(2), dayLabel(3), dayLabel(4)]);
 
     await userEvent.click(
-      within(active).getByRole("button", { name: /Regenerate topics/ }),
+      within(active).getByRole("button", { name: /Snapshot · Checkout/ }),
     );
     await expect(args.onOpen).toHaveBeenCalledWith("snapshot-running");
 
     const rows = canvas
       .getAllByRole("button")
       .filter((row) => !active.contains(row));
-    await expect(rows[0]).toHaveTextContent("1,412 traces · Cost: ~$4.20");
-    await expect(rows[1]).toHaveTextContent("1,330 traces · Cost: ~$3.95");
+    await expect(rows[0]).toHaveTextContent(
+      "1,412 traces · Summaries and embeddings · ~$0.00",
+    );
+    await expect(rows[1]).toHaveTextContent(
+      "1,330 traces · Summaries and embeddings · Unavailable",
+    );
     await expect(rows[1]).toHaveTextContent("12 traces failed");
-    await expect(rows[2]).toHaveTextContent("Cost: Not tracked");
+    await expect(rows[2]).toHaveTextContent("No new summaries");
     await expect(rows[2]).toHaveTextContent("Embedding model returned 429.");
-    await expect(rows[3]).toHaveTextContent("Cost: Not tracked");
+    await expect(rows[3]).toHaveTextContent("No new summaries");
     await expect(within(rows[1]).getByText("Done with issues")).toBeVisible();
     await expect(within(rows[2]).getByText("Failed")).toBeVisible();
 

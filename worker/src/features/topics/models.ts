@@ -21,6 +21,8 @@ import {
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import {
+  TOPICS_MAX_EMBEDDING_DIMENSIONS,
+  TOPICS_MIN_EMBEDDING_DIMENSIONS,
   topicEmbeddingConfigSchema,
   type TopicFacetVersion,
   type TopicProcessingConfig,
@@ -677,7 +679,7 @@ export async function embedTopicSummaries(
       .success
   )
     throw new TopicsProviderUnavailable(
-      "Topics embeddings require non-empty text and 64 to 4,096 dimensions.",
+      `Topics embeddings require non-empty text and ${TOPICS_MIN_EMBEDDING_DIMENSIONS} to ${TOPICS_MAX_EMBEDDING_DIMENSIONS.toLocaleString("en-US")} dimensions.`,
       "invalid_input",
     );
   const result = await topicModelCall(

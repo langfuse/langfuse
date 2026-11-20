@@ -18,16 +18,17 @@ mod native_task;
 pub mod otel;
 pub mod otel_enrichment;
 mod otel_input;
-mod otel_media;
+pub mod otel_media;
 mod otel_media_task;
+mod otel_pipeline;
 mod telemetry;
 mod topics;
 
 pub use topics::{cluster_topic_embeddings, TopicClusteringResult, TopicClusteringSettings};
 
 pub use otel_input::{
-    extract_otel_media, has_otel_media_candidate, validate_otel_json, EarlyOtelBatch,
-    ValidatedOtelJson,
+    extract_otel_media, has_otel_media_candidate, prepare_otel_json, validate_otel_json,
+    EarlyOtelBatch, ValidatedOtelJson,
 };
 
 use std::sync::Arc;

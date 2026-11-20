@@ -18,12 +18,19 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
+import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
+import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import { GatewayApiKeyModelsCell } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyModelsCell/GatewayApiKeyModelsCell";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 type GatewayApiKey = {
   metadata: unknown;
   allowedModels: unknown;
+  spendLimit: GatewaySpendLimit | null;
+  /** The organization's default key budget, which caps the key while it has no `spendLimit` of its own. */
+  defaultSpendLimit?: GatewaySpendLimit | null;
+  hasSeveralSpendLimits: boolean;
   apiKey: {
     id: string;
     publicKey: string;
@@ -39,6 +46,8 @@ type GatewayApiKey = {
   };
   /** Absent until the last-used query resolves, and when the key had no gateway traffic in the window. */
   lastUsedAt?: Date;
+  /** Spend against `spendLimit`, or else `defaultSpendLimit`, in its current window; absent until the spend query resolves. */
+  spentUsd?: number;
 };
 
 const lastUsedSkeleton = <Skeleton className="h-4 w-1/2" />;
@@ -49,11 +58,17 @@ type GatewayApiKeysLastUsedState =
   | { status: "error" }
   | { status: "success"; isTracked: boolean };
 
+type GatewayApiKeysSpendState = { status: "loading" | "error" | "success" };
+
+const budgetSkeleton = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
+
 export function GatewayApiKeysTable({
   data,
   lastUsed,
+  spend,
   onEdit,
   onRevoke,
+  onCreateKey,
   pagination,
   search,
   orderBy,
@@ -61,8 +76,10 @@ export function GatewayApiKeysTable({
 }: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
   data: AsyncTableData<GatewayApiKey[]>;
   lastUsed: GatewayApiKeysLastUsedState;
+  spend: GatewayApiKeysSpendState;
   onEdit: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
+  onCreateKey: () => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
 }) {
@@ -111,6 +128,32 @@ export function GatewayApiKeysTable({
       emptyValue: "No expiration",
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
+    }),
+    createTableColumn<GatewayApiKey, GatewayApiKey["spendLimit"]>({
+      accessorFn: (row) => row.spendLimit,
+      id: "budget",
+      header: "Budget",
+      size: 200,
+      hideBelowMd: true,
+      enableResizing: false,
+      loadingCell: budgetSkeleton,
+      renderCell: (spendLimit, { row }) => {
+        const applied = spendLimit ?? row.original.defaultSpendLimit;
+        if (!applied) {
+          return <span className="text-muted-foreground">No budget</span>;
+        }
+        if (spend.status === "loading") return budgetSkeleton;
+        return (
+          <span className="inline-flex items-center gap-2">
+            <GatewaySpendBudgetBadge
+              subject="key"
+              spendLimit={applied}
+              spentUsd={row.original.spentUsd}
+            />
+            {!spendLimit && <GatewayDefaultBudgetTag subject="key" />}
+          </span>
+        );
+      },
     }),
     createTableColumn<GatewayApiKey, Date>({
       accessorFn: (row) => row.lastUsedAt,
@@ -196,7 +239,11 @@ export function GatewayApiKeysTable({
           ? "No gateway keys match the current search."
           : "No gateway keys created."
       }
-      emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}
+      emptyState={
+        hasNoKeys ? (
+          <GatewayApiKeysEmptyState onCreateKey={onCreateKey} />
+        ) : undefined
+      }
     />
   );
 }

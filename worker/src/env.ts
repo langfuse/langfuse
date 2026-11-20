@@ -65,8 +65,7 @@ const EnvSchema = z.object({
   // in every CHB tenant, and overridable in case that stops being true.
   CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
   // Compares each metered Stripe interval with the billable_events ledger and
-  // reports the gap. Requires the ledger table, which only Langfuse Cloud has;
-  // keep in sync with web/src/env.mjs.
+  // reports the gap. Keep in sync with web/src/env.mjs.
   LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -133,6 +132,7 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_OTEL_DIRECT_IMPLEMENTATION: z.enum(["ts", "rust"]).default("ts"),
   LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -664,6 +664,12 @@ const EnvSchema = z.object({
     .positive()
     .default(10_000), // Max items (media files) to process per batch
 
+  // Deletes stored events-dispatch transcripts older than three days. Off until
+  // enabled so workers do not list the bucket by default.
+  LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+
   // Batch Trace Deletion Cleaner configuration
   LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED: z
     .enum(["true", "false"])
@@ -854,6 +860,17 @@ export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
 const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
+const validateOtelDirectImplementationConfig = (parsed: ParsedEnv): void => {
+  if (
+    parsed.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
+    parsed.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED !== "true"
+  ) {
+    throw new Error(
+      "Rust OTEL processing requires early media extraction to be enabled",
+    );
+  }
+};
+
 const validateV4Flags = (parsed: ParsedEnv): void => {
   const mode = parsed.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   const otel = parsed.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR;
@@ -902,6 +919,7 @@ const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
 const parseEnv = (): ParsedEnv => {
   const source = { ...removeEmptyEnvVariables(process.env) };
   const parsed = EnvSchema.parse(source);
+  validateOtelDirectImplementationConfig(parsed);
   validateV4Flags(parsed);
   validateInAppAgentSandboxConfig(parsed);
   return parsed;

@@ -3,7 +3,6 @@ import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
-import { hasOwnRole } from "./hasOwnRole";
 import { env } from "@/src/env.mjs";
 import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 
@@ -19,17 +18,13 @@ const demoProjectLlmScopes = new Set<ProjectScope>([
   "llmApiKeys:update",
 ]);
 
-type HasProjectAccessParams = (
-  | {
-      role: Role;
-      scope: ProjectScope;
-    }
-  | {
-      session: null | Session;
-      projectId: string;
-      scope: ProjectScope;
-    }
-) & { forbiddenErrorMessage?: string };
+/** HasProjectAccessParams is a session and the projectId whose role decides scope. */
+type HasProjectAccessParams = {
+  session: null | Session;
+  projectId: string;
+  scope: ProjectScope;
+  forbiddenErrorMessage?: string;
+};
 
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
@@ -65,19 +60,17 @@ export const useHasProjectAccess = (p: {
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   if (isDemoProjectLlmRestricted(p)) return false;
 
-  const projectRole: Role | undefined = hasOwnRole(p)
-    ? p.role
-    : p.session?.user?.organizations
-        .flatMap((org) => org.projects)
-        .find((project) => project.id === p.projectId)?.role;
+  const projectRole: Role | undefined = p.session?.user?.organizations
+    .flatMap((org) => org.projects)
+    .find((project) => project.id === p.projectId)?.role;
   if (projectRole === undefined) return false;
 
   return projectRoleAccessRights[projectRole].includes(p.scope);
 }
 
+/** isDemoProjectLlmRestricted reports whether scope is an LLM operation on the demo project the user may not run outside the internal view. */
 function isDemoProjectLlmRestricted(p: HasProjectAccessParams): boolean {
   return (
-    !hasOwnRole(p) &&
     p.projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
     demoProjectLlmScopes.has(p.scope) &&
     !isInternalViewEnabled(p.session)

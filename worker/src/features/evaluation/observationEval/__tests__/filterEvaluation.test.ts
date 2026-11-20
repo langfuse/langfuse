@@ -1086,6 +1086,29 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(isNotNullMatch).toBe(false);
     });
 
+    it("should treat an empty string or empty array column as null, like ClickHouse", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        user_id: "",
+        tool_call_names: [],
+      });
+
+      for (const column of ["userId", "calledToolNames"]) {
+        const isNullMatch = await testFilterMatch(observation, [
+          { column, type: "null", operator: "is null", value: "" },
+        ]);
+        const isNotNullMatch = await testFilterMatch(observation, [
+          { column, type: "null", operator: "is not null", value: "" },
+        ]);
+
+        expect({ column, isNullMatch, isNotNullMatch }).toEqual({
+          column,
+          isNullMatch: true,
+          isNotNullMatch: false,
+        });
+      }
+    });
+
     it("should not match observations where parentObservationId is not null (child observations)", async () => {
       const observation = createTestObservation({
         project_id: projectId,

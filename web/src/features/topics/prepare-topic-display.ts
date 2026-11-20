@@ -27,10 +27,7 @@ export type TopicDisplay = Pick<
 };
 
 /** Topic identity, counts, and colors shared by the list and treemap renderers. */
-export function prepareTopicDisplay(
-  facet: Facet,
-  view: "treemap" | "map" | "grid",
-) {
+export function prepareTopicDisplay(facet: Facet, view: "treemap" | "map") {
   const mapIndices = new Map(
     orderedFacetTopics(facet).map((topic, index) => [topic.id, index]),
   );

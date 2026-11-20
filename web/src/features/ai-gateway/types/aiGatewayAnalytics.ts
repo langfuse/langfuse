@@ -1,5 +1,6 @@
-import type { GatewayIngestionMode, Role } from "@langfuse/shared";
+import type { GatewayIngestionMode } from "@langfuse/shared";
 
+import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import type { GatewayIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
@@ -28,7 +29,9 @@ export type AiGatewayEventMap = {
           ingestionMode: GatewayIngestionMode;
         }
       | { step: "credential"; stepNumber: 2; provider: GatewayProvider }
-      | { step: "team_invite"; stepNumber: 3; isSkipped: boolean }
+      | { step: "budgets"; stepNumber: 3; isSkipped: boolean }
+      | { step: "team_invite"; stepNumber: 4; isSkipped: boolean }
+      | { step: "api_key"; stepNumber: 5; isSkipped: boolean }
     );
   "ai_gateway:ingestion_settings_saved": OrganizationContext &
     Pick<GatewayIngestionSettings, "ingestionMode" | "projectTarget"> & {
@@ -61,13 +64,13 @@ export type AiGatewayEventMap = {
     isNotifyMembersEnabled: boolean;
   };
   "ai_gateway:api_key_created": OrganizationContext & {
-    /** Organization role of the creator; null when they are not a member. */
-    creatorRole: Role | null;
     isServiceAccount: boolean;
     hasMetadata: boolean;
     metadataCount: number;
     hasDescription: boolean;
     expiryPreset: GatewayApiKeyExpirationPreset;
+    /** Null when the key was created without a spend budget. */
+    spendBudgetInterval: GatewaySpendBudgetInterval | null;
   };
   "ai_gateway:api_key_updated": OrganizationContext & {
     metadataCount: number;

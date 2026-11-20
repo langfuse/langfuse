@@ -2,6 +2,7 @@
 export const GATEWAY_PAGE_SLUGS = {
   overview: "index",
   models: "models",
+  budgets: "budgets",
   apiKeys: "api-keys",
 } as const;
 

@@ -93,7 +93,6 @@ export const env = createEnv({
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.url().optional(),
     LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK: z.url().optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
-    LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
     SALT: z.string({
@@ -537,12 +536,31 @@ export const env = createEnv({
           .map((id) => id.trim())
           .filter(Boolean),
       ),
+    // Coupon codes for the self-serve credit programs (Langfuse Cloud only), as
+    // a JSON object from code to the program name ClickHouse's credit-request
+    // form expects, e.g. {"CODE-1":"Startup"}. Codes are shared per program, so
+    // they live only here, never in the repo.
+    LANGFUSE_CLOUD_COUPON_CODES: z
+      .string()
+      .optional()
+      .transform((value, ctx) => {
+        if (value == null || value.trim() === "") return {};
+        try {
+          return z.record(z.string(), z.string()).parse(JSON.parse(value));
+        } catch {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "LANGFUSE_CLOUD_COUPON_CODES must be a JSON object mapping coupon codes to program names",
+          });
+          return z.NEVER;
+        }
+      }),
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
     // Compares each GET /api/billing/metrics poll with the billable_events
-    // ledger and reports the gap. Requires the ledger table, which only
-    // Langfuse Cloud has; keep in sync with worker/src/env.ts.
+    // ledger and reports the gap. Keep in sync with worker/src/env.ts.
     LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
       .enum(["true", "false"])
       .default("false"),
@@ -595,7 +613,6 @@ export const env = createEnv({
       .number()
       .positive()
       .default(50_000),
-    PLAIN_AUTHENTICATION_SECRET: z.string().optional(),
     PLAIN_CARDS_API_TOKEN: z.string().optional(),
     PYLON_API_KEY: z.string().optional(),
 
@@ -978,7 +995,6 @@ export const env = createEnv({
       process.env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
-    LANGFUSE_ADMIN_ACCESS_WEBHOOK: process.env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,
     MULESOFT_SFDC_USER_URL: process.env.MULESOFT_SFDC_USER_URL,
     MULESOFT_SFDC_ORG_URL: process.env.MULESOFT_SFDC_ORG_URL,
     MULESOFT_SFDC_BASIC_AUTH_USER: process.env.MULESOFT_SFDC_BASIC_AUTH_USER,
@@ -1232,7 +1248,6 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     // Other
     NEXT_PUBLIC_PLAIN_APP_ID: process.env.NEXT_PUBLIC_PLAIN_APP_ID,
-    PLAIN_AUTHENTICATION_SECRET: process.env.PLAIN_AUTHENTICATION_SECRET,
     PLAIN_CARDS_API_TOKEN: process.env.PLAIN_CARDS_API_TOKEN,
     PYLON_API_KEY: process.env.PYLON_API_KEY,
     // clickhouse
@@ -1316,6 +1331,7 @@ export const env = createEnv({
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
     LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
+    LANGFUSE_CLOUD_COUPON_CODES: process.env.LANGFUSE_CLOUD_COUPON_CODES,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
     LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED:

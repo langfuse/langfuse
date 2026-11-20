@@ -1,4 +1,8 @@
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
 import { Prisma, type Role } from "@langfuse/shared";
 import { v4 } from "uuid";
 import { getUserProjectRoles } from "@langfuse/shared/src/server";
@@ -34,12 +38,10 @@ describe("find user project roles", () => {
       },
     });
 
-    await prisma.organizationMembership.create({
-      data: {
-        userId: user.id,
-        orgId: org.id,
-        role: "MEMBER",
-      },
+    await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId: org.id,
+      role: "MEMBER",
     });
 
     const users = await getUserProjectRoles({
@@ -70,12 +72,10 @@ describe("find user project roles", () => {
       },
     });
 
-    await prisma.organizationMembership.create({
-      data: {
-        userId: user.id,
-        orgId: org.id,
-        role: "NONE",
-      },
+    await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId: org.id,
+      role: "NONE",
     });
 
     const users = await getUserProjectRoles({
@@ -100,12 +100,10 @@ describe("find user project roles", () => {
       },
     });
 
-    await prisma.organizationMembership.create({
-      data: {
-        userId: user.id,
-        orgId: org.id,
-        role: "MEMBER",
-      },
+    await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId: org.id,
+      role: "MEMBER",
     });
     const user2 = await prisma.user.create({
       data: {
@@ -115,22 +113,19 @@ describe("find user project roles", () => {
       },
     });
 
-    const orgMembershipOfUser2 = await prisma.organizationMembership.create({
-      data: {
-        userId: user2.id,
-        orgId: org.id,
-        role: "MEMBER",
-      },
+    const orgMembershipOfUser2 = await createOrgMembership(prisma, {
+      userId: user2.id,
+      orgId: org.id,
+      role: "MEMBER",
     });
 
     // overwrite org role to ADMIN
-    await prisma.projectMembership.create({
-      data: {
-        userId: user2.id,
-        projectId: project.id,
-        role: "ADMIN",
-        orgMembershipId: orgMembershipOfUser2.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: user2.id,
+      projectId: project.id,
+      role: "ADMIN",
+      orgMembershipId: orgMembershipOfUser2.id,
     });
 
     const user3 = await prisma.user.create({
@@ -141,22 +136,19 @@ describe("find user project roles", () => {
       },
     });
 
-    const orgMembershipOfUser3 = await prisma.organizationMembership.create({
-      data: {
-        userId: user3.id,
-        orgId: org.id,
-        role: "ADMIN",
-      },
+    const orgMembershipOfUser3 = await createOrgMembership(prisma, {
+      userId: user3.id,
+      orgId: org.id,
+      role: "ADMIN",
     });
 
     // Downgrade org role to VIEWER
-    await prisma.projectMembership.create({
-      data: {
-        userId: user3.id,
-        projectId: project.id,
-        role: "VIEWER",
-        orgMembershipId: orgMembershipOfUser3.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: user3.id,
+      projectId: project.id,
+      role: "VIEWER",
+      orgMembershipId: orgMembershipOfUser3.id,
     });
 
     const users = await getUserProjectRoles({
@@ -203,12 +195,10 @@ describe("find user project roles", () => {
       },
     });
 
-    await prisma.organizationMembership.create({
-      data: {
-        userId: user.id,
-        orgId: org.id,
-        role: "MEMBER",
-      },
+    await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId: org.id,
+      role: "MEMBER",
     });
 
     const { org: org2, project: project2 } = await createOrgAndProject();
@@ -221,12 +211,10 @@ describe("find user project roles", () => {
       },
     });
 
-    await prisma.organizationMembership.create({
-      data: {
-        userId: user2.id,
-        orgId: org2.id,
-        role: "MEMBER",
-      },
+    await createOrgMembership(prisma, {
+      userId: user2.id,
+      orgId: org2.id,
+      role: "MEMBER",
     });
 
     const user3 = await prisma.user.create({
@@ -237,21 +225,18 @@ describe("find user project roles", () => {
       },
     });
 
-    const orgMembershipOfUser3 = await prisma.organizationMembership.create({
-      data: {
-        userId: user3.id,
-        orgId: org2.id,
-        role: "MEMBER",
-      },
+    const orgMembershipOfUser3 = await createOrgMembership(prisma, {
+      userId: user3.id,
+      orgId: org2.id,
+      role: "MEMBER",
     });
 
-    await prisma.projectMembership.create({
-      data: {
-        userId: user3.id,
-        projectId: project2.id,
-        role: "MEMBER",
-        orgMembershipId: orgMembershipOfUser3.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org2.id,
+      userId: user3.id,
+      projectId: project2.id,
+      role: "MEMBER",
+      orgMembershipId: orgMembershipOfUser3.id,
     });
 
     const usersOrg1 = await getUserProjectRoles({
@@ -338,46 +323,38 @@ describe("find user project roles", () => {
       },
     });
 
-    await prisma.organizationMembership.create({
-      data: {
-        userId: userWithOrgRoleOnly.id,
-        orgId: org.id,
-        role: "MEMBER",
-      },
+    await createOrgMembership(prisma, {
+      userId: userWithOrgRoleOnly.id,
+      orgId: org.id,
+      role: "MEMBER",
     });
 
-    const orgMembershipOfUserB = await prisma.organizationMembership.create({
-      data: {
-        userId: userB.id,
-        orgId: org.id,
-        role: "MEMBER",
-      },
+    const orgMembershipOfUserB = await createOrgMembership(prisma, {
+      userId: userB.id,
+      orgId: org.id,
+      role: "MEMBER",
     });
 
-    const orgMembershipOfUserC = await prisma.organizationMembership.create({
-      data: {
-        userId: userC.id,
-        orgId: org.id,
-        role: "MEMBER",
-      },
+    const orgMembershipOfUserC = await createOrgMembership(prisma, {
+      userId: userC.id,
+      orgId: org.id,
+      role: "MEMBER",
     });
 
-    await prisma.projectMembership.create({
-      data: {
-        userId: userB.id,
-        projectId: projectX.id,
-        role: "VIEWER",
-        orgMembershipId: orgMembershipOfUserB.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: userB.id,
+      projectId: projectX.id,
+      role: "VIEWER",
+      orgMembershipId: orgMembershipOfUserB.id,
     });
 
-    await prisma.projectMembership.create({
-      data: {
-        userId: userC.id,
-        projectId: projectY.id,
-        role: "ADMIN",
-        orgMembershipId: orgMembershipOfUserC.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: userC.id,
+      projectId: projectY.id,
+      role: "ADMIN",
+      orgMembershipId: orgMembershipOfUserC.id,
     });
 
     const users = await getUserProjectRoles({
@@ -434,22 +411,19 @@ describe("find user project roles", () => {
       },
     });
 
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: user.id,
-        orgId: org.id,
-        role: "ADMIN",
-      },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId: org.id,
+      role: "ADMIN",
     });
 
     // Project role NONE should exclude user despite ADMIN org role
-    await prisma.projectMembership.create({
-      data: {
-        userId: user.id,
-        projectId: project.id,
-        role: "NONE",
-        orgMembershipId: orgMembership.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: user.id,
+      projectId: project.id,
+      role: "NONE",
+      orgMembershipId: orgMembership.id,
     });
 
     const users = await getUserProjectRoles({
@@ -485,12 +459,10 @@ describe("find user project roles", () => {
         },
       });
 
-      await prisma.organizationMembership.create({
-        data: {
-          userId: user.id,
-          orgId: org.id,
-          role: test.orgRole as Role,
-        },
+      await createOrgMembership(prisma, {
+        userId: user.id,
+        orgId: org.id,
+        role: test.orgRole as Role,
       });
 
       inheritanceUsers.push({
@@ -518,21 +490,18 @@ describe("find user project roles", () => {
         },
       });
 
-      const orgMembership = await prisma.organizationMembership.create({
-        data: {
-          userId: user.id,
-          orgId: org.id,
-          role: test.orgRole as Role,
-        },
+      const orgMembership = await createOrgMembership(prisma, {
+        userId: user.id,
+        orgId: org.id,
+        role: test.orgRole as Role,
       });
 
-      await prisma.projectMembership.create({
-        data: {
-          userId: user.id,
-          projectId: project.id,
-          role: test.projectRole as Role,
-          orgMembershipId: orgMembership.id,
-        },
+      await createProjectMembership(prisma, {
+        orgId: org.id,
+        userId: user.id,
+        projectId: project.id,
+        role: test.projectRole as Role,
+        orgMembershipId: orgMembership.id,
       });
 
       overrideUsers.push({

@@ -29,7 +29,7 @@ removal; key TTLs reclaim inactive maps.
 Env-sampled nonmatches use `__trace_batch_experiment__`, a storage-only sentinel
 that must never execute as an evaluator.
 
-Bytes measure accepted UTF-8 event rows after overflow, excluding the size field itself.
+Bytes estimate the weight of accepted events after field overflow.
 Failed writes are unrecorded; retries may double-count. Acceptance precedes the
 ClickHouse flush. `eventUpdateCount` is a TypeScript measurement only, not Redis state.
 
@@ -126,7 +126,7 @@ bounds expire or are lost, the prior window cannot be reconstructed from this ma
 
 ### Trace-window size estimates
 
-Accepted direct-v4 writes contribute their final serialized UTF-8 event size after field overflow handling. This JSON size estimate is computed only when trace-batch intake is enabled and is independent of ClickHouse's persisted `event_bytes`. The accounting field itself is excluded. Acceptance means admission to the writer, not confirmation of a ClickHouse flush. `eventUpdateCount` counts accepted updates, including retries and repeated observation versions, rather than unique observations.
+For a sampled trace, TypeScript measures the accepted post-overflow JSON row, excluding the size field. The native writer sums the UTF-8 lengths of the text, metadata and tool fields read by dispatch, plus a fixed allowance per span. This gives small spans weight without serializing the event a second time. Both estimates feed the same Redis totals and byte limits. ClickHouse computes the persisted `event_bytes` separately.
 
 Pending state and history carry cumulative estimates for the retained read window.
 Tracking adds newly accepted updates to valid pending totals. When reopening a
@@ -144,7 +144,7 @@ batch; dispatcher size distributions use the cumulative estimates.
 
 The dispatcher emits `estimated_serialized_event_bytes` distributions under `langfuse.events_dispatch`, tagged with `scope:trace|batch`. Batch totals require known estimates for every member; `estimates_unavailable` counts unknown traces and affected batches. Estimates stay out of queue payloads and job IDs. Dispatch retries can emit another sample.
 
-Serialized event bytes differ from the reader's `input_bytes`, `output_bytes` and `metadata_bytes` metrics: they include the serialized event fields and JSON encoding, and do not represent RAM, network transfer or ClickHouse scan bytes. Events-dispatch read spans report the estimated and actual payload bytes per batch.
+Events-dispatch read spans report the ingestion estimate alongside the input, output and metadata bytes actually read per batch.
 
 ### Weight budgets and oversized traces
 
@@ -161,15 +161,10 @@ Events dispatch stores the assembled transcript once per routed trace, then enqu
 The shared `server/traceBatch` module uses the event-upload bucket and credentials:
 
 ```text
-<prefix>trace-batch/trace/<hash>/<projectId>/<safeTraceId>/<revision>.json
+<prefix>events-dispatch/trace-transcript/<hash>/<projectId>/<safeTraceId>/<revision>.json
 ```
 
-`hash` is the first three hex characters of SHA-256 over
-`JSON.stringify([projectId, traceId])`. Identifiers use the shared blob-key
-escaping helpers. The revision comes from the queued readiness entry; a new
-revision uses another key, while an ordinary PUT of the same revision can replace
-its object. A reader needs all three identifiers; no latest-revision lookup or
-durable job reference is stored.
+`hash` is the first three hex characters of SHA-256 over `JSON.stringify([projectId, traceId])`. Identifiers use the shared blob-key escaping helpers. The revision comes from the queued readiness entry; a new revision uses another key, while an ordinary PUT of the same revision can replace its object. `put` returns the key and every consumer job carries it as `transcriptS3Path`; readers never rebuild it, so the key format can change without breaking queued jobs.
 
 The stored envelope contains `schemaVersion`, a nullable transcript, `executionIssues` and trace context (nullable session/name, source timestamp and environment). The frozen schema is [versions/v1.ts](../../../../packages/shared/src/server/traceBatch/versions/v1.ts); [serialization.ts](../../../../packages/shared/src/server/traceBatch/serialization.ts) adapts it to live types. Schema version and readiness revision are independent.
 
@@ -187,13 +182,9 @@ dispatch on `schemaVersion`; existing objects are never rewritten.
 
 Serialize the full envelope once. Skip the entire upload if `json.length` exceeds 1,000,000; do not truncate. This measures UTF-16 code units, not UTF-8 bytes, and does not bound assembly or serialization memory. Size skips emit an info log with identifiers, actual length and limit. StorageService owns upload retries and logs: SlowDown at warning level, other failures including request timeouts at error level. Exhausted failures count the trace as failed in `langfuse.events_dispatch.trace_outcomes`.
 
-Deploy with writes disabled. Before enabling, configure and verify an enabled bucket lifecycle rule for the full `<prefix>trace-batch/trace/` path, matching span-eval retention, including noncurrent versions where applicable. A rule for `evals/` alone does not cover this path. Enable on a small worker rollout and check size-skip logs, S3 failures and Topics latency. Consumers that require files must schedule only after a successful PUT.
+Deploy with writes disabled. Before enabling, expire the full `<prefix>events-dispatch/trace-transcript/` path after three days: a bucket lifecycle rule, the transcript cleaner below, or both. The cleaner deletes without a version ID, so on a bucket with versioning or soft delete it only hides objects; there, a lifecycle rule that expires noncurrent versions is still required. A rule for `evals/` alone does not cover this path. Enable on a small worker rollout and check size-skip logs, S3 failures and Topics latency. Consumers that require files must schedule only after a successful PUT.
 
-Like temporary span-eval inputs, these objects have no ingestion deletion
-references. Trace/project deletion and per-project retention do not immediately
-remove them; bucket expiry is the accepted cleanup mechanism, and the deletion
-paths are intentionally not extended. The lifecycle rule above remains the
-precondition for enabling writes.
+Like temporary span-eval inputs, these objects have no ingestion deletion references. Trace and project deletion do not remove them. They expire after three days (`TRACE_BATCH_INPUT_RETENTION_MS`). `eventsDispatch/transcriptCleaner.ts` lists `<prefix>events-dispatch/trace-transcript/` with the shared event-upload client, under one Redis lock, and deletes older objects. It starts when `LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED=true` and emits `langfuse.events_dispatch.transcript_cleaner.{files_deleted,failures}`.
 
 ## Per-trace transcripts
 
