@@ -53,17 +53,67 @@ function MultiSelectInputInner<V extends string>(
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  // Selected options are listed first, but only as of when the dropdown
+  // opened: re-sorting on every toggle would move a row out from under the
+  // pointer.
+  const [pinnedValues, setPinnedValues] = React.useState<ReadonlySet<V>>(
+    () => new Set(),
+  );
   const listId = React.useId();
   const allSelected =
     options.length > 0 &&
     options.every((option) => option.disabled || value.includes(option.value));
+  const pinnedOptions = options.filter((option) =>
+    pinnedValues.has(option.value),
+  );
+  const otherOptions = options.filter(
+    (option) => !pinnedValues.has(option.value),
+  );
+
+  const renderOption = (option: MultiSelectOption<V>) => {
+    const isSelected = value.includes(option.value);
+
+    return (
+      <InputDropdown.Option
+        key={option.value}
+        highlight="aria-selected"
+        checked={isSelected}
+      >
+        <CommandPrimitive.Item
+          value={option.value}
+          keywords={[option.label]}
+          disabled={option.disabled}
+          aria-checked={isSelected}
+          onSelect={() => {
+            if (isSelected) {
+              onValueChange(
+                value.filter((selectedValue) => selectedValue !== option.value),
+              );
+              return;
+            }
+
+            onValueChange([...value, option.value]);
+          }}
+        >
+          <InputDropdown.OptionContent
+            label={option.label}
+            title={option.label}
+            secondaryLabel={option.secondaryLabel}
+            type="checkbox"
+            checked={isSelected}
+          />
+        </CommandPrimitive.Item>
+      </InputDropdown.Option>
+    );
+  };
 
   return (
     <PopoverPrimitive.Root
       open={!disabled && open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
+        if (nextOpen) setPinnedValues(new Set(value));
+        else setSearch("");
       }}
     >
       <InputControl contentLayout="spread" error={error} disabled={disabled}>
@@ -154,46 +204,18 @@ function MultiSelectInputInner<V extends string>(
                 </InputDropdown.Empty>
                 <InputDropdown.List>
                   <CommandPrimitive.List id={listId}>
+                    {pinnedOptions.length > 0 && (
+                      <CommandPrimitive.Group className="text-foreground overflow-hidden">
+                        {pinnedOptions.map(renderOption)}
+                      </CommandPrimitive.Group>
+                    )}
+                    {pinnedOptions.length > 0 && otherOptions.length > 0 && (
+                      <InputDropdown.Separator>
+                        <CommandPrimitive.Separator />
+                      </InputDropdown.Separator>
+                    )}
                     <CommandPrimitive.Group className="text-foreground overflow-hidden">
-                      {options.map((option) => {
-                        const isSelected = value.includes(option.value);
-
-                        return (
-                          <InputDropdown.Option
-                            key={option.value}
-                            highlight="aria-selected"
-                            checked={isSelected}
-                          >
-                            <CommandPrimitive.Item
-                              value={option.value}
-                              keywords={[option.label]}
-                              disabled={option.disabled}
-                              aria-checked={isSelected}
-                              onSelect={() => {
-                                if (isSelected) {
-                                  onValueChange(
-                                    value.filter(
-                                      (selectedValue) =>
-                                        selectedValue !== option.value,
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                onValueChange([...value, option.value]);
-                              }}
-                            >
-                              <InputDropdown.OptionContent
-                                label={option.label}
-                                title={option.label}
-                                secondaryLabel={option.secondaryLabel}
-                                type="checkbox"
-                                checked={isSelected}
-                              />
-                            </CommandPrimitive.Item>
-                          </InputDropdown.Option>
-                        );
-                      })}
+                      {otherOptions.map(renderOption)}
                     </CommandPrimitive.Group>
                   </CommandPrimitive.List>
                 </InputDropdown.List>
