@@ -29,7 +29,7 @@ import {
   isTopicsProjectEnabled,
 } from "@langfuse/shared/topics/server";
 import { processOtelEvents } from "../../features/otel-ingestion/processOtelEvents";
-import { recordTraceActivity } from "../../features/traceBatching/traceRuleRecording";
+import { recordTraceActivity } from "../../features/traceDispatch/traceRuleRecording";
 import {
   createTestEvalConfig,
   createMockSchedulerDeps,
@@ -431,7 +431,7 @@ describe("native Rust trace activity", () => {
   });
 });
 
-vi.mock("../../features/traceBatching/traceRuleRecording", () => ({
+vi.mock("../../features/traceDispatch/traceRuleRecording", () => ({
   recordTraceActivity: vi.fn(),
 }));
 

@@ -22,7 +22,7 @@ import {
 } from "../evaluation/deterministicSampling";
 import type { TraceTranscriptEvalRule } from "../evaluation/observationEval/types";
 
-type TraceBatchRule = {
+type TraceDispatchRule = {
   id: string;
   projectId: string;
   filter: FilterState;
@@ -30,10 +30,10 @@ type TraceBatchRule = {
 };
 
 /** Validate persisted predicates once per batch, before matching observations. */
-export async function prepareTraceBatchRules(
+export async function prepareTraceDispatchRules(
   projectId: string,
   rules: TraceTranscriptEvalRule[],
-): Promise<TraceBatchRule[]> {
+): Promise<TraceDispatchRule[]> {
   const needsTopics = (rule: TraceTranscriptEvalRule) =>
     rule.assignments.every(
       (assignment) => assignment.evaluator.type === EvalTemplateType.FACET,
@@ -89,9 +89,9 @@ export async function prepareTraceBatchRules(
 }
 
 /** All predicates must match one observation; selection applies to its trace. */
-export function getMatchingTraceBatchRuleIds(
+export function getMatchingTraceDispatchRuleIds(
   observation: ObservationForEval,
-  rules: TraceBatchRule[],
+  rules: TraceDispatchRule[],
 ): string[] {
   const startedAt = performance.now();
   let outcome = "error";

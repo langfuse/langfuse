@@ -1,8 +1,8 @@
 import type { ObservationForEval } from "../observationEval/types";
 import { isInternalEvalEnvironment } from "@langfuse/shared/src/server";
 import type { EvalSchedulerDeps } from "../scheduleEvals";
-import { getMatchingTraceBatchRuleIds } from "../../traceBatching/traceBatchRules";
-import type { TraceSpanActivity } from "../../traceBatching/traceRuleRecording";
+import { getMatchingTraceDispatchRuleIds } from "../../traceDispatch/traceDispatchRules";
+import type { TraceSpanActivity } from "../../traceDispatch/traceRuleRecording";
 
 /**
  * Return selected rule IDs: undefined skips recording; [] still updates bounds.
@@ -27,6 +27,6 @@ export async function scheduleTraceTranscriptEvals({
   // Select rules using filters and trace-ID sampling; recording does not sample again.
   // Non-matching observations still extend bounds once the write succeeds.
   return rules.length > 0
-    ? getMatchingTraceBatchRuleIds(observation, rules)
+    ? getMatchingTraceDispatchRuleIds(observation, rules)
     : [];
 }

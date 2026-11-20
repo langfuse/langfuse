@@ -14,73 +14,70 @@ import {
   toStoredExecutionIssuesV1,
   toStoredTranscriptV1,
 } from "./serialization";
-import { traceBatchInputsVersionSchema } from "./storage-schema";
-import {
-  traceBatchInputsV1Schema,
-  type TraceBatchInputsV1,
-} from "./versions/v1";
+import { traceTranscriptVersionSchema } from "./storage-schema";
+import { traceTranscriptV1Schema, type TraceTranscriptV1 } from "./versions/v1";
 
-export type TraceBatchInputReference = {
+export type TraceTranscriptReference = {
   projectId: string;
   traceId: string;
   revision: string;
 };
 
-export type TraceBatchInputData = {
+export type TraceTranscriptData = {
   transcript: Transcript | null;
   /** Empty when there is no transcript. */
   executionIssues: ExecutionIssue[];
-  traceContext: TraceBatchInputsV1["traceContext"];
+  traceContext: TraceTranscriptV1["traceContext"];
 };
 
-type TraceBatchInputPutResult =
+type TraceTranscriptPutResult =
   | { outcome: "stored"; jsonLength: number; key: string }
   | { outcome: "too_large"; jsonLength: number };
 
-export interface TraceBatchInputStorage {
+export interface TraceTranscriptStorage {
   /**
    * Ordinary PUT: retries using the same revision can replace the saved input.
    * `stored` includes the object key. `too_large` uploads nothing.
    */
   put(
-    reference: TraceBatchInputReference,
-    inputs: TraceBatchInputData,
-  ): Promise<TraceBatchInputPutResult>;
+    reference: TraceTranscriptReference,
+    inputs: TraceTranscriptData,
+  ): Promise<TraceTranscriptPutResult>;
   /**
    * Reads the object at the key `put` returned. Missing objects and invalid
    * JSON propagate to the caller. A newer `schemaVersion` throws
-   * `UnsupportedTraceBatchInputVersionError`, which callers must treat as
+   * `UnsupportedTraceTranscriptVersionError`, which callers must treat as
    * retryable: a later attempt can run on an updated reader.
    */
-  get(key: string): Promise<TraceBatchInputData>;
+  get(key: string): Promise<TraceTranscriptData>;
 }
 
 /** The object was written by a newer schema than this reader knows. */
-export class UnsupportedTraceBatchInputVersionError extends Error {
+export class UnsupportedTraceTranscriptVersionError extends Error {
   constructor(readonly schemaVersion: number) {
     super(
-      `Trace batch input schema version ${schemaVersion} is not supported by this reader.`,
+      `Trace transcript schema version ${schemaVersion} is not supported by this reader.`,
     );
-    this.name = "UnsupportedTraceBatchInputVersionError";
+    this.name = "UnsupportedTraceTranscriptVersionError";
   }
 }
 
 // UTF-16 length of the complete JSON envelope, not a UTF-8 byte limit.
-export const TRACE_BATCH_INPUT_MAX_CHARACTERS = 1_000_000;
+export const TRACE_TRANSCRIPT_MAX_CHARACTERS = 1_000_000;
 
 /** After `LANGFUSE_S3_EVENT_UPLOAD_PREFIX`. The events-dispatch transcript cleaner lists this prefix. */
-export const TRACE_BATCH_INPUT_PREFIX = "events-dispatch/trace-transcript/";
+export const TRACE_TRANSCRIPT_PREFIX = "events-dispatch/trace-transcript/";
 
-/** Trace-batch inputs expire after three days, matching span-eval inputs. */
-export const TRACE_BATCH_INPUT_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
+/** Trace transcripts expire after three days, matching span-eval inputs. */
+export const TRACE_TRANSCRIPT_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 
 let storage: StorageService | undefined;
 
 /** Storage dependencies share one lazily initialized provider client. */
-export function createTraceBatchInputStorage(): TraceBatchInputStorage {
+export function createTraceTranscriptStorage(): TraceTranscriptStorage {
   return {
     async put(reference, { transcript, executionIssues, traceContext }) {
-      const inputs: TraceBatchInputsV1 = {
+      const inputs: TraceTranscriptV1 = {
         schemaVersion: 1,
         transcript:
           transcript === null ? null : toStoredTranscriptV1(transcript),
@@ -89,8 +86,8 @@ export function createTraceBatchInputStorage(): TraceBatchInputStorage {
       };
       const json = JSON.stringify(inputs);
       const jsonLength = json.length;
-      const key = getTraceBatchInputsKey(reference);
-      if (jsonLength > TRACE_BATCH_INPUT_MAX_CHARACTERS)
+      const key = getTraceTranscriptKey(reference);
+      if (jsonLength > TRACE_TRANSCRIPT_MAX_CHARACTERS)
         return { outcome: "too_large", jsonLength };
 
       await getStorage().uploadFile({
@@ -105,15 +102,15 @@ export function createTraceBatchInputStorage(): TraceBatchInputStorage {
   };
 }
 
-async function readStored(key: string): Promise<TraceBatchInputData> {
+async function readStored(key: string): Promise<TraceTranscriptData> {
   const json = await getStorage().download(key);
   const stored: unknown = JSON.parse(json);
-  const envelope = traceBatchInputsVersionSchema.safeParse(stored);
+  const envelope = traceTranscriptVersionSchema.safeParse(stored);
   if (envelope.success && envelope.data.schemaVersion !== 1)
-    throw new UnsupportedTraceBatchInputVersionError(
+    throw new UnsupportedTraceTranscriptVersionError(
       envelope.data.schemaVersion,
     );
-  const inputs = traceBatchInputsV1Schema.parse(stored);
+  const inputs = traceTranscriptV1Schema.parse(stored);
   return {
     transcript:
       inputs.transcript === null
@@ -137,11 +134,11 @@ function getStorage(): StorageService {
   return storage;
 }
 
-function getTraceBatchInputsKey({
+function getTraceTranscriptKey({
   projectId,
   traceId,
   revision,
-}: TraceBatchInputReference): string {
+}: TraceTranscriptReference): string {
   const safeProjectId = safeBlobKeySegment(projectId);
   const safeTraceId = safeBlobKeySegment(traceId);
   const safeRevision = safeBlobFilenameStem(revision, ".json");
@@ -149,5 +146,5 @@ function getTraceBatchInputsKey({
     0,
     3,
   );
-  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${TRACE_BATCH_INPUT_PREFIX}${hash}/${safeProjectId}/${safeTraceId}/${safeRevision}.json`;
+  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${TRACE_TRANSCRIPT_PREFIX}${hash}/${safeProjectId}/${safeTraceId}/${safeRevision}.json`;
 }

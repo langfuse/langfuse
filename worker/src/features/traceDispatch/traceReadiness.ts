@@ -8,7 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { traceDispatchConfig } from "../eventsDispatch/config";
 
-export function getTraceBatchShard(member: string): number {
+export function getTraceDispatchShard(member: string): number {
   return getShardIndex(member, traceDispatchConfig.shardCount);
 }
 
@@ -33,7 +33,7 @@ export async function resolveTraceIdleMs(projectId: string): Promise<number> {
 
 // A fixed 128-bit identity keeps arbitrary project/trace identifiers out of the
 // retained map. Due/state keep the full identifiers for dispatch.
-export function getTraceBatchFirstMember(member: string): Buffer {
+export function getTraceDispatchFirstMember(member: string): Buffer {
   return createHash("sha256").update(member).digest().subarray(0, 16);
 }
 
@@ -81,7 +81,7 @@ export async function evalReadiness(
   keys: string[],
   args: (string | number | Buffer)[],
 ): Promise<unknown> {
-  if (!redis) throw new Error("Trace batching requires Redis");
+  if (!redis) throw new Error("Trace dispatch requires Redis");
   try {
     return await redis.evalsha(
       readinessScriptHashes.get(script)!,

@@ -7,7 +7,7 @@ import {
   recordDistribution,
   recordGauge,
   recordIncrement,
-  TraceBatchTraceSchema,
+  EventsDispatchTraceSchema,
   EventsDispatchQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
@@ -15,9 +15,9 @@ import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import {
   CLEANUP_SIZE,
   evalReadiness,
-  getTraceBatchShard,
+  getTraceDispatchShard,
   SNAPSHOT_SCRIPT,
-} from "./traceBatchReadiness";
+} from "./traceReadiness";
 import {
   compareBatchesByOldestDue,
   compareNumbers,
@@ -26,11 +26,11 @@ import {
   type PendingTrace,
   prepareLocalityPartials,
   QUERY_BUFFER_MS,
-  selectTraceBatches,
+  selectDispatchBatches,
   toLimit,
-  type TraceBatchWeightLimits,
+  type DispatchBatchWeightLimits,
   type TraceExclusionReason,
-} from "./traceBatchSelection";
+} from "./dispatchBatchSelection";
 import {
   ACKNOWLEDGE_RECORDING_SCRIPT,
   evalRecording,
@@ -49,14 +49,14 @@ const CHUNK_SIZE = 1_000;
 const DISPATCH_CANDIDATE_LIMIT = 10_000;
 const REDIS_CHUNK_SIZE = 50;
 
-export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
+export class TraceDispatcher extends PeriodicExclusiveRunner {
   private stopping = false;
   private activeDispatch: Promise<void> | null = null;
 
   constructor() {
     super({
-      name: "TraceBatchDispatcher",
-      metricName: "trace_batch_dispatcher",
+      name: "TraceDispatcher",
+      metricName: "trace_dispatcher",
       lockKey: "{trace-dispatch}:dispatcher",
       lockTtlSeconds: 60,
       onUnavailable: "fail",
@@ -82,7 +82,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         new Promise<void>((resolve) => {
           timeout = setTimeout(() => {
             logger.warn(
-              "Trace batch dispatcher drain timed out after 5 seconds; continuing shutdown",
+              "Trace dispatcher drain timed out after 5 seconds; continuing shutdown",
             );
             resolve();
           }, 5_000);
@@ -133,7 +133,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     hydrated: number;
     enqueued: number;
   }): Promise<void> {
-    if (!redis) throw new Error("Trace batching requires Redis");
+    if (!redis) throw new Error("Trace dispatch requires Redis");
     const queue = EventsDispatchQueue.getInstance();
     if (!queue) throw new Error("Events dispatch queue is unavailable");
     const getKeys = (shard: number) => {
@@ -220,10 +220,10 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         compareNumbers(a.due, b.due) ||
         compareStrings(a.member, b.member),
     );
-    const batchWeightLimits: TraceBatchWeightLimits = {
+    const batchWeightLimits: DispatchBatchWeightLimits = {
       maxSerializedEventBytes: toLimit(eventsDispatchConfig.maxBatchBytes),
     };
-    const traceWeightLimits: TraceBatchWeightLimits = {
+    const traceWeightLimits: DispatchBatchWeightLimits = {
       maxSerializedEventBytes: toLimit(eventsDispatchConfig.maxTraceBytes),
     };
 
@@ -236,7 +236,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         { entry: PendingTrace; index: number }[]
       >();
       batch.forEach((entry, index) => {
-        const shard = getTraceBatchShard(entry.member);
+        const shard = getTraceDispatchShard(entry.member);
         const group = groups.get(shard) ?? [];
         group.push({ entry, index });
         groups.set(shard, group);
@@ -294,7 +294,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         recordIncrement("langfuse.trace_dispatch.excluded_traces", 1, {
           reason,
         });
-        logger.warn("Trace batch excluded trace", {
+        logger.warn("Trace dispatch excluded trace", {
           projectId: entry.trace.projectId,
           traceId: entry.trace.traceId,
           reason,
@@ -446,7 +446,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
             state.serializedEventBytes >= 0
               ? { serializedEventBytes: state.serializedEventBytes }
               : undefined,
-          trace: TraceBatchTraceSchema.parse({
+          trace: EventsDispatchTraceSchema.parse({
             ...state,
             projectId,
             traceId,
@@ -469,7 +469,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         hydratedCandidates.length + carriedTraceCount,
       );
       const selectorStartedAt = performance.now();
-      const selected = selectTraceBatches(
+      const selected = selectDispatchBatches(
         selectorInput,
         env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE,
         batchWeightLimits,

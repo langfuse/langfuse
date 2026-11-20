@@ -13,17 +13,17 @@ import {
 import type { ObservationForEval } from "./observationEval/types";
 import type { EvalRules } from "./fetchEvalRules";
 import { scheduleTraceTranscriptEvals } from "./traceTranscriptEval/scheduleTraceTranscriptEvals";
-import { prepareTraceBatchRules } from "../traceBatching/traceBatchRules";
+import { prepareTraceDispatchRules } from "../traceDispatch/traceDispatchRules";
 import {
   recordTraceActivity,
   type TraceSpanActivity,
-} from "../traceBatching/traceRuleRecording";
+} from "../traceDispatch/traceRuleRecording";
 
 /** Prepare rules and own the trace-activity buffer for one ingestion batch. */
 export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
   // The caller flushes this buffer before returning.
   const traceActivity: TraceSpanActivity[] = [];
-  const traceTranscriptRules = prepareTraceBatchRules(
+  const traceTranscriptRules = prepareTraceDispatchRules(
     projectId,
     rules.traceTranscriptRules,
   ).catch((error) => {

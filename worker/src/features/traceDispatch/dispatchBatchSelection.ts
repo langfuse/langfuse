@@ -21,11 +21,11 @@ export type PendingTrace = {
  * Traces without estimates weigh nothing, and a single trace always forms a
  * batch even when it alone exceeds a budget.
  */
-export type TraceBatchWeightLimits = {
+export type DispatchBatchWeightLimits = {
   maxSerializedEventBytes: number;
 };
 
-const UNBOUNDED_WEIGHT_LIMITS: TraceBatchWeightLimits = {
+const UNBOUNDED_WEIGHT_LIMITS: DispatchBatchWeightLimits = {
   maxSerializedEventBytes: Number.POSITIVE_INFINITY,
 };
 
@@ -37,12 +37,12 @@ const getSerializedEventBytes = ({ estimates }: PendingTrace) =>
 
 const fitsWeightLimits = (
   serializedEventBytes: number,
-  limits: TraceBatchWeightLimits,
+  limits: DispatchBatchWeightLimits,
 ) => serializedEventBytes <= limits.maxSerializedEventBytes;
 
 const isWithinWeightLimits = (
   batch: readonly PendingTrace[],
-  limits: TraceBatchWeightLimits,
+  limits: DispatchBatchWeightLimits,
 ) =>
   batch.length <= 1 ||
   fitsWeightLimits(
@@ -51,7 +51,7 @@ const isWithinWeightLimits = (
   );
 
 // A heavy trace uses more than half of a batch budget.
-const isHeavyTrace = (entry: PendingTrace, limits: TraceBatchWeightLimits) =>
+const isHeavyTrace = (entry: PendingTrace, limits: DispatchBatchWeightLimits) =>
   getSerializedEventBytes(entry) * 2 > limits.maxSerializedEventBytes;
 
 export type TraceExclusionReason = "serialized_bytes" | "start_too_old";
@@ -61,7 +61,7 @@ const MAX_TRACE_START_AGE_MS = 365 * 24 * 60 * 60_000;
 
 export const getTraceExclusionReason = (
   { trace, estimates }: PendingTrace,
-  limits: TraceBatchWeightLimits,
+  limits: DispatchBatchWeightLimits,
 ): TraceExclusionReason | undefined => {
   if (trace.minStart < Date.now() - MAX_TRACE_START_AGE_MS)
     return "start_too_old";
@@ -156,7 +156,7 @@ const getBatchBounds = (batch: readonly PendingTrace[]) => ({
 const isFeasibleLocalityBatch = (
   batch: readonly PendingTrace[],
   maxBatchSize: number,
-  weightLimits: TraceBatchWeightLimits,
+  weightLimits: DispatchBatchWeightLimits,
 ) => {
   if (batch.length === 0 || batch.length > maxBatchSize) return false;
   if (!isWithinWeightLimits(batch, weightLimits)) return false;
@@ -192,7 +192,7 @@ const ZERO_BATCH_SELECTION_COST: BatchSelectionCost = {
 const selectLocalityBatches = (
   candidates: readonly PendingTrace[],
   maxBatchSize: number,
-  weightLimits: TraceBatchWeightLimits,
+  weightLimits: DispatchBatchWeightLimits,
 ): PendingTrace[][] => {
   const sorted = candidates
     .map(toLocalityCandidate)
@@ -260,7 +260,7 @@ const selectLocalityBatches = (
       best = Math.min(best, minJobs[start] + 1);
     }
     if (best === Number.MAX_SAFE_INTEGER) {
-      throw new Error("Unable to partition trace batch candidates");
+      throw new Error("Unable to partition dispatch batch candidates");
     }
     minJobs[end] = best;
   }
@@ -322,7 +322,7 @@ const selectLocalityBatches = (
   for (let batchIndex = batchCount; batchIndex > 0; batchIndex--) {
     const start = predecessors[batchIndex][end];
     if (start < 0)
-      throw new Error("Unable to partition trace batch candidates");
+      throw new Error("Unable to partition dispatch batch candidates");
     batches[batchIndex - 1] = sorted
       .slice(start, end)
       .map(({ entry }) => entry);
@@ -350,10 +350,10 @@ const selectLocalityBatches = (
  * Callers bound n to CHUNK_SIZE (1,000) hydrated candidates plus at most
  * maxBatchSize - 1 traces across all retained partials.
  */
-export function selectTraceBatches(
+export function selectDispatchBatches(
   candidates: readonly PendingTrace[],
   maxBatchSize: number,
-  weightLimits: TraceBatchWeightLimits = UNBOUNDED_WEIGHT_LIMITS,
+  weightLimits: DispatchBatchWeightLimits = UNBOUNDED_WEIGHT_LIMITS,
 ): PendingTrace[][] {
   if (candidates.length === 0) return [];
   // Two heavy traces cannot share a batch on the dimension that makes them
@@ -384,7 +384,7 @@ const canCoalesceLocalityPartials = (
   left: readonly PendingTrace[],
   right: readonly PendingTrace[],
   maxBatchSize: number,
-  weightLimits: TraceBatchWeightLimits,
+  weightLimits: DispatchBatchWeightLimits,
 ) => {
   if (left.length + right.length > maxBatchSize) return false;
   const projectId = left[0]?.trace.projectId;
@@ -416,7 +416,7 @@ const canCoalesceLocalityPartials = (
 export function prepareLocalityPartials(
   partials: readonly (readonly PendingTrace[])[],
   maxBatchSize: number,
-  weightLimits: TraceBatchWeightLimits = UNBOUNDED_WEIGHT_LIMITS,
+  weightLimits: DispatchBatchWeightLimits = UNBOUNDED_WEIGHT_LIMITS,
 ): { dispatch: PendingTrace[][]; carry: PendingTrace[][] } {
   const batches = partials
     .filter((batch) => batch.length > 0)

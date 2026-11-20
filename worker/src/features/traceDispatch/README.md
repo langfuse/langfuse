@@ -42,10 +42,10 @@ Metrics use `langfuse.trace_dispatch`:
 - `tracked_traces` / `expired_traces`: acknowledged updates / cleaned pending entries.
 - `dispatcher_traces`: fetched, hydrated and successfully enqueued counts per run
   (`stage`). Use `langfuse.periodic_runner.duration_ms` with
-  `runner:trace_batch_dispatcher` and `outcome:success|failed` for total runtime,
+  `runner:trace_dispatcher` and `outcome:success|failed` for total runtime,
   excluding skipped lease attempts; compare with ready backlog and oldest due age.
 - `filter_outcomes` / `filter_duration_ms`: per-span rule selection.
-- `recording_batches` / `recording_duration_ms`: flush outcome and duration. Recording failures warn without failing ingestion; metrics collection failures fail the `trace_batch_metrics` runner.
+- `recording_batches` / `recording_duration_ms`: flush outcome and duration. Recording failures warn without failing ingestion; metrics collection failures fail the `trace_dispatch_metrics` runner.
 
 Compare admitted volume with ingestion latency, worker CPU/RSS, Postgres load and
 Redis CPU/memory. Queue metrics are under `langfuse.events_dispatch`.
@@ -132,15 +132,15 @@ Events-dispatch read spans report the ingestion estimate alongside the input, ou
 
 The dispatcher closes a job before its summed byte estimates would exceed `eventsDispatchConfig.maxBatchBytes` (64 MiB), in addition to the trace cap. An over-budget slice is treated like one past its time envelope, and partials coalesce only within the budget. A single trace always forms a job, so a trace heavier than the budget runs alone. Locality packs traces above half of the budget in a separate lane, so one heavy trace does not split the light traces around it into extra jobs. Unknown estimates weigh nothing. Budget-limited jobs report `fill:partial`; the `scope:batch` estimate distributions show how close jobs run to the budget.
 
-After hydration, a trace whose retained byte estimate exceeds `eventsDispatchConfig.maxTraceBytes` (50 MiB) is never queued or read. The dispatcher acknowledges it like a dispatched trace, increments `langfuse.trace_dispatch.excluded_traces` tagged with `reason:serialized_bytes|start_too_old`, and logs `Trace batch excluded oversized trace` at warn level with `projectId`, `traceId`, `reason` and the byte estimate. Group that log by `@projectId` to find repeat offenders. Activity after the acknowledgement starts a new pending window that is evaluated again using its retained cumulative estimates, so a trace that keeps growing may be logged more than once. Traces with unknown estimates are never excluded.
+After hydration, a trace whose retained byte estimate exceeds `eventsDispatchConfig.maxTraceBytes` (50 MiB) is never queued or read. The dispatcher acknowledges it like a dispatched trace, increments `langfuse.trace_dispatch.excluded_traces` tagged with `reason:serialized_bytes|start_too_old`, and logs `Trace dispatch excluded trace` at warn level with `projectId`, `traceId`, `reason` and the byte estimate. Group that log by `@projectId` to find repeat offenders. Activity after the acknowledgement starts a new pending window that is evaluated again using its retained cumulative estimates, so a trace that keeps growing may be logged more than once. Traces with unknown estimates are never excluded.
 
-Events dispatch streams full `events_full` payloads through `getTraceBatchEventStream` in `@langfuse/shared`. Exact `(projectId, traceId)` pairs protect tenant boundaries; project, trace hash and a shared outer time window prune reads. Each selected trace also gets its own interval, so unrelated batch companions cannot widen the payload returned for that trace. `TRACE_QUERY_BUFFER_MS` pads each recorded interval by two minutes on both sides. This fixed margin neither waits for arrivals nor guarantees trace completeness; repeated intervals for the same pair form a union without duplicating rows. Queries use response compression and chunked multipart parameters for up to 10,000 UUID-sized trace/project IDs. The read timeout fails the job rather than accepting partial results. Beyond the dispatcher's weight budgets and trace exclusion, this does not cap observation count, query memory or dispatcher snapshot memory.
+Events dispatch streams full `events_full` payloads through `getEventsDispatchEventStream` in `@langfuse/shared`. Exact `(projectId, traceId)` pairs protect tenant boundaries; project, trace hash and a shared outer time window prune reads. Each selected trace also gets its own interval, so unrelated batch companions cannot widen the payload returned for that trace. `TRACE_QUERY_BUFFER_MS` pads each recorded interval by two minutes on both sides. This fixed margin neither waits for arrivals nor guarantees trace completeness; repeated intervals for the same pair form a union without duplicating rows. Queries use response compression and chunked multipart parameters for up to 10,000 UUID-sized trace/project IDs. The read timeout fails the job rather than accepting partial results. Beyond the dispatcher's weight budgets and trace exclusion, this does not cap observation count, query memory or dispatcher snapshot memory.
 
 ## Input storage
 
 Events dispatch stores the assembled transcript once per routed trace, then enqueues one job per consumer with the IDs of every rule routed to it. The Topics job resolves those rules' facets at their current version and reads the object back; events dispatch makes no model calls. Each S3 request is bounded to 10 seconds so a stalled request cannot hold a slot indefinitely; the SDK attempt budget stays at its default. An oversized input or failed upload counts the trace as failed and enqueues nothing for it.
 
-The shared `server/traceBatch` module uses the event-upload bucket and credentials:
+The shared `server/eventsDispatch` module uses the event-upload bucket and credentials:
 
 ```text
 <prefix>events-dispatch/trace-transcript/<hash>/<projectId>/<safeTraceId>/<revision>.json
@@ -148,13 +148,13 @@ The shared `server/traceBatch` module uses the event-upload bucket and credentia
 
 `hash` is the first three hex characters of SHA-256 over `JSON.stringify([projectId, traceId])`. Identifiers use the shared blob-key escaping helpers. The revision comes from the queued readiness entry; a new revision uses another key, while an ordinary PUT of the same revision can replace its object. `put` returns the key and every consumer job carries it as `transcriptS3Path`; readers never rebuild it, so the key format can change without breaking queued jobs.
 
-The stored envelope contains `schemaVersion`, a nullable transcript, `executionIssues` and trace context (nullable session/name, source timestamp and environment). The frozen schema is [versions/v1.ts](../../../../packages/shared/src/server/traceBatch/versions/v1.ts); [serialization.ts](../../../../packages/shared/src/server/traceBatch/serialization.ts) adapts it to live types. Schema version and readiness revision are independent.
+The stored envelope contains `schemaVersion`, a nullable transcript, `executionIssues` and trace context (nullable session/name, source timestamp and environment). The frozen schema is [versions/v1.ts](../../../../packages/shared/src/server/eventsDispatch/versions/v1.ts); [serialization.ts](../../../../packages/shared/src/server/eventsDispatch/serialization.ts) adapts it to live types. Schema version and readiness revision are independent.
 
-Events dispatch injects `TraceBatchInputStorage` from `createTraceBatchInputStorage()`. Keep storage details behind that interface. Context uses the Topics metadata selection; the transcript alone cannot reconstruct it. Dates inside messages are restored on read, while the trace-context timestamp stays an ISO string. Null transcripts are valid; missing objects, invalid content and download errors fail.
+Events dispatch injects `TraceTranscriptStorage` from `createTraceTranscriptStorage()`. Keep storage details behind that interface. Context uses the Topics metadata selection; the transcript alone cannot reconstruct it. Dates inside messages are restored on read, while the trace-context timestamp stays an ISO string. Null transcripts are valid; missing objects, invalid content and download errors fail.
 
 Mixed versions happen: rolling deploys, and self-hosters updating web and worker
 at different times. A reader that meets an unknown `schemaVersion` must fail with
-the retryable `UnsupportedTraceBatchInputVersionError`, never discard the job or
+the retryable `UnsupportedTraceTranscriptVersionError`, never discard the job or
 treat the object as missing. Consumers read inside retried jobs whose backoff
 spans a deploy, so the retry lands on an updated reader. Deploy readers for a new
 version before enabling its writer; if a writer ships first, the retries cover the
@@ -166,7 +166,7 @@ Serialize the full envelope once. Skip the entire upload if `json.length` exceed
 
 Deploy with writes disabled. Before enabling, expire the full `<prefix>events-dispatch/trace-transcript/` path after three days: a bucket lifecycle rule, the transcript cleaner below, or both. The cleaner deletes without a version ID, so on a bucket with versioning or soft delete it only hides objects; there, a lifecycle rule that expires noncurrent versions is still required. A rule for `evals/` alone does not cover this path. Enable on a small worker rollout and check size-skip logs, S3 failures and Topics latency. Consumers that require files must schedule only after a successful PUT.
 
-Like temporary span-eval inputs, these objects have no ingestion deletion references. Trace and project deletion do not remove them. They expire after three days (`TRACE_BATCH_INPUT_RETENTION_MS`). `eventsDispatch/transcriptCleaner.ts` lists `<prefix>events-dispatch/trace-transcript/` with the shared event-upload client, under one Redis lock, and deletes older objects. It starts when `LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED=true` and emits `langfuse.events_dispatch.transcript_cleaner.{files_deleted,failures}`.
+Like temporary span-eval inputs, these objects have no ingestion deletion references. Trace and project deletion do not remove them. They expire after three days (`TRACE_TRANSCRIPT_RETENTION_MS`). `eventsDispatch/transcriptCleaner.ts` lists `<prefix>events-dispatch/trace-transcript/` with the shared event-upload client, under one Redis lock, and deletes older objects. It starts when `LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED=true` and emits `langfuse.events_dispatch.transcript_cleaner.{files_deleted,failures}`.
 
 ## Per-trace transcripts
 
@@ -193,7 +193,7 @@ Redis applied an update without acknowledgement, so the stage difference include
 uncertain outcomes; it does not prove data loss. Writer acceptance still precedes
 the ClickHouse flush. No additional serialization is performed.
 
-`TraceBatchMetricsRunner` starts when the dispatcher or events-dispatch consumer is enabled in a cloud worker, independently of the generic queue-metrics flag. It samples the active pipeline's maps every 60 seconds per process and polls the queue every 30 seconds when dispatcher or consumer is enabled, plus collection time. No completed jobs or progressing dispatcher are required. Queue-age collection reads only the next waiting/paused job IDs and their timestamp fields; it never fetches or parses batch payloads. One failed collection does not suppress the others; failed samples are not reported as zero. Check `langfuse.trace_dispatch.memory_samples` for memory collection outcomes. Periodic-runner timestamps indicate runner activity, not successful memory collection.
+`TraceDispatchMetricsRunner` starts when the dispatcher or events-dispatch consumer is enabled in a cloud worker, independently of the generic queue-metrics flag. It samples the active pipeline's maps every 60 seconds per process and polls the queue every 30 seconds when dispatcher or consumer is enabled, plus collection time. No completed jobs or progressing dispatcher are required. Queue-age collection reads only the next waiting/paused job IDs and their timestamp fields; it never fetches or parses batch payloads. One failed collection does not suppress the others; failed samples are not reported as zero. Check `langfuse.trace_dispatch.memory_samples` for memory collection outcomes. Periodic-runner timestamps indicate runner activity, not successful memory collection.
 
 Memory collection uses bounded per-shard Lua calls with `MEMORY USAGE ...
 SAMPLES 5`, preserving the shared key prefix and Redis Cluster slot routing.
@@ -238,7 +238,7 @@ worker/container rather than a fleet average:
   `oldest_due_age_ms`: snapshot and backlog growth.
 - `langfuse.trace_dispatch.expired_traces{source:dispatcher}` and `langfuse.trace_dispatch.expired_traces`: pending entries expired by the dispatcher and by ingestion; the two writers are different events.
 - `langfuse.periodic_runner.duration_ms` and `completed`, filtered by
-  `runner:trace_batch_dispatcher`: run duration and outcome.
+  `runner:trace_dispatcher`: run duration and outcome.
 
 Runtime memory is shared with other work in the process, so correlation with
 dispatch runs does not isolate the dispatcher's allocations. Periodic sampling

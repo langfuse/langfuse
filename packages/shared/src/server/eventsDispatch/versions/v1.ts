@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { JsonValue } from "../../../utils/normalized-io/types";
 
 /**
- * Trace-batch input format V1: a frozen envelope and copy of the transcript
+ * Trace transcript format V1: a frozen envelope and copy of the transcript
  * and normalized message schemas, with message dates as ISO strings. This file
  * imports no live schema, so the live shape can change without changing what V1
  * accepts. V1 may only gain optional fields whose
@@ -183,7 +183,7 @@ export type StoredExecutionIssueV1 = z.infer<
 >;
 
 // Add breaking versions alongside v1; deploy readers before enabling new writers.
-export const traceBatchInputsV1Schema = z.object({
+export const traceTranscriptV1Schema = z.object({
   schemaVersion: z.literal(1),
   transcript: storedTranscriptV1Schema.nullable(),
   /** Optional addition: objects written before it was added read as empty. */
@@ -198,4 +198,4 @@ export const traceBatchInputsV1Schema = z.object({
   }),
 }) satisfies z.ZodType<JsonValue>;
 
-export type TraceBatchInputsV1 = z.infer<typeof traceBatchInputsV1Schema>;
+export type TraceTranscriptV1 = z.infer<typeof traceTranscriptV1Schema>;

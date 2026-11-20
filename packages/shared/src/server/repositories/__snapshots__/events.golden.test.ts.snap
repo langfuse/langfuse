@@ -2854,7 +2854,7 @@ LIMIT {param3:Int32}",
 ]
 `;
 
-exports[`golden: events metadata map and session resolution > getTraceBatchEventStream 1`] = `
+exports[`golden: events metadata map and session resolution > getEventsDispatchEventStream 1`] = `
 [
   {
     "fn": "queryClickhouseStream",
