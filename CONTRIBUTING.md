@@ -40,7 +40,7 @@ Once we've discussed your changes and you've got your code ready, make sure that
 Four checks gate every pull request and are cheaper to run before you open it than to discover in CI:
 
 ```bash
-pnpm run lint        # eslint; every package runs with --max-warnings 0, so a warning fails
+pnpm run lint        # oxlint; every package runs with --max-warnings 0, so a warning fails
 pnpm tc              # typecheck all packages
 pnpm exec knip       # unused files, exports and dependencies
 pnpm run test        # see "Running Unit Tests" below for the setup this needs
@@ -124,7 +124,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 - `packages`:
   - `shared`: contains shared code between the above packages.
   - `native`: Rust native addon (napi-rs) that the worker loads in-process. See [packages/native/README.md](packages/native/README.md).
-  - `config-eslint`: contains eslint configurations which are shared between the above packages.
+  - `config-oxlint`: contains the oxlint configuration which is shared between the above packages.
   - `config-typescript`: contains typescript configurations which are shared between the above packages.
 - `ee`: contains all enterprise features. See [EE README](ee/README.md) for more details.
 
@@ -284,13 +284,21 @@ When you change the shared MCP setup:
 
    CI still runs the required checks for pull requests.
 
+   Then build the internal packages once. `web` and `worker` load
+   `@langfuse/shared` and `@langfuse/ee` from their `dist` folders, and
+   `pnpm run dev` does not build them first:
+
+   ```bash
+   pnpm exec turbo run build --filter=@langfuse/ee  # also builds @langfuse/shared
+   ```
+
 4. Create an env file
 
    ```bash
     cp .env.dev.example .env
    ```
 
-5. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it. Also, this will fail on the very first run. Please run it again.
+5. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it. If `web` exits with `Can't resolve '@langfuse/shared'`, run the build from step 3 and start it again.
 
    ```bash
    pnpm run dx # first run only (resets db, docker containers, etc...)
