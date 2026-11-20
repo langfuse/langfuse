@@ -57,7 +57,7 @@ const questionStatuses: Record<
     label: "No topics found",
     dot: "bg-muted-foreground",
   },
-  failed: { label: "Stopped", dot: "bg-dark-red" },
+  failed: { label: "Stopped", dot: "bg-destructive" },
 };
 
 function formatCount(count: number) {
@@ -296,7 +296,7 @@ export function TopicRunDetails({
             <div
               className={cn(
                 "h-full rounded-sm",
-                failed ? "bg-dark-red" : "bg-foreground",
+                failed ? "bg-destructive" : "bg-foreground",
               )}
               style={{ width: `${(complete / total) * 100}%` }}
             />
