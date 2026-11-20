@@ -327,15 +327,13 @@ export class ApiAuthService {
   }
 
   private async findDbKeyOrThrow(publicKey: string) {
-    const dbKey = containsNulByte(publicKey)
-      ? null
-      : await this.prisma.apiKey.findUnique({
-          where: { publicKey },
-          include: {
-            project: { include: { organization: true } },
-            organization: true,
-          },
-        });
+    const dbKey = await this.prisma.apiKey.findUnique({
+      where: { publicKey },
+      include: {
+        project: { include: { organization: true } },
+        organization: true,
+      },
+    });
     if (!dbKey) {
       logger.info(
         `No api key found for public key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
