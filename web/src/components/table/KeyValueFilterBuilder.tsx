@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -474,14 +473,15 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
     const base = implicitBlankRow
       ? [{ index: 0, filter: blankStringRow() }]
       : draftFilters;
+    const newFilter: KeyedFilterEntry =
+      mode === "categorical"
+        ? { key: "", operator: "any of", value: [] }
+        : blankStringRow();
     setDraftFilters([
       ...base,
       {
         index: localFilters.length,
-        filter:
-          mode === "categorical"
-            ? { key: "", operator: "any of", value: [] }
-            : blankStringRow(),
+        filter: newFilter,
       },
     ]);
   };
@@ -536,14 +536,19 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                     options={mergedKeyOptions.map((option) => ({
                       value: option,
                       label: option,
-                      badges: keyLevels?.[option]?.map((level) => ({
-                        text: level === "trace" ? "Trace" : "Observation",
-                        title: `${level === "trace" ? "Trace" : "Observation"}-level score`,
-                        color:
+                      badges: keyLevels?.[option]?.map((level) => {
+                        const label =
+                          level === "trace" ? "Trace" : "Observation";
+                        const color =
                           level === "trace"
                             ? ("violet" as const)
-                            : ("blue" as const),
-                      })),
+                            : ("blue" as const);
+                        return {
+                          text: label,
+                          title: `${label}-level score`,
+                          color,
+                        };
+                      }),
                     }))}
                     onValueChange={(key) => handleFilterChange(index, { key })}
                   />
@@ -576,7 +581,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
               )}
             </div>
 
-            {mode === "categorical" ? (
+            {mode === "categorical" && (
               <>
                 {/* Operator select */}
                 <SelectInput
@@ -612,7 +617,8 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 />
               </>
-            ) : mode === "numeric" ? (
+            )}
+            {mode === "numeric" && (
               <>
                 {/* Numeric operator select */}
                 <SelectInput
@@ -640,7 +646,8 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 />
               </>
-            ) : mode === "boolean" ? (
+            )}
+            {mode === "boolean" && (
               <>
                 <SelectInput
                   value={filter.operator}
@@ -669,7 +676,8 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 />
               </>
-            ) : (
+            )}
+            {mode === "string" && (
               <>
                 {/* String operator select */}
                 <SelectInput
