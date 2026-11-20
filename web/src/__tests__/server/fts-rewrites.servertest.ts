@@ -8,6 +8,7 @@ import {
   StringObjectFilter,
   hasFtsSearchToken,
   queryClickhouse,
+  shouldUseFtsTokenPrefilter,
 } from "@langfuse/shared/src/server";
 
 const maybeEventsTable =
@@ -177,10 +178,10 @@ maybeEventsTable("FTS filter rewrites", () => {
       }).apply();
 
       // The token prefilter is emitted only for FTS-accelerated operators whose
-      // value actually yields tokens; a tokenless value (e.g. "!!!") leans on
-      // the exact predicate alone.
+      // value yields tokens ClickHouse can segment; a tokenless value (e.g.
+      // "!!!") or CJK text (e.g. "東京") leans on the exact predicate alone.
       expect(rewritten.query.includes("hasAllTokens")).toBe(
-        FTS_TEXT_OPERATORS.has(operator) && hasFtsSearchToken(value),
+        FTS_TEXT_OPERATORS.has(operator) && shouldUseFtsTokenPrefilter(value),
       );
       await expect(matchingIds(rewritten)).resolves.toEqual(
         await matchingIds(baseline),

@@ -187,7 +187,7 @@ const compared = (
 };
 
 const KEY = "env";
-const STRINGS = ["needle", "", "50%_off\\", "Ünï cödé", "--"];
+const STRINGS = ["needle", "", "50%_off\\", "Ünï cödé", "--", "你好"];
 const METADATA_STRINGS = [
   ...STRINGS,
   "a".repeat(199),
