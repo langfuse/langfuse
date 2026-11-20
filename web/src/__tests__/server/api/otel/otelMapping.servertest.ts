@@ -6084,7 +6084,7 @@ describe("OTel Resource Span Mapping", () => {
       },
       {
         scenario: "preserves other model spans",
-        spanName: "anthropic.messages.create",
+        spanName: "anthropic.model_request",
         expectedType: "GENERATION",
         expectedModel: "claude-test-model",
       },
@@ -6253,6 +6253,65 @@ describe("OTel Resource Span Mapping", () => {
           type: expectedType,
           name: expectedName,
         });
+      },
+    );
+
+    it.each([
+      {
+        scenario: "platform request spans defer to their model request",
+        scopeName: "com.anthropic.claude-platform",
+        expectedTypes: ["SPAN", "GENERATION"],
+      },
+      {
+        scenario: "SDK request spans stay generations",
+        scopeName: "com.anthropic.sdk.python",
+        expectedTypes: ["GENERATION", "GENERATION"],
+      },
+    ])(
+      "Claude request spans: $scenario",
+      async ({ scopeName, expectedTypes }) => {
+        const modelAttributes = {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.model": "claude-test-model",
+          "gen_ai.usage.input_tokens": "12",
+          "gen_ai.usage.output_tokens": "5",
+        };
+        const { legacyObservations, eventInputs } = await mapCmaSpans(
+          [
+            { name: "anthropic.messages.create", attributes: modelAttributes },
+            {
+              name: "anthropic.model_request",
+              parentSpanId: Buffer.alloc(8, 1),
+              attributes: modelAttributes,
+            },
+          ],
+          scopeName,
+        );
+
+        const expectedUsage = (type: string) =>
+          type === "GENERATION" ? { input: 12, output: 5 } : undefined;
+        expect(
+          legacyObservations.map((observation) => ({
+            type: observation.type,
+            usageDetails: observation.body.usageDetails,
+          })),
+        ).toEqual(
+          expectedTypes.map((type) => ({
+            type: `${type.toLowerCase()}-create`,
+            usageDetails: expectedUsage(type) ?? {},
+          })),
+        );
+        expect(
+          eventInputs.map((event) => ({
+            type: event.type,
+            providedUsageDetails: event.providedUsageDetails,
+          })),
+        ).toEqual(
+          expectedTypes.map((type) => ({
+            type,
+            providedUsageDetails: expectedUsage(type),
+          })),
+        );
       },
     );
 

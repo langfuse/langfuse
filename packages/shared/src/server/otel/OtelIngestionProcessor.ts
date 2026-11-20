@@ -35,6 +35,7 @@ import {
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import {
   isClaudeManagedAgentSessionCreation,
+  isClaudePlatformRequestSpan,
   isClaudeManagedAgentSpan,
   ObservationTypeMapperRegistry,
 } from "./ObservationTypeMapper";
@@ -3019,6 +3020,7 @@ export class OtelIngestionProcessor {
    * are unaffected unless they have one of these operation names.
    *
    * CMA session creation only configures a model and must not trigger enrichment.
+   * The Claude Platform request span repeats the usage of its model_request child.
    */
   private shouldSkipModelUsageAndCost(
     attributes: Record<string, unknown>,
@@ -3028,6 +3030,10 @@ export class OtelIngestionProcessor {
   ): boolean {
     const operationName = attributes["gen_ai.operation.name"];
     if (operationName === "invoke_agent" || operationName === "agent_step") {
+      return true;
+    }
+
+    if (isClaudePlatformRequestSpan(scopeName, spanName)) {
       return true;
     }
 
