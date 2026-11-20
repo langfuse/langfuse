@@ -275,33 +275,3 @@ function isDominantSuccessor(
     (pair.centroidDistance === null || pair.centroidDistance <= 0.15)
   );
 }
-
-/** Largest centroid move, since the name was generated, at which a continued topic keeps its name. */
-export const NAME_DRIFT_LIMIT = 0.1;
-
-/**
- * The centroid a continued topic's name was generated for. Kept names carry it forward, so small nightly moves
- * add up and the topic is renamed once it has drifted, even though each refit passed the continuity checks.
- */
-export function nameAnchor(
-  topic: Pick<TopicDefinition, "centroid" | "metadata">,
-) {
-  const anchor = topic.metadata.nameAnchor;
-  return Array.isArray(anchor) && anchor.length === topic.centroid.length
-    ? (anchor as number[])
-    : topic.centroid;
-}
-
-/** A continued topic keeps its previous name while its centroid stays near the one the name was generated for. */
-export function keepsName(
-  previous: Pick<TopicDefinition, "topicId" | "centroid" | "metadata">,
-  candidate: Pick<TopicDefinition, "topicId" | "centroid">,
-) {
-  const anchor = nameAnchor(previous);
-  return (
-    previous.topicId === candidate.topicId &&
-    !previous.metadata.namingFailure &&
-    anchor.length === candidate.centroid.length &&
-    cosineDistance(anchor, candidate.centroid) <= NAME_DRIFT_LIMIT
-  );
-}

@@ -834,7 +834,7 @@ describe("Topics execution", () => {
   });
 
   it.each(["centroid", "radius"] as const)(
-    "creates a new version with the same stable identity and name when its %s changes slightly",
+    "creates a new version with the same stable identity, named with its previous name as context, when its %s changes",
     async (changed) => {
       seedSummaries(100);
       const members = [...state.summaries.values()].filter(
@@ -860,52 +860,16 @@ describe("Topics execution", () => {
       expect(updated.createdByRunId).toBe(second.id);
       expect(updated[changed]).not.toEqual(old[changed]);
       if (changed === "radius") expect(updated.centroid).toEqual(old.centroid);
-      expect(updated).toMatchObject({
-        name: old.name,
-        description: old.description,
-      });
       expect(second.topics.find((topic) => topic.centroid[1] > 0.5)).toEqual(
         first.topics.find((topic) => topic.centroid[1] > 0.5),
       );
-      expect(state.name).toHaveBeenCalledTimes(2);
+      expect(state.name).toHaveBeenCalledTimes(3);
+      expect(state.name.mock.calls[2][0]).toMatchObject({
+        previousTopic: { name: old.name, description: old.description },
+      });
       expect(state.runs.get(first.id)).toEqual(first);
     },
   );
-
-  it("renames a continued topic, with its old name as context, once small moves add up past the drift limit", async () => {
-    seedSummaries(100);
-    await updateSelection("first");
-    const first = [...state.runs.values()].at(-1)!;
-    const named = first.topics.find((topic) => topic.centroid[0] > 0.5)!;
-    const drift = async (shift: number, executionId: string) => {
-      for (const summary of state.summaries.values())
-        if (summary.embedding[0] > 0.5) summary.embedding[4] = shift;
-      await updateSelection(executionId);
-      return [...state.runs.values()]
-        .at(-1)!
-        .topics.find((topic) => topic.topicId === named.topicId)!;
-    };
-    // Each refit moves the centroid by about 0.04 to 0.06, within continuity's limit.
-    const kept = await drift(0.36, "second");
-    expect(kept).toMatchObject({
-      name: named.name,
-      metadata: { nameAnchor: named.centroid },
-    });
-    const calls = state.name.mock.calls.length;
-    const renamed = await drift(0.75, "third");
-    expect(state.name.mock.calls.slice(calls)).toEqual([
-      [
-        expect.objectContaining({
-          previousTopic: expect.objectContaining({
-            name: named.name,
-            description: named.description,
-          }),
-        }),
-        expect.anything(),
-      ],
-    ]);
-    expect(renamed.metadata.nameAnchor).toBeUndefined();
-  });
 
   it.each(["renamed", "repeated", "failed"] as const)(
     "publishes a changed definition whose name repeats a reused topic (retry %s)",

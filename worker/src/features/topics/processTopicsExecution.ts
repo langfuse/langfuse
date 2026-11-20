@@ -60,7 +60,7 @@ import {
   topicClusterSettings,
   TOPICS_NUMERIC_VERSION,
 } from "./numeric";
-import { keepsName, matchTopicContinuity, nameAnchor } from "./continuity";
+import { matchTopicContinuity } from "./continuity";
 import { createEventLoopYielder } from "./event-loop";
 import { TopicMetrics } from "./metrics";
 
@@ -412,8 +412,7 @@ async function clusterFacet(
       });
     }
     const reused = new Map<string, TopicDefinition>();
-    // Continued topics, by candidate version ID: names that still fit are kept, others are renamed in context.
-    const keptNames = new Map<string, TopicDefinition>();
+    // Continued topics whose definition changed are named again with their previous name as context.
     const renamedFrom = new Map<string, TopicDefinition>();
     candidates = candidates.map((candidate) => {
       const old = previous?.topics.find(
@@ -434,10 +433,7 @@ async function clusterFacet(
         };
       }
       if (compatiblePrevious && old && !old.metadata.namingFailure)
-        (keepsName(old, candidate) ? keptNames : renamedFrom).set(
-          candidate.topicVersionId,
-          old,
-        );
+        renamedFrom.set(candidate.topicVersionId, old);
       return candidate;
     });
     // Final version IDs also determine the serving classifier's distance ties.
@@ -456,7 +452,7 @@ async function clusterFacet(
     const topics: TopicDefinition[] = [];
     const named: NamedTopics = new Map();
     for (const group of evidence) {
-      const retained = reused.get(group.id) ?? keptNames.get(group.id);
+      const retained = reused.get(group.id);
       if (retained)
         named.set(retained.name.toLowerCase(), {
           name: retained.name,
@@ -468,30 +464,6 @@ async function clusterFacet(
       const retained = reused.get(group.id);
       if (retained) {
         topics.push(retained);
-        continue;
-      }
-      const kept = keptNames.get(group.id);
-      if (kept) {
-        const candidate = candidates.find(
-          (topic) => topic.topicVersionId === group.id,
-        )!;
-        topics.push({
-          ...candidate,
-          projectId: scope.projectId,
-          createdByRunId: run.id,
-          createdAt: run.createdAt,
-          tags: [],
-          name: kept.name,
-          description: kept.description,
-          representativeSummaries: kept.representativeSummaries,
-          metadata: {
-            ...candidate.metadata,
-            effectiveMemberCount: group.count,
-            namingModel: kept.metadata.namingModel,
-            nameAnchor: nameAnchor(kept),
-          },
-        });
-        metrics.result("naming", "name_kept");
         continue;
       }
       const label = await instrumentAsync(
@@ -584,6 +556,8 @@ async function clusterFacet(
         },
       });
       if (label) metrics.result("naming", "generated");
+      if (label && label.name === renamedFrom.get(group.id)?.name)
+        metrics.result("naming", "name_kept");
     }
     run = await saveTopicRun({ ...run, topics });
     // Readback returns the persisted classifier precision before creating any memberships.

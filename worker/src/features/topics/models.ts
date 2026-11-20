@@ -374,7 +374,7 @@ const NAMING_SYSTEM_PROMPT =
 const NAMING_CONFLICT_PROMPT =
   " Another topic was already given the name in conflictingTopic. That topic and this group were clustered apart, so name the nuance that distinguishes this group from it, using a different name.";
 const NAMING_PREVIOUS_PROMPT =
-  " This group continues an earlier topic, described in previousTopic, whose members have shifted since it was named. Keep its name and description if they still describe the members; otherwise change only what no longer fits.";
+  " This group continues an earlier topic, described in previousTopic. Judge previousTopic against the members as they are now. Keep its name and description only if they are as specific and accurate for these members as a new name would be. If the members share the same pattern but the name is now too broad, too narrow, or misses what most of them share, adjust the name and description and keep the wording close to previousTopic. If the members now share a different pattern, name that pattern.";
 /** Facet clause that keeps topic names on what the facet asks about, not the subject members share. */
 const namingFacetRule = (facetName?: string) =>
   `\n\n${facetName ? `These summaries answer the facet ${JSON.stringify(facetName)}. ` : ""}Name what the members share with respect to what this facet asks about. Do not name a subject, product, domain or entity the members happen to share unless the facet asks about it: a facet about what went wrong is named by the kind of mistake, a facet about what users wanted may name the subject. Use "unsupported" or "unverified" only if that is what sets this group apart from the contrast examples.`;
