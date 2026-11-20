@@ -550,9 +550,17 @@ export class QueryBuilder {
     return dimensions;
   }
 
+  /**
+   * Throws `InvalidRequestError` for a filter whose type the view's column
+   * does not take. Metadata takes `stringObject`, and also `numberObject`
+   * with `numericMetadata`: only views whose filters are lowered by the
+   * events predicate lowering (the v2 observations view) compare metadata
+   * as numbers.
+   */
   private validateFilters(
     filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
+    { numericMetadata = false }: { numericMetadata?: boolean } = {},
   ) {
     for (const filter of filters) {
       // Validate filters on dimension fields
@@ -611,9 +619,15 @@ export class QueryBuilder {
 
       // Special validation for metadata filters
       else if (filter.column === "metadata") {
+        if (numericMetadata && filter.type === "numberObject") {
+          continue;
+        }
         if (filter.type !== "stringObject") {
+          const acceptedTypes = numericMetadata
+            ? "'stringObject' or 'numberObject'"
+            : "'stringObject'";
           throw new InvalidRequestError(
-            `Invalid filter for field 'metadata': Metadata filters require type 'stringObject' with a 'key' property, not '${filter.type}'. ` +
+            `Invalid filter for field 'metadata': Metadata filters require type ${acceptedTypes} with a 'key' property, not '${filter.type}'. ` +
               `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
           );
         }
@@ -1921,7 +1935,7 @@ export class QueryBuilder {
       appliedMetrics,
       view,
     );
-    this.validateFilters(query.filters, view);
+    this.validateFilters(query.filters, view, { numericMetadata: true });
     const filters = query.filters.map((filter): DashboardFilter => ({
       lowering: eventsObservationsFilterLowering(filter.column),
       condition: conditionFromFilter(filter),

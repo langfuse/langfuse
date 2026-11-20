@@ -130,6 +130,34 @@ describe("resolvesToColumn", () => {
     expect(resolves("isRootObservation", "observations", "v1")).toBe(false);
   });
 
+  it("numeric metadata row: resolves only on the v2 observations view", () => {
+    const numericMetadata: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "latency_ms",
+      operator: ">",
+      value: 200,
+    };
+    const resolvesNumeric = (
+      view: "observations" | "scores-categorical",
+      viewVersion: "v1" | "v2",
+    ) => {
+      const params = {
+        ...buildV2FilterColumnsParams({
+          view,
+          filterOptions: undefined,
+          datasets: undefined,
+        }),
+        viewVersion,
+      };
+      return resolvesToColumn(numericMetadata, getMetricsFilterColumns(params));
+    };
+
+    expect(resolvesNumeric("observations", "v2")).toBe(true);
+    expect(resolvesNumeric("observations", "v1")).toBe(false);
+    expect(resolvesNumeric("scores-categorical", "v2")).toBe(false);
+  });
+
   it("offers an is-not-empty operator for evaluator IDs", () => {
     const evaluatorColumn = columnsFor("observations").find(
       (column) => column.id === "evaluatorId",

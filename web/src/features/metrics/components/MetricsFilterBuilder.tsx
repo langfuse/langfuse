@@ -222,16 +222,27 @@ const editorFiltersToViewFilters = (
   return [...mappedFilters, ...unsupportedFilters];
 };
 
-/** resolvesToColumn reports whether the builder has a column definition able to render the row. */
+/**
+ * resolvesToColumn reports whether the builder has a column definition able to
+ * render the row. A numeric (`numberObject`) row on a stringObject column
+ * resolves only if the column has `numericValues`: a widget
+ * switched away from the v2 observations view keeps its numeric metadata
+ * rows, which the other views reject.
+ */
 const resolvesToColumn = (
   filter: FilterState[number],
   columns: ColumnDefinition[],
 ): boolean =>
   columns.some(
     (column) =>
-      column.id === filter.column ||
-      column.name === filter.column ||
-      column.aliases?.includes(filter.column) === true,
+      (column.id === filter.column ||
+        column.name === filter.column ||
+        column.aliases?.includes(filter.column) === true) &&
+      !(
+        filter.type === "numberObject" &&
+        column.type === "stringObject" &&
+        !column.numericValues
+      ),
   );
 
 /** EventFilterOptionsColumn is one facet column the events filter-options endpoint understands. */
