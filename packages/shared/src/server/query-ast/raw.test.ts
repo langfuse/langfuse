@@ -1,5 +1,6 @@
 import {
   ExpressionWrapper,
+  OperatorNode,
   OrderByItemNode,
   sql,
   type RawBuilder,
@@ -191,4 +192,25 @@ describe("inlined text", () => {
       'Operator "#" is rejected',
     );
   });
+
+  it.each(["or", "and"])(
+    "rejects a hand-built %s operator, which the tenancy AND does not bracket",
+    (operator) => {
+      const query = db
+        .selectFrom("traces as t")
+        .select("t.id")
+        .where((eb) =>
+          eb(
+            literal(1),
+            new ExpressionWrapper(
+              OperatorNode.create(operator as never),
+            ) as never,
+            literal(1),
+          ),
+        );
+      expect(() => compileClickhouseQuery(query, "proj-A")).toThrow(
+        `Operator "${operator}" is rejected`,
+      );
+    },
+  );
 });

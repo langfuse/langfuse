@@ -60,7 +60,8 @@ const TUPLE_INDEX = /^[1-9][0-9]*$/;
 
 /**
  * Operators ClickHouse parses as operators. Kysely also builds others that
- * ClickHouse reads as SQL text: `#` opens a line comment.
+ * ClickHouse reads as SQL text: `#` opens a line comment. `and` and `or` stay
+ * out: they compile as AndNode / OrNode, which the tenancy AND brackets.
  */
 const CLICKHOUSE_OPERATORS = new Set([
   "=",
@@ -77,8 +78,6 @@ const CLICKHOUSE_OPERATORS = new Set([
   "/",
   "%",
   "||",
-  "and",
-  "or",
   "not",
   "in",
   "not in",
