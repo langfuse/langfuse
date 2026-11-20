@@ -399,13 +399,14 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   }
 
   /**
-   * Keys of the batch's traces that already have live rows in the events
-   * tables, i.e. were written while dual write was active (directly, or by the
-   * experiment propagation). Their legacy copies are not materialized again:
-   * a direct write carries its own root and experiment fields, so a backfilled
-   * copy would add a second root.
+   * Keys of the batch's traces whose live rows (written while dual write was
+   * active) make a backfilled copy unnecessary or harmful: rows that already
+   * carry experiment fields, or a tree without a virtual root, i.e. written
+   * directly, where a legacy-shaped copy would add a second root. Propagated
+   * trees without experiment fields are still enriched; their copies collapse
+   * with the live rows.
    */
-  private async fetchLiveTraceKeys(
+  private async fetchCoveredTraceKeys(
     driBatch: DatasetRunItem[],
     lookbackDays: number,
   ): Promise<Set<string>> {
@@ -419,12 +420,15 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       trace_id: string;
     }>({
       query: `
-          SELECT DISTINCT project_id, trace_id
+          SELECT project_id, trace_id
           FROM events_core
           WHERE (project_id, trace_id) IN {tracePairs: Array(Tuple(String, String))}
             AND start_time >= {minTime: DateTime64(3)}
             AND start_time <= {maxTime: DateTime64(3)}
             AND source NOT LIKE '%-backfill'
+          GROUP BY project_id, trace_id
+          HAVING max(experiment_id != '')
+            OR NOT max(span_id = concat('t-', trace_id))
         `,
       params: {
         tracePairs,
@@ -436,7 +440,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       },
       tags: {
         surface: "worker",
-        route: "background-migration.fetchLiveTraceKeys",
+        route: "background-migration.fetchCoveredTraceKeys",
       },
     });
 
@@ -494,27 +498,20 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     driBatch: DatasetRunItem[],
     config: ResolvedConfig,
   ): Promise<{ enriched: number; skipped: number }> {
-    const [observations, traces, liveTraceKeys] = await Promise.all([
+    const [observations, traces, coveredTraceKeys] = await Promise.all([
       this.fetchObservationsForBatch(driBatch, config.lookbackDays),
       this.fetchTracesForBatch(driBatch, config.lookbackDays),
-      this.fetchLiveTraceKeys(driBatch, config.lookbackDays),
+      this.fetchCoveredTraceKeys(driBatch, config.lookbackDays),
     ]);
 
     logger.info(
-      `[Backfill Events DRIs] Fetched ${observations.length} observations and ${traces.length} traces for ${driBatch.length} DRIs (${liveTraceKeys.size} traces already live)`,
+      `[Backfill Events DRIs] Fetched ${observations.length} observations and ${traces.length} traces for ${driBatch.length} DRIs (${coveredTraceKeys.size} traces covered by live rows)`,
     );
 
-    // Live traces keep their trace properties for any legacy-only
-    // observations, but get no virtual root.
-    const allSpans: SpanRecord[] = [
-      ...observations,
-      ...traces.filter(
-        (trace) =>
-          !liveTraceKeys.has(
-            projectScopedKey(trace.project_id, trace.trace_id),
-          ),
-      ),
-    ];
+    const allSpans: SpanRecord[] = [...observations, ...traces].filter(
+      (span) =>
+        !coveredTraceKeys.has(projectScopedKey(span.project_id, span.trace_id)),
+    );
     const { spanMap, childMap } = buildSpanMaps(allSpans);
 
     const tracePropertiesMap = new Map<string, TraceProperties>();
@@ -541,7 +538,9 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     let skipped = 0;
 
     for (const dri of driBatch) {
-      if (liveTraceKeys.has(projectScopedKey(dri.project_id, dri.trace_id))) {
+      if (
+        coveredTraceKeys.has(projectScopedKey(dri.project_id, dri.trace_id))
+      ) {
         skipped++;
         continue;
       }

@@ -84,16 +84,15 @@ export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfill
 
     const window = todo.liveWriteWindow;
     const livePartitions = adjacentPartitions(todo.partition);
-    const liveWriteFilter = window
-      ? `AND ${buildLiveWriteFilter({
-          eventTsColumn: "t.event_ts",
-          rowKey: "(t.project_id, t.id)",
-          liveKeyColumns: "project_id, trace_id",
-          liveRowsWhere: livePartitions
-            ? "_partition_id IN {livePartitions: Array(String)}"
-            : undefined,
-        })}`
-      : "";
+    const liveWriteFilter = buildLiveWriteFilter(window, {
+      projectId: "t.project_id",
+      createdAt: "t.created_at",
+      rowKey: "(t.project_id, t.id)",
+      liveKeyColumns: "project_id, trace_id",
+      liveRowsWhere: livePartitions
+        ? "_partition_id IN {livePartitions: Array(String)}"
+        : undefined,
+    });
 
     const query = `
       INSERT INTO events_full (
@@ -163,7 +162,7 @@ export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfill
       query,
       params: {
         partition: todo.partition,
-        ...(window ? liveWriteWindowParams(window) : {}),
+        ...liveWriteWindowParams(window),
         ...(window && livePartitions ? { livePartitions } : {}),
       },
     };
