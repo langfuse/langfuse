@@ -6678,11 +6678,12 @@ paths:
         project. These are the numbers of the organization's Usage settings
         tab. Requires an organization-scoped API key.
 
-        Units are counted as they are billed: by ingestion time in
-        `[fromTimestamp, toTimestamp)`, with each bucket as one billing window,
-        so a unit counts once per bucket and not again while its id reappears
-        within 24 hours. Deployments still in the v3 `legacy` write mode count
-        the rows of the traces, observations and scores tables instead.
+        Units are counted by ingestion time in `[fromTimestamp, toTimestamp)`
+        as approximate distinct units per bucket (about 0.3% error on large
+        counts, small counts are exact). A unit counts once in every bucket it
+        appears in, so the counts stay close to, but are not exactly, what is
+        billed. Deployments still in the v3 `legacy` write mode count the rows
+        of the traces, observations and scores tables instead.
 
         Buckets start at UTC hour, day, Monday or month boundaries. The first
         and last bucket cover only the part inside the range, and a
