@@ -668,7 +668,8 @@ export type TopicResultCounts = {
   outliers: number;
   notApplicable: number;
   insufficientInput: number;
-  topics: { topicId: string; count: number }[];
+  /** `sessions` is set with `includeSessions`: distinct non-empty session IDs of the topic's traces. */
+  topics: { topicId: string; count: number; sessions?: number }[];
 };
 
 /**
@@ -676,11 +677,14 @@ export type TopicResultCounts = {
  * uniqCombined so memory stays flat for any project size. Assignments count
  * only from each facet's published run (initial and online); unlike the
  * per-trace reader, a re-summarized trace is not resolved to its current result.
+ * `includeSessions` adds the same approximation over the assignments' session
+ * IDs within the one scan; traces without a session are left out.
  */
 export async function getTopicResultCounts(input: {
   projectId: string;
   window: TopicTimeRange;
   facets: { facetId: string; version: number | null; runId: string | null }[];
+  includeSessions?: boolean;
 }): Promise<TopicResultCounts[]> {
   if (input.facets.length === 0) return [];
   const facetIds = input.facets.map(({ facetId }) => facetId);
@@ -725,11 +729,17 @@ export async function getTopicResultCounts(input: {
       is_facet_total: number;
       count: string;
       assigned: string;
+      sessions?: string;
     }>({
       ...READ_OPTIONS,
       query: `SELECT facet_id, topic_id, grouping(topic_id) AS is_facet_total,
           uniqCombined(trace_id) AS count,
-          uniqCombinedIf(trace_id, topic_id != '') AS assigned
+          uniqCombinedIf(trace_id, topic_id != '') AS assigned${
+            input.includeSessions
+              ? `,
+          uniqCombinedIf(session_id, session_id != '') AS sessions`
+              : ""
+          }
         FROM topic_assignments
         WHERE ${scope} AND clustering_run_id != ''
           AND clustering_run_id = {runIds:Array(String)}[indexOf({facetIds:Array(String)}, facet_id)]
@@ -758,7 +768,13 @@ export async function getTopicResultCounts(input: {
       insufficientInput: Number(summary?.insufficient_input ?? 0),
       topics: topicRows
         .filter((row) => row.topic_id !== "")
-        .map((row) => ({ topicId: row.topic_id, count: Number(row.count) }))
+        .map((row) => ({
+          topicId: row.topic_id,
+          count: Number(row.count),
+          ...(row.sessions !== undefined
+            ? { sessions: Number(row.sessions) }
+            : {}),
+        }))
         .sort((a, b) => b.count - a.count),
     };
   });

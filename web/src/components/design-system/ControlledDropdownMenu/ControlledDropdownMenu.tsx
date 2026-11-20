@@ -244,6 +244,7 @@ type DropdownMenuCheckboxItem = {
   id: string;
   title: string;
   icon?: IconComponent;
+  internal?: boolean;
   searchBehavior?: SearchBehavior;
   onCheckedChange: (checked: boolean) => void;
   type: "checkbox";
@@ -657,6 +658,7 @@ function DropdownMenuNode({
             <span className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap">
               {item.title}
             </span>
+            {item.internal ? <FeatureReleaseStatus status="internal" /> : null}
             <span className="ml-2 flex shrink-0 items-center">
               <Checkbox
                 aria-hidden="true"

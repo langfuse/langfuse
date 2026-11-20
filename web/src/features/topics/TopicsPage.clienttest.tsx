@@ -91,6 +91,10 @@ vi.mock("@/src/components/error-page", () => ({
 vi.mock("@/src/features/topics/topicsAccess", () => ({
   useCanViewTopics: () => state.canViewTopics,
 }));
+vi.mock(
+  "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
+  () => ({ useInternalFeaturesEnabled: () => false }),
+);
 vi.mock("./ConfigureTopicsDialogController", () => ({
   ConfigureTopicsDialogController: ({
     children,

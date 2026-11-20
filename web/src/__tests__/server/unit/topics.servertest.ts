@@ -953,6 +953,40 @@ describe("Topics current results", () => {
     expect(JSON.stringify(result)).not.toMatch(/embedding|centroid/);
   });
 
+  it("counts sessions only for Internal view users", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    mocks.getPublishedTopicRun.mockResolvedValue(run);
+    const internal = topicsRouter.createCaller(
+      createInnerTRPCContext({
+        session: createSession({
+          user: {
+            id: "user-a",
+            email: "staff@langfuse.com",
+            featureFlags: testFeatureFlags({ langfuseTopics: true }),
+          },
+          organizations: [
+            { id: "org-a", role: "VIEWER", projects: [{ id: projectId }] },
+          ],
+        }),
+        headers: {},
+      }),
+    );
+
+    await caller("VIEWER").currentResults({
+      projectId,
+      includeSessionCounts: true,
+    });
+    expect(mocks.getTopicResultCounts).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ includeSessions: true }),
+    );
+    await internal.currentResults({ projectId, includeSessionCounts: true });
+    expect(mocks.getTopicResultCounts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ includeSessions: true }),
+    );
+  });
+
   it("gives the stripe the oldest covering rule's map, from Postgres only", async () => {
     mocks.listTopicFacets.mockResolvedValue([
       { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },

@@ -10,6 +10,7 @@ import {
   UNASSIGNED_SWATCH_COLOR,
   unassignedTileClasses,
 } from "./topic-map-colors";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 
 export const UNASSIGNED_TOPIC_ID = "__unassigned";
 
@@ -17,7 +18,7 @@ type TileColors = { tile: string; active: string; hover: string };
 
 export type TopicDisplay = Pick<
   FacetTopic,
-  "id" | "name" | "description" | "count"
+  "id" | "name" | "description" | "count" | "sessionCount"
 > & {
   color: string;
   tiles: {
@@ -32,11 +33,12 @@ export function prepareTopicDisplay(facet: Facet, view: "treemap" | "map") {
     orderedFacetTopics(facet).map((topic, index) => [topic.id, index]),
   );
   const topics: TopicDisplay[] = facet.topics.map(
-    ({ id, name, description, count }, index) => ({
+    ({ id, name, description, count, sessionCount }, index) => ({
       id,
       name,
       description,
       count,
+      sessionCount,
       color:
         view === "treemap"
           ? treemapSwatchColor(index)
@@ -63,6 +65,18 @@ export function prepareTopicDisplay(facet: Facet, view: "treemap" | "map") {
     });
   }
   return { topics, total: facet.counts.total };
+}
+
+/** "N sessions" when the facet carries session counts (Internal view), else null. */
+export function sessionCountLabel(
+  sessionCount: number | undefined,
+  { compact = false }: { compact?: boolean } = {},
+) {
+  if (sessionCount === undefined) return null;
+  const value = compact
+    ? compactNumberFormatter(sessionCount, sessionCount >= 100_000 ? 0 : 1)
+    : sessionCount.toLocaleString();
+  return `${value} ${sessionCount === 1 ? "session" : "sessions"}`;
 }
 
 /** Counts only traces in a topic, which removes the Unassigned tile and list entry. */

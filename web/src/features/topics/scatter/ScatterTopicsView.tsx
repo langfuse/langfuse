@@ -19,6 +19,7 @@ import {
 } from "../facet-topics";
 import {
   prepareTopicDisplay,
+  sessionCountLabel,
   type TopicDisplay,
   UNASSIGNED_TOPIC_ID,
 } from "../prepare-topic-display";
@@ -305,6 +306,7 @@ function TopicRow({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const sessions = sessionCountLabel(topic.sessionCount, { compact: true });
   return (
     <button
       type="button"
@@ -325,6 +327,11 @@ function TopicRow({
       >
         {topic.name}
       </span>
+      {sessions && (
+        <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+          {sessions}
+        </span>
+      )}
       <span aria-hidden className="bg-muted h-1 w-36 shrink-0 rounded-full">
         <span
           className="block h-full rounded-full"
