@@ -46,6 +46,11 @@ import { SingleSelect } from "@/src/features/filters/components/SingleSelect";
 import { FilterToken } from "@/src/features/filters/components/FilterToken";
 import { getColumnOptionsForFilterRow } from "@/src/features/filters/lib/filter-transform";
 import {
+  operatorSelectValue,
+  parseOperatorSelectValue,
+  textAndNumericOperatorOptions,
+} from "@/src/features/filters/lib/numeric-operator-select";
+import {
   type WipFilterState,
   type WipFilterCondition,
   type FilterState,
@@ -546,42 +551,9 @@ type FilterOperators = Partial<
 // Operator select of a row on a `stringObject` column that also compares its
 // values as numbers (the column's `numericValues`). The row's type follows the
 // operator: a text operator makes it `stringObject`, a numeric one
-// `numberObject`. Numeric option values carry a prefix (`number:>`), so a
-// numeric `=` does not read as the text `=`.
-const NUMERIC_OPTION_PREFIX = "number:";
-
-/**
- * The text operators, then the numeric ones. The numeric `=` is offered only
- * on a row that already is a numeric `=` (a widget saved through the API):
- * text equality covers the common case, as in the events table's metadata
- * facet.
- */
-const numericObjectOperatorOptions = (
-  filter: WipFilterCondition,
-  stringOperators: readonly string[],
-  numberOperators: readonly string[],
-): { value: string; label: string }[] => {
-  const keepsNumericEquals =
-    filter.type === "numberObject" && filter.operator === "=";
-  return [
-    ...stringOperators.map((operator) => ({
-      value: operator,
-      label: operator,
-    })),
-    ...numberOperators
-      .filter((operator) => operator !== "=" || keepsNumericEquals)
-      .map((operator) => ({
-        value: `${NUMERIC_OPTION_PREFIX}${operator}`,
-        label: operator === "=" ? "= (number)" : operator,
-      })),
-  ];
-};
-
-/** The select value of `filter`'s operator, `number:>` on a numeric row. */
-const numericObjectOperatorValue = (filter: WipFilterCondition): string =>
-  filter.type === "numberObject"
-    ? `${NUMERIC_OPTION_PREFIX}${filter.operator ?? ""}`
-    : (filter.operator ?? "");
+// `numberObject`.
+const symbolOptions = (operators: readonly string[]) =>
+  operators.map((operator) => ({ value: operator, label: operator }));
 
 /**
  * `filter` with the type and operator the select value names, e.g.
@@ -593,12 +565,12 @@ const withNumericObjectOperator = (
   filter: WipFilterCondition,
   value: string,
 ): WipFilterCondition => {
-  const numeric = value.startsWith(NUMERIC_OPTION_PREFIX);
+  const { numeric, operator } = parseOperatorSelectValue(value);
   const type = numeric ? "numberObject" : "stringObject";
   return {
     ...filter,
     type,
-    operator: numeric ? value.slice(NUMERIC_OPTION_PREFIX.length) : value,
+    operator,
     value: filter.type === type ? filter.value : undefined,
   } as WipFilterCondition;
 };
@@ -971,14 +943,17 @@ function FilterBuilderForm({
     const typeOperators =
       filter.type !== undefined ? operatorsFor(filter.type) : [];
     const operatorOptions = numericObjectValues
-      ? numericObjectOperatorOptions(
-          filter,
-          operatorsFor("stringObject"),
-          operatorsFor("numberObject"),
+      ? textAndNumericOperatorOptions(
+          symbolOptions(operatorsFor("stringObject")),
+          symbolOptions(operatorsFor("numberObject")),
+          filter.type === "numberObject" && filter.operator === "=",
         )
-      : typeOperators.map((option) => ({ value: option, label: option }));
+      : symbolOptions(typeOperators);
     const operatorValue = numericObjectValues
-      ? numericObjectOperatorValue(filter)
+      ? operatorSelectValue(
+          filter.type === "numberObject",
+          filter.operator ?? "",
+        )
       : (filter.operator ?? "");
 
     const operatorSelect = (
