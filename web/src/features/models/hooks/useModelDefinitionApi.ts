@@ -6,14 +6,31 @@ import {
 import { api } from "@/src/utils/api";
 
 /**
+ * Saving resolves without waiting for the refetch. Project lists include
+ * organization models, so organization writes invalidate them too.
+ */
+function useInvalidateModelLists() {
+  const utils = api.useUtils();
+  return {
+    onProjectSuccess: () => {
+      utils.models.invalidate();
+    },
+    onOrganizationSuccess: () => {
+      utils.organizationModels.invalidate();
+      utils.models.invalidate();
+    },
+  };
+}
+
+/**
  * The project and organization routers share one shape, so both mutations are
  * mounted and the owner picks one; the unused one never fires.
  */
 export function useUpsertModelDefinition(owner: ModelOwner) {
-  const utils = api.useUtils();
-  const onSuccess = () => utils.models.invalidate();
-  const onOrganizationSuccess = () => utils.organizationModels.invalidate();
-  const projectMutation = api.models.upsert.useMutation({ onSuccess });
+  const { onProjectSuccess, onOrganizationSuccess } = useInvalidateModelLists();
+  const projectMutation = api.models.upsert.useMutation({
+    onSuccess: onProjectSuccess,
+  });
   const organizationMutation = api.organizationModels.upsert.useMutation({
     onSuccess: onOrganizationSuccess,
   });
@@ -31,13 +48,15 @@ export function useUpsertModelDefinition(owner: ModelOwner) {
 }
 
 export function useDeleteModelDefinition(owner: ModelOwner) {
-  const utils = api.useUtils();
+  const { onProjectSuccess, onOrganizationSuccess } = useInvalidateModelLists();
   const projectMutation = api.models.delete.useMutation({
-    onSuccess: () => utils.models.invalidate(),
+    onSuccess: onProjectSuccess,
   });
   const organizationMutation = api.organizationModels.delete.useMutation({
-    onSuccess: () => utils.organizationModels.invalidate(),
+    onSuccess: onOrganizationSuccess,
   });
+  const active =
+    owner.scope === "project" ? projectMutation : organizationMutation;
 
   return {
     remove: (modelId: string) =>
@@ -47,7 +66,9 @@ export function useDeleteModelDefinition(owner: ModelOwner) {
             orgId: owner.organizationId,
             modelId,
           }),
-    isPending: projectMutation.isPending || organizationMutation.isPending,
+    isPending: active.isPending,
+    error: active.error?.message,
+    reset: active.reset,
   };
 }
 

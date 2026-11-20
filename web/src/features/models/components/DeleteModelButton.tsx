@@ -9,7 +9,6 @@ import {
   type ModelOwner,
   useCanEditModels,
 } from "@/src/features/models/modelOwner";
-import { useState } from "react";
 
 export const DeleteModelButton = ({
   modelData,
@@ -21,8 +20,7 @@ export const DeleteModelButton = ({
   onSuccess?: () => void;
 }) => {
   const capture = usePostHogClientCapture();
-  const [error, setError] = useState<string | undefined>();
-  const { remove, isPending } = useDeleteModelDefinition(owner);
+  const { remove, isPending, error, reset } = useDeleteModelDefinition(owner);
   const hasAccess = useCanEditModels(owner);
 
   return (
@@ -38,11 +36,9 @@ export const DeleteModelButton = ({
         try {
           await remove(modelData.id);
         } catch (error) {
-          setError(error instanceof Error ? error.message : String(error));
           reportTrpcErrorWithoutToast(error, "models");
           throw error;
         }
-        setError(undefined);
         onSuccess?.();
       }}
     >
@@ -53,7 +49,7 @@ export const DeleteModelButton = ({
           disabled={!hasAccess}
           className="border-dark-red/30 flex items-center"
           onClick={() => {
-            setError(undefined);
+            reset();
             openDialog();
           }}
         >

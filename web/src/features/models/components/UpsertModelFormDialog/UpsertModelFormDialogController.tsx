@@ -2,13 +2,7 @@
 /* eslint @repo/no-style-props: "off" */
 import cloneDeep from "lodash/cloneDeep";
 import isEqual from "lodash/isEqual";
-import {
-  useImperativeHandle,
-  useRef,
-  useState,
-  type ReactNode,
-  type Ref,
-} from "react";
+import { useImperativeHandle, useRef, useState, type Ref } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -174,7 +168,6 @@ export function ModelFormDialogContent({
   source,
   title,
   description,
-  notice,
   isSubmitting,
   onSubmit,
   onCreated,
@@ -183,9 +176,7 @@ export function ModelFormDialogContent({
 }: {
   source: ModelFormSource;
   title: string;
-  description?: ReactNode;
-  /** Shown above the fields, e.g. where the definition applies. */
-  notice?: ReactNode;
+  description?: string;
   isSubmitting: boolean;
   onSubmit: (values: FormUpsertModel) => Promise<{ id: string }>;
   onCreated: (modelId: string) => void;
@@ -245,7 +236,6 @@ export function ModelFormDialogContent({
           className="flex flex-1 flex-col overflow-hidden"
         >
           <DialogBody className="space-y-6">
-            {notice}
             <FormField
               control={form.control}
               name="modelName"
