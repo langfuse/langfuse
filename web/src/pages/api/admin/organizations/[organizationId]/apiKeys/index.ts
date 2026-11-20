@@ -1,6 +1,9 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { logger } from "@langfuse/shared/src/server";
-import { isBaseError } from "@langfuse/shared";
+import {
+  logger,
+  getSelfHostedInstancePlanServerSide,
+} from "@langfuse/shared/src/server";
+import { isBaseError, hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import {
   validateQueryAndExtractId,
@@ -8,8 +11,6 @@ import {
   handleCreateApiKey,
 } from "@/src/ee/features/admin-api/server/organizations/apiKeys";
 import { prisma } from "@langfuse/shared/src/db";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
 
 export default async function handler(
   req: NextApiRequest,

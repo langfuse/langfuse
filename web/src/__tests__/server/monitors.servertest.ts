@@ -9,7 +9,7 @@ vi.hoisted(() => {
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
+import { entitlementAccess } from "@langfuse/shared";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
