@@ -33,6 +33,7 @@ type ControlledInAppAgentWindowBaseProps = {
   isExpanded: boolean;
   onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onExpandedChange: (isExpanded: boolean) => void;
+  untitledLabel?: string;
   headerLeading?: ReactNode;
   headerActions?: ReactNode;
   expandToggleLabels?: { expand: string; collapse: string };
@@ -220,6 +221,7 @@ export function ControlledInAppAgentWindow(
       selectedConversationId={selectedConversationId}
       selectedConversationTitle={selectedConversationTitle}
       titleActions={titleActions}
+      untitledLabel={props.untitledLabel}
       headerLeading={props.headerLeading}
       headerActions={props.headerActions}
       expandToggleLabels={props.expandToggleLabels}

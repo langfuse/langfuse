@@ -687,6 +687,8 @@ export type InAppAgentWindowProps = {
   selectedConversationTitle: string | null;
   /** Rendered right after the title. */
   titleActions?: ReactNode;
+  /** Shown in the title's place while the conversation has no title. */
+  untitledLabel?: string;
   /** Rendered before the title, e.g. a back control. */
   headerLeading?: ReactNode;
   /** Rendered first in the header's action cluster. */
@@ -790,6 +792,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     selectedConversationId,
     selectedConversationTitle,
     titleActions,
+    untitledLabel = "Halo",
     headerLeading,
     headerActions,
     expandToggleLabels = {
@@ -973,8 +976,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {conversationTitle}
             </p>
           ) : (
-            <p className="shrink-0 truncate text-sm font-bold" title="Halo">
-              Halo
+            <p
+              className="shrink-0 truncate text-sm font-bold"
+              title={untitledLabel}
+            >
+              {untitledLabel}
             </p>
           )}
           {titleActions ? (
