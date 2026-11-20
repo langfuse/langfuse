@@ -999,7 +999,6 @@ const createScoreTableRelations = (
     joinConditionSql: string;
     timeDimension: string;
     useFinal?: boolean;
-    source?: "eventsTraceAttributes";
   }
 > => {
   if (version === "v1") {
@@ -1019,12 +1018,13 @@ const createScoreTableRelations = (
     };
   }
 
+  // `QueryBuilder.buildScores` builds these joins on the query AST; the
+  // strings below describe them.
   return {
     // Trace attributes are spread over spans in v4, so the join reads one
-    // aggregated row per trace (see compileEventsTraceAttributesSubquery).
+    // aggregated row per trace (see eventsTraceAttributes).
     events_traces: {
       name: "events_core",
-      source: "eventsTraceAttributes",
       joinConditionSql:
         "ON scores.trace_id = events_traces.id AND scores.project_id = events_traces.project_id",
       timeDimension: "start_time",

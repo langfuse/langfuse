@@ -20,7 +20,7 @@ changing how it emits SQL.
 - `tenancy.ts` — the tenancy injection pass.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per relation drives the Kysely row types (`ClickHouseDatabase`), the runtime column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) — instead of hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
-- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
+- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `mapContains`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `toBool`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
 - `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup lowering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
   dialect's expressivity.
@@ -135,7 +135,17 @@ must carry the `.golden.test.ts` suffix to run there.
   `scopedToEvents`. A module-level constant built from a detached
   `expressionBuilder()` loses the check entirely: helper results don't carry
   their table scope in their type, and Kysely's `select()` / `where()` accept
-  any expression.
+  any expression. A query that adds its joins conditionally builds with a
+  detached builder typed over every relation it may join:
+  `scoresExpressionBuilder()` in
+  `../../features/query/server/scoresRegistry.ts` for the v2 score views, and
+  `expressionBuilder<ObservationsDb, "e" | "scores">()` for the observations
+  view's `countScores` measure. It type-checks a ref to a relation the query
+  did not join. If the query reads several relations, the compiler rejects
+  that ref in any clause. If it reads one relation, the compiler rejects it
+  only where it is compared to a bound value; a SELECT ref or an uncompared
+  WHERE term (`toBool(e.name)`) compiles, and only ClickHouse rejects the
+  query.
 - **Helpers take columns as expressions.** A helper parameter that names a
   column is an `Expression<T>` the caller builds (`eb.ref("e.col")`), never a
   column-name string, so the calling query's builder checks the column. Don't

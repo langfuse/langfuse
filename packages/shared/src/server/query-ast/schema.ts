@@ -356,6 +356,8 @@ const TABLE_REGISTRY = {
       execution_trace_id: "Nullable(String)",
       is_deleted: "UInt8",
       metadata: "Map(String, String)",
+      evaluator_id: "String",
+      evaluation_rule_id: "String",
     },
   }),
 } as const;
@@ -465,8 +467,6 @@ export const UNMODELED_COLUMNS: Record<
   events_core: [],
   events_full: [],
   scores: [
-    "evaluator_id",
-    "evaluation_rule_id",
     "long_string_value",
     "ingestion_api_key",
     "ingestion_sdk_name",

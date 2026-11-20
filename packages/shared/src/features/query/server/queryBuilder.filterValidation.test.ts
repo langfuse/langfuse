@@ -75,7 +75,7 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("prompt_version = {numberFilter");
+      expect(query).toMatch(/prompt_version = \{\w+: ?Decimal128\(12\)\}/);
       expect(query).not.toContain("position(");
     },
   );
@@ -292,8 +292,10 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("scores_numeric.evaluator_id");
-      expect(query).toContain("IN ({stringOptionsFilter");
+      // v1 qualifies the view alias, v2 the unaliased `scores`.
+      expect(query).toMatch(
+        /scores(_numeric)?\.evaluator_id in \(\{\w+: ?Array\(String\)\}\)/i,
+      );
     },
   );
 
@@ -311,8 +313,9 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("scores_numeric.evaluation_rule_id");
-      expect(query).toContain("IN ({stringOptionsFilter");
+      expect(query).toMatch(
+        /scores(_numeric)?\.evaluation_rule_id in \(\{\w+: ?Array\(String\)\}\)/i,
+      );
     },
   );
 
@@ -330,8 +333,8 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain("scores_numeric.metadata['evaluator_test']");
-      expect(query).toContain(": Boolean}");
+      expect(query).toMatch(/scores(_numeric)?\.metadata\['evaluator_test'\]/);
+      expect(query).toMatch(/: ?Boolean\}/);
     },
   );
 
