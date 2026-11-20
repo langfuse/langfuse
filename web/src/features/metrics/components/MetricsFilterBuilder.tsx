@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { startCase } from "lodash";
-import { AlertCircle } from "@langfuse/icons";
 
 import {
   type ColumnDefinition,
@@ -11,7 +10,7 @@ import {
 } from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 import { type z } from "zod";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import {
   displayNameForFilterColumn,
@@ -65,12 +64,9 @@ export function MetricsFilterBuilder({
   return (
     <div className="space-y-2">
       {unsupportedColumns.length > 0 && (
-        <Alert variant="warning" icon={AlertCircle}>
-          <Alert.Title>Unsupported filters</Alert.Title>
-          <Alert.Description>
-            {`These filter columns are not supported for ${startCase(view)} and were dropped: ${unsupportedColumns}. Switch back to a compatible view to restore them.`}
-          </Alert.Description>
-        </Alert>
+        <Banner variant="warning" title="Unsupported filters">
+          {`These filter columns are not supported for ${startCase(view)} and were dropped: ${unsupportedColumns}. Switch back to a compatible view to restore them.`}
+        </Banner>
       )}
       <InlineFilterBuilder
         columns={columns}

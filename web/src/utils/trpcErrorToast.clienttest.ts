@@ -2,6 +2,7 @@
 
 import { TRPCClientError } from "@trpc/client";
 import { vi } from "vitest";
+import { TrpcNonJsonResponseError } from "@/src/utils/trpcResponseParseError";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
 
@@ -31,6 +32,8 @@ const trpcError = (opts: {
   path?: string;
   zodError?: unknown;
   traceId?: string;
+  errorName?: string;
+  clickhouseErrorType?: string;
 }) =>
   TRPCClientError.from({
     error: {
@@ -42,6 +45,10 @@ const trpcError = (opts: {
         ...(opts.path !== undefined ? { path: opts.path } : {}),
         ...(opts.zodError !== undefined ? { zodError: opts.zodError } : {}),
         ...(opts.traceId !== undefined ? { traceId: opts.traceId } : {}),
+        ...(opts.errorName !== undefined ? { errorName: opts.errorName } : {}),
+        ...(opts.clickhouseErrorType !== undefined
+          ? { clickhouseErrorType: opts.clickhouseErrorType }
+          : {}),
       },
     },
   });
@@ -126,6 +133,36 @@ describe("trpcErrorToast", () => {
         errorOrigin: "network",
         errorCategory: "transient",
       },
+      "WARNING",
+      undefined,
+      undefined,
+      "trpc",
+    );
+  });
+
+  it.each([
+    [
+      "Safari DOMException",
+      new DOMException(
+        "The string did not match the expected pattern.",
+        "SyntaxError",
+      ),
+    ],
+    ["typed non-JSON gateway response", new TrpcNonJsonResponseError(504)],
+  ] as const)("shows the transport toast for a %s", (_label, cause) => {
+    trpcErrorToast(
+      new TRPCClientError(cause.message, { cause }),
+      "prompts.allVersions",
+    );
+
+    expect(showErrorToastMock).toHaveBeenCalledWith(
+      "Unexpected Response",
+      "The request could not be completed. Please try again or contact support if this persists.",
+      expect.objectContaining({
+        operation: "prompts.allVersions",
+        errorOrigin: "network",
+        errorCategory: "transient",
+      }),
       "WARNING",
       undefined,
       undefined,
@@ -218,6 +255,39 @@ describe("trpcErrorToast", () => {
       "trpc",
     );
   });
+
+  it.each([
+    [undefined, "Query hit a resource limit"],
+    ["MEMORY_LIMIT", "Query ran out of memory"],
+    ["OVERCOMMIT", "Query ran out of memory"],
+    ["RESULT_SIZE", "Query result too large"],
+    ["TIMEOUT", "Query timed out"],
+  ] as const)(
+    "titles a ClickHouse %s resource error as %s",
+    (clickhouseErrorType, expectedTitle) => {
+      trpcErrorToast(
+        trpcError({
+          code: "UNPROCESSABLE_CONTENT",
+          httpStatus: 422,
+          path: "events.batchIO",
+          message: "Resource advice",
+          errorName: "ClickHouseResourceError",
+          clickhouseErrorType,
+        }),
+        "events.batchIO",
+      );
+
+      expect(showErrorToastMock).toHaveBeenCalledWith(
+        expectedTitle,
+        "Resource advice",
+        expect.any(Object),
+        "WARNING",
+        "events.batchIO",
+        undefined,
+        "trpc",
+      );
+    },
+  );
 
   it.each([
     ["FORBIDDEN", 403, "permission"],

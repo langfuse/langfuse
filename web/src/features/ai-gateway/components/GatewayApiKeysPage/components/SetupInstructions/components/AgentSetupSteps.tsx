@@ -1,6 +1,6 @@
 import { use } from "react";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { GatewaySecretKeyContext } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/contexts/gatewaySecretKeyContext";
@@ -27,9 +27,7 @@ export function AgentSetupSteps({
   return (
     <div className="flex flex-col gap-3">
       {instructions.warning ? (
-        <Alert variant="warning" size="sm">
-          <Alert.Description>{instructions.warning}</Alert.Description>
-        </Alert>
+        <Banner variant="warning">{instructions.warning}</Banner>
       ) : null}
       <div className="flex flex-col">
         {instructions.steps.map((step, index) => (

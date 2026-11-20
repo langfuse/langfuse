@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
-import { RefreshCw, Hash, Lock, AlertTriangle } from "@langfuse/icons";
+import { RefreshCw, Hash, Lock } from "@langfuse/icons";
 import { AsyncSelectInput } from "@/src/components/design-system/AsyncSelectInput/AsyncSelectInput";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { type SlackChannel } from "@langfuse/shared/src/server";
 
@@ -190,36 +190,32 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
       </div>
 
       {hasError && (
-        <Alert>
-          <Alert.Description>
-            Failed to load channels. You can still enter a channel name
-            manually, or check your Slack connection and try again.
-          </Alert.Description>
-        </Alert>
+        <Banner variant="error">
+          Failed to load channels. You can still enter a channel name manually,
+          or check your Slack connection and try again.
+        </Banner>
       )}
 
       {/* Private channel scope warning */}
       {channelsData && !channelsData.hasPrivateChannelAccess && (
-        <Alert icon={AlertTriangle} variant="warning" size="sm">
-          <Alert.Title>Private channels are not visible</Alert.Title>
-          <Alert.Description>
-            {onReauthenticate ? (
-              <>
-                To access private channels,{" "}
-                <button
-                  type="button"
-                  className="font-bold underline"
-                  onClick={onReauthenticate}
-                >
-                  re-authenticate your Slack integration
-                </button>{" "}
-                to grant the required permissions.
-              </>
-            ) : (
-              "To access private channels, ask a project admin to re-authenticate the Slack integration."
-            )}
-          </Alert.Description>
-        </Alert>
+        <Banner
+          variant="warning"
+          title="Private channels are not visible"
+          actions={
+            onReauthenticate
+              ? [
+                  {
+                    text: "Re-authenticate your Slack integration",
+                    onClick: onReauthenticate,
+                  },
+                ]
+              : undefined
+          }
+        >
+          {onReauthenticate
+            ? "To access private channels, re-authenticate your Slack integration to grant the required permissions."
+            : "To access private channels, ask a project admin to re-authenticate the Slack integration."}
+        </Banner>
       )}
     </div>
   );

@@ -139,6 +139,9 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 overrides:
+  # BullMQ instrumentation 0.9.0 requires ^0.221.0.
+  # Keep it on the same instrumentation runtime as the Node SDK.
+  "@appsignal/opentelemetry-instrumentation-bullmq@0.9.0>@opentelemetry/instrumentation": 0.222.0
   # React Email requires html-to-text ^9, which pulls in vulnerable deepmerge
   # (CVE-2026-93753). Version 10.0.1 replaces it with patched deepmerge-ts.
   "@react-email/render>html-to-text": 10.0.1

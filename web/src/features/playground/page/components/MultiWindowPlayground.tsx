@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/no-null-render -- Legacy UI usage retained during migration to design-system components. */
 import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import {
   PlaygroundProvider,
@@ -7,18 +7,14 @@ import {
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { SourcePromptHeading } from "./SourcePromptHeading";
 import { Button } from "@/src/components/ui/button";
-import { Plus, X } from "@langfuse/icons";
+import { Plus, Save, X } from "@langfuse/icons";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
 import { useMessageSearchActions } from "@/src/components/ChatMessages/messageSearch/context";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
 
@@ -202,55 +198,73 @@ function PlaygroundWindowContent({
           </div>
 
           <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2">
-            <TooltipProvider delayDuration={300}>
-              <SaveToPromptButton />
-
-              {/* Hide copy button on mobile */}
-              {!isMobile && (
-                <>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        onClick={handleCopy}
-                        className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
-                      >
-                        <Plus size="base" color="default" />
-                        <span className="sr-only">New split window</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="text-xs">
-                      New split window
-                    </TooltipContent>
-                  </Tooltip>
-                  <Button
-                    variant="outline"
-                    onClick={handleCopy}
-                    className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
-                  >
-                    <Plus size="base" color="default" />
-                    <span>New split window</span>
-                  </Button>
-                </>
-              )}
-              {canRemove && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+            <SaveToPromptButton>
+              <Tooltip label="Save as prompt" delay={300}>
+                {({ getTriggerProps }) => (
+                  <PopoverTrigger asChild>
                     <Button
-                      variant="ghost"
-                      onClick={handleRemove}
-                      className="hover:bg-destructive/10 hover:text-destructive h-6 w-6 p-0"
+                      {...getTriggerProps()}
+                      variant="outline"
+                      className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
                     >
-                      <X size="base" />
-                      <span className="sr-only">Remove window</span>
+                      <Save size="base" color="default" />
+                      <span className="sr-only">Save as prompt</span>
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="text-xs">
-                    Remove window
-                  </TooltipContent>
+                  </PopoverTrigger>
+                )}
+              </Tooltip>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
+                >
+                  <Save size="base" color="default" />
+                  <span>Save as prompt</span>
+                </Button>
+              </PopoverTrigger>
+            </SaveToPromptButton>
+
+            {/* Hide copy button on mobile */}
+            {!isMobile && (
+              <>
+                <Tooltip label="New split window" delay={300}>
+                  {({ getTriggerProps }) => (
+                    <Button
+                      {...getTriggerProps()}
+                      variant="outline"
+                      onClick={handleCopy}
+                      className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
+                    >
+                      <Plus size="base" color="default" />
+                      <span className="sr-only">New split window</span>
+                    </Button>
+                  )}
                 </Tooltip>
-              )}
-            </TooltipProvider>
+                <Button
+                  variant="outline"
+                  onClick={handleCopy}
+                  className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
+                >
+                  <Plus size="base" color="default" />
+                  <span>New split window</span>
+                </Button>
+              </>
+            )}
+            {canRemove && (
+              <Tooltip label="Remove window" delay={300}>
+                {({ getTriggerProps }) => (
+                  <Button
+                    {...getTriggerProps()}
+                    variant="ghost"
+                    onClick={handleRemove}
+                    className="hover:bg-destructive/10 hover:text-destructive h-6 w-6 p-0"
+                  >
+                    <X size="base" />
+                    <span className="sr-only">Remove window</span>
+                  </Button>
+                )}
+              </Tooltip>
+            )}
           </div>
         </div>
       </div>

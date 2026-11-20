@@ -8,7 +8,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -29,11 +29,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -113,12 +109,9 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
   if (!hasAccess) {
     return (
       <div>
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            You do not have permission to manage integrations for this project.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          You do not have permission to manage integrations for this project.
+        </Banner>
       </div>
     );
   }
@@ -384,9 +377,10 @@ function WebCalloutEndpointDialog(props: {
                           </FormItem>
                         )}
                       />
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <Tooltip label="Remove header">
+                        {({ getTriggerProps }) => (
                           <Button
+                            {...getTriggerProps()}
                             type="button"
                             variant="ghost"
                             size="icon"
@@ -394,8 +388,7 @@ function WebCalloutEndpointDialog(props: {
                           >
                             <X size="base" color="default" />
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Remove header</TooltipContent>
+                        )}
                       </Tooltip>
                     </div>
                   );

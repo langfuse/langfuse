@@ -196,10 +196,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   LFE-10645). Format TypeScript with `parser: "babel-ts"` +
   `prettier/plugins/babel` instead, as the eval-template editor does
   (`src/features/evals/components/CodeEvalTemplateFormBody.tsx`).
-- Public API routes should use
-  `src/features/public-api/server/withMiddlewares.ts`, define strict request and
-  response types in `src/features/public-api/types/*`, add server tests, and
-  update Fern sources when the contract changes.
+- Public API routes should use `src/features/public-api/server/withMiddlewares.ts`, define strict request and response types in `src/features/public-api/types/*`, and update Fern sources when the contract changes. Whether to add a server test follows root [`AGENTS.md`](../AGENTS.md).
 - Observations v2 pages can be short or empty while `meta.cursor` exists because
   the endpoint bounds scan work. End pagination only when the cursor is absent;
   never derive completion from the number of returned rows.
@@ -270,13 +267,13 @@ Sentry instrumentation skill first and decide whether it should capture at all
    `src/features/<feature>/server/*`.
 2. Register in `src/server/api/root.ts`.
 3. Reuse auth/error patterns from `src/server/api/trpc.ts`.
-4. Add/adjust server tests under `src/__tests__/server/*`.
+4. Whether to add a test follows root [`AGENTS.md`](../AGENTS.md). Place a warranted server test under `src/__tests__/server/*`.
 
 ### Add/Change public API endpoint
 
 1. Add route in `src/pages/api/public/*`.
 2. Define/update contract types in `src/features/public-api/types/*`.
-3. Add/adjust server tests in `src/__tests__/server/*`.
+3. Whether to add a test follows root [`AGENTS.md`](../AGENTS.md). Place a warranted server test in `src/__tests__/server/*`.
 4. If API contract changed, update Fern source (`../fern/apis/**`) and regenerate
    outputs (do not hand-edit `../generated/**`).
 

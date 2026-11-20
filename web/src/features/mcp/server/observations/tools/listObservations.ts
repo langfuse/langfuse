@@ -41,7 +41,12 @@ const ObservationCursorSchema =
     "Cursor returned by a previous listObservations call",
   );
 
-const OBSERVATION_MAX_RANGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+// Descriptions and errors ask agents for at most 14 days (336 hours), but
+// validation accepts up to 15 days (360 hours). Agents often align
+// fromStartTime to midnight while toStartTime stays at the current time or the
+// end of the day, which overshoots 14 days by up to a day. The extra day absorbs
+// that rounding. Advertising 15 days would move the overshoot past 15 instead.
+const OBSERVATION_MAX_RANGE_MS = 15 * 24 * 60 * 60 * 1000;
 const EXPENSIVE_OBSERVATION_MAX_IO_LIMIT = 50;
 
 const OBSERVATION_FILTER_DESCRIPTION =
@@ -98,10 +103,7 @@ const ListObservationsInputSchema = ListObservationsBaseSchema.extend({
 
 type ListObservationsInput = z.infer<typeof ListObservationsInputSchema>;
 
-const assertAllowedObservationAccess = (
-  input: ListObservationsInput,
-  projectionFields: string[],
-) => {
+const assertAllowedObservationRange = (input: ListObservationsInput) => {
   const rangeMs =
     new Date(input.toStartTime).getTime() -
     new Date(input.fromStartTime).getTime();
@@ -110,15 +112,23 @@ const assertAllowedObservationAccess = (
       "listObservations requires fromStartTime before toStartTime with a maximum range of 14 days (336 elapsed hours). For example, 2026-10-01T00:00:00Z to 2026-10-15T00:00:00Z is valid; 2026-10-15T23:59:59Z exceeds the limit. Split longer ranges into adjacent requests of at most 336 hours each.",
     );
   }
+};
 
+/**
+ * Input/output projections are expensive, so their pages hold at most
+ * EXPENSIVE_OBSERVATION_MAX_IO_LIMIT observations. A larger requested limit is
+ * lowered rather than rejected; the cursor returns the remaining observations.
+ */
+const getEffectiveLimit = (
+  requestedLimit: number,
+  projectionFields: string[],
+) => {
   const projectsIo = projectionFields.some(
     (field) => field === "input" || field === "output",
   );
-  if (projectsIo && input.limit > EXPENSIVE_OBSERVATION_MAX_IO_LIMIT) {
-    throw new InvalidRequestError(
-      `Projecting observation input or output by date supports a maximum limit of ${EXPENSIVE_OBSERVATION_MAX_IO_LIMIT}.`,
-    );
-  }
+  return projectsIo
+    ? Math.min(requestedLimit, EXPENSIVE_OBSERVATION_MAX_IO_LIMIT)
+    : requestedLimit;
 };
 
 export const [listObservationsTool, handleListObservations] = defineTool({
@@ -131,7 +141,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     "",
     'Start with the default compact summary fields, then use getObservation to fetch full input/output only for selected observations that need closer inspection. Pass specific field names to limit the response size; fields: ["*"] returns the full observation.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
-    "All requests must include explicit fromStartTime (inclusive) and toStartTime (exclusive) with 0 < toStartTime - fromStartTime <= 336 hours (14 days), even when scoped by traceId or observation id. This is elapsed time, not a count of calendar dates. For example, 2026-10-01T00:00:00Z to 2026-10-15T00:00:00Z is valid; ending at 2026-10-15T23:59:59Z exceeds the limit. Split longer ranges into adjacent windows, using each window's toStartTime as the next window's fromStartTime. Reuse timestamps from earlier results to narrow the search. Input/output projections support a maximum limit of 50.",
+    "All requests must include explicit fromStartTime (inclusive) and toStartTime (exclusive) with 0 < toStartTime - fromStartTime <= 336 hours (14 days), even when scoped by traceId or observation id. This is elapsed time, not a count of calendar dates. For example, 2026-10-01T00:00:00Z to 2026-10-15T00:00:00Z is valid; ending at 2026-10-15T23:59:59Z exceeds the limit. Split longer ranges into adjacent windows, using each window's toStartTime as the next window's fromStartTime. Reuse timestamps from earlier results to narrow the search. Pages that project input or output hold at most 50 observations; a larger limit is lowered to 50 and the cursor returns the rest.",
   ].join("\n"),
   action: "traces:read",
   accessAudit: { resourceType: "observation", action: "list" },
@@ -139,13 +149,15 @@ export const [listObservationsTool, handleListObservations] = defineTool({
   inputSchema: ListObservationsInputSchema,
   handler: async (input, context, audit) => {
     const projectionFields = getProjectionFields(input.fields);
+    const limit = getEffectiveLimit(input.limit, projectionFields);
     const filterColumns = new Set(input.filter?.map((filter) => filter.column));
 
     return await runMcpTool({
       spanName: "mcp.observations.list",
       context,
       attributes: {
-        "mcp.pagination_limit": input.limit,
+        "mcp.requested_limit": input.limit,
+        "mcp.applied_limit": limit,
         "mcp.filters_input": filterColumns.has("input"),
         "mcp.filters_output": filterColumns.has("output"),
         "mcp.filters_metadata": filterColumns.has("metadata"),
@@ -166,7 +178,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
       },
       fn: async () => {
         const fieldGroups = getProjectionFieldGroups(projectionFields);
-        assertAllowedObservationAccess(input, projectionFields);
+        assertAllowedObservationRange(input);
         const dataAccessWindow = clampToDataAccessDays({
           plan: context.plan,
           fromTimestamp: input.fromStartTime,
@@ -186,7 +198,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
             {
               projectId: context.projectId,
               page: 0,
-              limit: input.limit,
+              limit,
               traceId: input.traceId,
               userId: input.userId,
               level: input.level,
@@ -218,8 +230,8 @@ export const [listObservationsTool, handleListObservations] = defineTool({
           query,
         );
 
-        const hasMore = items.length > input.limit;
-        const dataToReturn = hasMore ? items.slice(0, input.limit) : items;
+        const hasMore = items.length > limit;
+        const dataToReturn = hasMore ? items.slice(0, limit) : items;
         audit.refs(observationRefs(dataToReturn));
         audit.count(dataToReturn.length);
 
@@ -253,8 +265,8 @@ export const [listObservationsTool, handleListObservations] = defineTool({
 
         return {
           data,
-          meta:
-            hasMore && lastItem
+          meta: {
+            ...(hasMore && lastItem
               ? {
                   cursor: encodeCursor({
                     lastStartTimeTo: lastItem.startTime,
@@ -262,7 +274,13 @@ export const [listObservationsTool, handleListObservations] = defineTool({
                     lastId: lastItem.id,
                   }),
                 }
-              : {},
+              : {}),
+            ...(limit < input.limit
+              ? {
+                  notice: `limit lowered from ${input.limit} to ${limit}: pages that project input or output hold at most ${EXPENSIVE_OBSERVATION_MAX_IO_LIMIT} observations. Use the cursor for the rest.`,
+                }
+              : {}),
+          },
         };
       },
     });

@@ -13,6 +13,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
 import type { TRPCError } from "@trpc/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const widgetInput = {
   name: "delete-me",
@@ -27,50 +28,35 @@ const widgetInput = {
 
 async function createOwnerCaller() {
   const { project, org } = await createOrgProjectAndApiKey();
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: `widget-delete-user-${uuidv4()}`,
-      canCreateOrganizations: true,
       name: "Test User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: project.name,
-              hasTraces: true,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: {
-        excludeClickhouseRead: false,
         templateFlag: true,
         v4BetaToggleVisible: false,
-        observationEvals: false,
         experimentsV4Enabled: false,
         langfuseTopics: false,
       },
     },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  };
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            role: "ADMIN",
+            name: project.name,
+            hasTraces: true,
+          },
+        ],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return {

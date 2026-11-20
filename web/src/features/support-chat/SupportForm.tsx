@@ -50,6 +50,7 @@ export type SupportFormProps = {
   canSelectHighSeverity: boolean;
   initialTopic: Topic | "";
   initialMessage?: string;
+  initialMessageType?: MessageType;
   showV4MigrationTopic: boolean;
   onCancel: () => void;
   onSuccess: () => void;
@@ -177,6 +178,7 @@ export function SupportForm({
   canSelectHighSeverity,
   initialTopic,
   initialMessage = "",
+  initialMessageType = "Question",
   showV4MigrationTopic,
   onCancel,
   onSuccess,
@@ -199,7 +201,7 @@ export function SupportForm({
   const form = useForm<SupportFormInput>({
     resolver: zodResolver(SupportFormSchema),
     defaultValues: {
-      messageType: "Question" as MessageType,
+      messageType: initialMessageType,
       severity: SEVERITY_3,
       topic: initialTopic,
       message: initialMessage,

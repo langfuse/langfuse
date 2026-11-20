@@ -14,7 +14,6 @@
  * it via process.env BEFORE any module is imported (mirrors
  * sessions-trpc-events-only.servertest.ts).
  */
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { vi } from "vitest";
 
 // The events_full table is created only by the ClickHouse dev-tables setup,
@@ -45,6 +44,7 @@ import {
 import { env } from "@langfuse/shared/src/env";
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // Skip on environments without the events_full dev table (azure / redis-cluster
 // CI). Mirrors the gating used across the other events-table server tests.
@@ -62,40 +62,16 @@ maybe(
   () => {
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        canCreateOrganizations: true,
-        name: "Demo User",
-        organizations: [
-          {
-            id: "seed-org-id",
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-      },
-      environment: {} as any,
-    };
+    const session: Session = createSession({
+      organizations: [
+        {
+          id: "seed-org-id",
+          role: "OWNER",
+          aiTelemetryEnabled: true,
+          projects: [{ id: projectId, role: "ADMIN" }],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     const caller = appRouter.createCaller({ ...ctx, prisma });

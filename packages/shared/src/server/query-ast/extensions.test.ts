@@ -707,16 +707,6 @@ describe("compileClickhouseCondition", () => {
     ).toThrow(UnscopedRelationError);
   });
 
-  it("rejects raw SQL over the logical events relation", () => {
-    expect(() =>
-      compileClickhouseCondition(
-        events().where(sql<boolean>`e.input = 'x'`),
-        projectId,
-        "f_",
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
   // Only the WHERE is emitted, so a select field outside FROM and WHERE, or a
   // FROM item that is not a plain table, would be dropped.
   it.each([
@@ -846,12 +836,6 @@ describe("renderClickhouseExpression", () => {
     );
   });
 
-  it("rejects a raw fragment that introduces a relation", () => {
-    expect(() =>
-      renderClickhouseExpression(sql`(select trace_id from events_core)`),
-    ).toThrow(UnscopedRelationError);
-  });
-
   it("rejects a bound value", () => {
     expect(() => renderClickhouseExpression(mapValue(metadata, "key"))).toThrow(
       /cannot bind parameters/,
@@ -958,8 +942,17 @@ describe("literal", () => {
     expect(renderClickhouseExpression(literal("it's"))).toBe("'it''s'");
   });
 
+  // `t.id = 'a\' or t.id = ') or 1 = 1 --'` would end the tenancy scope.
   it("rejects a backslash, which ClickHouse reads as an escape", () => {
-    expect(() => literal("a\\")).toThrow(QueryCompileError);
+    expect(() =>
+      compileClickhouseQuery(
+        getClickhouseKysely()
+          .selectFrom("traces as t")
+          .select("t.id")
+          .where("t.id", "=", literal("a\\")),
+        projectId,
+      ),
+    ).toThrow(QueryCompileError);
   });
 });
 

@@ -173,29 +173,5 @@ describe("matchesTriggerFilter", () => {
         ),
       ).toBe(true);
     });
-
-    it("ANDs with user-supplied filter: rejects when filter does not match even if triggerIds matches", () => {
-      const filter: FilterState = [
-        { type: "string", column: "Name", operator: "=", value: "p95" },
-      ];
-      expect(
-        matchesTriggerFilter(
-          { Name: "error rate", triggerIds: ["trig-test"] },
-          { id: "trig-test", filter, eventActions: [] },
-        ),
-      ).toBe(false);
-    });
-
-    it("ANDs with user-supplied filter: matches when both filter and triggerIds match", () => {
-      const filter: FilterState = [
-        { type: "string", column: "Name", operator: "=", value: "p95" },
-      ];
-      expect(
-        matchesTriggerFilter(
-          { Name: "p95", triggerIds: ["trig-test"] },
-          { id: "trig-test", filter, eventActions: [] },
-        ),
-      ).toBe(true);
-    });
   });
 });

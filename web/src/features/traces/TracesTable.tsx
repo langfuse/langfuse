@@ -125,7 +125,7 @@ import { TableHeaderControls } from "@/src/components/table/TableHeaderControls"
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { ConnectedAddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/ConnectedAddTracesToAnnotationQueueDialogController";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
@@ -1541,7 +1541,7 @@ function TracesTableInternal({
                   columnsWithCustomSelect={["traceName", "traceTags"]}
                   actionButtons={[
                     selectedTraceIds.length > 0 || selectAll ? (
-                      <AddTracesToAnnotationQueueDialogController
+                      <ConnectedAddTracesToAnnotationQueueDialogController
                         key="traces-multi-select-actions"
                         projectId={projectId}
                         onSuccess={() => {
@@ -1571,7 +1571,7 @@ function TracesTableInternal({
                             }}
                           />
                         )}
-                      </AddTracesToAnnotationQueueDialogController>
+                      </ConnectedAddTracesToAnnotationQueueDialogController>
                     ) : null,
                     hasBatchExportAccess ? (
                       <BatchExportTableButton

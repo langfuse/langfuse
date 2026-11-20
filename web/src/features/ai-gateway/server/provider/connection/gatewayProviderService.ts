@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/src/db";
 import {
   InvalidRequestError,
+  INVALID_LLM_BASE_URL_PREFIX,
   LangfuseConflictError,
   LangfuseNotFoundError,
   ServiceUnavailableError,
@@ -670,7 +671,7 @@ async function parseConnectionEndpoint(
       await validateLlmConnectionBaseURL(baseURL);
     } catch (error) {
       throw new InvalidRequestError(
-        `Invalid base URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `${INVALID_LLM_BASE_URL_PREFIX}${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -692,7 +693,7 @@ function toCanonicalBaseURL(
   if (!baseURL) return null;
   if (/[?#]/.test(baseURL) || baseURL.includes("{model}")) {
     throw new InvalidRequestError(
-      "Invalid base URL: query strings, fragments and {model} are not supported",
+      `${INVALID_LLM_BASE_URL_PREFIX}query strings, fragments and {model} are not supported`,
     );
   }
   if (provider === "AZURE") {

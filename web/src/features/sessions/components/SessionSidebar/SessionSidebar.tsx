@@ -8,6 +8,7 @@ export function SessionSidebar({
   children,
   search,
   isListScrolled,
+  sidebarToggle,
 }: {
   label: string;
   isLoading?: boolean;
@@ -18,6 +19,7 @@ export function SessionSidebar({
     disabled?: boolean;
   };
   isListScrolled?: boolean;
+  sidebarToggle?: ReactNode;
 }) {
   return (
     <div
@@ -29,6 +31,7 @@ export function SessionSidebar({
       {search && (
         <div className="relative z-10 shrink-0">
           <div className="relative z-10 flex shrink-0 items-center gap-1 p-4">
+            {sidebarToggle}
             <div className="relative min-w-0 flex-1">
               <Search
                 size="base"

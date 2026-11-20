@@ -10,6 +10,33 @@ const KEY_OWNER_PRESENT_FILTER: GatewayAnalyticsWidget["filters"][number] = {
   type: "null",
 };
 
+export const GATEWAY_COST_OVER_TIME_WIDGET: GatewayAnalyticsWidget = {
+  id: "cost-over-time",
+  name: "Cost over time",
+  description: "Cost of all gateway requests over time",
+  view: "observations",
+  dimensions: [],
+  metrics: [{ measure: "totalCost", agg: "sum" }],
+  filters: [],
+  chartType: "BAR_TIME_SERIES",
+  chartConfig: { type: "BAR_TIME_SERIES" },
+  size: "full",
+};
+
+const GATEWAY_COST_BY_USER_WIDGET: GatewayAnalyticsWidget = {
+  id: "cost-by-user",
+  name: "Cost by user",
+  description: `Top ${BREAKDOWN_ROW_LIMIT} users by cost; service keys are excluded`,
+  view: "observations",
+  dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+  metrics: [{ measure: "totalCost", agg: "sum" }],
+  filters: [KEY_OWNER_PRESENT_FILTER],
+  chartType: "HORIZONTAL_BAR",
+  chartConfig: { type: "HORIZONTAL_BAR", row_limit: BREAKDOWN_ROW_LIMIT },
+  dimensionLabels: "users",
+  size: "medium",
+};
+
 export const GATEWAY_ANALYTICS_WIDGETS: readonly GatewayAnalyticsWidget[] = [
   {
     id: "total-cost",
@@ -47,31 +74,8 @@ export const GATEWAY_ANALYTICS_WIDGETS: readonly GatewayAnalyticsWidget[] = [
     chartConfig: { type: "NUMBER" },
     size: "small",
   },
-  {
-    id: "cost-over-time",
-    name: "Cost over time",
-    description: "Cost of all gateway requests over time",
-    view: "observations",
-    dimensions: [],
-    metrics: [{ measure: "totalCost", agg: "sum" }],
-    filters: [],
-    chartType: "BAR_TIME_SERIES",
-    chartConfig: { type: "BAR_TIME_SERIES" },
-    size: "full",
-  },
-  {
-    id: "cost-by-user",
-    name: "Cost by user",
-    description: `Top ${BREAKDOWN_ROW_LIMIT} users by cost; service keys are excluded`,
-    view: "observations",
-    dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
-    metrics: [{ measure: "totalCost", agg: "sum" }],
-    filters: [KEY_OWNER_PRESENT_FILTER],
-    chartType: "HORIZONTAL_BAR",
-    chartConfig: { type: "HORIZONTAL_BAR", row_limit: BREAKDOWN_ROW_LIMIT },
-    dimensionLabels: "users",
-    size: "medium",
-  },
+  GATEWAY_COST_OVER_TIME_WIDGET,
+  GATEWAY_COST_BY_USER_WIDGET,
   {
     id: "requests-per-user",
     name: "Requests per user",

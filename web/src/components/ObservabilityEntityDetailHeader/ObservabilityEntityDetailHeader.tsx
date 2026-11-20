@@ -21,6 +21,7 @@ import {
 import { assertUnreachable } from "@/src/utils/types";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Metric } from "@/src/components/design-system/Metric/Metric";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
@@ -92,6 +93,8 @@ export type HeaderMetric = {
       | {
           type: "details";
           text: string;
+          /** Renders the trigger as a coloured `Badge` instead of a `Metric`. */
+          color?: React.ComponentProps<typeof Badge>["color"];
           title: string;
           href: string;
           linkText: string;
@@ -695,7 +698,7 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
           <div className="ph-no-capture flex max-h-[70vh] w-120 flex-col overflow-y-auto px-4">
             <div className="flex items-center justify-between gap-2 border-b py-2.5">
               <span className="text-sm font-bold">{metric.title}</span>
-              <Metric href={metric.href} value={metric.linkText} />
+              <TextLink path={metric.href} value={metric.linkText} />
             </div>
             {metric.rows.map((row) => {
               // Several or captioned values get a line each under the label.
@@ -743,11 +746,18 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
           </div>
         }
       >
-        {({ getTriggerProps }) => (
-          <span {...getTriggerProps()}>
-            <Metric interactive value={metric.text} />
-          </span>
-        )}
+        {({ getTriggerProps }) =>
+          metric.color ? (
+            <Badge
+              {...getTriggerProps()}
+              interactive
+              text={metric.text}
+              color={metric.color}
+            />
+          ) : (
+            <Metric {...getTriggerProps()} interactive value={metric.text} />
+          )
+        }
       </HoverCard>
     );
   return assertUnreachable(metric);

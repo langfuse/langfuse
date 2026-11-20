@@ -7,6 +7,33 @@ import { AnnotationQueueScoreConfigEditor } from "./AnnotationQueueScoreConfigEd
 import { type ComponentProps } from "react";
 import { AnnotationQueueFormDialogContent } from "./AnnotationQueueFormDialogContent";
 
+const fixtureControls = {
+  sessionViewSettings: {
+    viewsState: { status: "success", views: [] },
+    value: null,
+    onChange: fn(),
+    canSaveViews: true,
+    onCreate: fn(),
+    onEdit: fn(),
+  },
+  userAssignments: {
+    users: [],
+    assignedUsers: [],
+    totalAssignedUsers: 0,
+    searchQuery: "",
+    onSearchChange: fn(),
+    searchResults: [],
+    isLoading: false,
+    hasMoreResults: false,
+    canWrite: true,
+    isRemoving: false,
+    onRemove: fn(),
+  },
+} satisfies Pick<
+  ComponentProps<typeof AnnotationQueueFormDialogContent>,
+  "sessionViewSettings" | "userAssignments"
+>;
+
 const scoreConfigs = [
   {
     id: "config-1",
@@ -59,13 +86,13 @@ export const Create = meta.story({
         initialState={() => true}
         renderDialog={() => (
           <AnnotationQueueFormDialogContent
+            {...fixtureControls}
             mode="create"
             initialValues={{
               name: "",
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: [],
             }}
-            projectId="project-1"
             queueNames={[]}
             hasQueueAssignmentsReadAccess={false}
             isSubmitting={false}
@@ -133,16 +160,20 @@ export const Create = meta.story({
 export const Edit = meta.story({
   name: "(Test) Queue settings preserve score configs",
   args: {
+    ...fixtureControls,
+    sessionViewSettings: {
+      ...fixtureControls.sessionViewSettings,
+      value: "project-view",
+    },
     mode: "edit",
     initialValues: {
       name: "Support review queue",
+      sessionViewId: "project-view",
       description: "Weekly support trace review",
       scoreConfigIds: ["config-1", "config-2", "config-3"],
       newAssignmentUserIds: [],
     },
     children,
-    projectId: "project-1",
-    queueId: "queue-1",
     queueNames: ["Support review queue", "Other queue"],
     hasQueueAssignmentsReadAccess: false,
     isSubmitting: false,
@@ -172,9 +203,9 @@ export const Edit = meta.story({
       expect(args.onSubmit).toHaveBeenCalledWith(
         expect.objectContaining({
           name: "Renamed queue",
+          sessionViewId: "project-view",
           scoreConfigIds: ["config-1", "config-2", "config-3"],
         }),
-        expect.anything(),
       ),
     );
   },
@@ -187,13 +218,13 @@ export const Submitting = meta.story({
         initialState={() => true}
         renderDialog={() => (
           <AnnotationQueueFormDialogContent
+            {...fixtureControls}
             mode="create"
             initialValues={{
               name: "New queue",
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: [],
             }}
-            projectId="project-1"
             queueNames={[]}
             hasQueueAssignmentsReadAccess={false}
             isSubmitting={true}
@@ -211,19 +242,29 @@ export const Submitting = meta.story({
 });
 
 export const WithAdvancedOpen = meta.story({
+  name: "(Test) User assignments",
+  play: async () => {
+    const body = within(document.body);
+    await userEvent.click(
+      body.getByRole("button", { name: "User assignments" }),
+    );
+    await expect(
+      await body.findByPlaceholderText("Search users to add..."),
+    ).toBeEnabled();
+  },
   render: () => {
     return (
       <DialogController<boolean>
         initialState={() => true}
         renderDialog={() => (
           <AnnotationQueueFormDialogContent
+            {...fixtureControls}
             mode="create"
             initialValues={{
               name: "Team queue",
               scoreConfigIds: ["config-1"],
               newAssignmentUserIds: ["user-1"],
             }}
-            projectId="project-1"
             queueNames={[]}
             hasQueueAssignmentsReadAccess={true}
             isSubmitting={false}

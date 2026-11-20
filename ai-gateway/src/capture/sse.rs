@@ -67,6 +67,10 @@ impl SseDecoder {
         self.line_nonempty = false;
     }
 
+    pub(super) fn buffered_len(&self) -> usize {
+        self.line.len() + self.data.len()
+    }
+
     pub(super) fn finish(&self) -> bool {
         !self.incomplete
             && !self.line_nonempty

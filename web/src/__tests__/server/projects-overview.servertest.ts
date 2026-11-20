@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { prisma, type Role } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { createTrace, createTracesCh } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
@@ -33,8 +34,10 @@ const setUp = async () => {
   const user = await prisma.user.create({
     data: { id: randomUUID(), email: `${randomUUID()}@example.com` },
   });
-  await prisma.organizationMembership.create({
-    data: { orgId: org.id, userId: user.id, role: "OWNER" },
+  await createOrgMembership(prisma, {
+    orgId: org.id,
+    userId: user.id,
+    role: "OWNER",
   });
   return { orgId: org.id, userId: user.id, busy, empty, lastTraceAt };
 };

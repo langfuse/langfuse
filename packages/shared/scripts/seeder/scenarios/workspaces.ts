@@ -1,6 +1,11 @@
 import { hash } from "bcryptjs";
 import { prisma, Role, SurveyName } from "../../../src/db";
 import {
+  createOrgMembership,
+  deleteOrgMembership,
+  saveOrgMembership,
+} from "../../../src/features/memberships/orgMembershipRepository";
+import {
   convertDateToClickhouseDateTime,
   createEventsCh,
   createObservation,
@@ -423,10 +428,10 @@ const run = async (
         cloudBillingCycleAnchor: billingCycleAnchor,
       },
     });
-    await prisma.organizationMembership.upsert({
-      where: { orgId_userId: { orgId, userId: demoUser.id } },
-      update: { role: workspace.role },
-      create: { orgId, userId: demoUser.id, role: workspace.role },
+    await saveOrgMembership(prisma, {
+      orgId,
+      userId: demoUser.id,
+      role: workspace.role,
     });
     for (const project of workspace.projects) {
       const id = projectId(ctx, workspace.slug, project.slug);
@@ -614,19 +619,21 @@ const run = async (
           v4BetaEnabled: true,
         },
       });
-      await prisma.organizationMembership.deleteMany({
+      const memberships = await prisma.organizationMembership.findMany({
         where: { userId: user.id },
+        select: { orgId: true },
       });
+      for (const { orgId } of memberships) {
+        await deleteOrgMembership(prisma, { orgId, userId: user.id });
+      }
       await prisma.survey.deleteMany({
         where: { userId: user.id, surveyName: SurveyName.USER_ONBOARDING },
       });
       for (const membership of plan.memberships) {
-        await prisma.organizationMembership.create({
-          data: {
-            orgId: organizationId(ctx, membership.workspace),
-            userId: user.id,
-            role: membership.role,
-          },
+        await createOrgMembership(prisma, {
+          orgId: organizationId(ctx, membership.workspace),
+          userId: user.id,
+          role: membership.role,
         });
       }
       const key = lastVisitedProjectKey(user.id);

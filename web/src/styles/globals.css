@@ -518,7 +518,7 @@
     /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
        readable text/icon color on them. */
     --light-red: oklch(93.6% 0.032 17.717 / 0.7);
-    --dark-red: oklch(63.7% 0.237 25.331);
+    --dark-red: oklch(44.4% 0.177 26.899);
 
     --light-yellow: oklch(97.3% 0.071 103.193 / 0.7);
     --dark-yellow: oklch(47.6% 0.114 61.907);
@@ -767,16 +767,15 @@
 
     /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
        dark-* the readable text/icon color on them. */
-    --light-red: oklch(39.6% 0.141 25.723 / 0.7);
-    /* Lightened for dark mode like its green and yellow siblings below — left
-       at the light-mode step it was darker than the fill it sits on (2.74:1;
-       5.35:1 here, against green's 6.49 and yellow's 6.43). */
+    --light-red: oklch(39.6% 0.141 25.723 / 0.42);
+    /* Lightened for dark mode like green and yellow below: 6.5:1 on its fill,
+       against green's 8.0 and yellow's 6.4. */
     --dark-red: oklch(76.5% 0.177 27.325);
 
     --light-yellow: oklch(55.4% 0.135 66.442 / 0.4);
     --dark-yellow: oklch(79.5% 0.184 86.047);
 
-    --light-green: oklch(37.8% 0.077 168.94 / 0.7);
+    --light-green: oklch(37.8% 0.077 168.94 / 0.42);
     --dark-green: oklch(76.5% 0.177 163.223);
 
     --light-blue: 209 45% 15%;

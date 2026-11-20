@@ -5,11 +5,20 @@ import { WidgetChartCard } from "./WidgetChartCard";
 export function ConnectedWidgetChartCard({
   title,
   description,
+  filter,
+  tabs,
+  actions,
   isDisplayLoading = false,
+  displayError,
   ...query
-}: Pick<ComponentProps<typeof WidgetChartCard>, "title" | "description"> &
+}: Pick<
+  ComponentProps<typeof WidgetChartCard>,
+  "title" | "description" | "filter" | "tabs" | "actions"
+> &
   Pick<ComponentProps<typeof WidgetContent>, "layoutHint"> & {
     isDisplayLoading?: boolean;
+    /** An error from what the chart depends on, shown like a failed query. */
+    displayError?: { message: string; onRetry: () => void };
   } & Parameters<typeof useWidgetChart>[0]) {
   const { chartProps, chartLoadingState, loadingProgress, onRetry } =
     useWidgetChart(query);
@@ -21,6 +30,13 @@ export function ConnectedWidgetChartCard({
         layout: query.layoutHint,
         message: chartLoadingState.hintText ?? "Unable to load chart data",
         onRetry,
+      };
+    }
+    if (displayError) {
+      return {
+        type: "error" as const,
+        layout: query.layoutHint,
+        ...displayError,
       };
     }
     if (isLoading || isDisplayLoading) {
@@ -38,6 +54,9 @@ export function ConnectedWidgetChartCard({
       {...chart}
       title={title}
       description={description}
+      filter={filter}
+      tabs={tabs}
+      actions={actions}
       content={visualization}
     />
   );
