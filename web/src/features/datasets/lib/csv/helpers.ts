@@ -197,7 +197,13 @@ export function parseValue(value: string): Prisma.JsonValue {
   const numericValue = Number(value);
   if (
     Number.isFinite(numericValue) &&
-    Math.abs(numericValue) <= Number.MAX_SAFE_INTEGER
+    Math.abs(numericValue) <= Number.MAX_SAFE_INTEGER &&
+    // Number() also accepts a leading "+", whitespace-only strings (as 0),
+    // and hex literals like "0x1A", and does not care about leading zeros.
+    // Only convert when the value is already the canonical string form of
+    // that number, so zip codes, phone numbers and zero-padded ids import
+    // as the strings they are.
+    String(numericValue) === value
   ) {
     return numericValue;
   }
