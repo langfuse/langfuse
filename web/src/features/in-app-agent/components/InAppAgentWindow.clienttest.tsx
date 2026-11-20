@@ -313,7 +313,7 @@ describe("InAppAgentWindow header", () => {
     expect(onExpandedChange).toHaveBeenCalledWith(true);
 
     fireEvent.dblClick(
-      screen.getByRole("button", { name: "Start new conversation" }),
+      screen.getByRole("button", { name: /^Conversation history/ }),
     );
     expect(onExpandedChange).toHaveBeenCalledTimes(1);
   });
@@ -357,7 +357,7 @@ describe("ControlledInAppAgentWindow composer", () => {
 
     expect(input).toHaveValue("Follow up");
     expect(input).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ask" })).toBeDisabled();
 
     const form = input.closest("form");
     if (!form) {
@@ -385,7 +385,7 @@ describe("ControlledInAppAgentWindow composer", () => {
     );
 
     expect(screen.getByRole("textbox", { name: "Message Halo" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ask" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Start new conversation" }),
     ).toBeEnabled();
@@ -422,7 +422,7 @@ describe("ControlledInAppAgentWindow stop", () => {
       </TooltipProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Stop run" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
 
     // Cancelling alone only stops future frames. Without the flush the already
     // buffered block keeps typing out, which reads as "stop did nothing".
@@ -616,9 +616,10 @@ describe("InAppAgentWindow activity", () => {
     );
 
     // Settling must not tear the drawer down and collapse it under the user.
-    expect(
-      screen.getByRole("button", { name: "Worked for 51s" }),
-    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /· 51s$/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 
   it("labels a completed turn with compact minutes and leftover seconds", () => {
@@ -652,7 +653,7 @@ describe("InAppAgentWindow activity", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Worked for 3m 29s" }),
+      screen.getByRole("button", { name: "1 step · 3m 29s" }),
     ).toBeVisible();
   });
 
@@ -745,7 +746,7 @@ describe("InAppAgentWindow composer", () => {
 
     expect(
       screen.getByRole("textbox", { name: "Message Halo" }),
-    ).toHaveAttribute("placeholder", "Let me know what I can do for you...");
+    ).toHaveAttribute("placeholder", "Ask about these traces…");
 
     rerender(
       windowElement({
@@ -769,7 +770,7 @@ describe("InAppAgentWindow composer", () => {
 
     expect(
       screen.getByRole("textbox", { name: "Message Halo" }),
-    ).toHaveAttribute("placeholder", "Reply...");
+    ).toHaveAttribute("placeholder", "Ask a follow-up…");
   });
 
   it("does not settle mid-turn assistant text while the run is still working", () => {
@@ -820,7 +821,7 @@ describe("InAppAgentWindow composer", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "Message Halo" }),
-    ).toHaveAttribute("placeholder", "Let me know what I can do for you...");
+    ).toHaveAttribute("placeholder", "Ask a follow-up…");
 
     fireEvent.click(
       screen.getByRole("button", { name: "Browsing observations" }),
@@ -878,7 +879,7 @@ describe("InAppAgentWindow composer", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "Message Halo" }),
-    ).toHaveAttribute("placeholder", "Reply...");
+    ).toHaveAttribute("placeholder", "Ask a follow-up…");
   });
 });
 
@@ -944,7 +945,7 @@ describe("InAppAgentWindow message actions", () => {
     expect(
       screen.queryByText("I will inspect the slow traces."),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Current trace view in context")).toBeVisible();
+    expect(screen.getByText("Traces")).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Copy message" }),
     ).not.toBeInTheDocument();
@@ -952,7 +953,7 @@ describe("InAppAgentWindow message actions", () => {
     rerender(windowElement({ messages: activityMessages.concat(finalAnswer) }));
 
     const activityTrigger = screen.getByRole("button", {
-      name: "Worked for 51s",
+      name: /· 51s$/,
     });
     expect(activityTrigger).toHaveAttribute("aria-expanded", "false");
     expect(
@@ -1054,7 +1055,7 @@ describe("InAppAgentWindow message actions", () => {
     );
 
     const activityTrigger = screen.getByRole("button", {
-      name: /Worked for/,
+      name: /steps? ·/,
     });
     expect(activityTrigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText(analysis)).toBeVisible();

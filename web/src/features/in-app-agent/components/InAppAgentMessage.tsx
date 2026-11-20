@@ -227,13 +227,9 @@ const MessageCard = forwardRef<
     <div
       ref={ref}
       className={cn(
-        "max-w-full overflow-hidden wrap-break-word",
-        isCompact ? "text-[0.775rem]" : "text-sm",
+        "max-w-full overflow-hidden text-base wrap-break-word",
         isUser
-          ? cn(
-              "bg-muted text-foreground rounded-2xl",
-              isCompact ? "px-2.5 py-1" : "px-3 py-1.5",
-            )
+          ? "bg-muted text-foreground rounded-2xl rounded-br-sm px-3.5 py-2.5"
           : "text-foreground",
       )}
     >
@@ -863,10 +859,7 @@ function MessageText({
     return (
       <p
         data-in-app-agent-message-content
-        className={cn(
-          "whitespace-pre-wrap",
-          isCompact ? "leading-4" : "leading-4.5",
-        )}
+        className="leading-normal whitespace-pre-wrap"
       >
         {text}
       </p>
@@ -895,7 +888,7 @@ function MessageText({
         event.clipboardData.setData("text/plain", result.markdown);
         event.clipboardData.setData("text/html", result.html);
       }}
-      className={cn(styles.Streamdown, isCompact && styles.compact)}
+      className={styles.Streamdown}
     >
       <Streamdown
         disallowedElements={[

@@ -1690,9 +1690,7 @@ export const StepLimit = meta.story({
     await expect(canvas.getByRole("status")).toHaveTextContent(
       "Send another message",
     );
-    await expect(
-      canvas.getByRole("button", { name: "Worked for 12s" }),
-    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: /· 12s$/ })).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: "Stopped after 51s" }),
     ).toBeVisible();
@@ -1829,9 +1827,7 @@ export const FailedBeforeFirstToken = meta.story({
     await expect(canvas.getByRole("status")).toHaveTextContent(
       "Send another message",
     );
-    await expect(
-      canvas.getByRole("button", { name: "Worked for 12s" }),
-    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: /· 12s$/ })).toBeVisible();
     await expect(
       canvas.queryByRole("button", { name: /Failed after/ }),
     ).not.toBeInTheDocument();
@@ -2046,7 +2042,7 @@ export const BackgroundHint = meta.story({
       canvas.getByRole("textbox", { name: "Message Halo" }),
       "Compare cost against last week",
     );
-    await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Ask" }));
     await waitFor(() => {
       expect(
         canvas.getByText(/I keep running in the background/),
@@ -2185,7 +2181,7 @@ export const BackgroundRunStops = meta.story({
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
 
-    await userEvent.click(canvas.getByRole("button", { name: "Stop run" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Stop" }));
     await expect(canvas.getByRole("status")).toHaveTextContent(
       "Stopping the run…",
     );
@@ -2211,7 +2207,7 @@ export const LoadingConversation = meta.story({
     const canvas = within(canvasElement);
 
     await expect(
-      canvas.queryByText("Hi I'm Halo, your Langfuse assistant"),
+      canvas.queryByRole("heading", { name: "Ask Halo" }),
     ).not.toBeInTheDocument();
     await expect(
       canvas.queryByRole("button", { name: /^Create a prompt/ }),
@@ -2280,9 +2276,7 @@ export const RateLimited = meta.story({
     await expect(textarea).toBeEnabled();
     await userEvent.type(textarea, "Follow up");
     await expect(textarea).toHaveValue("Follow up");
-    await expect(
-      canvas.getByRole("button", { name: "Send message" }),
-    ).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Ask" })).toBeDisabled();
     await userEvent.keyboard("{Enter}");
     await expect(args.onSubmit).not.toHaveBeenCalled();
     await expect(
@@ -2386,11 +2380,11 @@ export const RefocusAfterSubmit = meta.story({
     const previousAnswerCount = canvas.queryAllByText(answer).length;
 
     await expect(
-      canvas.queryByText("Hi I'm Halo, your Langfuse assistant"),
+      canvas.queryByRole("heading", { name: "Ask Halo" }),
     ).not.toBeInTheDocument();
     await userEvent.clear(textarea);
     await userEvent.type(textarea, "Check the latest latency regression");
-    await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Ask" }));
 
     await waitFor(() => {
       expect(canvas.getAllByText(answer)).toHaveLength(previousAnswerCount + 1);
@@ -2664,7 +2658,7 @@ export const ContinuedToolResultRendersOnce = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.queryByText("Called 2 tools")).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "Activity" }));
+    await userEvent.click(canvas.getByRole("button", { name: /^\d+ steps?$/ }));
     await expect(
       canvas.getAllByLabelText("createDashboardWidget: succeeded"),
     ).toHaveLength(1);
@@ -2745,7 +2739,7 @@ export const RedirectStaysActionableAfterMoreThinking = meta.story({
 
     // The drawer stays collapsed, so a redirect parked inside it would be lost,
     // whether it arrived standalone or merged into a mid-turn text block.
-    const drawer = canvas.getByRole("button", { name: /Worked for/ });
+    const drawer = canvas.getByRole("button", { name: /steps? ·/ });
     await expect(drawer).toHaveAttribute("aria-expanded", "false");
     await expect(
       canvas.getByRole("button", { name: "Open the latency dashboard" }),
@@ -2932,7 +2926,7 @@ export const LatestHidesWhenTheDrawerCollapses = meta.story({
     const viewport = getConversationViewport(canvasElement);
     const latest = { name: "Scroll to latest message" };
 
-    const drawer = canvas.getByRole("button", { name: /Worked for/ });
+    const drawer = canvas.getByRole("button", { name: /steps? ·/ });
     await expect(canvas.queryByRole("button", latest)).not.toBeInTheDocument();
 
     // Read to the end of the opened drawer, then scroll back up. Going down
@@ -3012,7 +3006,7 @@ export const SendingReattachesAutoFollow = meta.story({
       canvas.getByRole("textbox", { name: "Message Halo" }),
       "And the error rate?",
     );
-    await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Ask" }));
 
     // Saying something is a request to follow along again.
     await waitFor(() =>

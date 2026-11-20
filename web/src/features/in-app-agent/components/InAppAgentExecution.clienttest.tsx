@@ -670,14 +670,14 @@ describe("in-app agent execution", () => {
     );
 
     renderExecutionUi();
-    fireEvent.click(await screen.findByRole("button", { name: "Stop run" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop" }));
 
     await waitFor(() => {
       expect(
         providerMocks.utils.inAppAgent.getConversation.fetch,
       ).toHaveBeenCalledOnce();
     });
-    expect(screen.getByRole("button", { name: "Stopping run" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stopping" })).toBeDisabled();
     expect(screen.getByText("Stopping the run…")).toBeVisible();
   });
 
@@ -866,7 +866,7 @@ describe("in-app agent execution", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Stop run",
+        name: "Stop",
       }),
     );
 
@@ -879,11 +879,11 @@ describe("in-app agent execution", () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByRole("button", { name: /stop(?:ping)? run/i }),
+        screen.queryByRole("button", { name: /^stop(?:ping)?$/i }),
       ).not.toBeInTheDocument();
     });
     expect(screen.getByText(finalText)).toBeVisible();
-    expect(screen.getByText("Current trace view in context")).toBeVisible();
+    expect(screen.getByText("Traces")).toBeVisible();
     expect(screen.getByRole("button", { name: "Good response" })).toBeVisible();
   });
 
@@ -1050,9 +1050,9 @@ describe("in-app agent execution", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Message Halo" }), {
       target: { value: "Investigate this" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
-    const stopButton = await screen.findByRole("button", { name: "Stop run" });
+    const stopButton = await screen.findByRole("button", { name: "Stop" });
     expect(queryActivityIndicator()).toBeInTheDocument();
     fireEvent.click(stopButton);
 
@@ -1061,7 +1061,7 @@ describe("in-app agent execution", () => {
     });
     await waitFor(() => {
       expect(
-        screen.queryByRole("button", { name: /stop(?:ping)? run/i }),
+        screen.queryByRole("button", { name: /^stop(?:ping)?$/i }),
       ).not.toBeInTheDocument();
     });
     expect(screen.getByText(finalText)).toBeVisible();
@@ -1071,7 +1071,7 @@ describe("in-app agent execution", () => {
       name: "Message Halo",
     });
     fireEvent.change(textbox, { target: { value: "Start a new analysis" } });
-    const sendButton = screen.getByRole("button", { name: "Send message" });
+    const sendButton = screen.getByRole("button", { name: "Ask" });
     expect(sendButton).toBeEnabled();
     fireEvent.click(sendButton);
     await waitFor(() => {
@@ -1183,7 +1183,7 @@ describe("in-app agent concurrent conversations", () => {
       name: "Message Halo",
     });
     fireEvent.change(input, { target: { value: "First question" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() => {
       expect(providerMocks.startRun).toHaveBeenCalledOnce();
@@ -1255,7 +1255,7 @@ describe("in-app agent concurrent conversations", () => {
       name: "Message Halo",
     });
     fireEvent.change(input, { target: { value: "First question" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() => {
       expect(providerMocks.startRun).toHaveBeenCalledOnce();
@@ -1272,7 +1272,7 @@ describe("in-app agent concurrent conversations", () => {
     expect(screen.getByText("First question")).toBeVisible();
 
     fireEvent.change(input, { target: { value: "Retry question" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() => {
       expect(providerMocks.startRun).toHaveBeenCalledTimes(2);

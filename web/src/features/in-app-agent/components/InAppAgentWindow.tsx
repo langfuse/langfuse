@@ -17,16 +17,17 @@ import {
   History,
   Info,
   Maximize2,
+  MessageSquarePlus,
   TriangleAlert,
   Minimize2,
   Minus,
-  Plus,
-  SendHorizontal,
   Square,
   Trash2,
   X,
 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
+import { Button as DsButton } from "@/src/components/design-system/Button/Button";
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import {
   DropdownMenu,
@@ -74,7 +75,6 @@ import {
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
 import styles from "./InAppAgentWindow.module.css";
-import { assertUnreachable } from "@/src/utils/types";
 import {
   IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
   IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS,
@@ -88,8 +88,12 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
+import { InAppAgentAskButton } from "@/src/features/in-app-agent/components/InAppAgentAskButton";
+import { getInAppAgentPageContext } from "@/src/features/in-app-agent/pageContext";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
+// Enter alone sends in the panel; Shift+Enter breaks the line.
+const PANEL_SUBMIT_KEYS = ["Enter"] as const;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
 function isViewportNearBottom(viewport: HTMLElement) {
   return (
@@ -137,13 +141,7 @@ function InAppAgentQuickActionPicker({
 
   return (
     <>
-      <p className="text-foreground mt-3 text-sm font-bold">
-        Hi I&apos;m Halo, your Langfuse assistant
-      </p>
-      <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
-        What do you want to do?
-      </p>
-      <div className="mt-4 w-full max-w-sm">
+      <div className="w-full">
         <Tabs
           value={selectedContext}
           onValueChange={(value) => {
@@ -166,7 +164,7 @@ function InAppAgentQuickActionPicker({
           </div>
         </Tabs>
       </div>
-      <div className="mt-3 grid w-full max-w-sm grid-cols-1 gap-2">
+      <div className="mt-3 grid w-full grid-cols-1 gap-2">
         {selectedActions.map((action, position) => {
           const ActionIcon = action.icon ?? contextFallbackIcon;
 
@@ -209,71 +207,13 @@ function InAppAgentQuickActionPicker({
   );
 }
 
-function formatScreenContextNotice(
-  description: InAppAgentScreenContextDescription,
-) {
-  if (description.type === "page") {
-    return "Current page in context";
-  }
-
-  if (description.type === "observation") {
-    return "Current observation in context";
-  }
-
-  if (description.type === "trace") {
-    return "Current trace in context";
-  }
-
-  if (description.type === "prompt") {
-    return "Current prompt in context";
-  }
-
-  if (description.type === "session") {
-    return "Current session in context";
-  }
-
-  if (description.type === "dataset") {
-    return "Current dataset in context";
-  }
-
-  if (description.type === "datasetItem") {
-    return "Current dataset item in context";
-  }
-
-  if (description.type === "experimentRun") {
-    return "Current experiment run in context";
-  }
-
-  if (description.type === "topics") {
-    return "Current topics view in context";
-  }
-
-  if (
-    description.type === "trace-list" ||
-    description.type === "observations-list" ||
-    description.type === "sessions-list" ||
-    description.type === "prompts-list" ||
-    description.type === "datasets-list"
-  ) {
-    const listLabel = {
-      "trace-list": "trace",
-      "observations-list": "observation",
-      "sessions-list": "session",
-      "prompts-list": "prompt",
-      "datasets-list": "dataset",
-    }[description.type];
-
-    return `Current ${listLabel} view in context`;
-  }
-
-  return assertUnreachable(description);
-}
-
 export type InAppAgentWindowMessage = {
   id: string;
   feedbackMessageId?: string;
   runId?: string;
   timestamp?: number;
+  /** Path of the page a user message was sent from. */
+  askedFrom?: string;
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
 };
@@ -304,9 +244,11 @@ function formatWorkedDuration(totalSeconds: number) {
 function getSettledActivityGroupLabel({
   durationSeconds,
   outcome,
+  stepCount,
 }: {
   durationSeconds: number | null;
   outcome: SettledActivityOutcome;
+  stepCount: number;
 }) {
   const duration =
     durationSeconds === null ? null : formatWorkedDuration(durationSeconds);
@@ -319,6 +261,11 @@ function getSettledActivityGroupLabel({
     return duration ? `Failed after ${duration}` : "Failed";
   }
 
+  if (stepCount > 0) {
+    const steps = `${stepCount} ${stepCount === 1 ? "step" : "steps"}`;
+    return duration ? `${steps} · ${duration}` : steps;
+  }
+
   return duration ? `Worked for ${duration}` : "Activity";
 }
 
@@ -328,6 +275,7 @@ function getActivityGroupLabel({
   isAwaitingApproval,
   isInProgress,
   outcome,
+  stepCount,
   toolNames,
 }: {
   durationSeconds: number | null;
@@ -335,10 +283,15 @@ function getActivityGroupLabel({
   isAwaitingApproval: boolean;
   isInProgress: boolean;
   outcome: SettledActivityOutcome;
+  stepCount: number;
   toolNames: string[];
 }) {
   if (!isInProgress) {
-    return getSettledActivityGroupLabel({ durationSeconds, outcome });
+    return getSettledActivityGroupLabel({
+      durationSeconds,
+      outcome,
+      stepCount,
+    });
   }
 
   // The run has stopped and owes the user a decision, so it must not keep
@@ -380,14 +333,34 @@ function AssistantActivityGroup({
       ? message.content.tools.map((tool) => tool.name)
       : [],
   );
+  // One step per row the open drawer lists.
+  const stepCount = messages.reduce(
+    (count, message) =>
+      count +
+      (message.content.type === "toolGroup" ? message.content.tools.length : 1),
+    0,
+  );
   const label = getActivityGroupLabel({
     durationSeconds,
     hasDetails,
     isAwaitingApproval,
     isInProgress,
     outcome,
+    stepCount,
     toolNames,
   });
+  const chevron = (
+    <ChevronRight
+      aria-hidden="true"
+      size={isInProgress ? "base" : "sm"}
+      color="tertiary"
+      __rawClassName={cn(
+        "transition-transform",
+        isInProgress && "translate-y-px",
+        isOpen && "rotate-90",
+      )}
+    />
+  );
 
   return (
     <div className="w-full">
@@ -396,13 +369,16 @@ function AssistantActivityGroup({
         aria-expanded={isOpen}
         aria-label={label}
         className={cn(
-          "text-muted-foreground focus-visible:ring-ring flex w-full items-center gap-1 py-1 text-left outline-none focus-visible:ring-2",
-          isCompact ? "text-[0.775rem]" : "text-sm",
+          "text-muted-foreground focus-visible:ring-ring flex w-full items-center py-1 text-left outline-none focus-visible:ring-2",
+          isInProgress
+            ? cn("gap-1", isCompact ? "text-[0.775rem]" : "text-sm")
+            : "gap-1.5 text-xs",
         )}
         onClick={() => {
           setIsOpen((open) => !open);
         }}
       >
+        {isInProgress ? null : chevron}
         {/* Nothing is happening while we wait on the user, so hold the shimmer. */}
         <span
           className={cn(
@@ -413,15 +389,7 @@ function AssistantActivityGroup({
         >
           {label}
         </span>
-        <ChevronRight
-          aria-hidden="true"
-          size="base"
-          color="tertiary"
-          __rawClassName={cn(
-            "translate-y-px transition-transform",
-            isOpen && "rotate-90",
-          )}
-        />
+        {isInProgress ? chevron : null}
       </button>
       {isOpen && hasDetails ? (
         <div className="flex flex-col gap-1 pt-2 pb-1">
@@ -687,8 +655,8 @@ export type InAppAgentWindowProps = {
   selectedConversationTitle: string | null;
   /** Rendered right after the title. */
   titleActions?: ReactNode;
-  /** Shown in the title's place while the conversation has no title. */
-  untitledLabel?: string;
+  /** Path of the page behind the assistant, which names the context tag. */
+  currentPagePath?: string;
   /** Rendered before the title, e.g. a back control. */
   headerLeading?: ReactNode;
   /** Names the expand toggle when it switches something other than the
@@ -790,7 +758,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     selectedConversationId,
     selectedConversationTitle,
     titleActions,
-    untitledLabel = "Halo",
+    currentPagePath,
     headerLeading,
     expandToggleLabels = {
       expand: "Expand window",
@@ -798,7 +766,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     },
     isFlush = false,
   } = props;
-  const screenContextNotice = formatScreenContextNotice(
+  const pageContext = getInAppAgentPageContext(
+    currentPagePath,
     screenContextDescription,
   );
   const capture = usePostHogClientCapture();
@@ -836,6 +805,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       ? ` (${historyAttentionCount} ${historyAttentionCount === 1 ? "needs" : "need"} attention)`
       : "";
   const hasUserMessage = messages.some((message) => message.role === "user");
+  // A turn in flight belongs to a conversation even before its first message.
+  const hasConversation =
+    selectedConversationId !== undefined ||
+    messages.length > 0 ||
+    isAssistantTurnInProgress;
   const conversationTitle = selectedConversationTitle?.trim() || null;
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
@@ -857,9 +831,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const lastSettledActivityIndex = displayItems.findLastIndex(
     (item, index) =>
       item.type === "activity" && !item.isInProgress && index > lastUserIndex,
-  );
-  const hasSettledAssistantReply = displayItems.some(
-    (item) => item.type === "assistant" && item.isFinalAnswer,
   );
 
   const backgroundHint = useInAppAgentBackgroundHint({
@@ -942,7 +913,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           isHeaderDragHandleEnabled ? "true" : undefined
         }
         className={cn(
-          "bg-card flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
+          "bg-card flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b py-1 pr-2 pl-3.5",
           isHeaderDragHandleEnabled && "cursor-move touch-none",
           // Double-click toggles, so never let it select the title instead.
           !isHandheld && "select-none",
@@ -965,20 +936,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {headerLeading}
+          <HaloIcon variant="header" />
           {conversationTitle ? (
             <p
-              className="min-w-0 truncate text-sm font-bold"
+              className="min-w-0 truncate text-base font-bold"
               title={conversationTitle}
             >
               {conversationTitle}
             </p>
           ) : (
-            <p
-              className="shrink-0 truncate text-sm font-bold"
-              title={untitledLabel}
-            >
-              {untitledLabel}
-            </p>
+            <p className="shrink-0 text-base font-bold">Halo</p>
           )}
           {titleActions ? (
             <div
@@ -993,25 +960,27 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           className="flex shrink-0 items-center gap-0.5"
           data-movable-resizable-panel-ignore-drag="true"
         >
-          <Tooltip
-            label="Start new conversation"
-            delay={100}
-            hoverableContent={false}
-          >
-            {({ getTriggerProps }) => (
-              <Button
-                {...getTriggerProps()}
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-6 shrink-0"
-                onClick={onNewConversation}
-                aria-label="Start new conversation"
-              >
-                <Plus size="base" color="default" />
-              </Button>
-            )}
-          </Tooltip>
+          {hasConversation ? (
+            <Tooltip
+              label="Start new conversation"
+              delay={100}
+              hoverableContent={false}
+            >
+              {({ getTriggerProps }) => (
+                <Button
+                  {...getTriggerProps()}
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 shrink-0"
+                  onClick={onNewConversation}
+                  aria-label="Start new conversation"
+                >
+                  <MessageSquarePlus size="base" color="default" />
+                </Button>
+              )}
+            </Tooltip>
+          ) : null}
           <DropdownMenu
             open={isConversationHistoryOpen}
             onOpenChange={(nextOpen) => {
@@ -1213,36 +1182,46 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   would start a turn in the conversation being left behind. */}
             {messages.length === 0 &&
             isSelectedConversationHydrating ? null : messages.length === 0 ? (
-              <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
-                <div>
-                  <HaloIcon variant="emptyState" />
+              <div className="flex w-full flex-1 flex-col justify-end gap-5 px-1">
+                <div className="flex flex-col gap-1.5">
+                  <HaloIcon variant="intro" />
+                  <h2 className="mt-2 text-xl font-bold">Ask Halo</h2>
+                  <p className="text-muted-foreground text-base leading-normal">
+                    {pageContext.visibility}
+                  </p>
                 </div>
-                <InAppAgentQuickActionPicker
-                  key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
-                  focusedActions={focusedQuickActions}
-                  initialContext={quickActionContext}
-                  isDisabled={isSubmitDisabled}
-                  onSelectAction={(action, context, position) => {
-                    capture("in_app_agent:quick_action_started", {
-                      quickActionKey: action.id,
-                      quickActionCategory: context,
-                      position,
-                    });
-                    submitInput(action.prompt);
-                  }}
-                />
+                <div>
+                  <InAppAgentQuickActionPicker
+                    key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
+                    focusedActions={focusedQuickActions}
+                    initialContext={quickActionContext}
+                    isDisabled={isSubmitDisabled}
+                    onSelectAction={(action, context, position) => {
+                      capture("in_app_agent:quick_action_started", {
+                        quickActionKey: action.id,
+                        quickActionCategory: context,
+                        position,
+                      });
+                      submitInput(action.prompt);
+                    }}
+                  />
+                </div>
               </div>
             ) : null}
 
-            <ol className="flex w-full flex-col gap-1 pb-4">
+            <ol className="flex w-full flex-col gap-2 pb-4">
               {displayItems.map((item, index) => {
                 if (item.type === "user") {
+                  const askedFrom = item.message.askedFrom
+                    ? getInAppAgentPageContext(item.message.askedFrom)
+                    : null;
+
                   return (
                     <li
                       key={item.message.id}
                       className={cn(
-                        "ml-auto w-fit max-w-[92%]",
-                        item.hasPreviousMessage && "mt-3",
+                        "ml-auto flex w-fit max-w-5/6 flex-col items-end gap-1.5",
+                        item.hasPreviousMessage && "mt-5",
                       )}
                     >
                       <InAppAgentMessage
@@ -1250,6 +1229,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         content={item.message.content}
                         isCompact={!isExpanded}
                       />
+                      {askedFrom ? (
+                        <Tag text={askedFrom.label} icon={askedFrom.icon} />
+                      ) : null}
                     </li>
                   );
                 }
@@ -1258,7 +1240,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   return (
                     <li
                       key={item.key}
-                      className={cn("w-full", item.followsUser && "mt-3")}
+                      className={cn("w-full", item.followsUser && "mt-4")}
                     >
                       <AssistantActivityGroup
                         messages={item.messages}
@@ -1296,7 +1278,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 return (
                   <li
                     key={message.id}
-                    className={cn("w-full", item.followsUser && "mt-3")}
+                    className={cn("w-full", item.followsUser && "mt-4")}
                   >
                     <InAppAgentMessage
                       role={message.role}
@@ -1397,17 +1379,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         ) : null}
         <div
           className={cn(
-            "p-1.5",
+            "px-3 pt-1.5 pb-3",
             (isExpanded || isAssistantTurnInProgress) && "pt-0",
           )}
         >
           {/* The composer separates from the transcript by elevation, not by a
-              rule: one hairline edge, a lifted surface, and a footer band a
-              step off the input. `overflow-hidden` keeps that band inside the
-              rounded corners. */}
+              rule: one contrast edge and a lifted surface. */}
           <form
             className={cn(
-              "border-border bg-card focus-within:border-border-contrast relative flex w-full cursor-text flex-col overflow-hidden rounded-md border shadow-sm transition-colors",
+              "border-border-contrast bg-card focus-within:border-primary-accent/55 focus-within:ring-primary-accent/12 relative flex w-full cursor-text flex-col gap-2.5 rounded-xl border pt-3 pr-2.5 pb-2.5 pl-3.5 shadow-md transition-colors focus-within:ring-3",
               isExpanded && "mx-auto max-w-3xl",
             )}
             onClick={() => {
@@ -1440,48 +1420,31 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               disabled={isComposerDisabled}
               aria-label="Message Halo"
               placeholder={
-                hasSettledAssistantReply
-                  ? "Reply..."
-                  : "Let me know what I can do for you..."
+                hasUserMessage ? "Ask a follow-up…" : pageContext.placeholder
               }
-              rows={1}
-              className="placeholder:text-muted-foreground max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 pb-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              rows={2}
+              className="placeholder:text-foreground-tertiary max-h-40 w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-base leading-normal shadow-none ring-0 outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-60"
             />
-            <div className="bg-muted flex min-h-9 w-full items-center justify-between gap-2 px-2 py-1.5">
-              <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
-                <Info aria-hidden="true" size="sm" />
-                <span className="truncate" title={screenContextNotice}>
-                  {screenContextNotice}
-                </span>
-              </p>
+            <div className="flex w-full items-center justify-between gap-2">
+              <Tag text={pageContext.currentLabel} icon={pageContext.icon} />
               {canStopRun ? (
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  className="w-8 shrink-0 rounded-full"
-                  aria-label={isCancellingRun ? "Stopping run" : "Stop run"}
-                  variant="outline"
+                <DsButton
+                  text={isCancellingRun ? "Stopping" : "Stop"}
+                  variant="secondary"
+                  icon={Square}
                   disabled={isCancellingRun}
                   onClick={() => {
                     executionStop?.onStop();
                   }}
-                >
-                  <Square
-                    size="base"
-                    color="muted"
-                    __rawClassName="fill-current"
-                  />
-                </Button>
+                />
               ) : (
-                <Button
-                  type="submit"
-                  size="icon-sm"
-                  className="w-8 shrink-0 rounded-full"
-                  aria-label="Send message"
+                <InAppAgentAskButton
                   disabled={isSubmitDisabled || !input.trim()}
-                >
-                  <SendHorizontal size="base" />
-                </Button>
+                  shortcutKeys={PANEL_SUBMIT_KEYS}
+                  onClick={() => {
+                    submitInput(input);
+                  }}
+                />
               )}
             </div>
           </form>

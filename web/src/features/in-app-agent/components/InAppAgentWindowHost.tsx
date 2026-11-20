@@ -173,24 +173,15 @@ export function InAppAgentWindowHost() {
                   />
                 ) : undefined
               }
-              // The full page keeps to new conversation, history and
-              // docking; minimize stays on the docked panel.
-              untitledLabel={
-                inlinePresentation === "full" ? "New chat" : undefined
-              }
               onDeleteConversation={(conversation) => {
                 deleteConversationDialog.openDialog(conversation);
               }}
               onExpandedChange={(nextIsExpanded) => {
                 setLayoutMode(nextIsExpanded ? "full" : "dock-right");
               }}
-              {...(inlinePresentation === "full"
-                ? { showCloseButton: false as const }
-                : {
-                    onClose: () => {
-                      setOpen(false);
-                    },
-                  })}
+              onClose={() => {
+                setOpen(false);
+              }}
             />
           </aside>
         ) : (

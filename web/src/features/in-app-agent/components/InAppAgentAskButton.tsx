@@ -1,7 +1,12 @@
 import { ArrowUp } from "@langfuse/icons";
 
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
+import {
+  KeyboardShortcut,
+  type KeyboardShortcutProps,
+} from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Button } from "@/src/components/ui/button";
+
+const DEFAULT_SHORTCUT_KEYS: KeyboardShortcutProps["keys"] = ["Mod", "Enter"];
 
 /**
  * Submit button for an assistant composer: arrow, label and the submit
@@ -10,9 +15,12 @@ import { Button } from "@/src/components/ui/button";
 export function InAppAgentAskButton({
   disabled,
   onClick,
+  shortcutKeys = DEFAULT_SHORTCUT_KEYS,
 }: {
   disabled: boolean;
   onClick: () => void;
+  /** The keys that submit in the composer this button belongs to. */
+  shortcutKeys?: KeyboardShortcutProps["keys"];
 }) {
   return (
     <Button
@@ -20,12 +28,12 @@ export function InAppAgentAskButton({
       aria-label="Ask"
       disabled={disabled}
       onClick={onClick}
-      className="gap-2"
+      className="shrink-0 gap-2"
     >
       <ArrowUp size="base" color="inherit" aria-hidden />
       <span>Ask</span>
       <span className="inline-flex">
-        <KeyboardShortcut variant="subtle" keys={["Mod", "Enter"]} />
+        <KeyboardShortcut variant="subtle" keys={shortcutKeys} />
       </span>
     </Button>
   );

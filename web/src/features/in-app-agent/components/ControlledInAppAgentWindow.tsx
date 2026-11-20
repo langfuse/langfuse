@@ -33,7 +33,6 @@ type ControlledInAppAgentWindowBaseProps = {
   isExpanded: boolean;
   onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onExpandedChange: (isExpanded: boolean) => void;
-  untitledLabel?: string;
   headerLeading?: ReactNode;
   expandToggleLabels?: { expand: string; collapse: string };
   isFlush?: boolean;
@@ -220,7 +219,7 @@ export function ControlledInAppAgentWindow(
       selectedConversationId={selectedConversationId}
       selectedConversationTitle={selectedConversationTitle}
       titleActions={titleActions}
-      untitledLabel={props.untitledLabel}
+      currentPagePath={router.asPath}
       headerLeading={props.headerLeading}
       expandToggleLabels={props.expandToggleLabels}
       isFlush={props.isFlush}
