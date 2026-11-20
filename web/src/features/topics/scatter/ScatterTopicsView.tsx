@@ -37,6 +37,7 @@ import {
 } from "../topic-trace-filters";
 import { type useTopicTraceFilters } from "../useTopicTraceFilters";
 import { useTopicResultsTraceSuggestions } from "../useTopicTraceFilter";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ScatterMap } from "./ScatterMap";
 
 /** The scatter above one-line topic rows, with the selected topic's traces beside them. */
@@ -164,11 +165,8 @@ export function ScatterTopicsView({
         .map((point) => point.traceId),
     );
   }, [mapData, selectedTopicId, isSearching, searchKey, searchTopics]);
-  const traceFieldMatches = useTraceFieldMatches(
-    projectId,
-    facet.map?.runId,
-    traceFieldFilters,
-  );
+  const { ids: traceFieldMatches, error: traceFieldMatchesError } =
+    useTraceFieldMatches(projectId, facet.map?.runId, traceFieldFilters);
   // Topic filters and trace field filters both have to match for a dot to stay lit.
   const highlightedTraceIds = useMemo(() => {
     if (!traceFieldMatches || mapData?.status !== "ready")
@@ -213,25 +211,43 @@ export function ScatterTopicsView({
         facet.map ? (
           <MapAndRowsSplit
             map={
-              <ScatterMap
-                key={facet.map.runId}
-                query={mapResult}
-                topics={mapTopics}
-                selectedTopic={null}
-                matchingTraceIds={highlightedTraceIds}
-                onSelectTopic={(topicId) =>
-                  topicId === null ? clearPickedTopic() : selectTopic(topicId)
-                }
-                onSelectTrace={(traceId) => {
-                  if (!traceId) return clearPickedTopic();
-                  if (document.fullscreenElement)
-                    document.exitFullscreen().catch(() => undefined);
-                  onOpenTrace(traceId);
-                }}
-                selectedTraceId={mapSelectedTraceId}
-                pinSelection
-                fillContainer
-              />
+              <>
+                {traceFieldMatchesError && (
+                  <div className="p-2">
+                    <Alert variant="destructive" size="sm">
+                      <Alert.Description>
+                        <p className="break-words">
+                          Matching dots could not load:{" "}
+                          {traceFieldMatchesError.message}
+                        </p>
+                      </Alert.Description>
+                    </Alert>
+                  </div>
+                )}
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <ScatterMap
+                    key={facet.map.runId}
+                    query={mapResult}
+                    topics={mapTopics}
+                    selectedTopic={null}
+                    matchingTraceIds={highlightedTraceIds}
+                    onSelectTopic={(topicId) =>
+                      topicId === null
+                        ? clearPickedTopic()
+                        : selectTopic(topicId)
+                    }
+                    onSelectTrace={(traceId) => {
+                      if (!traceId) return clearPickedTopic();
+                      if (document.fullscreenElement)
+                        document.exitFullscreen().catch(() => undefined);
+                      onOpenTrace(traceId);
+                    }}
+                    selectedTraceId={mapSelectedTraceId}
+                    pinSelection
+                    fillContainer
+                  />
+                </div>
+              </>
             }
             rows={rows}
           />
@@ -423,7 +439,13 @@ function useTraceFieldMatches(
     { enabled, placeholderData: keepPreviousData },
   );
   const traceIds = enabled ? matches.data?.traceIds : undefined;
-  return useMemo(() => traceIds && new Set(traceIds), [traceIds]);
+  const failed = enabled && matches.isError;
+  const ids = useMemo(
+    // A failed match dims every dot rather than lighting traces that may not match.
+    () => (failed ? new Set<string>() : traceIds && new Set(traceIds)),
+    [failed, traceIds],
+  );
+  return { ids, error: failed ? matches.error : null };
 }
 
 /** One topic picked in the list or on the map, as a search-bar filter. */

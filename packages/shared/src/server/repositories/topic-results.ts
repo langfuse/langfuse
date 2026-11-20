@@ -307,6 +307,21 @@ const READ_OPTIONS = {
     cancel_http_readonly_queries_on_client_close: 1,
   },
 } as const;
+const TRACE_FILTER_TIMEOUT_SECONDS = 20;
+// A trace filter scans events, so its resolve reads stay off the primary with bounded CPU.
+const TRACE_FILTER_READ_OPTIONS = {
+  preferredClickhouseService: "EventsReadOnly",
+  // The client must outlast the server limit for the timeout to be reported as one.
+  clickhouseConfigs: {
+    request_timeout: (TRACE_FILTER_TIMEOUT_SECONDS + 15) * 1000,
+  },
+  clickhouseSettings: {
+    ...READ_OPTIONS.clickhouseSettings,
+    max_threads: 2,
+    max_execution_time: TRACE_FILTER_TIMEOUT_SECONDS,
+    timeout_overflow_mode: "throw",
+  },
+} as const;
 
 type CandidateRow = {
   facet_id: string;
@@ -532,7 +547,7 @@ async function listCurrentRows<T extends CandidateRow>(
     const inCandidates = `has(${candidateTuples}, (facet_id, trace_id, unit_start_time${perRun ? ", clustering_run_id" : ""}))`;
     const orderSql = `ORDER BY unit_start_time ${direction}, trace_id ${direction}, facet_id ${direction}${perRun ? `, clustering_run_id ${direction}` : ""}`;
     const resolved = await queryClickhouse<T>({
-      ...READ_OPTIONS,
+      ...(traceFilter ? TRACE_FILTER_READ_OPTIONS : READ_OPTIONS),
       query: `WITH ${currentResultsSql(summaryConditions, [`trace_id IN ${traceIds}`])}
         ${resolveRowsSql({ input, params, source, perRun, inCandidates, assignmentConditions })}
         ${orderSql}`,

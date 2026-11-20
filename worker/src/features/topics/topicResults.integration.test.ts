@@ -4,6 +4,7 @@ import type { TopicAssignment, TopicSummary } from "@langfuse/shared/topics";
 import {
   ensureDefaultTopicFacets,
   selectTopicMapMatches,
+  TRACE_SPAN_MARGIN_MS,
   topicMatchingTraceIdsQuery,
   writeTopicAssignments,
   writeTopicSummaries,
@@ -390,7 +391,7 @@ describe("current Topics summaries and assignments", () => {
                 },
               ],
               from,
-              to: new Date(to.getTime() + 60 * 60_000),
+              to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
             },
             prisma,
           ),

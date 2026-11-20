@@ -52,6 +52,12 @@ export function createTopicTraceRegistry(
     },
   });
   const traceRegistry = traceFields ? topicsFilterRegistry : null;
+  // A later alias wins in the registry, so trace fields must not claim a topic field's name.
+  const topicNames = new Set(
+    ["topic", "topicId"]
+      .concat(topicRegistry.fields.flatMap((f) => [f.id, ...f.aliases]))
+      .map((name) => name.toLowerCase()),
+  );
   // The view reads plain filters, not a predicate.
   const registry = createFieldRegistry({
     ...(traceRegistry ?? topicRegistry),
@@ -68,7 +74,12 @@ export function createTopicTraceRegistry(
             }
           : field,
       ),
-      ...(traceRegistry?.fields ?? []),
+      ...(traceRegistry?.fields ?? []).map((field) => ({
+        ...field,
+        aliases: field.aliases.filter(
+          (alias) => !topicNames.has(alias.toLowerCase()),
+        ),
+      })),
     ],
     columns: [...topicRegistry.columns, ...(traceRegistry?.columns ?? [])],
     allowFreeText: true,
