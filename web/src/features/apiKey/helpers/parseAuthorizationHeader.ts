@@ -10,6 +10,11 @@ export type Credential =
   | { kind: "bearer"; token: string }
   | { kind: "malformed" };
 
+/** containsNulByte reports a credential no key can match: Postgres text cannot store NUL and rejects it in a query. */
+export function containsNulByte(value: string): boolean {
+  return value.includes("\u0000");
+}
+
 /** parseAuthorizationHeader decodes the Authorization header into its scheme, or `malformed` for anything unparsable. */
 export function parseAuthorizationHeader(
   header: string | undefined,
@@ -20,7 +25,9 @@ export function parseAuthorizationHeader(
     return { kind: "basic", ...decoded };
   }
   if (header?.startsWith(bearerPrefix)) {
-    return { kind: "bearer", token: header.slice(bearerPrefix.length) };
+    const token = header.slice(bearerPrefix.length);
+    if (containsNulByte(token)) return { kind: "malformed" };
+    return { kind: "bearer", token };
   }
   return { kind: "malformed" };
 }
@@ -37,5 +44,7 @@ function decodeBasic(
   }
   const [publicKey, secretKey] = decoded.split(":");
   if (!publicKey || !secretKey) return undefined;
+  if (containsNulByte(publicKey) || containsNulByte(secretKey))
+    return undefined;
   return { publicKey, secretKey };
 }
