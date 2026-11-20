@@ -206,6 +206,78 @@ describe("IngestionService unit tests", () => {
       expect(spoofedNonGateway.cost_details).toEqual({ total: 0.25 });
       expect(spoofedNonGateway.provided_cost_details).toEqual({ total: 0.25 });
     });
+
+    it("preserves saved gateway-calculated costs across legacy partial updates", async () => {
+      const addToQueue = vi.fn();
+      const ingestionService = new IngestionService(
+        {} as any,
+        {} as any,
+        { addToQueue } as any,
+        {} as any,
+      );
+      const timestamp = "2026-07-22T00:00:00.000Z";
+
+      vi.spyOn(
+        ingestionService as any,
+        "getClickhouseRecord",
+      ).mockResolvedValue({
+        id: "observation-id",
+        trace_id: "trace-id",
+        project_id: "project-id",
+        type: "GENERATION",
+        name: "gateway-generation",
+        environment: "default",
+        start_time: "2026-07-22 00:00:00.000",
+        created_at: "2026-07-22 00:00:00.000",
+        updated_at: "2026-07-22 00:00:00.000",
+        event_ts: "2026-07-22 00:00:00.000",
+        is_deleted: 0,
+        provided_usage_details: { input: 20, total: 20 },
+        usage_details: { input: 20, total: 20 },
+        provided_cost_details: {},
+        cost_details: { input: 0.1, total: 0.1 },
+        total_cost: 0.1,
+        metadata: {
+          "langfuse.gateway.api_key.id": "gateway-key-1",
+          "langfuse.gateway.cost.source": "calculated",
+        },
+      });
+      vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+
+      await (ingestionService as any).processObservationEventList({
+        projectId: "project-id",
+        entityId: "observation-id",
+        createdAtTimestamp: new Date(timestamp),
+        observationEventList: [
+          {
+            id: "update-event-id",
+            timestamp,
+            type: "generation-update",
+            body: {
+              id: "observation-id",
+              traceId: "trace-id",
+              metadata: { note: "patched" },
+              environment: "default",
+            },
+          },
+        ],
+        writeToStagingTables: false,
+        attribution: {
+          ingestionApiKey: "pk-lf-test",
+          ingestionSdkName: "langfuse-test",
+          ingestionSdkVersion: "0.0.0",
+        },
+      });
+
+      const observationRecord = addToQueue.mock.calls.find(
+        ([table]) => table === TableName.Observations,
+      )?.[1];
+      expect(observationRecord?.cost_details).toEqual({
+        input: 0.1,
+        total: 0.1,
+      });
+      expect(observationRecord?.provided_cost_details).toEqual({});
+    });
   });
 
   it("overflows only the direct events_full copy and preserves the enriched record", async () => {

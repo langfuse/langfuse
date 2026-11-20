@@ -65,6 +65,7 @@ import {
   overwriteObject,
 } from "./utils";
 import {
+  hasAiGatewayCalculatedCostMetadata,
   isAiGatewayCalculatedCost,
   resolveAiGatewayAttribution,
 } from "./aiGatewayAttribution";
@@ -1048,13 +1049,12 @@ export class IngestionService {
       mergedObservationRecord.tool_call_names = normalizedTools.toolCallNames;
     }
 
+    const hasIncomingUsage = observationRecords.some(
+      (record) => Object.keys(record.provided_usage_details ?? {}).length > 0,
+    );
     // Only check when the incoming events carry usage themselves — partial
     // updates merge stale usage back in from ClickHouse and must not re-fire.
-    if (
-      observationRecords.some(
-        (record) => Object.keys(record.provided_usage_details ?? {}).length > 0,
-      )
-    ) {
+    if (hasIncomingUsage) {
       this.warnOnUsageTotalMismatch(
         mergedObservationRecord.provided_usage_details ?? {},
         mergedObservationRecord,
@@ -1062,10 +1062,30 @@ export class IngestionService {
       );
     }
 
+    // Gateway-calculated observations clear provided_cost_details so the UI
+    // shows them as calculated. When a later partial update supplies no new
+    // usage or cost, feed the saved cost_details back into pricing so the
+    // gateway's original charge is not overwritten or dropped.
+    const savedGatewayCalculatedCost =
+      Object.keys(mergedObservationRecord.provided_cost_details ?? {})
+        .length === 0 &&
+      !hasIncomingUsage &&
+      hasAiGatewayCalculatedCostMetadata(
+        clickhouseObservationRecord?.metadata,
+      ) &&
+      Object.keys(clickhouseObservationRecord?.cost_details ?? {}).length > 0
+        ? clickhouseObservationRecord!.cost_details
+        : undefined;
+
     const generationUsage = await this.getGenerationUsage({
       projectId,
       pricingMatchAttributeValues,
-      observationRecord: mergedObservationRecord,
+      observationRecord: savedGatewayCalculatedCost
+        ? {
+            ...mergedObservationRecord,
+            provided_cost_details: savedGatewayCalculatedCost,
+          }
+        : mergedObservationRecord,
     });
     const finalObservationRecord = {
       ...mergedObservationRecord,

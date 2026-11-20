@@ -6,6 +6,12 @@ import {
   isAiGatewayIngestionApiKey,
 } from "@langfuse/shared/src/server";
 
+export const hasAiGatewayCalculatedCostMetadata = (
+  metadata: Record<string, unknown> | null | undefined,
+): boolean =>
+  metadata?.[AI_GATEWAY_COST_SOURCE_METADATA_KEY] ===
+  AI_GATEWAY_COST_SOURCE_CALCULATED;
+
 /**
  * Whether the AI gateway calculated the span's cost details from model pricing
  * rather than relaying a provider-reported cost. Trusted only on uploads
@@ -16,8 +22,7 @@ export const isAiGatewayCalculatedCost = (params: {
   metadata: Record<string, unknown>;
 }): boolean =>
   isAiGatewayIngestionApiKey(params.ingestionApiKey) &&
-  params.metadata[AI_GATEWAY_COST_SOURCE_METADATA_KEY] ===
-    AI_GATEWAY_COST_SOURCE_CALCULATED;
+  hasAiGatewayCalculatedCostMetadata(params.metadata);
 
 /**
  * Key and service a span is attributed to on the events table.
