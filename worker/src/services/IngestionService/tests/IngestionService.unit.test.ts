@@ -207,7 +207,7 @@ describe("IngestionService unit tests", () => {
       expect(spoofedNonGateway.provided_cost_details).toEqual({ total: 0.25 });
     });
 
-    it("preserves saved gateway-calculated costs across legacy partial updates", async () => {
+    it("clears provided costs on gateway legacy writes and preserves cost_details across partial updates", async () => {
       const addToQueue = vi.fn();
       const ingestionService = new IngestionService(
         {} as any,
@@ -216,33 +216,53 @@ describe("IngestionService unit tests", () => {
         {} as any,
       );
       const timestamp = "2026-07-22T00:00:00.000Z";
+      const getClickhouseRecord = vi
+        .spyOn(ingestionService as any, "getClickhouseRecord")
+        .mockResolvedValueOnce(null);
+      vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
 
-      vi.spyOn(
-        ingestionService as any,
-        "getClickhouseRecord",
-      ).mockResolvedValue({
-        id: "observation-id",
-        trace_id: "trace-id",
-        project_id: "project-id",
-        type: "GENERATION",
-        name: "gateway-generation",
-        environment: "default",
-        start_time: "2026-07-22 00:00:00.000",
-        created_at: "2026-07-22 00:00:00.000",
-        updated_at: "2026-07-22 00:00:00.000",
-        event_ts: "2026-07-22 00:00:00.000",
-        is_deleted: 0,
-        provided_usage_details: { input: 20, total: 20 },
-        usage_details: { input: 20, total: 20 },
-        provided_cost_details: {},
-        cost_details: { input: 0.1, total: 0.1 },
-        total_cost: 0.1,
-        metadata: {
-          "langfuse.gateway.api_key.id": "gateway-key-1",
-          "langfuse.gateway.cost.source": "calculated",
+      await (ingestionService as any).processObservationEventList({
+        projectId: "project-id",
+        entityId: "observation-id",
+        createdAtTimestamp: new Date(timestamp),
+        observationEventList: [
+          {
+            id: "create-event-id",
+            timestamp,
+            type: "generation-create",
+            body: {
+              id: "observation-id",
+              traceId: "trace-id",
+              name: "gateway-generation",
+              usageDetails: { input: 20, total: 20 },
+              costDetails: { input: 0.1, total: 0.1 },
+              metadata: {
+                "langfuse.gateway.api_key.id": "gateway-key-1",
+                "langfuse.gateway.cost.source": "calculated",
+              },
+              environment: "default",
+            },
+          },
+        ],
+        writeToStagingTables: false,
+        attribution: {
+          ingestionApiKey: "gateway:grant-1",
+          ingestionSdkName: "langfuse-ai-gateway",
+          ingestionSdkVersion: "1.0.0",
         },
       });
-      vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+
+      const createdRecord = addToQueue.mock.calls.find(
+        ([table]) => table === TableName.Observations,
+      )?.[1];
+      expect(createdRecord?.cost_details).toEqual({
+        input: 0.1,
+        total: 0.1,
+      });
+      expect(createdRecord?.provided_cost_details).toEqual({});
+
+      addToQueue.mockClear();
+      getClickhouseRecord.mockResolvedValueOnce(createdRecord);
 
       await (ingestionService as any).processObservationEventList({
         projectId: "project-id",
@@ -269,14 +289,14 @@ describe("IngestionService unit tests", () => {
         },
       });
 
-      const observationRecord = addToQueue.mock.calls.find(
+      const updatedRecord = addToQueue.mock.calls.find(
         ([table]) => table === TableName.Observations,
       )?.[1];
-      expect(observationRecord?.cost_details).toEqual({
+      expect(updatedRecord?.cost_details).toEqual({
         input: 0.1,
         total: 0.1,
       });
-      expect(observationRecord?.provided_cost_details).toEqual({});
+      expect(updatedRecord?.provided_cost_details).toEqual({});
     });
   });
 
