@@ -66,6 +66,7 @@ const entityLabels = {
   comments: "Comments",
   promptExperiments: "Prompt experiments",
   TableViewPresets: "Table view presets",
+  SessionViews: "Session views",
   automations: "Automations",
   alerts: "Alerts",
   gateway: "AI Gateway",
