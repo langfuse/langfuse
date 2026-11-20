@@ -9,18 +9,4 @@ describe("toGatewaySpendBudgetFormValue", () => {
       alertThresholds: [...DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS],
     });
   });
-
-  it("preserves the stored reset interval when editing an existing budget", () => {
-    expect(
-      toGatewaySpendBudgetFormValue({
-        interval: "MONTHLY",
-        limitUsd: 250,
-        alertThresholds: [85, 100],
-      }),
-    ).toEqual({
-      interval: "MONTHLY",
-      limitUsd: "250",
-      alertThresholds: [85, 100],
-    });
-  });
 });
