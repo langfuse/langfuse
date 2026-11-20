@@ -7,8 +7,7 @@ import {
   createOrgMembership,
   createProjectMembership,
 } from "@langfuse/shared/memberships";
-import { Role, type Plan } from "@langfuse/shared";
-import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
+import { Role, type Plan, entitlementAccess } from "@langfuse/shared";
 import { createApiKey } from "@langfuse/shared/src/server";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";

@@ -6,11 +6,10 @@ import {
   createOrgProjectAndApiKey,
   EntityChangeQueue,
 } from "@langfuse/shared/src/server";
-import { PromptType } from "@langfuse/shared";
+import { PromptType, entitlementAccess } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import waitForExpect from "wait-for-expect";
-import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 function createCaller({

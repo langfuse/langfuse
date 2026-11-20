@@ -94,11 +94,9 @@ import {
   isLangfuseAITracingConfigured,
   shouldSkipScoresDedup,
   isForceV3ExperienceProject,
-} from "@langfuse/shared/src/server";
-import {
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,
-} from "@/src/features/entitlements/server/getPlan";
+} from "@langfuse/shared/src/server";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import {
   type EmailCodeRequest,

@@ -1,10 +1,10 @@
-import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeCatalogue";
-import { env } from "@/src/env.mjs";
+import { env } from "../../env";
+import { type CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
 import {
   chbPlanCodeToPlan,
   type Plan,
-  type CloudConfigSchema,
-} from "@langfuse/shared";
+} from "../../features/entitlements/plans";
+import { mapStripeProductIdToPlan } from "../../features/entitlements/stripeProducts";
 
 /**
  * Get the plan of the organization based on the cloud configuration. Used to add this plan to the organization object in JWT via NextAuth.
@@ -12,11 +12,7 @@ import {
 export function getOrganizationPlanServerSide(
   cloudConfig?: CloudConfigSchema,
 ): Plan {
-  if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    // in dev, grant team plan to all organizations
-    // if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV") {
-    //   return "cloud:team";
-    // }
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     if (cloudConfig) {
       // manual plan override
       if (cloudConfig.plan) {
@@ -31,9 +27,10 @@ export function getOrganizationPlanServerSide(
             return "cloud:team";
           case "Enterprise":
             return "cloud:enterprise";
-          default:
+          default: {
             const exhaustiveCheck: never = cloudConfig.plan;
             throw new Error(`Unhandled plan case: ${exhaustiveCheck}`);
+          }
         }
       }
       // ClickHouse Billing plan. Keyed on organizationId, not planCode, so a
