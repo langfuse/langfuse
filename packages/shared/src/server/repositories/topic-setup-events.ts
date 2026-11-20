@@ -27,7 +27,7 @@ const summarizedTraceIdsSql = (days: TopicSetupDays) => `
     AND unit_start_time >= {now: DateTime64(3)} - INTERVAL ${days} DAY
     AND trace_id != ''
     AND (facet_id, facet_version) IN arrayZip({facetIds: Array(String)}, {facetVersions: Array(UInt32)})
-    AND (processing_state != 'complete' OR (embedding_model = {embeddingModel: String} AND length(embedding) = {embeddingDimensions: UInt32}))
+    AND (processing_state != 'complete' OR (embedding_model = {embeddingModel: String} AND embedding.size0 = {embeddingDimensions: UInt32}))
   GROUP BY trace_id
   HAVING uniqExact(facet_id) = length({facetIds: Array(String)})`;
 

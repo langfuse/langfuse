@@ -160,13 +160,14 @@ vi.mock("@langfuse/shared/topics/server", () => {
             a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
           ),
     ),
-    getNewestTopicClusteringSummaries: async (
+    getSampledTopicClusteringSummaries: async (
       projectId: string,
       facet: TopicFacetRef,
       embeddingConfig: TopicEmbeddingConfig,
       timeRange: TopicTimeRange,
-    ) =>
-      [...state.summaries.values()]
+    ) => ({
+      timeRange,
+      summaries: [...state.summaries.values()]
         .filter(
           (row) =>
             row.projectId === projectId &&
@@ -179,6 +180,7 @@ vi.mock("@langfuse/shared/topics/server", () => {
             inTimeRange(row, timeRange),
         )
         .sort((a, b) => b.unitStartTime.localeCompare(a.unitStartTime)),
+    }),
     getTopicRun: async (_project: string, id: string) =>
       state.runs.get(id) ?? null,
     readTopicRunTraceIds: async (
@@ -310,7 +312,9 @@ function seedSummaries(
         facetVersion: selected.version,
         traceId,
         sessionId: "session",
-        triggerType: "manual",
+        triggerType: "rule",
+        ruleIds: [],
+        executionId: null,
         unitStartTime: "2026-01-01T00:00:00.000Z",
         environment: "production",
         traceName: "Customer support",
@@ -319,6 +323,7 @@ function seedSummaries(
         embedding,
         transcriptId: "revision",
         transcriptVersion: TOPICS_TEXT_VERSION,
+        transcriptBytes: 0,
         summaryModel: "gpt-4.1-nano",
         embeddingModel: "eu.cohere.embed-v4:0",
         providedUsageDetails: {},
