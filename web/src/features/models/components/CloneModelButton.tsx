@@ -2,6 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { type GetModelResult } from "@/src/features/models/validation";
 import {
+  cloneLabelFor,
   type ModelOwner,
   useCanEditModels,
 } from "@/src/features/models/modelOwner";
@@ -21,11 +22,11 @@ export const CloneModelButton = ({
         <Button
           variant="outline"
           disabled={!hasAccess}
-          title="Clone model"
+          title={cloneLabelFor(owner)}
           className="flex items-center"
           onClick={openDialog}
         >
-          <span>Clone</span>
+          <span>{cloneLabelFor(owner)}</span>
         </Button>
       )}
     </UpsertModelFormDialogController>

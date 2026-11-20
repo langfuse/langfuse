@@ -2,6 +2,7 @@ import { fn } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { LangfuseDefaultNameWarning } from "@/src/features/models/components/LangfuseDefaultNameWarning/LangfuseDefaultNameWarning";
 import { ModelFormDialogContent } from "./UpsertModelFormDialogController";
 
 const meta = preview.meta({
@@ -62,5 +63,35 @@ export const Edit = meta.story({
     },
     title: "Edit Model",
     description: "acme-chat-1",
+  },
+});
+
+export const CloneLangfuseDefaultToOrganization = meta.story({
+  args: {
+    source: {
+      action: "clone",
+      modelData: {
+        id: "langfuse-gpt-4o",
+        scope: "LANGFUSE",
+        projectId: null,
+        modelName: "gpt-4o",
+        matchPattern: "(?i)^(openai/)?(gpt-4o)$",
+        tokenizerId: "openai",
+        tokenizerConfig: null,
+        pricingTiers: [
+          {
+            id: "tier-1",
+            name: "Standard",
+            isDefault: true,
+            priority: 0,
+            conditions: [],
+            prices: { input: 0.0000025, output: 0.00001 },
+          },
+        ],
+      },
+    },
+    title: "Clone Model",
+    renderNameHint: (modelName) =>
+      modelName === "gpt-4o" ? <LangfuseDefaultNameWarning /> : null,
   },
 });

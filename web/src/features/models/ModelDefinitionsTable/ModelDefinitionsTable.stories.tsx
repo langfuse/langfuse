@@ -1,6 +1,8 @@
+import { type ComponentProps } from "react";
 import { fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
+import { modelMaintainerByScope } from "@/src/features/models/modelMaintainer";
 import {
   ModelDefinitionsTable,
   type ModelTableRow,
@@ -8,68 +10,128 @@ import {
 
 const meta = preview.meta({ component: ModelDefinitionsTable });
 
-const model: ModelTableRow = {
-  modelId: "model-1",
-  maintainer: "Langfuse",
-  modelName: "example-model",
-  matchPattern: "^example-model$",
-  editable: false,
+const row = ({
+  id,
+  name,
+  scope,
+  editable,
+  isOverridden = false,
+}: {
+  id: string;
+  name: string;
+  scope: ModelTableRow["serverResponse"]["scope"];
+  editable: boolean;
+  isOverridden?: boolean;
+}): ModelTableRow => ({
+  modelId: id,
+  maintainer: modelMaintainerByScope[scope],
+  modelName: name,
+  matchPattern: `(?i)^(${name})$`,
+  editable,
+  isOverridden,
   serverResponse: {
-    id: "model-1",
-    scope: "LANGFUSE",
-    projectId: null,
-    modelName: "example-model",
-    matchPattern: "^example-model$",
-    tokenizerId: "openai",
+    id,
+    scope,
+    projectId: scope === "PROJECT" ? "project-1" : null,
+    modelName: name,
+    matchPattern: `(?i)^(${name})$`,
+    tokenizerId: null,
     tokenizerConfig: null,
     pricingTiers: [],
   },
-};
+});
 
-export const Default = meta.story({
+const sharedArgs = {
+  pagination: {
+    mode: "offset",
+    totalCount: 4,
+    state: { pageIndex: 0, pageSize: 50 },
+    onChange: fn(),
+  },
+  search: { value: "", onChange: fn() },
+  rowHeight: "m",
+  onRowHeightChange: fn(),
+  toolbarActions: [
+    { id: "add-model", label: "Add Model Definition", onClick: fn() },
+  ],
+  modelActions: {
+    canEdit: true,
+    onClone: fn(),
+    onEdit: fn(),
+    onDelete: fn(),
+  },
+  onRowClick: fn(),
+} satisfies Partial<ComponentProps<typeof ModelDefinitionsTable>>;
+
+export const ProjectModels = meta.story({
   args: {
+    ...sharedArgs,
     data: {
       status: "success",
       data: [
-        model,
-        {
-          ...model,
-          modelId: "model-2",
-          modelName: "custom-model",
-          maintainer: "User",
-          editable: true,
-          serverResponse: {
-            ...model.serverResponse,
-            id: "model-2",
-            scope: "PROJECT",
-            projectId: "project-1",
-          },
-        },
+        row({ id: "p1", name: "acme-chat", scope: "PROJECT", editable: true }),
+        row({
+          id: "o1",
+          name: "acme-chat",
+          scope: "ORGANIZATION",
+          editable: false,
+          isOverridden: true,
+        }),
+        row({
+          id: "o2",
+          name: "acme-embed",
+          scope: "ORGANIZATION",
+          editable: false,
+        }),
+        row({ id: "l1", name: "gpt-4o", scope: "LANGFUSE", editable: false }),
       ],
     },
-    pagination: {
-      mode: "offset",
-      totalCount: 2,
-      state: { pageIndex: 0, pageSize: 50 },
-      onChange: fn(),
+    lastUsed: { p1: new Date("2026-11-19"), o2: new Date("2026-11-18") },
+    cloneLabel: "Clone to project",
+  },
+});
+
+export const OrganizationModels = meta.story({
+  args: {
+    ...sharedArgs,
+    data: {
+      status: "success",
+      data: [
+        row({
+          id: "o1",
+          name: "acme-chat",
+          scope: "ORGANIZATION",
+          editable: true,
+        }),
+        row({
+          id: "o3",
+          name: "gpt-4o",
+          scope: "ORGANIZATION",
+          editable: true,
+        }),
+        row({
+          id: "l1",
+          name: "gpt-4o",
+          scope: "LANGFUSE",
+          editable: false,
+          isOverridden: true,
+        }),
+        row({
+          id: "l2",
+          name: "claude-sonnet-4-5",
+          scope: "LANGFUSE",
+          editable: false,
+        }),
+      ],
     },
-    search: { value: "", onChange: fn() },
-    rowHeight: "m",
-    onRowHeightChange: fn(),
-    lastUsed: { "model-1": new Date("2026-09-01") },
-    toolbarActions: [
-      { id: "add-model", label: "Add Model Definition", onClick: fn() },
-    ],
-    modelActions: {
-      canEdit: true,
-      onClone: fn(),
-      onEdit: fn(),
-      onDelete: fn(),
-    },
-    onRowClick: fn(),
+    cloneLabel: "Clone to organization",
   },
 });
 
 export const Loading = meta.story({
-  args: { ...Default.input.args, data: { status: "loading" } },
+  args: {
+    ...ProjectModels.input.args,
+    data: { status: "loading" },
+    lastUsed: "loading",
+  },
 });
