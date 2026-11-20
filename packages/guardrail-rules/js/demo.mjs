@@ -3,7 +3,9 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { validate } = require(`${process.env.OUT ?? "/tmp/guardrail-rules-pkg"}/guardrail_rules.js`);
+const { validate } = require(
+  `${process.env.OUT ?? "/tmp/guardrail-rules-pkg"}/guardrail_rules.js`,
+);
 
 const check = (patterns, limits) => {
   const started = performance.now();
@@ -26,7 +28,12 @@ const cases = {
 };
 
 for (const [name, patterns] of Object.entries(cases)) {
-  const limits = name.startsWith("too big") ? { max_rule_bytes: 16 * 1024 } : undefined;
+  const limits = name.startsWith("too big")
+    ? { max_rule_bytes: 16 * 1024 }
+    : undefined;
   console.log(name.padEnd(32), JSON.stringify(check(patterns, limits)));
 }
-console.log("too many rules".padEnd(32), JSON.stringify(check(["a", "b", "c"], { max_rules: 2 })));
+console.log(
+  "too many rules".padEnd(32),
+  JSON.stringify(check(["a", "b", "c"], { max_rules: 2 })),
+);
