@@ -12,6 +12,10 @@ import {
   type AccessAuditRecorder,
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { recordMcpAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
+import type {
+  Tool,
+  ServerContext as McpRequestContext,
+} from "@modelcontextprotocol/server";
 import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
 
@@ -21,6 +25,8 @@ import type { ServerContext } from "../types";
 export type ToolHandler<TInput> = (
   input: TInput,
   context: ServerContext,
+  /** The SDK's context of the tools/call request; absent in direct calls. */
+  mcpRequest?: McpRequestContext,
 ) => Promise<unknown>;
 
 type StringKeys<T> = {
@@ -93,7 +99,7 @@ export interface ToolDefinition<TName extends string = string> {
   name: TName;
   description: string;
   action: ApiAction;
-  inputSchema: Record<string, unknown>;
+  inputSchema: Tool["inputSchema"];
   annotations?: {
     readOnlyHint?: boolean;
     destructiveHint?: boolean;
@@ -103,7 +109,9 @@ export interface ToolDefinition<TName extends string = string> {
 
 type JsonSchemaObject = Record<string, unknown>;
 
-function isObjectJsonSchema(schema: JsonSchemaObject): boolean {
+function isObjectJsonSchema(
+  schema: JsonSchemaObject,
+): schema is Tool["inputSchema"] {
   return schema.type === "object";
 }
 
@@ -219,11 +227,13 @@ export function defineTool<TInput, const TName extends string>(
   const wrappedHandler: ToolHandler<TInput> = async (
     rawInput: unknown,
     context: ServerContext,
+    mcpRequest?: McpRequestContext,
   ) => {
     // Validate input with the full schema (including refinements)
     const validatedInput = inputSchema.parse(rawInput);
+
     if (!("accessAudit" in options)) {
-      return await options.handler(validatedInput, context);
+      return await options.handler(validatedInput, context, mcpRequest);
     }
 
     const { audit, toRead } = collectAccessRead(options.accessAudit);

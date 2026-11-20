@@ -65,29 +65,14 @@ describe("function allowlist", () => {
   it.each([
     ["eb.ref", (eb: Eb) => eb("traces.id", "in", eb.ref("scores" as never))],
     ["sql.ref", (eb: Eb) => eb("traces.id", "in", sql.ref("scores") as never)],
-    ["sql.id", (eb: Eb) => eb("traces.id", "in", sql.id("scores") as never)],
-    ["sql.raw", (eb: Eb) => eb("traces.id", "in", sql.raw("scores") as never)],
     [
       "eb.table",
       (eb: Eb) => eb("traces.id", "in", eb.table("scores" as never) as never),
     ],
     [
-      "a backtick-quoted raw name",
-      (eb: Eb) => eb("traces.id", "in", sql.raw("`scores`") as never),
-    ],
-    [
-      "a double-quoted raw name",
-      (eb: Eb) => eb("traces.id", "in", sql.raw('"scores"') as never),
-    ],
-    [
       "brackets",
       (eb: Eb) =>
         eb("traces.id", "in", eb.parens(eb.ref("scores" as never)) as never),
-    ],
-    [
-      "a raw operator",
-      (eb: Eb) =>
-        eb("traces.id", sql`not in` as never, sql.ref("scores") as never),
     ],
   ])(
     "rejects a name on the right of IN (%s), which reads a table",

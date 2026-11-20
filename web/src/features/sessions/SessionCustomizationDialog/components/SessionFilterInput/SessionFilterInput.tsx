@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
-import { ObservationType, type FilterState } from "@langfuse/shared";
+import {
+  ObservationLevel,
+  ObservationType,
+  type FilterState,
+} from "@langfuse/shared";
 import {
   QueryInput,
   useQueryInputController,
@@ -17,6 +21,7 @@ import { SESSION_TRACE_FIELD_REGISTRY } from "../../../sessionTraceSearchRegistr
 
 const SESSION_FILTER_OPTIONS = {
   type: Object.values(ObservationType).map((value) => ({ value })),
+  level: Object.values(ObservationLevel).map((value) => ({ value })),
 };
 
 function filterKey(filter: FilterState[number]) {

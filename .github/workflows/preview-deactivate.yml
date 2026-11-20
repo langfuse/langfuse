@@ -29,7 +29,7 @@ concurrency:
 jobs:
   cleanup:
     name: Delete preview deployment records
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     # AWS_PREVIEW_ECR_PUSH_ROLE_ARN is the preview-system feature flag (same
     # gate as preview-build / preview-autolabel): unset => system off, no
     # deployments were ever recorded.

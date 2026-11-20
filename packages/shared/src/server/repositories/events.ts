@@ -1,3 +1,4 @@
+import { visibleModelsWhere } from "../ingestion/modelVisibility";
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { isTopicFilter } from "../../topics";
 import { topicFilterConditions } from "../topics/trace-filter";
@@ -8,7 +9,6 @@ import {
   type ClickHouseSettings,
 } from "@clickhouse/client";
 import {
-  sql,
   type AliasableExpression,
   type AliasedExpression,
   type Expression,
@@ -30,7 +30,10 @@ import {
 } from "../clickhouse/client";
 import { instrumentAsync, recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
-import { AI_GATEWAY_SERVICE_NAME } from "../../features/ai-gateway/constants";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "../../features/ai-gateway/constants";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import type { ClickHouseDatabase } from "../query-ast/schema";
@@ -40,6 +43,7 @@ import {
   byteLength,
   count,
   dateDiff,
+  emptyMap,
   startsWith,
   leftUTF8,
   limitBy,
@@ -205,6 +209,7 @@ import {
 } from "../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "./constants";
 import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
+import { traceDeleteCutoffFilter } from "../../features/batchAction/traceDeletePredicate";
 import {
   findUiColumnMapping,
   type UiColumnMappings,
@@ -382,7 +387,7 @@ async function enrichObservationsWithModelData(
                 id: {
                   in: uniqueModels,
                 },
-                OR: [{ projectId: projectId }, { projectId: null }],
+                ...visibleModelsWhere(projectId),
               },
               include: {
                 Price: {
@@ -888,12 +893,7 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
     projectId: props.projectId,
     filter: [
       ...props.filter,
-      {
-        column: "startTime",
-        operator: "<" as const,
-        value: props.cutoffCreatedAt,
-        type: "datetime" as const,
-      },
+      traceDeleteCutoffFilter("events", props.cutoffCreatedAt),
     ],
     searchQuery: props.searchQuery,
     searchType: props.searchType,
@@ -1346,7 +1346,7 @@ export const getTraceByIdFromEventsTable = async ({
       .orderBy("timestamp", "desc");
 
   const metadataSelect = excludeMetadata
-    ? sql`map()`.as("metadata")
+    ? emptyMap<string>().as("metadata")
     : "t.metadata";
 
   const builder = db
@@ -2304,6 +2304,7 @@ async function runObservationsScanQuery<T>(
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
     abortSignal,
+    callerDeadline: true,
     clickhouseConfigs: { request_timeout: OBSERVATIONS_SCAN_BUDGET_MS },
     clickhouseSettings: {
       read_in_order_use_buffering: 0,
@@ -3651,8 +3652,8 @@ export const streamObservationIOFieldFromEventsTable = (
 
 /**
  * Full raw I/O + metadata for ONE observation, scoped to a session (the
- * session-detail download fallback for payloads too large to render inline,
- * LFE-10958). Callers are session-authorized (public sessions included), so
+ * session-detail download fallback for payloads too large to render inline).
+ * Callers are session-authorized (public sessions included), so
  * the session_id predicate is part of the authorization: the query itself
  * guarantees the observation belongs to that session — never widen it.
  */
@@ -4440,6 +4441,67 @@ export const getLatestEvaluatorRunCost = async (
   });
 
   return rows[0] ? Number(rows[0].trace_total_cost) : null;
+};
+
+/** Gateway ingestion stamps the calling key's owner on every generation. */
+const GATEWAY_KEY_OWNER_USER_ID_EXPRESSION = `e.metadata_values[indexOf(e.metadata_names, '${AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY}')]`;
+
+/** The column that identifies a spend limit's subject on gateway generations. */
+const GATEWAY_SPEND_SUBJECT_COLUMNS = {
+  API_KEY: "e.ingestion_api_key",
+  USER: GATEWAY_KEY_OWNER_USER_ID_EXPRESSION,
+  // The gateway records all of an organization's requests in its one ingestion project.
+  ORGANIZATION: "e.project_id",
+} as const;
+
+/**
+ * USD each gateway key, each user's gateway keys, or the organization (by its
+ * ingestion project's id) spent since the subject's
+ * own `since`, in one scan from the earliest. Subjects without spend in their
+ * window are absent from the result.
+ */
+export const getGatewaySpendSinceFromEvents = async (params: {
+  projectId: string;
+  scope: keyof typeof GATEWAY_SPEND_SUBJECT_COLUMNS;
+  subjects: { id: string; since: Date }[];
+}): Promise<{ id: string; spendUsd: number }[]> => {
+  if (params.subjects.length === 0) return [];
+
+  const column = GATEWAY_SPEND_SUBJECT_COLUMNS[params.scope];
+  const earliest = new Date(
+    Math.min(...params.subjects.map(({ since }) => since.getTime())),
+  );
+  const { query, params: queryParams } = new EventsAggQueryBuilder({
+    projectId: params.projectId,
+    groupByColumn: column,
+    selectExpression: `${column} as subject_id, toString(sum(e.total_cost)) as spend`,
+  })
+    .whereRaw("e.start_time >= {earliest: DateTime64(3)}", {
+      earliest: convertDateToClickhouseDateTime(earliest),
+    })
+    .whereRaw("e.service_name = {gatewayServiceName: String}", {
+      gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
+    })
+    .whereRaw(`${column} IN {subjectIds: Array(String)}`, {
+      subjectIds: params.subjects.map(({ id }) => id),
+    })
+    .whereRaw(
+      `toUnixTimestamp64Milli(e.start_time) >= arrayElement({sinceMs: Array(Int64)}, indexOf({subjectIds: Array(String)}, ${column}))`,
+      { sinceMs: params.subjects.map(({ since }) => since.getTime()) },
+    )
+    .buildWithParams();
+
+  const rows = await queryClickhouse<{ subject_id: string; spend: string }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    id: row.subject_id,
+    spendUsd: Number(row.spend),
+  }));
 };
 
 const EVALUATOR_HEALTH_RECENT_EXECUTIONS = 50;

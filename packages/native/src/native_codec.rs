@@ -23,15 +23,21 @@ pub(crate) struct DateTime64Micros(pub(crate) i64);
 pub(crate) struct Decimal64(pub(crate) i64);
 
 #[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SkillReference {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub langfuse_skill_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_version: Option<u32>,
     pub skill_name: String,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SkillResourceLoaded {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub langfuse_skill_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_version: Option<u32>,
     pub skill_name: String,
     pub file_path: String,

@@ -5,7 +5,6 @@
  * Following Sentry pattern of categorizing and formatting errors appropriately.
  */
 
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { ZodError } from "zod";
 import { isUserInputError, isApiServerError } from "./errors";
 import {
@@ -16,13 +15,14 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { ClickHouseResourceError, logger } from "@langfuse/shared/src/server";
+import { ProtocolErrorCode } from "@modelcontextprotocol/server";
 
 /**
  * Sanitize errors independently of whether the caller returns a tool result
  * or a protocol error. Call only at the response boundary, not inside handlers.
  */
 export function formatErrorForUser(error: unknown): {
-  code: ErrorCode;
+  code: ProtocolErrorCode;
   message: string;
 } {
   // Log server errors for monitoring (sanitized to avoid PII exposure)
@@ -32,14 +32,14 @@ export function formatErrorForUser(error: unknown): {
       name: error.name,
     });
     return {
-      code: ErrorCode.InternalError,
+      code: ProtocolErrorCode.InternalError,
       message: "An internal server error occurred. Please try again later.",
     };
   }
 
   // User input errors - provide helpful message
   if (isUserInputError(error)) {
-    return { code: ErrorCode.InvalidRequest, message: error.message };
+    return { code: ProtocolErrorCode.InvalidRequest, message: error.message };
   }
 
   // Zod validation errors
@@ -48,7 +48,7 @@ export function formatErrorForUser(error: unknown): {
       (issue) => `${issue.path.join(".")}: ${issue.message}`,
     );
     return {
-      code: ErrorCode.InvalidParams,
+      code: ProtocolErrorCode.InvalidParams,
       message: `Validation failed: ${messages.join(", ")}`,
     };
   }
@@ -56,21 +56,21 @@ export function formatErrorForUser(error: unknown): {
   // Langfuse standard errors
   if (error instanceof UnauthorizedError) {
     return {
-      code: ErrorCode.InvalidRequest,
+      code: ProtocolErrorCode.InvalidRequest,
       message: "Authentication failed. Please check your API key.",
     };
   }
 
   if (error instanceof ForbiddenError) {
-    return { code: ErrorCode.InvalidRequest, message: error.message };
+    return { code: ProtocolErrorCode.InvalidRequest, message: error.message };
   }
 
   if (error instanceof LangfuseNotFoundError) {
-    return { code: ErrorCode.InvalidRequest, message: error.message };
+    return { code: ProtocolErrorCode.InvalidRequest, message: error.message };
   }
 
   if (error instanceof InvalidRequestError) {
-    return { code: ErrorCode.InvalidRequest, message: error.message };
+    return { code: ProtocolErrorCode.InvalidRequest, message: error.message };
   }
 
   if (error instanceof ClickHouseResourceError) {
@@ -79,7 +79,7 @@ export function formatErrorForUser(error: unknown): {
       tags: error.tags,
     });
     return {
-      code: ErrorCode.InvalidRequest,
+      code: ProtocolErrorCode.InvalidRequest,
       message:
         error.errorType === "TIMEOUT"
           ? "The ClickHouse query timed out. Narrow the query by shortening the date range or adding more specific filters before trying again."
@@ -93,14 +93,14 @@ export function formatErrorForUser(error: unknown): {
       httpCode: error.httpCode,
     });
     return {
-      code: ErrorCode.InternalError,
+      code: ProtocolErrorCode.InternalError,
       message: "An internal server error occurred. Please try again later.",
     };
   }
 
   if (error instanceof BaseError) {
     logger.warn("MCP BaseError", error);
-    return { code: ErrorCode.InvalidRequest, message: error.message };
+    return { code: ProtocolErrorCode.InvalidRequest, message: error.message };
   }
 
   // Generic errors (sanitized logging)
@@ -110,7 +110,7 @@ export function formatErrorForUser(error: unknown): {
       name: error.name,
     });
     return {
-      code: ErrorCode.InternalError,
+      code: ProtocolErrorCode.InternalError,
       message: "An unexpected error occurred. Please try again later.",
     };
   }
@@ -120,7 +120,7 @@ export function formatErrorForUser(error: unknown): {
     errorType: typeof error,
   });
   return {
-    code: ErrorCode.InternalError,
+    code: ProtocolErrorCode.InternalError,
     message: "An unexpected error occurred. Please try again later.",
   };
 }

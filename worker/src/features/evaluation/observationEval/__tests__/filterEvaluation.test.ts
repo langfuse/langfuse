@@ -16,9 +16,9 @@ import {
 } from "@langfuse/shared";
 
 import {
-  prepareTraceBatchRules,
-  getMatchingTraceBatchRuleIds,
-} from "../../../traceBatching/traceBatchRules";
+  prepareTraceDispatchRules,
+  getMatchingTraceDispatchRuleIds,
+} from "../../../traceDispatch/traceDispatchRules";
 
 // Mock logger to avoid noise in tests
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -1086,6 +1086,29 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(isNotNullMatch).toBe(false);
     });
 
+    it("should treat an empty string or empty array column as null, like ClickHouse", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        user_id: "",
+        tool_call_names: [],
+      });
+
+      for (const column of ["userId", "calledToolNames"]) {
+        const isNullMatch = await testFilterMatch(observation, [
+          { column, type: "null", operator: "is null", value: "" },
+        ]);
+        const isNotNullMatch = await testFilterMatch(observation, [
+          { column, type: "null", operator: "is not null", value: "" },
+        ]);
+
+        expect({ column, isNullMatch, isNotNullMatch }).toEqual({
+          column,
+          isNullMatch: true,
+          isNotNullMatch: false,
+        });
+      }
+    });
+
     it("should not match observations where parentObservationId is not null (child observations)", async () => {
       const observation = createTestObservation({
         project_id: projectId,
@@ -1289,26 +1312,26 @@ describe("trace transcript rule matching", () => {
     }));
 
   it("normalizes persisted columns and requires every predicate on one observation", async () => {
-    const rules = await prepareTraceBatchRules(projectId, makeRules(1));
+    const rules = await prepareTraceDispatchRules(projectId, makeRules(1));
     const observation = createTestObservation({
       tags: ["selected"],
       status_message: "please retry",
     });
-    expect(getMatchingTraceBatchRuleIds(observation, rules)).toEqual([
+    expect(getMatchingTraceDispatchRuleIds(observation, rules)).toEqual([
       "first",
       "second",
     ]);
     expect(
-      getMatchingTraceBatchRuleIds({ ...observation, tags: [] }, rules),
+      getMatchingTraceDispatchRuleIds({ ...observation, tags: [] }, rules),
     ).toEqual([]);
     expect(
-      getMatchingTraceBatchRuleIds(
+      getMatchingTraceDispatchRuleIds(
         { ...observation, status_message: "ok" },
         rules,
       ),
     ).toEqual([]);
     expect(
-      getMatchingTraceBatchRuleIds(
+      getMatchingTraceDispatchRuleIds(
         { ...observation, project_id: "other" },
         rules,
       ),
@@ -1316,17 +1339,17 @@ describe("trace transcript rule matching", () => {
   });
 
   it("shares the sampled trace cohort across spans and rules", async () => {
-    const rules = await prepareTraceBatchRules(projectId, makeRules(0.1));
+    const rules = await prepareTraceDispatchRules(projectId, makeRules(0.1));
     const selected = Array.from({ length: 100 }, (_, index) => {
       const observation = createTestObservation({
         trace_id: `trace-${index}`,
         tags: ["selected"],
         status_message: "retry",
       });
-      const result = getMatchingTraceBatchRuleIds(observation, rules);
+      const result = getMatchingTraceDispatchRuleIds(observation, rules);
       expect(result).toEqual(result.length ? ["first", "second"] : []);
       expect(
-        getMatchingTraceBatchRuleIds(
+        getMatchingTraceDispatchRuleIds(
           { ...observation, span_id: "another-span" },
           rules,
         ),

@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { EvalTargetObject } from "@langfuse/shared";
@@ -12,12 +11,14 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const orgIds: string[] = [];
 let projectId = "";
 let otherProjectId = "";
 let userId = "";
-let session: Session;
+let firstOrg: { id: string; name: string };
+let firstProject: { id: string; name: string; createdAt: Date };
 let caller: ReturnType<typeof appRouter.createCaller>;
 
 function callerFor(callerSession: Session) {
@@ -28,17 +29,32 @@ function callerFor(callerSession: Session) {
   return appRouter.createCaller({ ...ctx, prisma });
 }
 
-function sessionWithProjectRole(role: Role): Session {
-  const [org] = session.user!.organizations;
-  return {
-    ...session,
+function sessionWithProjectRole(role: Role) {
+  return createSession({
     user: {
-      ...session.user!,
-      organizations: [
-        { ...org, projects: org.projects.map((p) => ({ ...p, role })) },
-      ],
+      id: userId,
+      name: "Rule tester",
+      canCreateOrganizations: false,
+      v4BetaEnabled: false,
     },
-  };
+    organizations: [
+      {
+        id: firstOrg.id,
+        role: "OWNER",
+        name: firstOrg.name,
+        aiFeaturesEnabled: true,
+        projects: [
+          {
+            id: firstProject.id,
+            role,
+            name: firstProject.name,
+            createdAt: firstProject.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
 }
 
 function experimentDatasetRule(
@@ -84,45 +100,9 @@ beforeAll(async () => {
     data: { id: userId, name: "Rule tester", email: `${userId}@test.dev` },
   });
 
-  session = {
-    expires: "1",
-    user: {
-      id: userId,
-      name: "Rule tester",
-      canCreateOrganizations: false,
-      organizations: [
-        {
-          id: first.org.id,
-          name: first.org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              name: first.project.name,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: first.project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      v4BetaEnabled: false,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  } satisfies Session;
-  caller = callerFor(session);
+  firstOrg = first.org;
+  firstProject = first.project;
+  caller = callerFor(sessionWithProjectRole("ADMIN"));
 });
 
 afterEach(async () => {

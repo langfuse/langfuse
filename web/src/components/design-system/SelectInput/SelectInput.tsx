@@ -26,6 +26,8 @@ type SelectInputProps<V extends string> = Pick<
   search?: { placeholder: string };
   /** Keeps the portaled option list out of session replay; not applied with `search`. */
   noCapture?: boolean;
+  /** See `SelectDropdown`; not applied with `search`. */
+  customOption?: React.ComponentProps<typeof SelectDropdown<V>>["customOption"];
   error?: boolean;
   muted?: boolean;
 };
@@ -38,6 +40,7 @@ function SelectInputInner<V extends string>(
     placeholder,
     emptyMessage,
     noCapture,
+    customOption,
     search,
     error,
     muted,
@@ -99,9 +102,12 @@ function SelectInputInner<V extends string>(
     );
   }
 
-  const SelectedIcon = options
-    .flatMap((node) => (node.type === "group" ? node.options : [node]))
-    .find((option) => option.value === value)?.icon;
+  const SelectedIcon = [
+    ...options.flatMap((node) =>
+      node.type === "group" ? node.options : [node],
+    ),
+    ...(customOption ? [customOption] : []),
+  ].find((option) => option.value === value)?.icon;
 
   return (
     <SelectDropdown
@@ -110,6 +116,7 @@ function SelectInputInner<V extends string>(
       onValueChange={onValueChange}
       emptyMessage={emptyMessage}
       noCapture={noCapture}
+      customOption={customOption}
       ref={ref}
       {...triggerProps}
     >

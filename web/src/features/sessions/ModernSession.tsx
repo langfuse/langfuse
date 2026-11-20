@@ -140,6 +140,7 @@ export function ModernSession({
           )}
           {isTimelineEnabled && viewMode === "conversational" && (
             <ConnectedModernSessionBodyTimeline
+              sidebarMode="fixed"
               customization={customization}
               tracesState={tracesState}
               projectId={projectId}

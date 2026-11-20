@@ -3,6 +3,10 @@ import {
   makeAPICall,
 } from "@/src/__tests__/test-utils";
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
+import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
@@ -965,16 +969,17 @@ describe("Admin Organizations API", () => {
           data: { email: `transfer-member-${randomUUID()}@example.com` },
         })
       ).id;
-      const orgMembership = await prisma.organizationMembership.create({
-        data: { orgId: sourceOrgId, userId, role: "MEMBER" },
+      const orgMembership = await createOrgMembership(prisma, {
+        orgId: sourceOrgId,
+        userId,
+        role: "MEMBER",
       });
-      await prisma.projectMembership.create({
-        data: {
-          orgMembershipId: orgMembership.id,
-          projectId,
-          userId,
-          role: "ADMIN",
-        },
+      await createProjectMembership(prisma, {
+        orgId: sourceOrgId,
+        orgMembershipId: orgMembership.id,
+        projectId,
+        userId,
+        role: "ADMIN",
       });
     });
 

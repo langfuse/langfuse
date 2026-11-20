@@ -8,10 +8,12 @@ use std::borrow::Cow;
 
 use super::{is_meaningful, parse_javascript_number, select_first, trim_javascript};
 
+use crate::native_codec::parse_datetime_text;
 use crate::otel::attributes::{
-    is_js_truthy, javascript_string, value_as_f64, value_as_string, JsonParseCache,
+    is_js_truthy, javascript_string, retain_evaluation_value, value_as_f64, value_as_string,
+    JsonParseCache,
 };
-use crate::otel::types::JsonObject;
+use crate::otel::types::{to_clickhouse_datetime, JsonObject};
 use crate::otel::value::{JsString, Value};
 
 mod rules;
@@ -22,9 +24,9 @@ use rules::{
     PROMPT_VERSION_KEYS, PUBLIC_KEYS, TAG_RULES, VERCEL_MODEL_KEYS, VERCEL_MODEL_OPERATIONS,
 };
 
-struct NameRule {
-    key: &'static str,
-    require_truthy: bool,
+enum NameRule {
+    StringifyIfTruthy(&'static str),
+    RawIfPresent(&'static str),
 }
 
 struct TagRule {
@@ -34,29 +36,40 @@ struct TagRule {
 }
 
 pub fn extract_name(
-    span_name: &str,
+    span_name: Option<&Value>,
     attributes: &JsonObject,
     observation_type: &str,
     scope_name: &str,
+    evaluation_fields: &mut Option<Box<JsonObject>>,
 ) -> String {
+    let mut raw_name = |value: &Value| {
+        // Evaluation sees the provider's value before ClickHouse coerces it to text.
+        retain_evaluation_value(evaluation_fields, "name", value);
+        value_as_string(value).unwrap_or_default()
+    };
     for rule in NAME_RULES {
-        if let Some(value) = attributes
-            .get(rule.key)
-            .filter(|value| !rule.require_truthy || is_js_truthy(value))
-        {
-            return value_as_string(value).unwrap_or_default();
+        match rule {
+            NameRule::StringifyIfTruthy(key) => {
+                if let Some(value) = attributes.get(*key).filter(|v| is_js_truthy(v)) {
+                    return value_as_string(value).unwrap_or_default();
+                }
+            }
+            NameRule::RawIfPresent(key) => {
+                if let Some(value) = attributes.get(*key) {
+                    return raw_name(value);
+                }
+            }
         }
     }
     if let Some(operation) = attributes.get("ai.operationId") {
         let prefix = attributes
             .get("ai.telemetry.functionId")
             .filter(|value| is_js_truthy(value))
-            .and_then(value_as_string)
-            .map(|value| format!("{value}:"))
+            .map(|value| format!("{}:", javascript_string(value)))
             .unwrap_or_default();
-        return format!("{prefix}{}", value_as_string(operation).unwrap_or_default());
+        return format!("{prefix}{}", javascript_string(operation));
     }
-    if span_name == "anthropic.session.turn"
+    if span_name.and_then(Value::as_str) == Some("anthropic.session.turn")
         && observation_type == "AGENT"
         && scope_name == "com.anthropic.claude-platform"
         && attributes
@@ -73,7 +86,7 @@ pub fn extract_name(
             return name.to_owned();
         }
     }
-    span_name.to_owned()
+    span_name.map(raw_name).unwrap_or_default()
 }
 
 pub fn extract_model_name(attributes: &JsonObject) -> Option<String> {
@@ -307,7 +320,16 @@ fn declared_observation_type(attributes: &JsonObject) -> Option<&'static str> {
     DECLARED_OBSERVATION_TYPES
         .iter()
         .find_map(|(key, aliases)| {
-            let value = attributes.get(*key)?.as_str()?;
+            let mut value = attributes.get(*key)?;
+            // JS uses this value as a property key: ["chat"] maps to "chat".
+            // Joining multiple entries inserts commas, which no type alias contains.
+            while let Value::Array(items) = value {
+                let [only] = items.as_slice() else {
+                    return None;
+                };
+                value = only;
+            }
+            let value = value.as_str()?;
             aliases
                 .iter()
                 .find_map(|(alias, kind)| (*alias == value).then_some(*kind))
@@ -416,9 +438,9 @@ fn valid_date_string_with_cache(value: &Value, parse_cache: &mut JsonParseCache)
 }
 
 fn is_valid_date_string(value: &str) -> bool {
-    chrono::DateTime::parse_from_rfc3339(value).is_ok()
-        || chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S%.f").is_ok()
-        || chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").is_ok()
+    // Only keep dates the native row codec can store, so a malformed optional timestamp
+    // cannot fail preparation of the entire batch.
+    parse_datetime_text(&to_clickhouse_datetime(value), "completion_start_time").is_ok()
 }
 
 fn genkit_model_parameters(
@@ -548,6 +570,115 @@ fn extend_ai_model_parameters(parameters: &mut JsonObject, value: Value) {
 mod tests {
     use super::*;
     use crate::otel::value::json;
+    use proptest::prelude::*;
+
+    fn completion_date_candidates() -> impl Strategy<Value = String> {
+        prop_oneof![
+            6 => (
+                1900_u16..2200,
+                0_u8..14,
+                0_u8..33,
+                r"[\sTt_]{0,4}",
+                0_u8..25,
+                0_u8..61,
+                0_u8..62,
+                r"(\.[0-9]{0,12})?",
+                prop::sample::select(vec!["", "Z", "+02:00", "-07:30", " invalid"]),
+            ).prop_map(|(year, month, day, separator, hour, minute, second, fraction, offset)| {
+                format!("{year:04}-{month:02}-{day:02}{separator}{hour:02}:{minute:02}:{second:02}{fraction}{offset}")
+            }),
+            1 => prop::collection::vec(any::<char>(), 0..96)
+                .prop_map(|chars| chars.into_iter().collect()),
+        ]
+    }
+
+    #[test]
+    fn unsupported_completion_date_separators_allow_latency_fallback() {
+        for date in [
+            "2025-10-01\t08:45:26",
+            "2025-10-01\n08:45:26",
+            "2025-10-0108:45:26",
+        ] {
+            for json_wrapped in [false, true] {
+                let value = if json_wrapped {
+                    serde_json::to_string(date).unwrap()
+                } else {
+                    date.to_owned()
+                };
+                let mut attributes = json!({"langfuse.observation.completion_start_time": value});
+                let attributes = attributes.as_object_mut().unwrap();
+                assert_eq!(
+                    extract_completion_start_time(
+                        attributes,
+                        "2024-01-01T00:00:00.000Z",
+                        &mut JsonParseCache::default(),
+                    ),
+                    None,
+                    "unsupported separator: {date:?}, JSON-wrapped: {json_wrapped}",
+                );
+                attributes.insert("ai.response.msToFirstChunk".into(), json!(125));
+                assert_eq!(
+                    extract_completion_start_time(
+                        attributes,
+                        "2024-01-01T00:00:00.000Z",
+                        &mut JsonParseCache::default(),
+                    ),
+                    Some("2024-01-01T00:00:00.125Z".to_owned()),
+                );
+            }
+        }
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn accepted_completion_start_times_prepare_for_native_storage(
+            candidate in completion_date_candidates(),
+            json_wrapped in any::<bool>(),
+        ) {
+            let value = if json_wrapped {
+                serde_json::to_string(&candidate).unwrap()
+            } else {
+                candidate.clone()
+            };
+            let attributes = json!({"langfuse.observation.completion_start_time": value});
+            let extracted = extract_completion_start_time(
+                attributes.as_object().unwrap(), "2024-01-01T00:00:00.000Z",
+                &mut JsonParseCache::default(),
+            );
+            let stored = extracted.map(|value| crate::otel::types::to_clickhouse_datetime(&value));
+            let prepared: Result<Option<crate::native_codec::DateTime64Micros>, String> =
+                crate::native_owned::IntoPrepared::into_prepared(stored);
+            prop_assert!(prepared.is_ok(), "accepted completion date {:?} failed preparation: {:?}", candidate, prepared);
+        }
+
+        #[test]
+        fn completion_start_dates_prepare_for_native_storage(
+            millis in 946_684_800_000_i64..1_893_456_000_000_i64,
+            json_wrapped in proptest::bool::ANY,
+        ) {
+            let instant = chrono::DateTime::from_timestamp_millis(millis).unwrap();
+            let midnight = instant.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
+            for (format, expected_micros) in [
+                ("%Y-%m-%d", midnight.timestamp_micros()),
+                ("%Y-%m-%d %H:%M:%S", instant.timestamp() * 1_000_000),
+                ("%Y-%m-%d %H:%M:%S%.3f", instant.timestamp_micros()),
+                ("%Y-%m-%dT%H:%M:%S%.3f", instant.timestamp_micros()),
+                ("%Y-%m-%dT%H:%M:%S%.3fZ", instant.timestamp_micros()),
+            ] {
+                let date = instant.format(format).to_string();
+                let value = if json_wrapped { serde_json::to_string(&date).unwrap() } else { date };
+                let attributes = json!({"langfuse.observation.completion_start_time": value});
+                let extracted = extract_completion_start_time(
+                    attributes.as_object().unwrap(), "2024-01-01T00:00:00.000Z",
+                    &mut JsonParseCache::default(),
+                );
+                proptest::prop_assert!(extracted.is_some(), "completion date was dropped: {:?}", attributes);
+                let stored = crate::otel::types::to_clickhouse_datetime(&extracted.unwrap());
+                let prepared = crate::native_codec::parse_datetime_text(&stored, "completion_start_time");
+                proptest::prop_assert_eq!(prepared, Ok(expected_micros));
+            }
+        }
+    }
 
     #[test]
     fn completion_start_time_accepts_gen_ai_time_to_first_chunk_seconds() {
@@ -603,7 +734,7 @@ mod tests {
                 .map(|name| ((*name).into(), json!(name)))
                 .collect();
             assert_eq!(
-                extract_name("span", &attributes, "SPAN", "ai"),
+                extract_name(Some(&json!("span")), &attributes, "SPAN", "ai", &mut None),
                 names[first]
             );
         }
@@ -619,10 +750,14 @@ mod tests {
                 if provider == "openai" && metadata.get("serviceTier").is_none() {
                     continue;
                 }
-                let attributes = json!({
+                let mut attributes = json!({
                     "ai.response.providerMetadata": json!({provider: metadata}).to_string(),
                     "gen_ai.request.service_tier": "standard",
                 });
+                attributes
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("gen_ai.system".into(), Value::parse(r#""\ud800""#).unwrap());
                 let params = extract_model_parameters(
                     attributes.as_object().unwrap(),
                     "ai",
@@ -630,6 +765,7 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(params["service_tier"], json!("flex"), "{attributes:?}");
+                assert_eq!(params["system"].to_json_string(), r#""\ud800""#);
             }
         }
     }

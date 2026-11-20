@@ -75,8 +75,7 @@ function buildFilter(
         { column, type: "string", operator: "contains", value: "" },
       ] as FilterState;
     case "numeric":
-      // ">= 0" matches every seeded row and stays inside the narrow
-      // Decimal64(12) range the cost columns cast to.
+      // ">= 0" matches every seeded row.
       return [
         { column, type: "number", operator: ">=", value: 0 },
       ] as FilterState;

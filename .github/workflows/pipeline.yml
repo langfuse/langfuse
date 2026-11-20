@@ -206,7 +206,7 @@ jobs:
 
   lint:
     timeout-minutes: 12
-    runs-on: blacksmith-16vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -663,6 +663,10 @@ jobs:
       - name: Load default env (for prisma generate)
         run: |
           cp .env.dev.example .env
+      - name: Build icons for package tests
+        run: pnpm --filter @langfuse/icons run build
+      - name: Run icons package tests
+        run: pnpm --filter @langfuse/icons run test
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
       - name: run shared tests
@@ -747,8 +751,8 @@ jobs:
         run: |
           if [ -n "$IRONBANK_USER" ]; then
             echo "ironbank=true" >> "$GITHUB_OUTPUT"
-            echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8" >> "$GITHUB_OUTPUT"
-            echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8" >> "$GITHUB_OUTPUT"
+            echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.9" >> "$GITHUB_OUTPUT"
+            echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.9" >> "$GITHUB_OUTPUT"
           elif [ "$SECRETS_EXPECTED" = "true" ]; then
             # Never degrade quietly where the credential is supposed to be
             # present: a green build on the wrong base misreports which image
@@ -758,8 +762,8 @@ jobs:
           else
             echo "Fork run without Registry1 access, building on Red Hat's public UBI9." >&2
             echo "ironbank=false" >> "$GITHUB_OUTPUT"
-            echo "base=registry.access.redhat.com/ubi9/ubi:9.8" >> "$GITHUB_OUTPUT"
-            echo "micro=registry.access.redhat.com/ubi9/ubi-micro:9.8" >> "$GITHUB_OUTPUT"
+            echo "base=registry.access.redhat.com/ubi9/ubi:9.9" >> "$GITHUB_OUTPUT"
+            echo "micro=registry.access.redhat.com/ubi9/ubi-micro:9.9" >> "$GITHUB_OUTPUT"
           fi
       - name: Login to Iron Bank
         if: steps.bases.outputs.ironbank == 'true'
@@ -1068,7 +1072,7 @@ jobs:
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: ${{ matrix.deploy-mode == '-redis-cluster' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1077,7 +1081,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
-      VITEST_MAX_WORKERS: ${{ matrix.deploy-mode == '-redis-cluster' && '8' || '4' }}
+      VITEST_MAX_WORKERS: "8"
       NODE_ENV: test
     strategy:
       fail-fast: false
@@ -1177,10 +1181,20 @@ jobs:
           pnpm --filter @langfuse/native run test
           pnpm --filter worker run test:native-codec
       - name: run tests
+        id: worker-suite
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
+          VITEST_CI_TIMINGS_PATH: ${{ runner.temp }}/vitest-worker.json
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
           LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+      - name: Upload worker file timings
+        if: ${{ always() && steps.worker-suite.outcome != '' && steps.worker-suite.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vitest-worker-node${{ matrix.node-version }}-pg${{ matrix.postgres-version }}-mode${{ matrix.deploy-mode || '-default' }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/vitest-worker.json
+          if-no-files-found: error
+          retention-days: 7
 
   tests-fips:
     # Runs the web and worker suites the way a FIPS host would: on the UBI
@@ -1938,8 +1952,8 @@ jobs:
             echo "::error::IRONBANK_USER is empty on a release build. Check the repository secrets." >&2
             exit 1
           fi
-          echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8" >> "$GITHUB_OUTPUT"
-          echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8" >> "$GITHUB_OUTPUT"
+          echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.9" >> "$GITHUB_OUTPUT"
+          echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.9" >> "$GITHUB_OUTPUT"
       - name: Log in to Iron Bank
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -2004,6 +2018,7 @@ jobs:
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
             BUILD_ID=${{ github.sha }}
+            NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
@@ -2019,6 +2034,7 @@ jobs:
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
             BUILD_ID=${{ github.sha }}
+            NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Record pushed digests

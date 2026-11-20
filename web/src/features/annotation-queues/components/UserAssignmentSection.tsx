@@ -1,93 +1,50 @@
-import { api } from "@/src/utils/api";
+import { type RouterOutputs } from "@/src/utils/api";
 import { MoreHorizontal, X } from "@langfuse/icons";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectCombobox } from "@/src/components/ui/MultiSelectCombobox";
-import { useUserSearch } from "@/src/hooks/useUserSearch";
-import { useSelectedUsers } from "@/src/features/annotation-queues/hooks/useSelectedUsers";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useRef } from "react";
 
 interface UserAssignmentSectionProps {
-  projectId: string;
   selectedUserIds: string[];
   onChange: (userIds: string[]) => void;
-  queueId?: string;
+  users: RouterOutputs["members"]["byProjectId"]["users"];
+  assignedUsers: RouterOutputs["annotationQueueAssignments"]["byQueueId"]["assignments"];
+  totalAssignedUsers: number;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  searchResults: RouterOutputs["members"]["byProjectId"]["users"];
+  isLoading: boolean;
+  hasMoreResults: boolean;
+  canWrite: boolean;
+  isRemoving: boolean;
+  onRemove: (userId: string) => void;
 }
 
 export const UserAssignmentSection = ({
-  projectId,
   selectedUserIds,
   onChange,
-  queueId,
+  users,
+  assignedUsers,
+  totalAssignedUsers,
+  searchQuery,
+  onSearchChange,
+  searchResults,
+  isLoading,
+  hasMoreResults,
+  canWrite,
+  isRemoving,
+  onRemove,
 }: UserAssignmentSectionProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const hasQueueAssignmentsReadAccess = useHasProjectAccess({
-    projectId: projectId,
-    scope: "annotationQueueAssignments:read",
-  });
-  const hasQueueAssignmentWriteAccess = useHasProjectAccess({
-    projectId: projectId,
-    scope: "annotationQueueAssignments:CUD",
-  });
-  const utils = api.useUtils();
-
-  // Get current assigned users
-  const queueAssignmentsQuery =
-    api.annotationQueueAssignments.byQueueId.useQuery(
-      { projectId, queueId: queueId as string },
-      { enabled: !!queueId && hasQueueAssignmentsReadAccess },
-    );
-
-  const deleteQueueAssignmentMutation =
-    api.annotationQueueAssignments.delete.useMutation({
-      onSuccess: () => {
-        utils.annotationQueueAssignments.invalidate();
-        utils.annotationQueues.invalidate();
-        showSuccessToast({
-          operation: "annotation_queue_assignment.remove",
-          title: "Removed assignment",
-          description: "User removed from queue successfully",
-        });
-      },
-    });
-
-  // Combine selected users and assigned users for exclusion
-  const assignedUserIds =
-    queueAssignmentsQuery.data?.assignments.map((user: any) => user.id) || [];
-  const excludeUserIds = [...new Set([...selectedUserIds, ...assignedUserIds])];
-
-  const userSearch = useUserSearch({
-    projectId,
-    excludeUserIds,
-  });
-
-  const { selectedUsers } = useSelectedUsers({
-    projectId,
-    selectedUserIds,
-  });
-
-  // Handle user selection changes
-  const handleUsersChange = (users: typeof userSearch.searchResults) => {
+  const selectedUsers = users.filter((user) =>
+    selectedUserIds.includes(user.id),
+  );
+  const handleUsersChange = (users: typeof searchResults) => {
     const userIds = users.map((user) => user.id);
     onChange(userIds);
   };
 
-  // Handle user removal
-  const handleUserRemove = (userId: string) => {
-    if (!!queueId)
-      deleteQueueAssignmentMutation.mutate({
-        projectId,
-        queueId,
-        userId,
-      });
-  };
-
-  // Check if there are more assigned users than shown
-  const hasMoreAssignedUsers =
-    queueAssignmentsQuery.data &&
-    queueAssignmentsQuery.data.totalCount >
-      queueAssignmentsQuery.data.assignments.length;
+  const hasMoreAssignedUsers = totalAssignedUsers > assignedUsers.length;
 
   return (
     <div className="space-y-4" ref={containerRef}>
@@ -95,13 +52,15 @@ export const UserAssignmentSection = ({
       <MultiSelectCombobox
         selectedItems={selectedUsers}
         onItemsChange={handleUsersChange}
-        searchQuery={userSearch.searchQuery}
-        onSearchChange={userSearch.setSearchQuery}
-        searchResults={userSearch.searchResults}
-        isLoading={userSearch.isLoading}
-        disabled={!hasQueueAssignmentWriteAccess}
+        searchQuery={searchQuery}
+        onSearchChange={onSearchChange}
+        searchResults={searchResults.filter(
+          (user) => !selectedUserIds.includes(user.id),
+        )}
+        isLoading={isLoading}
+        disabled={!canWrite}
         placeholder="Search users to add..."
-        hasMoreResults={userSearch.hasMoreResults}
+        hasMoreResults={hasMoreResults}
         getItemKey={(user) => user.id}
         onOpenChange={(open) => {
           if (open) {
@@ -162,72 +121,64 @@ export const UserAssignmentSection = ({
       />
 
       {/* Assigned Users Section */}
-      {queueAssignmentsQuery.data &&
-        queueAssignmentsQuery.data?.totalCount > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-muted-foreground text-sm">
-              Assigned to ({queueAssignmentsQuery.data?.totalCount})
-            </h4>
-            <div className="bg-background max-h-32 overflow-y-auto rounded-md border">
-              {queueAssignmentsQuery.data?.assignments.map(
-                (user: any, index: number) => {
-                  const userName = user.name || "Unnamed User";
+      {totalAssignedUsers > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-muted-foreground text-sm">
+            Assigned to ({totalAssignedUsers})
+          </h4>
+          <div className="bg-background max-h-32 overflow-y-auto rounded-md border">
+            {assignedUsers.map((user, index) => {
+              const userName = user.name || "Unnamed User";
 
-                  return (
-                    <div key={user.id}>
-                      <div className="flex items-center justify-between gap-3 px-3 py-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-3">
-                            <p
-                              className="truncate text-xs font-bold"
-                              title={userName}
-                            >
-                              {userName}
-                            </p>
-                            <p
-                              className="text-muted-foreground truncate text-xs"
-                              title={user.email}
-                            >
-                              {user.email}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          disabled={
-                            !hasQueueAssignmentWriteAccess ||
-                            deleteQueueAssignmentMutation.isPending
-                          }
-                          onClick={() => handleUserRemove(user.id)}
+              return (
+                <div key={user.id}>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-3">
+                        <p
+                          className="truncate text-xs font-bold"
+                          title={userName}
                         >
-                          <X size="base" color="default" />
-                        </Button>
+                          {userName}
+                        </p>
+                        <p
+                          className="text-muted-foreground truncate text-xs"
+                          title={user.email ?? undefined}
+                        >
+                          {user.email}
+                        </p>
                       </div>
-                      {(index <
-                        queueAssignmentsQuery.data?.assignments.length - 1 ||
-                        hasMoreAssignedUsers) && (
-                        <div className="border-border/50 border-b" />
-                      )}
                     </div>
-                  );
-                },
-              )}
-              {hasMoreAssignedUsers && (
-                <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
-                  <MoreHorizontal size="base" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs italic">
-                      {queueAssignmentsQuery.data.totalCount -
-                        queueAssignmentsQuery.data.assignments.length}{" "}
-                      more assigned users
-                    </p>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={!canWrite || isRemoving}
+                      onClick={() => onRemove(user.id)}
+                    >
+                      <X size="base" color="default" />
+                    </Button>
                   </div>
+                  {(index < assignedUsers.length - 1 ||
+                    hasMoreAssignedUsers) && (
+                    <div className="border-border/50 border-b" />
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })}
+            {hasMoreAssignedUsers && (
+              <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
+                <MoreHorizontal size="base" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs italic">
+                    {totalAssignedUsers - assignedUsers.length} more assigned
+                    users
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { ConnectedBatchExportsTable } from "@/src/features/batch-exports/components/BatchExportsTable/ConnectedBatchExportsTable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -21,12 +21,9 @@ export function BatchExportsSettingsPage(props: { projectId: string }) {
       {hasAccess ? (
         <ConnectedBatchExportsTable projectId={props.projectId} />
       ) : (
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            You do not have permission to view batch exports.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          You do not have permission to view batch exports.
+        </Banner>
       )}
     </>
   );

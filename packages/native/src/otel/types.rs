@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
 use indexmap::IndexMap;
 
 use super::attributes::{for_each_javascript_object_entry_owned, javascript_json_stringify};
@@ -62,9 +62,12 @@ pub struct StorageContext {
 pub struct OwnedEvent {
     pub row: crate::native_schema::OtelStorageRow,
     pub prompt_version_lookup: Option<f64>,
+    /// Preserve pre-storage types so the worker can reject invalid evaluation fields.
+    pub evaluation_fields: Option<Box<JsonObject>>,
     pub model_parameters: Option<Value>,
     pub provided_usage_details: IndexMap<String, Value>,
     pub provided_cost_details: BTreeMap<String, Value>,
+    pub gateway_calculated_cost: bool,
     pub input: Option<Value>,
     pub output: Option<Value>,
     pub metadata: JsonObject,
@@ -95,11 +98,13 @@ impl Default for OwnedEvent {
                 ..Default::default()
             },
             prompt_version_lookup: None,
+            evaluation_fields: None,
             model_parameters: None,
             input: None,
             output: None,
             provided_usage_details: IndexMap::new(),
             provided_cost_details: BTreeMap::new(),
+            gateway_calculated_cost: false,
             metadata: JsonObject::new(),
             skills_available: Vec::new(),
             skills_resource_loaded: Vec::new(),
@@ -119,7 +124,11 @@ impl OwnedEvent {
         row.model_parameters = json_storage_string(self.model_parameters);
         (row.metadata_names, row.metadata_values) = flatten_object_owned(self.metadata);
         row.provided_usage_details = storage_map(self.provided_usage_details);
-        row.provided_cost_details = storage_map(self.provided_cost_details);
+        row.provided_cost_details = if self.gateway_calculated_cost {
+            BTreeMap::new()
+        } else {
+            storage_map(self.provided_cost_details)
+        };
         row.prompt_id = enrichment.prompt_id;
         row.model_id = enrichment.model_id;
         row.usage_details = storage_map(enrichment.usage_details);
@@ -166,6 +175,10 @@ pub(crate) fn to_clickhouse_datetime(value: &str) -> String {
     }
     if let Ok(parsed) = NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S%.f") {
         return parsed.format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+    }
+    // Accepted date-only timestamps denote UTC midnight; DateTime64 needs the time component.
+    if let Ok(parsed) = NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+        return parsed.format("%Y-%m-%d 00:00:00.000").to_string();
     }
     value.to_owned()
 }

@@ -43,7 +43,7 @@ export default function ExperimentResultsPage() {
     setItemVisibility,
     allExperimentIds,
     colorExperimentIds,
-  } = useExperimentResultsState();
+  } = useExperimentResultsState(projectId);
 
   const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
     "overview-panel-experiment-detail",

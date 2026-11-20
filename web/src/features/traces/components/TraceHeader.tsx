@@ -12,11 +12,18 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { traceTopicRows } from "@/src/features/topics/trace/trace-topic-rows";
+import { treemapBadgeColor } from "@/src/features/topics/topic-map-colors";
 /** Trace totals, session/user links and tags, above the panels. */
 
 import { useMemo } from "react";
 
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { PendingTraceDeletionBanner } from "@/src/features/traces/components/PendingTraceDeletionBanner";
+import { usePendingTraceDeletions } from "@/src/features/traces/usePendingTraceDeletions";
+import {
+  traceDeleteCandidateFromObservation,
+  traceDeleteCandidateFromTrace,
+} from "@/src/features/traces/pendingTraceDeletionMatch";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceTopicFacets } from "@/src/features/topics/trace/useTraceTopicFacets";
 import { PlusIcon, SquarePen, MessageSquare } from "@langfuse/icons";
@@ -24,7 +31,7 @@ import { AnnotationQueueObjectType } from "@langfuse/shared";
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
-import { AnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/AnnotationQueueSubmenuItemController";
+import { ConnectedAnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/ConnectedAnnotationQueueSubmenuItemController";
 import { useViewPreferences } from "../contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -88,6 +95,21 @@ function LoadedTraceHeader({
   const tags = sessionTraces
     ? [...new Set(sessionTraces.flatMap((entry) => entry.tags))]
     : trace.tags;
+  const pendingTraceDeletions = usePendingTraceDeletions(trace.projectId);
+  // The notice speaks about one trace, so the multi-trace session header never shows it.
+  const scheduledForDeletion = useMemo(
+    () =>
+      !sessionTraces &&
+      pendingTraceDeletions.isTracePending(trace.id, {
+        traces: [traceDeleteCandidateFromTrace(trace)],
+        events: observations.flatMap((observation) => {
+          if (observation.traceId !== trace.id) return [];
+          const candidate = traceDeleteCandidateFromObservation(observation);
+          return candidate ? [candidate] : [];
+        }),
+      }),
+    [pendingTraceDeletions, trace, observations, sessionTraces],
+  );
   const metrics: HeaderMetric[] = [];
   if (sessionTraces)
     metrics.push({
@@ -165,6 +187,7 @@ function LoadedTraceHeader({
       id: "topics",
       type: "details",
       text,
+      color: lead ? treemapBadgeColor(lead.topicIndex) : undefined,
       title: "Topics",
       href: `/project/${encodeURIComponent(trace.projectId)}/topics`,
       linkText: "Open in Topics →",
@@ -214,6 +237,9 @@ function LoadedTraceHeader({
           {...configuredHeader}
           metrics={metrics}
           isPlaceholderData={isPlaceholderData}
+          notice={
+            scheduledForDeletion ? <PendingTraceDeletionBanner /> : undefined
+          }
         />
       )}
     </ConnectedTraceHeaderWorkflowActions>
@@ -376,13 +402,13 @@ function ConnectedTraceHeaderWorkflowActions({
       />
     );
   return (
-    <AnnotationQueueSubmenuItemController
+    <ConnectedAnnotationQueueSubmenuItemController
       projectId={trace.projectId}
       objectId={sessionId}
       objectType={AnnotationQueueObjectType.SESSION}
       analyticsData={{ source: "SessionDetail", isV4 }}
     >
       {({ item, totalCount }) => renderHeader([item], totalCount)}
-    </AnnotationQueueSubmenuItemController>
+    </ConnectedAnnotationQueueSubmenuItemController>
   );
 }

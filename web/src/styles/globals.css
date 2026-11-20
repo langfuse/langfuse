@@ -164,12 +164,16 @@
   --color-category-green-highlight: var(--category-green-highlight);
   --color-category-amber-highlight: var(--category-amber-highlight);
   --color-category-pink-highlight: var(--category-pink-highlight);
+  --color-category-peach-highlight: var(--category-peach-highlight);
+  --color-category-olive-highlight: var(--category-olive-highlight);
   --color-category-violet-foreground: var(--category-violet-foreground);
   --color-category-blue-foreground: var(--category-blue-foreground);
   --color-category-teal-foreground: var(--category-teal-foreground);
   --color-category-green-foreground: var(--category-green-foreground);
   --color-category-amber-foreground: var(--category-amber-foreground);
   --color-category-pink-foreground: var(--category-pink-foreground);
+  --color-category-peach-foreground: var(--category-peach-foreground);
+  --color-category-olive-foreground: var(--category-olive-foreground);
   --color-category-neutral-tint: var(--category-neutral-tint);
   --color-category-neutral-highlight: var(--category-neutral-highlight);
 
@@ -365,12 +369,16 @@
     --category-green-highlight: oklch(0.82 0.11 135);
     --category-amber-highlight: oklch(0.82 0.11 70);
     --category-pink-highlight: oklch(0.82 0.11 350);
+    --category-peach-highlight: oklch(0.82 0.09 45);
+    --category-olive-highlight: oklch(0.82 0.11 100);
     --category-violet-foreground: oklch(0.45 0.11 293);
     --category-blue-foreground: oklch(0.45 0.11 252);
     --category-teal-foreground: oklch(0.45 0.11 190);
     --category-green-foreground: oklch(0.45 0.11 135);
     --category-amber-foreground: oklch(0.45 0.11 70);
     --category-pink-foreground: oklch(0.45 0.11 350);
+    --category-peach-foreground: oklch(0.45 0.11 45);
+    --category-olive-foreground: oklch(0.45 0.11 100);
     --category-neutral-tint: oklch(0.92 0 0);
     --category-neutral-highlight: oklch(0.82 0 0);
     --background: 0 0% 100%;
@@ -510,7 +518,7 @@
     /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
        readable text/icon color on them. */
     --light-red: oklch(93.6% 0.032 17.717 / 0.7);
-    --dark-red: oklch(63.7% 0.237 25.331);
+    --dark-red: oklch(44.4% 0.177 26.899);
 
     --light-yellow: oklch(97.3% 0.071 103.193 / 0.7);
     --dark-yellow: oklch(47.6% 0.114 61.907);
@@ -610,12 +618,16 @@
     --category-green-highlight: oklch(0.45 0.11 135);
     --category-amber-highlight: oklch(0.45 0.097 70);
     --category-pink-highlight: oklch(0.45 0.11 350);
+    --category-peach-highlight: oklch(0.45 0.11 45);
+    --category-olive-highlight: oklch(0.45 0.11 100);
     --category-violet-foreground: oklch(0.8 0.11 293);
     --category-blue-foreground: oklch(0.8 0.103 252);
     --category-teal-foreground: oklch(0.8 0.11 190);
     --category-green-foreground: oklch(0.8 0.11 135);
     --category-amber-foreground: oklch(0.8 0.11 70);
     --category-pink-foreground: oklch(0.8 0.11 350);
+    --category-peach-foreground: oklch(0.8 0.11 45);
+    --category-olive-foreground: oklch(0.8 0.11 100);
     --category-neutral-tint: oklch(0.3 0 0);
     --category-neutral-highlight: oklch(0.45 0 0);
     /* Surface ladder — "layers become one step lighter with each added
@@ -755,16 +767,15 @@
 
     /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
        dark-* the readable text/icon color on them. */
-    --light-red: oklch(39.6% 0.141 25.723 / 0.7);
-    /* Lightened for dark mode like its green and yellow siblings below — left
-       at the light-mode step it was darker than the fill it sits on (2.74:1;
-       5.35:1 here, against green's 6.49 and yellow's 6.43). */
+    --light-red: oklch(39.6% 0.141 25.723 / 0.42);
+    /* Lightened for dark mode like green and yellow below: 6.5:1 on its fill,
+       against green's 8.0 and yellow's 6.4. */
     --dark-red: oklch(76.5% 0.177 27.325);
 
     --light-yellow: oklch(55.4% 0.135 66.442 / 0.4);
     --dark-yellow: oklch(79.5% 0.184 86.047);
 
-    --light-green: oklch(37.8% 0.077 168.94 / 0.7);
+    --light-green: oklch(37.8% 0.077 168.94 / 0.42);
     --dark-green: oklch(76.5% 0.177 163.223);
 
     --light-blue: 209 45% 15%;
@@ -1055,6 +1066,41 @@
     animation: scroll-fade-b linear both;
     animation-timeline: scroll(self);
     animation-range: calc(100% - var(--spacing) * 8) 100%;
+  }
+}
+
+/* scroll-fade-b plus a top fade that appears once the content is scrolled. */
+@property --scroll-fade-t {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-fade-t {
+  from {
+    --scroll-fade-t: 0px;
+  }
+  to {
+    --scroll-fade-t: calc(var(--spacing) * 8);
+  }
+}
+
+@utility scroll-fade-y {
+  @supports (animation-timeline: scroll()) {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      black var(--scroll-fade-t),
+      black calc(100% - var(--scroll-fade-b)),
+      transparent
+    );
+    animation:
+      scroll-fade-t linear both,
+      scroll-fade-b linear both;
+    animation-timeline: scroll(self), scroll(self);
+    animation-range:
+      0 calc(var(--spacing) * 8),
+      calc(100% - var(--spacing) * 8) 100%;
   }
 }
 

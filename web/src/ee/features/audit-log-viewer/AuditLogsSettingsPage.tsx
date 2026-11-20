@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -22,12 +22,9 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
     }
     if (!hasAccess) {
       return (
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            Contact your project administrator to request access.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          Contact your project administrator to request access.
+        </Banner>
       );
     }
     return (

@@ -107,6 +107,7 @@ describe("createApiKey assignment rows", () => {
       roleId: string;
       projectId: string | null;
       systemRole: string;
+      tags: string[];
     }> = [];
     let apiKeyData: Record<string, unknown> = {};
     const tx = {
@@ -158,6 +159,7 @@ describe("createApiKey assignment rows", () => {
         roleId: SystemRoleId("VIEWER"),
         projectId: "proj_1",
         systemRole: "VIEWER",
+        tags: [],
       },
     ]);
     const data = getApiKeyData();
@@ -188,6 +190,7 @@ describe("createApiKey assignment rows", () => {
         roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         projectId: null,
         systemRole: "LEGACY_ORGANIZATION_API_KEY",
+        tags: [],
       },
     ]);
     const data = getApiKeyData();
@@ -216,6 +219,7 @@ describe("createApiKey assignment rows", () => {
         roleId: SystemRoleId("AI_GATEWAY"),
         projectId: null,
         systemRole: "AI_GATEWAY",
+        tags: [],
       },
     ]);
     const data = getApiKeyData();

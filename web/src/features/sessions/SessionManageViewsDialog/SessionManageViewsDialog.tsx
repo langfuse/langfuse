@@ -67,13 +67,28 @@ const columns: ColumnDef<SessionViewRow>[] = [
     cell: ({ row }) => (
       <span className="block truncate" title={row.original.name}>
         {row.original.name}
-        {row.original.isPinnedByDefaultForProject && (
-          <span className="text-muted-foreground block text-xs">
-            Pinned by default
-          </span>
-        )}
+        {row.original.ownership !== "PRIVATE" &&
+          row.original.isPinnedByDefaultForProject && (
+            <span className="text-muted-foreground block text-xs">
+              Pinned by default
+            </span>
+          )}
       </span>
     ),
+  },
+  {
+    id: "ownership",
+    header: "Visibility",
+    enableResizing: false,
+    size: 100,
+    cell: ({ row }) => {
+      if (row.original.id === "messages") return "Built-in";
+      const labels = {
+        PRIVATE: "Private",
+        PROJECT: "Project",
+      } satisfies Record<NonNullable<SessionViewRow["ownership"]>, string>;
+      return labels[row.original.ownership ?? "PROJECT"];
+    },
   },
   createUserTableColumn<SessionViewRow>({
     id: "createdBy",
@@ -205,7 +220,7 @@ function getViewActions(
             title: "Edit",
             icon: Pencil,
             disabled: !view.canEdit
-              ? { reason: "Only the creator can edit this view." }
+              ? { reason: "You don’t have permission to edit this view." }
               : undefined,
             onClick: view.onEdit,
           },
@@ -216,7 +231,7 @@ function getViewActions(
             icon: Trash2,
             variant: "destructive" as const,
             disabled: !view.canEdit
-              ? { reason: "Only the creator can delete this view." }
+              ? { reason: "You don’t have permission to delete this view." }
               : undefined,
             onClick: view.onDelete,
           },
@@ -227,7 +242,6 @@ function getViewActions(
 
 function SessionManageViewsList({
   views,
-  currentUserId,
   pinnedViewIds,
   canEdit,
   isLoading,
@@ -246,10 +260,12 @@ function SessionManageViewsList({
     Partial<
       Pick<
         RouterOutputs["sessionViews"]["list"][number],
-        "createdBy" | "createdByUser" | "isPinnedByDefaultForProject"
+        | "createdBy"
+        | "createdByUser"
+        | "isPinnedByDefaultForProject"
+        | "ownership"
       >
     >)[];
-  currentUserId: string | undefined;
   pinnedViewIds: string[];
   canEdit: boolean;
   isLoading: boolean;
@@ -269,9 +285,9 @@ function SessionManageViewsList({
   const filteredViews = views
     .filter((view) => {
       if (tab === "all") return true;
-      if (view.id === "messages" || !currentUserId) return false;
-      if (tab === "mine") return view.createdBy === currentUserId;
-      return view.createdBy !== currentUserId;
+      if (view.id === "messages") return false;
+      if (tab === "private") return view.ownership === "PRIVATE";
+      return view.ownership !== "PRIVATE";
     })
     .sort(
       (left, right) =>
@@ -301,7 +317,9 @@ function SessionManageViewsList({
           onEdit: () => onEdit(view.id),
           onDelete: () => onDelete(view.id),
           onSetDefaultPin:
-            view.id !== "messages" && onSetDefaultPin
+            view.id !== "messages" &&
+            (view.ownership !== "PRIVATE" || view.canEdit) &&
+            onSetDefaultPin
               ? () =>
                   onSetDefaultPin(view.id, !view.isPinnedByDefaultForProject)
               : undefined,
@@ -310,8 +328,8 @@ function SessionManageViewsList({
     };
   })();
   const noResultsMessage = (() => {
-    if (tab === "mine") return "You haven’t created any views yet.";
-    if (tab === "others") return "No views from other people yet.";
+    if (tab === "private") return "No private views yet.";
+    if (tab === "project") return "No project views yet.";
     return "No saved views yet.";
   })();
   return (
@@ -319,8 +337,8 @@ function SessionManageViewsList({
       <Tabs value={tab} onValueChange={setTab}>
         <Tabs.List variant="inset" size="md">
           <Tabs.Trigger value="all" label="All views" />
-          <Tabs.Trigger value="mine" label="My views" />
-          <Tabs.Trigger value="others" label="Others’ views" />
+          <Tabs.Trigger value="private" label="Private views" />
+          <Tabs.Trigger value="project" label="Project views" />
         </Tabs.List>
       </Tabs>
       <div className="overflow-hidden rounded-md border">
@@ -340,7 +358,6 @@ function SessionManageViewsList({
 
 export function SessionManageViewsDialog({
   views,
-  currentUserId,
   canEdit,
   isLoading,
   error,
@@ -353,7 +370,6 @@ export function SessionManageViewsDialog({
   onSetDefaultPin,
 }: {
   views: ComponentProps<typeof SessionManageViewsList>["views"];
-  currentUserId: string | undefined;
   canEdit: boolean;
   isLoading: boolean;
   error: string | undefined;
@@ -377,7 +393,6 @@ export function SessionManageViewsDialog({
     <Dialog title="Manage views" closeLabel="Done" size="lg">
       <Dialog.Body>
         <SessionManageViewsList
-          currentUserId={currentUserId}
           views={[
             { id: "messages", name: "Messages", canEdit: false },
             ...customViews,

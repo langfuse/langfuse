@@ -59,7 +59,7 @@ export const DeleteModelButton = ({
           variant="outline"
           title="Delete model"
           disabled={!hasAccess}
-          className="border-light-red flex items-center"
+          className="border-dark-red/30 flex items-center"
           onClick={() => {
             setError(undefined);
             openDialog();

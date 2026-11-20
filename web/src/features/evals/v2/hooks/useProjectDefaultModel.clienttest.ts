@@ -48,7 +48,7 @@ vi.mock("@/src/utils/api", () => ({
       upsertDefaultModel: {
         useMutation: () => ({
           isPending: false,
-          mutate: mocks.upsertDefaultModel,
+          mutateAsync: mocks.upsertDefaultModel,
         }),
       },
     },
@@ -80,12 +80,15 @@ describe("useProjectDefaultModel", () => {
     );
 
     act(() =>
-      result.current.update.requestUpdate({
-        provider: "openai",
-        model: "gpt-4.1",
-        adapter: LLMAdapter.OpenAI,
-        modelParams: {},
-      }),
+      result.current.update.requestUpdate(
+        {
+          provider: "openai",
+          model: "gpt-4.1",
+          adapter: LLMAdapter.OpenAI,
+          modelParams: {},
+        },
+        vi.fn(),
+      ),
     );
     const mutationOptions = mocks.upsertDefaultModel.mock.calls[0]?.[1];
     await act(async () => mutationOptions?.onSuccess());
@@ -93,6 +96,27 @@ describe("useProjectDefaultModel", () => {
     expect(mocks.invalidateEvaluatorFilterOptions).toHaveBeenCalledWith({
       projectId: "project-1",
     });
+  });
+
+  it("handles configuration errors but preserves confirmation errors for retry", async () => {
+    const error = new Error("Failed to save model");
+    mocks.upsertDefaultModel.mockRejectedValue(error);
+    const { result } = renderHook(() =>
+      useProjectDefaultModel({ projectId: "project-1", source: "overview" }),
+    );
+    const model = {
+      provider: "openai",
+      model: "gpt-4.1",
+      adapter: LLMAdapter.OpenAI,
+      modelParams: {},
+    };
+
+    await expect(
+      result.current.update.updateConfiguration(model),
+    ).resolves.toBeUndefined();
+    await expect(result.current.update.confirmUpdate(model)).rejects.toBe(
+      error,
+    );
   });
 
   it("refreshes model connections after returning from provider settings", () => {

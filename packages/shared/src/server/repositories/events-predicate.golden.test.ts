@@ -282,7 +282,7 @@ const conditionCases: [string, FilterStateCondition][] = loweredFields.flatMap(
 // reads events_full for every input/output filter. `is not empty` ignores its
 // sample value, so every sample matches.
 const CORE_WHERE_LEGACY_READS_FULL =
-  /^(input|output) (string = ""|string is not empty .*|null is null|null is not null)$/;
+  /^(input|output) (string = ""|string is not empty .*)$/;
 
 describeWithClickhouse("events predicate lowering vs FilterList", () => {
   it.each(compared(conditionCases.map(([name, filter]) => [name, [filter]])))(
@@ -700,6 +700,40 @@ describeWithClickhouseLocal("numeric metadata conditions", () => {
     expect(matches(`leftUTF8(${long}, 200)`)).toBe("1");
   });
 });
+
+describeWithClickhouseLocal(
+  "number conditions on a default-bound field",
+  () => {
+    // A cost bound at or above 1e6 is valid input: it matches every stored cost
+    // (`<=`) or none (`>=`), and must not fail the query.
+    const matchCount = (op: "<=" | ">=", value: number) => {
+      const { sql, params } = compileForProject({
+        kind: "condition",
+        type: "number",
+        field: { id: "totalCost" },
+        op,
+        value,
+      });
+      const typed = sql.replace(
+        /\{[A-Za-z0-9_]+:([^}]+)\}/g,
+        (placeholder, type: string) => `CAST(${placeholder} AS ${type})`,
+      );
+      return executeClickhouseLocal(
+        substituteNamedParams(
+          `SELECT count() FROM (SELECT map('total', toDecimal64(2.5, 12)) AS cost_details) AS e WHERE ${typed}`,
+          params,
+        ),
+      );
+    };
+
+    it.each([
+      ["<=", 1840000, "1"],
+      [">=", 1840000, "0"],
+    ] as const)("%s %s", (op, value, expected) => {
+      expect(matchCount(op, value)).toBe(expected);
+    });
+  },
+);
 
 describe("lowering inside an AST query", () => {
   const compiled = (predicate: Predicate) =>
