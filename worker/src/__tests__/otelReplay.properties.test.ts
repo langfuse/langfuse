@@ -5,7 +5,7 @@ import fc, { type Arbitrary } from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { ResourceSpan } from "@langfuse/shared/src/server";
 import {
-  expectRawOtelReplayParity,
+  expectRawNativeParity,
   runOtelReplayComparison,
 } from "./helpers/otelReplayHarness";
 import {
@@ -40,6 +40,8 @@ type MetadataAttribute = {
   value: TypedScalar | { kind: "array"; values: TypedScalar[] };
 };
 
+type OtelTimestamp = string | number;
+
 type SpanSeed = {
   input: RootPayload;
   output: RootPayload;
@@ -50,6 +52,7 @@ type SpanSeed = {
   parentSelector: number;
   orderKey: number;
   timestampPresence: "both" | "startOnly" | "endOnly";
+  numericTimestamps: boolean;
   promptVersion: number | null;
   version: string | null;
   release: string | null;
@@ -59,6 +62,7 @@ type SpanSeed = {
 
 type ReplayCase = {
   traceId: string;
+  idEncoding: "buffer" | "string" | "array" | number;
   spanIdBase: bigint;
   baseTimeMillis: number;
   spanSeeds: SpanSeed[];
@@ -105,8 +109,53 @@ function unixNanos(millis: number, remainder: number): string {
   return (BigInt(millis) * 1_000_000n + BigInt(remainder)).toString();
 }
 
+function timestampMillis(value: OtelTimestamp): number {
+  return typeof value === "number"
+    ? Math.trunc(value / 1e6)
+    : Number(BigInt(value) / 1_000_000n);
+}
+
 function paddedHex(value: bigint, digits: number): string {
   return value.toString(16).padStart(digits, "0");
+}
+
+// Every encoding preserves the byte, keeping generated IDs unique and parent links intact.
+const byteEncoders: ((byte: number) => Json)[] = [
+  (byte) => byte - 256,
+  (byte) => byte + 256,
+  (byte) => byte + 0.5,
+  String,
+  (byte) => `\ufeff0x${byte.toString(16)}\u00a0`,
+  (byte) => `0b${byte.toString(2)}`,
+  (byte) => `0o${byte.toString(8)}`,
+  (byte) => [String(byte)],
+  (byte) => (byte === 0 ? null : byte),
+  (byte) => (byte <= 1 ? Boolean(byte) : byte),
+  (byte) => (byte === 0 ? {} : byte),
+  (byte) => (byte === 0 ? [] : byte),
+  (byte) => (byte === 0 ? "1e309" : byte),
+];
+
+function encodeId(hex: string, encoding: ReplayCase["idEncoding"]): Buffer {
+  const bytes = [...Buffer.from(hex, "hex")];
+  let wire: unknown;
+  switch (encoding) {
+    case "string":
+      wire = hex;
+      break;
+    case "buffer":
+      wire = { type: "Buffer", data: bytes };
+      break;
+    case "array":
+      wire = bytes;
+      break;
+    default:
+      wire = bytes.map((byte, index) =>
+        byteEncoders[(encoding + index) % byteEncoders.length]!(byte),
+      );
+  }
+  // ResourceSpan types describe protobuf output; replay also accepts JSON ID forms.
+  return wire as Buffer;
 }
 
 function rootPayloadText(value: RootPayload): string {
@@ -170,13 +219,8 @@ function flattenedMetadataPairs(
     if (value !== null && typeof value === "object" && !Array.isArray(value)) {
       return flattenedMetadataPairs(value as Record<string, unknown>, path);
     }
-    const persistedValue =
-      value === null || value === undefined
-        ? ""
-        : typeof value === "string"
-          ? value
-          : JSON.stringify(value);
-    return [[path, persistedValue]];
+    if (value == null) return [[path, ""]];
+    return [[path, typeof value === "string" ? value : JSON.stringify(value)]];
   });
 }
 
@@ -194,6 +238,16 @@ function buildReplayCase(params: ReplayCase) {
     const marker = `${traceId}-${ordinal}`;
     const start = baseTimeMillis + ordinal * 1_000;
     const end = start + 250;
+    const loneRemainder = seed.numericTimestamps ? 999_936 : 999_999;
+    const bothPresent = seed.timestampPresence === "both";
+    const startNanos = unixNanos(start, bothPresent ? 0 : loneRemainder);
+    const endNanos = unixNanos(end, bothPresent ? 1 : loneRemainder);
+    const startTimestamp = seed.numericTimestamps
+      ? Number(startNanos)
+      : startNanos;
+    const endTimestamp = seed.numericTimestamps ? Number(endNanos) : endNanos;
+    const startTime = timestampMillis(startTimestamp);
+    const endTime = timestampMillis(endTimestamp);
     const modelName = {
       canonical: `explicit-model-${marker}`,
       response: `response-model-${marker}`,
@@ -210,8 +264,8 @@ function buildReplayCase(params: ReplayCase) {
       type: "GENERATION",
       input: rootPayloadText(seed.input),
       output: rootPayloadText(seed.output),
-      start_time: seed.timestampPresence === "endOnly" ? end : start,
-      end_time: seed.timestampPresence === "startOnly" ? start : end,
+      start_time: seed.timestampPresence === "endOnly" ? endTime : startTime,
+      end_time: seed.timestampPresence === "startOnly" ? startTime : endTime,
       prompt_version: seed.promptVersion,
       release: seed.release ?? RESOURCE_RELEASE,
       version: seed.version ?? RESOURCE_VERSION,
@@ -242,12 +296,12 @@ function buildReplayCase(params: ReplayCase) {
       "gen_ai.output.messages": JSON.stringify([
         { role: "assistant", content: `provider-output-${marker}` },
       ]),
-      "gen_ai.request.model":
-        seed.modelPrecedence === "request"
-          ? modelName
-          : seed.modelPrecedence === "none"
-            ? ""
-            : PROVIDER_MODEL,
+      "gen_ai.request.model": {
+        request: modelName,
+        none: "",
+        response: PROVIDER_MODEL,
+        canonical: PROVIDER_MODEL,
+      }[seed.modelPrecedence],
       "langfuse.observation.prompt.version":
         seed.promptVersion?.toString() ?? null,
       "gen_ai.response.model":
@@ -277,12 +331,12 @@ function buildReplayCase(params: ReplayCase) {
         seed.modelPrecedence === "canonical" ? modelName : "",
       "langfuse.version": seed.version,
       "langfuse.release": seed.release,
-      "langfuse.environment":
-        seed.environment === "span"
-          ? expected.environment
-          : seed.environment === "empty"
-            ? ""
-            : null,
+      "langfuse.environment": {
+        span: expected.environment,
+        empty: "",
+        resource: null,
+        lower: null,
+      }[seed.environment],
       "deployment.environment.name":
         seed.environment === "lower" ? "span-fallback-env" : null,
     });
@@ -290,28 +344,22 @@ function buildReplayCase(params: ReplayCase) {
       expected,
       orderKey: seed.orderKey,
       span: {
-        traceId: Buffer.from(traceId, "hex"),
-        spanId: Buffer.from(spanId, "hex"),
+        traceId: encodeId(traceId, params.idEncoding),
+        spanId: encodeId(spanId, params.idEncoding),
         ...(ordinal === 0
           ? {}
-          : { parentSpanId: Buffer.from(parentSpanId, "hex") }),
+          : { parentSpanId: encodeId(parentSpanId, params.idEncoding) }),
         name: expected.name,
         kind: 1,
         ...(seed.timestampPresence === "endOnly"
           ? {}
           : {
-              startTimeUnixNano: unixNanos(
-                start,
-                seed.timestampPresence === "both" ? 0 : 999_999,
-              ),
+              startTimeUnixNano: startTimestamp,
             }),
         ...(seed.timestampPresence === "startOnly"
           ? {}
           : {
-              endTimeUnixNano: unixNanos(
-                end,
-                seed.timestampPresence === "both" ? 1 : 999_999,
-              ),
+              endTimeUnixNano: endTimestamp,
             }),
         attributes: [...attributes, ...metadataAttributes, ...overrides],
         status: { code: 0 },
@@ -547,6 +595,10 @@ function replayCaseArbitrary(
         return BigInt(`0x${value}`);
       },
     ),
+    idEncoding: fc.oneof(
+      fc.constantFrom("buffer" as const, "string" as const, "array" as const),
+      fc.integer({ min: 0, max: byteEncoders.length - 1 }),
+    ),
     spanIdBase: fc.bigInt({ min: 6n, max: (1n << 64n) - 1n }),
     baseTimeMillis: fc.integer({
       min: 1_700_000_000_000,
@@ -570,6 +622,7 @@ function replayCaseArbitrary(
             "startOnly" as const,
             "endOnly" as const,
           ),
+          numericTimestamps: fc.boolean(),
           promptVersion: fc.constantFrom(null, 0, 1, 65_535),
           version: fc.option(fc.string({ maxLength: 20 }), { nil: null }),
           release: fc.option(fc.string({ maxLength: 20 }), { nil: null }),
@@ -603,6 +656,7 @@ const minimalSpan: SpanSeed = {
   parentSelector: 0,
   orderKey: 0,
   timestampPresence: "both",
+  numericTimestamps: false,
   promptVersion: null,
   version: null,
   release: null,
@@ -613,11 +667,14 @@ const minimalSpan: SpanSeed = {
 const directedCases: ReplayCase[] = [
   {
     traceId: paddedHex(1n, 32),
+    idEncoding: 0,
     spanIdBase: 6n,
     baseTimeMillis: 1_700_000_000_000,
     spanSeeds: [
       {
         ...minimalSpan,
+        timestampPresence: "startOnly",
+        numericTimestamps: true,
         observationMetadata: {
           route: { status: "nested" },
           "route.status": "literal",
@@ -625,11 +682,15 @@ const directedCases: ReplayCase[] = [
         traceAttributes: [
           { key: "route.status", value: { kind: "string", value: "trace" } },
         ],
+        version: "",
+        release: "",
+        environment: "empty",
       },
     ],
   },
   {
     traceId: paddedHex(2n, 32),
+    idEncoding: 7,
     spanIdBase: 7n,
     baseTimeMillis: 1_700_000_000_000,
     spanSeeds: [
@@ -662,7 +723,11 @@ async function assertReplayPersists(params: ReplayCase): Promise<void> {
     mediaUploadEnabled: true,
   });
 
-  for (const result of [comparison.originalTs, comparison.earlyTs]) {
+  for (const result of [
+    comparison.originalTs,
+    comparison.earlyTs,
+    comparison.earlyRust,
+  ]) {
     expect(result.storedRows, result.mode).toHaveLength(
       replay.expectedRows.length,
     );
@@ -685,7 +750,7 @@ async function assertReplayPersists(params: ReplayCase): Promise<void> {
     }
   }
 
-  expectRawOtelReplayParity(comparison);
+  expectRawNativeParity(comparison);
 }
 
 // The replay writer retries internally; Vitest retries could overlap an

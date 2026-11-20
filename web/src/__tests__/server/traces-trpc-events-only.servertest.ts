@@ -11,7 +11,6 @@
  * This is split into its own file because the env is process-wide for the file;
  * the dual-mode flag tests live in traces-trpc.servertest.ts.
  */
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { vi } from "vitest";
 
 // The events_full table is created only by the ClickHouse dev-tables setup
@@ -31,7 +30,6 @@ const eventsTableAvailable = vi.hoisted(() => {
   return enabled;
 });
 
-import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -44,6 +42,7 @@ import {
 import { env } from "@langfuse/shared/src/env";
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // Skip on environments without the events_full dev table (azure / redis-cluster
 // CI). Mirrors the gating used across the other events-table server tests.
@@ -59,40 +58,15 @@ describe("traces trpc (events_only write mode) liveness", () => {
 maybe("traces trpc (events_only write mode)", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: "Test Project",
-              hasTraces: true,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {} as any,
-  };
+  const session = createSession({
+    organizations: [
+      {
+        id: "seed-org-id",
+        role: "OWNER",
+        projects: [{ id: projectId, role: "ADMIN", hasTraces: true }],
+      },
+    ],
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -189,29 +163,22 @@ maybe("traces trpc (events_only write mode)", () => {
       },
     });
 
-    const freshSession: Session = {
-      ...session,
-      user: {
-        ...session.user!,
-        organizations: [
-          {
-            ...session.user!.organizations[0],
-            projects: [
-              {
-                id: freshProjectId,
-                role: "ADMIN",
-                retentionDays: null,
-                deletedAt: null,
-                name: "events-only-onboarding",
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-      },
-    };
+    const freshSession = createSession({
+      organizations: [
+        {
+          id: "seed-org-id",
+          role: "OWNER",
+          projects: [
+            {
+              id: freshProjectId,
+              role: "ADMIN",
+              retentionDays: null,
+              name: "events-only-onboarding",
+            },
+          ],
+        },
+      ],
+    });
     const freshCtx = createInnerTRPCContext({
       session: freshSession,
       headers: {},

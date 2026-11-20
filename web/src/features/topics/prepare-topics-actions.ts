@@ -82,6 +82,7 @@ export function prepareTopicsActions({
   mapPickerShown,
   showUnassigned,
   onShowUnassignedChange,
+  onGiveFeedback,
 }: {
   automaticProcessing: { state: AutomaticProcessingState; saving: boolean };
   canWrite: boolean;
@@ -104,6 +105,8 @@ export function prepareTopicsActions({
   mapPickerShown: boolean;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
+  /** Opens the support form as Topics feedback. */
+  onGiveFeedback?: () => void;
 }) {
   const { state } = automaticProcessing;
   const editDisabledReason = canWrite ? undefined : NO_WRITE_ACCESS;
@@ -175,6 +178,7 @@ export function prepareTopicsActions({
     refreshMap: refreshMap ?? null,
     menu,
     display,
+    giveFeedback: onGiveFeedback ?? null,
   };
 }
 

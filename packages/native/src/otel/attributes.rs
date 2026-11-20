@@ -84,12 +84,9 @@ impl EventAttributes<'_> {
     }
 
     pub fn scope_name(&self, sources: &[AttributeSource]) -> Option<String> {
-        sources.iter().find_map(|source| {
-            self.get(*source)?
-                .as_str()
-                .filter(|text| !text.is_empty())
-                .map(str::to_owned)
-        })
+        sources
+            .iter()
+            .find_map(|source| self.get(*source)?.as_str().map(str::to_owned))
     }
 
     pub fn identity(&mut self, sources: &[AttributeSource]) -> Option<String> {

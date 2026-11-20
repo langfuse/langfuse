@@ -1,9 +1,8 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
-import { type RouterOutputs } from "@/src/utils/api";
 import { TopicRunDetails } from "./TopicRunDetails";
+import { type TopicRunWithCost as Run } from "./topic-run-labels";
 
-type Run = RouterOutputs["topics"]["execution"];
 type FacetProgress = Run["facets"][number];
 
 const facets = [
@@ -65,7 +64,7 @@ function processRun(overrides: Partial<Run>): Run {
 
 const retryIdle = { isPending: false, onRetry: fn() };
 
-const doneWithIssues: Run = {
+const doneWithIssues = {
   id: "run-update",
   projectId: "project",
   status: "completed_with_errors",
@@ -73,7 +72,7 @@ const doneWithIssues: Run = {
   createdAt: "2026-10-22T17:05:00Z",
   updatedAt: "2026-10-22T17:48:00Z",
   error: null,
-  estimatedCost: 0,
+  estimatedCost: null,
   facets: [
     facetProgress("intent", {
       counts: {
@@ -129,7 +128,7 @@ const doneWithIssues: Run = {
     exploratory: false,
     minimumTraceCount: 100,
   },
-};
+} satisfies Run;
 
 const failedRun = processRun({
   id: "run-failed",
@@ -264,7 +263,7 @@ export const FailedManualRunIsFinal = meta.story({
     await expect(
       canvas.getByText("Summarized before it stopped"),
     ).toBeVisible();
-    await expect(canvas.getByText("Estimated processing cost")).toBeVisible();
+    await expect(canvas.getByText("Summaries and embeddings")).toBeVisible();
     await expect(
       canvas.queryByRole("button", { name: "Resume run" }),
     ).toBeNull();
@@ -280,9 +279,9 @@ export const QuestionStatusesExplainThemselves = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("alert")).toBeNull();
-    await expect(canvas.getByText("Not tracked")).toBeVisible();
+    await expect(canvas.getByText("No new summaries")).toBeVisible();
     await expect(
-      canvas.getByText("Topic naming costs aren’t tracked yet."),
+      canvas.getByText(/Your provider may charge for topic naming/),
     ).toBeVisible();
     await expect(canvas.getByText("Done with issues")).toBeVisible();
     await expect(
@@ -304,5 +303,30 @@ export const QuestionStatusesExplainThemselves = meta.story({
         "The other 340 didn’t form clear groups. Try a larger, more varied set of traces.",
       ),
     ).toBeVisible();
+  },
+});
+
+export const SummarizingSnapshotShowsItsCost = meta.story({
+  name: "(Test) A snapshot that summarized traces shows their cost",
+  args: {
+    execution: {
+      ...doneWithIssues,
+      estimatedCost: 0.42,
+      input: {
+        ...doneWithIssues.input,
+        analysis: {
+          label: "Checkout",
+          filter: [],
+          seed: "seed",
+          summarize: { limit: 500, selection: "latest" },
+        },
+      },
+    },
+    retry: retryIdle,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("~$0.42")).toBeVisible();
+    await expect(canvas.queryByText("No new summaries")).toBeNull();
   },
 });

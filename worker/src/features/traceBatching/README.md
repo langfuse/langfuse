@@ -26,7 +26,7 @@ bounds are missing.
 Calls clean up at most 100 expired pending entries, so sparse traffic can delay
 removal; key TTLs reclaim inactive maps.
 
-Bytes measure accepted UTF-8 event rows after overflow, excluding the size field itself.
+Bytes estimate the weight of accepted events after field overflow.
 Failed writes are unrecorded; retries may double-count. Acceptance precedes the
 ClickHouse flush. `eventUpdateCount` is a TypeScript measurement only, not Redis state.
 
@@ -108,7 +108,7 @@ bounds expire or are lost, the prior window cannot be reconstructed from this ma
 
 ### Trace-window size estimates
 
-Accepted direct-v4 writes contribute their final serialized UTF-8 event size after field overflow handling. This JSON size estimate is computed only when trace-batch intake is enabled and is independent of ClickHouse's persisted `event_bytes`. The accounting field itself is excluded. Acceptance means admission to the writer, not confirmation of a ClickHouse flush. `eventUpdateCount` counts accepted updates, including retries and repeated observation versions, rather than unique observations.
+For a sampled trace, TypeScript measures the accepted post-overflow JSON row, excluding the size field. The native writer sums the UTF-8 lengths of the text, metadata and tool fields read by dispatch, plus a fixed allowance per span. This gives small spans weight without serializing the event a second time. Both estimates feed the same Redis totals and byte limits. ClickHouse computes the persisted `event_bytes` separately.
 
 Pending state and history carry cumulative estimates for the retained read window.
 Tracking adds newly accepted updates to valid pending totals. When reopening a
@@ -126,7 +126,7 @@ batch; dispatcher size distributions use the cumulative estimates.
 
 The dispatcher emits `estimated_serialized_event_bytes` distributions under `langfuse.events_dispatch`, tagged with `scope:trace|batch`. Batch totals require known estimates for every member; `estimates_unavailable` counts unknown traces and affected batches. Estimates stay out of queue payloads and job IDs. Dispatch retries can emit another sample.
 
-Serialized event bytes differ from the reader's `input_bytes`, `output_bytes` and `metadata_bytes` metrics: they include the serialized event fields and JSON encoding, and do not represent RAM, network transfer or ClickHouse scan bytes. Events-dispatch read spans report the estimated and actual payload bytes per batch.
+Events-dispatch read spans report the ingestion estimate alongside the input, output and metadata bytes actually read per batch.
 
 ### Weight budgets and oversized traces
 

@@ -1,11 +1,21 @@
 import { useId } from "react";
-import { useWatch, type Control } from "react-hook-form";
+import {
+  Controller,
+  useWatch,
+  type Control,
+  type ControllerRenderProps,
+  type FieldPathByValue,
+  type FieldValues,
+} from "react-hook-form";
 
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { gatewaySpendBudgetIntervalOptions } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import {
+  gatewaySpendBudgetIntervalOptions,
+  type GatewaySpendBudgetInterval,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import type { GatewaySpendBudgetFormValue } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import { PresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/PresetOption/PresetOption";
 
@@ -83,6 +93,62 @@ function GatewaySpendBudgetInputs<T extends GatewaySpendBudgetFormValues>({
 
 GatewaySpendBudgetField.Inputs = GatewaySpendBudgetInputs;
 
+/** The budget on one line after a label, for forms that list several budgets. */
+function GatewaySpendBudgetRow<T extends FieldValues>({
+  control: formControl,
+  name,
+  label,
+  disabled,
+}: {
+  control: Control<T>;
+  /** The form field holding the budget's value. */
+  name: FieldPathByValue<T, GatewaySpendBudgetFormValue>;
+  label: string;
+  disabled: boolean;
+}) {
+  // React Hook Form cannot narrow the paths of a generic form.
+  const control = formControl as unknown as Control<
+    Record<string, GatewaySpendBudgetFormValue>
+  >;
+  const amountId = useId();
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <label htmlFor={amountId} className="w-37.5 text-sm">
+        {label}
+      </label>
+      <Controller
+        control={control}
+        name={`${name}.limitUsd`}
+        render={({ field, fieldState }) => (
+          <div className="w-30">
+            <AmountInput
+              id={amountId}
+              field={field}
+              hasError={!!fieldState.error}
+              disabled={disabled}
+            />
+          </div>
+        )}
+      />
+      <Controller
+        control={control}
+        name={`${name}.interval`}
+        render={({ field }) => (
+          <IntervalPresets
+            label={`${label} budget resets`}
+            value={field.value}
+            disabled={disabled}
+            onSelect={field.onChange}
+          />
+        )}
+      />
+    </div>
+  );
+}
+
+GatewaySpendBudgetField.Row = GatewaySpendBudgetRow;
+
 type SpendBudget = ReturnType<typeof useSpendBudget>;
 
 function useSpendBudget<T extends GatewaySpendBudgetFormValues>(
@@ -110,7 +176,6 @@ function useSpendBudget<T extends GatewaySpendBudgetFormValues>(
 
 function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
   const { control, disabled } = budget;
-  const radioName = useId();
 
   return (
     <div className="flex flex-wrap items-start gap-4">
@@ -121,46 +186,95 @@ function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
           label="Amount (USD)"
         >
           {(field) => (
-            <Input
+            <AmountInput
               id={field.id}
-              valuePrefix="$"
-              inputMode="decimal"
-              placeholder="100"
-              name={field.name}
-              value={field.value}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-              ref={field.ref}
+              field={field}
+              hasError={!!field.error}
               disabled={disabled}
-              error={!!field.error}
-              aria-invalid={!!field.error}
             />
           )}
         </Form.Field>
       </div>
       <Form.Field control={control} name="spendBudget.interval" label="Resets">
         {(field) => (
-          <div
+          <IntervalPresets
             id={field.id}
-            role="radiogroup"
-            aria-label="Resets"
-            aria-disabled={disabled || undefined}
-            className="flex flex-wrap gap-2"
-          >
-            {gatewaySpendBudgetIntervalOptions.map((option) => (
-              <PresetOption
-                key={option.value}
-                name={radioName}
-                value={option.value}
-                label={option.label}
-                checked={field.value === option.value}
-                disabled={disabled}
-                onSelect={field.onChange}
-              />
-            ))}
-          </div>
+            label="Resets"
+            value={field.value}
+            disabled={disabled}
+            onSelect={field.onChange}
+          />
         )}
       </Form.Field>
+    </div>
+  );
+}
+
+function AmountInput({
+  id,
+  field,
+  hasError,
+  disabled,
+}: {
+  id: string;
+  field: Pick<
+    ControllerRenderProps<Record<string, string>, string>,
+    "name" | "value" | "onChange" | "onBlur" | "ref"
+  >;
+  hasError: boolean;
+  disabled: boolean;
+}) {
+  return (
+    <Input
+      id={id}
+      valuePrefix="$"
+      inputMode="decimal"
+      placeholder="100"
+      name={field.name}
+      value={field.value}
+      onChange={field.onChange}
+      onBlur={field.onBlur}
+      ref={field.ref}
+      disabled={disabled}
+      error={hasError}
+      aria-invalid={hasError}
+    />
+  );
+}
+
+function IntervalPresets({
+  id,
+  label,
+  value,
+  disabled,
+  onSelect,
+}: {
+  id?: string;
+  label: string;
+  value: GatewaySpendBudgetInterval;
+  disabled: boolean;
+  onSelect: (value: GatewaySpendBudgetInterval) => void;
+}) {
+  const radioName = useId();
+  return (
+    <div
+      id={id}
+      role="radiogroup"
+      aria-label={label}
+      aria-disabled={disabled || undefined}
+      className="flex flex-wrap gap-2"
+    >
+      {gatewaySpendBudgetIntervalOptions.map((option) => (
+        <PresetOption
+          key={option.value}
+          name={radioName}
+          value={option.value}
+          label={option.label}
+          checked={value === option.value}
+          disabled={disabled}
+          onSelect={onSelect}
+        />
+      ))}
     </div>
   );
 }
