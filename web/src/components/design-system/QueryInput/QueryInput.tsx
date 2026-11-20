@@ -149,6 +149,87 @@ function positionTokenTooltip({
   };
 }
 
+function CollectionValuePreview({
+  title,
+  detail,
+  values,
+  editable,
+  onEdit,
+}: {
+  title: string;
+  detail: string;
+  values: readonly string[];
+  editable: boolean;
+  onEdit: () => void;
+}) {
+  const shown = values.slice(0, 6);
+  const hidden = values.length - shown.length;
+  const body = (
+    <>
+      <span className="block font-bold">{title}</span>
+      <span className="text-muted-foreground mt-0.5 block font-normal">
+        {detail}
+      </span>
+      <ul
+        className="mt-1 flex flex-col border-t pt-1"
+        aria-hidden={editable || undefined}
+      >
+        {shown.map((value, index) => (
+          <li
+            key={`${index}:${value}`}
+            className="flex h-6 min-w-0 items-center gap-2"
+          >
+            <span
+              aria-hidden
+              className="bg-control-fill text-primary-foreground inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm"
+            >
+              <Check size="sm" />
+            </span>
+            <span
+              title=""
+              className={cn(
+                "min-w-0 flex-1 truncate font-mono",
+                value === "" && "text-muted-foreground italic",
+              )}
+            >
+              {value || "(empty)"}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 ? (
+        <span className="text-muted-foreground mt-1 block font-normal">
+          {hidden} more {hidden === 1 ? "value" : "values"}
+        </span>
+      ) : null}
+      {editable ? (
+        <span className="text-foreground mt-1 block font-normal underline">
+          Edit values
+        </span>
+      ) : (
+        <span className="text-muted-foreground mt-1 block font-normal">
+          Choose a valid field to edit values
+        </span>
+      )}
+    </>
+  );
+  if (!editable) return <div className="min-w-52">{body}</div>;
+  return (
+    <button
+      type="button"
+      aria-label="Edit values"
+      className="focus-visible:ring-ring hover:bg-accent/60 block min-w-52 cursor-pointer rounded-sm border-0 bg-transparent p-0 text-left font-sans text-inherit focus-visible:ring-2 focus-visible:outline-hidden"
+      onMouseDown={(event) => {
+        // Blurring the editor unmounts this preview before click. Keep focus.
+        event.preventDefault();
+      }}
+      onClick={onEdit}
+    >
+      {body}
+    </button>
+  );
+}
+
 // IME composition (Korean, Chinese, Japanese) inserts a text node the
 // contenteditable root does not already own. React will not remove that
 // sibling when it later projects a token, so the composed run doubles and
@@ -938,7 +1019,12 @@ function QueryInputEditor({
     onEditToken !== undefined && explainTarget?.collection !== undefined;
   const explanation = (() => {
     if (onEditToken !== undefined && explainTarget?.collection !== undefined) {
-      return { subject: explainTarget.collection.previewLabel, predicate: "" };
+      return {
+        subject:
+          explainTarget.explanation?.subject ??
+          explainTarget.collection.previewLabel,
+        predicate: "",
+      };
     }
     return explainTarget?.explanation ?? null;
   })();
@@ -1576,6 +1662,18 @@ function QueryInputEditor({
     };
   }, [measurePositions, removeTargetIdActual, tooltipTargetId]);
 
+  const editCollection = (token: QueryToken) => {
+    if (onEditToken === undefined) return;
+    const anchor = containerRef.current?.querySelector(
+      `[data-segment-id="${CSS.escape(token.id)}"] [data-query-collection]`,
+    );
+    if (!(anchor instanceof HTMLButtonElement) || anchor.disabled) return;
+    hasInteractedRef.current = true;
+    setAutocompleteOpen(false);
+    setHoveredTokenId(null);
+    onEditToken(token, anchor);
+  };
+
   // Include the visual gap in the collection preview's hover area so the
   // pointer can travel from the token into the portaled content.
   const tokenTooltip =
@@ -1625,31 +1723,30 @@ function QueryInputEditor({
             errorTarget.error
           ) : (
             <>
-              <span className="font-bold">{explanation?.subject}</span>
-              {/* A boolean token's phrase IS the whole explanation — no
-                      predicate, so no dangling space before the period. */}
-              {explanation?.predicate !== "" && <> {explanation?.predicate}</>}
               {onEditToken !== undefined &&
-                explainTarget?.collection !== undefined && (
-                  <div className="mt-1 border-t pt-1">
-                    <ul className="flex flex-col gap-1 font-mono">
-                      {explainTarget.collection.values
-                        .slice(0, 6)
-                        .map((value, index) => (
-                          <li key={index} title="" className="truncate">
-                            {value || "(empty)"}
-                          </li>
-                        ))}
-                    </ul>
-                    <span className="text-muted-foreground mt-1 block">
-                      {explainTarget.collection.values.length > 6 &&
-                        `${explainTarget.collection.values.length - 6} more values. `}
-                      {explainTarget.error !== null
-                        ? "Choose a valid field to edit values"
-                        : "Click to edit"}
-                    </span>
-                  </div>
-                )}
+              explainTarget?.collection !== undefined ? (
+                <CollectionValuePreview
+                  title={
+                    explainTarget.explanation?.subject ??
+                    explainTarget.collection.previewLabel
+                  }
+                  detail={explainTarget.collection.previewDetail}
+                  values={explainTarget.collection.values}
+                  editable={explainTarget.error === null}
+                  onEdit={() => {
+                    if (explainTarget !== null) editCollection(explainTarget);
+                  }}
+                />
+              ) : (
+                <>
+                  <span className="font-bold">{explanation?.subject}</span>
+                  {/* A boolean token's phrase IS the whole explanation — no
+                      predicate, so no dangling space before the period. */}
+                  {explanation?.predicate !== "" && (
+                    <> {explanation?.predicate}</>
+                  )}
+                </>
+              )}
               {explainDeactivatedReason !== null && (
                 <span className="text-muted-foreground block pt-0.5">
                   {notAppliedNote(explainDeactivatedReason)}

@@ -677,7 +677,8 @@ function collectionArgs(
             raw: source,
           },
           label: `Status any of ${values.length} values`,
-          previewLabel: `Status ${values.length} values`,
+          previewLabel: "Status",
+          previewDetail: `Any of ${values.length} values`,
           values,
           groups: [
             {
@@ -775,6 +776,41 @@ export const TestCollectionPreviewHover = TestPreviewEscapeInDialog.extend({
     } finally {
       await page.viewport(viewport.width, viewport.height);
     }
+  },
+});
+
+export const TestCollectionEditAffordance = meta.story({
+  name: "(Test) Collection edit affordance opens the value editor",
+  args: {
+    ...collectionArgs(
+      ["open", "pending", "closed", "archived", "draft", "hold"],
+      true,
+    ),
+    onEditToken: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const collection = canvas.getByRole("button", {
+      name: "Edit Status any of 6 values",
+    });
+    await userEvent.click(collection);
+    await expect(args.onEditToken).toHaveBeenCalledTimes(1);
+    await expect(args.onEditToken).toHaveBeenCalledWith(
+      expect.objectContaining({ id: args.tokens[0]?.id }),
+      collection,
+    );
+
+    await userEvent.hover(collection);
+    const preview = await body.findByTestId("search-bar-token-tooltip");
+    await userEvent.click(
+      within(preview).getByRole("button", { name: "Edit values" }),
+    );
+    await expect(args.onEditToken).toHaveBeenCalledTimes(2);
+    await expect(args.onEditToken).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: args.tokens[0]?.id }),
+      collection,
+    );
   },
 });
 

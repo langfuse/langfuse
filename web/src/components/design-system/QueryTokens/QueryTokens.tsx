@@ -89,8 +89,12 @@ export function QueryTokens({
       atom: { from: number; to: number; raw: string };
       /** Field prefix, value preview, then any trailing target groups. */
       groups: readonly TokenGroup[];
+      /** Accessible phrase, e.g. "Name any of 6 values". */
       label: string;
+      /** Preview title: the field name, e.g. "Name". */
       previewLabel: string;
+      /** Preview subtitle, e.g. "Any of 6 values". */
+      previewDetail: string;
       values: readonly string[];
       compact: boolean;
     };
