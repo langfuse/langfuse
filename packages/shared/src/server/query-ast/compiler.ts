@@ -611,7 +611,16 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * registry type so an integer compared to a Float column still emits
    * `{p:Float64}` rather than inferred `{p:Int64}`.
    */
+  /**
+   * Kysely accepts any expression as a binary operator. A reference there
+   * writes a bare keyword such as `or`, which escapes the tenancy predicate.
+   */
   protected override visitBinaryOperation(node: BinaryOperationNode): void {
+    if (!OperatorNode.is(node.operator)) {
+      throw new UnscopedRelationError(
+        `The ${node.operator.kind} in an operator slot is not an operator. Pass the operator as a string.`,
+      );
+    }
     const params = lambdaParams(node);
     if (params) this.lambdaParams.push(...params);
     const columnType = params

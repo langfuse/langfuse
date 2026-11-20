@@ -164,6 +164,22 @@ describe("inlined text", () => {
     );
   });
 
+  it.each([
+    ["sql.ref", sql.ref("or")],
+    ["eb.ref", db.dynamic.ref("or")],
+  ])(
+    "rejects %s in an operator slot, which writes a bare keyword",
+    (_shape, operator) => {
+      const query = db
+        .selectFrom("traces as t")
+        .select("t.id")
+        .where((eb) => eb(literal(1), operator as never, literal(1)));
+      expect(() => compileClickhouseQuery(query, "proj-A")).toThrow(
+        "is not an operator",
+      );
+    },
+  );
+
   it("rejects an operator ClickHouse does not parse, such as the comment opener #", () => {
     const query = db
       .selectFrom("traces as t")
