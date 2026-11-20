@@ -16,13 +16,13 @@ export function useGatewaySetupBudgets(organizationId: string) {
     (mutation) => mutation.isError,
   );
 
-  /** Resolves true once both are saved; null removes a budget, and the server keeps an unchanged one. */
+  /** Resolves which of the two were saved; null removes a budget, and the server keeps an unchanged one. */
   async function saveBudgets(budgets: GatewaySetupBudgets) {
-    const results = await Promise.all([
+    const [organization, user] = await Promise.all([
       setBudget(budgets.organization),
       setDefaultBudget({ subject: "user", spendLimit: budgets.user }),
     ]);
-    return results.every(Boolean);
+    return { organization, user };
   }
 
   return {
