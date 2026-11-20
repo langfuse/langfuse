@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -93,30 +93,16 @@ function ExportModeField({
   );
 }
 
-export function ExportPromptsDialogController({
-  projectId,
-  children,
-}: {
-  projectId: string;
-  children: (control: {
-    isExporting: boolean;
-    openDialog: () => void;
-  }) => ReactNode;
-}) {
+type ExportResult = "exported" | "limited" | "failed";
+
+function useExportPrompts(projectId: string) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const [mode, setMode] = useState<ExportMode>("latest");
   const [isExporting, setIsExporting] = useState(false);
-  const isExportingRef = useRef(false);
   const [limitMessage, setLimitMessage] = useState<string | null>(null);
 
-  const setExporting = (next: boolean) => {
-    isExportingRef.current = next;
-    setIsExporting(next);
-  };
-
-  const exportPrompts = async (closeDialog: () => void) => {
-    setExporting(true);
+  const exportPrompts = async (mode: ExportMode): Promise<ExportResult> => {
+    setIsExporting(true);
     setLimitMessage(null);
     try {
       const data = await utils.prompts.exportAll.fetch(
@@ -139,8 +125,7 @@ export function ExportPromptsDialogController({
       downloadPromptExport(data, mode);
       capture("prompts:bulk_export", { mode });
       setLimitMessage(null);
-      setExporting(false);
-      closeDialog();
+      return "exported";
     } catch (error) {
       if (
         isPromptExportLimitFailure({
@@ -150,7 +135,7 @@ export function ExportPromptsDialogController({
         error instanceof Error
       ) {
         setLimitMessage(error.message);
-        return;
+        return "limited";
       }
 
       showToast({
@@ -158,14 +143,37 @@ export function ExportPromptsDialogController({
         title: "Failed to export prompts. Please try again.",
         analytics: classifyTrpcToastError(error, "prompt.export"),
       });
+      return "failed";
     } finally {
-      setExporting(false);
+      setIsExporting(false);
     }
   };
 
+  return {
+    exportPrompts,
+    isExporting,
+    limitMessage,
+    clearLimitMessage: () => setLimitMessage(null),
+  };
+}
+
+export function ExportPromptsDialogController({
+  projectId,
+  children,
+}: {
+  projectId: string;
+  children: (control: {
+    isExporting: boolean;
+    openDialog: () => void;
+  }) => ReactNode;
+}) {
+  const [mode, setMode] = useState<ExportMode>("latest");
+  const { exportPrompts, isExporting, limitMessage, clearLimitMessage } =
+    useExportPrompts(projectId);
+
   return (
     <DialogController
-      onBeforeClose={() => !isExportingRef.current}
+      onBeforeClose={() => !isExporting}
       renderDialog={({ closeDialog }) => (
         <Dialog
           title="Export prompts"
@@ -180,7 +188,11 @@ export function ExportPromptsDialogController({
                   ? "This project is over the export limit."
                   : undefined,
               onClick: () => {
-                exportPrompts(closeDialog).catch(() => undefined);
+                exportPrompts(mode)
+                  .then((result) => {
+                    if (result === "exported") closeDialog();
+                  })
+                  .catch(() => undefined);
               },
             },
           ]}
@@ -203,7 +215,7 @@ export function ExportPromptsDialogController({
         children({
           isExporting,
           openDialog: () => {
-            setLimitMessage(null);
+            clearLimitMessage();
             openDialog();
           },
         })
