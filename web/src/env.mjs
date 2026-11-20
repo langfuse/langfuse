@@ -611,7 +611,6 @@ export const env = createEnv({
       .number()
       .positive()
       .default(50_000),
-    PLAIN_CARDS_API_TOKEN: z.string().optional(),
     PYLON_API_KEY: z.string().optional(),
 
     // UI customization - comma-separated list of visible product modules
@@ -851,19 +850,6 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("true"),
 
-    // Temporary kill-switch for the observations v2 subquery-IN rewrite.
-    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE: z.coerce
-      .number()
-      .min(0)
-      .max(1)
-      .default(0.01),
-
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
       .string()
@@ -927,7 +913,6 @@ export const env = createEnv({
       .default("false"),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
-    NEXT_PUBLIC_PLAIN_APP_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
     NEXT_PUBLIC_BASE_PATH: z.string().optional(),
     // Origin that serves this build's `/_next/static/*` output, when it is
@@ -1247,8 +1232,6 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     // Other
-    NEXT_PUBLIC_PLAIN_APP_ID: process.env.NEXT_PUBLIC_PLAIN_APP_ID,
-    PLAIN_CARDS_API_TOKEN: process.env.PLAIN_CARDS_API_TOKEN,
     PYLON_API_KEY: process.env.PYLON_API_KEY,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
@@ -1450,12 +1433,6 @@ export const env = createEnv({
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
     LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED:
       process.env.LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED,
-    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
-      process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY:
-      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY,
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE:
-      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },
