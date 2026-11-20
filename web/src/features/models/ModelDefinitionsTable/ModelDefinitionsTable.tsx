@@ -23,22 +23,22 @@ export type ModelTableRow = {
   matchPattern: string;
   /** Owned by the page's owner; other definitions can only be cloned. */
   editable: boolean;
-  /** A higher-precedence scope defines the same name. */
+  /** A higher-precedence maintainer defines the same name. */
   isOverridden: boolean;
   serverResponse: GetModelResult;
 };
 
 const modelConfigDescriptions = {
   modelName:
-    "Standardized model name. Generations are assigned to this model name if they match the `matchPattern` upon ingestion.",
+    "Name shown on the generations this model matches. The match pattern, not the name, decides which model applies.",
   matchPattern:
-    "Regex pattern to match `model` parameter of generations to model pricing",
+    "Regex matched against the model name of ingested generations. A matching project model is used first, then organization, then Langfuse.",
   startDate:
     "Date to start pricing model. If not set, model is active unless a more recent version exists.",
   maintainer:
-    "Where the model is defined. Project models take precedence over organization models, which take precedence over Langfuse defaults. Clone a model to override it with the same name.",
+    "Who maintains the model. When several models match a generation, project models win over organization models, which win over Langfuse defaults. Clone a model to override it.",
   overridden:
-    "A higher-precedence model with the same name applies instead. Best effort: generations match by pattern, not by name.",
+    "A higher-precedence model has the same name. It applies instead wherever its match pattern also matches.",
   lastUsed: "Start time of the latest generation using this model",
 } as const;
 
@@ -90,7 +90,7 @@ export function ModelDefinitionsTable({
     }),
     createBadgeTableColumn<ModelTableRow>({
       accessorKey: "maintainer",
-      header: "Scope",
+      header: "Maintainer",
       headerTooltip: {
         description: modelConfigDescriptions.maintainer,
       },

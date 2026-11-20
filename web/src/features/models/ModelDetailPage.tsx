@@ -177,7 +177,7 @@ export function ModelDetailPage({ owner }: { owner: ModelOwner }) {
 
             <div>
               <div className="text-muted-foreground text-sm font-bold">
-                Scope
+                Maintainer
               </div>
               <div className="mt-1 text-sm">
                 {modelMaintainerByScope[model.scope]}
