@@ -58,7 +58,6 @@ type DialogProps = {
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
   title: string;
-  /** A short line under the title that says what the dialog is about. */
   description?: React.ReactNode;
 } & (
   | { children?: React.ReactNode; text?: never }

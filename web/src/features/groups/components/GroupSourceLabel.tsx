@@ -1,9 +1,8 @@
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { GROUP_SOURCE_DISPLAY } from "@/src/features/groups/groupSource";
 
-type GroupSource = keyof typeof GROUP_SOURCE_DISPLAY;
+export type GroupSource = keyof typeof GROUP_SOURCE_DISPLAY;
 
-/** Where a group comes from, as quiet text with an icon; hover explains what that means. */
 export function GroupSourceLabel({ source }: { source: GroupSource }) {
   const display = GROUP_SOURCE_DISPLAY[source];
   const Icon = display.icon;

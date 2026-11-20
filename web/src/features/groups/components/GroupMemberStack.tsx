@@ -3,14 +3,16 @@ import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 const AVATAR_STACK_SIZE = 4;
 
-type StackMember = {
+export const memberCountLabel = (count: number) =>
+  `${count} ${count === 1 ? "member" : "members"}`;
+
+export type StackMember = {
   userId: string;
   name: string | null;
   email: string | null;
   image: string | null;
 };
 
-/** A few avatars and "+N"; hovering lists every member. */
 export function GroupMemberStack({ members }: { members: StackMember[] }) {
   if (members.length === 0) {
     return <span className="text-muted-foreground">No members</span>;
@@ -24,9 +26,7 @@ export function GroupMemberStack({ members }: { members: StackMember[] }) {
       placement="bottom"
       content={
         <div className="flex max-h-72 w-64 flex-col gap-2 overflow-y-auto p-3 text-xs">
-          <p className="font-medium">
-            {members.length} {members.length === 1 ? "member" : "members"}
-          </p>
+          <p className="font-medium">{memberCountLabel(members.length)}</p>
           <ul className="flex flex-col gap-1.5">
             {members.map((member) => (
               <li key={member.userId} className="flex items-center gap-2">

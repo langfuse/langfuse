@@ -1,23 +1,25 @@
 import { useId, useState } from "react";
 import { type Role } from "@langfuse/shared";
-import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { memberCountLabel } from "@/src/features/groups/components/GroupMemberStack";
+import { EffectiveRoleCard } from "@/src/features/rbac/components/EffectiveRoleCard";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
-import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
-import { roleIcons } from "@/src/features/rbac/components/roleIcons";
+import { roleName } from "@/src/features/rbac/components/roleDisplay";
+import { RoleWithIcon } from "@/src/features/rbac/components/RoleWithIcon";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 
 type GroupRole = "ADMIN" | "MEMBER" | "VIEWER" | "AI_GATEWAY";
 
+type Level = "organization" | "project";
+
 const OPTIONS: Role[] = ["NONE", "ADMIN", "MEMBER", "VIEWER"];
 
-/** Role options for a group here, most permissions first as on Members: AI Gateway is org-wide only, behind its flag. */
 const optionsFor = (level: Level, isAiGatewayEnabled: boolean): Role[] =>
   (level === "organization" && isAiGatewayEnabled
-    ? [...OPTIONS, "AI_GATEWAY" as Role]
+    ? [...OPTIONS, "AI_GATEWAY" as const]
     : OPTIONS
   ).toSorted(byPermissionCount);
 
@@ -25,69 +27,33 @@ const optionsFor = (level: Level, isAiGatewayEnabled: boolean): Role[] =>
 const onProjectLevel = (role: Role): Role =>
   role === "AI_GATEWAY" ? "NONE" : role;
 
-const roleName = (role: Role) => systemRoleAccessRights[role].name;
-
-/** orgRoleTag says how far a group's organization role reaches. */
 function orgRoleTag(orgRole: Role): string {
   if (orgRole === "NONE") return "No organization role";
   if (orgRole === "AI_GATEWAY") return "Organization only";
   return "Applies in every project";
 }
 
-function RoleWithIcon({ role }: { role: Role }) {
-  const Icon = roleIcons[role];
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <Icon size="sm" aria-hidden="true" />
-      {roleName(role)}
-    </span>
-  );
-}
-
-type Level = "organization" | "project";
-
 type Source = {
   key: string;
-  label: string;
-  role: Role | null;
-  status: "Highest" | "No effect" | "";
+  tag: string;
+  role: Role;
+  /** A project role at or below the inherited role adds nothing. */
+  unused: boolean;
 };
 
-function projectStatus(
-  projectApplies: boolean,
-  projectRole: Role | null,
-): Source["status"] {
-  if (projectApplies) return "Highest";
-  if (projectRole) return "No effect";
-  return "";
-}
-
-/**
- * What a group gives its members at this level, where it comes from, and the
- * role the dialog edits. Groups only add access, so on a project a role counts
- * only when it is higher than the group's organization role.
- */
+/** Groups only add access, so on a project a role counts only when it is higher than the group's org role. */
 function resolveGroupRole(
   level: Level,
   orgRole: Role,
   projectRole: Role | null,
-) {
-  if (level === "organization") {
-    const sources: Source[] = [
-      {
-        key: "organization",
-        label: "Organization role",
-        role: orgRole,
-        status: "",
-      },
-    ];
+): { role: Role; tag: string; sources: Source[]; editing: Role } {
+  if (level === "organization")
     return {
       role: orgRole,
       tag: orgRoleTag(orgRole),
-      sources,
+      sources: [],
       editing: orgRole,
     };
-  }
   const inherited = onProjectLevel(orgRole);
   const projectApplies =
     projectRole !== null && orderedRoles[projectRole] > orderedRoles[inherited];
@@ -97,38 +63,35 @@ function resolveGroupRole(
   const sources: Source[] = [
     {
       key: "organization",
-      label: "Organization role",
+      tag: "Inherited from organization",
       role: inherited,
-      status: !projectApplies && inherited !== "NONE" ? "Highest" : "",
+      unused: false,
     },
     {
       key: "project",
-      label: "Project role",
-      role: projectRole,
-      status: projectStatus(projectApplies, projectRole),
+      tag: "Set on this project",
+      role: projectRole ?? "NONE",
+      unused: !projectApplies,
     },
   ];
   return {
     role: projectApplies && projectRole ? projectRole : inherited,
     tag,
-    sources,
-    editing: projectRole ?? ("NONE" as Role),
+    sources: sources
+      .filter((source) => source.role !== "NONE")
+      .toSorted((x, y) => orderedRoles[y.role] - orderedRoles[x.role]),
+    editing: projectRole ?? "NONE",
   };
 }
 
 type GroupRoleCellProps = {
-  /** "organization" edits the group's org-wide role; "project" its role on this project. */
   level: Level;
   groupName: string;
   memberCount: number;
   orgRole: Role | null;
-  /** Only used on a project. */
   projectRole?: Role | null;
-  /** Roles the current user may grant here. */
   grantableRoles?: Role[];
-  /** Offers AI Gateway as an organization role (org level only). */
   isAiGatewayEnabled?: boolean;
-  /** Why the role cannot be changed here, if it cannot. */
   disabledReason?: string;
   onChange: (role: GroupRole | null) => void;
 };
@@ -137,7 +100,6 @@ const Em = ({ children }: { children: React.ReactNode }) => (
   <span className="text-foreground font-bold">{children}</span>
 );
 
-/** One sentence on what the group gives its members here, and where it comes from. */
 function groupRoleAnswer({
   level,
   groupName,
@@ -197,17 +159,10 @@ function GroupRoleDialog({
   const fieldId = useId();
   const orgRole = orgRoleOrNull ?? "NONE";
   const onProject = level === "project";
-  // What the org role means at this level: AI Gateway counts as none on a project.
   const levelOrgRole = onProject ? onProjectLevel(orgRole) : orgRole;
   const resolved = resolveGroupRole(level, orgRole, projectRole);
   const [selected, setSelected] = useState<Role>(resolved.editing);
   const roleKind = onProject ? "Project role" : "Organization role";
-  const members = `${memberCount} ${memberCount === 1 ? "member" : "members"}`;
-  const noEffect =
-    onProject &&
-    selected !== "NONE" &&
-    levelOrgRole !== "NONE" &&
-    orderedRoles[selected] <= orderedRoles[levelOrgRole];
 
   return (
     <Dialog
@@ -215,7 +170,7 @@ function GroupRoleDialog({
       description={groupRoleAnswer({
         level,
         groupName,
-        members,
+        members: memberCountLabel(memberCount),
         role: resolved.role,
         setHere: onProject && resolved.role !== levelOrgRole,
       })}
@@ -234,82 +189,45 @@ function GroupRoleDialog({
     >
       <Dialog.Body spacing="compact">
         <div className="flex flex-col gap-3 text-sm">
-          {/* On a project the group's role can come from its organization
-              role or its project role; at organization level there is only
-              one source, which the description already names. */}
-          {/* Same tag style as the Members dialog: each role the group has
-              here, where it is set, and whether it counts. At organization
-              level there is only one source, which the description names. */}
-          {/* The role the group's members actually get here, as in the
-              Members dialog, so the list below reads as its sources. */}
           {onProject && resolved.role !== "NONE" && (
-            <div className="flex flex-col rounded-md border">
-              <div className="bg-muted text-muted-foreground rounded-t-md border-b px-3 py-2 text-xs">
-                Effective role · combined permissions of inherited and project
-                roles
-              </div>
-              <div className="grid grid-cols-[7.5rem_minmax(0,1fr)_6.5rem] items-baseline gap-3 px-3 py-2">
-                <span className="font-bold">
-                  <RoleWithIcon role={resolved.role} />
-                </span>
-                <span className="text-muted-foreground">
-                  {systemRoleAccessRights[resolved.role].description}
-                </span>
-                <span className="text-muted-foreground text-right text-xs">
-                  {rolePermissionCountLabel(resolved.role)}
-                </span>
-              </div>
+            <EffectiveRoleCard
+              caption="combined permissions of inherited and project roles"
+              roles={[resolved.role]}
+            />
+          )}
+          {resolved.sources.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <p className="text-muted-foreground text-xs">
+                Roles {groupName} has on this project
+              </p>
+              <ul className="flex flex-col divide-y rounded-md border">
+                {resolved.sources.map((source) => (
+                  <li
+                    key={source.key}
+                    className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 px-3 py-2"
+                  >
+                    <span
+                      className={`font-bold ${source.unused ? "text-muted-foreground" : ""}`}
+                    >
+                      <RoleWithIcon role={source.role} />
+                    </span>
+                    <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
+                        {source.tag}
+                      </span>
+                      {source.unused && (
+                        <span className="text-muted-foreground text-xs">
+                          {source.role === levelOrgRole
+                            ? "same as inherited"
+                            : `${roleName(levelOrgRole)} is higher, so this has no effect`}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
-
-          {onProject &&
-            resolved.sources.some(
-              (source) => source.role && source.role !== "NONE",
-            ) && (
-              <div className="flex flex-col gap-1">
-                <p className="text-muted-foreground text-xs">
-                  Roles {groupName} has on this project
-                </p>
-                <ul className="flex flex-col divide-y rounded-md border">
-                  {resolved.sources
-                    .filter((source) => source.role && source.role !== "NONE")
-                    .toSorted(
-                      (x, y) =>
-                        orderedRoles[y.role ?? "NONE"] -
-                        orderedRoles[x.role ?? "NONE"],
-                    )
-                    .map((source) => {
-                      const unused = source.status === "No effect";
-                      return (
-                        <li
-                          key={source.key}
-                          className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 px-3 py-2"
-                        >
-                          <span
-                            className={`font-bold ${unused ? "text-muted-foreground" : ""}`}
-                          >
-                            {source.role && <RoleWithIcon role={source.role} />}
-                          </span>
-                          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                            <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-                              {source.key === "project"
-                                ? "Set on this project"
-                                : "Inherited from organization"}
-                            </span>
-                            {unused && (
-                              <span className="text-muted-foreground text-xs">
-                                {source.role === levelOrgRole
-                                  ? "same as inherited"
-                                  : `${roleName(levelOrgRole)} is higher, so this has no effect`}
-                              </span>
-                            )}
-                          </span>
-                        </li>
-                      );
-                    })}
-                </ul>
-              </div>
-            )}
 
           <div className="flex flex-col gap-1">
             <label htmlFor={fieldId} className="font-bold">
@@ -337,8 +255,6 @@ function GroupRoleDialog({
                     role !== resolved.editing
                   )
                     return "You cannot grant this role";
-                  // On a project, a role at or below the group's organization
-                  // role adds nothing, as on the Members page.
                   if (
                     onProject &&
                     role !== "NONE" &&
@@ -350,7 +266,7 @@ function GroupRoleDialog({
                 }}
               />
             )}
-            {!onProject && !noEffect && (
+            {!onProject && (
               <p className="text-muted-foreground text-xs">
                 {selected === "AI_GATEWAY"
                   ? "Members keep their own role and also get AI Gateway access."
@@ -364,7 +280,6 @@ function GroupRoleDialog({
   );
 }
 
-/** What a groups table role cell shows: the role the group gives at this level. */
 export function describeGroupRoleCell(props: {
   level: Level;
   groupName: string;
@@ -383,10 +298,6 @@ export function describeGroupRoleCell(props: {
   };
 }
 
-/**
- * Opens the role dialog behind a groups table role cell, the same dialog as
- * the members tables. The caller renders the trigger.
- */
 export function GroupRoleDialogController({
   children,
   ...props

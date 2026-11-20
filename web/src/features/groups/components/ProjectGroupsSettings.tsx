@@ -10,16 +10,15 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { GroupMemberStack } from "@/src/features/groups/components/GroupMemberStack";
-import { GroupName } from "@/src/features/groups/components/GroupName";
 import {
   describeGroupRoleCell,
   GroupRoleDialogController,
 } from "@/src/features/groups/components/GroupRoleDialogController";
-import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
-import { GroupSourceLabel } from "@/src/features/groups/components/GroupSourceLabel";
+import { groupTableColumns } from "@/src/features/groups/components/groupTableColumns";
 import { GROUP_SOURCE_DISPLAY } from "@/src/features/groups/groupSource";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
+import { roleName } from "@/src/features/rbac/components/roleDisplay";
 import {
   hasProjectAccess,
   useHasProjectAccess,
@@ -30,8 +29,6 @@ type ProjectGroup = RouterOutputs["groups"]["projectList"][number];
 type GroupRole = "ADMIN" | "MEMBER" | "VIEWER";
 
 const GROUP_ROLES: GroupRole[] = ["VIEWER", "MEMBER", "ADMIN"];
-const roleLabel = (role: string) =>
-  role.charAt(0) + role.slice(1).toLowerCase();
 
 type ProjectGroupRow = {
   group: ProjectGroup;
@@ -41,10 +38,8 @@ type ProjectGroupRow = {
 };
 
 type ColumnContext = {
-  /** Why project roles cannot be changed here, if they cannot. */
   editBlockedReason?: string;
   pendingGroupId: string | null;
-  /** Roles you cannot grant are left out, as on the Members page. */
   projectRoles: (current: string | null) => Role[];
   onChange: (group: ProjectGroup, role: GroupRole | null) => void;
 };
@@ -55,33 +50,11 @@ function projectGroupColumns({
   projectRoles,
   onChange,
 }: ColumnContext): LangfuseColumnDef<ProjectGroupRow>[] {
+  const shared = groupTableColumns<ProjectGroupRow>();
   return [
-    {
-      accessorKey: "displayName",
-      header: "Name",
-      cell: ({ row }) => <GroupName group={row.original.group} />,
-    },
-    {
-      accessorKey: "source",
-      header: "Source",
-      enableHiding: true,
-      headerTooltip: {
-        description:
-          "SCIM: synced from your identity provider, so its name and members are managed there. Langfuse: created here by an admin.",
-      },
-      size: 120,
-      cell: ({ row }) => (
-        <GroupSourceLabel source={row.original.group.source} />
-      ),
-    },
-    {
-      accessorKey: "memberCount",
-      header: "Members",
-      size: 180,
-      cell: ({ row }) => (
-        <GroupMemberStack members={row.original.group.members} />
-      ),
-    },
+    shared.name,
+    shared.source,
+    shared.members,
     {
       accessorKey: "projectRole",
       header: "Project role",
@@ -128,7 +101,6 @@ function projectGroupColumns({
   ];
 }
 
-/** Why group project roles cannot be changed here, if they cannot. */
 function projectRolesBlockedReason({
   hasProjectRoles,
   canEditProjectMembers,
@@ -142,15 +114,10 @@ function projectRolesBlockedReason({
   return undefined;
 }
 
-// Project admins give the org's groups a role on this project, like project
-// roles of members. Groups, their members and org-wide roles are managed in
-// the organization settings.
 export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
   const session = useSession();
   const hasAdminApi = useHasEntitlement("admin-api");
   const hasProjectRoles = useHasEntitlement("rbac-project-roles");
-  // Groups are created and their members managed in the organization
-  // settings; org admins get a way there from this page.
   const { organization } = useQueryProject();
   const canManageOrgGroups = useHasOrganizationAccess({
     organizationId: organization?.id,
@@ -186,7 +153,7 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
         operation: "group_project_role.update",
         title: "Group role saved",
         description: input.role
-          ? `${name} is now ${roleLabel(input.role)} on this project`
+          ? `${name} is now ${roleName(input.role)} on this project`
           : `${name} no longer has a role on this project`,
         duration: 2000,
       });
@@ -196,27 +163,23 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
     ? (setRole.variables?.groupId ?? null)
     : null;
 
-  const columns = useMemo(
-    () =>
-      projectGroupColumns({
-        editBlockedReason,
-        pendingGroupId,
-        // A role can be granted or taken away only if you hold all of its permissions.
-        projectRoles: (current) => [
-          "NONE",
-          ...GROUP_ROLES.filter(
-            (role) =>
-              role === current ||
-              projectRoleAccessRights[role].every((scope) =>
-                hasProjectAccess({ session: session.data, projectId, scope }),
-              ),
+  const columns = projectGroupColumns({
+    editBlockedReason,
+    pendingGroupId,
+    // A role can be granted or taken away only if you hold all of its permissions.
+    projectRoles: (current) => [
+      "NONE",
+      ...GROUP_ROLES.filter(
+        (role) =>
+          role === current ||
+          projectRoleAccessRights[role].every((scope) =>
+            hasProjectAccess({ session: session.data, projectId, scope }),
           ),
-        ],
-        onChange: (group, role) =>
-          setRole.mutate({ projectId, groupId: group.id, role }),
-      }),
-    [editBlockedReason, pendingGroupId, session.data, projectId, setRole],
-  );
+      ),
+    ],
+    onChange: (group, role) =>
+      setRole.mutate({ projectId, groupId: group.id, role }),
+  });
 
   const data = useMemo<TableProps<ProjectGroupRow>["data"]>(() => {
     if (groups.isPending) return { status: "loading" };

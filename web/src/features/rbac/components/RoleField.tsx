@@ -12,14 +12,12 @@ import {
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
-import { roleDisplay } from "@/src/features/rbac/components/roleDisplay";
+import {
+  roleDisplay,
+  roleName,
+} from "@/src/features/rbac/components/roleDisplay";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
-/**
- * A role picker shaped like the API key permissions field: the selected role
- * with its description, options with a permissions preview, and a link to the
- * full permission list.
- */
 export function RoleField({
   id,
   roles,
@@ -33,9 +31,7 @@ export function RoleField({
   roles: Role[];
   value: Role;
   onChange: (role: Role) => void;
-  /** Label for NONE, e.g. "Inherit from organization" on a project. */
   noneLabel?: string;
-  /** Description for NONE when it means something other than "no access". */
   noneDescription?: string;
   optionDisabledReason?: (role: Role) => string | undefined;
 }) {
@@ -43,10 +39,9 @@ export function RoleField({
   const [permissionsRole, setPermissionsRole] = useState<SystemRole | null>(
     null,
   );
-  const nameOf = (name: string) =>
-    noneLabel && name === systemRoleAccessRights.NONE.name ? noneLabel : name;
-  const selected = systemRoleAccessRights[value];
-  const describe = (role: Role) =>
+  const nameOf = (role: SystemRole) =>
+    role === "NONE" && noneLabel ? noneLabel : roleName(role);
+  const describe = (role: SystemRole) =>
     role === "NONE" && noneDescription
       ? noneDescription
       : systemRoleAccessRights[role].description;
@@ -68,7 +63,7 @@ export function RoleField({
           <div className="flex items-start gap-2 text-left">
             <SelectedIcon size="base" __rawClassName="mt-0.5" />
             <div className="flex flex-col">
-              <span className="font-bold">{nameOf(selected.name)}</span>
+              <span className="font-bold">{nameOf(value)}</span>
               <span className="text-muted-foreground text-xs">
                 {describe(value)}
               </span>
@@ -82,9 +77,9 @@ export function RoleField({
               role={role}
               display={(r) => ({
                 ...roleDisplay(r),
-                name: nameOf(roleDisplay(r).name),
+                name: nameOf(r),
+                description: describe(r),
               })}
-              description={describe(role)}
               disabledReason={optionDisabledReason?.(role)}
               showPermissionCount
               onViewPermissions={showPermissions}

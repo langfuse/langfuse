@@ -2,24 +2,23 @@ import { useId, useState } from "react";
 import Link from "next/link";
 import { Lock } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
-import {
-  organizationRoleAccessRights,
-  systemRoleAccessRights,
-} from "@langfuse/shared/rbac";
+import { organizationRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { memberCountLabel } from "@/src/features/groups/components/GroupMemberStack";
+import { EffectiveRoleCard } from "@/src/features/rbac/components/EffectiveRoleCard";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
-import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
-import { roleIcons } from "@/src/features/rbac/components/roleIcons";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+import { roleName } from "@/src/features/rbac/components/roleDisplay";
+import { RoleWithIcon } from "@/src/features/rbac/components/RoleWithIcon";
+import {
+  higherRole,
+  orderedRoles,
+} from "@/src/features/rbac/constants/orderedRoles";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 import { type MemberGroupRole } from "./MembersSettingsTable";
 
-const roleName = (role: Role) => systemRoleAccessRights[role].name;
-
-/** levelNote names a grant's level when the same group also grants a different role at the other level. */
 function levelNote(
   grant: MemberGroupRole,
   grants: MemberGroupRole[],
@@ -34,16 +33,12 @@ function levelNote(
   return grant.level === "project" ? "project" : "org";
 }
 
-/** inheritNoneDescription explains what "Inherit from organization" means for a project role. */
 function inheritNoneDescription(orgRole: Role): string {
   if (orgRole === "AI_GATEWAY" || orgRole === "NONE") {
     return `No project access: the organization role (${roleName(orgRole)}) gives none.`;
   }
   return `Keep the organization role (${roleName(orgRole)}) on this project.`;
 }
-
-const higher = (a: Role, b: Role) =>
-  orderedRoles[b] > orderedRoles[a] ? b : a;
 
 const joinNames = (names: string[]) => [...new Set(names)].join(", ");
 
@@ -56,7 +51,6 @@ const LADDER: ReadonlySet<Role> = new Set<Role>([
 ]);
 const onLadder = (role: Role) => LADDER.has(role);
 
-/** Whether AI Gateway grants something `role` does not already include. */
 const gatewayAddsTo = (role: Role) => {
   const scopes = new Set<string>(organizationRoleAccessRights[role]);
   return organizationRoleAccessRights.AI_GATEWAY.some(
@@ -65,35 +59,18 @@ const gatewayAddsTo = (role: Role) => {
 };
 
 export type EffectiveRole = {
-  /**
-   * Every role the member effectively has here: the highest ladder role (if
-   * any) plus AI Gateway when a source grants it and the ladder role does not
-   * already include its permissions. `["NONE"]` when nothing applies.
-   */
+  /** Highest ladder role, plus AI Gateway when it adds permissions; `["NONE"]` when nothing applies. */
   roles: Role[];
-  /** The highest ladder role among the direct role and every group grant; NONE if none. */
   role: Role;
-  /** The highest ladder role is granted by a group and is higher than the direct role. */
   raisedByGroup: boolean;
-  /** The member's direct role: the org role, or on a project the project role or its org default. */
   direct: Role;
-  /** On a project page: the member has no project role and inherits the org role. */
   directIsOrgDefault: boolean;
-  /** The highest ladder role any group grants here; lower ladder roles cannot be picked. */
+  /** Highest ladder role a group grants; direct roles below it cannot be picked. */
   groupFloor: Role | null;
-  /** Group grants that apply at this level, highest first. */
   grants: MemberGroupRole[];
 };
 
-/**
- * Effective roles of a member. On the organization page only org-wide group
- * grants count; on a project page the project role (or the org role when the
- * project has none) combines with org-wide and project group grants, matching
- * `resolveOrganizationScopes` and `resolveProjectScopes` on the server, which
- * union the permissions. Ladder roles (Owner > Admin > Member > Viewer) collapse
- * to the highest one; AI Gateway is kept alongside only when it adds
- * permissions that role lacks (Viewer, for instance, cannot invoke the gateway).
- */
+/** Mirrors server-side `resolveOrganizationScopes`/`resolveProjectScopes`: ladder roles collapse to the highest, and AI Gateway stays only when it adds permissions (Viewer cannot invoke the gateway). */
 export function resolveEffectiveRole({
   orgRole,
   projectRole,
@@ -117,7 +94,7 @@ export function resolveEffectiveRole({
   const direct = atLevel(onProject ? (projectRole ?? orgRole) : orgRole);
   const ladderDirect: Role = onLadder(direct) ? direct : "NONE";
   const groupFloor = grants.find((grant) => onLadder(grant.role))?.role ?? null;
-  const role = groupFloor ? higher(ladderDirect, groupFloor) : ladderDirect;
+  const role = groupFloor ? higherRole(ladderDirect, groupFloor) : ladderDirect;
   const raisedByGroup = role !== ladderDirect;
   const hasGateway =
     (direct === "AI_GATEWAY" ||
@@ -139,17 +116,14 @@ export function resolveEffectiveRole({
   };
 }
 
-/** The grants that set the group floor, i.e. the groups that lock lower roles. */
 const floorGrants = (effective: EffectiveRole) =>
   effective.grants.filter((grant) => grant.role === effective.groupFloor);
 
-/** Why a direct role cannot be picked because a group already grants more. */
 export const belowGroupFloor =
   (effective: EffectiveRole, { allowNone }: { allowNone: boolean }) =>
   (role: Role) => {
     const floor = effective.groupFloor;
-    // AI Gateway sits beside the ladder: picking it keeps the group's role and
-    // adds gateway access, so a group never locks it.
+    // AI Gateway sits beside the ladder, so a group never locks it.
     if (
       !floor ||
       role === "AI_GATEWAY" ||
@@ -163,124 +137,71 @@ export const belowGroupFloor =
     return `Can't go below ${roleName(floor)}: ${names} already gives ${roleName(floor)}, and groups only add access`;
   };
 
-/** One reason a member holds a role here: a direct assignment, the org role, or a group. */
-type RoleReason = {
+type GroupReason = {
   key: string;
+  groupId: string;
   label: string;
-  /** Hover text: the group's level, size and role. */
-  title?: string;
-  /** The group behind this reason, to list each group once per role. */
-  groupId?: string;
-  /** "org" or "project" when the same group grants different roles at the two levels. */
+  title: string;
   levelNote?: string;
-  /** The reason is a group; it is linked and marked when synced from SCIM. */
-  group: boolean;
-  scim: boolean;
-  href?: string;
+  href: string;
 };
 
-/** A role the member holds here and every reason that grants it. */
-export type HeldRole = {
+type HeldRole = {
   role: Role;
-  reasons: RoleReason[];
+  directTag?: string;
+  groups: GroupReason[];
 };
 
-/**
- * The roles a member holds at this level, most permissions first, each with the reasons
- * that grant it. NONE grants nothing, so it never appears. On a project a set
- * project role replaces the organization role, which is then left out too.
- */
-export function heldRoles(
-  effective: EffectiveRole,
-  {
-    orgRole,
-    orgId,
-    projectId,
-  }: { orgRole: Role; orgId: string; projectId?: string },
-): HeldRole[] {
-  const direct: { role: Role; reason: RoleReason } = (() => {
-    if (!projectId)
-      return {
-        role: orgRole,
-        reason: {
-          key: "direct",
-          label: "set below",
-          group: false,
-          scim: false,
-        },
-      };
-    if (effective.directIsOrgDefault)
-      return {
-        role: effective.direct,
-        reason: {
-          key: "organization",
-          label: "from the organization role",
-          group: false,
-          scim: false,
-        },
-      };
-    return {
-      role: effective.direct,
-      reason: {
-        key: "project",
-        label: "set below",
-        group: false,
-        scim: false,
-      },
-    };
-  })();
-  const entries: { role: Role; reason: RoleReason }[] = [
-    ...(direct.role !== "NONE" ? [direct] : []),
-    ...effective.grants.map((grant) => ({
-      role: grant.role,
-      reason: {
-        key: `${grant.groupId}-${grant.level}`,
-        label: grant.groupName,
-        title: `${grant.groupName} · ${grant.level === "project" ? "project group" : "organization group"} · ${grant.memberCount} ${grant.memberCount === 1 ? "member" : "members"} · ${roleName(grant.role)}`,
-        groupId: grant.groupId,
-        levelNote: levelNote(grant, effective.grants),
-        group: true,
-        scim: grant.groupSource === "SCIM",
-        href:
-          grant.level === "project" && projectId
-            ? `/project/${projectId}/settings/groups`
-            : `/organization/${orgId}/settings/groups`,
-      },
-    })),
-  ];
-  const byRole = new Map<Role, RoleReason[]>();
-  for (const { role, reason } of entries) {
-    const existing = byRole.get(role) ?? [];
-    if (
-      reason.groupId &&
-      existing.some((other) => other.groupId === reason.groupId)
-    )
-      continue;
-    byRole.set(role, [...existing, reason]);
-  }
-  return [...byRole.entries()]
-    .map(([role, reasons]) => ({ role, reasons }))
-    .toSorted((a, b) => byPermissionCount(a.role, b.role));
+function directTag(effective: EffectiveRole, onProject: boolean) {
+  if (effective.directIsOrgDefault) return "Inherited from organization";
+  return onProject ? "Set on this project" : "Direct";
 }
 
-/**
- * What the list leaves out and why: on a project, the organization role when a
- * project role replaces it or when it is None.
- */
+/** NONE grants nothing, so it never appears; on a project a set project role replaces the org role. */
+function heldRoles(
+  effective: EffectiveRole,
+  { orgId, projectId }: { orgId: string; projectId?: string },
+): HeldRole[] {
+  const byRole = new Map<Role, HeldRole>();
+  const held = (role: Role) => {
+    const existing = byRole.get(role);
+    if (existing) return existing;
+    const created: HeldRole = { role, groups: [] };
+    byRole.set(role, created);
+    return created;
+  };
+  if (effective.direct !== "NONE")
+    held(effective.direct).directTag = directTag(effective, Boolean(projectId));
+  for (const grant of effective.grants) {
+    const { groups } = held(grant.role);
+    if (groups.some((other) => other.groupId === grant.groupId)) continue;
+    groups.push({
+      key: `${grant.groupId}-${grant.level}`,
+      groupId: grant.groupId,
+      label: grant.groupName,
+      title: `${grant.groupName} · ${grant.level === "project" ? "project group" : "organization group"} · ${memberCountLabel(grant.memberCount)} · ${roleName(grant.role)}`,
+      levelNote: levelNote(grant, effective.grants),
+      href:
+        grant.level === "project" && projectId
+          ? `/project/${projectId}/settings/groups`
+          : `/organization/${orgId}/settings/groups`,
+    });
+  }
+  return [...byRole.values()].toSorted((a, b) =>
+    byPermissionCount(a.role, b.role),
+  );
+}
+
 function omittedNote(
   effective: EffectiveRole,
   { orgRole, projectId }: { orgRole: Role; projectId?: string },
 ) {
-  if (!projectId) return null;
-  // A None or AI Gateway org role gives nothing on a project; the picker's
-  // "Inherit from organization" option already says so, so no note here.
+  if (!projectId || effective.directIsOrgDefault) return null;
+  // A None or AI Gateway org role gives nothing on a project; the picker already says so.
   if (orgRole === "NONE" || orgRole === "AI_GATEWAY") return null;
-  if (!effective.directIsOrgDefault)
-    return `Organization role (${roleName(orgRole)}) doesn't apply here because a project role is set.`;
-  return null;
+  return `Organization role (${roleName(orgRole)}) doesn't apply here because a project role is set.`;
 }
 
-/** Group grants that give the member an effective role their direct role lacks. */
 function raisingGrants(effective: EffectiveRole) {
   const { role, raisedByGroup, direct, grants } = effective;
   return grants.filter(
@@ -292,28 +213,18 @@ function raisingGrants(effective: EffectiveRole) {
   );
 }
 
-/** Why the member has this role, as a short tag: "From Platform Admins", "Inherited from organization"… */
 function sourceTag(effective: EffectiveRole, onProject: boolean) {
   const raising = raisingGrants(effective);
-  if (raising.length > 0) {
-    return {
-      text: `From ${joinNames(raising.map((grant) => grant.groupName))}`,
-      scim: raising.some((grant) => grant.groupSource === "SCIM"),
-    };
-  }
-  if (effective.directIsOrgDefault)
-    return { text: "Inherited from organization", scim: false };
-  return {
-    text: onProject ? "Set on this project" : "Set directly",
-    scim: false,
-  };
+  if (raising.length > 0)
+    return `From ${joinNames(raising.map((grant) => grant.groupName))}`;
+  if (effective.directIsOrgDefault) return "Inherited from organization";
+  return onProject ? "Set on this project" : "Set directly";
 }
 
 const Em = ({ children }: { children: React.ReactNode }) => (
   <span className="text-foreground font-bold">{children}</span>
 );
 
-/** How to lower access a group locks: remove the member from that group. */
 function lockNote(effective: EffectiveRole, firstName: string) {
   const names = joinNames(
     floorGrants(effective).map((grant) => grant.groupName),
@@ -331,27 +242,9 @@ export type DirectRoleEditor = {
   roles: Role[];
   value: Role;
   isProjectRole: boolean;
-  /** Why the whole editor is read-only, if it is. */
   disabledReason?: string;
-  /** Why a single option cannot be picked, if it cannot. */
   optionDisabledReason: (role: Role) => string | undefined;
   onChange: (role: Role) => void;
-};
-
-function RoleWithIcon({ role }: { role: Role }) {
-  const Icon = roleIcons[role];
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <Icon size="sm" aria-hidden="true" />
-      {roleName(role)}
-    </span>
-  );
-}
-
-type MemberIdentity = {
-  name: string | null;
-  email: string | null;
-  image: string | null;
 };
 
 type EffectiveRoleSourceProps = {
@@ -360,20 +253,10 @@ type EffectiveRoleSourceProps = {
   orgId: string;
   projectId?: string;
   canSeeOrgSettings: boolean;
-  /** Groups can grant roles here, so the effective role mentions them. */
-  isGroupsEnabled: boolean;
-  member: MemberIdentity;
+  member: { name: string | null; email: string | null };
   editor: DirectRoleEditor;
 };
 
-/** Tags for non-group reasons; on a project they say how the role got there. */
-const DIRECT_TAG: Record<string, string> = {
-  direct: "Direct",
-  project: "Set on this project",
-  organization: "Inherited from organization",
-};
-
-/** A small tag that says what kind of source a role comes from. */
 function SourceTag({ children }: { children: React.ReactNode }) {
   return (
     <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-xs">
@@ -382,39 +265,32 @@ function SourceTag({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Where a role comes from, tagged so direct and group roles read apart at a
- * glance: "Direct", "Inherited" (from the organization role on a project), or
- * "Group" with the group names as links.
- */
-function ReasonList({ reasons }: { reasons: RoleReason[] }) {
-  const direct = reasons.filter((reason) => !reason.group);
-  const groups = reasons.filter((reason) => reason.group);
+function ReasonList({ directTag, groups }: Omit<HeldRole, "role">) {
   return (
     <span className="flex min-w-0 flex-col gap-1">
-      {direct.map((reason) => (
-        <span key={reason.key} className="flex items-baseline gap-2">
-          <SourceTag>{DIRECT_TAG[reason.key] ?? "Direct"}</SourceTag>
+      {directTag && (
+        <span className="flex items-baseline gap-2">
+          <SourceTag>{directTag}</SourceTag>
         </span>
-      ))}
+      )}
       {groups.length > 0 && (
         <span className="flex min-w-0 items-baseline gap-2">
           <SourceTag>{groups.length > 1 ? "Groups" : "Group"}</SourceTag>
           <span className="min-w-0">
-            {groups.map((reason, index) => (
-              <span key={reason.key}>
+            {groups.map((group, index) => (
+              <span key={group.key}>
                 {index > 0 && <span className="text-muted-foreground">, </span>}
                 <Link
-                  href={reason.href ?? "#"}
-                  title={reason.title}
+                  href={group.href}
+                  title={group.title}
                   className="underline-offset-2 hover:underline"
                 >
-                  {reason.label}
+                  {group.label}
                 </Link>
-                {reason.levelNote && (
+                {group.levelNote && (
                   <span className="text-muted-foreground">
                     {" "}
-                    ({reason.levelNote})
+                    ({group.levelNote})
                   </span>
                 )}
               </span>
@@ -426,18 +302,12 @@ function ReasonList({ reasons }: { reasons: RoleReason[] }) {
   );
 }
 
-/**
- * The dialog behind the role cell: the effective role, every role the member
- * holds here with the reasons that grant it (most permissions first), and the member's
- * own role to change.
- */
 function RoleDialog({
   effective,
   orgRole,
   orgId,
   projectId,
   canSeeOrgSettings,
-  isGroupsEnabled,
   member,
   editor,
   onDone,
@@ -446,13 +316,11 @@ function RoleDialog({
   const onProject = Boolean(projectId);
   const [selected, setSelected] = useState<Role>(editor.value);
   const [permissionsRole, setPermissionsRole] = useState<Role | null>(null);
-  const held = heldRoles(effective, { orgRole, orgId, projectId });
+  const held = heldRoles(effective, { orgId, projectId });
   const omitted = omittedNote(effective, { orgRole, projectId });
-  // One direct role and nothing from groups: the picker below says it all, so
-  // the effective-role card and the roles list would only repeat it.
+  // One direct role and no groups: the card and roles list would only repeat the picker.
   const explain =
-    held.length > 1 || held.some(({ reasons }) => reasons.some((r) => r.group));
-  const fromGroup = effective.raisedByGroup;
+    held.length > 1 || held.some(({ groups }) => groups.length > 0);
   const displayName = member.name ?? member.email ?? "this member";
   const firstName = displayName.split(" ")[0] ?? displayName;
   const scopeLabel = onProject ? "on this project" : "in this organization";
@@ -479,49 +347,19 @@ function RoleDialog({
       <Dialog.Body spacing="compact">
         <div className="flex flex-col gap-3 text-sm">
           {explain && (
-            <div className="flex flex-col rounded-md border">
-              <div className="bg-muted text-muted-foreground rounded-t-md border-b px-3 py-2 text-xs">
-                Effective role ·{" "}
-                {isGroupsEnabled
-                  ? "combined permissions of direct and group roles"
-                  : "permissions of the role assigned directly"}
-              </div>
-              <ul className="flex flex-col divide-y">
-                {effective.roles.map((role) => (
-                  <li
-                    key={role}
-                    className="grid grid-cols-[7.5rem_minmax(0,1fr)_6.5rem] items-baseline gap-3 px-3 py-2"
-                  >
-                    <span className="font-bold">
-                      <RoleWithIcon role={role} />
-                    </span>
-                    <span className="text-muted-foreground">
-                      {systemRoleAccessRights[role].description}
-                    </span>
-                    <span className="text-right text-xs">
-                      {role !== "NONE" && (
-                        <button
-                          type="button"
-                          onClick={() => setPermissionsRole(role)}
-                          className="text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                        >
-                          {rolePermissionCountLabel(role)}
-                        </button>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <EffectiveRoleCard
+              caption="combined permissions of direct and group roles"
+              roles={effective.roles}
+              onViewPermissions={setPermissionsRole}
+            />
           )}
-
           {explain && (
             <div className="flex flex-col gap-1">
               <p className="text-muted-foreground text-xs">
                 Roles {firstName} holds {scopeLabel}
               </p>
               <ul className="flex flex-col divide-y rounded-md border">
-                {held.map(({ role, reasons }) => (
+                {held.map(({ role, ...reasons }) => (
                   <li
                     key={role}
                     className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 px-3 py-2"
@@ -529,7 +367,7 @@ function RoleDialog({
                     <span className="font-bold">
                       <RoleWithIcon role={role} />
                     </span>
-                    <ReasonList reasons={reasons} />
+                    <ReasonList {...reasons} />
                   </li>
                 ))}
               </ul>
@@ -562,7 +400,7 @@ function RoleDialog({
                 optionDisabledReason={editor.optionDisabledReason}
               />
             )}
-            {fromGroup && (
+            {effective.raisedByGroup && (
               <p className="text-muted-foreground flex items-start gap-2 text-xs">
                 <Lock size="sm" aria-hidden="true" __rawClassName="mt-0.5" />
                 <span>{lockNote(effective, firstName)}</span>
@@ -591,21 +429,16 @@ function RoleDialog({
   );
 }
 
-/** What the role cell shows: every effective role, and a hint when a group raises it. */
 export function describeRoleCell(effective: EffectiveRole, onProject: boolean) {
   const tag = sourceTag(effective, onProject);
   const names = effective.roles.map(roleName).join(", ");
   return {
     roles: effective.roles,
-    label: `${names}, ${tag.text}. Open role details`,
-    groupHint: raisingGrants(effective).length > 0 ? tag.text : undefined,
+    label: `${names}, ${tag}. Open role details`,
+    groupHint: raisingGrants(effective).length > 0 ? tag : undefined,
   };
 }
 
-/**
- * Opens the role dialog behind a members table role cell: every source of the
- * role and the member's own role to change. The caller renders the trigger.
- */
 export function EffectiveRoleDialogController({
   children,
   ...props

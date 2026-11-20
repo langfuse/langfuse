@@ -37,11 +37,9 @@ describe("SCIM Groups API", () => {
   const otherAuth = () =>
     createBasicAuthHeader(otherOrgApiKey, otherOrgSecretKey);
 
-  // Users that are members of `orgId`
   let alice: string;
   let bob: string;
   let carol: string;
-  // A user that is not a member of `orgId`
   let outsider: string;
 
   const uniqueName = (prefix: string) =>
@@ -197,7 +195,6 @@ describe("SCIM Groups API", () => {
         members: [{ value: outsider }],
       });
       expect(res.status).toBe(400);
-      // Nothing is created on failure
       const count = await prisma.group.count({
         where: { orgId, displayName },
       });

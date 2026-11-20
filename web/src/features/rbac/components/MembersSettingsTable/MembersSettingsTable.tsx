@@ -84,7 +84,6 @@ type MembersSettingsTableProps = Pick<
   canManageOrgOwnership: boolean;
   canManageProjectOwnership: boolean;
   isAiGatewayEnabled: boolean;
-  /** Groups can grant roles, so the role dialog mentions them. */
   isGroupsEnabled: boolean;
   projectRolesEntitlement: boolean;
   showFeaturePreviews: boolean;
@@ -120,7 +119,6 @@ type DirectRoleEditorContext = Pick<
   | "onUpdateProjectRole"
 >;
 
-/** Why the direct project role cannot be changed here, if it cannot. */
 function projectRoleBlockedReason(
   member: MembersSettingsTableRow,
   ctx: DirectRoleEditorContext,
@@ -137,7 +135,6 @@ function projectRoleBlockedReason(
   return undefined;
 }
 
-/** Why the direct organization role cannot be changed here, if it cannot. */
 function orgRoleBlockedReason(
   member: MembersSettingsTableRow,
   ctx: DirectRoleEditorContext,
@@ -149,7 +146,6 @@ function orgRoleBlockedReason(
   return undefined;
 }
 
-/** What the role panel may change: the direct org role, or on a project the direct project role. */
 function directRoleEditor(
   member: MembersSettingsTableRow,
   effective: EffectiveRole,
@@ -233,9 +229,6 @@ export function MembersSettingsTable({
         header: "SSO Provider",
         enableHiding: true,
       }),
-      // Without Groups a member only has their direct role, so the role
-      // pickers stay as they were before groups. With Groups one cell shows
-      // the effective role and opens the dialog that explains it.
       ...(isGroupsEnabled
         ? [
             {
@@ -264,12 +257,7 @@ export function MembersSettingsTable({
                     orgId={orgId}
                     projectId={onProject ? project?.id : undefined}
                     canSeeOrgSettings={hasOrgCudAccess}
-                    isGroupsEnabled={isGroupsEnabled}
-                    member={{
-                      name: member.user.name,
-                      email: member.email,
-                      image: member.user.image,
-                    }}
+                    member={{ name: member.user.name, email: member.email }}
                     editor={directRoleEditor(member, effective, {
                       project,
                       projectRolesEntitlement,

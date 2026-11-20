@@ -111,7 +111,6 @@ export async function revokeUserRoles(
   });
 }
 
-/** revokeGroupRoles removes every group's assignments on an owner. */
 export async function revokeGroupRoles(
   prisma: Prisma.TransactionClient,
   { ownerId }: { ownerId: OwnerId },

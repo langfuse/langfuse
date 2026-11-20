@@ -2,8 +2,6 @@ import { Cog, RefreshCw, UserRound } from "@langfuse/icons";
 
 type GroupSourceValue = "SCIM" | "MANUAL" | "SYSTEM";
 
-// One place for how a group's origin is shown, so SCIM-synced, user-created
-// and Langfuse-managed groups never look alike.
 export const GROUP_SOURCE_DISPLAY = {
   SCIM: {
     label: "SCIM",
@@ -27,7 +25,6 @@ export const GROUP_SOURCE_DISPLAY = {
   { label: string; icon: typeof Cog; description: string }
 >;
 
-/** SCIM groups mirror the identity provider, so their name and members are read-only here. */
 export const isScimManaged = (group: { source: string }) =>
   group.source === "SCIM";
 

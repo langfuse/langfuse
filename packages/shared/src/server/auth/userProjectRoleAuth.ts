@@ -17,7 +17,6 @@ export type GroupRoleGrant = { projectId: string | null; role: Role };
 
 const union = <T>(lists: T[][]): T[] => [...new Set(lists.flat())];
 
-/** Direct role on a project: the project role if set, else the org role. */
 export function resolveProjectRole({
   projectId,
   projectMemberships,
@@ -33,10 +32,7 @@ export function resolveProjectRole({
   );
 }
 
-/**
- * Org permissions of the direct role plus org-wide group roles.
- * Undefined when no group grants anything org-wide.
- */
+/** Undefined when no group grants anything org-wide. */
 export function resolveOrganizationScopes({
   orgMembershipRole,
   groupRoles,
@@ -52,10 +48,7 @@ export function resolveOrganizationScopes({
   ]);
 }
 
-/**
- * Project permissions of the direct role plus group roles that apply to the
- * project. Undefined when no group applies.
- */
+/** Undefined when no group role applies to the project. */
 export function resolveProjectScopes({
   projectId,
   projectMemberships,

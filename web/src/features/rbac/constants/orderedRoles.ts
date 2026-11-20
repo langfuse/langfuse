@@ -8,3 +8,6 @@ export const orderedRoles: Record<Role, number> = {
   AI_GATEWAY: 1,
   NONE: 0,
 };
+
+export const higherRole = (a: Role, b: Role): Role =>
+  orderedRoles[b] > orderedRoles[a] ? b : a;

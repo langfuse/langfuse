@@ -1,17 +1,12 @@
 import { Users } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
-import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { selectTriggerClassName } from "@/src/components/ui/select";
+import { roleName } from "@/src/features/rbac/components/roleDisplay";
 import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 import { cn } from "@/src/utils/tailwind";
 
-/**
- * A role table cell that looks like the role select: each effective role with
- * its icon, and a dropdown arrow. `groupHint` adds a group icon with that text on hover, for a
- * role a group sets. Clicking it opens the role dialog.
- */
 export function RoleCellTrigger({
   roles,
   label,
@@ -19,7 +14,6 @@ export function RoleCellTrigger({
   onClick,
 }: {
   roles: Role[];
-  /** Accessible name, e.g. "Admin, from Platform Admins. Open role details". */
   label: string;
   groupHint?: string;
   onClick: () => void;
@@ -45,7 +39,7 @@ export function RoleCellTrigger({
                 </span>
               )}
               <Icon size="base" aria-hidden="true" />
-              {systemRoleAccessRights[role].name}
+              {roleName(role)}
             </span>
           );
         })}
