@@ -809,3 +809,28 @@ fn preserves_truncated_per_key_values_while_decoding_valid_siblings() {
     assert_eq!(event.metadata["note"], json!(r#"{"message":"truncated"#));
     assert_eq!(event.metadata["environment"], json!("prod"));
 }
+
+#[test]
+fn langfuse_baggage_supplies_trace_context_without_overriding_span_attributes() {
+    let event = metadata_event(
+        vec![
+            string_attribute("baggage.langfuse_trace_name", "baggage-trace"),
+            string_attribute("baggage.langfuse_session_id", "baggage-session"),
+            string_attribute("baggage.langfuse_user_id", "baggage-user"),
+            string_attribute("baggage.langfuse_tags", "a,b"),
+            string_attribute("baggage.langfuse_version", "baggage-version"),
+            string_attribute("baggage.langfuse_metadata_team", "search"),
+            string_attribute("user.id", "span-user"),
+        ],
+        "javascript",
+        "com.anthropic.claude-platform",
+        "1.0.0",
+        None,
+    );
+    assert_eq!(event.trace_name.as_deref(), Some("baggage-trace"));
+    assert_eq!(event.session_id.as_deref(), Some("baggage-session"));
+    assert_eq!(event.user_id.as_deref(), Some("span-user"));
+    assert_eq!(event.tags, vec!["a".to_owned(), "b".to_owned()]);
+    assert_eq!(event.version.as_deref(), Some("baggage-version"));
+    assert_eq!(event.metadata["team"], json!("search"));
+}

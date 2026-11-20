@@ -251,7 +251,9 @@ impl<'a> EventSource<'a> {
         scope_version: Option<&str>,
         config: &'a EventBuildConfig,
     ) -> Self {
-        let attributes = object_attributes(span.attributes.take().map(|value| value.into_value()));
+        let mut attributes =
+            object_attributes(span.attributes.take().map(|value| value.into_value()));
+        apply_langfuse_baggage_attributes(&mut attributes);
         Self {
             span,
             attributes,
@@ -556,6 +558,47 @@ fn object_attributes(value: Option<Value>) -> JsonObject {
         })
         .map(attributes_to_map)
         .unwrap_or_default()
+}
+
+const LANGFUSE_BAGGAGE_ATTRIBUTE_PREFIX: &str = "baggage.langfuse_";
+const LANGFUSE_BAGGAGE_METADATA_PREFIX: &str = "metadata_";
+const LANGFUSE_BAGGAGE_TRACE_ATTRIBUTES: [(&str, &str); 6] = [
+    ("trace_name", "langfuse.trace.name"),
+    ("user_id", "user.id"),
+    ("session_id", "session.id"),
+    ("tags", "langfuse.trace.tags"),
+    ("version", "langfuse.version"),
+    ("environment", "langfuse.environment"),
+];
+
+/// Claude Platform copies incoming W3C baggage onto its spans as `baggage.<key>`, and
+/// Langfuse SDKs propagate trace attributes as `langfuse_*` baggage entries. Maps them onto
+/// the span attributes the SDKs would have set; explicit span attributes win. Mirrors
+/// `applyLangfuseBaggageAttributes` in `OtelIngestionProcessor.ts`.
+fn apply_langfuse_baggage_attributes(attributes: &mut JsonObject) {
+    let additions = attributes
+        .iter()
+        .filter_map(|(key, value)| {
+            let suffix = key
+                .as_utf8()?
+                .strip_prefix(LANGFUSE_BAGGAGE_ATTRIBUTE_PREFIX)?;
+            let target = match suffix.strip_prefix(LANGFUSE_BAGGAGE_METADATA_PREFIX) {
+                Some("") => return None,
+                Some(metadata_key) => format!("langfuse.trace.metadata.{metadata_key}"),
+                None => LANGFUSE_BAGGAGE_TRACE_ATTRIBUTES
+                    .iter()
+                    .find(|(baggage_key, _)| *baggage_key == suffix)?
+                    .1
+                    .to_owned(),
+            };
+            Some((target, value.clone()))
+        })
+        .collect::<Vec<_>>();
+    for (target, value) in additions {
+        if !attributes.contains_key(target.as_str()) {
+            attributes.insert(target.into(), value);
+        }
+    }
 }
 
 fn parse_prompt(attributes: &JsonObject, parse_cache: &mut JsonParseCache) -> Option<Value> {

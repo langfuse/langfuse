@@ -273,6 +273,42 @@ export interface ResourceSpan {
 
 const observationTypeMapper = new ObservationTypeMapperRegistry();
 
+const LANGFUSE_BAGGAGE_ATTRIBUTE_PREFIX = "baggage.langfuse_";
+const LANGFUSE_BAGGAGE_METADATA_PREFIX = "metadata_";
+const LANGFUSE_BAGGAGE_TRACE_ATTRIBUTES = new Map<string, string>([
+  ["trace_name", LangfuseOtelSpanAttributes.TRACE_NAME],
+  ["user_id", LangfuseOtelSpanAttributes.TRACE_USER_ID],
+  ["session_id", LangfuseOtelSpanAttributes.TRACE_SESSION_ID],
+  ["tags", LangfuseOtelSpanAttributes.TRACE_TAGS],
+  ["version", LangfuseOtelSpanAttributes.VERSION],
+  ["environment", LangfuseOtelSpanAttributes.ENVIRONMENT],
+]);
+
+/**
+ * Claude Platform copies incoming W3C baggage onto its spans as
+ * `baggage.<key>`, and Langfuse SDKs propagate trace attributes as
+ * `langfuse_*` baggage entries. Maps them onto the span attributes the SDKs
+ * would have set; explicit span attributes win. Keep in sync with
+ * `apply_langfuse_baggage_attributes` in packages/native.
+ */
+function applyLangfuseBaggageAttributes(
+  attributes: Record<string, unknown>,
+): Record<string, unknown> {
+  for (const [key, value] of Object.entries(attributes)) {
+    if (!key.startsWith(LANGFUSE_BAGGAGE_ATTRIBUTE_PREFIX)) continue;
+    const suffix = key.slice(LANGFUSE_BAGGAGE_ATTRIBUTE_PREFIX.length);
+    const target = suffix.startsWith(LANGFUSE_BAGGAGE_METADATA_PREFIX)
+      ? suffix.length > LANGFUSE_BAGGAGE_METADATA_PREFIX.length
+        ? `${LangfuseOtelSpanAttributes.TRACE_METADATA}.${suffix.slice(LANGFUSE_BAGGAGE_METADATA_PREFIX.length)}`
+        : undefined
+      : LANGFUSE_BAGGAGE_TRACE_ATTRIBUTES.get(suffix);
+    if (target !== undefined && !(target in attributes)) {
+      attributes[target] = value;
+    }
+  }
+  return attributes;
+}
+
 /**
  * Processor class that encapsulates all logic for converting OpenTelemetry
  * resource spans into Langfuse ingestion events.
@@ -1465,12 +1501,12 @@ export class OtelIngestionProcessor {
   }
 
   private extractSpanAttributes(span: any): Record<string, unknown> {
-    return (
+    return applyLangfuseBaggageAttributes(
       span?.attributes?.reduce((acc: any, attr: any) => {
         const value = this.convertValueToPlainJavascript(attr.value);
         if (value !== undefined) acc[attr.key] = value;
         return acc;
-      }, {}) ?? {}
+      }, {}) ?? {},
     );
   }
 

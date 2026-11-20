@@ -6297,6 +6297,40 @@ describe("OTel Resource Span Mapping", () => {
       };
     }
 
+    it("maps Langfuse baggage on Claude Platform spans to trace context", async () => {
+      const { legacyTrace, eventInputs } = await mapCmaSpans([
+        {
+          name: "anthropic.messages.create",
+          attributes: {
+            "baggage.langfuse_trace_name": "baggage-trace",
+            "baggage.langfuse_session_id": "baggage-session",
+            "baggage.langfuse_user_id": "baggage-user",
+            "baggage.langfuse_tags": "a,b",
+            "baggage.langfuse_version": "baggage-version",
+            "baggage.langfuse_metadata_team": "search",
+            "user.id": "span-user",
+          },
+        },
+      ]);
+
+      expect(legacyTrace).toMatchObject({
+        name: "baggage-trace",
+        sessionId: "baggage-session",
+        userId: "span-user",
+        tags: ["a", "b"],
+        version: "baggage-version",
+        metadata: expect.objectContaining({ team: "search" }),
+      });
+      expect(eventInputs[0]).toMatchObject({
+        traceName: "baggage-trace",
+        sessionId: "baggage-session",
+        userId: "span-user",
+        tags: ["a", "b"],
+        version: "baggage-version",
+        metadata: expect.objectContaining({ team: "search" }),
+      });
+    });
+
     it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
       // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
       // all known input/output attribute patterns from multiple frameworks
