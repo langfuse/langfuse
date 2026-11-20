@@ -24,6 +24,9 @@ export type InAppAgentDockLayoutMode = Extract<
 export const IN_APP_AGENT_DEFAULT_LAYOUT_MODE: InAppAgentDockLayoutMode =
   "dock-right";
 
+/** Next.js pathname of project Home, which carries its own Ask box. */
+export const PROJECT_HOME_PATHNAME = "/project/[projectId]";
+
 export function isInAppAgentDockLayoutMode(
   value: unknown,
 ): value is InAppAgentDockLayoutMode {

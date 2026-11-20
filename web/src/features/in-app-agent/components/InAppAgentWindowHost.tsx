@@ -19,12 +19,13 @@ import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import type { InAppAgentLayoutMode } from "@/src/features/in-app-agent/layoutMode";
+import {
+  PROJECT_HOME_PATHNAME,
+  type InAppAgentLayoutMode,
+} from "@/src/features/in-app-agent/layoutMode";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { cn } from "@/src/utils/tailwind";
-
-const PROJECT_HOME_PATHNAME = "/project/[projectId]";
 
 /**
  * The layout mode the window currently renders inline with the page content,

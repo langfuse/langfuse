@@ -107,7 +107,9 @@ const providerMocks = vi.hoisted(() => {
 vi.mock("next/router", () => ({
   useRouter: () => ({
     asPath: "/project/project-1/traces",
+    pathname: "/project/[projectId]/traces",
     query: { projectId: "project-1" },
+    events: { on: vi.fn(), off: vi.fn() },
   }),
 }));
 

@@ -19,8 +19,6 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
-  formatDateRange,
-  getTimeRangeLabel,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -59,16 +57,6 @@ import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { InAppAgentHomeComposer } from "@/src/features/in-app-agent/components/InAppAgentHomeComposer";
 import { HomeAtAGlance } from "@/src/features/dashboard/components/HomeAtAGlance";
-
-function formatEnvironmentScope(environmentCount: number) {
-  if (environmentCount === 0) {
-    return "all environments";
-  }
-
-  return environmentCount === 1
-    ? "1 environment"
-    : `${environmentCount} environments`;
-}
 
 // Controller: no widget query may fire before the session resolves the v3/v4
 // read path — an unresolved session used to read as v3, fire a full wave of
@@ -373,16 +361,6 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     });
   };
 
-  // How the Ask section and "At a glance" name the scope the page header sets.
-  const projectName = project?.name ?? "your project";
-  const scopeTimeRangeLabel =
-    "from" in timeRange
-      ? formatDateRange(timeRange.from, timeRange.to)
-      : getTimeRangeLabel(timeRange.range).toLowerCase();
-  const scopeEnvironmentsLabel = formatEnvironmentScope(
-    selectedEnvironments.length,
-  );
-
   return (
     <DashboardQuerySchedulerProvider
       store={schedulerStore}
@@ -596,12 +574,11 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
         </PageHeaderControlsPortal>
         {showAssistantComposer && (
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-18 px-3 pt-21 pb-11">
-            <InAppAgentHomeComposer projectName={projectName} />
+            <InAppAgentHomeComposer
+              projectName={project?.name ?? "your project"}
+            />
             <HomeAtAGlance
               projectId={projectId}
-              projectName={projectName}
-              scopeTimeRangeLabel={scopeTimeRangeLabel}
-              scopeEnvironmentsLabel={scopeEnvironmentsLabel}
               dashboard={{
                 id: appliedDefaultId,
                 name: homeDashboard.data?.dashboard?.name ?? "Langfuse Home",

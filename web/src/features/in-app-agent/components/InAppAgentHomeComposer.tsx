@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, useRef, useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import {
   Activity,
   ArrowUp,
@@ -61,8 +61,8 @@ export function InAppAgentHomeComposer({
 }: {
   projectName: string;
 }) {
-  const { openAssistant, setLayoutMode, submit } = useInAppAiAgent();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { homeAskInputRef, openAssistant, setLayoutMode, submit } =
+    useInAppAiAgent();
   const [request, setRequest] = useState("");
   // The starter whose prompt currently fills the composer, until it is edited.
   const [pickedStarterId, setPickedStarterId] = useState<string | null>(null);
@@ -128,7 +128,7 @@ export function InAppAgentHomeComposer({
         </label>
         <textarea
           id="home-ask-input"
-          ref={textareaRef}
+          ref={homeAskInputRef}
           autoComplete="off"
           maxLength={4000}
           rows={3}
@@ -187,7 +187,7 @@ export function InAppAgentHomeComposer({
                 setRequest(starter.prompt);
                 setPickedStarterId(starter.id);
                 setPreviewedStarterId(null);
-                textareaRef.current?.focus();
+                homeAskInputRef.current?.focus();
               }}
             />
           </span>

@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
   type PropsWithChildren,
   type Dispatch,
+  type RefObject,
   type SetStateAction,
 } from "react";
 import type { AgentSubscriber } from "@ag-ui/client";
@@ -72,6 +73,7 @@ import {
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
 import {
   IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
+  PROJECT_HOME_PATHNAME,
   isInAppAgentDockLayoutMode,
   parseInAppAgentLayoutMode,
   type InAppAgentDockLayoutMode,
@@ -143,6 +145,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   layoutMode: IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
   dockLayoutMode: IN_APP_AGENT_DEFAULT_LAYOUT_MODE,
   setLayoutMode: () => undefined,
+  homeAskInputRef: { current: null },
   isRunning: false,
   isSubmitting: false,
   pendingToolApprovals: [],
@@ -208,6 +211,9 @@ type InAppAiAgentContextType = {
   /** The side the window docks to when it leaves full page. */
   dockLayoutMode: InAppAgentDockLayoutMode;
   setLayoutMode: (layoutMode: InAppAgentLayoutMode) => void;
+  /** Home's Ask box while it is mounted. On Home it is the assistant's entry
+   * point, so the launcher focuses it instead of opening a second one. */
+  homeAskInputRef: RefObject<HTMLTextAreaElement | null>;
   isRunning: boolean;
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
@@ -360,6 +366,7 @@ function InAppAiAgentProviderInner({
   // load never restores it, and any navigation to a URL without the marker
   // (nav item, link in an answer, browser Back) leaves it.
   const [isFullPageRequested, setIsFullPageRequested] = useState(false);
+  const homeAskInputRef = useRef<HTMLTextAreaElement>(null);
   const hasFullPageMarker =
     router.query[FULL_PAGE_QUERY_PARAM] === FULL_PAGE_QUERY_VALUE;
   const isFullPage = isFullPageRequested && hasFullPageMarker;
@@ -1080,6 +1087,13 @@ function InAppAiAgentProviderInner({
       resetAgent();
       setSelectedConversationId(conversationId);
 
+      // On Home a new conversation starts from the Ask box.
+      const homeAskInput = homeAskInputRef.current;
+      if (conversationId === null && homeAskInput && !isFullPage) {
+        setOpen(false);
+        homeAskInput.focus();
+      }
+
       if (conversationId && open) {
         const entry = activityByConversationId.get(conversationId);
         if (entry?.needsAttention) {
@@ -1090,10 +1104,12 @@ function InAppAiAgentProviderInner({
     [
       _selectedConversationId,
       activityByConversationId,
+      isFullPage,
       markConversationHandled,
       open,
       releaseSubmitLock,
       resetAgent,
+      setOpen,
       setSelectedConversationId,
     ],
   );
@@ -1398,11 +1414,57 @@ function InAppAiAgentProviderInner({
         return false;
       }
 
+      // On Home the launcher and its shortcut put the cursor in the Ask box
+      // instead of opening the assistant beside it.
+      const homeAskInput = homeAskInputRef.current;
+      if (
+        (source === "top_nav" || source === "keyboard_shortcut") &&
+        homeAskInput &&
+        !isFullPage
+      ) {
+        homeAskInput.focus();
+        return false;
+      }
+
       setAgentOpen(true);
       return true;
     },
-    [capture, organization, setAgentOpen],
+    [capture, isFullPage, organization, setAgentOpen],
   );
+
+  // Home has its own Ask box, so an assistant with no conversation in it
+  // never shows beside it.
+  const hasNoConversation = !selectedConversationId;
+  const isOpen =
+    open &&
+    !(
+      router.pathname === PROJECT_HOME_PATHNAME &&
+      canUseAssistant &&
+      hasNoConversation &&
+      !isFullPage
+    );
+  const closesOnHomeArrival = open && canUseAssistant && hasNoConversation;
+
+  // External system: the Next router's event emitter. Arriving on Home with
+  // an empty assistant open closes it, so it does not come back on the next
+  // page either.
+  useEffect(() => {
+    if (!closesOnHomeArrival) {
+      return;
+    }
+
+    const handleRouteChangeComplete = (url: string) => {
+      if (url.replace(/[?#].*$/, "").endsWith(`/project/${projectId}`)) {
+        setAgentOpen(false);
+      }
+    };
+
+    router.events.on("routeChangeComplete", handleRouteChangeComplete);
+
+    return () => {
+      router.events.off("routeChangeComplete", handleRouteChangeComplete);
+    };
+  }, [closesOnHomeArrival, projectId, router.events, setAgentOpen]);
 
   const isCancellingRun = Boolean(
     backgroundExecutionView.cancelStatus === "submitting" ||
@@ -1590,7 +1652,7 @@ function InAppAiAgentProviderInner({
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
       isAvailable: true,
-      open,
+      open: isOpen,
       setOpen: setAgentOpen,
       openAssistant,
       isExpanded,
@@ -1598,6 +1660,7 @@ function InAppAiAgentProviderInner({
       layoutMode,
       dockLayoutMode,
       setLayoutMode,
+      homeAskInputRef,
       isRunning,
       isSubmitting,
       pendingToolApprovals: isSelectedConversationNotFound
@@ -1652,7 +1715,7 @@ function InAppAiAgentProviderInner({
       loadMoreConversations,
       liveMessageVersion,
       messagesWithUiState,
-      open,
+      isOpen,
       openAssistant,
       execution,
       effectivePendingToolApprovals,

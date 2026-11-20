@@ -127,9 +127,6 @@ function GlanceTable({
  */
 export function HomeAtAGlance({
   projectId,
-  projectName,
-  scopeTimeRangeLabel,
-  scopeEnvironmentsLabel,
   dashboard,
   filterState,
   dateRange,
@@ -137,9 +134,6 @@ export function HomeAtAGlance({
   isLoading,
 }: {
   projectId: string;
-  projectName: string;
-  scopeTimeRangeLabel: string;
-  scopeEnvironmentsLabel: string;
   dashboard: { id: string; name: string };
   filterState: FilterState;
   dateRange: { from: Date; to: Date } | undefined;
@@ -285,15 +279,10 @@ export function HomeAtAGlance({
       aria-labelledby="home-at-a-glance-title"
       className="@container flex flex-col gap-3.5"
     >
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <h2 id="home-at-a-glance-title" className="text-lg font-bold">
-            At a glance
-          </h2>
-          <span className="text-muted-foreground text-sm">
-            {projectName} · {scopeTimeRangeLabel} · {scopeEnvironmentsLabel}
-          </span>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="home-at-a-glance-title" className="text-lg font-bold">
+          At a glance
+        </h2>
         <div className="flex flex-wrap items-center gap-4">
           <TextLink
             path={dashboardHref}
