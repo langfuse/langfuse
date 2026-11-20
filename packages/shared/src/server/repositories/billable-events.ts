@@ -123,17 +123,16 @@ export const getBillableUnitCountsByProjectInWindow = async ({
 };
 
 /**
- * Counts the billable units per UTC bucket, project and event type ingested in
- * `[from, to)` of `billable_events.ingested_at`. Every bucket, clipped to
- * `[from, to)`, is one billing window with the rules of
- * `getBillableUnitCountsByProjectInWindow`: a unit counts once in a bucket
- * when it appears there and its id was not ingested in the 24 hours before
- * the bucket starts. Hourly buckets therefore add up to what is metered per
- * hour. A longer bucket can count slightly less, because hourly windows count
- * a unit again once it reappears more than 24 hours after its last row.
+ * Approximate distinct billable units per UTC bucket, project and event type
+ * ingested in `[from, to)` of `billable_events.ingested_at`, for usage charts.
+ * A unit counts once in every bucket it appears in, so this differs slightly
+ * from billing, which bills one window per hour and deduplicates against the
+ * 24 hours before it: a unit whose rows span buckets counts in each, and one
+ * that reappears more than 24 hours later inside one bucket counts once.
  *
- * Memory grows with the number of distinct units in the range, so callers
- * bound the range.
+ * `uniqCombined` keeps each group's state at a fixed size, so memory does not
+ * grow with the number of units in the range. Its error is about 0.3% on large
+ * counts; small counts are exact.
  */
 export const getBillableUnitCountsByProjectAndBucket = async ({
   projectIds,
@@ -155,41 +154,21 @@ export const getBillableUnitCountsByProjectAndBucket = async ({
 > => {
   if (to.getTime() <= from.getTime()) {
     throw new Error(
-      `Billing range must end after it starts, got ${from.toISOString()} to ${to.toISOString()}`,
+      `Usage range must end after it starts, got ${from.toISOString()} to ${to.toISOString()}`,
     );
   }
   if (projectIds.length === 0) return [];
 
-  const bucket = bucketStartSql("seen_at", granularity);
-
-  // Each unit's ingestion times, sorted, cover the range plus the 24 hours
-  // before it. A time inside the range is billed when the time before it lies
-  // more than 24 hours before its bucket's window starts. Later times in the
-  // same window follow a time inside that window, so they are not billed.
   const query = `
     SELECT
-      toUnixTimestamp(${bucket}) AS bucket,
+      toUnixTimestamp(${bucketStartSql("ingested_at", granularity)}) AS bucket,
       project_id,
       event_type,
-      count() AS count
-    FROM (
-      SELECT
-        project_id,
-        event_type,
-        arraySort(groupArray(ingested_at)) AS ingested
-      FROM billable_events
-      WHERE project_id IN {projectIds: Array(String)}
-      AND ingested_at >= {lookbackFrom: DateTime64(3, 'UTC')}
-      AND ingested_at < {to: DateTime64(3, 'UTC')}
-      GROUP BY project_id, event_type, event_id
-      HAVING max(ingested_at) >= {from: DateTime64(3, 'UTC')}
-    )
-    ARRAY JOIN ingested AS seen_at, arrayEnumerate(ingested) AS i
-    WHERE seen_at >= {from: DateTime64(3, 'UTC')}
-    AND (
-      i = 1
-      OR ingested[i - 1] < greatest(${bucket}, {from: DateTime64(3, 'UTC')}) - INTERVAL 24 HOUR
-    )
+      uniqCombined(event_id) AS count
+    FROM billable_events
+    WHERE project_id IN {projectIds: Array(String)}
+    AND ingested_at >= {from: DateTime64(3, 'UTC')}
+    AND ingested_at < {to: DateTime64(3, 'UTC')}
     GROUP BY bucket, project_id, event_type
   `;
 
@@ -204,9 +183,6 @@ export const getBillableUnitCountsByProjectAndBucket = async ({
       projectIds,
       from: convertDateToClickhouseDateTime(from),
       to: convertDateToClickhouseDateTime(to),
-      lookbackFrom: convertDateToClickhouseDateTime(
-        new Date(from.getTime() - BILLING_LOOKBACK_MS),
-      ),
     },
     clickhouseConfigs: {
       request_timeout: 120_000,

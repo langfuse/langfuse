@@ -194,7 +194,7 @@ describe("getOrgUsageBreakdown", () => {
     } = await createOrgWithProjects([{ name: "other" }]);
 
     await insertBillableEvents([
-      // Re-sent within 24 hours, so billed once
+      // Ingested twice in one bucket, so counted once
       {
         projectId: alpha,
         eventType: "trace",

@@ -201,9 +201,9 @@ const getLegacyBillableUnitsByBucket = async ({
 
 /**
  * Billable units per bucket, project and unit type from the billable_events
- * ledger, which billing reads once the deployment writes the events tables.
- * Each bucket is one billing window, deduplicated against the 24 hours before
- * it.
+ * ledger, which billing reads once the deployment writes the events tables:
+ * approximate distinct units per bucket, close to but not exactly what is
+ * billed.
  */
 const getLedgerBillableUnitsByBucket = async (
   params: Parameters<typeof getBillableUnitCountsByProjectAndBucket>[0],
