@@ -40,7 +40,7 @@ export function isValidVariableName(variable: string): boolean {
 
 export function extractVariables(mustacheString: string): string[] {
   const matches = Array.from(mustacheString.matchAll(MUSTACHE_REGEX))
-    .map((match) => match[1])
+    .map((match) => match[1].trim())
     .filter(isValidVariableName);
 
   return [...new Set(matches)];

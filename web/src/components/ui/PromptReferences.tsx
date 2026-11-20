@@ -266,7 +266,10 @@ export const renderRichPromptContent = (content: string): React.ReactNode[] => {
       const variable = match[2];
       parts.push(
         <React.Fragment key={`var-${index}-${variable}`}>
-          <PromptVar text={fullMatch} isValid={isValidVariableName(variable)} />
+          <PromptVar
+            text={fullMatch}
+            isValid={isValidVariableName(variable.trim())}
+          />
         </React.Fragment>,
       );
     }

@@ -65,4 +65,12 @@ describe("getPromptVariableDiagnostics", () => {
     ]);
     expect(performance.now() - startedAt).toBeLessThan(100);
   });
+
+  it("produces no error diagnostics for variables with surrounding whitespace", () => {
+    expect(
+      getPromptVariableDiagnostics(
+        "Hello {{ name }}, please summarize {{ text }}.",
+      ),
+    ).toEqual([]);
+  });
 });
