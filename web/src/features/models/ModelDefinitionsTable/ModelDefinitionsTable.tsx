@@ -17,10 +17,15 @@ import {
   type PriceUnit,
 } from "@/src/features/models/validation";
 import { PriceBreakdownTooltip } from "@/src/features/models/components/PriceBreakdownTooltip";
+import {
+  type ModelMaintainer,
+  isProjectEditableModel,
+  modelMaintainerBadgeVariant,
+} from "@/src/features/models/modelMaintainer";
 
 export type ModelTableRow = {
   modelId: string;
-  maintainer: "User" | "Langfuse";
+  maintainer: ModelMaintainer;
   modelName: string;
   matchPattern: string;
   prices?: Record<string, number>;
@@ -36,7 +41,7 @@ const modelConfigDescriptions = {
     "Date to start pricing model. If not set, model is active unless a more recent version exists.",
   prices: "Prices per usage type",
   maintainer:
-    "Maintainer of the model. Langfuse managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse managed model, set the custom model name to the Langfuse model name.",
+    "Maintainer of the model. Langfuse and organization managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse or organization managed model, set the custom model name to its model name.",
   lastUsed: "Start time of the latest generation using this model",
 } as const;
 
@@ -89,9 +94,9 @@ export function ModelDefinitionsTable({
       },
       size: 60,
       range: "decorative",
-      getBadge: (maintainer) => ({
+      getBadge: (maintainer, { row }) => ({
         value: maintainer,
-        variant: maintainer === "Langfuse" ? "teal" : "blue",
+        variant: modelMaintainerBadgeVariant[row.original.maintainer],
       }),
     }),
     createTextTableColumn<ModelTableRow>({
@@ -154,7 +159,7 @@ export function ModelDefinitionsTable({
       tableName="models"
       columns={columns}
       actions={(model) =>
-        model.maintainer === "Langfuse"
+        !isProjectEditableModel(model.serverResponse.scope)
           ? [
               {
                 id: "clone",

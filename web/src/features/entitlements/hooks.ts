@@ -3,8 +3,8 @@ import {
   type EntitlementLimits,
   type Entitlement,
   type EntitlementLimit,
-} from "@/src/features/entitlements/constants/entitlements";
-import { type Plan } from "@langfuse/shared";
+  type Plan,
+} from "@langfuse/shared";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 

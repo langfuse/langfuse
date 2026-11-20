@@ -110,7 +110,7 @@ export interface FinalizedOtelEvent {
   traceId: string
   startTimeIso: string
   environment: string
-  /** JSON byte size after applying oversized-field upload results, for selected traces. */
+  /** Estimated dispatch weight after field overflow, present only for sampled traces. */
   serializedEventBytes?: number
 }
 

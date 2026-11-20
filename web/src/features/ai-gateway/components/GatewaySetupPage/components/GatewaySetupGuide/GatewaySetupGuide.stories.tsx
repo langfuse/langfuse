@@ -93,10 +93,20 @@ export const ChoosingIngestion = meta.story({
     isSavingIngestion: false,
     onSaveIngestion: fn(async () => true),
     onAddCredential: fn(),
+    budgetStep: {
+      budgets: { organization: null, user: null },
+      unavailableReason: undefined,
+      isSaving: false,
+      errorMessage: null,
+      onSave: fn(),
+      onSkip: fn(),
+    },
     notifiableMembers,
     isInviting: false,
     onInvite: fn(async () => null),
     onFinish: fn(),
+    onCreateKey: fn(),
+    onSkipKey: fn(),
   },
 });
 
@@ -108,7 +118,7 @@ export const AddingCredential = meta.story({
   },
 });
 
-export const InvitingTeam = meta.story({
+export const SettingBudgets = meta.story({
   args: {
     ...AddingCredential.input.args,
     activeStep: 3,
@@ -116,9 +126,36 @@ export const InvitingTeam = meta.story({
   },
 });
 
+export const SettingBudgetsPrefilled = meta.story({
+  args: {
+    ...SettingBudgets.input.args,
+    budgetStep: {
+      ...SettingBudgets.input.args.budgetStep,
+      budgets: {
+        organization: { interval: "MONTHLY", limitUsd: 1000 },
+        user: { interval: "MONTHLY", limitUsd: 50 },
+      },
+    },
+  },
+});
+
+export const InvitingTeam = meta.story({
+  args: {
+    ...SettingBudgets.input.args,
+    activeStep: 4,
+  },
+});
+
 export const InvitingTeamWithoutEmail = meta.story({
   args: {
     ...InvitingTeam.input.args,
     notifiableMembers: { ...notifiableMembers, isEmailConfigured: false },
+  },
+});
+
+export const CreatingKey = meta.story({
+  args: {
+    ...InvitingTeam.input.args,
+    activeStep: 5,
   },
 });

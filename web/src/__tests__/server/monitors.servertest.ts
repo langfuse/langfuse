@@ -9,10 +9,9 @@ vi.hoisted(() => {
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
+import { entitlementAccess } from "@langfuse/shared";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import {
   MonitorNoDataModeSchema,
@@ -20,55 +19,11 @@ import {
   MonitorStatusSchema,
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 type RoleName = keyof typeof Role;
 
 const orgIds: string[] = [];
-
-const buildSession = (params: {
-  userId: string;
-  orgId: string;
-  orgName: string;
-  projectId: string;
-  projectName: string;
-  projectRole: RoleName;
-}): Session => ({
-  expires: "1",
-  user: {
-    id: params.userId,
-    canCreateOrganizations: true,
-    name: "Demo User",
-    organizations: [
-      {
-        id: params.orgId,
-        name: params.orgName,
-        role: "OWNER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: true,
-        projects: [
-          {
-            id: params.projectId,
-            role: params.projectRole,
-            retentionDays: 30,
-            deletedAt: null,
-            hasTraces: false,
-            name: params.projectName,
-            metadata: {},
-            createdAt: new Date().toISOString(),
-          },
-        ],
-      },
-    ],
-    featureFlags: testFeatureFlags({ templateFlag: false }),
-  },
-  environment: {
-    enableExperimentalFeatures: false,
-    selfHostedInstancePlan: "cloud:hobby",
-  },
-});
 
 const prepare = async (overrides?: { projectRole?: RoleName }) => {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -81,19 +36,33 @@ const prepare = async (overrides?: { projectRole?: RoleName }) => {
     },
   });
 
-  const session = buildSession({
-    userId: user.id,
-    orgId: org.id,
-    orgName: org.name,
-    projectId: project.id,
-    projectName: project.name,
-    projectRole: overrides?.projectRole ?? "ADMIN",
+  const session = createSession({
+    user: {
+      id: user.id,
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+    },
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            role: overrides?.projectRole ?? "ADMIN",
+            name: project.name,
+          },
+        ],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
   });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
-  return { project, org, session, caller };
+  return { project, org, user, session, caller };
 };
 
 const validMonitorInput = (projectId: string) => ({
@@ -731,12 +700,7 @@ describe("monitors trpc", () => {
       // Two projects in the same org: a monitor in project A must not flip
       // hasAny for project B, which is the read on which the empty-state
       // splash is gated.
-      const {
-        org,
-        project: projectA,
-        session: sessionA,
-        caller: callerA,
-      } = await prepare();
+      const { org, user, project: projectA, caller: callerA } = await prepare();
 
       const projectB = await prisma.project.create({
         data: {
@@ -748,32 +712,33 @@ describe("monitors trpc", () => {
       // Re-issue the session with projectB added so the caller has RBAC
       // access to read it; the procedure itself enforces project-scoped
       // RBAC, not org-scoped.
-      const sessionUser = sessionA.user!;
-      const orgA = sessionUser.organizations[0];
-      const sessionAB = {
-        ...sessionA,
+      const sessionAB = createSession({
         user: {
-          ...sessionUser,
-          organizations: [
-            {
-              ...orgA,
-              projects: [
-                ...orgA.projects,
-                {
-                  id: projectB.id,
-                  role: "ADMIN",
-                  retentionDays: 30,
-                  deletedAt: null,
-                  name: projectB.name,
-                  metadata: {},
-                  hasTraces: false,
-                  createdAt: new Date().toISOString(),
-                },
-              ],
-            },
-          ],
+          id: user.id,
+          featureFlags: testFeatureFlags({ templateFlag: false }),
         },
-      } as Session;
+        organizations: [
+          {
+            id: org.id,
+            role: "OWNER",
+            name: org.name,
+            aiTelemetryEnabled: true,
+            projects: [
+              {
+                id: projectA.id,
+                role: "ADMIN",
+                name: projectA.name,
+              },
+              {
+                id: projectB.id,
+                role: "ADMIN",
+                name: projectB.name,
+              },
+            ],
+          },
+        ],
+        environment: { selfHostedInstancePlan: "cloud:hobby" },
+      });
       const ctxAB = createInnerTRPCContext({ session: sessionAB, headers: {} });
       const callerAB = appRouter.createCaller({ ...ctxAB, prisma });
 

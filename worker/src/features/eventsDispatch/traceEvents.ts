@@ -1,7 +1,7 @@
 import type { Observation } from "@langfuse/shared";
 import {
   convertObservation,
-  type TraceBatchEventRow,
+  type EventsDispatchEventRow,
 } from "@langfuse/shared/src/server";
 
 export type TraceEventObservation = Observation & {
@@ -15,7 +15,7 @@ export const traceKey = (projectId: string, traceId: string) =>
   JSON.stringify([projectId, traceId]);
 
 export function toTraceEventObservation(
-  row: TraceBatchEventRow,
+  row: EventsDispatchEventRow,
 ): TraceEventObservation {
   return {
     ...convertObservation({
@@ -38,7 +38,7 @@ export function toTraceEventObservation(
 }
 
 /** Logical UTF-8 payload size, excluding JSON transport and compression. */
-export function traceEventPayloadBytes(row: TraceBatchEventRow): number {
+export function traceEventPayloadBytes(row: EventsDispatchEventRow): number {
   let bytes = Buffer.byteLength(row.input) + Buffer.byteLength(row.output);
   for (const [key, value] of Object.entries(row.metadata))
     bytes += Buffer.byteLength(key) + Buffer.byteLength(value);

@@ -22,13 +22,13 @@ import {
 import type { TopicExecutionSummary } from "@langfuse/shared/topics";
 import { env } from "../../env";
 import { traceKey } from "../eventsDispatch/traceEvents";
-import { resolveTraceIdleMs } from "../traceBatching/traceBatchReadiness";
+import { resolveTraceIdleMs } from "../traceDispatch/traceReadiness";
 import {
   getTraceExclusionReason,
-  selectTraceBatches,
+  selectDispatchBatches,
   toLimit,
   type PendingTrace,
-} from "../traceBatching/traceBatchSelection";
+} from "../traceDispatch/dispatchBatchSelection";
 import { eventsDispatchConfig } from "../eventsDispatch/config";
 
 const DAY_MS = 86_400_000;
@@ -231,7 +231,7 @@ async function dispatch(
       executionId,
       excluded: all.length - candidates.length,
     });
-  const batches = selectTraceBatches(
+  const batches = selectDispatchBatches(
     candidates,
     env.LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE,
     { maxSerializedEventBytes: toLimit(eventsDispatchConfig.maxBatchBytes) },

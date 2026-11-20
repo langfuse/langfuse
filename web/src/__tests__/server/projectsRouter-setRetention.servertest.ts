@@ -1,10 +1,11 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { type Plan, Role } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 async function createOrgAndProject() {
   const orgId = uuidv4();
@@ -28,8 +29,10 @@ async function createOrgAndProject() {
       name: "Test User",
     },
   });
-  await prisma.organizationMembership.create({
-    data: { userId: user.id, orgId, role: Role.OWNER },
+  await createOrgMembership(prisma, {
+    userId: user.id,
+    orgId,
+    role: Role.OWNER,
   });
 
   return { orgId, projectId, user };
@@ -48,41 +51,18 @@ function makeCaller({
   plan: Plan;
   role?: Role;
 }) {
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: userId,
-      canCreateOrganizations: true,
-      name: "Test User",
-      email: "retention@test.com",
-      organizations: [
-        {
-          id: orgId,
-          name: "Test Organization",
-          role,
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: projectId,
-              role,
-              retentionDays: 0,
-              deletedAt: null,
-              hasTraces: false,
-              name: "Test Project",
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {} as any,
-  };
+  const session: Session = createSession({
+    user: { id: userId, name: "Test User", email: "retention@test.com" },
+    organizations: [
+      {
+        id: orgId,
+        role,
+        plan,
+        aiTelemetryEnabled: true,
+        projects: [{ id: projectId, retentionDays: 0 }],
+      },
+    ],
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
 }

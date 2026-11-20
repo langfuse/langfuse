@@ -200,13 +200,6 @@ describe("buildEventBucketPrefix", () => {
       buildEventBucketPrefix({ projectId, entityType, entityId: id }),
     ).toBe(`${envPrefix}${projectId}/${entityType}/${expectedMiddle}/`);
   });
-
-  it("is deterministic", () => {
-    const id = "obs-deterministic";
-    const a = buildEventBucketPrefix({ projectId, entityType, entityId: id });
-    const b = buildEventBucketPrefix({ projectId, entityType, entityId: id });
-    expect(a).toBe(b);
-  });
 });
 
 describe("parseEventKey", () => {

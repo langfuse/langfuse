@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import {
   DatasetItemField,
@@ -50,6 +49,32 @@ type DatasetItemFieldsProps = {
   ) => Promise<string | null>;
   // In-flight uploads (edit mode), shown as placeholders in the attachments.
   pendingUploads?: PendingMediaUpload[];
+};
+
+/**
+ * Subscribes to the live field values via `useWatch` so only this attachment
+ * section re-renders as the user types — not the editors above it. Keeping the
+ * subscription here (rather than in the form parent) is what lets the parent
+ * avoid threading watched values through the whole field tree.
+ */
+const FormModeMediaAttachments = ({
+  control,
+  pendingUploads,
+}: {
+  control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
+  pendingUploads?: PendingMediaUpload[];
+}) => {
+  const [input, expectedOutput, metadata] = useWatch({
+    control,
+    name: ["input", "expectedOutput", "metadata"],
+  });
+
+  return (
+    <DatasetItemFormMediaAttachments
+      jsonStrings={[input, expectedOutput, metadata]}
+      pendingUploads={pendingUploads}
+    />
+  );
 };
 
 /**
@@ -220,44 +245,19 @@ export const DatasetItemFields = ({
         />
       )}
 
-      {isFormMode && control ? (
+      {isFormMode && control && (
         <FormModeMediaAttachments
           control={control}
           pendingUploads={pendingUploads}
         />
-      ) : datasetItemId ? (
+      )}
+      {!isFormMode && datasetItemId && (
         <DatasetItemSavedMediaAttachments
           projectId={projectId}
           datasetItemId={datasetItemId}
           datasetItemValidFrom={datasetItemValidFrom}
         />
-      ) : null}
+      )}
     </div>
-  );
-};
-
-/**
- * Subscribes to the live field values via `useWatch` so only this attachment
- * section re-renders as the user types — not the editors above it. Keeping the
- * subscription here (rather than in the form parent) is what lets the parent
- * avoid threading watched values through the whole field tree.
- */
-const FormModeMediaAttachments = ({
-  control,
-  pendingUploads,
-}: {
-  control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
-  pendingUploads?: PendingMediaUpload[];
-}) => {
-  const [input, expectedOutput, metadata] = useWatch({
-    control,
-    name: ["input", "expectedOutput", "metadata"],
-  });
-
-  return (
-    <DatasetItemFormMediaAttachments
-      jsonStrings={[input, expectedOutput, metadata]}
-      pendingUploads={pendingUploads}
-    />
   );
 };

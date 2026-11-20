@@ -228,35 +228,38 @@ export function TopicsMapPicker({
             )}
           </div>
           {/* Too narrow on phones, where a tap selects before the preview could help. */}
-          <div className="hidden w-3/5 min-w-0 flex-col overflow-y-auto p-4 sm:flex">
-            {shownRule && (
-              <RulePreview
-                key={shownRule.id}
-                projectId={projectId}
-                usePreviewTopics={usePreviewTopics}
-                rule={shownRule}
-                facetId={facetId}
-                processingOn={processingOn}
-                refresh={refresh ? refresh(shownRule) : null}
-                onRefreshChosen={() => changeOpen(false)}
-              />
-            )}
-            {shownAnalysis && (
-              <AnalysisPreview
-                key={shownAnalysis.id}
-                projectId={projectId}
-                usePreviewTopics={usePreviewTopics}
-                analysis={shownAnalysis}
-                facetId={facetId}
-              />
-            )}
-            {shown.kind === "create" && (
-              <CreatePreview
-                entry={shown.entry}
-                disabledReason={create?.[shown.entry]?.disabledReason}
-                processingOn={processingOn}
-              />
-            )}
+          <div className="hidden w-3/5 min-w-0 overflow-y-auto sm:block">
+            {/* At least as tall as a map preview with three top topics, so hovering between entries keeps the popover's height. Set inside the pane so short viewports still scroll it. */}
+            <div className="min-h-81.75 p-4">
+              {shownRule && (
+                <RulePreview
+                  key={shownRule.id}
+                  projectId={projectId}
+                  usePreviewTopics={usePreviewTopics}
+                  rule={shownRule}
+                  facetId={facetId}
+                  processingOn={processingOn}
+                  refresh={refresh ? refresh(shownRule) : null}
+                  onRefreshChosen={() => changeOpen(false)}
+                />
+              )}
+              {shownAnalysis && (
+                <AnalysisPreview
+                  key={shownAnalysis.id}
+                  projectId={projectId}
+                  usePreviewTopics={usePreviewTopics}
+                  analysis={shownAnalysis}
+                  facetId={facetId}
+                />
+              )}
+              {shown.kind === "create" && (
+                <CreatePreview
+                  entry={shown.entry}
+                  disabledReason={create?.[shown.entry]?.disabledReason}
+                  processingOn={processingOn}
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -446,7 +449,8 @@ function PreviewHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    // As tall as the small action button, so every preview's title sits at the same spot.
+    <div className="flex h-7 min-w-0 items-center gap-3">
       <div className="flex min-w-0 items-center gap-2">
         <span className="truncate text-base font-bold" title={name}>
           {name}
@@ -545,23 +549,21 @@ function RulePreview({
   const top = topTopicsOf(results, facetId);
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <PreviewHeader
-          name={rule.name}
-          badge={<LiveBadge paused={!processingOn || rule.enabled === false} />}
-          action={
-            refresh && (
-              <RefreshMapButton entry={refresh} onChosen={onRefreshChosen} />
-            )
-          }
-        />
-        {/* Touch screens show no tooltip, so the reason is on screen. */}
-        {refresh?.disabledReason && (
-          <p className="text-muted-foreground text-right text-xs">
-            {refresh.disabledReason}
-          </p>
-        )}
-      </div>
+      <PreviewHeader
+        name={rule.name}
+        badge={<LiveBadge paused={!processingOn || rule.enabled === false} />}
+        action={
+          refresh && (
+            <RefreshMapButton entry={refresh} onChosen={onRefreshChosen} />
+          )
+        }
+      />
+      {/* Touch screens show no tooltip, so the reason is on screen. */}
+      {refresh?.disabledReason && (
+        <p className="text-muted-foreground text-right text-xs">
+          {refresh.disabledReason}
+        </p>
+      )}
       <PreviewRows
         rows={[
           ["Filter", <FilterValue key="filter" filter={rule.filter} />],
@@ -687,7 +689,7 @@ function CreatePreview({
         }
       />
       <p className="text-muted-foreground text-sm">{explanation.summary}</p>
-      <ul className="flex flex-col gap-2.5 text-sm">
+      <ul className="flex flex-col gap-2 text-sm">
         {explanation.points.map(({ icon: Icon, text }) => (
           <li key={text} className="flex items-start gap-2">
             <span className="flex h-5 shrink-0 items-center">
@@ -744,7 +746,7 @@ function TopTopics({
 }) {
   const maxCount = Math.max(1, ...topics.map((topic) => topic.count));
   return (
-    <div className="flex flex-col gap-3 pt-2">
+    <div className="flex flex-col gap-3">
       <span className="text-muted-foreground text-xs font-bold">
         {`Top ${pluralLabel(facetName)}`}
       </span>

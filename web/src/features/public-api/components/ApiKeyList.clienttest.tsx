@@ -66,17 +66,16 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
+
 import { ApiKeyList } from "./ApiKeyList";
 
 const PROJECT_ID = "project-1";
 
 function renderAsProjectRole(role: Role) {
-  mockSession.data = {
-    environment: {},
-    user: {
-      organizations: [{ id: "org-1", projects: [{ id: PROJECT_ID, role }] }],
-    },
-  };
+  mockSession.data = createSession({
+    organizations: [{ id: "org-1", role, projects: [{ id: PROJECT_ID }] }],
+  });
 
   return render(<ApiKeyList entityId={PROJECT_ID} scope="project" />);
 }

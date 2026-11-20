@@ -1,17 +1,22 @@
 import { useState, type ChangeEvent } from "react";
 import { PlusIcon, TrashIcon } from "@langfuse/icons";
 
+import { BaseUrlPicker } from "@/src/components/BaseUrlPicker/BaseUrlPicker";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
+import {
+  OPENAI_DATA_RESIDENCY_HINT,
+  openAiBaseUrlPresets,
+} from "@/src/constants/openAiBaseUrlPresets";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import type { GatewayCustomEndpointProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export type ExtraHeaderRow = { id: string; key: string; value: string };
 
-const defaultBaseUrls: Record<GatewayCustomEndpointProvider, string> = {
-  OPENAI: "OpenAI default: https://api.openai.com/v1",
+const baseUrlHints: Record<GatewayCustomEndpointProvider, string> = {
+  OPENAI: OPENAI_DATA_RESIDENCY_HINT,
   ANTHROPIC:
     "Anthropic default: https://api.anthropic.com (excluding /v1/messages)",
   OPENROUTER: "OpenRouter default: https://openrouter.ai/api/v1",
@@ -38,6 +43,7 @@ export function AdvancedSettings({
   onHeadersChange: (headers: ExtraHeaderRow[]) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const isOpenAI = provider === "OPENAI";
   const [shownBaseURLError, setShownBaseURLError] = useState<string | null>(
     null,
   );
@@ -72,24 +78,40 @@ export function AdvancedSettings({
               htmlFor="gateway-base-url"
               description={
                 <>
-                  Leave blank to use the default base URL.{" "}
+                  {isOpenAI
+                    ? null
+                    : "Leave blank to use the default base URL. "}
                   {isEditing ? "Changing it requires a new secret key. " : null}
-                  {defaultBaseUrls[provider]}
+                  {baseUrlHints[provider]}
                 </>
               }
             />
             <div className="space-y-1">
-              <Input
-                id="gateway-base-url"
-                placeholder="default"
-                value={baseURL}
-                aria-invalid={Boolean(baseURLError)}
-                aria-describedby={
-                  baseURLError ? "gateway-base-url-error" : undefined
-                }
-                error={Boolean(baseURLError)}
-                onChange={handleBaseURLChange}
-              />
+              {isOpenAI ? (
+                <BaseUrlPicker
+                  id="gateway-base-url"
+                  presets={openAiBaseUrlPresets}
+                  value={baseURL}
+                  aria-invalid={Boolean(baseURLError)}
+                  aria-describedby={
+                    baseURLError ? "gateway-base-url-error" : undefined
+                  }
+                  error={Boolean(baseURLError)}
+                  onChange={onBaseURLChange}
+                />
+              ) : (
+                <Input
+                  id="gateway-base-url"
+                  placeholder="default"
+                  value={baseURL}
+                  aria-invalid={Boolean(baseURLError)}
+                  aria-describedby={
+                    baseURLError ? "gateway-base-url-error" : undefined
+                  }
+                  error={Boolean(baseURLError)}
+                  onChange={handleBaseURLChange}
+                />
+              )}
               {baseURLError ? (
                 <p
                   id="gateway-base-url-error"

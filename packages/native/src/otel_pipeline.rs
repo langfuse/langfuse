@@ -169,7 +169,7 @@ pub struct FinalizedOtelEvent {
     pub trace_id: String,
     pub start_time_iso: String,
     pub environment: String,
-    /// JSON byte size after applying oversized-field upload results, for selected traces.
+    /// Estimated dispatch weight after field overflow, present only for sampled traces.
     pub serialized_event_bytes: Option<f64>,
 }
 
