@@ -194,6 +194,38 @@ export async function getTopicSetupTraceBounds(input: {
   }));
 }
 
+/** Session of each trace that has one, for grouping the Topics trace list. */
+export async function getTopicTraceSessionIds(input: {
+  projectId: string;
+  traceIds: string[];
+  /** Earliest trace start on the page. */
+  from: Date;
+}) {
+  if (!input.traceIds.length) return new Map<string, string>();
+  const rows = await queryClickhouse<{
+    trace_id: string;
+    trace_session: string;
+  }>({
+    query: `
+      SELECT trace_id, any(session_id) AS trace_session
+      FROM events_core
+      WHERE project_id = {projectId: String}
+        AND start_time >= {from: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}
+        AND trace_id IN {traceIds: Array(String)}
+        AND session_id != ''
+        AND is_deleted = 0
+      GROUP BY trace_id`,
+    params: {
+      projectId: input.projectId,
+      traceIds: input.traceIds,
+      from: convertDateToClickhouseDateTime(input.from),
+    },
+    tags: { route: "topics-trace-sessions", projectId: input.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+  return new Map(rows.map((row) => [row.trace_id, row.trace_session]));
+}
+
 /**
  * Stored trace names of the last 7 days, most used first. Unlike the events
  * filter options, no root observation name stands in for a missing one, since

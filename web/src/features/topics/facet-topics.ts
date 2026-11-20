@@ -20,6 +20,8 @@ export type TopicTracesResult = {
   isLoadingMore: boolean;
   error: string | null;
   hasMore: boolean;
+  /** Distinct sessions among the listed traces; a lower bound on large lists. */
+  sessionCount?: { count: number; isLowerBound: boolean } | null;
   loadMore: () => void;
 };
 /** Injected so views stay presentational; `useFacetTopicTraces` is the app implementation. */

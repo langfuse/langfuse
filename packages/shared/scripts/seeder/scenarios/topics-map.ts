@@ -181,6 +181,29 @@ export const topicsMapScenario: ScenarioDefinition = {
       (_, index) => `${ctx.idPrefix}-m${index.toString().padStart(3, "0")}`,
     );
     const intentOf = topicIndexes(INTENT_TOPICS, OUTLIERS);
+    // Chats about one intent: sessions of 1 to 5 traces, and every seventh without one.
+    const sessionOf: (string | null)[] = traceIds.map(() => null);
+    const sessionSizes = [3, 1, 2, 1, 5, 2, 1];
+    const byIntent = new Map<number, number[]>();
+    traceIds.forEach((_, index) => {
+      const key = intentOf[index] ?? -1;
+      byIntent.set(key, [...(byIntent.get(key) ?? []), index]);
+    });
+    let sessionCount = 0;
+    for (const indexes of byIntent.values())
+      for (let start = 0; start < indexes.length; sessionCount++) {
+        const size = sessionSizes[sessionCount % sessionSizes.length]!;
+        const id =
+          sessionCount % 7 === 6
+            ? null
+            : `${ctx.idPrefix}-session-${sessionCount.toString().padStart(3, "0")}`;
+        for (const index of indexes.slice(start, start + size))
+          sessionOf[index] = id;
+        start += size;
+      }
+    const sessionIds = [
+      ...new Set(sessionOf.filter((id): id is string => id !== null)),
+    ];
     const counts = {
       traces: traceCount,
       observations: traceCount,
@@ -197,7 +220,7 @@ export const topicsMapScenario: ScenarioDefinition = {
       projectId: ctx.projectId,
       environment: ctx.environment,
       traceIds,
-      sessionIds: [],
+      sessionIds,
       counts,
       links: [`${ctx.baseUrl}/project/${ctx.projectId}/topics`],
       dryRun: ctx.dryRun,
@@ -221,7 +244,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         environment: ctx.environment,
         timestamp: timestamps[index],
         name: "assistant-request",
-        session_id: null,
+        session_id: sessionOf[index] ?? null,
         user_id: `${ctx.idPrefix}-user-${index % 9}`,
         public: false,
         bookmarked: false,

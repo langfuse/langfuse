@@ -67,6 +67,7 @@ import {
   analysisTopicResults,
   currentTopicResults,
   listTopicTraces,
+  countTopicTraceSessions,
   traceFacetResults,
 } from "./currentResults";
 import {
@@ -372,6 +373,10 @@ export const topicsRouter = createTRPCRouter({
   traces: topicsProcedure
     .input(tracesInput)
     .query(({ input }) => listTopicTraces(input)),
+  /** Grouped trace list header: distinct sessions among the listed traces. */
+  traceSessionCount: topicsProcedure
+    .input(tracesInput.omit({ cursor: true }))
+    .query(({ input }) => countTopicTraceSessions(input)),
   /** Tracing table column: current topics for the visible page, loaded after the rows. */
   forTraces: topicsProcedure
     .input(

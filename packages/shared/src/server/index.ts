@@ -753,6 +753,7 @@ export {
   TOPIC_SETUP_WINDOW_DAYS,
 } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
+export { getTopicTraceSessionIds } from "./repositories/topic-setup-events";
 export {
   getTopicResultCounts,
   type TopicResultCounts,
