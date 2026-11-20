@@ -29,7 +29,7 @@ import { type Redis, type Cluster } from "ioredis";
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan, UnauthorizedError } from "@langfuse/shared";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
-import { containsNulByte } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+import { containsNulByte } from "@/src/features/apiKey/apiKeyRepository";
 
 type VerifyAuthHeaderOptions = {
   allowInAppAgentKey?: boolean;
@@ -107,13 +107,15 @@ export class ApiAuthService {
             let finalApiKey = apiKey;
 
             if (!apiKey || !apiKey.fastHashedSecretKey) {
-              const slowKey = await this.prisma.apiKey.findUnique({
-                where: { publicKey },
-                include: {
-                  project: { include: { organization: true } },
-                  organization: true,
-                },
-              });
+              const slowKey = containsNulByte(publicKey)
+                ? null
+                : await this.prisma.apiKey.findUnique({
+                    where: { publicKey },
+                    include: {
+                      project: { include: { organization: true } },
+                      organization: true,
+                    },
+                  });
 
               if (!slowKey) {
                 logger.error(
@@ -223,9 +225,6 @@ export class ApiAuthService {
           // Bearer auth, limited scope, only needs public key
           if (authHeader.startsWith("Bearer ")) {
             const publicKey = authHeader.replace("Bearer ", "");
-            if (containsNulByte(publicKey)) {
-              throw new Error("Invalid authorization header");
-            }
 
             const dbKey = await this.findDbKeyOrThrow(publicKey);
 
@@ -324,20 +323,19 @@ export class ApiAuthService {
 
     const [username, password] = atob(authValue).split(":");
     if (!username || !password) throw new Error("Invalid authorization header");
-    if (containsNulByte(username) || containsNulByte(password)) {
-      throw new Error("Invalid authorization header");
-    }
     return { username, password };
   }
 
   private async findDbKeyOrThrow(publicKey: string) {
-    const dbKey = await this.prisma.apiKey.findUnique({
-      where: { publicKey },
-      include: {
-        project: { include: { organization: true } },
-        organization: true,
-      },
-    });
+    const dbKey = containsNulByte(publicKey)
+      ? null
+      : await this.prisma.apiKey.findUnique({
+          where: { publicKey },
+          include: {
+            project: { include: { organization: true } },
+            organization: true,
+          },
+        });
     if (!dbKey) {
       logger.info(
         `No api key found for public key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
