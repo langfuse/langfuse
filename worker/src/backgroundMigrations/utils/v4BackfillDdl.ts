@@ -13,8 +13,7 @@ export const PID_TID_SORTING_TABLE = "observations_pid_tid_sorting";
 
 /**
  * The ClickHouse topology the V4 chain emits DDL against. Passed explicitly so
- * the query builders below stay pure and assertable in tests, mirroring
- * `buildApplyDeletedMaskQuery`'s `ClickHouseDdlConfig`.
+ * the query builders below stay pure and assertable in tests.
  */
 export interface ClickhouseDdlTarget {
   database: string;

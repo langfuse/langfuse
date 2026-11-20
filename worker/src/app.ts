@@ -114,7 +114,6 @@ import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { EventsDispatchTranscriptCleaner } from "./features/eventsDispatch/transcriptCleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
-import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 import { AuditLogRelay } from "./features/audit-log-relay";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
@@ -901,14 +900,6 @@ export let inAppAgentIntegrityRunner: InAppAgentIntegrityRunner | null = null;
 if (env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED !== "false") {
   inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
   inAppAgentIntegrityRunner.start();
-}
-
-// ClickHouse deleted-mask cleaner for physically applying lightweight delete masks
-export let deletedMaskCleaner: DeletedMaskCleaner | null = null;
-
-if (env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED === "true") {
-  deletedMaskCleaner = new DeletedMaskCleaner();
-  deletedMaskCleaner.start();
 }
 
 // Moves staged audit events from Postgres into ClickHouse audit_logs

@@ -21,7 +21,6 @@ import {
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
   inAppAgentIntegrityRunner,
-  deletedMaskCleaner,
   auditLogRelay,
   queueMetricsRunner,
   monitorRunners,
@@ -88,9 +87,6 @@ const runDrainAndClose = async () => {
   traceDeleteBatchActionRunner?.stop();
 
   inAppAgentIntegrityRunner?.stop();
-
-  // Stop deleted-mask cleaner
-  deletedMaskCleaner?.stop();
 
   auditLogRelay?.stop();
 

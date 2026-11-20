@@ -608,22 +608,6 @@ const EnvSchema = z.object({
     .positive()
     .default(3_600_000), // 1 hour for DELETE operations
 
-  // ClickHouse deleted-mask cleaner configuration
-  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_INTERVAL_MS: z.coerce
-    .number()
-    .positive()
-    .default(3_600_000), // 1 hour between runs
-  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_SUBMIT_TIMEOUT_MS: z.coerce
-    .number()
-    .positive()
-    .default(60_000), // Wait up to 1 minute for ALTER submission; mutation can run for hours
-  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
-
   // Audit log relay: moves audit_log_staging rows into ClickHouse audit_logs.
   // Runs on Langfuse Cloud and on self-hosted instances with an enterprise
   // license, where it is on unless disabled here. While it is off, staged
