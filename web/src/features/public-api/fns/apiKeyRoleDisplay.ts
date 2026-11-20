@@ -4,14 +4,14 @@ import { type SystemRole } from "@langfuse/shared/src/db";
 import { apiKeyRolesForScope } from "@langfuse/shared/rbac";
 
 import { withoutGatewayRole } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
-import {
-  rolePermissionCount,
-  type ResourceKind,
-} from "@/src/features/rbac/components/RolePermissionList";
+import { type ResourceKind } from "@/src/features/rbac/components/RolePermissionList";
 import {
   roleDisplay,
   type RoleDisplay,
 } from "@/src/features/rbac/components/roleDisplay";
+
+/** apiKeyRoleOrder lists the roles shown first in the picker; the rest follow in catalog order. */
+const apiKeyRoleOrder: SystemRole[] = ["ADMIN", "VIEWER", "MEMBER"];
 
 /** apiKeyRoleOverrides presents user roles in api-key friendly terms. */
 const apiKeyRoleOverrides: Partial<Record<SystemRole, Partial<RoleDisplay>>> = {
@@ -29,12 +29,9 @@ export function apiKeyRoleDisplay(role: SystemRole): RoleDisplay {
   return { ...roleDisplay(role), ...apiKeyRoleOverrides[role] };
 }
 
-/** apiKeyRolesOfferedForScope lists the roles the create dialog offers for a scope, most permissions first. */
+/** apiKeyRolesOfferedForScope lists the roles the create dialog offers for a scope, in picker order. */
 export function apiKeyRolesOfferedForScope(scope: ApiKeyScope): SystemRole[] {
-  return sortApiKeyRoles(
-    withoutGatewayRole(apiKeyRolesForScope(scope)),
-    apiKeyResourceKinds(scope),
-  );
+  return sortApiKeyRoles(withoutGatewayRole(apiKeyRolesForScope(scope)));
 }
 
 /** apiKeyResourceKinds lists the permission kinds a key of a scope holds; project keys hold only project permissions. */
@@ -52,16 +49,14 @@ export function apiKeyPermissionSetDisplay(
   return apiKeyRoleDisplay(role);
 }
 
-/** sortApiKeyRoles orders roles by permission count, descending, keeping catalog order for ties. */
-function sortApiKeyRoles(
-  roles: SystemRole[],
-  resourceKinds: ResourceKind[],
-): SystemRole[] {
-  return [...roles].sort(
-    (a, b) =>
-      rolePermissionCount(b, resourceKinds) -
-      rolePermissionCount(a, resourceKinds),
-  );
+/** sortApiKeyRoles puts apiKeyRoleOrder roles first, keeping catalog order for the rest. */
+function sortApiKeyRoles(roles: SystemRole[]): SystemRole[] {
+  const rank = (role: SystemRole) => {
+    const index = apiKeyRoleOrder.indexOf(role);
+    if (index === -1) return apiKeyRoleOrder.length;
+    return index;
+  };
+  return [...roles].sort((a, b) => rank(a) - rank(b));
 }
 
 type ApiKeyScope = "project" | "organization";

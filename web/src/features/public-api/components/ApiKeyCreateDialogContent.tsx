@@ -27,7 +27,6 @@ import { resolveApiKeyExpiration } from "@/src/features/apiKey/fns/resolveApiKey
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import {
   apiKeyRoleDisplay,
-  apiKeyResourceKinds,
   apiKeyRolesOfferedForScope,
 } from "@/src/features/public-api/fns/apiKeyRoleDisplay";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
@@ -99,7 +98,6 @@ function ApiKeyCreateForm({
   isPending,
 }: Extract<ApiKeyCreateDialogContentProps, { type: "form" }>) {
   const roles = apiKeyRolesOfferedForScope(scope);
-  const resourceKinds = apiKeyResourceKinds(scope);
   const { data: session } = useSession();
   const roleSelectionEnabled =
     (scope === "project"
@@ -192,8 +190,6 @@ function ApiKeyCreateForm({
                       key={r}
                       role={r}
                       display={apiKeyRoleDisplay}
-                      showPermissionCount
-                      resourceKinds={resourceKinds}
                       onViewPermissions={openPermissions}
                     />
                   ))}
@@ -209,7 +205,7 @@ function ApiKeyCreateForm({
               >
                 View{" "}
                 <span className="inline-flex items-center gap-0.5 underline">
-                  {rolePermissionCountLabel(role, resourceKinds)}
+                  {rolePermissionCountLabel(role)}
                   <ArrowUpRight size="sm" />
                 </span>
               </button>
@@ -223,7 +219,6 @@ function ApiKeyCreateForm({
             onOpenChange={setPermissionsOpen}
             role={permissionsRole}
             display={apiKeyRoleDisplay}
-            resourceKinds={resourceKinds}
           />
         )}
       </DialogBody>

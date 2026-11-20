@@ -3,6 +3,7 @@ import { type IconComponent } from "@langfuse/icons";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
 
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   Dialog,
   DialogBody,
@@ -10,10 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { RolePermissionCountBadge } from "@/src/features/rbac/components/RolePermissionCountBadge";
 import {
   RolePermissionList,
   rolePermissionCount,
+  rolePermissionNoun,
   type ResourceKind,
 } from "@/src/features/rbac/components/RolePermissionList";
 import {
@@ -59,10 +60,12 @@ export function RolePermissionPopup({
                 {Icon && <Icon size="base" />}
                 <span>{shown?.name}</span>
                 <span className="ml-1 shrink-0 tabular-nums">
-                  <RolePermissionCountBadge
-                    role={role}
-                    resourceKinds={resourceKinds}
-                  />
+                  <BadgeShell color="filled" size="sm">
+                    <span className="font-bold">
+                      {rolePermissionCount(role, resourceKinds)}
+                    </span>{" "}
+                    {rolePermissionNoun(role, resourceKinds)}
+                  </BadgeShell>
                 </span>
               </DialogTitle>
             </DialogHeader>
