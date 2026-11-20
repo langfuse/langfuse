@@ -774,8 +774,8 @@ describe("Topics classifications", () => {
     ).toEqual(rows.map((row) => row.traceId));
     expect(mocks.insert.mock.calls[0][0].values[0]).toMatchObject({
       clustering_run_id: "published-run",
-      topic_id: "topic-a",
-      topic_version_id: "topic-v1",
+      topic_stable_id: "topic-a",
+      topic_id: "topic-v1",
     });
     for (const invalid of [
       { topicId: "topic-a" },
@@ -802,8 +802,8 @@ describe("Topics classifications", () => {
         environment: row.environment,
         trace_name: row.traceId ? row.traceName : "",
         clustering_run_id: "published-run",
+        topic_stable_id: "",
         topic_id: "",
-        topic_version_id: "",
         summary_processed_at: row.summaryProcessedAt,
         coordinates: [],
       });

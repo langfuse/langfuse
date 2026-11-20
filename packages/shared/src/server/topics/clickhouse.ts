@@ -1080,8 +1080,8 @@ export function topicAssignmentRecord(row: TopicAssignment) {
     trace_name: row.traceId ? row.traceName : "",
     clustering_run_id: row.runId ?? "",
     rule_id: row.ruleId ?? "",
-    topic_id: row.topicId ?? "",
-    topic_version_id: row.topicVersionId ?? "",
+    topic_stable_id: row.topicId ?? "",
+    topic_id: row.topicVersionId ?? "",
     distance: row.distance,
     runner_up_distance: row.runnerUpDistance,
     origin: row.origin,
@@ -1103,7 +1103,7 @@ const assignmentColumns = `project_id AS projectId, facet_id AS facetId,
       coordinates,
       toUnixTimestamp64Milli(summary_processed_at) AS summaryProcessedAtMs,
       clustering_run_id AS runId, rule_id AS ruleId,
-      topic_id AS topicId, topic_version_id AS topicVersionId, distance,
+      topic_stable_id AS topicId, topic_id AS topicVersionId, distance,
       runner_up_distance AS runnerUpDistance, origin,
       toUnixTimestamp64Milli(assigned_at) AS assignedAtMs`;
 type AssignmentRow = Omit<
@@ -1305,8 +1305,8 @@ export async function readCurrentTraceTopics(
     runId: string;
     ruleId: string;
   }>({
-    query: `SELECT trace_id AS traceId, facet_id AS facetId, topic_id AS topicId,
-        topic_version_id AS topicVersionId, clustering_run_id AS runId, rule_id AS ruleId
+    query: `SELECT trace_id AS traceId, facet_id AS facetId, topic_stable_id AS topicId,
+        topic_id AS topicVersionId, clustering_run_id AS runId, rule_id AS ruleId
       FROM topic_assignments_by_trace
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
         AND facet_id IN {facetIds:Array(String)} AND trace_id IN {traceIds:Array(String)}
@@ -1354,9 +1354,9 @@ export function currentTopicTraceIdsCondition(
       SELECT trace_id FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
         AND facet_id = {facetId:String} AND clustering_run_id IN {publishedRunIds:Array(String)}
-        AND topic_id IN {topicIds:Array(String)}
+        AND topic_stable_id IN {topicIds:Array(String)}
     )`,
-  )}) WHERE topic_id IN {topicIds:Array(String)}`;
+  )}) WHERE topic_stable_id IN {topicIds:Array(String)}`;
   const params: Record<string, unknown> = {
     projectId,
     ...timeRangeParams(timeRange),
@@ -1380,7 +1380,7 @@ export function currentTopicTraceIdsCondition(
 
 // A trace's current topic per map: its newest assignment from each rule's published run.
 function currentTraceAssignmentsSql(scopeSql: string) {
-  return `SELECT trace_id, facet_id, topic_id, topic_version_id, clustering_run_id
+  return `SELECT trace_id, facet_id, topic_stable_id, topic_id, clustering_run_id
     FROM topic_assignments
     WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
       AND clustering_run_id IN {publishedRunIds:Array(String)}

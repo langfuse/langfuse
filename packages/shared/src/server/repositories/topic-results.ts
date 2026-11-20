@@ -152,8 +152,8 @@ function assignmentConditionSql(
     case "topicId": {
       const topicIds = params.add("Array(String)", condition.match.values);
       const matches = acrossMaps
-        ? `hasAny(key_topic_ids, ${topicIds})`
-        : `(topic_status = 'assigned' AND topic_id IN ${topicIds})`;
+        ? `hasAny(key_topic_stable_ids, ${topicIds})`
+        : `(topic_status = 'assigned' AND topic_stable_id IN ${topicIds})`;
       return condition.match.operator === "none of"
         ? `NOT ${matches}`
         : matches;
@@ -205,8 +205,8 @@ function currentResultsSql(
   assignments AS (
     SELECT trace_id AS a_trace_id, facet_id AS a_facet_id,
       facet_version AS a_facet_version, unit_start_time AS a_unit_start_time,
-      summary_processed_at AS a_summary_processed_at, topic_id AS a_topic_id,
-      topic_version_id AS a_topic_version_id, clustering_run_id AS a_run_id,
+      summary_processed_at AS a_summary_processed_at, topic_stable_id AS a_topic_stable_id,
+      topic_id AS a_topic_id, clustering_run_id AS a_run_id,
       assigned_at AS a_assigned_at
     FROM topic_assignments
     WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${assignmentScopeSql}
@@ -221,14 +221,14 @@ function currentResultsSql(
       processing_state = 'complete' AND a_trace_id != ''
         AND a_facet_version = facet_version AND a_unit_start_time = unit_start_time
         AND a_summary_processed_at = processed_at AS matched,
+      if(matched, a_topic_stable_id, '') AS topic_stable_id,
       if(matched, a_topic_id, '') AS topic_id,
-      if(matched, a_topic_version_id, '') AS topic_version_id,
       if(matched, a_run_id, '') AS clustering_run_id,
       a_assigned_at AS assigned_at,
       multiIf(
         processing_state != 'complete', toString(processing_state),
         NOT matched, 'awaiting_map',
-        topic_id != '', 'assigned',
+        topic_stable_id != '', 'assigned',
         'outlier'
       ) AS topic_status
     FROM summaries
@@ -262,9 +262,9 @@ function resolveRowsSql(args: {
   // Continues the WITH clause of `currentResultsSql`.
   return `, ranked AS (
       SELECT *,
-        groupArrayIf(topic_id, topic_status = 'assigned') OVER (PARTITION BY facet_id, trace_id) AS key_topic_ids,
+        groupArrayIf(topic_stable_id, topic_status = 'assigned') OVER (PARTITION BY facet_id, trace_id) AS key_topic_stable_ids,
         row_number() OVER (PARTITION BY facet_id, trace_id ORDER BY
-          ${positiveTopics.map((ids) => `(topic_status = 'assigned' AND topic_id IN ${ids}) DESC, `).join("")}matched DESC,
+          ${positiveTopics.map((ids) => `(topic_status = 'assigned' AND topic_stable_id IN ${ids}) DESC, `).join("")}matched DESC,
           topic_status = 'assigned' DESC, assigned_at DESC) AS key_rank
       FROM current WHERE ${args.inCandidates}
     )
@@ -379,12 +379,14 @@ function candidateQuery(
     );
     if (topicIdIn)
       conditions.push(
-        `topic_id IN ${params.add("Array(String)", topicIdIn.match.values)}`,
+        `topic_stable_id IN ${params.add("Array(String)", topicIdIn.match.values)}`,
       );
-    else if (assignedOnly) conditions.push("topic_id != ''");
+    else if (assignedOnly) conditions.push("topic_stable_id != ''");
     else if (statuses?.length === 1)
       conditions.push(
-        statuses[0] === "assigned" ? "topic_id != ''" : "topic_id = ''",
+        statuses[0] === "assigned"
+          ? "topic_stable_id != ''"
+          : "topic_stable_id = ''",
       );
   } else {
     conditions.push("unit_type = 'trace'");
@@ -563,7 +565,7 @@ export async function listCurrentTopicSummaries(
   input: ListInput & { truncateSummaries: boolean },
 ): Promise<{ rows: TopicSummaryRow[]; next?: TopicResultCursor }> {
   const assignmentSelect = input.includeAssignment
-    ? ", topic_status, topic_id, topic_version_id, clustering_run_id"
+    ? ", topic_status, topic_stable_id, topic_id, clustering_run_id"
     : "";
   const { rows, next } = await listCurrentRows<{
     trace_id: string;
@@ -577,8 +579,8 @@ export async function listCurrentTopicSummaries(
     summary_truncated: number;
     processed_at: string;
     topic_status?: string;
+    topic_stable_id?: string;
     topic_id?: string;
-    topic_version_id?: string;
     clustering_run_id?: string;
   }>({
     ...input,
@@ -611,8 +613,8 @@ export async function listCurrentTopicSummaries(
               status: row.topic_status as
                 | TopicSummaryState
                 | TopicAssignmentStatus,
-              topicId: row.topic_id || null,
-              topicVersionId: row.topic_version_id || null,
+              topicId: row.topic_stable_id || null,
+              topicVersionId: row.topic_id || null,
               runId: row.clustering_run_id || null,
             },
           }
@@ -632,15 +634,15 @@ export async function listCurrentTopicAssignments(
     facet_version: number;
     unit_start_time: string;
     topic_status: TopicAssignmentRow["status"];
+    topic_stable_id: string;
     topic_id: string;
-    topic_version_id: string;
     clustering_run_id: string;
     assigned_at: string;
   }>({
     ...input,
     kind: "assignments",
     select: `trace_id, facet_id, facet_version, unit_start_time, topic_status,
-      topic_id, topic_version_id, clustering_run_id, assigned_at`,
+      topic_stable_id, topic_id, clustering_run_id, assigned_at`,
   });
   return {
     rows: rows.map((row) => ({
@@ -649,8 +651,8 @@ export async function listCurrentTopicAssignments(
       facetVersion: Number(row.facet_version),
       timestamp: parseClickhouseUTCDateTimeFormat(row.unit_start_time),
       status: row.topic_status,
-      topicId: row.topic_id || null,
-      topicVersionId: row.topic_version_id || null,
+      topicId: row.topic_stable_id || null,
+      topicVersionId: row.topic_id || null,
       runId: row.clustering_run_id || null,
       assignedAt: parseClickhouseUTCDateTimeFormat(row.assigned_at),
     })),
@@ -725,19 +727,19 @@ export async function getTopicResultCounts(input: {
     }),
     queryClickhouse<{
       facet_id: string;
-      topic_id: string;
+      topic_stable_id: string;
       is_facet_total: number;
       count: string;
       assigned: string;
     }>({
       ...READ_OPTIONS,
-      query: `SELECT facet_id, topic_id, grouping(topic_id) AS is_facet_total,
+      query: `SELECT facet_id, topic_stable_id, grouping(topic_stable_id) AS is_facet_total,
           uniqCombined(trace_id) AS count,
-          uniqCombinedIf(trace_id, topic_id != '') AS assigned
+          uniqCombinedIf(trace_id, topic_stable_id != '') AS assigned
         FROM topic_assignments
         WHERE ${scope("trace_id != ''")} AND clustering_run_id != ''
           AND clustering_run_id = {runIds:Array(String)}[indexOf({facetIds:Array(String)}, facet_id)]
-        GROUP BY GROUPING SETS ((facet_id, topic_id), (facet_id))`,
+        GROUP BY GROUPING SETS ((facet_id, topic_stable_id), (facet_id))`,
       params,
       tags,
     }),
@@ -749,7 +751,7 @@ export async function getTopicResultCounts(input: {
     const assignedAny = Number(facetTotal?.count ?? 0);
     const topicRows = rows.filter((row) => Number(row.is_facet_total) === 0);
     const outliers = Number(
-      topicRows.find((row) => row.topic_id === "")?.count ?? 0,
+      topicRows.find((row) => row.topic_stable_id === "")?.count ?? 0,
     );
     return {
       facetId,
@@ -761,8 +763,11 @@ export async function getTopicResultCounts(input: {
       notApplicable: Number(summary?.not_applicable ?? 0),
       insufficientInput: Number(summary?.insufficient_input ?? 0),
       topics: topicRows
-        .filter((row) => row.topic_id !== "")
-        .map((row) => ({ topicId: row.topic_id, count: Number(row.count) }))
+        .filter((row) => row.topic_stable_id !== "")
+        .map((row) => ({
+          topicId: row.topic_stable_id,
+          count: Number(row.count),
+        }))
         .sort((a, b) => b.count - a.count),
     };
   });

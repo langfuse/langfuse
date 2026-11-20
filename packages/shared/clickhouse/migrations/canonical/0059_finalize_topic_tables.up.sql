@@ -84,9 +84,9 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
     CONSTRAINT topic_trace_name CHECK notEmpty(trace_id) OR empty(trace_name),
     unit_start_time DateTime64(3, 'UTC'),
     summary_processed_at DateTime64(3, 'UTC'),
+    topic_stable_id String DEFAULT '',
     topic_id String DEFAULT '',
-    topic_version_id String DEFAULT '',
-    CONSTRAINT topic_identity_paired CHECK empty(topic_id) = empty(topic_version_id),
+    CONSTRAINT topic_identity_paired CHECK empty(topic_stable_id) = empty(topic_id),
     distance Nullable(Float32),
     runner_up_distance Nullable(Float32),
     origin Enum8('initial' = 1, 'online' = 2),
@@ -97,8 +97,8 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(assigned_at)
 PARTITION BY toYYYYMM(unit_start_time)
-PRIMARY KEY (project_id, facet_id, clustering_run_id, topic_id, toStartOfHour(unit_start_time))
-ORDER BY (project_id, facet_id, clustering_run_id, topic_id, toStartOfHour(unit_start_time), unit_hash, origin)
+PRIMARY KEY (project_id, facet_id, clustering_run_id, topic_stable_id, toStartOfHour(unit_start_time))
+ORDER BY (project_id, facet_id, clustering_run_id, topic_stable_id, toStartOfHour(unit_start_time), unit_hash, origin)
 SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 -- origin ends the sort key so an online row does not replace the unit's initial membership.
@@ -113,8 +113,8 @@ CREATE TABLE IF NOT EXISTS topic_assignments_by_trace {CLICKHOUSE_CLUSTER_CLAUSE
     trace_id String,
     session_id String,
     clustering_run_id String,
+    topic_stable_id String,
     topic_id String,
-    topic_version_id String,
     origin Enum8('initial' = 1, 'online' = 2),
     assigned_at DateTime64(3, 'UTC'),
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.0001) GRANULARITY 1
@@ -126,5 +126,5 @@ ORDER BY (project_id, toStartOfMinute(unit_start_time), facet_id, trace_id, sess
 SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS topic_assignments_by_trace_mv {CLICKHOUSE_CLUSTER_CLAUSE} TO topic_assignments_by_trace AS
-SELECT project_id, unit_start_time, facet_id, rule_id, trace_id, session_id, clustering_run_id, topic_id, topic_version_id, origin, assigned_at
+SELECT project_id, unit_start_time, facet_id, rule_id, trace_id, session_id, clustering_run_id, topic_stable_id, topic_id, origin, assigned_at
 FROM topic_assignments;
