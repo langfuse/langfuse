@@ -248,6 +248,10 @@ export class ClickHouseClientManager {
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
+          // ClickHouse before 26.5 defaults to `basic`, which rejects a date
+          // string that carries a zone such as `Z` or `+02:00` and fails the
+          // whole insert. `best_effort` is the default from 26.5 on.
+          date_time_input_format: "best_effort",
           ...(shouldSendProgressInHttpHeaders
             ? {
                 send_progress_in_http_headers: 1,

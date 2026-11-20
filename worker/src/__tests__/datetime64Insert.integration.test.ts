@@ -92,6 +92,20 @@ describe("DateTime64 JSONEachRow inserts", () => {
     expect(stored.formatted.startsWith(QUOTED_MS)).toBe(true);
   });
 
+  it("stores a space-separated datetime that carries a UTC offset", async (ctx) => {
+    if (!clickHouseAvailable) {
+      ctx.skip("ClickHouse is not available");
+    }
+
+    // Strings that already start with a ClickHouse date reach the server
+    // unchanged, so the server has to resolve the offset.
+    const zoned = toClickhouseDateTime("2024-11-06 22:37:00.123+02:00");
+
+    const stored = await insertAndRead("zoned", zoned);
+
+    expect(stored.formatted.startsWith(QUOTED_MS)).toBe(true);
+  });
+
   it("overflows unquoted millisecond ticks on ClickHouse 26.8+ default parsing", async (ctx) => {
     if (!clickHouseAvailable) {
       ctx.skip("ClickHouse is not available");
