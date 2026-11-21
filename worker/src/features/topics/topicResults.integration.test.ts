@@ -378,7 +378,7 @@ describe("current Topics summaries and assignments", () => {
     const bySession = (sessionId: string) =>
       summaries([], {
         facetIds: [issues],
-        traceFilter: ({ from, to }) =>
+        traceFilter: ({ from, to, traceIds: batchTraceIds }) =>
           topicMatchingTraceIdsQuery(
             {
               projectId,
@@ -392,6 +392,7 @@ describe("current Topics summaries and assignments", () => {
               ],
               from,
               to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
+              traceIds: batchTraceIds,
             },
             prisma,
           ),
