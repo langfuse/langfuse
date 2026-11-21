@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
-import {
-  ENTERPRISE_TRIAL_DURATION_DAYS,
-  ENTERPRISE_TRIAL_UNIT_LIMIT,
-  planLabels,
-} from "@langfuse/shared";
+import { ENTERPRISE_TRIAL_UNIT_LIMIT, planLabels } from "@langfuse/shared";
 
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -85,7 +81,7 @@ function EnterpriseTrialContent({
         <Alert variant="info">
           <Alert.Title>Your enterprise trial is active</Alert.Title>
           <Alert.Description>
-            {`All Enterprise features are available until ${formatDate(trialEndsAt)}. Ingestion pauses at ${numberFormatter(ENTERPRISE_TRIAL_UNIT_LIMIT, 0)} units per billing period.`}
+            {`All Enterprise features are available until ${formatDate(trialEndsAt)}. After that, the organization returns to the Hobby plan. Ingestion pauses at ${numberFormatter(ENTERPRISE_TRIAL_UNIT_LIMIT, 0)} units per billing period.`}
           </Alert.Description>
         </Alert>
         <Button
@@ -144,7 +140,7 @@ function RedeemEnterpriseTrialForm({ orgId }: { orgId: string }) {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm">
-        {`Try every Enterprise feature, including SSO, project-level roles and audit logs, for ${ENTERPRISE_TRIAL_DURATION_DAYS} days. No payment method is needed. Ingestion pauses at ${numberFormatter(ENTERPRISE_TRIAL_UNIT_LIMIT, 0)} units per billing period.`}
+        {`Try every Enterprise feature, such as SSO, SCIM, audit logs and unlimited members, with no payment method needed. Your coupon code sets how long the trial lasts; when it ends, the organization returns to the Hobby plan. Ingestion pauses at ${numberFormatter(ENTERPRISE_TRIAL_UNIT_LIMIT, 0)} units per billing period.`}
       </p>
       <Form
         onSubmit={(event) => {

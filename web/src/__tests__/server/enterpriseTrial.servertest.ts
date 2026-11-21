@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { redeemEnterpriseTrial } from "@/src/ee/features/billing/server/enterpriseTrial";
 
 const VALID_CODE = "LF-ENTERPRISE-TRIAL-TEST-CODE";
+const COUPONS = [{ code: VALID_CODE, durationDays: 14 }];
 const NOW = new Date("2026-11-12T12:00:00.000Z");
 const CH_ORGANIZATION_ID = "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a";
 
@@ -21,7 +22,7 @@ const redeemValidCode = () =>
   redeemEnterpriseTrial({
     orgId,
     code: VALID_CODE,
-    validCodes: [VALID_CODE],
+    coupons: COUPONS,
     now: NOW,
   });
 
@@ -43,24 +44,27 @@ describe("redeemEnterpriseTrial", () => {
     await prisma.organization.deleteMany({ where: { id: orgId } });
   });
 
-  it("starts a 60-day trial for a valid code, once per org", async () => {
+  it("starts a trial as long as the redeemed code grants, once per org", async () => {
     await expect(
       redeemEnterpriseTrial({
         orgId,
         code: ` ${VALID_CODE} `,
-        validCodes: ["another-valid-code-1234", VALID_CODE],
+        coupons: [
+          { code: "LF-ENTERPRISE-TRIAL-60-DAYS", durationDays: 60 },
+          { code: VALID_CODE, durationDays: 14 },
+        ],
         now: NOW,
       }),
     ).resolves.toEqual({
       startedAt: "2026-11-12T12:00:00.000Z",
-      endsAt: "2027-01-11T12:00:00.000Z",
+      endsAt: "2026-11-26T12:00:00.000Z",
     });
 
     expect(await cloudConfig()).toMatchObject({
       defaultLookBackDays: 7,
       enterpriseTrial: {
         startedAt: "2026-11-12T12:00:00.000Z",
-        endsAt: "2027-01-11T12:00:00.000Z",
+        endsAt: "2026-11-26T12:00:00.000Z",
       },
     });
 
@@ -68,7 +72,7 @@ describe("redeemEnterpriseTrial", () => {
       redeemEnterpriseTrial({
         orgId,
         code: VALID_CODE,
-        validCodes: [VALID_CODE],
+        coupons: COUPONS,
       }),
     ).rejects.toMatchObject({ httpCode: 409 });
   });
@@ -102,7 +106,7 @@ describe("redeemEnterpriseTrial", () => {
       });
 
       await expect(
-        redeemEnterpriseTrial({ orgId, code, validCodes: [VALID_CODE] }),
+        redeemEnterpriseTrial({ orgId, code, coupons: COUPONS }),
       ).rejects.toMatchObject({ httpCode: expectedHttpCode });
 
       expect((await dbOrg()).cloudConfig).toEqual(existingConfig);
@@ -128,7 +132,7 @@ describe("redeemEnterpriseTrial", () => {
 
     expect(await cloudConfig()).toMatchObject({
       clickhouse: { organizationId: CH_ORGANIZATION_ID },
-      enterpriseTrial: { endsAt: "2027-01-11T12:00:00.000Z" },
+      enterpriseTrial: { endsAt: "2026-11-26T12:00:00.000Z" },
     });
   });
 

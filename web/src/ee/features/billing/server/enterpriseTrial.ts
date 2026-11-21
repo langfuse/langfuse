@@ -1,7 +1,6 @@
 import { createHash, timingSafeEqual } from "crypto";
 import {
   CloudConfigSchema,
-  ENTERPRISE_TRIAL_DURATION_DAYS,
   hasPaidBillingState,
   InvalidRequestError,
   LangfuseConflictError,
@@ -18,37 +17,47 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest();
 
+/** A coupon code and the length of the trial it starts. */
+type EnterpriseTrialCoupon = { code: string; durationDays: number };
+
 /**
- * Compares against every valid code in constant time. Hashing first gives both
+ * Compares against every coupon in constant time. Hashing first gives both
  * sides of `timingSafeEqual` the same length, so the response time reveals
- * neither a partial match nor the length of a valid code.
+ * neither a partial match, nor which coupon matched, nor a code's length.
  */
-function matchesCouponCode(code: string, validCodes: string[]): boolean {
+function findCoupon(
+  code: string,
+  coupons: EnterpriseTrialCoupon[],
+): EnterpriseTrialCoupon | undefined {
   const candidate = sha256(code.trim());
-  return validCodes.reduce(
-    (matched, validCode) =>
-      timingSafeEqual(candidate, sha256(validCode)) || matched,
-    false,
+  return coupons.reduce<EnterpriseTrialCoupon | undefined>(
+    (match, coupon) =>
+      timingSafeEqual(candidate, sha256(coupon.code)) && !match
+        ? coupon
+        : match,
+    undefined,
   );
 }
 
 /**
- * Puts an unpaid org on the enterprise trial when `code` is one of
- * `validCodes`. Each org gets one trial; orgs with paid billing state cannot
- * start one, because a paid plan outranks the trial anyway.
+ * Puts an unpaid org on the enterprise trial for as many days as the redeemed
+ * coupon grants. Each org gets one trial; orgs with paid billing state cannot
+ * start one, because a paid plan outranks the trial anyway. Nothing ends the
+ * trial explicitly: plan resolution compares `endsAt` with the current time.
  */
 export async function redeemEnterpriseTrial(params: {
   orgId: string;
   code: string;
-  validCodes: string[];
+  coupons: EnterpriseTrialCoupon[];
   now?: Date;
 }): Promise<{ startedAt: string; endsAt: string }> {
-  const { orgId, code, validCodes, now = new Date() } = params;
+  const { orgId, code, coupons, now = new Date() } = params;
 
-  if (validCodes.length === 0) {
+  if (coupons.length === 0) {
     throw new InvalidRequestError("Enterprise trials are not available.");
   }
-  if (!matchesCouponCode(code, validCodes)) {
+  const coupon = findCoupon(code, coupons);
+  if (!coupon) {
     throw new InvalidRequestError("This coupon code is not valid.");
   }
 
@@ -82,7 +91,7 @@ export async function redeemEnterpriseTrial(params: {
   const enterpriseTrial = CloudConfigSchema.shape.enterpriseTrial.parse({
     startedAt: now.toISOString(),
     endsAt: new Date(
-      now.getTime() + ENTERPRISE_TRIAL_DURATION_DAYS * DAY_MS,
+      now.getTime() + coupon.durationDays * DAY_MS,
     ).toISOString(),
   });
   if (!enterpriseTrial) {

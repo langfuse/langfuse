@@ -456,7 +456,7 @@ export const cloudBillingRouter = createTRPCRouter({
       const enterpriseTrial = await redeemEnterpriseTrial({
         orgId: input.orgId,
         code: input.code,
-        validCodes: env.LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES,
+        coupons: env.LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES,
       });
 
       auditLog({
