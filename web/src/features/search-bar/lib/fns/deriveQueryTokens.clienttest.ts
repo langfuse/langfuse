@@ -216,6 +216,9 @@ describe("deriveQueryTokens", () => {
       });
       expect(token?.collection?.values).toEqual(["alpha", "beta", "gamma"]);
       expect(token?.collection?.label).toContain(`${relation} 3 values`);
+      expect(token?.collection?.selection).toBe(
+        relation === "none of" ? "excluded" : "included",
+      );
       expect(token?.raw).toBe(draft);
       expect(
         token?.groups

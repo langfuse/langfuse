@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,7 +16,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/src/env.mjs", () => ({
   env: {
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: new Map(),
-    NEXT_PUBLIC_DEMO_PROJECT_ID: "demo-project",
   },
 }));
 
@@ -113,43 +111,6 @@ describe("chatCompletionHandler", () => {
       connection: { secretKey: "encrypted-key" },
       messages: [{ role: "user", content: "Hello" }],
     });
-  });
-
-  it("blocks demo project admins before resolving credentials or calling a model", async () => {
-    const projectId = "demo-project";
-    mocks.session.mockResolvedValue(adminSession(projectId));
-
-    const response = await chatCompletionHandler(
-      createRequest({ ...baseBody, projectId }),
-    );
-
-    expect(response.status).toBe(403);
-    expect(mocks.findConnection).not.toHaveBeenCalled();
-    expect(mocks.generate).not.toHaveBeenCalled();
-    expect(mocks.stream).not.toHaveBeenCalled();
-  });
-
-  it("allows staff members in Internal view to run demo completions", async () => {
-    const projectId = "demo-project";
-    mocks.session.mockResolvedValue(
-      createSession({
-        user: {
-          email: "member@clickhouse.com",
-          featureFlags: testFeatureFlags({ internalFeatures: true }),
-        },
-        organizations: [
-          { id: "org-1", role: "MEMBER", projects: [{ id: projectId }] },
-        ],
-      }),
-    );
-    mocks.generate.mockResolvedValue({ text: "Hello back", finalStep: {} });
-
-    const response = await chatCompletionHandler(
-      createRequest({ ...baseBody, projectId }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(mocks.generate).toHaveBeenCalledOnce();
   });
 
   it("maps a native text result to the existing playground JSON response", async () => {

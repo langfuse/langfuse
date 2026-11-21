@@ -117,7 +117,9 @@ const summaryFixture: TopicSummary = {
   facetVersion: 1,
   traceId: "trace-a",
   sessionId: null,
-  triggerType: "manual_poc",
+  triggerType: "rule",
+  ruleIds: ["rule-a"],
+  executionId: null,
   environment: "production",
   traceName: "billing-assistant",
   unitStartTime: "2026-09-16T00:00:00.000Z",
@@ -126,6 +128,7 @@ const summaryFixture: TopicSummary = {
   embedding: [0.1, 0.2],
   transcriptId: "poc",
   transcriptVersion: "poc",
+  transcriptBytes: 0,
   summaryModel: "gpt-4.1-nano",
   embeddingModel: "eu.cohere.embed-v4:0",
   providedUsageDetails: {
@@ -162,6 +165,7 @@ const assignmentFixture: TopicAssignment = {
   summaryProcessedAt: summaryFixture.processedAt,
   coordinates: null,
   runId: "published-run",
+  ruleId: "rule-a",
   topicId: null,
   topicVersionId: null,
   distance: null,
@@ -392,7 +396,7 @@ describe("Topics definition storage", () => {
     projectId: "project-a",
     createdByRunId: "run-a",
     createdAt: "2026-09-16T00:00:00.000Z",
-    tags: ["billing"],
+    labels: ["billing"],
     name: "Billing",
     description: "Invoice requests",
     centroid: [0.123456789012345, 1],
@@ -669,7 +673,9 @@ describe("Topics summary storage", () => {
         project_id: "project-a",
         trace_id: identity.traceId ?? "",
         session_id: identity.sessionId ?? "",
-        trigger_type: "manual_poc",
+        trigger_type: "rule",
+        rule_ids: ["rule-a"],
+        execution_id: "",
         environment: summary.environment,
         trace_name: identity.traceId ? summary.traceName : "",
         provided_usage_details: summary.providedUsageDetails,
@@ -690,7 +696,7 @@ describe("Topics summary storage", () => {
         sessionId: identity.sessionId ?? "",
         traceName: inserted.trace_name,
         unitStartTimeMs: Date.parse(summary.unitStartTime).toString(),
-        processedAtMs: Date.parse(summary.processedAt).toString(),
+        processedAtMs: Date.parse(inserted.created_at).toString(),
         providedUsageDetails: clickhouseNumberMap(summary.providedUsageDetails),
         usageDetails: clickhouseNumberMap(summary.usageDetails),
         providedCostDetails: clickhouseNumberMap(summary.providedCostDetails),
@@ -768,8 +774,8 @@ describe("Topics classifications", () => {
     ).toEqual(rows.map((row) => row.traceId));
     expect(mocks.insert.mock.calls[0][0].values[0]).toMatchObject({
       clustering_run_id: "published-run",
-      topic_id: "topic-a",
-      topic_version_id: "topic-v1",
+      topic_stable_id: "topic-a",
+      topic_id: "topic-v1",
     });
     for (const invalid of [
       { topicId: "topic-a" },
@@ -796,9 +802,10 @@ describe("Topics classifications", () => {
         environment: row.environment,
         trace_name: row.traceId ? row.traceName : "",
         clustering_run_id: "published-run",
+        topic_stable_id: "",
         topic_id: "",
-        topic_version_id: "",
         summary_processed_at: row.summaryProcessedAt,
+        created_at: row.assignedAt,
         coordinates: [],
       });
       mocks.query.mockResolvedValue([
@@ -836,7 +843,7 @@ describe("Topics classifications", () => {
         "AND clustering_run_id IN {publishedRunIds:Array(String)}",
       );
       expect(query).toContain(
-        "ORDER BY facet_version DESC, assigned_at DESC, origin DESC",
+        "ORDER BY facet_version DESC, created_at DESC, origin DESC",
       );
       expect(query).toContain(
         "LIMIT 1 BY project_id, facet_id, clustering_run_id, trace_id, if(trace_id = '', session_id, '')",

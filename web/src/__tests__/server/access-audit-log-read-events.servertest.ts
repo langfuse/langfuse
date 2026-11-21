@@ -826,8 +826,8 @@ maybe("access events on tRPC events.byTraceId", () => {
         actor: expect.objectContaining({
           type: "USER",
           userId,
-          orgRole: Role.MEMBER,
-          projectRole: Role.VIEWER,
+          orgRole: "system/MEMBER",
+          projectRole: "system/VIEWER",
         }),
       }),
     ]);
@@ -876,7 +876,7 @@ maybe("access events on tRPC events.byTraceId", () => {
         actor: expect.objectContaining({
           type: "USER",
           userId,
-          orgRole: Role.VIEWER,
+          orgRole: "system/VIEWER",
           supportAccess: true,
         }),
       }),

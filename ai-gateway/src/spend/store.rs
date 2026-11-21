@@ -117,11 +117,16 @@ pub(crate) struct Counter {
 }
 
 impl Counter {
-    /// Set once the counter's limit was reported reached in its window. Shares the
-    /// counter's hash tag, so it is read in the same `MGET`. Keyed by the limit's
-    /// amount, so a changed amount is reported again.
-    pub(crate) fn alerted_flag(&self, limit_usd: f64) -> String {
-        format!("{}:alerted:{limit_usd}", self.key)
+    /// Set once the counter's threshold was reported reached in its window. Shares
+    /// the counter's hash tag, so it is read in the same `MGET`. Keyed by the
+    /// limit's amount and threshold, so a changed amount or higher threshold is
+    /// reported again.
+    pub(crate) fn alerted_flag(&self, limit_usd: f64, threshold_percent: u8) -> String {
+        if threshold_percent == 100 {
+            format!("{}:alerted:{limit_usd}", self.key)
+        } else {
+            format!("{}:alerted:{limit_usd}:{threshold_percent}", self.key)
+        }
     }
 }
 

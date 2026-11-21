@@ -573,7 +573,7 @@ async function seedAiGateway(params: {
     (await createApiKey(prisma, {
       tenant: OrganizationId(params.organizationId),
       scope: UserId(params.userId),
-      role: SystemRoleId("AI_GATEWAY"),
+      role: SystemRoleId("AI_GATEWAY_INFERENCE"),
       createdBy: UserId(params.userId),
       name: "Seeded gateway key",
       predefinedKeys: {

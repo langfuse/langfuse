@@ -19,6 +19,7 @@ it("opens personal previews through Internal view or a Topics grant on self-host
       organizations: [],
       featureFlags: testFeatureFlags(),
     },
+    policies: [],
   };
   const input = {
     session,

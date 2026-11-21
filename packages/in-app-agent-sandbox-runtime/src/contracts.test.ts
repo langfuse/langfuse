@@ -85,6 +85,24 @@ describe("SandboxOperationSchema", () => {
       }).success,
     ).toBe(false);
 
+    for (const timeoutMs of [0, -1, 1.5, 120_001, 2 ** 31]) {
+      expect(
+        SandboxOperationSchema.safeParse({
+          operation: "bash",
+          command: "echo hi",
+          timeoutMs,
+        }).success,
+      ).toBe(false);
+    }
+
+    expect(
+      SandboxOperationSchema.safeParse({
+        operation: "bash",
+        command: "echo hi",
+        timeoutMs: 120_000,
+      }).success,
+    ).toBe(true);
+
     expect(
       SandboxFileSchema.safeParse({ path: "/workspace/a.txt" }).success,
     ).toBe(false);
