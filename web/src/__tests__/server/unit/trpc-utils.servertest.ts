@@ -28,7 +28,7 @@ describe("trpc-utils", () => {
       getTRPCErrorReporting(new TRPCError({ code: "UNAUTHORIZED" })),
     ).toMatchObject({
       httpStatus: 401,
-      logLevel: "info",
+      logLevel: "debug",
       shouldTrace: false,
     });
 

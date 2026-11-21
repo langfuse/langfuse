@@ -204,7 +204,12 @@ const logErrorByStatus = ({
   httpStatus: number;
   error: TRPCError;
 }) => {
-  if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
+  // A refused project membership also logs its own warning where it is thrown.
+  if (errorCode === "UNAUTHORIZED") {
+    logger.debug(`middleware intercepted error with code ${errorCode}`, {
+      error,
+    });
+  } else if (errorCode === "NOT_FOUND") {
     logger.info(`middleware intercepted error with code ${errorCode}`, {
       error,
     });

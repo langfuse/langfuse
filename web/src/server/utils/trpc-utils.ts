@@ -36,14 +36,17 @@ export const getTRPCErrorCodeFromHTTPStatusCode = (
   return HTTP_STATUS_CODE_TO_TRPC_ERROR_CODE[httpStatus] ?? DEFAULT_ERROR_CODE;
 };
 
-type TRPCErrorLogLevel = "info" | "warn" | "error";
+type TRPCErrorLogLevel = "debug" | "info" | "warn" | "error";
 
 const isServerErrorStatus = (httpStatus: number) =>
   httpStatus >= 500 && httpStatus < 600;
 
+// A 401 is a request without a usable session, such as a signed-out tab that
+// keeps polling. The http.server trace metrics still count every one.
 const getLogLevelFromHTTPStatus = (httpStatus: number): TRPCErrorLogLevel => {
   if (isServerErrorStatus(httpStatus)) return "error";
-  if (httpStatus === 401 || httpStatus === 404) return "info";
+  if (httpStatus === 401) return "debug";
+  if (httpStatus === 404) return "info";
   return "warn";
 };
 
@@ -103,8 +106,10 @@ export const reportTRPCError = ({
     logger.error(message, error);
   } else if (logLevel === "warn") {
     logger.warn(message, error);
-  } else {
+  } else if (logLevel === "info") {
     logger.info(message, error);
+  } else {
+    logger.debug(message, error);
   }
 
   if (shouldTrace) {
