@@ -240,12 +240,12 @@ export function TopicTraceList({
       {search && <TopicsTraceToolbar {...search} divider={false} />}
       <div ref={headerRef} className="flex shrink-0 flex-col gap-1 px-4 py-3">
         <div className="flex min-h-7 items-center justify-between gap-4">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <h3 className="flex min-w-0 items-baseline gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className="flex min-w-0 items-center gap-2">
               {swatchColor && (
                 <span
                   aria-hidden
-                  className="size-3 shrink-0 self-center rounded-xs"
+                  className="size-3 shrink-0 rounded-xs"
                   style={{ backgroundColor: swatchColor }}
                 />
               )}
@@ -259,7 +259,7 @@ export function TopicTraceList({
             </h3>
             {totalCount !== null && (
               <span className="text-muted-foreground shrink-0 font-mono text-xs">
-                · {traceCountLabel(totalCount)}
+                {traceCountLabel(totalCount)}
               </span>
             )}
           </div>
@@ -275,7 +275,6 @@ export function TopicTraceList({
                 href={tracingHref}
                 text="Open in Tracing"
                 variant="ghost"
-                size="sm"
                 icon={ExternalLink}
               />
             )}
