@@ -141,6 +141,10 @@ export function getLLMErrorInfo(error: unknown): LLMErrorInfo | null {
     return {
       kind: "timeout",
       message: timeoutError.message,
+      // Interactive callers (playground, eval preflight) treat timeouts as
+      // operational, not internal 500s. Semantic AI SDK errors have no HTTP
+      // status either; 400 is the same "client/provider operational" bucket.
+      statusCode: 400,
       isRetryable: false,
       error,
       retryError,
@@ -152,6 +156,7 @@ export function getLLMErrorInfo(error: unknown): LLMErrorInfo | null {
     return {
       kind: "abort",
       message: abortError.message,
+      statusCode: 400,
       isRetryable: false,
       error,
       retryError,
