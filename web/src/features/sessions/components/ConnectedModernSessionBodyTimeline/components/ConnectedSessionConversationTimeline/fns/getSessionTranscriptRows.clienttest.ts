@@ -270,6 +270,14 @@ describe("getSessionTranscriptRows", () => {
           transcript: {
             threads: [
               { ...base, currentTurn: { ...base.currentTurn, messages: [] } },
+            ],
+          },
+        },
+        {
+          trace: { id: "hidden-nested" },
+          transcript: {
+            threads: [
+              base,
               {
                 ...base,
                 currentTurn: { ...base.currentTurn, nestingLevel: 1 },
@@ -287,10 +295,78 @@ describe("getSessionTranscriptRows", () => {
         threadNumber: undefined,
       },
       {
-        itemId: "no-transcript",
+        itemId: "hidden-nested:0",
         displayNumber: "2",
+        threadCount: 1,
+        threadNumber: undefined,
+      },
+      {
+        itemId: "no-transcript",
+        displayNumber: "3",
         threadIndex: undefined,
         threadCount: 0,
+      },
+    ]);
+  });
+
+  it("ignores empty shallower threads when computing visible threads", () => {
+    const base = transcript.threads[0]!;
+    const mixedTranscript = {
+      threads: [
+        {
+          ...base,
+          currentTurn: {
+            ...base.currentTurn,
+            nestingLevel: 0,
+            messages: [],
+          },
+        },
+        {
+          ...base,
+          currentTurn: { ...base.currentTurn, nestingLevel: 1 },
+        },
+        {
+          ...base,
+          currentTurn: { ...base.currentTurn, nestingLevel: 1 },
+        },
+        {
+          ...base,
+          currentTurn: { ...base.currentTurn, nestingLevel: 2 },
+        },
+      ],
+    };
+
+    expect(getSessionTranscriptThreads(mixedTranscript)).toMatchObject({
+      hiddenThreadCount: 1,
+      visibleThreads: [{ threadIndex: 1 }, { threadIndex: 2 }],
+    });
+    expect(getSessionTranscriptThreads(mixedTranscript, true)).toMatchObject({
+      hiddenThreadCount: 0,
+      visibleThreads: [
+        { threadIndex: 1 },
+        { threadIndex: 2 },
+        { threadIndex: 3 },
+      ],
+    });
+    expect(
+      getSessionTranscriptRows(mixedTranscript).map(({ id }) => id),
+    ).toEqual(["1:0", "1:1", "1:2", "2:0", "2:1", "2:2"]);
+    expect(
+      getSessionConversationEntries([
+        { trace: { id: "trace" }, transcript: mixedTranscript },
+      ]),
+    ).toMatchObject([
+      {
+        itemId: "trace:1",
+        threadIndex: 1,
+        threadCount: 2,
+        displayNumber: "1.1",
+      },
+      {
+        itemId: "trace:2",
+        threadIndex: 2,
+        threadCount: 2,
+        displayNumber: "1.2",
       },
     ]);
   });

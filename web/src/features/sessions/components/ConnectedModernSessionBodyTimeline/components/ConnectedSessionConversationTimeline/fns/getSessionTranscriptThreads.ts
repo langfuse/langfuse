@@ -4,20 +4,25 @@ export function getSessionTranscriptThreads(
   transcript: RouterOutputs["events"]["transcriptByTraceId"]["transcript"],
   includeNestedThreads = false,
 ) {
-  const threads = transcript?.threads ?? [];
-  const shallowestLevel = threads.reduce(
-    (level, thread) => Math.min(level, thread.currentTurn.nestingLevel),
+  const indexedThreads = (transcript?.threads ?? []).map(
+    (thread, threadIndex) => ({ thread, threadIndex }),
+  );
+  const nonEmptyThreads = indexedThreads.filter(
+    ({ thread }) => thread.currentTurn.messages.length > 0,
+  );
+  const candidateThreads =
+    nonEmptyThreads.length > 0 ? nonEmptyThreads : indexedThreads;
+  const shallowestLevel = candidateThreads.reduce(
+    (level, { thread }) => Math.min(level, thread.currentTurn.nestingLevel),
     Infinity,
   );
-  const visibleThreads = threads
-    .map((thread, threadIndex) => ({ thread, threadIndex }))
-    .filter(
-      ({ thread }) =>
-        includeNestedThreads ||
-        thread.currentTurn.nestingLevel === shallowestLevel,
-    );
+  const visibleThreads = candidateThreads.filter(
+    ({ thread }) =>
+      includeNestedThreads ||
+      thread.currentTurn.nestingLevel === shallowestLevel,
+  );
   return {
     visibleThreads,
-    hiddenThreadCount: threads.length - visibleThreads.length,
+    hiddenThreadCount: candidateThreads.length - visibleThreads.length,
   };
 }
