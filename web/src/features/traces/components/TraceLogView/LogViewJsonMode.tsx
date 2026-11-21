@@ -8,6 +8,7 @@
  */
 
 import { memo, useEffect } from "react";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { type FlatLogItem } from "./log-view-types";
 import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
@@ -63,8 +64,9 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
       {/* Error state */}
       {isError && !isLoading && (
         <div className="flex flex-1 items-center justify-center">
-          <div className="border-destructive/50 bg-destructive/10 text-destructive rounded border p-4 text-sm">
-            Failed to load observation data
+          {/* Shrink-wraps the full-width banner so it stays centered. */}
+          <div>
+            <Banner variant="error">Failed to load observation data</Banner>
           </div>
         </div>
       )}
