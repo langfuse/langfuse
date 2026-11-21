@@ -481,13 +481,29 @@ CD on `main`
 
 ### Version tests
 
-Our CI pipeline runs multiple configurations of Langfuse - the "plain" deployment, an "azure" specific deployment, and a "redis-cluster" deployment
-using the specific `docker-compose.dev-*.yml` files at the repository root.
+Our CI pipeline runs multiple configurations of Langfuse - the "plain" deployment, an "azure" specific deployment, a "redis-cluster" deployment,
+and a "clickhouse-cluster" deployment using the specific `docker-compose.dev-*.yml` files at the repository root.
+
+The "clickhouse-cluster" configuration runs one shard with two replicas and a ClickHouse Keeper, with `CLICKHOUSE_CLUSTER_ENABLED=true`.
+It is the only configuration that applies the clustered migrations (`ON CLUSTER` DDL and `Replicated*MergeTree` engines), which are the default
+for self-hosted deployments and the Helm chart. Web and worker connect to the first replica. To run it locally:
+
+```bash
+cp .env.dev-clickhouse-cluster.example .env
+docker compose -f docker-compose.dev-clickhouse-cluster.yml up -d --wait
+pnpm run db:migrate && pnpm --filter=shared run ch:up
+```
+
+`ch:drop`, and therefore `ch:reset` and `pnpm run dx`, refuse clustered mode because `migrate drop` only removes tables on the connected
+node. Use `pnpm --filter=shared run ch:down` instead, or remove the stack's volumes with `docker compose -f docker-compose.dev-clickhouse-cluster.yml down -v`.
+
+`ch:dev-tables` is not cluster-aware: it creates its development tables and views on the connected node only.
 
 Additionally, we use those files to test different ClickHouse versions.
 - Azure: Use 25.12 for compatibility testing with our lowest supported version.
 - Redis Cluster: Use 26.8 as the latest available ClickHouse release.
 - Plain: Use 26.4 as the current Cloud version.
+- ClickHouse Cluster: Use the same version as Plain, so a failure isolates the clustered setup.
 
 ## Staging environment
 
