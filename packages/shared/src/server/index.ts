@@ -748,6 +748,10 @@ export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export {
   BILLING_SETTLE_MS,
+  type BillableUnitBucketGranularity,
+  bucketStartSql,
+  getBillableEventsLedgerStart,
+  getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
 } from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
