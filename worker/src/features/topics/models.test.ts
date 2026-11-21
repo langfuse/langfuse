@@ -846,6 +846,27 @@ describe("Topics naming boundary", () => {
     expect(
       renameCall.trace.metadata.naming_input_tokens_estimated,
     ).toBeLessThanOrEqual(900_000);
+    const previousTopic = {
+      name: "Invoice questions",
+      description: "Questions about invoices.",
+    };
+    await namePreparedTopicGroup(
+      topicsModels(),
+      { ...prepared, previousTopic },
+      undefined,
+      conflict,
+    );
+    const contextCall = state.call.mock.calls[2][0];
+    const contextRequest = JSON.parse(contextCall.input);
+    expect(contextRequest.members).toEqual(initialRequest.members);
+    expect(contextRequest.previousTopic).toEqual(previousTopic);
+    expect(contextRequest.conflictingTopic).toEqual(
+      renameRequest.conflictingTopic,
+    );
+    expect(contextCall.system[0].text).toContain("previousTopic");
+    expect(
+      contextCall.trace.metadata.naming_input_tokens_estimated,
+    ).toBeLessThanOrEqual(900_000);
 
     const omittedId = Array.from(
       { length: group.members.length },
