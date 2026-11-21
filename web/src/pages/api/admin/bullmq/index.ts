@@ -4,6 +4,7 @@ import {
   CodeEvalExecutionQueue,
   EvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
+  TopicsTraceQueue,
   SecondaryEvalExecutionQueue,
   SecondaryIngestionQueue,
   logger,
@@ -75,6 +76,7 @@ export default async function handler(
           ...EvalExecutionQueue.getShardNames(),
           ...SecondaryEvalExecutionQueue.getShardNames(),
           ...LLMAsJudgeExecutionQueue.getShardNames(),
+          ...TopicsTraceQueue.getShardNames(),
           ...CodeEvalExecutionQueue.getShardNames(),
           ...TraceUpsertQueue.getShardNames(),
           ...OtelIngestionQueue.getShardNames(),
@@ -101,6 +103,8 @@ export default async function handler(
               queue = SecondaryEvalExecutionQueue.getInstance({
                 shardName: queueName,
               });
+            } else if (queueName.startsWith(QueueName.TopicsTrace)) {
+              queue = TopicsTraceQueue.getInstance({ shardName: queueName });
             } else if (queueName.startsWith(QueueName.LLMAsJudgeExecution)) {
               queue = LLMAsJudgeExecutionQueue.getInstance({
                 shardName: queueName,
@@ -128,6 +132,7 @@ export default async function handler(
                   | QueueName.EvaluationExecution
                   | QueueName.EvaluationExecutionSecondaryQueue
                   | QueueName.LLMAsJudgeExecution
+                  | QueueName.TopicsTrace
                   | QueueName.CodeEvalExecution
                   | QueueName.TraceUpsert
                   | QueueName.OtelIngestionQueue
@@ -172,6 +177,8 @@ export default async function handler(
           queue = SecondaryEvalExecutionQueue.getInstance({
             shardName: queueName,
           });
+        } else if (queueName.startsWith(QueueName.TopicsTrace)) {
+          queue = TopicsTraceQueue.getInstance({ shardName: queueName });
         } else if (queueName.startsWith(QueueName.LLMAsJudgeExecution)) {
           queue = LLMAsJudgeExecutionQueue.getInstance({
             shardName: queueName,
@@ -199,6 +206,7 @@ export default async function handler(
               | QueueName.EvaluationExecution
               | QueueName.EvaluationExecutionSecondaryQueue
               | QueueName.LLMAsJudgeExecution
+              | QueueName.TopicsTrace
               | QueueName.CodeEvalExecution
               | QueueName.TraceUpsert
               | QueueName.OtelIngestionQueue
@@ -253,6 +261,8 @@ export default async function handler(
           queue = SecondaryEvalExecutionQueue.getInstance({
             shardName: queueName,
           });
+        } else if (queueName.startsWith(QueueName.TopicsTrace)) {
+          queue = TopicsTraceQueue.getInstance({ shardName: queueName });
         } else if (queueName.startsWith(QueueName.LLMAsJudgeExecution)) {
           queue = LLMAsJudgeExecutionQueue.getInstance({
             shardName: queueName,
@@ -280,6 +290,7 @@ export default async function handler(
               | QueueName.EvaluationExecution
               | QueueName.EvaluationExecutionSecondaryQueue
               | QueueName.LLMAsJudgeExecution
+              | QueueName.TopicsTrace
               | QueueName.CodeEvalExecution
               | QueueName.TraceUpsert
               | QueueName.OtelIngestionQueue

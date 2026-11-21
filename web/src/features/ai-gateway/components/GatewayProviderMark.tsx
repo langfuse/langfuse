@@ -12,10 +12,10 @@ export function GatewayProviderMark({ provider }: GatewayProviderMarkProps) {
   return (
     <span
       aria-hidden="true"
-      className="bg-muted flex size-7 shrink-0 items-center justify-center rounded-md border"
+      className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-lg border"
       title={providerLabels[provider]}
     >
-      <ProviderIcon size="base" />
+      <ProviderIcon size="lg" />
     </span>
   );
 }

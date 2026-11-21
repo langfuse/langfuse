@@ -61,6 +61,12 @@ describe("ClickHouseResourceError", () => {
         message: "Request timed out after 30000ms",
         expectedType: "TIMEOUT",
       },
+      {
+        name: "result byte limit exceeded",
+        message:
+          "Code: 158. DB::Exception: Limit for result exceeded, max bytes: 10.00 MiB, current bytes: 11.00 MiB. (TOO_MANY_ROWS_OR_BYTES)",
+        expectedType: "RESULT_SIZE",
+      },
     ];
 
     cases.forEach(({ name, message, expectedType }) => {

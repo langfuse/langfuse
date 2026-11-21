@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { Session } from "next-auth";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { LLMAdapter } from "@langfuse/shared";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
@@ -8,12 +7,12 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   DEFAULT_TOPIC_FACETS,
   topicEmbeddingConfigSchema,
-  topicProcessingConfigSchema,
 } from "@langfuse/shared/topics";
 import {
   createTopicExecution,
   createTopicFacet,
   createTopicRun,
+  writeTopicSummaries,
   getTopicsModels,
 } from "@langfuse/shared/topics/server";
 // Only the LLM transport is faked, to see which connection a test call used.
@@ -28,25 +27,24 @@ vi.mock("@langfuse/shared/src/server/topics/text", () => ({
 }));
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 type Role = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
 
 function caller(userId: string, memberships: [string, string, Role][]) {
-  const session = {
-    expires: "1",
+  const session = createSession({
     user: {
       id: userId,
-      admin: false,
       featureFlags: testFeatureFlags({ langfuseTopics: true }),
-      organizations: memberships.map(([orgId, projectId, role]) => ({
-        id: orgId,
-        role,
-        projects: [{ id: projectId, role }],
-      })),
     },
-  } as unknown as Session;
+    organizations: memberships.map(([orgId, projectId, role]) => ({
+      id: orgId,
+      role,
+      projects: [{ id: projectId }],
+    })),
+  });
   return appRouter.createCaller({
     ...createInnerTRPCContext({ session, headers: {} }),
     prisma,
@@ -98,15 +96,47 @@ async function topicsProject(userId: string) {
     facetVersion: 1,
     config: {},
   });
+  const traceId = randomUUID();
+  await writeTopicSummaries([
+    {
+      projectId,
+      facetId: facet.id,
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      triggerType: "rule",
+      ruleIds: [],
+      executionId: null,
+      environment: "production",
+      traceName: "assistant",
+      unitStartTime: new Date().toISOString(),
+      state: "complete",
+      summary: "Private summary",
+      embedding: [1, 0],
+      transcriptId: "test",
+      transcriptVersion: "test",
+      transcriptBytes: 0,
+      summaryModel: "summary-model",
+      embeddingModel: "embedding-model",
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+      processedAt: new Date().toISOString(),
+      metadata: {},
+    },
+  ]);
   const execution = await createTopicExecution(
     {
       projectId,
       requestId: randomUUID(),
-      operation: "process",
+      operation: "update",
       facets: [{ facetId: facet.id, version: 1 }],
-      traceIds: [randomUUID()],
-      reuseExistingSummaries: false,
-      processingConfig: topicProcessingConfigSchema.parse({}),
+      timeRange: {
+        from: new Date(Date.now() - 86_400_000),
+        to: new Date(),
+      },
+      exploratory: false,
       embeddingConfig: topicEmbeddingConfigSchema.parse({}),
     },
     undefined,
@@ -119,6 +149,7 @@ async function topicsProject(userId: string) {
     facetId: facet.id,
     runId: run.id,
     executionId: execution.id,
+    traceId,
   };
 }
 
@@ -163,20 +194,26 @@ describe("Topics tRPC access", () => {
     });
 
     await expect(viewer.facets({ projectId })).resolves.toHaveLength(before);
-    // Inputs carry only projectId: the topics:CUD check must run before any handler work.
-    for (const write of [
-      viewer.saveFacet,
-      viewer.saveRule,
-      viewer.testModelSettings,
-      viewer.saveSetup,
-      viewer.setAutomaticProcessing,
-      viewer.startSetup,
-      viewer.trigger,
-      viewer.retry,
-    ])
-      await expect(write({ projectId } as never)).rejects.toMatchObject({
-        code: "FORBIDDEN",
-      });
+    // Every Topics mutation, so a new one cannot skip topics:CUD. Inputs carry
+    // only projectId: the check must run before any handler work.
+    const procedures = appRouter._def.procedures as unknown as Record<
+      string,
+      { _def: { type: string } }
+    >;
+    const mutations = Object.entries(procedures).flatMap(([path, procedure]) =>
+      path.startsWith("topics.") && procedure._def.type === "mutation"
+        ? [path.slice("topics.".length)]
+        : [],
+    );
+    expect(mutations).toEqual(
+      expect.arrayContaining(["saveRule", "startAnalysis", "startRuleSetup"]),
+    );
+    for (const name of mutations)
+      await expect(
+        (viewer as unknown as Record<string, (input: unknown) => unknown>)[
+          name
+        ]!({ projectId }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     expect(
       await prisma.evaluator.count({ where: { projectId, type: "FACET" } }),
@@ -202,15 +239,22 @@ describe("Topics tRPC access", () => {
       [b.orgId, b.projectId, "ADMIN"],
     ]);
     const projectId = a.projectId;
-    const timeRange = {
-      from: new Date(Date.now() - 86_400_000),
-      to: new Date(),
-    };
 
     // Positive control: the same ids resolve within their own project.
     await expect(
       admin.execution({ projectId: b.projectId, executionId: b.executionId }),
     ).resolves.toMatchObject({ id: b.executionId });
+    const ownTraces = await admin.traces({
+      projectId: b.projectId,
+      facetId: b.facetId,
+    });
+    expect(ownTraces.rows.map((row) => row.traceId)).toEqual([b.traceId]);
+    await expect(
+      admin.traces({ projectId, facetId: b.facetId }),
+    ).resolves.toMatchObject({ rows: [] });
+    expect(
+      JSON.stringify(await admin.currentResults({ projectId })),
+    ).not.toContain(b.facetId);
 
     await expect(
       admin.execution({ projectId, executionId: b.executionId }),
@@ -219,7 +263,7 @@ describe("Topics tRPC access", () => {
       admin.retry({ projectId, executionId: b.executionId }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(
-      admin.map({ projectId, runId: b.runId, timeRange }),
+      admin.map({ projectId, runId: b.runId }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(
       admin.saveFacet({
@@ -237,17 +281,17 @@ describe("Topics tRPC access", () => {
         facetIds: [b.facetId],
       }),
     ).rejects.toThrow("Select facets from this project.");
+    const foreignSlice = {
+      projectId,
+      filter: [],
+      timeRange: { from: new Date(Date.now() - 86_400_000), to: new Date() },
+      facets: [{ facetId: b.facetId, version: 1 }],
+    };
+    await expect(admin.previewAnalysis(foreignSlice)).rejects.toThrow(
+      "Facet version not found in this project.",
+    );
     await expect(
-      admin.trigger({
-        projectId,
-        requestId: randomUUID(),
-        operation: "process",
-        facets: [{ facetId: b.facetId, version: 1 }],
-        traceIds: [randomUUID()],
-        reuseExistingSummaries: false,
-        processingConfig: topicProcessingConfigSchema.parse({}),
-        embeddingConfig: topicEmbeddingConfigSchema.parse({}),
-      }),
+      admin.startAnalysis({ ...foreignSlice, label: "Foreign facet" }),
     ).rejects.toThrow("Facet version not found in this project.");
 
     // Project B is untouched.
@@ -261,6 +305,45 @@ describe("Topics tRPC access", () => {
         where: { projectId: a.projectId, name: "Hijacked" },
       }),
     ).toBe(0);
+  });
+
+  it("rejects a one-off scan filter that a live scan could not save", async () => {
+    const admin = caller(userId, [[a.orgId, a.projectId, "ADMIN"]]);
+    await expect(
+      admin.startAnalysis({
+        projectId: a.projectId,
+        label: "Slow traces",
+        filter: [
+          { column: "latency", type: "number", operator: ">", value: 10 },
+        ],
+        timeRange: { from: new Date(Date.now() - 86_400_000), to: new Date() },
+        facets: [{ facetId: a.facetId, version: 1 }],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(
+        'Filter column "latency" is not supported',
+      ),
+    });
+  });
+
+  it("rejects first-run setup reads and writes for a project the caller is not a member of", async () => {
+    const memberOfA = caller(userId, [[a.orgId, a.projectId, "ADMIN"]]);
+
+    // Positive control: the caller's own project answers.
+    await expect(
+      memberOfA.setupTraceCounts({ projectId: a.projectId }),
+    ).resolves.toBeDefined();
+
+    await expect(
+      memberOfA.setupTraceCounts({ projectId: b.projectId }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      memberOfA.startRuleSetup({
+        projectId: b.projectId,
+        ruleId: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("resolves LLM connections by provider within the project, then its organization", async () => {

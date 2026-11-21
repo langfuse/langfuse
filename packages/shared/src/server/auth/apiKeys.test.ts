@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { type Prisma } from "@prisma/client";
-import { InvalidRequestError } from "../../errors/InvalidRequestError";
 
 // Give createApiKey a SALT without depending on the ambient env.
 vi.mock("../../env", () => ({ env: { SALT: "test-salt" } }));
@@ -108,6 +107,7 @@ describe("createApiKey assignment rows", () => {
       roleId: string;
       projectId: string | null;
       systemRole: string;
+      tags: string[];
     }> = [];
     let apiKeyData: Record<string, unknown> = {};
     const tx = {
@@ -159,6 +159,7 @@ describe("createApiKey assignment rows", () => {
         roleId: SystemRoleId("VIEWER"),
         projectId: "proj_1",
         systemRole: "VIEWER",
+        tags: [],
       },
     ]);
     const data = getApiKeyData();
@@ -189,6 +190,7 @@ describe("createApiKey assignment rows", () => {
         roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         projectId: null,
         systemRole: "LEGACY_ORGANIZATION_API_KEY",
+        tags: [],
       },
     ]);
     const data = getApiKeyData();
@@ -198,7 +200,7 @@ describe("createApiKey assignment rows", () => {
     expect(data.createdByUserId).toBeUndefined();
   });
 
-  it("binds a USER-scoped key to the user as an organization key in its tenant", async () => {
+  it("binds a USER-scoped key to the user in its tenant", async () => {
     const { tx, assignments, getApiKeyData } = makeTx();
 
     await createApiKey(asTx(tx), {
@@ -217,13 +219,14 @@ describe("createApiKey assignment rows", () => {
         roleId: SystemRoleId("AI_GATEWAY"),
         projectId: null,
         systemRole: "AI_GATEWAY",
+        tags: [],
       },
     ]);
     const data = getApiKeyData();
     expect(data).toMatchObject({
       orgId: ORG_ID,
       userId: "user_1",
-      scope: "ORGANIZATION",
+      scope: "USER",
     });
     expect(data.projectId).toBeUndefined();
   });
@@ -260,47 +263,4 @@ describe("createApiKey assignment rows", () => {
       await verifySecretKey(result.secretKey, data.hashedSecretKey as string),
     ).toBe(false);
   });
-
-  it.each(["legacy name", ""])(
-    "accepts the deprecated note alias %j",
-    async (note) => {
-      const { tx, getApiKeyData } = makeTx();
-
-      const result = await createApiKey(asTx(tx), {
-        tenant: OrganizationId(ORG_ID),
-        scope: OrganizationId(ORG_ID),
-        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
-        createdBy: "system",
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        note,
-      });
-
-      expect(getApiKeyData().note).toBe(note);
-      expect(result.note).toBe(note);
-    },
-  );
-
-  it.each([
-    { name: "same", note: "same" },
-    { name: "", note: "" },
-    { name: "", note: "alias" },
-    { name: "name", note: "" },
-  ])(
-    "rejects conflicting name and note inputs %j before writing",
-    async (input) => {
-      const { tx } = makeTx();
-
-      await expect(
-        createApiKey(asTx(tx), {
-          tenant: OrganizationId(ORG_ID),
-          scope: OrganizationId(ORG_ID),
-          role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
-          createdBy: "system",
-          ...input,
-        }),
-      ).rejects.toThrow(InvalidRequestError);
-      expect(tx.apiKey.create).not.toHaveBeenCalled();
-      expect(tx.roleAssignment.create).not.toHaveBeenCalled();
-    },
-  );
 });

@@ -73,7 +73,7 @@ export const TopbarAccount = ({
         </DropdownMenuItem>
         {showV4Migration ? (
           <DropdownMenuItem asChild>
-            <Link href="/v4-migration">v4 Migration</Link>
+            <Link href="/v4-migration">V4 migration</Link>
           </DropdownMenuItem>
         ) : null}
         {/* ThemeToggle stops propagation itself; keep the row from closing the

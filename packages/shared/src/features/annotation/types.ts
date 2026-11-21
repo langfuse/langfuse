@@ -100,6 +100,7 @@ export const CreateQueueData = z.object({
   scoreConfigIds: z.array(z.string()).min(1, {
     message: "At least 1 score config must be selected",
   }),
+  sessionViewId: z.string().nullish(),
 });
 
 export const CreateQueueWithAssignmentsData = CreateQueueData.extend({

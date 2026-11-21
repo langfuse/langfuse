@@ -267,6 +267,22 @@ service:
     }
   });
 
+  // GET /traces has no drop-in list. Agents that still call it only see this
+  // notice, so it has to name the per-trace cost recipe and link that section.
+  it("points the traces deprecation at the per-trace migration recipe", () => {
+    expect(TRACES_DEPRECATION.docsUrl).toBe(
+      "https://langfuse.com/faq/all/deprecated-api-migration#traces",
+    );
+    expect(TRACES_DEPRECATION.message).toContain(
+      "Group v2 observation rows by traceId; sum totalCost per trace (recipe in the guide).",
+    );
+    // totalCost is in the usage group. The default response is only core and basic.
+    expect(TRACES_DEPRECATION.replacement).toBe(
+      "GET /api/public/v2/observations?fields=core,basic,usage&fromStartTime=<from>&toStartTime=<to>",
+    );
+    expect(TRACES_DEPRECATION.message).toContain("fields=core,basic,usage");
+  });
+
   it("leads with the ingestion sunset and names the write successors", () => {
     const message = INGESTION_DEPRECATION.message;
     expect(message).toContain(`shut down on ${V3_SUNSET_HUMAN}`);

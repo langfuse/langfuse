@@ -6,6 +6,7 @@ import { X, type IconComponent } from "@langfuse/icons";
 import * as React from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
 import { cn } from "@/src/utils/tailwind";
@@ -32,18 +33,24 @@ const dialogContentVariants = cva(
 
 type DialogAction = {
   disabled?: boolean;
+  /** Shown on hover while the action is disabled. */
+  disabledReason?: string;
   form?: string;
   icon?: IconComponent;
   label: string;
   loading?: boolean;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
   type?: "button" | "submit";
-  variant?: "default" | "destructive";
+  variant?: "default" | "destructive" | "secondary";
 };
 
 type DialogProps = {
+  /** Blocks the portaled dialog's text and attributes from session replay. */
+  noCapture?: boolean;
   /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
   closeLabel?: string;
+  /** Hide the footer close button when every footer button is a workflow action. */
+  hideCloseButton?: boolean;
   closeOnInteractionOutside?: boolean;
   /** Only the footer close button closes the dialog: Escape and the header close button are disabled. */
   requireExplicitClose?: boolean;
@@ -61,8 +68,10 @@ type DialogProps = {
 
 function DialogRoot({
   actions,
+  noCapture,
   children,
   closeLabel,
+  hideCloseButton = false,
   closeOnInteractionOutside = false,
   requireExplicitClose = false,
   stopPropagationOnEnterSpace = true,
@@ -85,7 +94,8 @@ function DialogRoot({
     [],
   );
   const hasActions = Boolean(actions?.length);
-  const isCloseOnly = !hasActions && closeLabel !== undefined;
+  const isCloseOnly =
+    !hideCloseButton && !hasActions && closeLabel !== undefined;
   const actionButtonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   return (
@@ -99,7 +109,11 @@ function DialogRoot({
       />
       <DialogPrimitive.Content
         aria-describedby={undefined}
-        className={cn(motionStyles.content, dialogContentVariants({ size }))}
+        className={cn(
+          motionStyles.content,
+          dialogContentVariants({ size }),
+          noCapture && "ph-no-capture",
+        )}
         onOpenAutoFocus={(event) => {
           // Radix otherwise focuses Cancel because it is the first tabbable.
           // Prefer the rightmost safe action, falling back to Cancel rather
@@ -177,36 +191,65 @@ function DialogRoot({
           </PopoverLayerProvider>
           {hasActions || isCloseOnly ? (
             <DialogFooter>
-              <DialogPrimitive.Close asChild>
-                {isCloseOnly ? (
-                  <Button
-                    ref={attachCloseOnlyButton}
-                    variant="primary"
-                    text={closeLabel}
-                  />
-                ) : (
-                  <Button
-                    ref={closeButtonRef}
-                    variant="secondary"
-                    text={closeLabel ?? "Cancel"}
-                  />
-                )}
-              </DialogPrimitive.Close>
+              {hideCloseButton ? null : (
+                <DialogPrimitive.Close asChild>
+                  {isCloseOnly ? (
+                    <Button
+                      ref={attachCloseOnlyButton}
+                      variant="primary"
+                      text={closeLabel}
+                    />
+                  ) : (
+                    <Button
+                      ref={closeButtonRef}
+                      variant="secondary"
+                      text={closeLabel ?? "Cancel"}
+                      disabled={actions?.some((action) => action.loading)}
+                    />
+                  )}
+                </DialogPrimitive.Close>
+              )}
               {actions?.map(
-                ({ icon: Icon, label, variant, ...buttonProps }, index) => (
-                  <Button
-                    key={label}
-                    icon={Icon}
-                    ref={(button) => {
-                      actionButtonRefs.current[index] = button;
-                    }}
-                    text={label}
-                    {...buttonProps}
-                    variant={
-                      variant === "destructive" ? "destructive" : "primary"
-                    }
-                  />
-                ),
+                (
+                  {
+                    icon: Icon,
+                    label,
+                    variant,
+                    disabledReason,
+                    ...buttonProps
+                  },
+                  index,
+                ) => {
+                  const button = (
+                    <Button
+                      key={label}
+                      icon={Icon}
+                      ref={(element) => {
+                        actionButtonRefs.current[index] = element;
+                      }}
+                      text={label}
+                      {...buttonProps}
+                      shouldFill={Boolean(
+                        buttonProps.disabled && disabledReason,
+                      )}
+                      variant={
+                        variant === undefined || variant === "default"
+                          ? "primary"
+                          : variant
+                      }
+                    />
+                  );
+                  if (!buttonProps.disabled || !disabledReason) return button;
+                  return (
+                    <DisabledActionTooltip
+                      key={label}
+                      label={disabledReason}
+                      shouldFill
+                    >
+                      {button}
+                    </DisabledActionTooltip>
+                  );
+                },
               )}
             </DialogFooter>
           ) : null}

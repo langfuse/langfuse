@@ -33,7 +33,7 @@ const policy = (over: Partial<Policy> = {}): Policy => ({
   ...over,
 });
 
-const ctx = (policies: Policy[]): AuthorizationContext => ({
+const ctxOfSets = (policies: Policy[][]): AuthorizationContext => ({
   principal: {
     kind: "apiKey",
     apiKeyId: "key_1",
@@ -47,6 +47,8 @@ const ctx = (policies: Policy[]): AuthorizationContext => ({
   },
   policies,
 });
+
+const ctx = (policies: Policy[]): AuthorizationContext => ctxOfSets([policies]);
 
 describe("authorize — tenant scoping", () => {
   const grant = ctx([policy()]);
@@ -229,5 +231,42 @@ describe("authorize — organization/* resource wildcard covers org targets", ()
     expect(
       authorize(c, OTHER_TENANT, "projects:create", OTHER_ORG).success,
     ).toBe(true);
+  });
+});
+
+describe("authorize — every policy set must allow", () => {
+  const allowAll = policy({ resources: [WILDCARD] });
+  it("denies a context with no policy sets", () => {
+    expect(authorize(ctxOfSets([]), TENANT, "prompts:read", PRJ).success).toBe(
+      false,
+    );
+  });
+  it("allows when every set allows", () => {
+    const c = ctxOfSets([[allowAll], [policy()]]);
+    expect(authorize(c, TENANT, "prompts:read", PRJ).success).toBe(true);
+  });
+  it("denies when one set has no matching grant", () => {
+    const c = ctxOfSets([[allowAll], [policy()]]);
+    expect(authorize(c, TENANT, "prompts:read", OTHER_PRJ).success).toBe(false);
+  });
+  it("denies when one set is empty", () => {
+    const c = ctxOfSets([[allowAll], []]);
+    const decision = authorize(c, TENANT, "prompts:read", PRJ);
+    expect(decision.success).toBe(false);
+    expect(decision.error).toBeInstanceOf(ForbiddenError);
+  });
+  it("denies when one set denies explicitly", () => {
+    const c = ctxOfSets([
+      [allowAll],
+      [allowAll, policy({ id: "deny", effect: "DENY" })],
+    ]);
+    expect(authorize(c, TENANT, "prompts:read", PRJ).success).toBe(false);
+  });
+  it("does not combine grants across sets", () => {
+    const c = ctxOfSets([
+      [policy({ resources: [OTHER_PRJ] })],
+      [policy({ actions: ["traces:read"] })],
+    ]);
+    expect(authorize(c, TENANT, "prompts:read", PRJ).success).toBe(false);
   });
 });

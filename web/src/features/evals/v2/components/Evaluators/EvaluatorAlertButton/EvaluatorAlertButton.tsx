@@ -148,10 +148,12 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
                           {renderEvaluatorAlertLastFired(alert.alertedAt)}
                         </p>
                       </div>
-                      <MonitorSeverityBadge
-                        severity={alert.severity}
-                        className="ml-auto w-auto shrink-0 px-2 py-0.5 text-[10px]"
-                      />
+                      <span className="ml-auto shrink-0">
+                        <MonitorSeverityBadge
+                          severity={alert.severity}
+                          size="compact"
+                        />
+                      </span>
                       <ArrowUpRight size="base" color="muted" />
                     </CommandItem>
                   ))}

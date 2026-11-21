@@ -79,7 +79,9 @@ export function createTypeSafeDecisionModelClient(params: {
             toTypeSafeQuestion(question),
           ]),
         ) as Record<string, Experimental_DecisionQuestion>,
-        maxRetries: 1,
+        // Callers own retries: the eval queue reschedules rate-limited jobs
+        // with backoff, so an in-call retry would only hold the worker slot.
+        maxRetries: 0,
       });
 
       const confidenceById = readConfidence(result.providerMetadata);

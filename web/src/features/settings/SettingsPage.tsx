@@ -6,8 +6,7 @@ import {
   PagedSettingsContainer,
 } from "@/src/components/PagedSettingsContainer";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
@@ -41,36 +40,23 @@ export function SettingsPage({ scope }: SettingsPageProps) {
 
   const activeSlug =
     typeof router.query.page === "string" ? router.query.page : undefined;
-  const fullHeight =
-    scope === "organization" &&
-    (activeSlug === "ai-gateway-models" ||
-      activeSlug === "ai-gateway" ||
-      activeSlug === "ai-gateway-api-keys");
 
   if (scope === "organization" && !organization) {
     return (
       <ContainerPage headerProps={{ title: "Settings" }}>
-        <NoDataOrLoading isLoading />
+        <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+          <Skeleton className="h-full w-full" />
+        </div>
       </ContainerPage>
     );
   }
 
   return (
-    <ContainerPage
-      headerProps={{ title: "Settings" }}
-      extendRight={fullHeight}
-      fullHeight={fullHeight}
-    >
+    <ContainerPage headerProps={{ title: "Settings" }}>
       <PagedSettingsContainer
         activeSlug={activeSlug}
         pages={pages}
-        fullHeight={fullHeight}
         sectionHeaders={organizationSectionHeaders(organization?.id, pages)}
-        sectionBadges={{
-          "AI Gateway": (
-            <Badge text="Beta" color="blue" size="sm" font="mono" />
-          ),
-        }}
       />
     </ContainerPage>
   );

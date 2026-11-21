@@ -9,6 +9,7 @@ import {
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { z } from "zod";
 import {
   createObservationsCh,
@@ -42,15 +43,14 @@ beforeAll(async () => {
   });
   orgMemberUserId = user.id;
 
-  await prisma.organizationMembership.create({
-    data: { orgId: project.orgId, userId: orgMemberUserId, role: "MEMBER" },
+  await createOrgMembership(prisma, {
+    orgId: project.orgId,
+    userId: orgMemberUserId,
+    role: "MEMBER",
   });
 });
 
 afterAll(async () => {
-  await prisma.organizationMembership.deleteMany({
-    where: { userId: orgMemberUserId },
-  });
   await prisma.user.delete({ where: { id: orgMemberUserId } });
 });
 
@@ -576,16 +576,15 @@ describe("POST /api/public/comments authorUserId scoping", () => {
     });
     otherOrgUserId = otherOrgUser.id;
 
-    await prisma.organizationMembership.create({
-      data: { orgId: otherOrgId, userId: otherOrgUserId, role: "MEMBER" },
+    await createOrgMembership(prisma, {
+      orgId: otherOrgId,
+      userId: otherOrgUserId,
+      role: "MEMBER",
     });
   });
 
   afterAll(async () => {
     await prisma.comment.deleteMany({ where: { projectId, objectId } });
-    await prisma.organizationMembership.deleteMany({
-      where: { userId: otherOrgUserId },
-    });
     await prisma.organization.delete({ where: { id: otherOrgId } });
     await prisma.user.delete({ where: { id: otherOrgUserId } });
   });

@@ -444,7 +444,7 @@ types:
   # Source: web/src/features/public-api/types/models.ts - APIModelDefinition
   Model:
     docs: |
-      Model definition used for transforming usage into USD cost and/or tokenization.
+      Model definition used for calculating USD cost from usage submitted with observations.
 
       Models can have either simple flat pricing or tiered pricing:
       - Flat pricing: Single price per usage type (legacy, but still supported)
@@ -477,10 +477,10 @@ types:
         docs: Deprecated. See 'prices' instead. Price (USD) per total unit. Cannot be set if input or output price is set.
         type: nullable<double>
       tokenizerId:
-        docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
+        docs: Legacy tokenizer identifier retained for API compatibility. Ingestion no longer uses it to infer observation usage.
         type: nullable<string>
       tokenizerConfig:
-        docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
+        docs: Legacy tokenizer configuration retained for API compatibility. Ingestion no longer uses it to infer observation usage.
         type: unknown
       isLangfuseManaged:
         type: boolean

@@ -49,6 +49,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
+import { promptExportLimitMessage } from "@/src/features/prompts/fns/promptExportLimit";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
@@ -1553,10 +1554,11 @@ export const promptRouter = createTRPCRouter({
         where: { projectId: input.projectId },
       });
 
-      if (count > 10_000) {
+      const limitMessage = promptExportLimitMessage(count);
+      if (limitMessage !== null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Project has ${count} prompt versions which exceeds the export limit of 10,000. Please contact support for bulk exports of large projects.`,
+          message: limitMessage,
         });
       }
 

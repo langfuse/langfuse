@@ -7,8 +7,6 @@ import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
 import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
 import { TopbarAccount } from "@/src/components/nav/TopbarAccount";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
-import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
-import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 /**
@@ -31,7 +29,6 @@ export const MobileTopBar = ({
   const { toggleSidebar } = useSidebar();
   const session = useSession();
   const hasAppSidebar = useHasAppSidebar();
-  const envLabel = useEnvLabel();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const showHamburger = showSidebarTrigger && hasAppSidebar;
 
@@ -51,12 +48,6 @@ export const MobileTopBar = ({
           </Button>
         ) : (
           leadingControl
-        )}
-        {envLabel.visible && (
-          <EnvLabelBadge
-            region={envLabel.region}
-            onDismiss={envLabel.dismiss}
-          />
         )}
       </div>
 

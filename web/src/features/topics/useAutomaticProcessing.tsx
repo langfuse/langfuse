@@ -12,18 +12,34 @@ type StoredSettings = RouterOutputs["topics"]["modelSettings"];
 export function useAutomaticProcessing({
   projectId,
   rule,
+  hasRules,
   stored,
 }: {
   projectId: string;
+  /** The rule whose sampling the dialog edits; null with several rules. */
   rule: TopicRule | null;
+  hasRules: boolean;
   stored: StoredSettings | undefined;
 }) {
   const mutation = useSetAutomaticProcessing(projectId);
   return {
-    state: automaticProcessingState(stored, rule),
+    state: automaticProcessingState(stored, hasRules),
     clearPause: () => mutation.mutate({ projectId, enabled: false }),
-    save: (input: { enabled: boolean; sampling: number }) =>
-      mutation.mutateAsync({ projectId, ...input }),
+    // Sampling belongs to a rule; with several rules it is set per rule.
+    save: ({
+      enabled,
+      sampling,
+      ruleId = rule?.id,
+    }: {
+      enabled: boolean;
+      sampling?: number;
+      ruleId?: string;
+    }) =>
+      mutation.mutateAsync(
+        ruleId && sampling !== undefined
+          ? { projectId, enabled, sampling, ruleId }
+          : { projectId, enabled },
+      ),
     saving: mutation.isPending,
   };
 }
@@ -34,16 +50,17 @@ function useSetAutomaticProcessing(projectId: string) {
     onSuccess: () =>
       Promise.all([
         utils.topics.modelSettings.invalidate({ projectId }),
-        utils.topics.rules.invalidate({ projectId }),
+        // Sampling is saved on the map's rule.
+        utils.topics.maps.invalidate({ projectId }),
       ]),
   });
 }
 
 function automaticProcessingState(
   stored: StoredSettings | undefined,
-  rule: TopicRule | null,
+  hasRules: boolean,
 ): AutomaticProcessingState {
-  if (!stored || stored.enabled === null || !rule)
+  if (!stored || stored.enabled === null || !hasRules)
     return { status: "unconfigured" };
   if (stored.blockMessage)
     return {

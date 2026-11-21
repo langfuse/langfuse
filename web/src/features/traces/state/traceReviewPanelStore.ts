@@ -4,6 +4,8 @@ import {
   type AnnotationPanelData,
   type AnnotationRefreshHandle,
 } from "@/src/features/scores/types";
+import { getSelectedObservation } from "../fns/getSelectedObservation";
+import { traceNodeId } from "../fns/treeBuilding";
 
 export type TraceCommentsSession = {
   key: number;
@@ -11,6 +13,8 @@ export type TraceCommentsSession = {
   onCommentChange?: () => void | Promise<void>;
   hasDraft: boolean;
   mentionsOpen: boolean;
+  /** Node selected when a deep link opened this session. */
+  deepLinkNodeId?: string | null;
 };
 
 type TraceAnnotationSession = {
@@ -31,18 +35,105 @@ type TraceReviewPanelState = {
     openAnnotation: (data: AnnotationPanelData) => void;
     rememberTrigger: (element: HTMLElement | null) => void;
     close: () => void;
-    setCommentsDraft: (key: number, hasDraft: boolean) => void;
-    setCommentsMentionsOpen: (key: number, open: boolean) => void;
-    consumeCommentsSelection: (key: number) => void;
+    setCommentsDraft: (target: CommentTarget, hasDraft: boolean) => void;
+    setCommentsMentionsOpen: (target: CommentTarget, open: boolean) => void;
+    consumeCommentsSelection: (target: CommentTarget) => void;
   };
 };
+
+type TraceCommentsContext = {
+  trace: { id: string; timestamp: Date };
+  observations: { id: string; startTime: Date; traceId?: string }[];
+  selectedNodeId: string | null;
+};
+
+export function isSameCommentObject(a: CommentTarget, b: CommentTarget) {
+  return a.objectId === b.objectId && a.objectType === b.objectType;
+}
+
+function getSelectedCommentsTarget({
+  trace,
+  observations,
+  selectedNodeId,
+}: TraceCommentsContext): CommentTarget {
+  const observation = getSelectedObservation(
+    observations,
+    selectedNodeId,
+    trace.id,
+  );
+  if (observation)
+    return {
+      type: "comments",
+      objectId: observation.id,
+      objectType: "OBSERVATION",
+      objectStartTime: observation.startTime,
+    };
+  if (
+    !selectedNodeId ||
+    selectedNodeId === trace.id ||
+    selectedNodeId === traceNodeId(trace.id)
+  )
+    return {
+      type: "comments",
+      objectId: trace.id,
+      objectType: "TRACE",
+      objectStartTime: trace.timestamp,
+    };
+  // Selected past the loaded list; the detail view fetches it by id.
+  return {
+    type: "comments",
+    objectId: selectedNodeId,
+    objectType: "OBSERVATION",
+  };
+}
+
+/** Keeps a URL comment target only when it belongs to this trace. */
+export function getTraceCommentsDeepLink({
+  target,
+  trace,
+  observations,
+  selectedNodeId,
+}: TraceCommentsContext & { target: CommentTarget | undefined }) {
+  if (target?.objectType === "TRACE")
+    return target.objectId === trace.id ? target : undefined;
+  if (target?.objectType !== "OBSERVATION") return undefined;
+  return target.objectId === selectedNodeId ||
+    observations.some((item) => item.id === target.objectId)
+    ? target
+    : undefined;
+}
+
+/**
+ * The thread the trace panel shows. A hidden panel, an unsent draft, a session
+ * on the selected object, or a deep link still on its node keeps the session's
+ * target; otherwise the panel follows the selected node.
+ */
+export function selectTraceCommentsTarget({
+  session,
+  active,
+  ...context
+}: TraceCommentsContext & {
+  session: TraceCommentsSession | null;
+  active: boolean;
+}): CommentTarget {
+  const selected = getSelectedCommentsTarget(context);
+  if (!session) return selected;
+  const held =
+    !active ||
+    session.hasDraft ||
+    session.deepLinkNodeId === context.selectedNodeId ||
+    isSameCommentObject(session.target, selected);
+  return held ? session.target : selected;
+}
 
 export function createTraceReviewPanelStore({
   projectId,
   initialComments,
+  deepLinkNodeId,
 }: {
   projectId: string;
   initialComments?: CommentTarget;
+  deepLinkNodeId?: string | null;
 }) {
   let commentsKey = 0;
   const annotationFormRef: { current: AnnotationRefreshHandle | null } = {
@@ -59,18 +150,31 @@ export function createTraceReviewPanelStore({
     hasDraft: false,
     mentionsOpen: false,
   });
+  const updateComments = (
+    current: TraceCommentsSession | null,
+    target: CommentTarget,
+    field: "hasDraft" | "mentionsOpen",
+    value: boolean,
+  ): TraceCommentsSession | null => {
+    if (current && isSameCommentObject(current.target, target))
+      return current[field] === value ? null : { ...current, [field]: value };
+    // Input in a followed thread starts its session unless another thread
+    // holds a draft.
+    return value && !current?.hasDraft
+      ? { ...createCommentsSession(target), [field]: value }
+      : null;
+  };
 
   const store = createStore<TraceReviewPanelState>((set, get) => ({
     active: initialComments ? "comments" : null,
-    comments: initialComments ? createCommentsSession(initialComments) : null,
+    comments: initialComments
+      ? { ...createCommentsSession(initialComments), deepLinkNodeId }
+      : null,
     annotation: null,
     actions: {
       openComments({ target, onCommentChange, confirmDiscard }) {
         const current = get().comments;
-        const sameTarget =
-          current?.target.objectId === target.objectId &&
-          current.target.objectType === target.objectType;
-        if (sameTarget) {
+        if (current && isSameCommentObject(current.target, target)) {
           // Reopening an object keeps its composer and any unsent selection.
           const nextTarget =
             !current.hasDraft && target.type === "inline-comment"
@@ -120,20 +224,31 @@ export function createTraceReviewPanelStore({
         set({ active: null });
         if (trigger?.isConnected) trigger.focus({ preventScroll: true });
       },
-      setCommentsDraft(key, hasDraft) {
-        const current = get().comments;
-        if (current?.key !== key || current.hasDraft === hasDraft) return;
-        set({ comments: { ...current, hasDraft } });
+      setCommentsDraft(target, hasDraft) {
+        const comments = updateComments(
+          get().comments,
+          target,
+          "hasDraft",
+          hasDraft,
+        );
+        if (comments) set({ comments });
       },
-      setCommentsMentionsOpen(key, mentionsOpen) {
-        const current = get().comments;
-        if (current?.key !== key || current.mentionsOpen === mentionsOpen)
-          return;
-        set({ comments: { ...current, mentionsOpen } });
+      setCommentsMentionsOpen(target, open) {
+        const comments = updateComments(
+          get().comments,
+          target,
+          "mentionsOpen",
+          open,
+        );
+        if (comments) set({ comments });
       },
-      consumeCommentsSelection(key) {
+      consumeCommentsSelection(target) {
         const current = get().comments;
-        if (current?.key !== key || current.target.type !== "inline-comment")
+        if (
+          !current ||
+          !isSameCommentObject(current.target, target) ||
+          current.target.type !== "inline-comment"
+        )
           return;
         const { objectId, objectType, objectStartTime } = current.target;
         set({

@@ -19,14 +19,14 @@ export function SessionToolStatusCountBadge({
 }: SessionToolStatusCountBadgeProps) {
   const { color, Icon } = (
     {
-      error: { color: "red", Icon: CircleAlert },
-      warning: { color: "yellow", Icon: TriangleAlert },
+      error: { color: "error", Icon: CircleAlert },
+      warning: { color: "warning", Icon: TriangleAlert },
     } satisfies Record<
       SessionToolStatusCountBadgeProps["severity"],
       {
         color: Extract<
           ComponentProps<typeof BadgeShell>["color"],
-          "red" | "yellow"
+          "error" | "warning"
         >;
         Icon: typeof CircleAlert;
       }

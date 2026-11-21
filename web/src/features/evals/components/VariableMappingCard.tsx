@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   Select,
   SelectContent,
@@ -16,7 +15,7 @@ import {
 } from "@langfuse/shared";
 import { Card } from "@/src/components/ui/card";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
 import { cn } from "@/src/utils/tailwind";
 import {
   type EvalFormType,
@@ -50,8 +49,8 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AlertCircle, ExternalLink } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { ExternalLink } from "@langfuse/icons";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
@@ -274,41 +273,41 @@ export const VariableMappingCard = ({
                 {/* Derive eligibility at render time: showPreview is state set
                     by an effect and must never override target eligibility
                     (e.g. trace targets on v4 have no preview data source). */}
-                {showPreview && shouldShowPreviewControls ? (
-                  previewData ? (
-                    <EvaluationPromptPreview
-                      projectId={projectId}
-                      previewData={previewData}
-                      evalTemplate={evalTemplate}
-                      variableMapping={form.watch("mapping")}
-                      isLoading={isLoading}
-                      className={cn(
-                        "bg-muted/50 min-h-48",
-                        !shouldWrapVariables && "lg:w-2/3",
-                      )}
-                      controlButtons={mappingControlButtons}
-                      showTargetBadge={showPreviewTargetBadge}
-                    />
-                  ) : (
-                    <div className="bg-muted/50 flex max-h-full min-h-48 w-full flex-col gap-1 lg:w-2/3">
-                      <div className="flex flex-row items-center justify-between py-0 text-sm font-bold capitalize">
-                        <div className="flex flex-row items-center gap-2">
-                          Evaluation Prompt Preview
-                          <Skeleton className="h-[25px] w-[63px]" />
-                        </div>
-                        <div className="flex justify-end">
-                          {mappingControlButtons}
-                        </div>
+                {showPreview && shouldShowPreviewControls && previewData && (
+                  <EvaluationPromptPreview
+                    projectId={projectId}
+                    previewData={previewData}
+                    evalTemplate={evalTemplate}
+                    variableMapping={form.watch("mapping")}
+                    isLoading={isLoading}
+                    className={cn(
+                      "bg-muted/50 min-h-48",
+                      !shouldWrapVariables && "lg:w-2/3",
+                    )}
+                    controlButtons={mappingControlButtons}
+                    showTargetBadge={showPreviewTargetBadge}
+                  />
+                )}
+                {showPreview && shouldShowPreviewControls && !previewData && (
+                  <div className="bg-muted/50 flex max-h-full min-h-48 w-full flex-col gap-1 lg:w-2/3">
+                    <div className="flex flex-row items-center justify-between py-0 text-sm font-bold capitalize">
+                      <div className="flex flex-row items-center gap-2">
+                        Evaluation Prompt Preview
+                        <Skeleton className="h-[25px] w-[63px]" />
                       </div>
-                      <div className="flex h-full w-full flex-1 items-center justify-center rounded border">
-                        <p className="text-muted-foreground text-center text-sm">
-                          No trace data found, please adjust filters or switch
-                          to not show preview.
-                        </p>
+                      <div className="flex justify-end">
+                        {mappingControlButtons}
                       </div>
                     </div>
-                  )
-                ) : (
+                    <div className="flex h-full w-full flex-1 items-center justify-center rounded border">
+                      <p className="text-muted-foreground text-center text-sm">
+                        No trace data found, please adjust filters or switch to
+                        not show preview.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {!(showPreview && shouldShowPreviewControls) && (
                   <JSONView
                     title="Evaluation Prompt"
                     json={evalTemplate.prompt ?? null}
@@ -328,14 +327,14 @@ export const VariableMappingCard = ({
                   )}
                 >
                   {disabled && !syncStatus.inSync && (
-                    <Alert variant="destructive" icon={AlertCircle}>
-                      <Alert.Title>Variable mapping is out of sync</Alert.Title>
-                      <Alert.Description>
-                        The template has {syncStatus.added.length} new
-                        variable(s) and {syncStatus.removed.length} removed
-                        variable(s). Toggle Edit Mode to update the mapping.
-                      </Alert.Description>
-                    </Alert>
+                    <Banner
+                      variant="error"
+                      title="Variable mapping is out of sync"
+                    >
+                      The template has {syncStatus.added.length} new variable(s)
+                      and {syncStatus.removed.length} removed variable(s).
+                      Toggle Edit Mode to update the mapping.
+                    </Banner>
                   )}
                   {isLegacyEvalTarget(form.watch("target")) // Complex variable mapping for trace/dataset targets (legacy)
                     ? fields.map((mappingField, index) => (
@@ -352,7 +351,13 @@ export const VariableMappingCard = ({
                             <DocPopup
                               description="Variable in the template to be replaced with the mapped data."
                               href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                            />
+                            >
+                              {({ getTriggerProps }) => (
+                                <DocPopupTrigger
+                                  triggerProps={getTriggerProps()}
+                                />
+                              )}
+                            </DocPopup>
                           </div>
                           <FormField
                             control={form.control}
@@ -625,7 +630,13 @@ export const VariableMappingCard = ({
                             <DocPopup
                               description="Variable in the template to be replaced with the mapped data."
                               href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                            />
+                            >
+                              {({ getTriggerProps }) => (
+                                <DocPopupTrigger
+                                  triggerProps={getTriggerProps()}
+                                />
+                              )}
+                            </DocPopup>
                           </div>
                           {hideAdvancedSettings && (
                             <div className="flex min-w-0 items-start gap-2">

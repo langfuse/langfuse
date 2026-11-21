@@ -72,6 +72,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
     enqueueEvalJob: async (params) => {
       const shardingKey = `${params.projectId}-${params.jobExecutionId}`;
       const payload = {
+        type: "observation" as const,
         projectId: params.projectId,
         jobExecutionId: params.jobExecutionId,
         observationS3Path: params.observationS3Path,
