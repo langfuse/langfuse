@@ -9611,16 +9611,20 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it.each([
-      ["5.0.285", 6778],
-      ["6.0.0", 6778 + 23333],
+      ["AI SDK v5 scope version", "5.0.285", 6778, undefined],
+      ["AI SDK v5 user-agent fallback", undefined, 6778, "ai/5.0.285"],
+      ["AI SDK v6", "6.0.0", 6778 + 23333, undefined],
     ])(
-      "should account for Anthropic cache tokens for AI SDK %s",
-      async (scopeVersion, inputTokens) => {
+      "should account for Anthropic cache tokens (%s)",
+      async (_caseName, scopeVersion, inputTokens, userAgent) => {
         const vercelAIAnthropicSpan = {
           resource: { attributes: [] },
           scopeSpans: [
             {
-              scope: { name: "ai", version: scopeVersion },
+              scope: {
+                name: "ai",
+                ...(scopeVersion ? { version: scopeVersion } : {}),
+              },
               spans: [
                 {
                   traceId: Buffer.from(
@@ -9641,6 +9645,14 @@ describe("OTel Resource Span Mapping", () => {
                     unsigned: true,
                   },
                   attributes: [
+                    ...(userAgent
+                      ? [
+                          {
+                            key: "ai.request.headers.user-agent",
+                            value: { stringValue: userAgent },
+                          },
+                        ]
+                      : []),
                     {
                       key: "gen_ai.usage.input_tokens",
                       value: {
