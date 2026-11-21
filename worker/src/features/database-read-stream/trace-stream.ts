@@ -157,8 +157,7 @@ export const getTraceStream = async (props: {
           trace_id,
           name,
           data_type,
-          string_value,
-          execution_trace_id
+          string_value
       ) tmp
       GROUP BY project_id, trace_id
     )
