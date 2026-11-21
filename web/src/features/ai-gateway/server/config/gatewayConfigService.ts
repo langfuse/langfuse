@@ -20,13 +20,7 @@ import { GatewayConfigRepository } from "./gatewayConfigRepository";
 /** The gateway config is org-level; the org audit log only lists entries without a project. */
 function withoutProjectContext(actor: AuditLogActor): AuditLogActor {
   if ("session" in actor) {
-    return {
-      session: {
-        ...actor.session,
-        projectId: undefined,
-        projectRole: undefined,
-      },
-    };
+    return { session: { ...actor.session, projectId: undefined } };
   }
   return { ...actor, projectId: undefined };
 }

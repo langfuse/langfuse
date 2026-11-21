@@ -47,13 +47,6 @@ vi.mock("../../server/auth", () => ({
     mockGetServerAuthSession(...args),
 }));
 
-// Admin webhook — not relevant to streaming logic, just suppress side-effects
-const mockSendAdminAccessWebhook = vi.fn();
-vi.mock("../../server/adminAccessWebhook", () => ({
-  sendAdminAccessWebhook: (...args: unknown[]) =>
-    mockSendAdminAccessWebhook(...args),
-}));
-
 // --- Helpers ---
 
 function createPostMocks(body: unknown, useRealEventEmitter = false) {
@@ -129,12 +122,7 @@ describe("execute-query-stream handler", () => {
     toTimestamp = new Date(baseTime + 60 * 60 * 1000).toISOString();
   });
 
-  beforeEach(() => {
-    mockSendAdminAccessWebhook.mockClear();
-  });
-
   function makeSession(overrides?: {
-    supportAccess?: boolean;
     projects?: Array<{ id: string }>;
     v4BetaEnabled?: boolean;
   }) {
@@ -146,7 +134,6 @@ describe("execute-query-stream handler", () => {
         organizations: [
           {
             id: orgId,
-            supportAccess: overrides?.supportAccess ?? false,
             projects: overrides?.projects ?? [{ id: projectId }],
           },
         ],
@@ -245,35 +232,6 @@ describe("execute-query-stream handler", () => {
     });
   });
 
-  it("should send the admin access webhook when access comes from a support access grant", async () => {
-    mockGetServerAuthSession.mockResolvedValue(
-      makeSession({ supportAccess: true }),
-    );
-    const { req, res } = createPostMocks(makeBody());
-
-    await handler(req, res);
-
-    expect(mockSendAdminAccessWebhook).toHaveBeenCalledWith({
-      email: "test@example.com",
-      projectId,
-      orgId,
-    });
-    // Should still stream data successfully
-    const events = parseSSEEvents(res._getData());
-    expect(events.some((e) => e.event === "done")).toBe(true);
-  });
-
-  it("should not send the admin access webhook for regular members", async () => {
-    mockGetServerAuthSession.mockResolvedValue(makeSession());
-    const { req, res } = createPostMocks(makeBody());
-
-    await handler(req, res);
-
-    expect(mockSendAdminAccessWebhook).not.toHaveBeenCalled();
-    const events = parseSSEEvents(res._getData());
-    expect(events.some((e) => e.event === "done")).toBe(true);
-  });
-
   // --- Integration tests (real ClickHouse) ---
 
   it("should stream real trace count from ClickHouse and end with done", async () => {
@@ -356,7 +314,6 @@ describe("execute-query-stream backpressure", () => {
       organizations: [
         {
           id: "backpressure-org",
-          supportAccess: false,
           projects: [{ id: projectId }],
         },
       ],

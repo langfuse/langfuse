@@ -6,6 +6,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { type Plan } from "@langfuse/shared";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const orgIds: string[] = [];
 
@@ -180,32 +181,13 @@ async function prepare(plan: Plan) {
   orgIds.push(org.id);
 
   const callerWithRole = (role: Role) => {
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        canCreateOrganizations: true,
-        name: "Demo User",
-        organizations: [
-          {
-            id: org.id,
-            name: org.name,
-            role,
-            plan,
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [],
-          },
-        ],
-        featureFlags: testFeatureFlags({ templateFlag: false }),
-      },
-      environment: {
-        enableExperimentalFeatures: false,
-        selfHostedInstancePlan: "cloud:hobby",
-      },
-    };
+    const session: Session = createSession({
+      user: { featureFlags: testFeatureFlags({ templateFlag: false }) },
+      organizations: [
+        { id: org.id, role, name: org.name, plan, aiTelemetryEnabled: true },
+      ],
+      environment: { selfHostedInstancePlan: "cloud:hobby" },
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     return appRouter.createCaller({ ...ctx, prisma });

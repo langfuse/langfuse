@@ -19,6 +19,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { RoleAuthSetupSection } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupSection";
 import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupInstructions";
+import { buildStorageRolePermissionPolicyPreview } from "@/src/ee/features/storage-role-auth/fns/buildStorageRolePermissionPolicyPreview";
 import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 import {
   externalMediaStorageFormSchema,
@@ -256,10 +257,12 @@ export function ExternalMediaStorageForm({
                   <RoleAuthSetupInstructions
                     crossAccountRoleArn={crossAccountRoleArn}
                     externalId={externalId}
-                    roleArn={roleArn ?? ""}
-                    bucketName={bucketName.trim()}
-                    prefix={prefix?.trim()}
-                    actions={STORAGE_ROLE_READ_ACTIONS}
+                    permissionPolicy={buildStorageRolePermissionPolicyPreview({
+                      roleArn: roleArn ?? "",
+                      bucketName: bucketName.trim(),
+                      prefix: prefix?.trim(),
+                      actions: STORAGE_ROLE_READ_ACTIONS,
+                    })}
                     description="Let the Langfuse cross-account role assume your role with this external ID, then grant the role read access to the bucket. If the bucket uses SSE-KMS, also allow the role to use kms:Decrypt on the key."
                   />
                 </RoleAuthSetupSection>

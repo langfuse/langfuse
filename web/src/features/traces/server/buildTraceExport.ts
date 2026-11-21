@@ -13,7 +13,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
-import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../constants/traceDownloadConfig";
 
 export type TraceExportSession = {
@@ -21,7 +20,6 @@ export type TraceExportSession = {
     email: string;
     organizations: Array<{
       id?: string;
-      supportAccess?: boolean;
       projects: Array<{
         id: string;
       }>;
@@ -97,9 +95,8 @@ const getObservationRecordCountForTrace = async (params: {
 /**
  * Canonical trace read-authorization used by the session-authed trace download
  * routes: grants access when the trace (or its session) is public or the user
- * is a member of the project — and fires the admin-access webhook when that
- * membership is a support access grant. Reused by the observation IO streaming route (LFE-11081)
- * so authorization stays in one place rather than being re-derived per route.
+ * is a member of the project. Reused by the observation IO streaming route so
+ * authorization stays in one place rather than being re-derived per route.
  * Returns the authorized trace (its `timestamp` bounds downstream ClickHouse
  * reads); throws `LangfuseNotFoundError` / `UnauthorizedError` otherwise.
  */
@@ -148,14 +145,6 @@ export async function getAuthorizedTrace(params: {
     throw new UnauthorizedError(
       "User is not a member of this project and this trace is not public",
     );
-  }
-
-  if (sessionOrganization?.supportAccess === true) {
-    await sendAdminAccessWebhook({
-      email: session?.user.email,
-      projectId,
-      orgId: sessionOrganization.id,
-    });
   }
 
   return clickhouseTrace;

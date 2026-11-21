@@ -19,7 +19,7 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { getServerAuthSession } from "@/src/server/auth";
-import { prisma, type Role } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
@@ -27,8 +27,6 @@ import {
   createScrubbedError,
   getTRPCErrorCodeFromHTTPStatusCode,
 } from "@/src/server/utils/trpc-utils";
-import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
-
 type CreateContextOptions = {
   session: Session | null;
   headers: IncomingHttpHeaders;
@@ -119,6 +117,23 @@ setUpSuperjson();
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+// Off by default: the error type (memory, result size, timeout) is only sent
+// to the browser when the operator opts in, e.g. on a self-hosted instance
+// where the users also run ClickHouse.
+const exposeClickHouseErrorType = () =>
+  env.LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS === "true";
+
+const CLICKHOUSE_MEMORY_ERROR_MESSAGE = [
+  "ClickHouse ran out of memory while running this query.",
+  "Please narrow your request by adding more specific filters (e.g., a shorter date range).",
+].join(" ");
+
+const getClickHouseResourceErrorMessage = (error: ClickHouseResourceError) =>
+  exposeClickHouseErrorType() &&
+  (error.errorType === "MEMORY_LIMIT" || error.errorType === "OVERCOMMIT")
+    ? CLICKHOUSE_MEMORY_ERROR_MESSAGE
+    : error.adviceMessage;
+
 const trpcBuilder = initTRPC
   .context<typeof createTRPCContext>()
   .meta<TrpcMeta>();
@@ -132,7 +147,9 @@ const t = trpcBuilder.create({
         ...shape.data,
         // OTEL trace id of the failing request, for frontend/support correlation
         // with Datadog. Absent when OTEL is not running or the trace was not
-        // sampled (an unsampled id never reaches the tracing backend).
+        // sampled (an unsampled id never reaches the tracing backend). The
+        // HTTP handler also sends this id as `x-dd-trace-id` so a response
+        // whose body is not JSON can still be correlated.
         traceId: getActiveTraceId(),
         zodError:
           error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
@@ -140,6 +157,10 @@ const t = trpcBuilder.create({
           error.cause instanceof ClickHouseResourceError
             ? "ClickHouseResourceError"
             : null,
+        ...(error.cause instanceof ClickHouseResourceError &&
+        exposeClickHouseErrorType()
+          ? { clickhouseErrorType: error.cause.errorType }
+          : {}),
         // do not expose stack traces for CH errors as they may contain sensitive info
         stack:
           error.cause instanceof ClickHouseResourceError
@@ -213,7 +234,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       });
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
-        message: res.error.cause.adviceMessage,
+        message: getClickHouseResourceErrorMessage(res.error.cause),
         // Keep the original error, it will be removed by `errorFormatter`
         cause: res.error.cause,
       });
@@ -381,14 +402,6 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     });
   }
 
-  if (sessionProject.organization.supportAccess === true) {
-    await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
-      projectId,
-      orgId: sessionProject.organization.id,
-    });
-  }
-
   trackPosthogActivity({
     userId: ctx.session.user.id,
     organizationId: sessionProject.organization.id,
@@ -406,9 +419,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: sessionProject.organization.id,
-        orgRole: sessionProject.organization.role,
         projectId: projectId,
-        projectRole: sessionProject.role,
       },
     },
   });
@@ -464,13 +475,6 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     });
   }
 
-  if (sessionOrg.supportAccess === true) {
-    await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
-      orgId,
-    });
-  }
-
   trackPosthogActivity({
     userId: ctx.session.user.id,
     organizationId: orgId,
@@ -482,7 +486,6 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: orgId,
-        orgRole: sessionOrg.role,
       },
     },
   });
@@ -637,21 +640,10 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       });
     }
 
-    if (sessionProject?.organization.supportAccess === true) {
-      await sendAdminAccessWebhook({
-        email: ctx.session?.user?.email,
-        projectId,
-        orgId: sessionProject.organization.id,
-      });
-    }
     addUserToSpan({ projectId }, ctx.requestSpan);
 
     return next({
       ctx: {
-        session: {
-          ...ctx.session,
-          projectRole: sessionProject?.role,
-        },
         trace, // pass the trace to the next middleware so we do not need to fetch it again
       },
     });
@@ -724,23 +716,9 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     });
   }
 
-  if (userSessionProject?.organization.supportAccess === true) {
-    await sendAdminAccessWebhook({
-      email: ctx.session?.user?.email,
-      projectId,
-      orgId: userSessionProject.organization.id,
-    });
-  }
   addUserToSpan({ projectId }, ctx.requestSpan);
 
-  return next({
-    ctx: {
-      session: {
-        ...ctx.session,
-        projectRole: userSessionProject?.role,
-      },
-    },
-  });
+  return next({ ctx });
 });
 
 export const protectedGetSessionProcedure = withOtelTracingProcedure
@@ -802,15 +780,12 @@ export type AuthedSession = NonNullable<TRPCContext["session"]> & {
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {
     orgId: string;
-    orgRole: Role;
     projectId: string;
-    projectRole: Role;
   };
 };
 // After `enforceIsAuthedAndOrgMember`
 export type OrgAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {
     orgId: string;
-    orgRole: Role;
   };
 };

@@ -4,6 +4,7 @@ mod contracts;
 pub(crate) mod signing;
 mod vertex;
 
+pub(crate) use contracts::SpendLimit;
 pub use contracts::{
     ApiFormat, IngestionGrant, IngestionMode, MetadataValue, OrganizationId, ProjectId, Provider,
     ProviderConnection, ProviderCredential, RequestAttribution, ResolvedRequestContext,
@@ -21,6 +22,21 @@ use std::{
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
 const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
+const SPEND_LIMIT_ALERTS_PATH: &str = "/api/internal/ai-gateway/v1/spend-limit-alerts";
+
+/// A limit threshold a request reached, identified as resolve returned it.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ReachedSpendLimit<'a> {
+    pub limit_id: &'a str,
+    /// Unix milliseconds, as resolve returned them.
+    pub counting_started_at: i64,
+    /// Unix milliseconds.
+    pub window_start: i64,
+    /// Omitted for 100% so an older Web that rejects unknown fields still accepts exceeded alerts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub threshold_percent: Option<u8>,
+}
 /// Unauthenticated, and without query params it skips the database checks.
 pub(crate) const HEALTH_PATH: &str = "/api/public/health";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
@@ -231,6 +247,38 @@ impl ControlPlaneClient {
         )?;
         self.execute(request, self.config.models_limits, reserve)
             .await
+    }
+
+    /// Tell Web the gateway key reached spend limits, so it emails the key's owner and
+    /// the organization's owners once, listing them. Web sends one email per limit
+    /// counting start and window, however often a limit is reported.
+    ///
+    /// # Errors
+    /// Returns the same sanitized errors as [`Self::resolve`].
+    pub(crate) async fn report_spend_limits_reached(
+        &self,
+        gateway_key: &str,
+        limits: &[ReachedSpendLimit<'_>],
+        request_id: &str,
+    ) -> Result<(), ResolutionError> {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| ResolutionError::Unavailable)?;
+        let body = serde_json::to_vec(&serde_json::json!({ "limits": limits }))
+            .map_err(|_| ResolutionError::Configuration)?;
+        let request = self
+            .authenticated_request(
+                Method::POST,
+                self.config.endpoint(SPEND_LIMIT_ALERTS_PATH),
+                gateway_key,
+                timestamp.as_secs(),
+                request_id,
+            )?
+            .header(CONTENT_TYPE, "application/json")
+            .body(body);
+        self.execute_retrying_once(request, self.config.resolve_limits)
+            .await
+            .map(drop)
     }
 
     async fn resolve_at(
@@ -539,6 +587,33 @@ impl RateLimit {
     }
 }
 
+/// A key spent its limit for the current window.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpendLimitExceeded {
+    message: Box<str>,
+    /// Until the window ends; a total limit never refreshes.
+    retry_after_secs: Option<u64>,
+}
+
+impl SpendLimitExceeded {
+    pub(crate) fn new(message: String, retry_after_secs: Option<u64>) -> Self {
+        Self {
+            message: message.into_boxed_str(),
+            retry_after_secs,
+        }
+    }
+
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    #[must_use]
+    pub fn retry_after_secs(&self) -> Option<u64> {
+        self.retry_after_secs
+    }
+}
+
 fn valid_token(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
@@ -563,6 +638,14 @@ pub enum ResolutionError {
     NoRoute,
     #[error("organization rate limit exceeded")]
     RateLimited(Box<RateLimit>),
+    #[error("key spend limit exceeded")]
+    SpendLimitExceeded(Box<SpendLimitExceeded>),
+    /// The key has spend limits, but its spend cannot be read.
+    #[error("spend limit unavailable")]
+    SpendLimitUnavailable,
+    /// The key has spend limits, but Langfuse has no price for the model.
+    #[error("spend limit cannot price the model")]
+    SpendLimitUnpricedModel,
     /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,

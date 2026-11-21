@@ -316,6 +316,8 @@ export function ModernSessionFilterControls({
       >
         {saveViewDialogOpen ? (
           <ModernSessionSaveViewDialogContent
+            allowedOwnerships={["PROJECT"]}
+            showOwnership={false}
             isSaving={createMutation.isPending}
             onSave={saveView}
           />

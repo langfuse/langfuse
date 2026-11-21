@@ -1,6 +1,8 @@
 import { createNextApiHandler } from "@trpc/server/adapters/next";
+import { getActiveTraceId, getCurrentSpan } from "@langfuse/shared/src/server";
 import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
+import { buildTrpcCorrelationHeaders } from "@/src/server/utils/trpcCorrelationHeaders";
 import { env } from "@/src/env.mjs";
 import { reportTRPCError } from "@/src/server/utils/trpc-utils";
 
@@ -25,11 +27,16 @@ export default createNextApiHandler({
   // mutations remain POST-only, so the GET-mutation protection is unchanged.
   allowMethodOverride: true,
   onError: reportTRPCError,
-  responseMeta() {
+  // Once per HTTP response, so a batch and a single call share one id pair.
+  // Gateway 502/504 pages never reach this handler and simply omit the headers.
+  responseMeta({ ctx }) {
     return {
-      headers: {
-        "x-build-id": env.NEXT_PUBLIC_BUILD_ID,
-      },
+      headers: buildTrpcCorrelationHeaders({
+        buildId: env.NEXT_PUBLIC_BUILD_ID,
+        incomingRequestId: ctx?.headers?.["x-request-id"],
+        traceId: getActiveTraceId(),
+        span: getCurrentSpan(),
+      }),
     };
   },
   // as `any` workaround for Next.js 15.5+ compatibility with tRPC, probably fixed in Next.js 15.6+

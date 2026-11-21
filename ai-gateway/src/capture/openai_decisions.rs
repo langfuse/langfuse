@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 pub(super) struct OpenAiDecisionsCapture {
     pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     request_complete: bool,
 }
 
@@ -40,8 +40,8 @@ impl OpenAiDecisionsCapture {
     }
 
     /// Decisions answers in a single JSON body, so completion never starts early.
-    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
-        self.body.push(bytes, |_| {});
+    pub(super) fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
+        self.body.push(bytes, parse_limit, |_| {});
         false
     }
 

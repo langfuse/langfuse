@@ -15,6 +15,11 @@ import { createResponse } from "node-mocks-http";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  assignRole,
+  getRoleAssignmentsForPrincipal,
+} from "@langfuse/shared/rbac/server";
 import { env } from "@/src/env.mjs";
 import { C1_PROVISION_EVENT } from "@/src/ee/features/support-access/server/conductorOnePayload";
 import { conductorOneWebhookHandler } from "@/src/ee/features/support-access/server/conductorOneWebhook";
@@ -254,7 +259,6 @@ describe("support access in the product", () => {
     expect(session.user?.organizations).toContainEqual(
       expect.objectContaining({
         id: orgId,
-        role: "VIEWER",
         supportAccess: true,
       }),
     );
@@ -343,5 +347,73 @@ describe("support access in the product", () => {
 
     expect(response.body).toMatchObject({ errored: {} });
     expect(await readSupportAccess(user.id)).toBeNull();
+  });
+
+  it("mirrors a grant as an expiring VIEWER role until revoked", async () => {
+    const { email, user, orgId } = await createFixture();
+    await grant(email, orgId);
+
+    expect(
+      await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+    ).toContainEqual(
+      expect.objectContaining({
+        orgId,
+        ownerId: OrganizationId(orgId),
+        systemRole: "VIEWER",
+        tags: ["source:c1"],
+        expiresAt: expect.any(Date),
+      }),
+    );
+
+    const body = provisionBody({ email, orgId, type: revokeType });
+    await callWebhook(body, `Bearer ${await sign(body)}`);
+
+    expect(
+      await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+    ).not.toContainEqual(expect.objectContaining({ orgId }));
+  });
+
+  it("leaves expiring roles it did not create when it grants and revokes", async () => {
+    const { email, user, orgId } = await createFixture();
+    const otherRole = {
+      tenantId: OrganizationId(orgId),
+      ownerId: OrganizationId(orgId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("MEMBER"),
+      tags: [],
+      expiresAt: new Date(Date.now() + 60_000),
+    };
+    await assignRole(prisma, otherRole);
+
+    await grant(email, orgId);
+    const body = provisionBody({ email, orgId, type: revokeType });
+    await callWebhook(body, `Bearer ${await sign(body)}`);
+
+    const assignments = await getRoleAssignmentsForPrincipal(
+      prisma,
+      UserId(user.id),
+    );
+    expect(assignments).toContainEqual(
+      expect.objectContaining({ orgId, systemRole: "MEMBER", tags: [] }),
+    );
+    expect(assignments).not.toContainEqual(
+      expect.objectContaining({ tags: ["source:c1"] }),
+    );
+  });
+
+  it("ignores an expiring role once it has expired", async () => {
+    const { user, orgId } = await createFixture();
+    await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: OrganizationId(orgId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("VIEWER"),
+      tags: [],
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    expect(
+      await getRoleAssignmentsForPrincipal(prisma, UserId(user.id)),
+    ).not.toContainEqual(expect.objectContaining({ orgId }));
   });
 });

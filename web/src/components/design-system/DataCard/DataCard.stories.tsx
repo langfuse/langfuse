@@ -436,6 +436,33 @@ export const SelectControl = meta.story({
   },
 });
 
+export const ToggleTabsAndFilter = meta.story({
+  args: {
+    title: "Spend",
+    metric: undefined,
+    filter: {
+      label: "Selected users",
+      items: [
+        { value: "anna", label: "Anna Rossi" },
+        { value: "ben", label: "Ben Okafor" },
+        { value: "cara", label: "Cara Lind" },
+        { value: "dan", label: "Dan Weber" },
+      ],
+      onRemove: fn(),
+    },
+    tabs: {
+      value: "day",
+      variant: "toggle",
+      options: [
+        { value: "day", label: "Daily" },
+        { value: "week", label: "Weekly" },
+        { value: "month", label: "Monthly" },
+      ],
+      onValueChange: fn(),
+    },
+  },
+});
+
 export const ConsistentHeaderHeight = meta.story({
   name: "(Test) Compact consistent header height",
   render: (args) => (

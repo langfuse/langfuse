@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";

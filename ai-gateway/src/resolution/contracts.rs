@@ -448,6 +448,41 @@ struct ResolutionResponse {
     ingestion_mode: IngestionMode,
     /// Absent only in [`IngestionMode::None`]; nothing is delivered without it.
     ingestion: Option<IngestionGrant>,
+    /// Empty when the key has no limits or its spend is not recorded.
+    #[serde(default)]
+    spend_limits: Vec<SpendLimit>,
+    /// The provider model's prices; absent when the key has no limits or the
+    /// model has no prices.
+    #[serde(default)]
+    pricing: Option<ModelPricing>,
+}
+
+fn default_alert_thresholds() -> Vec<u8> {
+    vec![100]
+}
+
+/// A cap on what a scope spends per UTC calendar window.
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct SpendLimit {
+    pub id: String,
+    #[serde(deserialize_with = "string_enum")]
+    pub scope: crate::spend::SpendLimitScope,
+    #[serde(deserialize_with = "string_enum")]
+    pub interval: crate::spend::SpendLimitInterval,
+    pub limit_usd: f64,
+    /// When the gateway started counting, in Unix milliseconds. Part of the
+    /// counter key, so a new counting start begins a new counter.
+    pub counting_started_at: i64,
+    /// Usage percentages (e.g. 85, 95, 100) that trigger an email alert.
+    /// Defaults to `[100]` for Web versions that predate warning thresholds.
+    #[serde(default = "default_alert_thresholds")]
+    pub alert_thresholds: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ModelPricing {
+    pub model_id: String,
+    pub tiers: Vec<crate::spend::PricingTierWithPrices>,
 }
 
 /// A validated v1 execution. Construction is restricted to successful resolution.
@@ -476,6 +511,12 @@ impl ResolvedRequestContext {
     }
     pub fn ingestion(&self) -> Option<&IngestionGrant> {
         self.0.ingestion.as_ref()
+    }
+    pub(crate) fn spend_limits(&self) -> &[SpendLimit] {
+        &self.0.spend_limits
+    }
+    pub(crate) fn pricing(&self) -> Option<&ModelPricing> {
+        self.0.pricing.as_ref()
     }
     /// The project and grant telemetry is delivered with. Resolution guarantees both
     /// in every mode but [`IngestionMode::None`], which never delivers.

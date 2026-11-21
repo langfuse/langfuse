@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import {
   GatewayMetadataSchema,
   GatewayProviderConfigSchema,
+  GatewayResolveSpendLimitsSchema,
   gatewayApiFormats,
   gatewayProviders,
 } from "@/src/features/ai-gateway/server/provider/registry";
@@ -41,6 +42,11 @@ export const CachedResolveContext = z.object({
    * of allowing every model.
    */
   keyAllowedModels: z.array(z.string()).nullable(),
+  /**
+   * Required, so entries cached before spend limits existed are refetched
+   * instead of letting the key spend without its limits.
+   */
+  spendLimits: GatewayResolveSpendLimitsSchema,
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
   plan: z.custom<Plan>((value) => plans.includes(value as Plan)),

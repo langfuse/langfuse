@@ -23,7 +23,7 @@ concurrency:
 jobs:
   codespell:
     name: Check for spelling errors
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
 
     steps:
       - name: Checkout

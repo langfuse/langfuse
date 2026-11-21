@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
@@ -8,12 +8,8 @@ import {
   useEvaluatorFormTemplate,
 } from "@/src/features/evals/components/EvaluatorForm";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { AlertTriangle, UserCircle2Icon } from "@langfuse/icons";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { UserCircle2Icon } from "@langfuse/icons";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/DeactivateEvalConfig";
@@ -32,7 +28,7 @@ import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useL
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -148,14 +144,11 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
 
         {showLegacyReadOnlyNotice ? (
-          <Alert variant="warning" icon={AlertTriangle}>
-            <Alert.Title>Legacy evaluator is read-only</Alert.Title>
-            <Alert.Description>
-              This evaluator uses a legacy target that the current rule editor
-              cannot represent safely. You can review or delete it here, but it
-              cannot be edited or reactivated.
-            </Alert.Description>
-          </Alert>
+          <Banner variant="warning" title="Legacy evaluator is read-only">
+            This evaluator uses a legacy target that the current rule editor
+            cannot represent safely. You can review or delete it here, but it
+            cannot be edited or reactivated.
+          </Banner>
         ) : null}
       </div>
 
@@ -180,17 +173,16 @@ const PeekViewEvaluatorConfigDetail = ({
           </span>
         )}
         {evalConfig.evalTemplate && (
-          <Tooltip>
-            <TooltipTrigger>
-              {evalConfig.evalTemplate.projectId === null ? (
-                <LangfuseIcon size={16} />
-              ) : (
-                <UserCircle2Icon size="base" />
-              )}
-            </TooltipTrigger>
-            <TooltipContent>
-              {evalConfig.evalTemplate.partner ?? "Langfuse"}
-            </TooltipContent>
+          <Tooltip label={evalConfig.evalTemplate.partner ?? "Langfuse"}>
+            {({ getTriggerProps }) => (
+              <button type="button" {...getTriggerProps()}>
+                {evalConfig.evalTemplate?.projectId === null ? (
+                  <LangfuseIcon size={16} />
+                ) : (
+                  <UserCircle2Icon size="base" />
+                )}
+              </button>
+            )}
           </Tooltip>
         )}
       </CardDescription>
@@ -221,13 +213,10 @@ const PeekViewEvaluatorConfigDetail = ({
             />
           ) : null
         ) : (
-          <Alert icon={AlertTriangle}>
-            <Alert.Title>Referenced evaluator unavailable</Alert.Title>
-            <Alert.Description>
-              This legacy rule no longer has an evaluator attached, so its
-              evaluator configuration cannot be displayed.
-            </Alert.Description>
-          </Alert>
+          <Banner variant="warning" title="Referenced evaluator unavailable">
+            This legacy rule no longer has an evaluator attached, so its
+            evaluator configuration cannot be displayed.
+          </Banner>
         )}
       </div>
     </div>

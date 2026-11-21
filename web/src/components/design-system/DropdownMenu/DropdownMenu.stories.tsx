@@ -67,9 +67,13 @@ export const TestHeaderActionKeyboard = meta.story({
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
-    await expect(
-      body.getByRole("searchbox", { name: "Search projects..." }),
-    ).toHaveFocus();
+    // FloatingFocusManager moves focus after paint, so the field is not focused
+    // on the same turn the menu opens.
+    await waitFor(() =>
+      expect(
+        body.getByRole("searchbox", { name: "Search projects..." }),
+      ).toHaveFocus(),
+    );
 
     await userEvent.keyboard("{ArrowDown}");
     await userEvent.keyboard("{ArrowUp}");
@@ -445,7 +449,9 @@ export const TestCheckboxAndSubmenu = meta.story({
     await expect(
       body.getByRole("menuitem", { name: "Destinations" }),
     ).toHaveFocus();
-    await expect(menu).toBeVisible();
+    // The menu fades in while keyboard navigation continues. Visibility is
+    // opacity, so this can fail until the enter animation leaves 0.
+    await waitFor(() => expect(menu).toBeVisible());
 
     await userEvent.hover(body.getByRole("menuitem", { name: "Destinations" }));
     const submenu = await body.findByRole("menu", { name: "Destinations" });

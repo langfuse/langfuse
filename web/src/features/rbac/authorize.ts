@@ -6,6 +6,7 @@ import {
   type OrganizationId,
   type ProjectId,
   type ResourceId,
+  type RoleId,
   type TenantId,
 } from "@langfuse/shared/rbac";
 
@@ -33,25 +34,36 @@ export function authorize(
   if (ctx.policies.length === 0) return deniedError(action);
 
   for (const policies of ctx.policies) {
-    const decision = authorizePolicySet(policies, tenant, action, resource);
-    if (!decision.success) return decision;
+    if (!hasAccess(policies, tenant, action, resource)) {
+      return deniedError(action);
+    }
   }
   return { success: true };
 }
 
-/** authorizePolicySet allows action on resource when the set grants it and denies none of it. */
-function authorizePolicySet(
+/** rolesFor lists the roles whose policies govern resource in tenant, an exact resource match taking precedence over a wildcard. */
+export function rolesFor(
+  ctx: Pick<AuthorizationContext, "policies">,
+  tenant: TenantId,
+  resource: ResourceId,
+): RoleId[] {
+  const roleIds = ctx.policies.flatMap((policies) =>
+    matchesResource(policies, tenant, resource).map((policy) => policy.roleId),
+  );
+  return [...new Set(roleIds)];
+}
+
+/** hasAccess reports whether the policy set grants action on resource and denies none of it. */
+function hasAccess(
   policies: Policy[],
   tenant: TenantId,
   action: Action,
   resource: ResourceId,
-): Decision {
-  const policiesForResource = matchesResource(policies, tenant, resource);
-  const grant = policiesForResource.filter(byAction(action));
-  if (grant.length === 0 || grant.some(byEffect("DENY"))) {
-    return deniedError(action);
-  }
-  return { success: true };
+): boolean {
+  const access = matchesResource(policies, tenant, resource).filter(
+    byAction(action),
+  );
+  return access.length > 0 && !access.some(byEffect("DENY"));
 }
 
 /** matchesResource selects the tenant's policies for resource, preferring exact matches over wildcards. */

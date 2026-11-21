@@ -133,7 +133,7 @@ export async function summarizedTopicMatchesQuery(
           AND unit_start_time < {summaryTo: DateTime64(3)}
           AND facet_id = {summaryFacetId: String}
           AND facet_version = {summaryFacetVersion: UInt32}
-          AND trace_id != ''
+          AND unit_type = 'trace'
       )`,
       params: {
         summaryProjectId: input.projectId,

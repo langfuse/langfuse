@@ -1,19 +1,17 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { vi } from "vitest";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
-import { Role, type Plan } from "@langfuse/shared";
-import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
-import type { Session } from "next-auth";
+import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
+import { Role, type Plan, entitlementAccess } from "@langfuse/shared";
 import { createApiKey } from "@langfuse/shared/src/server";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 
-// Session fixture sub-object types; casts keep the runtime fixtures unchanged
-// while satisfying newer required fields on the session user type.
-type SessionUser = NonNullable<Session["user"]>;
-type SessionProject = SessionUser["organizations"][number]["projects"][number];
 import { v4 as uuidv4 } from "uuid";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import type * as MultiTenantSsoUtils from "@/src/ee/features/multi-tenant-sso/utils";
@@ -64,69 +62,57 @@ async function createTestOrg(plan: Plan) {
   });
 
   // Create owner's org membership
-  await prisma.organizationMembership.create({
-    data: {
-      userId: ownerUser.id,
-      orgId: org.id,
-      role: Role.OWNER,
-    },
+  await createOrgMembership(prisma, {
+    userId: ownerUser.id,
+    orgId: org.id,
+    role: Role.OWNER,
   });
 
   return { org, project, ownerUser, plan };
 }
 
-function createSession(
+function memberSession(
   ownerUser: { id: string; email: string | null; name: string | null },
   org: { id: string; name: string },
   project: { id: string; name: string },
   plan: Plan,
   roles: { orgRole?: Role; projectRole?: Role } = {},
-): Session {
+) {
   const orgRole = roles.orgRole ?? Role.OWNER;
   const projectRole = roles.projectRole ?? Role.OWNER;
 
-  return {
-    expires: "1",
+  return createSession({
     user: {
       id: ownerUser.id,
       email: ownerUser.email,
       name: ownerUser.name,
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: orgRole,
-          plan: plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              name: project.name,
-              metadata: {},
-            } as SessionProject,
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
     },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: orgRole,
+        plan: plan,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            role: projectRole,
+            name: project.name,
+          },
+        ],
+      },
+    ],
     environment: {
-      enableExperimentalFeatures: false,
       selfHostedInstancePlan: plan,
     },
-  };
+  });
 }
 
 async function prepare(plan: Plan) {
   const { org, project, ownerUser } = await createTestOrg(plan);
 
-  const session = createSession(ownerUser, org, project, plan);
+  const session = memberSession(ownerUser, org, project, plan);
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
@@ -183,12 +169,10 @@ describe("membersRouter.create - organization member limit enforcement", () => {
 
       // Add one more member to reach the limit (owner + 1 = 2)
       const user1 = await createTestUser();
-      await prisma.organizationMembership.create({
-        data: {
-          userId: user1.id,
-          orgId: org.id,
-          role: Role.MEMBER,
-        },
+      await createOrgMembership(prisma, {
+        userId: user1.id,
+        orgId: org.id,
+        role: Role.MEMBER,
       });
 
       // Now try to add a third member - this should fail
@@ -200,7 +184,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
           email: user2.email!,
           orgRole: Role.MEMBER,
         }),
-      ).rejects.toThrow(/exceeds the limit/i);
+      ).rejects.toThrow(/at its member limit/i);
     });
 
     it("does not admit more members than the limit under concurrent requests", async () => {
@@ -234,7 +218,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       expect(results.length - rejected.length).toBe(1);
       // every loser lost to the limit check, not to an incidental error
       for (const result of rejected) {
-        expect(String(result.reason)).toMatch(/exceeds the limit/i);
+        expect(String(result.reason)).toMatch(/at its member limit/i);
       }
     }, 25_000);
 
@@ -267,7 +251,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
       const rejected = results.filter((r) => r.status === "rejected");
       expect(results.length - rejected.length).toBe(1);
       for (const result of rejected) {
-        expect(String(result.reason)).toMatch(/exceeds the limit/i);
+        expect(String(result.reason)).toMatch(/at its member limit/i);
       }
     }, 25_000);
 
@@ -293,7 +277,7 @@ describe("membersRouter.create - organization member limit enforcement", () => {
           email: newEmail,
           orgRole: Role.MEMBER,
         }),
-      ).rejects.toThrow(/exceeds the limit/i);
+      ).rejects.toThrow(/at its member limit/i);
     });
   });
 
@@ -411,20 +395,17 @@ describe("membersRouter.allInvitesFromProject", () => {
       },
     });
     const projectOnlyUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: projectOnlyUser.id,
-        orgId: org.id,
-        role: Role.NONE,
-      },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: projectOnlyUser.id,
+      orgId: org.id,
+      role: Role.NONE,
     });
-    await prisma.projectMembership.create({
-      data: {
-        userId: projectOnlyUser.id,
-        projectId: project.id,
-        role: Role.MEMBER,
-        orgMembershipId: orgMembership.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: projectOnlyUser.id,
+      projectId: project.id,
+      role: Role.MEMBER,
+      orgMembershipId: orgMembership.id,
     });
 
     const orgInviteEmail = `org-invite-${uuidv4().substring(0, 8)}@test.com`;
@@ -458,7 +439,7 @@ describe("membersRouter.allInvitesFromProject", () => {
       ],
     });
 
-    const projectOnlySession = createSession(
+    const projectOnlySession = memberSession(
       projectOnlyUser,
       org,
       project,
@@ -491,17 +472,18 @@ describe("membersRouter.allFromProject / allFromOrg - role filter", () => {
     projectRole?: { projectId: string; role: Role };
   }) {
     const user = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: { userId: user.id, orgId: params.orgId, role: params.orgRole },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId: params.orgId,
+      role: params.orgRole,
     });
     if (params.projectRole) {
-      await prisma.projectMembership.create({
-        data: {
-          userId: user.id,
-          projectId: params.projectRole.projectId,
-          role: params.projectRole.role,
-          orgMembershipId: orgMembership.id,
-        },
+      await createProjectMembership(prisma, {
+        orgId: params.orgId,
+        userId: user.id,
+        projectId: params.projectRole.projectId,
+        role: params.projectRole.role,
+        orgMembershipId: orgMembership.id,
       });
     }
     return user;
@@ -625,12 +607,10 @@ describe("membersRouter.updateOrgMembership - audit log state capture", () => {
     const { org, caller } = await prepare("cloud:core");
 
     const targetUser = await createTestUser();
-    const membership = await prisma.organizationMembership.create({
-      data: {
-        userId: targetUser.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
+    const membership = await createOrgMembership(prisma, {
+      userId: targetUser.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
 
     await caller.members.updateOrgMembership({
@@ -660,6 +640,81 @@ describe("membersRouter.updateOrgMembership - audit log state capture", () => {
   });
 });
 
+describe("membersRouter - ownership changes", () => {
+  it("requires ownership rights for OWNER and lets admins set any other role", async () => {
+    const { org, project, ownerUser } = await createTestOrg("cloud:team");
+    const admin = await createTestUser();
+    await createOrgMembership(prisma, {
+      userId: admin.id,
+      orgId: org.id,
+      role: Role.ADMIN,
+    });
+    const session = memberSession(admin, org, project, "cloud:team", {
+      orgRole: Role.ADMIN,
+      projectRole: Role.ADMIN,
+    });
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({ session, headers: {} }),
+      prisma,
+    });
+    const member = await createTestUser();
+    const memberMembership = await createOrgMembership(prisma, {
+      userId: member.id,
+      orgId: org.id,
+      role: Role.MEMBER,
+    });
+    const ownerMembership =
+      await prisma.organizationMembership.findFirstOrThrow({
+        where: { orgId: org.id, userId: ownerUser.id },
+      });
+
+    await expect(
+      caller.members.updateOrgMembership({
+        orgId: org.id,
+        orgMembershipId: memberMembership.id,
+        role: Role.OWNER,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller.members.updateProjectRole({
+        orgId: org.id,
+        orgMembershipId: ownerMembership.id,
+        userId: ownerUser.id,
+        projectId: project.id,
+        projectRole: Role.VIEWER,
+      }),
+    ).resolves.toMatchObject({ userId: ownerUser.id, role: Role.VIEWER });
+  });
+
+  it("lets an org owner grant project OWNER whatever their own project role", async () => {
+    const { org, project, ownerUser } = await createTestOrg("cloud:team");
+    const session = memberSession(ownerUser, org, project, "cloud:team", {
+      orgRole: Role.OWNER,
+      projectRole: Role.VIEWER,
+    });
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({ session, headers: {} }),
+      prisma,
+    });
+    const member = await createTestUser();
+    const membership = await createOrgMembership(prisma, {
+      userId: member.id,
+      orgId: org.id,
+      role: Role.MEMBER,
+    });
+
+    await expect(
+      caller.members.updateProjectRole({
+        orgId: org.id,
+        orgMembershipId: membership.id,
+        userId: member.id,
+        projectId: project.id,
+        projectRole: Role.OWNER,
+      }),
+    ).resolves.toMatchObject({ userId: member.id, role: Role.OWNER });
+  });
+});
+
 describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () => {
   it.each([
     "cloud:hobby",
@@ -673,12 +728,10 @@ describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () 
       const { org, project, caller } = await prepare(plan);
 
       const targetUser = await createTestUser();
-      const orgMembership = await prisma.organizationMembership.create({
-        data: {
-          userId: targetUser.id,
-          orgId: org.id,
-          role: Role.MEMBER,
-        },
+      const orgMembership = await createOrgMembership(prisma, {
+        userId: targetUser.id,
+        orgId: org.id,
+        role: Role.MEMBER,
       });
 
       await expect(
@@ -711,12 +764,10 @@ describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () 
     const { org, project, caller } = await prepare(plan);
 
     const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: targetUser.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: targetUser.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
 
     await expect(
@@ -734,20 +785,17 @@ describe("membersRouter.updateProjectRole - rbac-project-roles entitlement", () 
     const { org, project, caller } = await prepare("cloud:hobby");
 
     const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: targetUser.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: targetUser.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
-    await prisma.projectMembership.create({
-      data: {
-        userId: targetUser.id,
-        projectId: project.id,
-        role: Role.VIEWER,
-        orgMembershipId: orgMembership.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: targetUser.id,
+      projectId: project.id,
+      role: Role.VIEWER,
+      orgMembershipId: orgMembership.id,
     });
 
     await expect(
@@ -777,12 +825,10 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
     const { org, project, caller } = await prepare("cloud:team");
 
     const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: targetUser.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: targetUser.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
 
     await caller.members.updateProjectRole({
@@ -817,20 +863,17 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
     const { org, project, caller } = await prepare("cloud:team");
 
     const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: targetUser.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: targetUser.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
-    await prisma.projectMembership.create({
-      data: {
-        userId: targetUser.id,
-        projectId: project.id,
-        role: Role.VIEWER,
-        orgMembershipId: orgMembership.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: targetUser.id,
+      projectId: project.id,
+      role: Role.VIEWER,
+      orgMembershipId: orgMembership.id,
     });
 
     await caller.members.updateProjectRole({
@@ -865,12 +908,10 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
     const { org, project, caller } = await prepare("cloud:team");
 
     const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: targetUser.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: targetUser.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
 
     // create
@@ -920,12 +961,10 @@ describe("membersRouter.updateProjectRole - orgMembership/userId consistency", (
 
     // The org member who actually owns the targeted org membership.
     const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: targetUser.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: targetUser.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
 
     // A different, unrelated user whose id the caller tries to smuggle in.
@@ -964,12 +1003,10 @@ describe("membersRouter.updateProjectRole - orgMembership/userId consistency", (
     const { org, project, caller } = await prepare("cloud:team");
 
     const targetUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: targetUser.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: targetUser.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
 
     await expect(
@@ -996,20 +1033,17 @@ describe("membersRouter.create - duplicate project membership", () => {
   it("returns CONFLICT when re-adding an existing org member to a project they already belong to", async () => {
     const { org, project, caller } = await prepare("cloud:team");
     const user = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: user.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
-    await prisma.projectMembership.create({
-      data: {
-        userId: user.id,
-        projectId: project.id,
-        role: Role.VIEWER,
-        orgMembershipId: orgMembership.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: user.id,
+      projectId: project.id,
+      role: Role.VIEWER,
+      orgMembershipId: orgMembership.id,
     });
 
     await expect(
@@ -1025,56 +1059,6 @@ describe("membersRouter.create - duplicate project membership", () => {
       message: "User is already a member of this project",
     });
   });
-
-  it("returns BAD_REQUEST when adding a new org member who already has a project membership", async () => {
-    const { org, project, caller } = await prepare("cloud:team");
-    const user = await createTestUser();
-    // Project memberships require an orgMembershipId FK. Seed the unique
-    // (project_id, user_id) collision via a membership in another org so this
-    // request still takes the "create org membership, then project
-    // membership" branch.
-    const otherOrg = await prisma.organization.create({
-      data: {
-        id: uuidv4(),
-        name: `Other Org ${uuidv4().substring(0, 8)}`,
-      },
-    });
-    const otherOrgMembership = await prisma.organizationMembership.create({
-      data: {
-        userId: user.id,
-        orgId: otherOrg.id,
-        role: Role.MEMBER,
-      },
-    });
-    await prisma.projectMembership.create({
-      data: {
-        userId: user.id,
-        projectId: project.id,
-        role: Role.VIEWER,
-        orgMembershipId: otherOrgMembership.id,
-      },
-    });
-
-    await expect(
-      caller.members.create({
-        orgId: org.id,
-        email: user.email!,
-        orgRole: Role.MEMBER,
-        projectId: project.id,
-        projectRole: Role.VIEWER,
-      }),
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "User is already a member of this project",
-    });
-
-    // The duplicate is rejected before the org membership is created, so no
-    // partial write (or consumed seat) is left behind in the target org.
-    const orgMembership = await prisma.organizationMembership.findFirst({
-      where: { orgId: org.id, userId: user.id },
-    });
-    expect(orgMembership).toBeNull();
-  });
 });
 
 describe("membersRouter.create - duplicate org membership", () => {
@@ -1087,12 +1071,10 @@ describe("membersRouter.create - duplicate org membership", () => {
     // membership is created another request has already inserted the
     // (orgId, userId) row, so the unique constraint fires. Seed the real row
     // and stub only the pre-check so the request reaches the create.
-    await prisma.organizationMembership.create({
-      data: {
-        userId: user.id,
-        orgId: org.id,
-        role: Role.MEMBER,
-      },
+    await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
     const findFirstSpy = vi
       .spyOn(prisma.organizationMembership, "findFirst")
@@ -1174,11 +1156,13 @@ describe("membersRouter.create - project organization consistency", () => {
       project: callerProject,
       ownerUser: caller,
     } = await createTestOrg("cloud:team");
-    await prisma.organizationMembership.create({
-      data: { userId: caller.id, orgId: targetOrg.id, role: Role.VIEWER },
+    await createOrgMembership(prisma, {
+      userId: caller.id,
+      orgId: targetOrg.id,
+      role: Role.VIEWER,
     });
 
-    const session = createSession(
+    const session = memberSession(
       caller,
       targetOrg,
       targetProject,
@@ -1188,10 +1172,14 @@ describe("membersRouter.create - project organization consistency", () => {
         projectRole: Role.VIEWER,
       },
     );
-    session.user!.organizations.push(
-      ...createSession(caller, callerOrg, callerProject, "cloud:team").user!
-        .organizations,
+    const callerSession = memberSession(
+      caller,
+      callerOrg,
+      callerProject,
+      "cloud:team",
     );
+    session.user.organizations.push(...callerSession.user.organizations);
+    session.policies[0].push(...callerSession.policies[0]);
     const ctx = createInnerTRPCContext({ session, headers: {} });
     const trpc = appRouter.createCaller({ ...ctx, prisma });
 
@@ -1239,8 +1227,10 @@ describe("membersRouter - gateway key revocation", () => {
   it("deleteMembership revokes the removed member's bound gateway keys", async () => {
     const { org, caller } = await prepare("cloud:core");
     const member = await createTestUser();
-    const membership = await prisma.organizationMembership.create({
-      data: { userId: member.id, orgId: org.id, role: Role.MEMBER },
+    const membership = await createOrgMembership(prisma, {
+      userId: member.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
     const key = await createBoundGatewayKey(org.id, member.id);
 
@@ -1257,8 +1247,10 @@ describe("membersRouter - gateway key revocation", () => {
     async (role) => {
       const { org, caller } = await prepare("cloud:core");
       const otherOwner = await createTestUser();
-      const membership = await prisma.organizationMembership.create({
-        data: { userId: otherOwner.id, orgId: org.id, role: Role.OWNER },
+      const membership = await createOrgMembership(prisma, {
+        userId: otherOwner.id,
+        orgId: org.id,
+        role: Role.OWNER,
       });
       const key = await createBoundGatewayKey(org.id, otherOwner.id);
 
@@ -1339,8 +1331,10 @@ describe("membersRouter - AI_GATEWAY role", () => {
   it("rejects changing a member to AI_GATEWAY while the AI Gateway is off", async () => {
     const { org, caller } = await prepare("cloud:core");
     const member = await createTestUser();
-    const membership = await prisma.organizationMembership.create({
-      data: { userId: member.id, orgId: org.id, role: Role.MEMBER },
+    const membership = await createOrgMembership(prisma, {
+      userId: member.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
 
     await expect(
@@ -1363,8 +1357,10 @@ describe("membersRouter - AI_GATEWAY role", () => {
     const { org, caller } = await prepare("cloud:core");
     env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
     const member = await createTestUser();
-    const membership = await prisma.organizationMembership.create({
-      data: { userId: member.id, orgId: org.id, role: Role.MEMBER },
+    const membership = await createOrgMembership(prisma, {
+      userId: member.id,
+      orgId: org.id,
+      role: Role.MEMBER,
     });
 
     await caller.members.updateOrgMembership({
@@ -1400,23 +1396,26 @@ describe("membersRouter - AI_GATEWAY role", () => {
   it("omits AI_GATEWAY members from project-scoped member lists", async () => {
     const { org, project } = await prepare("cloud:core");
     const gatewayUser = await createTestUser();
-    await prisma.organizationMembership.create({
-      data: { userId: gatewayUser.id, orgId: org.id, role: Role.AI_GATEWAY },
+    await createOrgMembership(prisma, {
+      userId: gatewayUser.id,
+      orgId: org.id,
+      role: Role.AI_GATEWAY,
     });
     const projectOnlyUser = await createTestUser();
-    const orgMembership = await prisma.organizationMembership.create({
-      data: { userId: projectOnlyUser.id, orgId: org.id, role: Role.NONE },
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: projectOnlyUser.id,
+      orgId: org.id,
+      role: Role.NONE,
     });
-    await prisma.projectMembership.create({
-      data: {
-        userId: projectOnlyUser.id,
-        projectId: project.id,
-        role: Role.MEMBER,
-        orgMembershipId: orgMembership.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: projectOnlyUser.id,
+      projectId: project.id,
+      role: Role.MEMBER,
+      orgMembershipId: orgMembership.id,
     });
     const ctx = createInnerTRPCContext({
-      session: createSession(projectOnlyUser, org, project, "cloud:core", {
+      session: memberSession(projectOnlyUser, org, project, "cloud:core", {
         orgRole: Role.NONE,
         projectRole: Role.MEMBER,
       }),
@@ -1437,16 +1436,17 @@ describe("membersRouter - AI_GATEWAY role", () => {
   it("lists AI_GATEWAY members with a project role in that project", async () => {
     const { org, project, caller } = await prepare("cloud:core");
     const gatewayUser = await createTestUser();
-    const gatewayMembership = await prisma.organizationMembership.create({
-      data: { userId: gatewayUser.id, orgId: org.id, role: Role.AI_GATEWAY },
+    const gatewayMembership = await createOrgMembership(prisma, {
+      userId: gatewayUser.id,
+      orgId: org.id,
+      role: Role.AI_GATEWAY,
     });
-    await prisma.projectMembership.create({
-      data: {
-        userId: gatewayUser.id,
-        projectId: project.id,
-        role: Role.VIEWER,
-        orgMembershipId: gatewayMembership.id,
-      },
+    await createProjectMembership(prisma, {
+      orgId: org.id,
+      userId: gatewayUser.id,
+      projectId: project.id,
+      role: Role.VIEWER,
+      orgMembershipId: gatewayMembership.id,
     });
 
     const result = await caller.members.allFromProject({

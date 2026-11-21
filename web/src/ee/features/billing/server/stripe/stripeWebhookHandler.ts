@@ -680,10 +680,7 @@ export async function handleSubscriptionChanged(
     await invalidateGatewayResolveCacheForOrganization(parsedOrg.id);
 
     auditLog({
-      session: {
-        user: { id: "stripe-webhook" },
-        orgId: parsedOrg.id,
-      },
+      userId: "stripe-webhook",
       orgId: parsedOrg.id,
       resourceType: "organization",
       resourceId: parsedOrg.id,
@@ -730,10 +727,7 @@ export async function handleSubscriptionChanged(
     await invalidateGatewayResolveCacheForOrganization(parsedOrg.id);
 
     auditLog({
-      session: {
-        user: { id: "stripe-webhook" },
-        orgId: parsedOrg.id,
-      },
+      userId: "stripe-webhook",
       orgId: parsedOrg.id,
       resourceType: "organization",
       resourceId: parsedOrg.id,

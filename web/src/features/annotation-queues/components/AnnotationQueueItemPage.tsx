@@ -205,7 +205,11 @@ function AnnotationQueueRunContent({
     { projectId, itemId: itemId as string },
     { enabled: !!itemId, refetchOnMount: false },
   );
-  const { configs, isLoading: queueConfigsLoading } = useAnnotationQueueData({
+  const {
+    configs,
+    queueData,
+    isLoading: queueConfigsLoading,
+  } = useAnnotationQueueData({
     annotationQueueId,
     projectId,
   });
@@ -264,7 +268,7 @@ function AnnotationQueueRunContent({
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   useEffect(() => {
-    if (isSingleItem) return; // single-item view has no queue navigation
+    if (isSingleItem) return; // process-queue shortcuts stay on the run controls
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       if (!hasAccess) return;
@@ -438,10 +442,12 @@ function AnnotationQueueRunContent({
       case AnnotationQueueObjectType.SESSION:
         return (
           <SessionAnnotationProcessor
+            key={`${projectId}:${relevantItem.objectId}`}
             item={relevantItem}
             data={objectData.data}
             configs={configs}
             projectId={projectId}
+            sessionViewConfig={queueData.data?.sessionViewConfig}
             commentFlushRef={commentFlushRef}
           />
         );

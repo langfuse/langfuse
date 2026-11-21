@@ -14,6 +14,7 @@ import {
   enrichObservationWithModelData,
   getObservationById,
   getObservationByIdFromEventsTable,
+  visibleModelsWhere,
 } from "@langfuse/shared/src/server";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { OBSERVATIONS_V1_DEPRECATION } from "@/src/features/public-api/server/deprecations";
@@ -76,16 +77,7 @@ export default withMiddlewares(
                   {
                     id: clickhouseObservation.internalModelId,
                   },
-                  {
-                    OR: [
-                      {
-                        projectId: auth.scope.projectId,
-                      },
-                      {
-                        projectId: null,
-                      },
-                    ],
-                  },
+                  visibleModelsWhere(auth.scope.projectId),
                 ],
               },
               include: {
