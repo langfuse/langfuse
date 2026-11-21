@@ -3,6 +3,10 @@ import {
   makeAPICall,
 } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -60,45 +64,22 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
     secondTestUserId = secondTestUser.id;
 
     // Give users project access - need to create org memberships first
-    await prisma.organizationMembership.createMany({
-      data: [
-        {
+    await Promise.all(
+      [testUserId, secondTestUserId].map(async (userId) => {
+        const orgMembership = await createOrgMembership(prisma, {
           orgId,
-          userId: testUserId,
+          userId,
           role: "MEMBER",
-        },
-        {
+        });
+        await createProjectMembership(prisma, {
           orgId,
-          userId: secondTestUserId,
-          role: "MEMBER",
-        },
-      ],
-    });
-
-    // Get the org membership IDs and create project memberships
-    const orgMembership1 = await prisma.organizationMembership.findFirst({
-      where: { orgId, userId: testUserId },
-    });
-    const orgMembership2 = await prisma.organizationMembership.findFirst({
-      where: { orgId, userId: secondTestUserId },
-    });
-
-    await prisma.projectMembership.createMany({
-      data: [
-        {
           projectId,
-          userId: testUserId,
+          userId,
           role: "MEMBER",
-          orgMembershipId: orgMembership1!.id,
-        },
-        {
-          projectId,
-          userId: secondTestUserId,
-          role: "MEMBER",
-          orgMembershipId: orgMembership2!.id,
-        },
-      ],
-    });
+          orgMembershipId: orgMembership.id,
+        });
+      }),
+    );
   });
 
   describe("POST /api/public/annotation-queues/:queueId/assignments", () => {

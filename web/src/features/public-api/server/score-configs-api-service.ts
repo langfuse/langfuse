@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
 import { type z } from "zod";
-import { isBooleanDataType } from "@/src/features/scores/server";
+import { isBooleanDataType } from "@/src/features/scores/lib/helpers";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -8,7 +8,7 @@ import {
   validateDbScoreConfigSafe,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   type PostScoreConfigBody,
   type PutScoreConfigBody,

@@ -1,14 +1,25 @@
 import { randomUUID } from "crypto";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import { ForbiddenError, InternalServerError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { ProjectDeleteQueue, QueueJobs } from "@langfuse/shared/src/server";
 import {
-  GatewayConfigService,
-  invalidateGatewayResolveCacheForOrganization,
-} from "@/src/features/ai-gateway/server";
-import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
-import type { ApiAuthService } from "@/src/features/public-api/server";
-import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
+  clearModelCacheForProject,
+  DefaultEvalModelService,
+  ProjectDeleteQueue,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
+import { deleteProjectMemberships } from "@langfuse/shared/memberships";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
+import { transferApiKeyRoles } from "@langfuse/shared/rbac/server";
+import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
+import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
+import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import {
+  auditLog,
+  type AuditLogActor,
+} from "@/src/features/audit-logs/auditLog";
+import type { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 type DeleteProjectParams = {
   organizationId: string;
@@ -16,6 +27,14 @@ type DeleteProjectParams = {
   actor: AuditLogActor;
   /** Whether the actor holds `gateway:manage`, required to delete the gateway's ingestion project. */
   canManageGateway: boolean;
+};
+
+type TransferProjectParams = {
+  /** The organization the project belongs to before the transfer. */
+  organizationId: string;
+  targetOrganizationId: string;
+  projectId: string;
+  actor: AuditLogActor;
 };
 
 export class ProjectService {
@@ -50,6 +69,83 @@ export class ProjectService {
       projectId: params.projectId,
     });
     await this.queueHardDelete(params);
+  }
+
+  /**
+   * transfer moves a project into another organization. The project keeps its
+   * data and API keys, loses its memberships and user role assignments, and
+   * rebinds its default eval model and topics connections to the destination
+   * organization. Callers must check `projects:transfer_org` in both
+   * organizations.
+   */
+  async transfer(params: TransferProjectParams) {
+    const { organizationId, targetOrganizationId, projectId } = params;
+
+    await auditLog({
+      ...params.actor,
+      resourceType: "project",
+      resourceId: projectId,
+      action: "transfer",
+      before: { orgId: organizationId },
+      after: { orgId: targetOrganizationId },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id: projectId, orgId: organizationId },
+        data: { orgId: targetOrganizationId },
+      });
+      await deleteProjectMemberships(tx, { projectId });
+      await transferApiKeyRoles(tx, {
+        ownerId: ProjectId(projectId),
+        newTenantId: OrganizationId(targetOrganizationId),
+      });
+      const viewOwners = await tx.sessionView.findMany({
+        where: { projectId, createdBy: { not: null } },
+        distinct: ["createdBy"],
+        select: { createdBy: true },
+      });
+      for (const { createdBy } of viewOwners) {
+        if (createdBy === null) continue;
+        await deleteSessionViewsWithoutProjectAccess(tx, {
+          userId: createdBy,
+          orgId: targetOrganizationId,
+          projectId,
+        });
+      }
+    });
+
+    // API keys need to be deleted from cache. Otherwise, they will still be valid.
+    // It has to be called after the db is done to prevent new API keys from being cached.
+    await this.apiAuthService.invalidateCachedProjectApiKeys(projectId);
+
+    // Both orgs' org-scoped keys bake a projectId set that just changed.
+    await this.apiAuthService.invalidateCachedOrgApiKeys(organizationId);
+    await this.apiAuthService.invalidateCachedOrgApiKeys(targetOrganizationId);
+
+    // A transfer is a delete for the source org and a create for the
+    // destination one. CHB's registry is keyed by (organizationId,
+    // projectId), so emitting only one side leaves the source org billed for
+    // usage it no longer owns, or the destination org unmetered. Each emit
+    // no-ops unless that org is CHB-billed, so a Stripe-to-Stripe transfer
+    // sends nothing.
+    emitChbProjectEvent({
+      type: "LANGFUSE_PROJECT_DELETED",
+      orgId: organizationId,
+      projectId,
+    });
+    emitChbProjectEvent({
+      type: "LANGFUSE_PROJECT_CREATED",
+      orgId: targetOrganizationId,
+      projectId,
+    });
+
+    await Promise.all([
+      DefaultEvalModelService.reconcileConnectionForProject(projectId),
+      reconcileTopicsConnectionsForProject(projectId),
+      // Cached model matches may hold the source organization's definitions.
+      clearModelCacheForProject(projectId),
+    ]);
   }
 
   private async softDeleteAndUnlinkGateway(params: DeleteProjectParams) {

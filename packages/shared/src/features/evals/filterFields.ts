@@ -1,6 +1,6 @@
-import { ObservationLevel, ObservationType } from "../../domain";
+import { ObservationLevel, ObservationType } from "../../domain/observations";
 import { isRootObservation } from "../../eventsTable";
-import type { ColumnDefinition } from "../../tableDefinitions";
+import type { ColumnDefinition } from "../../tableDefinitions/types";
 import type { FilterCondition } from "../../types";
 import type { ObservationForEval } from "./observationForEval";
 
@@ -212,6 +212,22 @@ export const evalFilterFields = {
 
 const evalFilterFieldsById = new Map<string, ObservationEvalColumnDef>(
   Object.values(evalFilterFields).map((column) => [column.id, column]),
+);
+
+/**
+ * Columns whose events storage is non-nullable, so a missing value is `''` or
+ * `[]`. Null filters on them must treat empty as null to match ClickHouse.
+ */
+export const evalFilterEmptyEqualsNullColumns: ReadonlySet<string> = new Set(
+  Object.values(evalFilterFields)
+    .filter(
+      (column) =>
+        column.type === "string" ||
+        column.type === "stringOptions" ||
+        column.type === "arrayOptions" ||
+        column.id === "parentObservationId",
+    )
+    .map((column) => column.id),
 );
 
 /**

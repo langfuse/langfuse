@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { throwIfNoProjectAccess, hasProjectAccess } from "@/src/features/rbac";
+import {
+  throwIfNoProjectAccess,
+  hasProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

@@ -11,12 +11,13 @@ import {
   type ExportFieldGroup,
   type ExportSourceContext,
   GCS_USE_DEFAULT_CREDENTIALS,
+  StorageIntegrationAuthType,
 } from "@langfuse/shared";
 import type {
   blobStorageIntegrationFormSchema,
   BlobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
-import { getExportSourceFormValue } from "@/src/features/analytics-integrations";
+import { getExportSourceFormValue } from "@/src/features/analytics-integrations/exportSource";
 
 // Pre-parse (input) shape of the form; zod defaults make some fields optional.
 export type BlobStorageFormValues = z.input<
@@ -73,7 +74,9 @@ export function buildBlobStorageFormValues(
     bucketName: state?.bucketName || "",
     endpoint: state?.endpoint || null,
     region: state?.region || "auto",
+    authType: state?.authType ?? StorageIntegrationAuthType.ACCESS_KEYS,
     accessKeyId: state?.accessKeyId || "",
+    roleArn: state?.roleArn || "",
     secretAccessKey: isKeylessGcs
       ? GCS_USE_DEFAULT_CREDENTIALS
       : state?.secretAccessKey || null,

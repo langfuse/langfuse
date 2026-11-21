@@ -216,3 +216,102 @@ export const TestObservedKeySuggestionPreservesValue = meta.story({
     ]);
   },
 });
+
+export const TestSessionReplayBlock = meta.story({
+  name: "(Test) Session Replay Block",
+  args: {
+    mode: "string",
+    keyOptions: ["region"],
+    valueOptions: { region: ["eu", "us"] },
+    activeFilters: [{ key: "region", operator: "=", value: "eu" }],
+    onChange: fn(),
+  },
+  render: (args) => {
+    const [filters, setFilters] = useState<StringKeyValueFilterEntry[]>(
+      args.activeFilters as StringKeyValueFilterEntry[],
+    );
+    return (
+      <div className="w-80">
+        <KeyValueFilterBuilder
+          mode="string"
+          keyOptions={args.keyOptions}
+          valueOptions={args.mode === "string" ? args.valueOptions : undefined}
+          activeFilters={filters}
+          onChange={setFilters}
+        />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const key = canvas.getByDisplayValue("region");
+    const value = canvas.getByDisplayValue("eu");
+    await expect(key.closest(".ph-no-capture")).not.toBeNull();
+    await expect(value.closest(".ph-no-capture")).not.toBeNull();
+
+    // A new row's key is empty, so observed keys are offered. The list is
+    // portaled outside the builder, so that content needs its own block.
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Add condition" }),
+    );
+    const draftKey = canvas.getAllByPlaceholderText("Key")[1];
+    await userEvent.click(draftKey);
+    const suggestion = await body.findByRole("option", { name: "region" });
+    const suggestionBlock = suggestion.closest(".ph-no-capture");
+    await expect(suggestionBlock).not.toBeNull();
+    await expect(suggestionBlock).not.toContain(draftKey);
+  },
+});
+
+export const TestReplacesFilledValue = meta.story({
+  name: "(Test) Replaces a filled value",
+  args: {
+    mode: "string",
+    keyOptions: ["kind"],
+    valueOptions: { kind: ["AgentProfile", "ToolCall"] },
+    activeFilters: [{ key: "kind", operator: "=", value: "AgentProfile" }],
+    onChange: fn(),
+  },
+  render: (args) => {
+    const [filters, setFilters] = useState<StringKeyValueFilterEntry[]>(
+      args.activeFilters as StringKeyValueFilterEntry[],
+    );
+    return (
+      <div className="w-80">
+        <KeyValueFilterBuilder
+          mode="string"
+          keyOptions={args.keyOptions}
+          valueOptions={args.mode === "string" ? args.valueOptions : undefined}
+          activeFilters={filters}
+          onChange={setFilters}
+        />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const value = canvas.getByDisplayValue("AgentProfile");
+
+    await userEvent.click(value);
+    await expect(
+      body.queryByRole("option", { name: "AgentProfile" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      await body.findByRole("option", { name: "ToolCall" }),
+    );
+
+    // The parent keeps the picked value. A press on that filled field offers
+    // the other suggestion. The pick itself can land on the field once the
+    // list closes, so this does not require the list to be shut in between.
+    const filled = await canvas.findByDisplayValue("ToolCall");
+    await userEvent.click(filled);
+    await expect(
+      await body.findByRole("option", { name: "AgentProfile" }),
+    ).toBeInTheDocument();
+    await expect(
+      body.queryByRole("option", { name: "ToolCall" }),
+    ).not.toBeInTheDocument();
+  },
+});

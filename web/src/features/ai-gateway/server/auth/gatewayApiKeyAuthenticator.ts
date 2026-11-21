@@ -1,19 +1,29 @@
-import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
-import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
+import { CloudConfigSchema } from "@langfuse/shared";
+import type {
+  ApiKeyScope,
+  GatewayProvider,
+  GatewaySpendLimitInterval,
+  GatewaySpendLimitScope,
+  Prisma,
+  PrismaClient,
+} from "@langfuse/shared/src/db";
+import { OrganizationId } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
-import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { getPoliciesForApiKey } from "@/src/features/auth/policy/contextResolver";
+import { getOrganizationPlanServerSide } from "@langfuse/shared/src/server";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
   type GatewayMetadata,
   GatewayMetadataSchema,
+  GatewayProviderConfigSchema,
   gatewayProviders,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {
@@ -22,6 +32,11 @@ import {
   GatewayResolveCache,
 } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayResolveRepository } from "@/src/features/ai-gateway/server/resolve/gatewayResolveRepository";
+import {
+  GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR,
+  GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES,
+} from "@/src/features/ai-gateway/server/spendLimits/gatewayDefaultSpendLimits";
+import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "@/src/features/ai-gateway/server/spendLimits/gatewayOrganizationSpendLimitScope";
 
 export type GatewayApiKeyAuthContext = Omit<
   CachedResolveContext,
@@ -57,15 +72,23 @@ export class GatewayApiKeyAuthenticator {
     const route = this.modelRoutingService.resolve(
       params.model,
       context.connections,
+      params.apiFormat,
+      context.keyAllowedModels,
     );
     if (!route) {
       throw new GatewayControlPlaneError("Invalid gateway model", 400);
     }
+    // A key's patterns only narrow what the admin enabled, and a denial reads
+    // the same either way.
     if (
       route.connection &&
       !isGatewayModelAllowed(
         route.connection.allowedModels,
         route.providerModel,
+        {
+          connectionName: route.connection.name,
+          allowedModels: context.keyAllowedModels,
+        },
       )
     ) {
       throw new GatewayControlPlaneError(
@@ -146,6 +169,9 @@ export class GatewayApiKeyAuthenticator {
       Boolean(project) &&
       !project?.deletedAt &&
       project?.orgId === organizationId;
+    const cloudConfig = organization.cloudConfig
+      ? CloudConfigSchema.safeParse(organization.cloudConfig).data
+      : undefined;
     const context: CachedResolveContext = {
       organizationId,
       apiKeyId: row.id,
@@ -154,37 +180,55 @@ export class GatewayApiKeyAuthenticator {
       userName: row.user?.name || null,
       userEmail: row.user?.email || null,
       keyMetadata: toKeyMetadata(row.gatewayAssociation?.metadata),
+      keyAllowedModels: parseGatewayAllowedModels(
+        row.gatewayAssociation?.allowedModels ?? null,
+      ),
+      // The key's limits, then its owner's limits in the key's organization;
+      // either falls back to the organization's default when there are none.
+      // The organization's own limits apply to every key, whichever is reached first.
+      spendLimits: [
+        ...toResolveSpendLimits({
+          own: row.gatewaySpendLimits,
+          // Organization keys without a gateway association aren't listed as gateway keys, so no key default applies to them.
+          defaults: row.gatewayAssociation
+            ? organization.gatewaySpendLimits
+            : [],
+          scope: "API_KEY",
+          subjectId: row.id,
+        }),
+        ...(row.userId
+          ? toResolveSpendLimits({
+              own: (row.user?.gatewaySpendLimits ?? []).filter(
+                (limit) => limit.organizationId === organizationId,
+              ),
+              defaults: organization.gatewaySpendLimits,
+              scope: "USER",
+              subjectId: row.userId,
+            })
+          : []),
+        ...organization.gatewaySpendLimits
+          .filter(
+            (limit) => limit.scope === GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
+          )
+          .map((limit) => toResolveSpendLimit(limit, "organization")),
+      ],
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
       ingestionMode: gatewayConfig?.ingestionMode ?? null,
+      plan: getOrganizationPlanServerSide(cloudConfig),
+      rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
       connections: organization.gatewayAiConnections.map((connection) => ({
         ...connection,
         allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+        config:
+          GatewayProviderConfigSchema.safeParse(connection.config).data ?? null,
       })),
     };
 
-    // Runs on cache misses only, so a role change that does not revoke the key
-    // takes effect within LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS.
-    // Demotions through the app revoke user-bound keys and evict them at once.
-    if (row.userId) {
-      const ownerRole = row.user?.organizationMemberships.find(
-        (membership) => membership.orgId === organizationId,
-      )?.role;
-      if (
-        !ownerRole ||
-        !hasOrganizationAccess({ role: ownerRole, scope: "gateway:invoke" })
-      ) {
-        throw new GatewayControlPlaneError(
-          "API key owner is not allowed to invoke the gateway",
-          403,
-        );
-      }
-    }
-
     // Any organization key may call the gateway when its roles grant
     // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.
-    await assertCanInvokeGateway(this.prisma, row.id, organizationId);
+    await assertCanInvokeGateway(this.prisma, row, organizationId);
 
     await this.cache.set({
       fastHashedSecretKey: params.fastHashedSecretKey,
@@ -196,28 +240,20 @@ export class GatewayApiKeyAuthenticator {
   }
 }
 
-/** assertCanInvokeGateway denies the key when its stored roles do not grant gateway:invoke on the organization. */
+/** assertCanInvokeGateway denies the key when its stored roles, or for a user key its user's roles, do not grant gateway:invoke on the organization. */
 async function assertCanInvokeGateway(
   prisma: PrismaClient,
-  apiKeyId: string,
+  apiKey: { id: string; scope: ApiKeyScope; userId: string | null },
   organizationId: string,
 ) {
-  const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
   const tenant = OrganizationId(organizationId);
   const allowed = authorize(
     {
-      principal: {
-        kind: "apiKey",
-        apiKeyId,
-        userId: null,
-        isInAppAgentKey: false,
-        publicKey: "",
-        scope: "ORGANIZATION",
-        presentation: "privateKey",
-        organizations: [],
-        boundResource: { orgId: organizationId },
-      },
-      policies: roles.flatMap((role) => role.policies),
+      policies: await getPoliciesForApiKey(prisma, {
+        apiKeyId: apiKey.id,
+        userId: apiKey.userId,
+        scope: apiKey.scope,
+      }),
     },
     tenant,
     "gateway:invoke",
@@ -229,6 +265,58 @@ async function assertCanInvokeGateway(
       403,
     );
   }
+}
+
+type ResolvedSpendLimit = {
+  id: string;
+  scope: GatewaySpendLimitScope;
+  interval: GatewaySpendLimitInterval;
+  limitUsd: Prisma.Decimal;
+  alertThresholds: number[];
+  countingStartedAt: Date;
+};
+
+/**
+ * A key's or user's own limits, or else the organization's default for it.
+ * The default is sent under an id naming the key or user, because the gateway
+ * keys its counters by limit id and each of them must count separately.
+ */
+function toResolveSpendLimits(params: {
+  own: ResolvedSpendLimit[];
+  defaults: ResolvedSpendLimit[];
+  scope: keyof typeof GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES;
+  subjectId: string;
+}): CachedResolveContext["spendLimits"] {
+  const fallback = params.defaults.find(
+    (limit) => limit.scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[params.scope],
+  );
+  const limits =
+    params.own.length > 0 || !fallback
+      ? params.own
+      : [
+          {
+            ...fallback,
+            id: `${fallback.id}${GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR}${params.subjectId}`,
+          },
+        ];
+  const scope = params.scope === "API_KEY" ? "api_key" : "user";
+  return limits.map((limit) => toResolveSpendLimit(limit, scope));
+}
+
+function toResolveSpendLimit(
+  limit: ResolvedSpendLimit,
+  scope: CachedResolveContext["spendLimits"][number]["scope"],
+) {
+  return {
+    id: limit.id,
+    scope,
+    interval: limit.interval.toLowerCase() as Lowercase<typeof limit.interval>,
+    limit_usd: limit.limitUsd.toNumber(),
+    counting_started_at: limit.countingStartedAt.getTime(),
+    alert_thresholds: normalizeGatewaySpendBudgetAlertThresholds(
+      limit.alertThresholds,
+    ),
+  };
 }
 
 function supportedProviders(apiFormat: GatewayApiFormat): GatewayProvider[] {

@@ -1,6 +1,6 @@
 import type { ColumnDefinition } from "@langfuse/shared";
 
-import type { ObservedOptions } from "@/src/features/search-bar";
+import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 export type DatasetFilterOption = {
   id: string;

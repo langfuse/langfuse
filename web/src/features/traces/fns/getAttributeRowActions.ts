@@ -11,10 +11,10 @@ import { getCopyValue } from "@/src/components/table/ValueCell";
 import { type DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { buildEventsTablePathForColumnFilter } from "@/src/features/events";
+import { buildEventsTablePathForColumnFilter } from "@/src/features/events/lib/eventsTablePaths";
 import { attributeColumnFilter } from "@/src/features/traces/fns/attributeColumnFilter";
 import { attributeGrammar } from "@/src/features/traces/fns/attributeGrammar";
-import { type usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import type { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function getAttributeRowActions({
   row,

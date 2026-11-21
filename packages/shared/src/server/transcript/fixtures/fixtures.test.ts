@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { transcriptFixtures } from "./index";
-import { createObservation } from "../../test-utils";
+import { createObservation } from "../../test-utils/tracing-factory";
 import { convertObservation } from "../../repositories/observations_converters";
 import { orderObservations } from "../ordering";
 import { assembleTranscript } from "../transcript";
@@ -90,6 +90,13 @@ describe("transcript fixtures", () => {
         }),
       ],
     });
+    const root = {
+      ...failed("6", "SPAN", "ERROR", "run failed"),
+      parentObservationId: "",
+    };
+    expect(
+      assembleTranscriptContext([observations[0], root])?.executionIssues[0],
+    ).toMatchObject({ observationId: "6", parentObservationId: null });
     expect(assembleTranscriptContext(observations.slice(1))).toBeNull();
     expect(assembleTranscriptContext([observations[0]])).toEqual({
       transcript: assembleTranscript([observations[0]]),

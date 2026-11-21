@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PROMPTS_FIELD_REGISTRY } from "./promptsSearchRegistry";
-import { planCommit, filterStateToQueryText } from "@/src/features/search-bar";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 
 describe("prompt search contract", () => {
   it("round trips the sidebar filters alongside the existing free-text lane", () => {

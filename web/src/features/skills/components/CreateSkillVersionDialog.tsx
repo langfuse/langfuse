@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
-import { Save, TriangleAlert } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Save } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -64,14 +64,11 @@ export function CreateSkillVersionDialog({
               )}
             </p>
             {isFirstVersion && originalName ? (
-              <Alert variant="warning" icon={TriangleAlert}>
-                <Alert.Title>You are duplicating this skill</Alert.Title>
-                <Alert.Description>
-                  This creates <strong>{name}</strong> as a separate skill,
-                  starting at version 1. <strong>{originalName}</strong> stays
-                  unchanged.
-                </Alert.Description>
-              </Alert>
+              <Banner variant="warning" title="You are duplicating this skill">
+                This creates <strong>{name}</strong> as a separate skill,
+                starting at version 1. <strong>{originalName}</strong> stays
+                unchanged.
+              </Banner>
             ) : null}
             <div className="grid gap-2">
               <Label htmlFor="skill-version-note">Version note</Label>

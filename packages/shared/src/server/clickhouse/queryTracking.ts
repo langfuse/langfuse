@@ -1,5 +1,5 @@
 import { env } from "../../env";
-import { queryClickhouse } from "../repositories";
+import { queryClickhouse } from "../repositories/clickhouse";
 import { quoteClickhouseString } from "./clickhouseIdentifiers";
 
 // ============================================================================

@@ -1355,7 +1355,7 @@ describe("V4MigrationHeaderContent", () => {
     // The title stays off the version number: the app shell already shows a v4
     // build, so a "upgrade to v4" headline read as a contradiction.
     expect(
-      screen.getByText("Ensure compatibility after November 16"),
+      screen.getByText("Ensure compatibility after November 19"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Upgrade to v4")).not.toBeInTheDocument();
     expect(screen.queryByText(/Project 1/)).not.toBeInTheDocument();
@@ -1395,10 +1395,10 @@ describe("V4MigrationHeaderContent", () => {
     expect(
       screen.getByText(/some features may stop working/),
     ).toHaveTextContent(
-      "After November 16, 2026 some features may stop working if you don't update integrations.",
+      "After November 19, 2026 some features may stop working if you don't update integrations.",
     );
     expect(
-      screen.getByRole("link", { name: "November 16, 2026" }),
+      screen.getByRole("link", { name: "November 19, 2026" }),
     ).toHaveAttribute("href", "https://langfuse.com/docs/v4#timeline");
   });
 
@@ -1413,9 +1413,9 @@ describe("V4MigrationHeaderContent", () => {
     expect(screen.getByText(/features may stop working/)).toHaveTextContent(
       "Some features may stop working if you don't update integrations before your administrator disables the legacy mode.",
     );
-    expect(screen.queryByText(/November 16/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/November 19/)).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "November 16, 2026" }),
+      screen.queryByRole("link", { name: "November 19, 2026" }),
     ).not.toBeInTheDocument();
   });
 
@@ -1424,7 +1424,7 @@ describe("V4MigrationHeaderContent", () => {
     // body's top-right corner; without the gutter it overlaps the title.
     render(<V4MigrationHeaderContent titleRowClassName="pr-6" />);
     expect(
-      screen.getByText("Ensure compatibility after November 16").parentElement,
+      screen.getByText("Ensure compatibility after November 19").parentElement,
     ).toHaveClass("pr-6");
   });
 

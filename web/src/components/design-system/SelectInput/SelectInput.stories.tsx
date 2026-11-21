@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { BarChart3, LineChart } from "@langfuse/icons";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
@@ -136,6 +136,27 @@ export const WithLongText = meta.story({
   ),
 });
 
+/** A single option set apart below the regular ones, without a group heading. */
+export const WithCustomOption = meta.story({
+  args: {
+    value: "eu",
+    placeholder: "Select a region",
+    options: [
+      {
+        type: "group",
+        id: "regions",
+        label: "Regions",
+        options: [
+          { value: "us", label: "United States" },
+          { value: "eu", label: "Europe" },
+        ],
+      },
+    ],
+    customOption: { value: "custom", label: "Custom" },
+    onValueChange: fn(),
+  },
+});
+
 export const SearchableWithBadges = meta.story({
   name: "(Test) Searchable with badges",
   args: {
@@ -232,21 +253,47 @@ export const TestKeyboardSelection = meta.story({
   },
 });
 
+const disabledMiniReason = "GPT-4.1 mini is not available for this project.";
+
+const optionsWithDisabledMini: ComponentProps<typeof SelectInput>["options"] = [
+  { value: "gpt-4.1", label: "GPT-4.1" },
+  {
+    value: "gpt-4.1-mini",
+    label: "GPT-4.1 mini",
+    disabled: true,
+    disabledReason: disabledMiniReason,
+  },
+  { value: "gpt-4.1-nano", label: "GPT-4.1 nano" },
+];
+
+export const TestDisabledOptionShowsReason = meta.story({
+  name: "(Test) Disabled option shows its reason over its label",
+  args: {
+    value: "gpt-4.1",
+    placeholder: "Select a model",
+    options: optionsWithDisabledMini,
+    onValueChange: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("combobox"));
+
+    const label = await body.findByText("GPT-4.1 mini");
+    await expect(label.closest("[title]")).toHaveAttribute(
+      "title",
+      disabledMiniReason,
+    );
+  },
+});
+
 export const TestSkipsDisabledOption = meta.story({
   name: "(Test) Skips Disabled Option",
   args: {
     value: "gpt-4.1",
     placeholder: "Select a model",
-    options: [
-      { value: "gpt-4.1", label: "GPT-4.1" },
-      {
-        value: "gpt-4.1-mini",
-        label: "GPT-4.1 mini",
-        disabled: true,
-        disabledReason: "GPT-4.1 mini is not available for this project.",
-      },
-      { value: "gpt-4.1-nano", label: "GPT-4.1 nano" },
-    ],
+    options: optionsWithDisabledMini,
     onValueChange: fn(),
   },
   play: async ({ args, canvasElement }) => {
@@ -327,7 +374,7 @@ export const TestKeepsBadgedLabelReadable = meta.story({
     // The pills wrap beneath the name rather than squeezing it, so the name is
     // laid out at its full width instead of being cut down to a few
     // characters and an ellipsis.
-    const label = within(option).getByTitle("answer_relevancy");
+    const [label] = within(option).getAllByTitle("answer_relevancy");
     await waitFor(() => {
       // `scrollWidth <= clientWidth` alone is also satisfied by 0 <= 0, which
       // is the collapsed state being guarded against — so pin the width too.
@@ -379,7 +426,7 @@ export const TestKeepsBadgedLabelReadableWithoutSearch = meta.story({
     const option = await body.findByRole("option", {
       name: /answer_relevancy/,
     });
-    const label = within(option).getByTitle("answer_relevancy");
+    const [label] = within(option).getAllByTitle("answer_relevancy");
     await waitFor(() => {
       expect(label.clientWidth).toBeGreaterThan(0);
       expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);

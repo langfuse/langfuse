@@ -6,6 +6,7 @@ import {
 } from "@/src/components/ItemBadge";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import DocPopup, {
+  DocPopupTrigger,
   type DocPopupProps,
 } from "@/src/components/layouts/doc-popup";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
@@ -69,7 +70,11 @@ export function EntityTitle({
               description={help.description}
               href={help.href}
               className={help.className}
-            />
+            >
+              {({ getTriggerProps }) => (
+                <DocPopupTrigger triggerProps={getTriggerProps()} />
+              )}
+            </DocPopup>
           </span>
         )}
       </Heading>

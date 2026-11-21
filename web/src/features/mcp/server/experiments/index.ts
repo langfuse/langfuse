@@ -2,10 +2,12 @@ import { env } from "@/src/env.mjs";
 import type { McpFeatureModule } from "../registry";
 import {
   handleListExperimentItems,
-  handleListExperiments,
   listExperimentItemsTool,
+} from "@/src/features/mcp/server/experiments/tools/listExperimentItems";
+import {
+  handleListExperiments,
   listExperimentsTool,
-} from "./tools";
+} from "@/src/features/mcp/server/experiments/tools/listExperiments";
 
 export const experimentsFeature = {
   name: "experiments",

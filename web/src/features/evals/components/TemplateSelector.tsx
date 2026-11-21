@@ -9,7 +9,6 @@ import {
   ExternalLinkIcon,
 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Popover,
   PopoverContent,
@@ -42,6 +41,7 @@ import { env } from "@/src/env.mjs";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
 import { getEvalTemplateFamilyKey } from "@/src/features/evals/utils/eval-template-family";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type TemplateSelectorProps = {
   projectId: string;
@@ -161,6 +161,7 @@ export const TemplateSelector = ({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
           role="combobox"
           aria-expanded={isPopoverOpen}
           className={cn(
@@ -225,7 +226,7 @@ export const TemplateSelector = ({
                           {template.name}
                           {isLegacy && (
                             <span className="ml-2">
-                              <Badge color="primary" text="legacy" />
+                              <FeatureReleaseStatus status="legacy" />
                             </span>
                           )}
                           {isInvalid && (
@@ -321,7 +322,7 @@ export const TemplateSelector = ({
                         />
                         {isLegacy && (
                           <span className="ml-2">
-                            <Badge color="primary" text="legacy" />
+                            <FeatureReleaseStatus status="legacy" />
                           </span>
                         )}
                         {isInvalid && (

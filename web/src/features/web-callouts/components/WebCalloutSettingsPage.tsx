@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, X } from "@langfuse/icons";
 import { useState } from "react";
@@ -7,7 +8,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -28,12 +29,9 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
   WEB_CALLOUT_HEADER_NAME_PATTERN,
@@ -111,12 +109,9 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
   if (!hasAccess) {
     return (
       <div>
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            You do not have permission to manage integrations for this project.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          You do not have permission to manage integrations for this project.
+        </Banner>
       </div>
     );
   }
@@ -209,6 +204,11 @@ function WebCalloutEndpointDialog(props: {
     control: form.control,
     name: "headers",
   });
+
+  const currentUrl = form.watch("url");
+  const isUrlChanged =
+    props.endpoint !== null &&
+    !areDestinationUrlsEquivalent(currentUrl, props.endpoint.url);
 
   const onSubmit = (values: WebCalloutFormValues) => {
     upsertMutation.mutate({
@@ -329,14 +329,20 @@ function WebCalloutEndpointDialog(props: {
                 Optional headers added to the backend POST. Content-Type is set
                 automatically. Leave values empty for existing header names to
                 keep encrypted values.
+                {isUrlChanged
+                  ? " Re-enter all header values when changing the endpoint URL."
+                  : ""}
               </FormDescription>
               <div className="space-y-2">
                 {fields.map((field, index) => {
                   const currentHeaderName = form.watch(`headers.${index}.name`);
-                  const preservesExistingValue = hasExistingHeaderName(
-                    props.endpoint,
-                    currentHeaderName,
-                  );
+                  const valuePlaceholder = getHeaderValuePlaceholder({
+                    isExistingHeader: hasExistingHeaderName(
+                      props.endpoint,
+                      currentHeaderName,
+                    ),
+                    isUrlChanged,
+                  });
 
                   return (
                     <div
@@ -362,11 +368,7 @@ function WebCalloutEndpointDialog(props: {
                           <FormItem>
                             <FormControl>
                               <Input
-                                placeholder={
-                                  preservesExistingValue
-                                    ? "***"
-                                    : "Header value"
-                                }
+                                placeholder={valuePlaceholder}
                                 type="password"
                                 {...field}
                               />
@@ -375,9 +377,10 @@ function WebCalloutEndpointDialog(props: {
                           </FormItem>
                         )}
                       />
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <Tooltip label="Remove header">
+                        {({ getTriggerProps }) => (
                           <Button
+                            {...getTriggerProps()}
                             type="button"
                             variant="ghost"
                             size="icon"
@@ -385,8 +388,7 @@ function WebCalloutEndpointDialog(props: {
                           >
                             <X size="base" color="default" />
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Remove header</TooltipContent>
+                        )}
                       </Tooltip>
                     </div>
                   );
@@ -445,6 +447,20 @@ const formValuesToRequestHeaders = (
       .filter((header) => header.name.trim())
       .map((header) => [header.name.trim(), header.value.trim()]),
   );
+
+const getHeaderValuePlaceholder = ({
+  isExistingHeader,
+  isUrlChanged,
+}: {
+  isExistingHeader: boolean;
+  isUrlChanged: boolean;
+}) => {
+  if (!isExistingHeader) {
+    return "Header value";
+  }
+
+  return isUrlChanged ? "Re-enter header value" : "***";
+};
 
 const hasExistingHeaderName = (
   endpoint: WebCalloutEndpoint | null,

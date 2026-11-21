@@ -8,7 +8,7 @@ import {
   removeWindowState,
   clearAllPlaygroundData,
 } from "../storage/windowStorage";
-import { showToast } from "@/src/features/notifications";
+import { showToast } from "@/src/features/notifications/showToast";
 
 /**
  * Hook to persist window IDs across page refreshes.

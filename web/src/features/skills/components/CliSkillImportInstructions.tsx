@@ -23,7 +23,7 @@ export function CliSkillImportInstructions({
 
 Follow the CLI setup and authentication guidance:
 https://github.com/langfuse/langfuse-cli
-Use @langfuse/cli@beta for skill import.
+Use @langfuse/cli for skill import.
 
 Langfuse host: ${JSON.stringify(host)}
 

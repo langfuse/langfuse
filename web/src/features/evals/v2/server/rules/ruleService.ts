@@ -24,7 +24,7 @@ import {
   logger,
   getTotalCostByRule,
 } from "@langfuse/shared/src/server";
-import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server";
+import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
 import type {
   CreateOrAttachFromEvaluatorFiltersInput,
   CreateRuleInput,
@@ -160,6 +160,16 @@ export class RuleService {
           right.updatedAt.getTime() - left.updatedAt.getTime(),
       )
       .slice(0, MAX_REUSABLE_FILTERS);
+  }
+
+  /** Every experiment rule whose filter includes the dataset, whatever its other conditions. */
+  async listRulesForExperimentDataset(projectId: string, datasetId: string) {
+    const rules = await repository.listRulesForExperimentDataset({
+      prisma: this.prisma,
+      projectId,
+      datasetId,
+    });
+    return rules.map(toRuleResponse);
   }
 
   async listRulesForEvaluator(projectId: string, evaluatorId: string) {

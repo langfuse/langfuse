@@ -14,6 +14,8 @@ export function topicAssignmentRows(input: {
   embeddingConfig: TopicEmbeddingConfig;
   summaries: TopicSummary[];
   run: TopicRun;
+  /** The matched rule online; the run's rule for a fit. */
+  ruleId: string | null;
   origin: TopicAssignment["origin"];
   assignedAt: string;
   coordinates?: Map<string, [number, number]>;
@@ -53,6 +55,7 @@ export function topicAssignmentRows(input: {
       unitStartTime: summary.unitStartTime,
       summaryProcessedAt: summary.processedAt,
       runId: run.id,
+      ruleId: input.ruleId,
       topicId: topic?.topicId ?? null,
       topicVersionId: topic?.topicVersionId ?? null,
       distance: assigned.distance,

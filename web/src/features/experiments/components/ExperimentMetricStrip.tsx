@@ -12,12 +12,12 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { ScoreTag } from "@/src/components/ScoreTag";
-import { WidgetContent } from "@/src/features/widgets";
+import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
 import { type QueryType } from "@langfuse/shared/query";
 import { type MetricOption } from "@/src/features/experiments/types/charts";
 import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts";
 import { SCORE_LEVEL_TAGS } from "@/src/features/experiments/constants/charts";
-import { MetricStripMessage } from "@/src/components/metric-strip/MetricStripBand";
+import { MetricStripMessage } from "@/src/components/metric-strip/MetricStripMessage";
 import {
   METRIC_STRIP_TRIGGER_CLASS,
   metricStripTriggerClasses,

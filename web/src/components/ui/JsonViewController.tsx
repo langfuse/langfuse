@@ -8,11 +8,10 @@ import {
   useCallback,
 } from "react";
 import { type ExpandedState } from "@tanstack/react-table";
-import { deepParseJson } from "@langfuse/shared";
+import { deepParseJson, ChatMlArraySchema } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
-import { type MediaReturnType } from "@/src/features/media";
+import { type MediaReturnType } from "@/src/features/media/validation";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import {
   filterAlreadyRenderedMedia,
   getRenderedInlineMediaIds,
@@ -590,6 +589,7 @@ export function JsonViewController(props: {
     parsedJson === null ||
     parsedJson === undefined ||
     parsedJson === "" ||
+    (Array.isArray(parsedJson) && parsedJson.length === 0) ||
     (typeof parsedJson === "object" &&
       !Array.isArray(parsedJson) &&
       Object.keys(parsedJson).length === 0);

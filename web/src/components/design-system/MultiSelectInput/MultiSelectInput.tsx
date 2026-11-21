@@ -138,10 +138,9 @@ function MultiSelectInputInner<V extends string>(
                           )
                         }
                       >
-                        <InputDropdown.OptionContent
+                        <InputDropdown.MultiSelectOptionContent
                           label={selectAllLabel}
                           title={selectAllLabel}
-                          type="checkbox"
                           checked={allSelected}
                         />
                       </button>
@@ -183,11 +182,10 @@ function MultiSelectInputInner<V extends string>(
                                 onValueChange([...value, option.value]);
                               }}
                             >
-                              <InputDropdown.OptionContent
+                              <InputDropdown.MultiSelectOptionContent
                                 label={option.label}
                                 title={option.label}
                                 secondaryLabel={option.secondaryLabel}
-                                type="checkbox"
                                 checked={isSelected}
                               />
                             </CommandPrimitive.Item>

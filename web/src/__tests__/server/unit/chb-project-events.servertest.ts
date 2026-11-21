@@ -57,7 +57,7 @@ import {
   backfillChbProjectEvents,
   emitChbProjectEvent,
   sendChbProjectEvent,
-} from "@/src/ee/features/billing/server";
+} from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 import { logger } from "@langfuse/shared/src/server";
 
 const loggerError = vi
@@ -320,11 +320,10 @@ describe("chbProjectEvents", () => {
         { id: "project-b" },
       ]);
       mocks.send.mockImplementation((command) => {
-        const results = command.input.Entries.map(
-          (entry: { Detail: string }) =>
-            JSON.parse(entry.Detail).payload.projectId === "project-a"
-              ? { ErrorCode: "InternalException" }
-              : { EventId: "ok" },
+        const results = command.input.Entries.map((entry: { Detail: string }) =>
+          JSON.parse(entry.Detail).payload.projectId === "project-a"
+            ? { ErrorCode: "InternalException" }
+            : { EventId: "ok" },
         );
         return Promise.resolve({
           FailedEntryCount: results.filter(

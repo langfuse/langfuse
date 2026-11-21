@@ -15,6 +15,10 @@ import {
 } from "./tools/createScoreConfig";
 import { createScoreTool, handleCreateScore } from "./tools/createScore";
 import {
+  batchCreateScoresTool,
+  handleBatchCreateScores,
+} from "./tools/batchCreateScores";
+import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
 } from "./tools/deleteScoreConfig";
@@ -39,6 +43,10 @@ export const scoresFeature = {
     {
       definition: createScoreTool,
       handler: handleCreateScore,
+    },
+    {
+      definition: batchCreateScoresTool,
+      handler: handleBatchCreateScores,
     },
     {
       definition: listScoreConfigsTool,

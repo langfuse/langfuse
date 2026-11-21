@@ -1,0 +1,907 @@
+import { useState, type ComponentProps } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { page } from "vitest/browser";
+import preview from "../../../../.storybook/preview";
+import {
+  QueryInput,
+  useQueryInputController,
+  type QueryCompletionPlan,
+} from "./QueryInput";
+import { WORD_JOINER } from "../QueryTokens/QueryTokens.constants";
+import { Dialog } from "../Dialog/Dialog";
+import { DialogController } from "../DialogController/DialogController";
+import { Button } from "../Button/Button";
+import { selectionOffsets } from "../internal/QueryInput/fns/queryInputDom";
+
+const meta = preview.meta({
+  component: (
+    props: Omit<
+      Extract<ComponentProps<typeof QueryInput>, { mode?: "editable" }>,
+      "controller"
+    >,
+  ) => {
+    const controller = useQueryInputController();
+    return <QueryInput {...props} controller={controller} />;
+  },
+  args: {
+    label: "Query",
+    value: "",
+    diagnostics: [],
+    tokens: [],
+    placeholder: "Filter… e.g. status:=open",
+    onValueChange: fn(),
+    onCommit: fn((value: string) => value),
+    onRemoveToken: fn(),
+    areEquivalent: (left, right) => left.trim() === right.trim(),
+    completions: null as QueryCompletionPlan | null,
+  },
+  render: function ControlledQueryInput(args) {
+    const [value, setValue] = useState(args.value);
+    const controller = useQueryInputController();
+    const completions = (() => {
+      if (args.completions !== null) return args.completions;
+      const options = ["status:=open", "owner:=me"]
+        .filter((suggestion) => suggestion.startsWith(value))
+        .map((suggestion) => ({
+          id: suggestion,
+          label: suggestion,
+          section: "Suggested queries",
+          edit: {
+            next: `${suggestion} `,
+            caret: suggestion.length + 1,
+            keepOpen: false,
+          },
+          onApplied: (next: string) => args.onCommit(next, "enter"),
+        }));
+      if (options.length === 0) return null;
+      return { options, autoHighlight: value.length > 0, loading: false };
+    })();
+    return (
+      <QueryInput
+        {...args}
+        value={value}
+        controller={controller}
+        completions={completions}
+        onValueChange={(next) => {
+          setValue(next);
+          args.onValueChange(next);
+        }}
+      />
+    );
+  },
+});
+
+export default meta;
+
+const previewTokens: ComponentProps<typeof QueryInput>["tokens"] = [
+  {
+    id: "filter",
+    from: 0,
+    to: 12,
+    raw: "status:=open",
+    kind: "filter",
+    editable: true,
+    error: null,
+    explanation: null,
+    inactiveReason: null,
+    groups: [
+      {
+        noWrap: true,
+        parts: [
+          { text: "status", tone: "field" },
+          { text: ":", tone: "muted" },
+        ],
+      },
+      { noWrap: false, parts: [{ text: "=open", tone: "value" }] },
+    ],
+  },
+];
+
+export const Preview = meta.story({
+  tags: ["!test"],
+  args: { value: "status:=open", tokens: previewTokens },
+  render: ({ value, tokens, size }) => (
+    <QueryInput mode="preview" value={value} tokens={tokens} size={size} />
+  ),
+});
+export const PreviewLarge = Preview.extend({
+  tags: ["!test"],
+  args: { size: "large" },
+});
+export const PreviewEmpty = Preview.extend({
+  tags: ["!test"],
+  args: { value: "", tokens: [] },
+});
+export const PreviewGroupedQuery = Preview.extend({
+  tags: ["!test"],
+  args: {
+    value: "(status:=open OR owner:=me) timeout",
+    tokens: [
+      { raw: "(", kind: "paren" as const },
+      { raw: "status:=open", kind: "filter" as const },
+      { raw: "OR", kind: "operator" as const },
+      { raw: "owner:=me", kind: "filter" as const },
+      { raw: ")", kind: "paren" as const },
+      { raw: "timeout", kind: "freeText" as const },
+    ].map((token, index) => {
+      const from = "(status:=open OR owner:=me) timeout".indexOf(token.raw);
+      return {
+        ...token,
+        id: String(index),
+        from,
+        to: from + token.raw.length,
+        editable: true,
+        error: null,
+        explanation: null,
+        inactiveReason: null,
+      };
+    }),
+  },
+});
+export const PreviewInactive = Preview.extend({
+  tags: ["!test"],
+  args: {
+    tokens: previewTokens.map((token) => ({
+      ...token,
+      inactiveReason: "Unavailable on this surface",
+    })),
+  },
+});
+export const PreviewInvalid = Preview.extend({
+  tags: ["!test"],
+  args: {
+    tokens: previewTokens.map((token) => ({
+      ...token,
+      kind: "invalid",
+      groups: undefined,
+      error: "Unknown field",
+    })),
+  },
+});
+export const TestPreviewPreservesText = meta.story({
+  render: ({ value, tokens, size }) => (
+    <QueryInput
+      mode="preview"
+      value={value}
+      tokens={tokens}
+      size={size}
+      tone="muted"
+    />
+  ),
+  name: "(Test) Read-only tokens preserve query text",
+  args: { value: "status:=open hello", tokens: previewTokens },
+  play: async ({ canvasElement, args }) => {
+    const token = within(canvasElement).getByTestId("search-bar-token");
+    const root = token.parentElement;
+    if (root === null) throw new Error("Expected token container");
+    await expect((root.textContent ?? "").split(WORD_JOINER).join("")).toBe(
+      args.value,
+    );
+    await expect(
+      within(canvasElement).queryByRole("combobox"),
+    ).not.toBeInTheDocument();
+    // IME recovery relies on all whitespace/plain text being managed elements.
+    for (const child of Array.from(root.childNodes)) {
+      await expect(child.nodeType).toBe(Node.ELEMENT_NODE);
+    }
+  },
+});
+
+export const Default = meta.story({ tags: ["!test"] });
+
+export const TestWrappingControl = meta.story({
+  name: "(Test) Control grows around wrapped query text",
+  args: { value: "status:=open owner:=me ".repeat(8) },
+  decorators: [
+    (Story) => (
+      <div className="w-60">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("combobox");
+    const surface = canvas.getByTestId("search-bar-surface");
+    await expect(input.getBoundingClientRect().height).toBeGreaterThan(32);
+    await expect(surface.getBoundingClientRect().height).toBeGreaterThan(
+      input.getBoundingClientRect().height,
+    );
+    await userEvent.click(input);
+    await expect(input).toHaveFocus();
+    await expect(getComputedStyle(surface).boxShadow).not.toBe("none");
+  },
+});
+
+export const TestSuggestionLoading = meta.story({
+  name: "(Test) Suggestions transition from loading to empty",
+  render: function SuggestionLoading(args) {
+    const controller = useQueryInputController();
+    const [loading, setLoading] = useState(true);
+    return (
+      <>
+        <QueryInput
+          {...args}
+          controller={controller}
+          completions={{ options: [], loading, autoHighlight: false }}
+        />
+        <button
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setLoading(false)}
+        >
+          Finish loading
+        </button>
+      </>
+    );
+  },
+  args: {
+    completions: {
+      options: [],
+      loading: true,
+      autoHighlight: false,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("combobox"));
+    await expect(
+      await within(document.body).findByRole("status"),
+    ).toHaveTextContent("Loading values…");
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Finish loading" }),
+    );
+    await expect(within(document.body).getByRole("status")).toHaveTextContent(
+      "No suggestions",
+    );
+  },
+});
+
+export const SuggestionPresentation = meta.story({
+  name: "(Test) Suggestion presentation",
+  args: {
+    completions: {
+      options: [
+        {
+          id: "field",
+          label: "rating",
+          section: "Fields",
+          detail: "Quality rating",
+          icon: "search" as const,
+          badges: [
+            {
+              text: "Item",
+              color: "blue" as const,
+              description: "Item-level rating",
+            },
+          ],
+        },
+        {
+          id: "pattern",
+          label: "rating:>3",
+          section: "Patterns",
+          detail: "Greater than",
+          icon: "syntax" as const,
+          labelColor: "teal" as const,
+        },
+        {
+          id: "preset",
+          label: "status:=open",
+          section: "Saved queries",
+          detail: "Used by 8 rules",
+          icon: "bookmark" as const,
+        },
+        {
+          id: "recent",
+          label: "owner:=me",
+          section: "Recent queries",
+          icon: "history" as const,
+        },
+        {
+          id: "value",
+          label: "open",
+          section: "Values",
+          detail: "23",
+          selected: true,
+        },
+      ].map((option) => ({
+        ...option,
+        edit: { next: "", caret: 0, keepOpen: false },
+        onApplied: fn(),
+      })),
+      loading: false,
+      autoHighlight: false,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("combobox"));
+    const list = within(await within(document.body).findByRole("listbox"));
+    await expect(list.getAllByRole("group")).toHaveLength(5);
+    await expect(list.getByText("Item")).toBeInTheDocument();
+    await expect(list.getByText("Used by 8 rules")).toBeInTheDocument();
+    await expect(list.getByLabelText("selected")).toBeInTheDocument();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(
+      list.getByRole("option", { name: /rating Item Quality rating/ }),
+    ).toHaveAttribute("aria-selected", "true");
+  },
+});
+
+export const InvalidQuery = meta.story({
+  tags: ["!test"],
+  args: {
+    value: "unknown:value",
+    diagnostics: [{ message: "Unknown field: unknown" }],
+  },
+});
+
+export const TestScrollableSuggestions = meta.story({
+  name: "(Test) Scrollable suggestions",
+  render: function ScrollableSuggestions(args) {
+    const controller = useQueryInputController();
+    const [loading, setLoading] = useState(false);
+    return (
+      <>
+        <QueryInput
+          {...args}
+          controller={controller}
+          completions={args.completions && { ...args.completions, loading }}
+        />
+        <button
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setLoading(true)}
+        >
+          Refresh suggestions
+        </button>
+      </>
+    );
+  },
+  args: {
+    completions: {
+      options: Array.from({ length: 60 }, (_, index) => ({
+        id: `option-${index}`,
+        label: `Option ${index}`,
+        section: "Many suggestions",
+        edit: {
+          next: `Option ${index}`,
+          caret: `Option ${index}`.length,
+          keepOpen: false,
+        },
+        onApplied: fn(),
+      })),
+      loading: false,
+      autoHighlight: false,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const input = within(canvasElement).getByRole("combobox");
+    await userEvent.click(input);
+    const listbox = await within(document.body).findByRole("listbox");
+    for (let index = 0; index < 50; index++)
+      await userEvent.keyboard("{ArrowDown}");
+    const active = within(listbox).getByRole("option", { selected: true });
+    await expect(active).toHaveTextContent("Option 49");
+    await expect(input).toHaveAttribute("aria-activedescendant", active.id);
+    await expect(input).toHaveFocus();
+    await waitFor(() => expect(listbox.scrollTop).toBeGreaterThan(0));
+    const bounds = listbox.getBoundingClientRect();
+    await expect(active.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      bounds.bottom + 1,
+    );
+    listbox.scrollTop = 0;
+    await userEvent.click(
+      within(canvasElement).getByRole("button", {
+        name: "Refresh suggestions",
+      }),
+    );
+    await expect(await within(listbox).findByRole("status")).toHaveTextContent(
+      "Loading values…",
+    );
+    await expect(active).toHaveAttribute("aria-selected", "true");
+    await expect(listbox.scrollTop).toBe(0);
+  },
+});
+
+export const TestControlledSelection = meta.story({
+  name: "(Test) Selection and Escape control suggestions inside a dialog",
+  decorators: [
+    (Story) => (
+      <DialogController
+        renderDialog={() => (
+          <Dialog title="Query dialog">
+            <Dialog.Body>
+              <Story />
+            </Dialog.Body>
+          </Dialog>
+        )}
+      >
+        {({ openDialog }) => (
+          <Button text="Open dialog" onClick={() => openDialog()} />
+        )}
+      </DialogController>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Open dialog" }),
+    );
+    const dialog = await body.findByRole("dialog", { name: "Query dialog" });
+    const input = within(dialog).getByRole("combobox");
+    await userEvent.click(input);
+    await userEvent.type(input, "status");
+    await body.findByRole("listbox");
+    // userEvent does not implement native contenteditable Shift+Arrow selection.
+    const selection = window.getSelection();
+    if (selection === null) throw new Error("Expected browser selection");
+    selection.selectAllChildren(input);
+    document.dispatchEvent(new Event("selectionchange"));
+    await waitFor(() =>
+      expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+    selection.collapseToEnd();
+    document.dispatchEvent(new Event("selectionchange"));
+    await body.findByRole("listbox");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+    await expect(dialog).toBeVisible();
+    await expect(input).toHaveTextContent("status");
+    await userEvent.keyboard("{ArrowDown}");
+    await body.findByRole("listbox");
+    await expect(input).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  },
+});
+
+const tooltipQuery = "alpha beta";
+
+const tooltipTokens: ComponentProps<typeof QueryInput>["tokens"] = [
+  {
+    id: "alpha",
+    from: 0,
+    to: 5,
+    raw: "alpha",
+    kind: "filter",
+    editable: true,
+    error: null,
+    explanation: { subject: "Alpha", predicate: "is the first filter" },
+    inactiveReason: null,
+  },
+  {
+    id: "beta",
+    from: 6,
+    to: 10,
+    raw: "beta",
+    kind: "filter",
+    editable: true,
+    error: null,
+    explanation: { subject: "Beta", predicate: "is the second filter" },
+    inactiveReason: null,
+  },
+];
+
+const tooltipCompletions: QueryCompletionPlan = {
+  options: [
+    {
+      id: "keep",
+      label: "alpha",
+      edit: { next: tooltipQuery, caret: 1, keepOpen: false },
+      onApplied: fn(),
+    },
+  ],
+  autoHighlight: false,
+  loading: false,
+};
+
+function placeCaretInToken(token: HTMLElement, text: string, offset: number) {
+  const node = Array.from(token.childNodes).find(
+    (child) => child.nodeType === Node.TEXT_NODE && child.textContent === text,
+  );
+  if (node === undefined) throw new Error(`Expected token text ${text}`);
+  const range = token.ownerDocument.createRange();
+  range.setStart(node, offset);
+  range.collapse(true);
+  const selection = token.ownerDocument.defaultView?.getSelection() ?? null;
+  if (selection === null) throw new Error("Expected a selection");
+  selection.removeAllRanges();
+  selection.addRange(range);
+  token.ownerDocument.dispatchEvent(new Event("selectionchange"));
+}
+
+async function typeInsideFirstToken(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement);
+  const input = canvas.getByRole("combobox", { name: "Query" });
+  const alpha = canvas.getAllByTestId("search-bar-token")[0];
+  if (alpha === undefined) throw new Error("Expected a token");
+  await userEvent.click(input);
+  placeCaretInToken(alpha, "alpha", 1);
+  await userEvent.hover(alpha);
+  await userEvent.keyboard("x");
+  await waitFor(() =>
+    expect(canvas.getByTestId("search-bar-surface")).toHaveAttribute(
+      "data-composer-text",
+      "axlpha beta",
+    ),
+  );
+  await expect(input).toHaveAttribute("aria-expanded", "true");
+  return { canvas, input };
+}
+
+export const TestTokenTooltipWhileTyping = meta.story({
+  name: "(Test) Token tooltip stays hidden while typing",
+  args: {
+    value: tooltipQuery,
+    tokens: tooltipTokens,
+    completions: tooltipCompletions,
+    placeholder: "Filter",
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const { canvas, input } = await typeInsideFirstToken(canvasElement);
+    await waitFor(() =>
+      expect(
+        body.queryByTestId("search-bar-token-tooltip"),
+      ).not.toBeInTheDocument(),
+    );
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(input).toHaveAttribute("aria-expanded", "false"),
+    );
+    const beta = canvas.getAllByTestId("search-bar-token")[1];
+    if (beta === undefined) throw new Error("Expected a second token");
+    await userEvent.hover(beta);
+    await expect(
+      await body.findByTestId("search-bar-token-tooltip"),
+    ).toHaveTextContent("Beta is the second filter");
+  },
+});
+
+export const TestCaretTokenErrorAfterSuggestionsClose = meta.story({
+  name: "(Test) Caret token error returns after suggestions close",
+  args: {
+    value: tooltipQuery,
+    tokens: tooltipTokens.map((token) =>
+      token.id === "alpha" ? { ...token, error: "Unknown field" } : token,
+    ),
+    diagnostics: [{ message: "Unknown field" }],
+    completions: tooltipCompletions,
+    placeholder: "Filter",
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const { input } = await typeInsideFirstToken(canvasElement);
+    await waitFor(() =>
+      expect(
+        body.queryByTestId("search-bar-token-tooltip"),
+      ).not.toBeInTheDocument(),
+    );
+    await userEvent.keyboard("{Escape}");
+    await expect(
+      await body.findByTestId("search-bar-token-tooltip"),
+    ).toHaveTextContent("Unknown field");
+    await expect(input).toHaveAttribute("aria-expanded", "false");
+  },
+});
+
+export const TestCompletionEdit = meta.story({
+  name: "(Test) Completion preserves focus and supports undo",
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("combobox", { name: "Query" });
+    await userEvent.click(input);
+    const body = within(canvasElement.ownerDocument.body);
+    const listbox = await body.findByRole("listbox", {
+      name: "Query suggestions",
+    });
+    await expect(canvasElement).not.toContainElement(listbox);
+    await userEvent.click(body.getByText("Suggested queries"));
+    await expect(input).toHaveFocus();
+    await expect(args.onCommit).not.toHaveBeenCalled();
+    await userEvent.click(body.getByRole("option", { name: "owner:=me" }));
+    await expect(input).toHaveFocus();
+    await expect(input).toHaveTextContent("owner:=me");
+    await expect(args.onCommit).toHaveBeenCalledWith("owner:=me ", "enter");
+    await waitFor(() =>
+      expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+    await userEvent.clear(input);
+    await userEvent.type(input, "status");
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onCommit).toHaveBeenCalledWith("status:=open ", "enter");
+    await expect(input).toHaveTextContent("status:=open");
+    await userEvent.keyboard("{Meta>}z{/Meta}");
+    await expect(input).toHaveTextContent(/^status$/);
+  },
+});
+
+export const TestPreviewEscapeInDialog = TestControlledSelection.extend({
+  name: "(Test) Escape dismisses the token preview before its dialog",
+  args: {
+    value: "status:=open",
+    tokens: previewTokens.map((token) => ({
+      ...token,
+      explanation: { subject: "Status", predicate: "is open" },
+    })),
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Open dialog" }),
+    );
+    const dialog = await body.findByRole("dialog", { name: "Query dialog" });
+    const input = within(dialog).getByRole("combobox");
+    await userEvent.click(input);
+    await userEvent.keyboard("{Escape}");
+    await userEvent.hover(within(dialog).getByTestId("search-bar-token"));
+    await body.findByTestId("search-bar-token-tooltip");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        body.queryByTestId("search-bar-token-tooltip"),
+      ).not.toBeInTheDocument(),
+    );
+    await expect(dialog).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  },
+});
+
+function collectionArgs(
+  values: string[],
+  compact: boolean,
+): Pick<ComponentProps<typeof QueryInput>, "value" | "tokens"> {
+  const source = `(${values.join(" OR ")})`;
+  const value = `status:${source} @baseline`;
+  return {
+    value,
+    tokens: [
+      {
+        ...previewTokens[0]!,
+        raw: value,
+        to: value.length,
+        explanation: { subject: "Status", predicate: `is ${values[0]}` },
+        collection: {
+          compact,
+          atom: {
+            from: "status:".length,
+            to: "status:".length + source.length,
+            raw: source,
+          },
+          label: `Status any of ${values.length} values`,
+          previewLabel: "Status",
+          previewDetail: `Any of ${values.length} values`,
+          selection: "included",
+          values,
+          groups: [
+            {
+              noWrap: true,
+              parts: [
+                { text: "status", tone: "field" },
+                { text: ":", tone: "muted" },
+              ],
+            },
+            { noWrap: true, parts: [{ text: values[0]!, tone: "value" }] },
+            { noWrap: true, parts: [{ text: " @baseline", tone: "target" }] },
+          ],
+        },
+      },
+    ],
+  };
+}
+
+export const TestCollectionPreviewHover = TestPreviewEscapeInDialog.extend({
+  name: "(Test) Collection preview stays hoverable and dismisses before its dialog",
+  args: {
+    ...collectionArgs(["open", "pending", "closed"], true),
+    onEditToken: fn(),
+    completions: {
+      autoHighlight: false,
+      loading: false,
+      options: [
+        {
+          id: "owner",
+          label: "owner:=me",
+          edit: { next: "owner:=me", caret: 9, keepOpen: false },
+          onApplied: fn(),
+        },
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    await page.viewport(320, 220);
+    try {
+      const body = within(canvasElement.ownerDocument.body);
+      await userEvent.click(
+        within(canvasElement).getByRole("button", { name: "Open dialog" }),
+      );
+      const dialog = await body.findByRole("dialog", { name: "Query dialog" });
+      const input = within(dialog).getByRole("combobox");
+      await userEvent.click(input);
+      await body.findByRole("listbox");
+      const collection = within(dialog).getByRole("button", {
+        name: "Edit Status any of 3 values",
+      });
+      await userEvent.hover(collection);
+      await expect(
+        body.queryByTestId("search-bar-token-tooltip"),
+      ).not.toBeInTheDocument();
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
+      );
+      await expect(dialog).toBeVisible();
+      const preview = await body.findByTestId("search-bar-token-tooltip");
+      const expectInsideViewport = () => {
+        const bounds = preview.getBoundingClientRect();
+        expect(bounds.top).toBeGreaterThanOrEqual(0);
+        expect(bounds.left).toBeGreaterThanOrEqual(0);
+        expect(bounds.bottom).toBeLessThanOrEqual(window.innerHeight);
+        expect(bounds.right).toBeLessThanOrEqual(window.innerWidth);
+      };
+      await waitFor(expectInsideViewport);
+      await page.viewport(320, 120);
+      await waitFor(expectInsideViewport);
+      await page.viewport(320, 220);
+      const outside = within(dialog).getByRole("button", { name: "Close" });
+      outside.focus();
+      await userEvent.hover(
+        within(dialog).getByRole("button", {
+          name: "Edit Status any of 3 values",
+        }),
+      );
+      const tooltip = await body.findByTestId("search-bar-token-tooltip");
+      await userEvent.hover(tooltip);
+      await expect(tooltip).toBeVisible();
+      await expect(outside).toHaveFocus();
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(
+          body.queryByTestId("search-bar-token-tooltip"),
+        ).not.toBeInTheDocument(),
+      );
+      await expect(dialog).toBeVisible();
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+    } finally {
+      await page.viewport(viewport.width, viewport.height);
+    }
+  },
+});
+
+export const TestCollectionEditAffordance = meta.story({
+  name: "(Test) Collection edit affordance opens the value editor",
+  args: {
+    ...collectionArgs(
+      ["open", "pending", "closed", "archived", "draft", "hold"],
+      true,
+    ),
+    onEditToken: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const collection = canvas.getByRole("button", {
+      name: "Edit Status any of 6 values",
+    });
+    await userEvent.click(collection);
+    await expect(args.onEditToken).toHaveBeenCalledTimes(1);
+    await expect(args.onEditToken).toHaveBeenCalledWith(
+      expect.objectContaining({ id: args.tokens[0]?.id }),
+      collection,
+    );
+
+    await userEvent.hover(collection);
+    const preview = await body.findByTestId("search-bar-token-tooltip");
+    await userEvent.click(
+      within(preview).getByRole("button", { name: "Edit values" }),
+    );
+    await expect(args.onEditToken).toHaveBeenCalledTimes(2);
+    await expect(args.onEditToken).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: args.tokens[0]?.id }),
+      collection,
+    );
+  },
+});
+
+export const TestCollectionSourceNavigation = TestCollectionPreviewHover.extend(
+  {
+    name: "(Test) Collection values preserve editable key navigation and source copying",
+    args: {
+      ...collectionArgs(
+        [`open-${"a".repeat(90)}`, `pending-${"b".repeat(90)}`],
+        false,
+      ),
+    },
+    play: async ({ canvasElement, args }) => {
+      const atom = args.tokens[0]?.collection?.atom;
+      if (atom === undefined) throw new Error("Expected a values-only atom");
+      const viewport = { width: window.innerWidth, height: window.innerHeight };
+      await page.viewport(320, 600);
+      try {
+        const canvas = within(canvasElement);
+        const body = within(canvasElement.ownerDocument.body);
+        await userEvent.click(
+          canvas.getByRole("button", { name: "Open dialog" }),
+        );
+        const dialog = await body.findByRole("dialog", {
+          name: "Query dialog",
+        });
+        const input = within(dialog).getByRole("combobox");
+        const collection = within(dialog).getByRole("button", {
+          name: "Edit Status any of 2 values",
+        });
+        await expect(collection).toHaveTextContent(atom.raw);
+        await expect(collection.getBoundingClientRect().height).toBeGreaterThan(
+          Number.parseFloat(getComputedStyle(collection).lineHeight),
+        );
+        await expect(input.scrollWidth).toBeLessThanOrEqual(input.clientWidth);
+        await expect(
+          collection.getBoundingClientRect().right,
+        ).toBeLessThanOrEqual(input.getBoundingClientRect().right);
+        await userEvent.click(input);
+        const range = document.createRange();
+        range.setStart(input, 0);
+        range.collapse(true);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+
+        await userEvent.keyboard("{ArrowRight}");
+        await expect(input).toHaveFocus();
+        await expect(selectionOffsets(input)).toEqual({ start: 1, end: 1 });
+        for (let index = 1; index < "status:".length; index++)
+          await userEvent.keyboard("{ArrowRight}");
+        await expect(input).toHaveFocus();
+        await userEvent.keyboard("{ArrowRight}");
+        await expect(collection).toHaveFocus();
+
+        const valuesClipboard = new DataTransfer();
+        collection.dispatchEvent(
+          new ClipboardEvent("copy", {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: valuesClipboard,
+          }),
+        );
+        await expect(valuesClipboard.getData("text/plain")).toBe(atom.raw);
+        await userEvent.keyboard("{ArrowLeft}");
+        await expect(input).toHaveFocus();
+        await expect(selectionOffsets(input)).toEqual({
+          start: atom.from,
+          end: atom.from,
+        });
+        await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+        await expect(input).toHaveFocus();
+        await expect(selectionOffsets(input)).toEqual({
+          start: atom.to,
+          end: atom.to,
+        });
+        await userEvent.keyboard("{ArrowLeft}");
+        await expect(collection).toHaveFocus();
+        await userEvent.keyboard("{Meta>}a{/Meta}");
+        const queryClipboard = new DataTransfer();
+        input.dispatchEvent(
+          new ClipboardEvent("copy", {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: queryClipboard,
+          }),
+        );
+        await expect(queryClipboard.getData("text/plain")).toBe(args.value);
+      } finally {
+        await page.viewport(viewport.width, viewport.height);
+      }
+    },
+  },
+);

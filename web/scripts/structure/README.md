@@ -71,13 +71,7 @@ spelling and only breaks on Linux CI.
 Flags: `--dry-run` (print the plan and every rewrite, change nothing),
 `--no-siblings`, `--no-verify` (skip the closing `tsc` + `--diff`), `--no-color`.
 
-The rewrites come from TypeScript's own
-`LanguageService.getEditsForFileRename` over the combined roots of
-`web/tsconfig.json` and `web/tsconfig.tests.json` — the exact
-primitive VS Code's "move file" uses — so `@/src/...` aliases, extension-less
-specifiers, index resolution and literal dynamic `import()` are the compiler's
-problem, not ours. Booting the service costs ~5–15s and every move after that
-is instant, which is why the CLI is batch-shaped.
+The rewrites come from TypeScript's own `LanguageService.getEditsForFileRename` over the roots of `web/tsconfig.json` — the exact primitive VS Code's "move file" uses — so `@/src/...` aliases, extension-less specifiers, index resolution and literal dynamic `import()` are the compiler's problem, not ours. Booting the service costs ~5–15s and every move after that is instant, which is why the CLI is batch-shaped.
 
 - **Batch moves need a live layout.** The host is mutable: each rename bumps the
   affected script versions and the project version, so move #2 computes its
@@ -99,7 +93,7 @@ is instant, which is why the CLI is batch-shaped.
   would point a moved file at something left behind aborts the whole batch —
   move that sibling too, or do the move by hand.
 - **History is preserved**: `git mv`, so `log --follow` and `blame -C` keep
-  working. Importer rewrites go through prettier (a longer specifier can push a
+  working. Importer rewrites go through Oxfmt (a longer specifier can push a
   line past the print width) and are left **unstaged** — `git mv` stages the
   renames by nature, but staging edited importers would fold any unrelated work
   in them into this move's index entry. A rewrite target that already has

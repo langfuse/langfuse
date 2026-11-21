@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 
 /** useSlackConnect runs the Slack OAuth popup flow for a project and tracks whether it is pending or failed; it reports the outcome in a toast unless `shouldToast` is false. */

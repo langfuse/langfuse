@@ -91,7 +91,7 @@ export const PicksOrg = SetupSeveralOrgs.extend({
       undefined,
     );
     await expect(getRouter().push).toHaveBeenCalledWith(
-      "/organization/org-acme-research/settings/ai-gateway",
+      "/organization/org-acme-research/ai-gateway",
     );
   },
 });

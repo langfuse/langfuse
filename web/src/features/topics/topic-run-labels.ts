@@ -1,13 +1,34 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { costFormatter } from "@/src/utils/numbers";
 import {
+  type TopicExecutionSummary,
   type TopicExecutionStatus,
   type TopicOperation,
 } from "@langfuse/shared/topics";
 
-export const operationLabels: Record<TopicOperation, string> = {
+export type TopicRunWithCost = TopicExecutionSummary & {
+  estimatedCost?: number | null;
+};
+
+type RunCostInput = {
+  operation: TopicOperation;
+  analysis?: { summarize?: unknown };
+};
+
+const operationLabels: Record<TopicOperation, string> = {
   process: "Analyze traces",
   update: "Regenerate topics",
 };
+
+/** A run's name in History: snapshots carry their own name. */
+export function runLabel(input: {
+  operation: TopicOperation;
+  analysis?: { label: string };
+}) {
+  return input.operation === "update" && input.analysis
+    ? `Snapshot · ${input.analysis.label}`
+    : operationLabels[input.operation];
+}
 
 export const executionLabels: Record<TopicExecutionStatus, string> = {
   queued: "Queued",
@@ -28,3 +49,17 @@ export const executionBadgeTypes: Record<TopicExecutionStatus, Status> = {
 
 export const busy = (status: string) =>
   status === "queued" || status === "running";
+
+export function createsSummaries(input: RunCostInput) {
+  return input.operation === "process" || Boolean(input.analysis?.summarize);
+}
+
+export function formatTopicRunCost(
+  input: RunCostInput,
+  estimatedCost: number | null | undefined,
+) {
+  if (!createsSummaries(input)) return "No new summaries";
+  if (estimatedCost === undefined) return "Loading…";
+  if (estimatedCost === null) return "Unavailable";
+  return `~${costFormatter(estimatedCost)}`;
+}

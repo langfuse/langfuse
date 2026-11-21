@@ -1,4 +1,4 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { TeamInviteFailuresAlert } from "@/src/features/ai-gateway/components/TeamInviteFailuresAlert";
@@ -58,10 +58,9 @@ export function TeamInviteDialog({
         </p>
         <TeamInviteFields {...form.fieldsProps} />
         {errorMessage ? (
-          <Alert variant="destructive">
-            <Alert.Title>Notifications could not be sent</Alert.Title>
-            <Alert.Description>{errorMessage}</Alert.Description>
-          </Alert>
+          <Banner variant="error" title="Notifications could not be sent">
+            {errorMessage}
+          </Banner>
         ) : null}
         {form.failures.length > 0 ? (
           <TeamInviteFailuresAlert failures={form.failures} />

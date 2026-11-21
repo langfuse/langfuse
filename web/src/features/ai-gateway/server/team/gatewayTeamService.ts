@@ -14,17 +14,15 @@ import {
 import { env } from "@/src/env.mjs";
 import {
   getSfdcService,
-  type SetUserRoleInput,
   type SfdcService,
-} from "@/src/ee/features/sfdc-sync/server";
-import {
-  inviteOrganizationMember,
-  OrganizationMembersService,
-} from "@/src/features/rbac/server";
+  type SetUserRoleInput,
+} from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
+import { OrganizationMembersService } from "@/src/features/rbac/server/organizationMembersService";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 const MEMBER_SUGGESTION_LIMIT = 4;
-const GATEWAY_USER_SCOPE = "gateway:invoke";
+export const GATEWAY_USER_SCOPE = "gateway:invoke";
 
 type GatewayInvitationEmail = Extract<
   NotificationEventType,

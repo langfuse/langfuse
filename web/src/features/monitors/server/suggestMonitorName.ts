@@ -7,7 +7,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 
-import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server";
+import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
 
 /** Generates a concise monitor name when Langfuse AI features are available. */
 export async function suggestMonitorName({

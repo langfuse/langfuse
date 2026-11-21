@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { type ColumnDefinition } from "../tableDefinitions";
+import type { ColumnDefinition } from "../tableDefinitions/types";
+import { promptsTableCols } from "../tableDefinitions/promptsTable";
 import { type FilterState } from "../types";
 import { tableColumnsToSqlFilter } from "./filterToPrisma";
 
@@ -99,4 +100,27 @@ describe("tableColumnsToSqlFilter LIKE wildcards", () => {
     );
     expect(sql.values).toEqual(["env", "prod\\_eu"]);
   });
+});
+
+describe("tableColumnsToSqlFilter empty array selections", () => {
+  it.each(["all of", "none of"] as const)(
+    "skips an `%s` filter that is still waiting for a selection",
+    (operator) => {
+      const sql = tableColumnsToSqlFilter(
+        [
+          { column: "Labels", type: "arrayOptions", operator, value: [] },
+          {
+            column: "Tags",
+            type: "arrayOptions",
+            operator: "any of",
+            value: ["a"],
+          },
+        ] as FilterState,
+        promptsTableCols,
+        "prompts",
+      );
+      expect(sql.sql).not.toContain("labels");
+      expect(sql.sql).toContain("tags");
+    },
+  );
 });

@@ -110,7 +110,8 @@ describe("withGatewayResolveSignatureVerification", () => {
     async (secret) => {
       vi.useFakeTimers();
       vi.setSystemTime(now);
-      const body = '{ "apiFormat": "openai.responses", "model": "gpt-5" }\n';
+      const body =
+        '{ "apiFormat": "openai.responses", "model": "gpt-5", "requestBytes": 512 }\n';
       const req = request({
         authorization: "  Bearer   sk-gateway  ",
         gatewayAuthorization: gatewayAuthorization({ secret }),
@@ -127,6 +128,7 @@ describe("withGatewayResolveSignatureVerification", () => {
         fastHashedSecretKey: createShaHash("sk-gateway", "test-salt"),
         apiFormat: "openai.responses",
         model: "gpt-5",
+        requestBytes: 512,
       });
     },
   );
@@ -143,6 +145,7 @@ describe("withGatewayResolveSignatureVerification", () => {
           body: JSON.stringify({
             apiFormat: "openai.responses",
             model,
+            requestBytes: 0,
           }),
         }),
         res,
@@ -205,7 +208,7 @@ describe("withGatewayResolveSignatureVerification", () => {
           secret: "current-service-secret",
           key: "sk-other-gateway",
         }),
-        body: '{"apiFormat":"openai.responses","model":"gpt-5"}',
+        body: '{"apiFormat":"openai.responses","model":"gpt-5","requestBytes":0}',
       }),
       res,
     );
@@ -221,7 +224,8 @@ describe("withGatewayResolveSignatureVerification", () => {
   it("rejects stale signatures and headers containing a key id", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
-    const body = '{"apiFormat":"openai.responses","model":"gpt-5"}';
+    const body =
+      '{"apiFormat":"openai.responses","model":"gpt-5","requestBytes":0}';
     const staleHeader = gatewayAuthorization({
       secret: "current-service-secret",
       timestamp: Math.floor(now.getTime() / 1000) - 301,

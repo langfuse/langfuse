@@ -14,9 +14,9 @@ import {
 import {
   canReuseOutlierPlaceholder,
   pickChartGranularity,
-} from "@/src/features/events";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+} from "@/src/features/events/components/outlier-strip/lib/binning";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ScoreOutlierStripHeader } from "@/src/features/scores-chart-view/components/ScoreOutlierStripHeader";
 import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
 import { canApplyScoreOutlierStripFilters } from "@/src/features/scores-chart-view/fns/outlierStripFilters";
