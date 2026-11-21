@@ -96,6 +96,25 @@ describe("useTraceDetailData (beta / events path)", () => {
     expect(r.isError).toBe(true);
   });
 
+  it("surfaces a NOT_FOUND error as isNotFound", () => {
+    // A signed-out viewer opening a non-public trace gets NOT_FOUND; without
+    // this the page has neither data nor a known error and shows Loading forever.
+    mockUseSession.mockReturnValue({ status: "unauthenticated" });
+    mockTraceReadConfigQuery.mockReturnValue({
+      data: { v4WriteMode: "events_only" },
+      isLoading: false,
+    });
+    mockUseEventsTraceData.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: { data: { code: "NOT_FOUND" } },
+      truncatedAtObservations: undefined,
+    });
+    const r = render();
+    expect(r.isNotFound).toBe(true);
+    expect(r.isUnauthorized).toBe(false);
+  });
+
   it("treats no-data-after-loading (no error) as a genuine not-found", () => {
     mockUseEventsTraceData.mockReturnValue({
       data: undefined,
