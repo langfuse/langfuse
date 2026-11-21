@@ -23,6 +23,8 @@ const state = vi.hoisted(() => ({
   resultsDataAvailable: true,
   mobileHeader: false,
   resultFacets: [] as Array<{ facetId: string; name: string }>,
+  resultsPlaceholder: false,
+  replace: vi.fn(),
   openAutomaticProcessing: vi.fn(),
   push: vi.fn(),
   openConfigure: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock("next/router", () => ({
   useRouter: () => ({
     query: { projectId: "project", executionId: state.executionId },
     push: state.push,
+    replace: state.replace,
   }),
 }));
 vi.mock("@/src/components/layouts/Page", () => ({
@@ -129,6 +132,7 @@ vi.mock("./CurrentTopics", () => ({
           }
         : undefined,
       isLoading: false,
+      isPlaceholderData: state.resultsPlaceholder,
     };
   },
   CurrentTopics: ({
@@ -312,6 +316,7 @@ beforeEach(() => {
   state.resultsDataAvailable = true;
   state.mobileHeader = false;
   state.resultFacets = [];
+  state.resultsPlaceholder = false;
   state.hasStoredSummaries = true;
   state.status = "failed";
   state.executionUpdatedAt = 110;
@@ -365,6 +370,20 @@ it("keeps the question picker reachable with the mobile header", () => {
   state.rules = [{ facetIds: ["intent"] }];
   renderTopicsPage();
   expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
+});
+
+it("names the shown facet in the URL only from the selected map's own results", () => {
+  state.rules = [{ facetIds: ["intent"] }];
+  state.resultFacets = [{ facetId: "intent", name: "Intent" }];
+  state.resultsPlaceholder = true;
+  const view = renderTopicsPage();
+  const query = () => state.replace.mock.lastCall?.[0].query;
+  expect(query()).toMatchObject({ map: "rule:rule-0" });
+  expect(query()).not.toHaveProperty("topicFacet");
+
+  state.resultsPlaceholder = false;
+  view.rerender(<TopicsPage />);
+  expect(query()).toMatchObject({ map: "rule:rule-0", topicFacet: "intent" });
 });
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
