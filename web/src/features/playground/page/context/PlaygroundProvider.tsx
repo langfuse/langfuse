@@ -1,3 +1,4 @@
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React, {
   createContext,
