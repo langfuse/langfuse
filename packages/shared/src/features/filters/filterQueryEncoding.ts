@@ -167,13 +167,23 @@ export function decodeFiltersGeneric(query: string): FilterState {
       continue;
     }
 
-    const decodedOperator = decodeURIComponent(operator);
-    const decodedKey = key ? decodeURIComponent(key) : "";
+    const decodedOperator = tryDecodeFilterComponent(operator);
+    const decodedValue = tryDecodeFilterComponent(encodedValue);
+    const decodedTarget = tryDecodeFilterComponent(target ?? "");
+    if (
+      decodedOperator === undefined ||
+      decodedValue === undefined ||
+      decodedTarget === undefined
+    ) {
+      continue;
+    }
+
+    // Keep raw keys from legacy links when they cannot be percent-decoded.
+    const decodedKey = tryDecodeFilterComponent(key) ?? key;
     const normalizedKey =
       type === "positionInTrace"
         ? normalizeLegacySessionPositionInTraceKey(decodedKey)
         : decodedKey;
-    const decodedValue = decodeURIComponent(encodedValue);
 
     // Parse value based on type
     let parsedValue: any;
@@ -209,7 +219,7 @@ export function decodeFiltersGeneric(query: string): FilterState {
       type,
       operator: decodedOperator,
       value: parsedValue,
-      ...(target ? { target: decodeURIComponent(target) } : {}),
+      ...(decodedTarget ? { target: decodedTarget } : {}),
     };
 
     // Add key field for types that need it
@@ -238,4 +248,13 @@ export function decodeFiltersGeneric(query: string): FilterState {
   }
 
   return filters;
+}
+
+function tryDecodeFilterComponent(component: string): string | undefined {
+  try {
+    return decodeURIComponent(component);
+  } catch (error) {
+    if (error instanceof URIError) return undefined;
+    throw error;
+  }
 }

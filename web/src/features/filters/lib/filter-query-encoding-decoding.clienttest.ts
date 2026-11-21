@@ -275,6 +275,34 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       ]);
     });
 
+    it("keeps legacy percent signs in keys and skips malformed filter entries", () => {
+      const result = decodeFilters(
+        [
+          "metadata;stringObject;cpu%;=;x",
+          "metadata;stringObject;cpu;%;x",
+          "metadata;stringObject;cpu;=;%E0%A4",
+          "metadata;stringObject;cpu;=;x;%",
+          "environment;stringOptions;;any of;production",
+        ].join(","),
+      );
+
+      expect(result).toEqual([
+        {
+          column: "metadata",
+          type: "stringObject",
+          key: "cpu%",
+          operator: "=",
+          value: "x",
+        },
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ]);
+    });
+
     it("should decode exclusive filters", () => {
       const result = decodeFilters("period;stringOptions;;none of;triassic");
       expect(result).toEqual([
