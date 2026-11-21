@@ -85,9 +85,6 @@ const EAGER_EVENT_FILTER_OPTION_COLUMNS = [
   "trace_score_booleans",
 ] as const satisfies readonly EventFilterOptionColumn[];
 
-const EAGER_COLUMN_SET: ReadonlySet<string> = new Set(
-  EAGER_EVENT_FILTER_OPTION_COLUMNS,
-);
 const VALID_FILTER_OPTION_COLUMNS: ReadonlySet<string> = new Set(
   ALL_EVENT_FILTER_OPTION_COLUMNS,
 );
@@ -133,8 +130,12 @@ type UseEventsFilterOptionsParams = {
    */
   includeApproxCount?: boolean;
   isRootObservation?: boolean;
-  /** Explicit column subset (non-lazy; ignored when `lazy`). Omit to request
-   *  all — request-all cannot self-exclude, so only valid unfiltered. */
+  /** Columns loaded up front.
+   *  Lazy mode: this list is the eager set. Omit it to use the default eager
+   *  set (sidebar facets plus score catalogs) and load everything else on
+   *  demand. Non-lazy mode: this list is the entire request. Omit it only when
+   *  unfiltered — request-all cannot self-exclude.
+   */
   columns?: EventFilterOptionColumnsInput;
   /**
    * Lazy mode (v4 events table): request only the eagerly-visible columns up
@@ -198,6 +199,16 @@ export function useEventsFilterOptions({
     ReadonlySet<EventFilterOptionColumn>
   >(() => new Set());
 
+  const eagerColumns = lazy
+    ? (columns ?? EAGER_EVENT_FILTER_OPTION_COLUMNS)
+    : columns;
+  // Keyed by content: callers often pass a fresh array literal each render.
+  const eagerColumnsKey = eagerColumns?.join(",") ?? "";
+  const eagerColumnSet = useMemo<ReadonlySet<string>>(
+    () => new Set(eagerColumnsKey.split(",")),
+    [eagerColumnsKey],
+  );
+
   const requestColumns = useCallback(
     (cols: readonly string[]) => {
       if (!lazy) return;
@@ -206,7 +217,7 @@ export function useEventsFilterOptions({
         for (const col of cols) {
           if (
             isEventFilterOptionColumn(col) &&
-            !EAGER_COLUMN_SET.has(col) &&
+            !eagerColumnSet.has(col) &&
             !prev.has(col)
           ) {
             if (next === null) {
@@ -219,7 +230,7 @@ export function useEventsFilterOptions({
         return next ?? prev;
       });
     },
-    [lazy],
+    [lazy, eagerColumnSet],
   );
 
   const lazyColumns = useMemo(
@@ -233,10 +244,10 @@ export function useEventsFilterOptions({
     () =>
       planEventFacetQueries<EventFilterOptionColumn>({
         refiningFilter: splitFilter.refiningFilter,
-        eagerColumns: lazy ? EAGER_EVENT_FILTER_OPTION_COLUMNS : columns,
+        eagerColumns,
         lazyColumns,
       }),
-    [splitFilter.refiningFilter, lazy, columns, lazyColumns],
+    [splitFilter.refiningFilter, eagerColumns, lazyColumns],
   );
 
   const countPlaceholderOptions = tablePlaceholderOptions({
