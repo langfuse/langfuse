@@ -425,7 +425,8 @@ export function EventsOutlierStrip({
           </AggDropdownController>
         )}
         {topicStripe && (
-          <div className="ml-auto w-80 min-w-0 -translate-y-px">
+          // Shorter than the row so the late-loading stripe never grows it.
+          <div className="ml-auto flex h-3 w-80 min-w-0 flex-col justify-center self-center">
             <TopicStripe {...topicStripe} />
           </div>
         )}
