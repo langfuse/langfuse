@@ -12,7 +12,8 @@ export type SendEvaluatorBlockedEmailParams = {
       | "EMAIL_FROM_ADDRESS"
       | "SMTP_CONNECTION_URL"
       | "NEXTAUTH_URL"
-      | "CLOUD_CRM_EMAIL",
+      | "CLOUD_CRM_EMAIL"
+      | "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION",
       string | undefined
     >
   >;
@@ -53,6 +54,7 @@ export const sendEvaluatorBlockedEmail = async ({
         blockMessage,
         resolutionUrl,
         receiverEmail,
+        langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       }),
     );
 

@@ -20,6 +20,7 @@ type ProjectNotificationEmailEnv = {
   SMTP_CONNECTION_URL: string;
   NEXTAUTH_URL: string;
   CLOUD_CRM_EMAIL: string | undefined;
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: string | undefined;
 };
 
 /**
@@ -144,6 +145,7 @@ async function dispatchAdminEmails({
     SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
     NEXTAUTH_URL: env.NEXTAUTH_URL,
     CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
 
   const receiverEmails = await getProjectAdminEmails(projectId);

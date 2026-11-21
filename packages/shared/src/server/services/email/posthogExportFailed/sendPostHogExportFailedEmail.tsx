@@ -12,13 +12,13 @@ export const postHogExportFailedEmailCopy: IntegrationExportFailedEmailCopy = {
   subjectLabel: "PostHog",
   headingLabel: "PostHog",
   inlineLabel: "PostHog",
-  disabledBody: (projectName) => (
+  disabledBody: (projectName, regionSuffix) => (
     <>
       The PostHog export for project &quot;{projectName}
-      &quot; has been disabled after a configuration fault. This usually means
-      the PostHog host is no longer reachable or valid, or PostHog rejected the
-      API key. Once you have fixed it, simply re-enable the export in the
-      integration settings and it will pick up right where it left off.
+      &quot;{regionSuffix} has been disabled after a configuration fault. This
+      usually means the PostHog host is no longer reachable or valid, or PostHog
+      rejected the API key. Once you have fixed it, simply re-enable the export
+      in the integration settings and it will pick up right where it left off.
     </>
   ),
 };
