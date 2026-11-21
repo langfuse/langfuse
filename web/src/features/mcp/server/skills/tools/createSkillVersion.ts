@@ -37,7 +37,7 @@ export const [createSkillVersionTool, handleCreateSkillVersion] = defineTool({
     "Create a skill or a new immutable version of an existing skill in the current project.",
     "Provide all files as inline text, including SKILL.md with YAML frontmatter containing name and description.",
     "The name identifies the skill; using an existing name creates its next version. Omitted files are absent from the new version, while earlier versions remain unchanged.",
-    "New versions receive the latest label; this does not promote them to production or install them into Halo's own instructions.",
+    "New versions receive the latest label only; they are not promoted to production (use updateSkillLabels for that).",
   ].join(" "),
   action: "skills:CUD",
   baseSchema: CreateSkillVersionBaseSchema,

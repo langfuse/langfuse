@@ -44,9 +44,9 @@ const BatchCreateScoresInputSchema = z.object({
 export const [batchCreateScoresTool, handleBatchCreateScores] = defineTool({
   name: "batchCreateScores",
   description: [
-    `Create up to ${MAX_BATCH_CREATE_SCORES} scores in the current Langfuse project in one call. Each score accepts the same fields as createScore.`,
-    "All scores are validated before any is created; an invalid score rejects the whole call. Scores that fail during creation are listed in errors by index while the others are still created.",
-    "Score reads are eventually consistent: after creation, getScore and listScores may not return the new scores immediately. Wait briefly and retry reads when confirming creation.",
+    `Create up to ${MAX_BATCH_CREATE_SCORES} scores in one call, each as in createScore; ids must be unique within the batch.`,
+    "A schema error in any score rejects the whole call before anything is created. Otherwise scores are created one by one and the call returns { data, errors } keyed by input index; a score that fails is listed in errors while the others are still created.",
+    "Reads are eventually consistent: getScore and listScores may not return new scores immediately; wait briefly and retry.",
   ].join("\n"),
   action: "scores:save",
   baseSchema: BatchCreateScoresBaseSchema,

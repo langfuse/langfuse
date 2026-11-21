@@ -53,8 +53,13 @@ const GetObservationFilterValuesBaseSchema = z.object({
   observationType: ObservationTypeDomain.optional(),
   isRootObservation: z.boolean().optional(),
   hasParentObservation: z.boolean().optional(),
-  limit: ObservationLimitSchema,
-  cursor: z.string().optional(),
+  limit: ObservationLimitSchema.describe(
+    "Distinct values per page; ignored for numeric columns.",
+  ),
+  cursor: z
+    .string()
+    .optional()
+    .describe("Cursor from the previous response's meta.cursor."),
 });
 
 type FilterOption = {

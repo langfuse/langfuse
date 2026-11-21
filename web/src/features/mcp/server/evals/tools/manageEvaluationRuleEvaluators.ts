@@ -49,7 +49,7 @@ export const [
 ] = defineTool({
   name: "detachEvaluatorFromEvaluationRule",
   description:
-    "Detach a project evaluator from an observation evaluation rule using their stable IDs.",
+    "Detach a project evaluator from an observation evaluation rule using their stable IDs. A rule left with no evaluators is deactivated.",
   action: "evaluationRule:CUD",
   baseSchema: DetachEvaluatorFromEvaluationRuleInputSchema,
   inputSchema: DetachEvaluatorFromEvaluationRuleInputSchema,

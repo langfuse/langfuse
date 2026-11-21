@@ -9,7 +9,7 @@ export const [updateAnnotationQueueItemTool, handleUpdateAnnotationQueueItem] =
   defineTool({
     name: "updateAnnotationQueueItem",
     description:
-      "Update an annotation queue item's review status, such as pending or completed.",
+      "Set one annotation queue item's review status and return it with its UI url, e.g. mark it COMPLETED once its scores are recorded.",
     action: "annotationQueues:CUD",
     baseSchema: UpdateAnnotationQueueItemToolSchema,
     inputSchema: UpdateAnnotationQueueItemToolSchema,

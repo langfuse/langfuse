@@ -4170,8 +4170,8 @@ describe("MCP Read Tools", () => {
   });
 
   describe("createScoreConfig tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createScoreConfigTool, { destructiveHint: true });
+    it("should not have destructiveHint annotation", () => {
+      verifyToolAnnotations(createScoreConfigTool, { destructiveHint: false });
     });
 
     it("should describe allowed score config name characters in the input schema", () => {

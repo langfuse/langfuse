@@ -248,17 +248,11 @@ describe("MCP public API tools", () => {
       .sort();
     expect(destructiveToolNames).toEqual(
       [
-        "addDashboardPlacement",
         "attachEvaluatorToEvaluationRule",
         "batchCreateScores",
         "batchUpsertDatasetItems",
         "createChatPrompt",
-        "createDashboard",
-        "createDashboardWidget",
-        "createEvaluationRule",
-        "createEvaluator",
         "createScore",
-        "createScoreConfig",
         "createSkillVersion",
         "createTextPrompt",
         "deleteAnnotationQueueAssignment",

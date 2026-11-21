@@ -176,7 +176,7 @@ export const ObservationFieldsSchema = z
     }
   })
   .describe(
-    'Observation fields to include in the response. Omit for compact defaults, use ["*"] for all available fields, or pass specific field names to keep responses small. Call getObservationFieldSchema to list accepted fields.',
+    'Omit for compact defaults, ["*"] for all fields, or specific names from getObservationFieldSchema to keep responses small.',
   );
 
 export const ObservationLimitSchema = z.coerce
@@ -184,14 +184,13 @@ export const ObservationLimitSchema = z.coerce
   .int()
   .min(1)
   .max(100)
-  .default(50)
-  .describe("Number of observations to return (1-100, default: 50)");
+  .default(50);
 
 export const ExpandMetadataKeysSchema = z
   .array(z.string())
   .optional()
   .describe(
-    "Metadata keys that may need full values. Metadata values are truncated to 200 UTF-8 characters per key by default when metadata is projected without this option.",
+    "Metadata keys to return in full; other projected metadata values are truncated to 200 UTF-8 characters per key.",
   );
 
 type ObservationMcpFilterColumn =

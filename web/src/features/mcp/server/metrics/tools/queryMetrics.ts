@@ -115,20 +115,41 @@ const normalizeMetricOrderByFields = (
 };
 
 const MetricsQueryObjectV2BaseSchema = z.object({
-  view: viewsV2,
-  dimensions: z.array(dimension).optional().default([]),
-  metrics: z.array(metric),
-  filters: z.array(McpAdvancedFilterBaseSchema).optional().default([]),
+  view: viewsV2.describe(
+    "observations covers usage, cost, latency and errors; scores-* views cover scores of that data type.",
+  ),
+  dimensions: z
+    .array(dimension)
+    .optional()
+    .default([])
+    .describe(
+      'Group-by fields from getMetricsSchema, e.g. [{ field: "providedModelName" }].',
+    ),
+  metrics: z
+    .array(metric)
+    .describe(
+      'e.g. [{ measure: "totalCost", aggregation: "sum" }], using each measure\'s validAggregations. Result columns are named <aggregation>_<measure>.',
+    ),
+  filters: z
+    .array(McpAdvancedFilterBaseSchema)
+    .optional()
+    .default([])
+    .describe(
+      "ANDed. Take column, type (its filterType) and operator from getMetricsSchema filterableColumns. value is a string array for stringOptions/arrayOptions and an ISO timestamp for datetime; stringObject (metadata) needs key.",
+    ),
   timeDimension: z
     .object({
       granularity: publicGranularities,
     })
-    .optional(),
+    .optional()
+    .describe(
+      "Adds a time_dimension column, one row per bucket per group. Omit for totals.",
+    ),
   fromTimestamp: isoDateTime({ offset: true }).describe(
-    "Required start of the analytics time range, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Must be before toTimestamp.",
+    "ISO 8601 with timezone (Z or offset).",
   ),
   toTimestamp: isoDateTime({ offset: true }).describe(
-    "Required end of the analytics time range, as an ISO 8601 timestamp with timezone. Must be after fromTimestamp. timeDimension.granularity controls aggregation buckets; it does not replace these explicit time bounds.",
+    "ISO 8601 with timezone; must be after fromTimestamp.",
   ),
   orderBy: z
     .array(
@@ -137,11 +158,26 @@ const MetricsQueryObjectV2BaseSchema = z.object({
         direction: z.enum(["asc", "desc"]),
       }),
     )
-    .optional(),
+    .optional()
+    .describe(
+      "field is a dimension, a metric alias such as sum_totalCost, or time_dimension.",
+    ),
   config: z
     .object({
-      bins: z.number().int().min(1).max(100).optional(),
-      row_limit: z.number().int().positive().lte(1000).optional(),
+      bins: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe("Bucket count for histogram."),
+      row_limit: z
+        .number()
+        .int()
+        .positive()
+        .lte(1000)
+        .optional()
+        .describe("Max rows; default 100."),
     })
     .optional(),
 });
@@ -149,8 +185,11 @@ const MetricsQueryObjectV2BaseSchema = z.object({
 export const [queryMetricsTool, handleQueryMetrics] = defineTool({
   name: "queryMetrics",
   action: "metrics:read",
-  description:
-    "Answer analytics questions about the current Langfuse project, such as usage over time, model costs, latency, errors, scores, or grouped breakdowns by environment, trace, observation, model, user, session, tag, or score name.",
+  description: [
+    "Run an aggregate analytics query (usage, cost, latency, errors or scores) over one view, optionally grouped by dimensions and bucketed over time. Returns { data: rows }, one per group and time bucket; for individual records use listObservations.",
+    "Call getMetricsSchema first: dimensions, measures, aggregations, filter columns and orderBy fields differ per view, and invalid names are rejected.",
+    "A fromTimestamp older than the plan's data-access window is moved to the window start.",
+  ].join("\n"),
   baseSchema: MetricsQueryObjectV2BaseSchema,
   inputSchema: MetricsQueryObjectV2,
   handler: async (input, context) => {

@@ -15,8 +15,8 @@ export const [createEvaluationRuleTool, handleCreateEvaluationRule] =
   defineTool({
     name: "createEvaluationRule",
     description: [
-      "Create an observation evaluation rule with one or more evaluator assignments.",
-      "Each assignment references a project evaluator by stable ID. LLM-as-a-judge and decision-model assignments may override their variable mapping; code evaluator assignments must omit it.",
+      "Create an observation evaluation rule with one or more evaluator assignments. While enabled, the rule continuously runs its evaluators on new observations matching the filter (sampled at `sampling`), which incurs model or code execution cost per evaluated observation. To evaluate existing observations, use runBatchEvaluation.",
+      "Each assignment references a project evaluator by ID from listEvaluators or createEvaluator. LLM-as-a-judge and decision-model assignments may override their variable mapping; code evaluator assignments must omit it.",
     ].join(" "),
     action: "evaluationRule:CUD",
     baseSchema: CreateEvaluationRuleBaseSchema,
@@ -49,5 +49,5 @@ export const [createEvaluationRuleTool, handleCreateEvaluationRule] =
           return toMcpEvaluationRule(evaluationRule);
         },
       }),
-    destructiveHint: true,
+    destructiveHint: false,
   });

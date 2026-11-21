@@ -8,7 +8,7 @@ import { GetDatasetsMcpInput } from "../schema";
 export const [listDatasetsTool, handleListDatasets] = defineTool({
   name: "listDatasets",
   description:
-    "List datasets, named collections of input and optional expected-output examples for experiments and evaluations. Optionally filter by dataset name to find a dataset ID.",
+    "List datasets (named collections of input/expected-output examples), newest first and paginated, with id, name, description, metadata, JSON Schemas, timestamps and UI url. Use it to find the datasetId other dataset tools need; items are in listDatasetItems.",
   action: "datasets:read",
   baseSchema: GetDatasetsMcpInput,
   inputSchema: GetDatasetsMcpInput,

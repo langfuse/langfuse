@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   DeleteModelV1Query,
   DeleteModelV1Response,
@@ -9,9 +10,16 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 export const [deleteModelTool, handleDeleteModel] = defineTool({
   name: "deleteModel",
   description:
-    "Delete a custom model definition from the current project. Built-in models cannot be deleted.",
+    "Permanently delete a custom model price definition; existing " +
+    "observation costs are not recalculated. Langfuse-managed models " +
+    "return not found; to override their pricing, createModel with a " +
+    "matchPattern covering the same names (custom models take precedence).",
   action: "models:CUD",
-  baseSchema: DeleteModelV1Query,
+  baseSchema: DeleteModelV1Query.extend({
+    modelId: z
+      .string()
+      .describe("Custom model id from listModels (isLangfuseManaged false)."),
+  }),
   inputSchema: DeleteModelV1Query,
   handler: async (input, context) =>
     runMcpTool({

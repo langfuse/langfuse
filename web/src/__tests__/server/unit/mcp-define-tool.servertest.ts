@@ -41,12 +41,45 @@ describe("defineTool", () => {
         undefined,
       );
     }
-    const invalid = "2024-02-30T06:15Z";
-    expect(pattern.test(invalid)).toBe(false);
-    await expect(run({ timestamp: invalid }, context)).rejects.toThrow(
-      z.ZodError,
-    );
+    expect(property.pattern.length).toBeLessThan(100);
+    expect(pattern.test("2024-02-29T06:15")).toBe(false);
+    // The advertised pattern checks shape only; runtime rejects bad dates.
+    await expect(
+      run({ timestamp: "2024-02-30T06:15Z" }, context),
+    ).rejects.toThrow(z.ZodError);
     expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it("advertises hints that are explicitly false", () => {
+    const schema = z.object({ name: z.string() });
+    const [tool] = defineTool({
+      name: "additiveWriteTool",
+      description: "",
+      action: __dangerouslySkipAuthz,
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async () => ({}),
+      destructiveHint: false,
+    });
+
+    expect(tool.annotations).toEqual({ destructiveHint: false });
+  });
+
+  it("does not advertise defaulted fields as required", () => {
+    const schema = z.object({
+      name: z.string(),
+      limit: z.number().int().default(50),
+    });
+    const [tool] = defineTool({
+      name: "defaultedFieldTool",
+      description: "",
+      action: __dangerouslySkipAuthz,
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async () => ({}),
+    });
+
+    expect(tool.inputSchema.required).toEqual(["name"]);
   });
 
   it("rejects intersections that emit allOf", () => {

@@ -22,7 +22,9 @@ const ListMonitorsBaseSchema = z.object({
   filter: z
     .array(McpAdvancedFilterBaseSchema)
     .optional()
-    .describe("Filter alerts by severity or tags."),
+    .describe(
+      'Each column at most once: severity (type "stringOptions", operator "any of" | "none of", values PAUSED, UNKNOWN, NO_DATA, OK, WARNING, ALERT), evaluatorId (type "stringOptions", operator "any of" | "none of", ids from listEvaluators), tags (type "arrayOptions", operator "any of" | "all of" | "none of").',
+    ),
 });
 
 const ListMonitorsInputSchema = ListMonitorsSchema.omit({
@@ -34,7 +36,7 @@ const ListMonitorsInputSchema = ListMonitorsSchema.omit({
 export const [listMonitorsTool, handleListMonitors] = defineTool({
   name: "listAlerts",
   description:
-    "List alerts, optionally filtered by severity or tags and ordered by alert properties.",
+    "List alerts (monitors: a metric query over a time window with warning and alert thresholds, plus current severity and scheduling status), paginated; page 0 behaves like page 1. No MCP tool creates or changes alerts. Use getAlert for one by id.",
   action: "alerts:read",
   baseSchema: ListMonitorsBaseSchema,
   inputSchema: ListMonitorsInputSchema,
