@@ -259,7 +259,6 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
     // already cover them.
     const window = todo.liveWriteWindow;
     const liveWriteFilter = buildLiveWriteFilter(window, {
-      projectId: "project_id",
       createdAt: "created_at",
       rowKey: "(project_id, trace_id, id)",
       liveKeyColumns: "project_id, trace_id, span_id",

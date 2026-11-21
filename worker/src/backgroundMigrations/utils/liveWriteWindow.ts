@@ -19,7 +19,6 @@ import { BaseChunkTodo } from "./backfillBase";
  * writing legacy-only during a rolling switch. Inside the overlap a row is
  * copied only when no live row with the same key exists. Rows are judged by
  * `created_at`, which later updates (e.g. bookmarking in the UI) keep.
- * Projects the propagation job skips are always copied in full.
  */
 const OVERLAP_MS = 60 * 60 * 1000;
 /** A live row can be flushed shortly after its legacy twin. */
@@ -39,8 +38,6 @@ interface LiveWriteWindow {
   overlapEnd: string;
   /** Upper created_at bound of the live rows the overlap is checked against. */
   lookupEnd: string;
-  /** Projects excluded from propagation, whose legacy rows are all copied. */
-  exemptProjectIds?: string[];
 }
 
 /**
@@ -122,7 +119,6 @@ const UNBOUNDED_QUERY = {
 export async function resolveLiveWriteWindow(
   logPrefix: string,
 ): Promise<LiveWriteWindow | null> {
-  const exemptProjectIds = env.LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS;
   const live = (
     await queryClickhouse<{ hour_ms: string; first_event_ms: string }>({
       query: `
@@ -158,14 +154,12 @@ export async function resolveLiveWriteWindow(
             count() AS legacy_rows
           FROM observations
           WHERE event_ts >= {firstLiveHour: DateTime64(3)}
-            ${exemptProjectIds.length > 0 ? "AND project_id NOT IN {exemptProjectIds: Array(String)}" : ""}
           GROUP BY hour_ms
         `,
         params: {
           firstLiveHour: convertDateToClickhouseDateTime(
             new Date(firstLiveHourMs),
           ),
-          exemptProjectIds,
         },
         ...UNBOUNDED_QUERY,
         tags: {
@@ -191,10 +185,9 @@ export async function resolveLiveWriteWindow(
     start: new Date(startMs).toISOString(),
     overlapEnd: new Date(startMs + OVERLAP_MS).toISOString(),
     lookupEnd: new Date(startMs + OVERLAP_MS + LOOKUP_SLACK_MS).toISOString(),
-    exemptProjectIds,
   };
   logger.info(
-    `${logPrefix} Live writes started at ${window.start}; copying legacy rows created before ${window.overlapEnd}, deduplicating against live rows from ${window.start}${exemptProjectIds.length > 0 ? `, and every row of ${exemptProjectIds.length} projects excluded from propagation` : ""}`,
+    `${logPrefix} Live writes started at ${window.start}; copying legacy rows created before ${window.overlapEnd}, deduplicating against live rows from ${window.start}`,
   );
   return window;
 }
@@ -212,21 +205,19 @@ export function liveWriteWindowParams(
     liveWriteLookupEnd: convertDateToClickhouseDateTime(
       new Date(window.lookupEnd),
     ),
-    liveWriteExemptProjectIds: window.exemptProjectIds ?? [],
   };
 }
 
 /**
  * `AND` clause keeping the legacy rows the backfill should copy: rows matching
- * `alwaysKeep`, rows of exempt projects, rows created before the live-write
- * period, and overlap rows whose key has no live row. `liveKeyColumns` must
+ * `alwaysKeep`, rows created before the live-write period, and overlap rows
+ * whose key has no live row. `liveKeyColumns` must
  * line up with `rowKey`; `liveRowsWhere` narrows the live-row scan (e.g. to the
  * chunk's partitions). Empty without a window.
  */
 export function buildLiveWriteFilter(
   window: LiveWriteWindow | null | undefined,
   columns: {
-    projectId: string;
     createdAt: string;
     rowKey: string;
     liveKeyColumns: string;
@@ -237,7 +228,6 @@ export function buildLiveWriteFilter(
   if (!window) return "";
   return `AND (
     ${columns.alwaysKeep ? `${columns.alwaysKeep} OR` : ""}
-    ${window.exemptProjectIds?.length ? `${columns.projectId} IN {liveWriteExemptProjectIds: Array(String)} OR` : ""}
     ${columns.createdAt} < {liveWriteStart: DateTime64(3)}
     OR (
       ${columns.createdAt} < {liveWriteOverlapEnd: DateTime64(3)}

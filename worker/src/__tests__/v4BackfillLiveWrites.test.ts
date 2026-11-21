@@ -38,22 +38,17 @@ const at = (minutes: number) =>
   new Date(liveWriteStart.getTime() + minutes * 60_000);
 
 describe("V4 historic backfill during dual write", () => {
-  it("copies legacy rows created before dual write, overlap rows without a live copy, and excluded projects", async () => {
+  it("copies legacy rows created before dual write, and overlap rows without a live copy", async () => {
     const projectId = v4();
-    const excludedProjectId = v4();
-    const legacyTrace = (
-      createdAt: Date,
-      eventTs = createdAt,
-      project = projectId,
-    ) => {
+    const legacyTrace = (createdAt: Date, eventTs = createdAt) => {
       const trace = createTrace({
-        project_id: project,
+        project_id: projectId,
         timestamp: createdAt,
         created_at: createdAt,
         event_ts: eventTs,
       });
       const observation = createObservation({
-        project_id: project,
+        project_id: projectId,
         trace_id: trace.id,
         parent_observation_id: null,
         start_time: createdAt,
@@ -71,15 +66,12 @@ describe("V4 historic backfill during dual write", () => {
     // A worker that had not switched to dual write yet.
     const legacyOnlyInOverlap = legacyTrace(at(20));
     const afterOverlap = legacyTrace(at(120));
-    // The propagation job skips this project, so it has no live copies.
-    const excludedProject = legacyTrace(at(120), at(120), excludedProjectId);
     const all = [
       beforeDualWrite,
       updatedDuringDualWrite,
       directWrite,
       legacyOnlyInOverlap,
       afterOverlap,
-      excludedProject,
     ];
 
     await createTracesCh(all.map((t) => t.trace));
@@ -104,7 +96,6 @@ describe("V4 historic backfill during dual write", () => {
         start: liveWriteStart.toISOString(),
         overlapEnd: at(60).toISOString(),
         lookupEnd: at(120).toISOString(),
-        exemptProjectIds: [excludedProjectId],
       },
     };
     await commandClickhouse(new RootSpansStep().chunkQuery(todo));
@@ -112,28 +103,26 @@ describe("V4 historic backfill during dual write", () => {
     await pidTidSorting.createScratchTable();
     await commandClickhouse(pidTidSorting.chunkQuery(todo));
 
-    const projectIds = [projectId, excludedProjectId];
     const ids = async (query: string) =>
-      (await queryClickhouse<{ id: string }>({ query, params: { projectIds } }))
+      (await queryClickhouse<{ id: string }>({ query, params: { projectId } }))
         .map((r) => r.id)
         .sort();
     const expected = [
       beforeDualWrite,
       updatedDuringDualWrite,
       legacyOnlyInOverlap,
-      excludedProject,
     ];
     expect(
       await ids(`
         SELECT trace_id AS id FROM events_full
-        WHERE project_id IN {projectIds: Array(String)}
+        WHERE project_id = {projectId: String}
           AND span_id = concat('t-', trace_id)
       `),
     ).toEqual(expected.map((t) => t.trace.id).sort());
     expect(
       await ids(`
         SELECT id FROM ${pidTidSortingTable()}
-        WHERE project_id IN {projectIds: Array(String)}
+        WHERE project_id = {projectId: String}
       `),
     ).toEqual(expected.map((t) => t.observation.id).sort());
   });
