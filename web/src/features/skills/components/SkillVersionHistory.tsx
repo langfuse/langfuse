@@ -108,7 +108,7 @@ export function SkillVersionHistory(
                         await props.onSelectDraft();
                     }}
                   >
-                    <Badge color="primary" text="Draft" />
+                    <Badge color="outline" text="Draft" />
                     <Badge
                       color="filled"
                       size="md"
@@ -162,7 +162,7 @@ export function SkillVersionHistory(
                           onClick={() => selectVersion(version)}
                         >
                           <Badge
-                            color="primary"
+                            color="outline"
                             size="lg"
                             text={`# ${version}`}
                           />

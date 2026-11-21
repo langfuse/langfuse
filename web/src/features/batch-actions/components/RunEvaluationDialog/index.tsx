@@ -22,7 +22,8 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { ChevronLeft, ExternalLink, Plus } from "@langfuse/icons";
 import {
@@ -38,14 +39,12 @@ import {
   hasCompleteBatchEvalMappings,
 } from "./utils";
 import { BATCH_EVAL_EVALUATOR_LIMIT } from "@/src/features/batch-actions/validation";
-import {
-  buildSelectedSampleObject,
-  createRuleSetupStore,
-} from "@/src/features/evals";
+import { buildSelectedSampleObject } from "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject";
+import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import { coverEvaluatorPromptVariables } from "@/src/features/evals/v2/fns/variableMapping/coverEvaluatorPromptVariables";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type RunEvaluationDialogProps = {
   projectId: string;
@@ -172,17 +171,15 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
     () =>
       (evaluatorsQuery.data ?? [])
         .filter((evaluator) => evaluator.blockedAt === null)
-        .map(
-          (evaluator): BatchEvaluator => ({
-            id: evaluator.id,
-            scoreName: evaluator.name,
-            variableMapping:
-              observationVariableMappingList.safeParse(
-                evaluator.latestVersion?.variableMapping,
-              ).data ?? [],
-            prompt: evaluator.latestVersion?.prompt ?? null,
-          }),
-        ),
+        .map((evaluator): BatchEvaluator => ({
+          id: evaluator.id,
+          scoreName: evaluator.name,
+          variableMapping:
+            observationVariableMappingList.safeParse(
+              evaluator.latestVersion?.variableMapping,
+            ).data ?? [],
+          prompt: evaluator.latestVersion?.prompt ?? null,
+        })),
     [evaluatorsQuery.data],
   );
 

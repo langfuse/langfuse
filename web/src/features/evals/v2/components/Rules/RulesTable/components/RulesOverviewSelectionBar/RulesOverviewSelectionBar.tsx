@@ -1,8 +1,7 @@
-import { useState } from "react";
 import { useStore } from "zustand";
 import { RulesOverviewSelectionBarView } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesOverviewSelectionBar/RulesOverviewSelectionBarView";
 import type { RulesTableStore } from "@/src/features/evals/v2/types/rules";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import type { FilterState } from "@langfuse/shared";
@@ -26,7 +25,6 @@ export function RulesOverviewSelectionBar({
   const utils = api.useUtils();
   const rowSelection = useStore(selectionStore, (state) => state.rowSelection);
   const selectAll = useStore(selectionStore, (state) => state.selectAll);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const selectedIds = Object.keys(rowSelection).filter(
     (id) => rowSelection[id],
   );
@@ -51,7 +49,6 @@ export function RulesOverviewSelectionBar({
       capture("evaluation_rules:delete", {
         ruleCount: result.ruleIds.length,
       });
-      setDeleteDialogOpen(false);
       selectionActions.clearSelection();
       await Promise.all([
         utils.evalsV2.rules.list.invalidate({ projectId }),
@@ -74,13 +71,10 @@ export function RulesOverviewSelectionBar({
       hasWriteAccess={hasWriteAccess}
       statusChangePending={setEnabled.isPending}
       deletePending={deleteMany.isPending}
-      deleteDialogOpen={deleteDialogOpen}
       onClear={selectionActions.clearSelection}
       onEnable={() => setEnabled.mutate({ ...selection, enabled: true })}
       onDisable={() => setEnabled.mutate({ ...selection, enabled: false })}
-      onDelete={() => setDeleteDialogOpen(true)}
-      onDeleteDialogOpenChange={setDeleteDialogOpen}
-      onConfirmDelete={() => deleteMany.mutate(selection)}
+      onConfirmDelete={() => deleteMany.mutateAsync(selection)}
     />
   );
 }

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { createSandboxToolCallFileAccumulator } from "@langfuse/shared/in-app-agent/server/persistence";
-import { createInAppAgentSandbox } from ".";
+import { createInAppAgentSandbox } from "./service";
 import { withOptionalSilentMcpOutput } from "../tools";
 
 // Only presence matters for the tests below: it is what makes

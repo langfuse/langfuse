@@ -59,8 +59,8 @@ export const WithValue = meta.story({
 export const Sizes = meta.story({
   render: (args) => (
     <div className="flex flex-col gap-3">
-      <InteractiveSearchInput {...args} size="default" />
-      <InteractiveSearchInput {...args} size="large" />
+      <InteractiveSearchInput {...args} onSubmit={() => {}} size="default" />
+      <InteractiveSearchInput {...args} onSubmit={() => {}} size="large" />
     </div>
   ),
 });

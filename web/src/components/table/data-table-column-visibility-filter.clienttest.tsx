@@ -2,10 +2,8 @@ import { StrictMode, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type VisibilityState } from "@tanstack/react-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/DataTableColumnVisibilityFilter";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
@@ -183,7 +181,9 @@ describe("DataTableColumnVisibilityFilter", () => {
           matches: query.includes("min-width"),
           media: query,
           onchange: null,
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           addListener: vi.fn(),
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           removeListener: vi.fn(),
           addEventListener: vi.fn(),
           removeEventListener: vi.fn(),

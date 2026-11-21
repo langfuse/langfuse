@@ -16,6 +16,8 @@ export const CompactPickerButton = ({
   title,
   minWidth = "none",
   children,
+  "aria-controls": ariaControls,
+  "aria-expanded": ariaExpanded = false,
   ...props
 }: Omit<
   React.ComponentProps<typeof Button>,
@@ -30,6 +32,8 @@ export const CompactPickerButton = ({
     role="combobox"
     type="button"
     className={pickerVariants({ minWidth })}
+    aria-controls={ariaControls}
+    aria-expanded={ariaExpanded}
     {...props}
   >
     <span className="min-w-0 truncate" title={title}>

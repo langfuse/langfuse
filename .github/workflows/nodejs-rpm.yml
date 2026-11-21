@@ -1,8 +1,11 @@
 name: Build nodejs RPM
 
-# TEMPORARY(node-24.22.1-security): builds Red Hat's nodejs:24 RPMs with fixes
-# from Node 24.22.1 (scripts/docker/nodejs-rpm/) and publishes them as a multi-arch image for
-# web/Dockerfile and worker/Dockerfile. Delete together with that directory.
+# Builds Red Hat's nodejs:24 RPMs with backported Node security fixes
+# (scripts/docker/nodejs-rpm/) and publishes them as a multi-arch image for
+# web/Dockerfile and worker/Dockerfile.
+#
+# Disabled: only manual runs start it. To revive, uncomment the triggers below
+# (scripts/docker/nodejs-rpm/README.md).
 #
 # Pull requests build and verify without publishing. Pushes to main and manual
 # runs publish ghcr.io/langfuse/langfuse-nodejs-rpm; pin the digest from the
@@ -10,16 +13,16 @@ name: Build nodejs RPM
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - scripts/docker/nodejs-rpm/**
-      - .github/workflows/nodejs-rpm.yml
-  push:
-    branches:
-      - main
-    paths:
-      - scripts/docker/nodejs-rpm/**
-      - .github/workflows/nodejs-rpm.yml
+  # pull_request:
+  #   paths:
+  #     - scripts/docker/nodejs-rpm/**
+  #     - .github/workflows/nodejs-rpm.yml
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - scripts/docker/nodejs-rpm/**
+  #     - .github/workflows/nodejs-rpm.yml
 
 permissions: {}
 

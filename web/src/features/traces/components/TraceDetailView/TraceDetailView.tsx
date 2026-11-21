@@ -14,10 +14,11 @@ import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSecti
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-  useCommentedPaths,
-} from "@/src/features/comments";
-import { api } from "@/src/utils/api";
+} from "@/src/features/comments/CommentDrawerController";
+import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { useRouter } from "next/router";
+import { useRefreshTraceScores } from "@/src/features/traces/hooks/useRefreshTraceScores";
+import { api } from "@/src/utils/api";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 // Preview tab components
@@ -38,20 +39,20 @@ import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
 
 // Extracted components
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
-import { ScoresTable } from "@/src/features/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
-import { useReadPath } from "@/src/features/events";
+import { default as ScoresTable } from "@/src/features/scores/ScoresTable";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { getDetailTabs } from "../../fns/getDetailTabs";
@@ -117,7 +118,6 @@ function LoadedTraceDetailView({
   const { selectedTab: globalSelectedTab, setSelectedTab } = useSelection();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
-  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
@@ -250,16 +250,11 @@ function LoadedTraceDetailView({
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
-  const refreshTraceScores = useCallback(() => {
-    utils.traces.byIdWithObservationsAndScores.invalidate({
-      projectId,
-      traceId: trace.id,
-    });
-    utils.events.scoresForTrace.invalidate({
-      projectId,
-      traceId: trace.id,
-    });
-  }, [projectId, trace.id, utils]);
+  const refreshTraceScores = useRefreshTraceScores({
+    projectId,
+    traceId: trace.id,
+    sessionId: trace.sessionId,
+  });
 
   // Handle tab change
   const handleTabChange = (value: string) => {
@@ -429,7 +424,7 @@ function LoadedTraceDetailView({
                   input={trace.input ?? undefined}
                   output={trace.output ?? undefined}
                   metadata={trace.metadata ?? undefined}
-                  outputCorrection={outputCorrection}
+                  traceOutputCorrection={outputCorrection}
                   parsedInput={parsedInput}
                   parsedOutput={parsedOutput}
                   parsedMetadata={parsedMetadata}

@@ -8,7 +8,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod";
-import { shouldRenderMessageForContentMode } from "@/src/features/traces";
+import { shouldRenderMessageForContentMode } from "@/src/features/traces/fns/chatMessageUtils";
 import { PromptMessagePreview } from "./PromptMessagePreview/PromptMessagePreview";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
@@ -16,7 +16,7 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
@@ -25,14 +25,18 @@ import {
   extractVariables,
   PRODUCTION_LABEL,
   PromptType,
+  ChatMlArraySchema,
 } from "@langfuse/shared";
-import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
+import {
+  getPromptTabs,
+  PROMPT_TABS,
+} from "@/src/features/navigation/utils/prompt-tabs";
 import { PromptHistoryNode } from "./PromptHistoryNode";
-import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground";
-import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
-import { ObservationsTable as LegacyGenerations } from "@/src/features/tracing-tables";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+
+import { default as LegacyGenerations } from "@/src/features/tracing-tables/observations/ObservationsTable";
 import EventsTable from "@/src/features/events/components/EventsTable";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   FlaskConical,
   History,
@@ -41,42 +45,38 @@ import {
   MoreVertical,
   Plus,
   Terminal,
+  Trash,
 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/features/experiments";
+import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useMemo, useState } from "react";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/DuplicatePromptButton";
 import Page from "@/src/components/layouts/Page";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
-import { DeletePromptVersion } from "@/src/features/prompts/components/DeletePromptVersion";
-import { TagPromptDetailsPopover } from "@/src/features/tag";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { DeletePromptVersionDialogController } from "@/src/features/prompts/components/DeletePromptVersionDialogController";
+import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments";
+} from "@/src/features/comments/CommentDrawerController";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   PromptReferenceProvider,
   renderRichPromptContent,
 } from "@/src/components/ui/PromptReferences";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import { createBreadcrumbItems } from "@/src/features/folders";
+import { createBreadcrumbItems } from "@/src/features/folders/utils";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import {
   Drawer,
@@ -514,7 +514,7 @@ export const PromptDetail = ({
             <div className="grid w-full grid-cols-1 items-start gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
               <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1.5">
                 <span className="mr-1 inline-flex max-w-full min-w-0 items-center gap-2">
-                  <BadgeShell color="inverted" font="mono" size="lg">
+                  <BadgeShell color="inverted" size="lg">
                     # {prompt.version}
                   </BadgeShell>
                   <span
@@ -639,27 +639,43 @@ export const PromptDetail = ({
                     </Button>
                   )}
                 </CommentDrawerController>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <IconButton
-                      icon={MoreVertical}
-                      label="More actions"
-                      size="sm"
-                    />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="flex flex-col *:w-full *:justify-start"
-                  >
-                    <DropdownMenuItem asChild>
-                      <DeletePromptVersion
-                        promptVersionId={prompt.id}
-                        version={prompt.version}
-                        countVersions={promptHistory.data.totalCount}
-                      />
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <DeletePromptVersionDialogController
+                  key={prompt.id}
+                  promptVersionId={prompt.id}
+                  version={prompt.version}
+                  countVersions={promptHistory.data.totalCount}
+                >
+                  {({ disabled, onClick }) => (
+                    <DropdownMenu
+                      placement="bottom-end"
+                      items={[
+                        {
+                          type: "item",
+                          id: "delete-version",
+                          title: "Delete version",
+                          icon: Trash,
+                          variant: "destructive",
+                          disabled: disabled
+                            ? {
+                                reason:
+                                  "Prompt version deletion is not available.",
+                              }
+                            : undefined,
+                          onClick,
+                        },
+                      ]}
+                    >
+                      {({ getTriggerProps }) => (
+                        <IconButton
+                          {...getTriggerProps()}
+                          icon={MoreVertical}
+                          label="More actions"
+                          size="sm"
+                        />
+                      )}
+                    </DropdownMenu>
+                  )}
+                </DeletePromptVersionDialogController>
               </div>
             </div>
           </DetailViewHeaderShell>

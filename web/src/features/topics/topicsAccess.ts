@@ -24,8 +24,8 @@ export function canViewTopics(
   );
 }
 
-/** Resolves the project like the rest of the app, including the admin fallback for non-member admins. */
-export function useCanViewTopics(projectId: string) {
+/** Resolves the project like the rest of the app. */
+export function useCanViewTopics(projectId: string | null) {
   const session = useSession().data;
   const { project } = useProject(projectId);
   return canViewTopics(session, project);

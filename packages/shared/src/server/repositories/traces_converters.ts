@@ -1,7 +1,7 @@
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { TraceRecordExtraFieldsType, TraceRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { TraceDomain } from "../../domain";
+import { TraceDomain } from "../../domain/traces";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import {
   RenderingProps,

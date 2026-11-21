@@ -26,10 +26,14 @@ const EditSandboxOperationSchema = z.object({
   toolCallFiles: z.array(SandboxFileSchema).optional(),
 });
 
+// Matches the worker's bash tool limit. Checked here too so the sandbox never
+// arms a timer of arbitrary length; Node also clamps delays above 2^31-1 to 1ms.
+const MAX_BASH_TIMEOUT_MS = 120_000;
+
 const BashSandboxOperationSchema = z.object({
   operation: z.literal("bash"),
   command: z.string(),
-  timeoutMs: z.number().finite().optional(),
+  timeoutMs: z.number().int().positive().max(MAX_BASH_TIMEOUT_MS).optional(),
   toolCallFiles: z.array(SandboxFileSchema).optional(),
 });
 

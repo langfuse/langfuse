@@ -27,7 +27,7 @@ import {
 
 const MEDIA_PAGE_SIZE = 4_096;
 
-type CachedMediaUpload = {
+export type CachedMediaUpload = {
   mediaId: string;
   outcome: "uploaded" | "reused";
   byteLength: number;
@@ -50,7 +50,7 @@ async function batchMedia(batch: EarlyOtelBatch): Promise<MediaRegistry> {
   const load = (async () => {
     const count = batch.mediaCount();
     const media = new Map<string, ExtractedOtelMedia>();
-    for (let offset = 0; offset < count; ) {
+    for (let offset = 0; offset < count;) {
       const resultStartedAt = performance.now();
       const page = batch.mediaPage(offset, MEDIA_PAGE_SIZE);
       for (const entry of page) media.set(entry.reference, entry);
@@ -293,7 +293,7 @@ export async function resolveExtractedMedia(params: {
 }
 
 /** Record outcomes for media discovered by the native extractor. */
-function recordExtractedMediaUpload(
+export function recordExtractedMediaUpload(
   outcome: "uploaded" | "reused" | "failed",
   kind: string,
   writePath: OtelMediaWritePath,

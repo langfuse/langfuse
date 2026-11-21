@@ -21,6 +21,8 @@ export type PrincipalOrganization = {
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
   projectIds: string[];
   isIngestionSuspended: boolean;
+  /** Absent on authz contexts cached before the field existed; no org could have opted in then. */
+  accessAuditLogEnabled?: boolean;
 };
 
 /** Principal is an authorized admin, user, or api key, discriminated on kind. */
@@ -51,10 +53,10 @@ export type Resource = ProjectResource | OrgResource;
 /** BoundResource is what a credential is bound to: its organization, narrowed to one project when the credential is project-scoped. */
 export type BoundResource = OrgResource & { projectId?: string };
 
-/** AuthorizationContext is the PIP output and PDP input for one principal. */
+/** AuthorizationContext is the PIP output and PDP input for one principal, carrying one policy set per principal it acts as. */
 export type AuthorizationContext = {
   principal: Principal;
-  policies: Policy[];
+  policies: Policy[][];
 };
 
 /** Success is a successful outcome, disjoint from ErrorResult on `success`. */

@@ -9,7 +9,6 @@ export type DataTableCellBackground = "gray" | "green";
 
 declare module "@tanstack/react-table" {
   // extends tanstack ColumnDef to include additional properties
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnDefBase<TData extends RowData, TValue = unknown> {
     defaultHidden?: boolean;
     headerTooltip?: {

@@ -7,8 +7,8 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryProject } from "@/src/features/projects";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {
   useProjectV4EvalData,
@@ -22,7 +22,7 @@ import {
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 // The pill's description finishes expanding after 300ms (V4MigrationBadgeContent),
 // so a 500ms dwell means the full text was on screen — a drive-by mouse pass

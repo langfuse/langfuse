@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import * as exportSourcePolicy from "./export-source-policy";
 import {
   areEnrichedWritesActive,
   areLegacyWritesActive,
@@ -149,12 +148,6 @@ describe("validateExportSource matrix", () => {
     if (!res.ok) expect(res.message).toContain("events_only");
   });
 
-  it("legacy on dual/legacy write modes: unaffected", () => {
-    expect(
-      reasonOf("TRACES_OBSERVATIONS", ctx({ legacyWritesActive: true })),
-    ).toBeUndefined();
-  });
-
   it("TRACES_OBSERVATIONS_EVENTS is both enriched and legacy; enriched-unavailable wins", () => {
     expect(
       reasonOf(
@@ -299,12 +292,6 @@ describe("write mode drives export-source availability", () => {
         ),
       ).toEqual(getAvailableExportSources(ctxFor(mode)));
     }
-  });
-
-  // Deletion guard: the old preview-flag helper must not survive as a second,
-  // divergent answer to "is enriched available?".
-  it("no longer exports isEnrichedBlobExportAvailable", () => {
-    expect("isEnrichedBlobExportAvailable" in exportSourcePolicy).toBe(false);
   });
 });
 

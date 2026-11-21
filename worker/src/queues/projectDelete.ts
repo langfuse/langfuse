@@ -19,6 +19,27 @@ import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@prisma/client";
 import { env, v4WritesToEventsTable } from "../env";
 
+async function deleteProjectMediaInBatches(params: {
+  projectId: string;
+  bucket: string;
+}): Promise<void> {
+  const { projectId } = params;
+  const storageClient = getS3MediaStorageClient(params.bucket);
+  // Each batch commits, so a retried job resumes. The cursor moves past
+  // rows that deleteMediaFiles skips, so the loop always terminates.
+  let afterId: string | undefined;
+  while (true) {
+    const mediaFiles = await findAllMediaByProjectId({
+      projectId,
+      limit: env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE,
+      afterId,
+    });
+    if (mediaFiles.length === 0) return;
+    await deleteMediaFiles({ projectId, mediaFiles, storageClient });
+    afterId = mediaFiles[mediaFiles.length - 1].id;
+  }
+}
+
 export const projectDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.ProjectDelete]>,
 ): Promise<void> => {
@@ -39,18 +60,17 @@ export const projectDeleteProcessor: Processor = async (
 
   logger.info(`Deleting ${projectId} in org ${orgId}`);
 
-  await deleteMediaLinkRowsByProjectId({ projectId });
+  await deleteMediaLinkRowsByProjectId({
+    projectId,
+    batchSize: env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE,
+  });
 
   // Delete media data from S3 and PG for project
   if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
     logger.info(`Deleting media for ${projectId} in org ${orgId}`);
-    const mediaFilesToDelete = await findAllMediaByProjectId({ projectId });
-    await deleteMediaFiles({
+    await deleteProjectMediaInBatches({
       projectId,
-      mediaFiles: mediaFilesToDelete,
-      storageClient: getS3MediaStorageClient(
-        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-      ),
+      bucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
     });
   }
 
@@ -80,7 +100,13 @@ export const projectDeleteProcessor: Processor = async (
   logger.info(`Deleting PG data for project ${projectId} in org ${orgId}`);
 
   // Finally, delete the project itself which should delete all related
-  // resources due to the referential actions defined via Prisma
+  // resources due to the referential actions defined via Prisma.
+  //
+  // WARNING: unbounded. The cascade removes all rows with a cascading relation
+  // to the project in a single statement and transaction. For large projects
+  // this holds one long transaction on the Postgres writer and can pin its
+  // CPU. Delete large child tables in bounded batches before this call rather
+  // than relying on the cascade.
   try {
     const existingProject = await prisma.project.findUnique({
       where: {

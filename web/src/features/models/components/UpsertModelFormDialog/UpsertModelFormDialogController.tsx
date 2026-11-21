@@ -2,11 +2,9 @@
 /* eslint @repo/no-style-props: "off" */
 import cloneDeep from "lodash/cloneDeep";
 import isEqual from "lodash/isEqual";
-import Link from "next/link";
 import { useImperativeHandle, useRef, useState, type Ref } from "react";
 import { useForm } from "react-hook-form";
 
-import { CodeMirrorEditor } from "@/src/components/editor";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -27,13 +25,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { buildFormValues } from "@/src/features/models/fns/buildFormValues";
 import { matchPatternFor } from "@/src/features/models/fns/matchPatternFor";
 import { toPricingTierInputs } from "@/src/features/models/fns/toPricingTierInputs";
@@ -42,12 +33,12 @@ import {
   FormUpsertModelSchema,
   type GetModelResult,
 } from "@/src/features/models/validation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/router";
 
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { PricingSection } from "@/src/features/models/components/PricingSection/PricingSection";
 
 type DialogChild = (control: { openDialog: () => void }) => React.ReactNode;
@@ -119,8 +110,6 @@ export function UpsertModelFormDialogContent({
     () => () =>
       !form.formState.isDirty || window.confirm(DISCARD_CHANGES_MESSAGE),
   );
-
-  const tokenizerId = form.watch("tokenizerId");
 
   const upsertModelMutation = api.models.upsert.useMutation();
 
@@ -264,81 +253,6 @@ export function UpsertModelFormDialogContent({
             />
 
             <PricingSection form={form} />
-
-            <FormField
-              control={form.control}
-              name="tokenizerId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tokenizer</FormLabel>
-                  <Select
-                    onValueChange={(tokenizerId) => {
-                      field.onChange(tokenizerId);
-                      if (tokenizerId === "None") {
-                        form.setValue("tokenizerConfig", "{}");
-                      }
-                    }}
-                    defaultValue={field.value ?? "None"}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a unit" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {["openai", "claude", "None"].map((unit) => (
-                        <SelectItem value={unit} key={unit}>
-                          {unit}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    Optionally, Langfuse can tokenize the input and output of a
-                    generation if no unit counts are ingested. This is useful
-                    for e.g. streamed OpenAI completions. For details on the
-                    supported tokenizers, see the{" "}
-                    <Link
-                      href="https://langfuse.com/docs/model-usage-and-cost"
-                      className="underline"
-                      target="_blank"
-                    >
-                      docs
-                    </Link>
-                    .
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {tokenizerId && tokenizerId !== "None" && (
-              <FormField
-                control={form.control}
-                name="tokenizerConfig"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tokenizer Config</FormLabel>
-                    <CodeMirrorEditor
-                      mode="json"
-                      value={field.value ?? "{}"}
-                      onChange={field.onChange}
-                    />
-                    <FormDescription>
-                      The config for the tokenizer. Required for openai. See the{" "}
-                      <Link
-                        href="https://langfuse.com/docs/model-usage-and-cost"
-                        className="underline"
-                        target="_blank"
-                      >
-                        docs
-                      </Link>{" "}
-                      for details.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
           </DialogBody>
 
           <DialogFooter>

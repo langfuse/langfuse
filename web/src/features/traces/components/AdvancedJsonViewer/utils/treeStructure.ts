@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * Tree-based JSON structure for JIT rendering
  *
@@ -393,11 +392,15 @@ function applyExpansionStateIterative(
 
     // Apply expansion state
     node.isExpanded = shouldExpand && node.isExpandable;
-    node.userExpand = node.isExpandable
-      ? typeof expansionState === "boolean"
-        ? undefined
-        : expansionState[node.id]
-      : undefined;
+    node.userExpand = ((): boolean | undefined => {
+      if (!node.isExpandable) {
+        return undefined;
+      }
+      if (typeof expansionState === "boolean") {
+        return undefined;
+      }
+      return expansionState[node.id];
+    })();
 
     // Push children to stack
     node.children.forEach((child) => stack.push(child));

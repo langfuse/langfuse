@@ -15,7 +15,7 @@ vi.mock("@langfuse/shared", () => ({
 }));
 
 import { buildStepData } from "@/src/features/trace-graph-view/buildStepData";
-import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view";
+import type { AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 
 describe("buildStepData", () => {
   const createMockObservation = (

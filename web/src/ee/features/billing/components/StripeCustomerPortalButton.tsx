@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useEffect, useState } from "react";
-import { showToast } from "@/src/features/notifications";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export const StripeCustomerPortalButton = ({

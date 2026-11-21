@@ -10,7 +10,6 @@ import {
   UNASSIGNED_SWATCH_COLOR,
   unassignedTileClasses,
 } from "./topic-map-colors";
-import { type TopicsResultsView } from "./TopicsResultsViewSelect";
 
 export const UNASSIGNED_TOPIC_ID = "__unassigned";
 
@@ -28,7 +27,7 @@ export type TopicDisplay = Pick<
 };
 
 /** Topic identity, counts, and colors shared by the list and treemap renderers. */
-export function prepareTopicDisplay(facet: Facet, view: TopicsResultsView) {
+export function prepareTopicDisplay(facet: Facet, view: "treemap" | "map") {
   const mapIndices = new Map(
     orderedFacetTopics(facet).map((topic, index) => [topic.id, index]),
   );
@@ -48,7 +47,10 @@ export function prepareTopicDisplay(facet: Facet, view: TopicsResultsView) {
       },
     }),
   );
-  const unassignedCount = facet.rows.filter((row) => !row.topicId).length;
+  const unassignedCount = Math.max(
+    0,
+    facet.counts.total - facet.counts.assigned,
+  );
   if (unassignedCount > 0) {
     topics.push({
       id: UNASSIGNED_TOPIC_ID,
@@ -60,26 +62,20 @@ export function prepareTopicDisplay(facet: Facet, view: TopicsResultsView) {
       tiles: { small: unassignedTileClasses, big: unassignedTileClasses },
     });
   }
-  return { topics, total: facet.rows.length };
+  return { topics, total: facet.counts.total };
 }
 
-/** Drops traces without a topic, which also removes the Unassigned tile and list entry. */
+/** Counts only traces in a topic, which removes the Unassigned tile and list entry. */
 export function facetWithoutUnassigned(facet: Facet): Facet {
-  return { ...facet, rows: facet.rows.filter((row) => row.topicId) };
+  return {
+    ...facet,
+    counts: { ...facet.counts, total: facet.counts.assigned },
+  };
 }
 
-/**
- * Keeps points with a map topic whose trace is still listed, so the map agrees with the
- * trace table even when a trace's latest assignment differs from the map's discovery one.
- * Also removes the map's Outliers and awaiting zones.
- */
+/** Keeps points with a map topic, removing the map's Outliers and awaiting zones. */
 export function mapWithoutUnassigned<
-  T extends { points: { traceId: string; topicId: string | null }[] },
->(map: T, listedTraceIds: ReadonlySet<string>): T {
-  return {
-    ...map,
-    points: map.points.filter(
-      (point) => point.topicId && listedTraceIds.has(point.traceId),
-    ),
-  };
+  T extends { points: { topicId: string | null }[] },
+>(map: T): T {
+  return { ...map, points: map.points.filter((point) => point.topicId) };
 }

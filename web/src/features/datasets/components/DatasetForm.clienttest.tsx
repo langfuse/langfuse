@@ -26,13 +26,13 @@ vi.mock("@/src/utils/api", () => ({
   reportNonTrpcError: vi.fn(),
 }));
 vi.mock("next/router", () => ({ useRouter: () => ({ push }) }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 vi.mock("@/src/hooks/useUniqueNameValidation", () => ({
   useUniqueNameValidation: vi.fn(),
 }));
-vi.mock("@/src/components/editor", () => ({
+vi.mock("@/src/components/editor/CodeMirrorEditor", () => ({
   CodeMirrorEditor: ({
     id,
     value,

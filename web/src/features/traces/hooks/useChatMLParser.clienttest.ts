@@ -158,6 +158,21 @@ describe("useChatMLParser", () => {
   it.each([
     ["Skill", { skill: "refund-policy" }, "SKILL.md"],
     ["skill", { name: "refund-policy" }, "SKILL.md"],
+    ["skill", { name: "/skills/refund-policy" }, "SKILL.md"],
+    ["skill", { name: "/skills/refund-policy/SKILL.md" }, "SKILL.md"],
+    [
+      "skill_read",
+      { skillName: "/skills/refund-policy", path: "references/refunds.md" },
+      "references/refunds.md",
+    ],
+    [
+      "skill_read",
+      {
+        skillName: "/skills/refund-policy/SKILL.md",
+        path: "references/refunds.md",
+      },
+      "references/refunds.md",
+    ],
     [
       "skill_read",
       { skillName: "refund-policy", path: "references/refunds.md" },
@@ -183,6 +198,27 @@ describe("useChatMLParser", () => {
       ),
     ).toEqual(new Set([filePath]));
   });
+
+  it.each([
+    ["skill", { name: "/skills/unknown" }],
+    ["skill", { name: "/skills/../refund-policy" }],
+    ["skill", { name: "/other/refund-policy" }],
+    ["skill", { name: "/skills/refund-policy/references/refunds.md" }],
+    [
+      "skill_read",
+      { skillName: "/skills/refund-policy/", path: "references/refunds.md" },
+    ],
+    ["loadSkill", { name: "/skills/refund-policy" }],
+  ])(
+    "does not infer a skill from unsupported %s path arguments",
+    (name, args) => {
+      const available = [{ skillName: "refund-policy" }];
+      const call = { name, arguments: args, invocationNumber: 1 };
+      expect(
+        getSkillLoadRequests(available, new Map([[name, [call]]])).size,
+      ).toBe(0);
+    },
+  );
 
   it.each(parserImplementations)(
     "$name parser groups output-side tool call arguments by tool name",

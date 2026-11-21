@@ -2,7 +2,7 @@ import * as React from "react";
 import { Monitor, Moon, Sun } from "@langfuse/icons";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();

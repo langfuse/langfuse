@@ -1,5 +1,5 @@
-import { submitFeedback } from "@/src/features/feedback/server";
-import { PostFeedbackBody } from "@/src/features/public-api/server";
+import { submitFeedback } from "@/src/features/feedback/server/FeedbackService";
+import { PostFeedbackBody } from "@/src/features/public-api/types/feedback";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -34,6 +34,7 @@ export const [submitFeedbackTool, handleSubmitFeedback] = defineTool({
             apiKeyId: context.apiKeyId,
             publicKey: context.publicKey,
             isIngestionSuspended: false,
+            accessAuditLogEnabled: context.accessAuditLogEnabled,
           },
         }),
     }),

@@ -1,6 +1,6 @@
 import { useMemo, type ComponentProps } from "react";
 import { api } from "@/src/utils/api";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { SpendAlertsTable } from "./SpendAlertsTable";
 import { ConnectedSpendAlertDialogController } from "./ConnectedSpendAlertDialogController";
 import { ConnectedDeleteSpendAlertDialogController } from "./ConnectedDeleteSpendAlertDialogController";

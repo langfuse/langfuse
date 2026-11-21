@@ -11,7 +11,9 @@ use axum::{
 
 use crate::{
     observability::RequestObservation,
-    resolution::{OrganizationId, ProjectId, ProviderConnection, ResolvedRequestContext},
+    resolution::{
+        OrganizationId, ProjectId, ProviderConnection, RateLimit, ResolvedRequestContext,
+    },
 };
 
 pub(crate) const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("langfuse-request-id");
@@ -143,6 +145,14 @@ impl RequestCorrelation {
             organization_id: attribution.organization_id().clone(),
             project_id: attribution.project_id().cloned(),
         });
+    }
+
+    /// Web names the organization it rate limited, since no context was resolved.
+    pub(crate) fn record_rate_limit(&self, limit: &RateLimit) {
+        if let Some(organization_id) = limit.organization_id() {
+            self.server_span
+                .record("langfuse.organization.id", organization_id);
+        }
     }
 
     pub(crate) fn record_upstream(&mut self, target: UpstreamTarget) {

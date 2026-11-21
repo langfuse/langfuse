@@ -142,7 +142,7 @@ function applyMcpCorsHeaders(
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, Accept, Mcp-Session-Id, Last-Event-ID",
+    "Content-Type, Authorization, Accept, Mcp-Session-Id, Last-Event-ID, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
   );
   res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
 }

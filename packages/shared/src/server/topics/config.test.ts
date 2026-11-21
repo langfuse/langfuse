@@ -4,7 +4,10 @@ beforeEach(() => {
   vi.stubEnv("DOCKER_BUILD", undefined);
   vi.stubEnv("LANGFUSE_TOPICS_ENABLED", undefined);
   vi.stubEnv("LANGFUSE_TOPICS_ENABLED_PROJECT_IDS", undefined);
-  vi.stubEnv("LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS", undefined);
+  vi.stubEnv(
+    "LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL",
+    undefined,
+  );
   vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "EU");
 });
 
@@ -18,23 +21,27 @@ describe("Topics tracing allowlist", () => {
     "disables tracing when its allowlist has no IDs: %s",
     async (value) => {
       vi.stubEnv("LANGFUSE_TOPICS_ENABLED_PROJECT_IDS", "project-a");
-      vi.stubEnv("LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS", value);
+      vi.stubEnv(
+        "LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL",
+        value,
+      );
       const { env } = await import("../../env.js");
-      expect(env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS).toEqual([]);
+      expect(
+        env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL,
+      ).toEqual([]);
     },
   );
 
   it("parses tracing IDs independently from the processing allowlist", async () => {
     vi.stubEnv("LANGFUSE_TOPICS_ENABLED_PROJECT_IDS", "project-a,project-b");
     vi.stubEnv(
-      "LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS",
+      "LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL",
       " project-b, ,project-c ",
     );
     const { env } = await import("../../env.js");
-    expect(env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS).toEqual([
-      "project-b",
-      "project-c",
-    ]);
+    expect(
+      env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL,
+    ).toEqual(["project-b", "project-c"]);
     expect(env.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS).toEqual([
       "project-a",
       "project-b",

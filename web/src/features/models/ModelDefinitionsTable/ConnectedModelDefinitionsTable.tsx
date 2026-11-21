@@ -14,9 +14,10 @@ import {
 } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { TestModelMatchDialogContent } from "@/src/features/models/components/test-match/TestModelMatchDialogContent";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
+import { modelMaintainerByScope } from "@/src/features/models/modelMaintainer";
 import { type GetModelResult } from "@/src/features/models/validation";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import {
@@ -223,12 +224,10 @@ function convertToTableRow(model: GetModelResult): ModelTableRow {
   const prices = model.pricingTiers.find((tier) => tier.isDefault)?.prices;
   return {
     modelId: model.id,
-    maintainer: model.projectId ? "User" : "Langfuse",
+    maintainer: modelMaintainerByScope[model.scope],
     modelName: model.modelName,
     matchPattern: model.matchPattern,
     prices,
-    tokenizerId: model.tokenizerId ?? undefined,
-    config: model.tokenizerConfig,
     serverResponse: model,
   };
 }

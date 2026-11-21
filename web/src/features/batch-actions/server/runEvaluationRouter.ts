@@ -1,5 +1,5 @@
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -42,11 +42,10 @@ export const runEvaluationRouter = createTRPCRouter({
           }),
         );
 
-        const plan = ctx.session.user.admin
-          ? null
-          : (ctx.session.user.organizations.find(
-              (org) => org.id === ctx.session.orgId,
-            )?.plan ?? null);
+        const plan =
+          ctx.session.user.organizations.find(
+            (org) => org.id === ctx.session.orgId,
+          )?.plan ?? null;
 
         return await service.create(input, {
           userId: ctx.session.user.id,
