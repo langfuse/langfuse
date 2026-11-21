@@ -1,0 +1,4 @@
+interface:
+  display_name: "Set Up Local Dev"
+  short_description: "Bootstrap a Langfuse checkout to a running stack"
+  default_prompt: "Use $setup-local-dev to bring this Langfuse checkout to a running local dev stack."
