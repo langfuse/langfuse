@@ -9213,6 +9213,21 @@ describe("OTel Resource Span Mapping", () => {
           input_cache_creation_1h: 1500,
         },
       },
+      {
+        name: "Claude Platform anthropic.usage breakdown",
+        attributes: {
+          "gen_ai.usage.input_tokens": 6000,
+          "gen_ai.usage.cache_write.input_tokens": 4500,
+          "anthropic.usage.cache_creation.ephemeral_5m_input_tokens": 1500,
+          "anthropic.usage.cache_creation.ephemeral_1h_input_tokens": 3000,
+        },
+        expected: {
+          input: 1500,
+          input_cache_creation: 0,
+          input_cache_creation_5m: 1500,
+          input_cache_creation_1h: 3000,
+        },
+      },
     ])(
       "should split the cache-write TTL breakdown out of input_cache_creation ($name)",
       async ({ attributes, expected }) => {
