@@ -9,7 +9,7 @@ import {
   type UIEvent,
   useState,
 } from "react";
-import { ExternalLink } from "@langfuse/icons";
+import { ChevronDown, ChevronRight, ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   type CustomHeights,
@@ -70,6 +70,44 @@ function useTruncatedTitle(text: string, clip: "truncate" | "line-clamp") {
   };
 }
 
+/** A trace row, or the row standing for a session with two or more loaded traces. */
+type ListRow = FacetRow & {
+  id: string;
+  session?: { id: string; traceCount: number; expanded: boolean };
+  nested?: boolean;
+};
+
+/** Groups loaded traces by session, at the position of each session's latest trace. */
+function groupBySession(rows: FacetRow[], expanded: Set<string>): ListRow[] {
+  const members = new Map<string, FacetRow[]>();
+  for (const row of rows)
+    if (row.sessionId)
+      members.set(row.sessionId, [...(members.get(row.sessionId) ?? []), row]);
+  const listed = new Set<string>();
+  return rows.flatMap((row): ListRow[] => {
+    const traces = row.sessionId ? members.get(row.sessionId) : undefined;
+    if (!row.sessionId || !traces || traces.length < 2)
+      return [{ ...row, id: row.traceId }];
+    if (listed.has(row.sessionId)) return [];
+    listed.add(row.sessionId);
+    const isExpanded = expanded.has(row.sessionId);
+    return [
+      {
+        ...row,
+        id: `session:${row.sessionId}`,
+        session: {
+          id: row.sessionId,
+          traceCount: traces.length,
+          expanded: isExpanded,
+        },
+      },
+      ...(isExpanded
+        ? traces.map((trace) => ({ ...trace, id: trace.traceId, nested: true }))
+        : []),
+    ];
+  });
+}
+
 export function TopicTraceList({
   projectId,
   title,
@@ -108,6 +146,32 @@ export function TopicTraceList({
     TRACE_ROW_HEIGHTS,
   );
   const selectedRowLoaded = rows.some((row) => row.traceId === selectedTraceId);
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const selectedSession = rows.find(
+    (row) => row.traceId === selectedTraceId,
+  )?.sessionId;
+  // Lists without a repeated session stay a plain trace list.
+  const groupsSessions =
+    new Set(rows.flatMap((row) => (row.sessionId ? [row.sessionId] : [])))
+      .size < rows.filter((row) => row.sessionId).length;
+  const listRows: ListRow[] = groupsSessions
+    ? groupBySession(
+        rows,
+        // A trace picked on the map opens its session.
+        selectedSession
+          ? new Set([...expandedSessions, selectedSession])
+          : expandedSessions,
+      )
+    : rows.map((row) => ({ ...row, id: row.traceId }));
+  const toggleSession = (sessionId: string) =>
+    setExpandedSessions((current) => {
+      const next = new Set(current);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      return next;
+    });
   // A trace picked on the map scrolls into view once its row is loaded.
   useEffect(() => {
     tableRef.current
@@ -133,30 +197,71 @@ export function TopicTraceList({
     isV4,
     isAnalysis ? undefined : tracingTopic,
   );
-  const columns: LangfuseColumnDef<FacetRow>[] = [
+  const columns: LangfuseColumnDef<ListRow>[] = [
     {
       accessorKey: "traceId",
-      header: () => <span className={FIRST_CELL}>Trace ID</span>,
-      size: widthShare(0.2),
-      minSize: 96,
-      cell: ({ row }) => (
-        <span
-          className={cn(
-            "text-link block truncate font-mono text-xs",
-            FIRST_CELL,
-          )}
-          title={row.original.traceId}
-        >
-          {row.original.traceId}
+      header: () => (
+        <span className={FIRST_CELL}>
+          {groupsSessions ? "Session" : "Trace ID"}
         </span>
       ),
+      // Session ids run longer than trace ids, so the grouped list gives them more room.
+      size: widthShare(groupsSessions ? 0.3 : 0.2),
+      minSize: 96,
+      cell: ({ row }) => {
+        const { session, nested, traceId, sessionId } = row.original;
+        if (session) {
+          const Chevron = session.expanded ? ChevronDown : ChevronRight;
+          return (
+            <span className={cn(FIRST_CELL, "flex min-w-0 items-center gap-1")}>
+              <Chevron size="base" color="muted" />
+              <span
+                className="text-link min-w-0 truncate font-mono text-xs"
+                title={session.id}
+              >
+                {session.id}
+              </span>
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {session.traceCount} traces
+              </span>
+            </span>
+          );
+        }
+        // Single-trace sessions show the session; nested and sessionless rows show the trace.
+        const id = groupsSessions && !nested ? (sessionId ?? traceId) : traceId;
+        if (!groupsSessions)
+          return (
+            <span
+              className={cn(
+                "text-link block truncate font-mono text-xs",
+                FIRST_CELL,
+              )}
+              title={traceId}
+            >
+              {id}
+            </span>
+          );
+        // Spacers match the chevron, so ids line up under the session ids.
+        return (
+          <span className={cn(FIRST_CELL, "flex min-w-0 items-center gap-1")}>
+            <span aria-hidden className="size-3.5 shrink-0" />
+            {nested && <span aria-hidden className="size-3.5 shrink-0" />}
+            <span
+              className="text-link min-w-0 truncate font-mono text-xs"
+              title={traceId}
+            >
+              {id}
+            </span>
+          </span>
+        );
+      },
     },
     ...(topicColors
       ? [
           {
             accessorKey: "topicName",
             header: () => <span className={CELL}>Topic</span>,
-            size: widthShare(0.3),
+            size: widthShare(groupsSessions ? 0.2 : 0.3),
             minSize: 120,
             cell: ({ row }) => {
               // Outliers read Unassigned, as in the topic rows and on the map.
@@ -201,7 +306,7 @@ export function TopicTraceList({
                 </span>
               );
             },
-          } satisfies LangfuseColumnDef<FacetRow>,
+          } satisfies LangfuseColumnDef<ListRow>,
         ]
       : []),
     {
@@ -259,7 +364,10 @@ export function TopicTraceList({
             </h3>
             {totalCount !== null && (
               <span className="text-muted-foreground shrink-0 font-mono text-xs">
-                · {traceCountLabel(totalCount)}
+                {traceCountLabel(totalCount)}
+                {groupsSessions &&
+                  traces.sessionCount &&
+                  `, ${traces.sessionCount.count.toLocaleString()}${traces.sessionCount.isLowerBound ? "+" : ""} sessions`}
               </span>
             )}
           </div>
@@ -296,6 +404,8 @@ export function TopicTraceList({
           {/* The table reads column sizes once, so it waits for the measured width. */}
           {tableSize && (
             <DataTable
+              // Column sizes are read once, so grouping remounts with its own widths.
+              key={groupsSessions ? "sessions" : "traces"}
               // v2 drops column widths saved before the 20/30/50 defaults.
               tableName="topics-trace-list"
               columns={columns}
@@ -303,12 +413,17 @@ export function TopicTraceList({
                 isLoading: traces.isLoading,
                 isError: traces.error !== null,
                 error: traces.error ?? undefined,
-                data: rows.map((row) => ({ ...row, id: row.traceId })),
+                data: listRows,
               }}
               className="min-h-0 overscroll-contain"
               cellPadding="relaxed"
               noResultsMessage={emptyMessage}
               peekView={peekView}
+              onRowClick={(row, event) => {
+                if (!row.session) return;
+                event?.preventDefault();
+                toggleSession(row.session.id);
+              }}
               rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
               rowHeight={rowHeight}
               customRowHeights={TRACE_ROW_HEIGHTS}

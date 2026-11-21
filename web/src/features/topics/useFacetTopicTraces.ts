@@ -14,20 +14,22 @@ export function useFacetTopicTraces(
   query: TopicTraceQuery | null,
 ): TopicTracesResult {
   const source = useContext(FacetTraceSource);
-  const result = api.topics.traces.useInfiniteQuery(
-    {
-      projectId: source?.projectId ?? "",
-      facetId: source?.facetId ?? "",
-      ruleId: source?.ruleId,
-      analysisId: source?.analysisId,
-      ...query,
-    },
-    {
-      enabled: Boolean(source) && query !== null,
-      getNextPageParam: (page) => page.nextCursor ?? undefined,
-      meta: { toastOperation: "topics.load" },
-    },
-  );
+  const input = {
+    projectId: source?.projectId ?? "",
+    facetId: source?.facetId ?? "",
+    ruleId: source?.ruleId,
+    analysisId: source?.analysisId,
+    ...query,
+  };
+  const sessionCount = api.topics.traceSessionCount.useQuery(input, {
+    enabled: Boolean(source) && query !== null,
+    meta: { toastOperation: "topics.load" },
+  });
+  const result = api.topics.traces.useInfiniteQuery(input, {
+    enabled: Boolean(source) && query !== null,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    meta: { toastOperation: "topics.load" },
+  });
   // Disabled queries keep their cached pages, so `null` must not read them.
   if (query === null)
     return {
@@ -44,6 +46,7 @@ export function useFacetTopicTraces(
     isLoadingMore: result.isFetchingNextPage,
     error: result.error?.message ?? null,
     hasMore: Boolean(result.hasNextPage),
+    sessionCount: sessionCount.data ?? null,
     loadMore: () => {
       if (result.hasNextPage && !result.isFetchingNextPage)
         result.fetchNextPage();
