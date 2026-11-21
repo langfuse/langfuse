@@ -1,4 +1,5 @@
 import type {
+  CodeEvalTemplateVariable,
   DecisionModelQuestions,
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
@@ -29,7 +30,7 @@ export type ManagedTemplate = {
         promptMessages: EvaluatorPromptMessage[];
         variables: Array<{
           name: string;
-          defaultMapping: { field: string };
+          defaultMapping: { field: CodeEvalTemplateVariable };
         }>;
         outputDefinition: PersistedEvalOutputDefinition;
       }
@@ -41,7 +42,10 @@ export type ManagedTemplate = {
     | {
         type: Extract<EvalTemplateType, "DECISION_MODEL">;
         questions: DecisionModelQuestions;
-        state: Array<{ key: string; defaultMapping: { field: string } }>;
+        state: Array<{
+          key: string;
+          defaultMapping: { field: CodeEvalTemplateVariable };
+        }>;
       };
 };
 

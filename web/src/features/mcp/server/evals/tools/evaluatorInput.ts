@@ -16,6 +16,7 @@ import {
   EvaluatorModelConfigSchema,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 import { reconcileEvaluatorPromptMessages } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import { EVALUATOR_VARIABLE_COLUMN_IDS } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
 
 const CreateEvaluatorWithoutProjectSchema = CreateEvaluatorSchema.omit({
   projectId: true,
@@ -34,6 +35,9 @@ export const McpEvaluatorModelConfigSchema = EvaluatorModelConfigSchema.extend({
 });
 
 const McpObservationVariableMappingSchema = observationVariableMapping.extend({
+  selectedColumnId: observationVariableMapping.shape.selectedColumnId.describe(
+    `Column the variable reads from. One of: ${EVALUATOR_VARIABLE_COLUMN_IDS.join(", ")}. Use threads only for trace transcript evaluators.`,
+  ),
   jsonSelector: z.string().optional(),
 });
 
