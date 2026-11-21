@@ -18,7 +18,6 @@ import type {
   GatewayProviderName,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
-import type { ModelDiscoveryError } from "@/src/features/ai-gateway/server/provider/models/types";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -53,14 +52,6 @@ export const COMPLETION_TIMEOUT_MS = 180_000;
 // responses catalog.
 const OPENAI_MODELS_PATH = "/openai/v1/models";
 const ANTHROPIC_MODELS_PATH = "/anthropic/v1/models";
-
-// Live provider model listings intermittently stall or fail; retry those
-// outcomes so one slow listing does not fail a whole provider suite.
-const TRANSIENT_RETRY_DELAYS_MS = [2_000, 5_000];
-const TRANSIENT_DISCOVERY_ERRORS = new Set<ModelDiscoveryError>([
-  "provider_error",
-  "timeout",
-]);
 
 const openAiModelListSchema = z
   .object({
@@ -99,15 +90,6 @@ const anthropicModelListSchema = z
     last_id: z.string().min(1),
   })
   .strict();
-
-// The Anthropic route reports the gateway's `gateway_unavailable` 503 as
-// Anthropic's `overloaded_error` type, without a code.
-const gatewayUnavailableSchema = z.object({
-  error: z.union([
-    z.object({ code: z.literal("gateway_unavailable") }),
-    z.object({ type: z.literal("overloaded_error") }),
-  ]),
-});
 
 type Admin = Awaited<ReturnType<typeof createGatewayAdmin>>;
 type CreateConnectionInput = Parameters<
@@ -251,7 +233,7 @@ export function setUpGatewayE2e(
     const gateway = await startGatewayProcess();
     suite.gatewayBaseUrl = gateway.url;
     stopGateway = gateway.stop;
-  }, TEST_TIMEOUT_MS);
+  }, 60_000);
 
   afterAll(async () => {
     try {
@@ -338,13 +320,9 @@ export async function listGatewayModelIds(
     apiFormat === "anthropic.messages"
       ? ANTHROPIC_MODELS_PATH
       : OPENAI_MODELS_PATH;
-  const response = await retryTransient(
-    () =>
-      fetch(`${suite.gatewayBaseUrl}${requestPath}`, {
-        headers: { Authorization: `Bearer ${secretKey}` },
-      }),
-    isGatewayUnavailable,
-  );
+  const response = await fetch(`${suite.gatewayBaseUrl}${requestPath}`, {
+    headers: { Authorization: `Bearer ${secretKey}` },
+  });
   const body = await readJsonResponse(response, 200, requestPath);
   if (requestPath === OPENAI_MODELS_PATH) {
     return openAiModelListSchema.parse(body).data.map(({ id }) => id);
@@ -624,14 +602,10 @@ async function addProviderConnection({ models, ...spec }: ConnectionSpec) {
 
   // Azure validates the key on a route it may list, then discovers
   // deployments on one it may not, so check the catalog as well.
-  const catalog = await retryTransient(
-    () =>
-      suite.admin.caller.aiGateway.getConnectionModels({
-        orgId: ORGANIZATION_ID,
-        id: created.id,
-      }),
-    (result) => !result.success && TRANSIENT_DISCOVERY_ERRORS.has(result.error),
-  );
+  const catalog = await suite.admin.caller.aiGateway.getConnectionModels({
+    orgId: ORGANIZATION_ID,
+    id: created.id,
+  });
   expect(catalog.success, JSON.stringify(catalog)).toBe(true);
   let { updatedAt } = created;
   if (
@@ -796,28 +770,6 @@ function gatewayIngestionAuthorization(token: string) {
     canonicalMessage,
     env.LANGFUSE_AI_GATEWAY_SERVICE_KEY!,
   )}`;
-}
-
-/** Repeats `attempt` while `isTransient` holds, then returns the last result for the caller to assert on. */
-async function retryTransient<T>(
-  attempt: () => Promise<T>,
-  isTransient: (result: T) => boolean | Promise<boolean>,
-) {
-  for (const delayMs of TRANSIENT_RETRY_DELAYS_MS) {
-    const result = await attempt();
-    if (!(await isTransient(result))) return result;
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
-  }
-  return attempt();
-}
-
-async function isGatewayUnavailable(response: Response) {
-  if (response.status !== 503) return false;
-  const body: unknown = await response
-    .clone()
-    .json()
-    .catch(() => null);
-  return gatewayUnavailableSchema.safeParse(body).success;
 }
 
 async function readJsonResponse<T = unknown>(
