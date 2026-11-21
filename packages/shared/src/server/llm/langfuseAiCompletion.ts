@@ -17,6 +17,19 @@ export function isLangfuseAITracingConfigured() {
   return Boolean(env.LANGFUSE_AI_FEATURES_PROJECT_ID);
 }
 
+/**
+ * Whether an organization allows its AI feature runs to be traced to the
+ * AI-features project. On Langfuse Cloud this is the organization's opt-in.
+ * Self-hosted organizations cannot change `aiTelemetryEnabled`, so there the
+ * operator's `LANGFUSE_AI_FEATURES_PROJECT_ID` is the only switch.
+ */
+export function isOrganizationAITelemetryEnabled(organization: {
+  aiTelemetryEnabled: boolean;
+}) {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return true;
+  return organization.aiTelemetryEnabled;
+}
+
 /** Product telemetry in the AI-features project. Eligible as an eval target. */
 const LANGFUSE_AI_FEATURE_ENVIRONMENT = "production";
 

@@ -92,16 +92,25 @@ describe("AIFeatureSwitch", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows product-improvement telemetry on Cloud when AI features and tracing are on", () => {
-    render(<AIFeatureSwitch />);
+  it.each([true, false])(
+    "shows product-improvement telemetry on Cloud when tracing is configured (aiFeaturesEnabled=%s)",
+    (aiFeaturesEnabled) => {
+      mocks.organization = {
+        id: "org-1",
+        aiFeaturesEnabled,
+        aiTelemetryEnabled: true,
+      };
 
-    expect(
-      screen.getByText("AI Data Use for Product/Service Improvement"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Traces are sent to Langfuse Cloud/),
-    ).not.toBeInTheDocument();
-  });
+      render(<AIFeatureSwitch />);
+
+      expect(
+        screen.getByText("AI Data Use for Product/Service Improvement"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Traces are sent to Langfuse Cloud/),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("hides product-improvement telemetry on self-hosted even when tracing is configured", () => {
     mocks.isLangfuseCloud = false;
