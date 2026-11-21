@@ -45,6 +45,14 @@ const createParser = async (
     if (currentRowIndex === 0) {
       // Header row
       headerRow = row.map((value) => value.trim());
+      if (new Set(headerRow).size !== headerRow.length) {
+        parser.destroy(
+          new Error(
+            "CSV column names must be unique. Rename duplicate columns before importing.",
+          ),
+        );
+        return;
+      }
       if (options.collectSamples) {
         headerRow.forEach((header) => columnSamples.set(header, []));
       }
