@@ -68,7 +68,6 @@ function ImagePreview({ src }: { src?: string }) {
       className="bg-muted h-24 w-24 overflow-hidden rounded-md border transition-opacity hover:opacity-80"
       aria-label="Open image in new tab"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt="Media preview"

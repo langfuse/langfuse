@@ -3,7 +3,7 @@ import {
   createTRPCRouter,
   publicProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
-import { consumeEmailOtpAndUpdatePassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import { setPasswordWithEmailCode } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { TRPCError } from "@trpc/server";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 
@@ -16,6 +16,8 @@ export const credentialsRouter = createTRPCRouter({
           message: "Verification code must be 6 digits.",
         }),
         password: passwordSchema,
+        // only the setup-password step records sign-up steps
+        intent: z.enum(["setup", "reset"]).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -32,10 +34,18 @@ export const credentialsRouter = createTRPCRouter({
         });
       }
 
-      await consumeEmailOtpAndUpdatePassword({
+      const codeCheck = await setPasswordWithEmailCode({
         email: normalizedEmail,
         token: input.token,
         password: input.password,
+        intent: input.intent,
       });
+      if (codeCheck !== "ok") {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message:
+            'This code is wrong or has expired. Use "Send another code" to get a new one.',
+        });
+      }
     }),
 });

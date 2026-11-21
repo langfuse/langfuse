@@ -26,6 +26,7 @@ import {
 import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBillingService";
 import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const CORE_PRODUCT_ID = mapChbPlanCodeToStripeProductId("LANGFUSE_CORE")!;
 
@@ -68,9 +69,11 @@ const service = () => {
   const ctx = {
     prisma,
     session: {
+      ...createSession({
+        user: { id: `user-${randomUUID()}`, email: "owner@example.com" },
+        organizations: [{ id: orgId, role: "OWNER" }],
+      }),
       orgId,
-      orgRole: "OWNER",
-      user: { id: `user-${randomUUID()}`, email: "owner@example.com" },
     },
   } as unknown as OrgAuthedContext;
   return new ChbBillingService(clientMock, ctx);

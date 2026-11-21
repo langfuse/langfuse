@@ -4,7 +4,7 @@
  * with both weight roles inline, a live type-scale table, and tokenized
  * usage guidance.
  *
- * Every value on this page — font stacks, the two weight roles, the text-*
+ * Every value on this page — font stacks, the weight roles, the text-*
  * size tokens and their canonical weights — is parsed at build time from
  * `src/styles/globals.css` (see parseThemeTokens.ts), so the page cannot
  * drift from the stylesheet.
@@ -188,7 +188,9 @@ function WeightRoleRow({ token }: { token: TokenDeclaration }) {
           {token.name}: {token.value}
         </span>
         <span>
-          {role === "bold" ? "· the font-bold utility" : "· every text-* size"}
+          {role === "regular"
+            ? "· every text-* size"
+            : `· the font-${role} utility`}
         </span>
       </div>
     </div>
@@ -207,7 +209,7 @@ const MONO_EXAMPLES: Array<{
     className:
       "font-mono text-[10px] tracking-[0.05em] uppercase text-muted-foreground",
     sample: "Production · EU region",
-    seenIn: "EnvLabelBadge, section eyebrows on this page",
+    seenIn: "Section eyebrows on this page",
   },
   {
     label: "Metric",
@@ -238,8 +240,8 @@ export function Typography() {
           title="Typography"
           lede={
             <>
-              Two typefaces, two weights, {sizeTokens.length} sizes. Parsed at
-              build time from{" "}
+              Two typefaces, {weightTokens.length} weights, {sizeTokens.length}{" "}
+              sizes. Parsed at build time from{" "}
               <code className="font-mono">src/styles/globals.css</code>.
             </>
           }
@@ -278,7 +280,7 @@ export function Typography() {
 
         <PageSection
           title="Weight roles"
-          blurb="Two roles: regular and bold. Components never hardcode weight numbers."
+          blurb="Three roles: regular, medium and bold. Components never hardcode weight numbers."
           aside={<InlineCode>{weightTokens.length} roles</InlineCode>}
         >
           <div className="flex flex-col">
@@ -287,8 +289,9 @@ export function Typography() {
             ))}
           </div>
           <p className="text-muted-foreground text-sm">
-            <InlineCode>font-medium</InlineCode>,{" "}
-            <InlineCode>font-semibold</InlineCode> and raw numbers are drift.
+            Medium is for names that identify an entity, such as the org and
+            project switchers. <InlineCode>font-semibold</InlineCode> and raw
+            numbers are drift.
           </p>
         </PageSection>
 

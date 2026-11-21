@@ -1,6 +1,6 @@
-import { type ReactNode, useId } from "react";
+import { type ComponentProps, type ReactNode, useId } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import {
   CreateQueueWithAssignmentsData,
@@ -12,7 +12,8 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
+import { AnnotationQueueSessionViewSettings } from "./AnnotationQueueSessionViewSettings/AnnotationQueueSessionViewSettings";
+import { UserAssignmentSection } from "./UserAssignmentSection";
 
 type AnnotationQueueFormDialogContentProps = {
   mode: "create" | "edit";
@@ -21,8 +22,24 @@ type AnnotationQueueFormDialogContentProps = {
     value: string[];
     onChange: (ids: string[]) => void;
   }) => ReactNode;
-  projectId: string;
-  queueId?: string;
+  sessionViewSettings: Pick<
+    ComponentProps<typeof AnnotationQueueSessionViewSettings>,
+    "viewsState" | "value" | "onChange" | "canSaveViews" | "onCreate" | "onEdit"
+  > | null;
+  userAssignments: Pick<
+    ComponentProps<typeof UserAssignmentSection>,
+    | "users"
+    | "assignedUsers"
+    | "totalAssignedUsers"
+    | "searchQuery"
+    | "onSearchChange"
+    | "searchResults"
+    | "isLoading"
+    | "hasMoreResults"
+    | "canWrite"
+    | "isRemoving"
+    | "onRemove"
+  >;
   queueNames: string[];
   hasQueueAssignmentsReadAccess: boolean;
   isSubmitting: boolean;
@@ -40,8 +57,8 @@ export function AnnotationQueueFormDialogContent({
   mode,
   initialValues,
   children,
-  projectId,
-  queueId,
+  sessionViewSettings,
+  userAssignments,
   queueNames,
   hasQueueAssignmentsReadAccess,
   isSubmitting,
@@ -93,7 +110,18 @@ export function AnnotationQueueFormDialogContent({
       ]}
     >
       <Dialog.Body>
-        <Form id={formId} actions={[]} onSubmit={form.handleSubmit(onSubmit)}>
+        <Form
+          id={formId}
+          actions={[]}
+          onSubmit={form.handleSubmit((data) =>
+            onSubmit({
+              ...data,
+              sessionViewId: sessionViewSettings
+                ? sessionViewSettings.value
+                : initialValues.sessionViewId,
+            }),
+          )}
+        >
           <Form.Field control={form.control} name="name" label="Name">
             {(field) => (
               <Input
@@ -149,23 +177,26 @@ export function AnnotationQueueFormDialogContent({
               )}
             </Form.Field>
           )}
+          {sessionViewSettings && (
+            <AnnotationQueueSessionViewSettings
+              {...sessionViewSettings}
+              disabled={isSubmitting}
+            />
+          )}
           {hasQueueAssignmentsReadAccess ? (
-            <Form.Field
+            <Controller
               control={form.control}
               name="newAssignmentUserIds"
-              label="Advanced Settings"
-            >
-              {(field) => (
+              render={({ field }) => (
                 <Accordion type="single" collapsible>
                   <Accordion.Item value="assignments">
                     <Accordion.Trigger size="sm">
-                      User Assignment
+                      User assignments
                     </Accordion.Trigger>
                     <Accordion.Content>
                       <div className="py-3">
                         <UserAssignmentSection
-                          projectId={projectId}
-                          queueId={queueId}
+                          {...userAssignments}
                           selectedUserIds={field.value}
                           onChange={field.onChange}
                         />
@@ -174,7 +205,7 @@ export function AnnotationQueueFormDialogContent({
                   </Accordion.Item>
                 </Accordion>
               )}
-            </Form.Field>
+            />
           ) : null}
         </Form>
       </Dialog.Body>

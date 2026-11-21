@@ -113,7 +113,7 @@ export function encodeFiltersGeneric(filters: FilterState): string {
             f.type === "booleanObject" ||
             f.type === "categoryOptions" ||
             f.type === "positionInTrace"
-              ? (f as any).key || ""
+              ? encodeURIComponent((f as any).key || "")
               : "";
 
           // Encode the value

@@ -155,8 +155,14 @@ export async function getObjectIdsByCommentContent({
         mode: "insensitive",
       },
     };
+  } else if (operator === "=") {
+    whereCondition = {
+      projectId,
+      objectType,
+      content: { equals: searchQuery },
+    };
   } else {
-    // Default to contains (for "=" operator which maps to exact match in string filters)
+    // "is not empty": an empty pattern matches any comment
     whereCondition = {
       projectId,
       objectType,

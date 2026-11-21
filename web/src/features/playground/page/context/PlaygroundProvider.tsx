@@ -468,7 +468,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         capture("playground:execute_button_click", {
           inputLength: finalMessages.length,
           modelName: modelParams.model,
-          modelProvider: modelParams.provider,
+          modelAdapter: modelParams.adapter.value,
           outputLength: response.length,
           toolCount: tools.length,
           isStructuredOutput: Boolean(structuredOutputSchema),

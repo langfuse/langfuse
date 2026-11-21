@@ -24,7 +24,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { EntityTitle } from "@/src/components/EntityTitle";
 import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
 import { DetailViewHeaderTitleRow } from "@/src/features/traces/components/DetailViewHeaderTitleRow";
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
@@ -108,9 +108,9 @@ function TraceDetailViewHeaderLoading() {
       <div className="flex flex-col gap-2">
         <CollapsibleBadgeRow>
           {LOADING_BADGE_WIDTHS.map((width, index) => (
-            <BadgeShell key={index} color="ghost">
+            <Metric key={index}>
               <Skeleton className={cn("h-3", width)} />
-            </BadgeShell>
+            </Metric>
           ))}
         </CollapsibleBadgeRow>
       </div>
@@ -146,12 +146,7 @@ function LoadedTraceDetailViewHeader({
   });
 
   const timestampBadge = preparedDate && (
-    <Badge
-      font="mono"
-      color="ghost"
-      text={preparedDate.display}
-      title={preparedDate.title}
-    />
+    <Metric value={preparedDate.display} title={preparedDate.title} />
   );
 
   return (

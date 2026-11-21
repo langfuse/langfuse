@@ -232,7 +232,6 @@ export const allMembersRoutes = {
               getUserFeaturePreviewManagementCapabilities({
                 prisma: ctx.prisma,
                 actorUserId: ctx.session.user.id,
-                actorIsPlatformAdmin: ctx.session.user.admin === true,
                 targetUserIds: userIds,
                 demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
               }),

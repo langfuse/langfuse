@@ -15,7 +15,11 @@ const SKILL_TOOL_NAMES = new Set([
 ]);
 
 /** Filters unsupported tools before decoding their arguments or skill catalog. */
-export function isSkillLoadTool(toolName: string, metadata?: unknown): boolean {
+export function isSkillLoadTool(
+  toolName: unknown,
+  metadata?: unknown,
+): boolean {
+  if (typeof toolName !== "string") return false;
   return (
     SKILL_TOOL_NAMES.has(toolName) ||
     (isCodexShellTool(toolName) && isCodexMetadata(metadata))
@@ -104,7 +108,21 @@ export function getSkillLoadRequestsFromArguments(
       return [];
   }
   if (typeof skillName !== "string" || typeof filePath !== "string") return [];
-  return [{ skillName, filePath, version: args.version }];
+  const nativeSkillName =
+    toolName === "skill" || toolName === "skill_read"
+      ? availableNames.find(
+          (name) =>
+            skillName === `/skills/${name}` ||
+            skillName === `/skills/${name}/SKILL.md`,
+        )
+      : undefined;
+  return [
+    {
+      skillName: nativeSkillName ?? skillName,
+      filePath,
+      version: args.version,
+    },
+  ];
 }
 
 function isCodexMetadata(metadata: unknown): boolean {

@@ -37,7 +37,7 @@ import {
 
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
@@ -64,7 +64,9 @@ export default function ProjectHomePage() {
   if (readPath === "unknown") {
     return (
       <Page withPadding scrollable headerProps={{ title: "Home" }}>
-        <NoDataOrLoading isLoading />
+        <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+          <Skeleton className="h-full w-full" />
+        </div>
       </Page>
     );
   }
@@ -546,7 +548,9 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           />
         </PageHeaderControlsPortal>
         {!isDashboardDataReady || isResolvingDashboard ? (
-          <NoDataOrLoading isLoading />
+          <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+            <Skeleton className="h-full w-full" />
+          </div>
         ) : (
           <DashboardGrid
             widgets={definition.widgets}

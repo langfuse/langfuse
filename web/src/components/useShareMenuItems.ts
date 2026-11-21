@@ -4,7 +4,7 @@ import { type DropdownMenuItemDefinition } from "@/src/components/design-system/
 import {
   getShareUrl,
   usePublishObject,
-} from "@/src/components/PublishSessionSwitch";
+} from "@/src/components/usePublishObject";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 

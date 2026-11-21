@@ -452,6 +452,10 @@ const events = {
     "setup_opened",
     "setup_step_saved",
     "setup_started",
+    // Tracing pulse chart topic stripe. Props: isV4, isSelected, topicCount; never topic names.
+    "stripe_toggle",
+    // Topics page "Give feedback", opening the support form as Feedback. No props.
+    "feedback_open",
   ],
   in_app_agent: [
     "activity_opened",
@@ -473,16 +477,22 @@ const events = {
     "provider_credential_deleted",
     "team_invite_sent",
     "api_key_created",
+    "api_key_updated",
     "api_key_revoked",
     "api_key_secret_copied",
     "api_key_secret_revealed",
     "model_access_changed",
     "model_name_copied",
+    "custom_model_added",
+    "custom_model_removed",
+    "budget_saved",
+    "budget_removed",
     "agent_setup_instructions_viewed",
     "agent_setup_instructions_copied",
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  billing_coupon: ["submitted"],
   // Launch surfaces answer "which entry point and state lead people into
   // gateway setup or key creation?" Props are state enums and counts only.
   ai_gateway_launch: [
@@ -515,8 +525,11 @@ const events = {
     "status_row_clicked",
     "update_required_badge_clicked",
     "migrate_evals_with_agent_clicked",
-    "overview_banner_status_clicked",
-    "overview_banner_docs_clicked",
+    // Legacy v3 strip in the top-banner stack. Both carry
+    // { severity, actionNeededCount, variant }; cta_clicked also carries `cta`.
+    // `variant` is deadline, delayed (November 23), or december (December 31).
+    "top_banner_shown",
+    "top_banner_cta_clicked",
     // Opt-out users on the legacy-UI top strip → migration status page.
     "legacy_ui_banner_status_clicked",
     "panel_docs_link_clicked",
@@ -555,7 +568,9 @@ const events = {
 
 // type that represents all possible event names, e.g. "trace:delete"
 type EventName = {
-  [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
+  [
+    Resource in keyof typeof events
+  ]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
 type TypedEventMap = AnnotationEventMap &

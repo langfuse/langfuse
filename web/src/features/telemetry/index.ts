@@ -10,10 +10,10 @@ import {
   getTraceCountsByProjectInCreationInterval,
   getTracingCountsByProjectInCreationIntervalFromEventsTable,
   logger,
+  getSelfHostedInstancePlanServerSide,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
 
 // Interval between jobs in minutes
 const JOB_INTERVAL_MINUTES = Prisma.raw("720"); // 12 hours
@@ -215,6 +215,9 @@ async function posthogTelemetry({
       },
     });
 
+    // All existing AI gateway keys, including expired ones, not only those created in the timeframe
+    const totalGatewayKeys = await prisma.gatewayApiKeyAssociation.count();
+
     // Count traces, observations and AI gateway requests
     const { countTraces, countObservations, countGatewayRequests } =
       await countTracing({
@@ -303,6 +306,7 @@ async function posthogTelemetry({
         langfuseVersion: VERSION,
         userDomains: domains,
         totalProjects: totalProjects,
+        totalGatewayKeys: totalGatewayKeys,
         traces: countTraces,
         scores: countScores,
         observations: countObservations,

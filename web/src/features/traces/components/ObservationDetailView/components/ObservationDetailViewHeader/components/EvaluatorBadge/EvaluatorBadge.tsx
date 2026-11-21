@@ -1,4 +1,4 @@
-import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 
 export function EvaluatorBadge({
   evaluatorId,
@@ -10,12 +10,12 @@ export function EvaluatorBadge({
   projectId: string;
 }) {
   return (
-    <LinkBadge
+    <Metric
       href={`/project/${projectId}/evals/v2/${encodeURIComponent(evaluatorId)}`}
       newTab
       noCapture
       label="evaluator"
-      text={evaluatorName ?? evaluatorId}
+      value={evaluatorName ?? evaluatorId}
     />
   );
 }

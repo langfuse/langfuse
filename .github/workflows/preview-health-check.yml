@@ -32,7 +32,7 @@ concurrency:
 jobs:
   check:
     name: Check labeled previews are serving
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     # Same preview-system feature gate as preview-build / preview-stale-cleanup:
     # unset => system off, nothing to poll.
     if: vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != ''

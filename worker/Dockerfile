@@ -9,10 +9,10 @@
 # with DoD provenance and scan attestations. Release builds opt in by overriding
 # both args after `docker login registry1.dso.mil` (free P1 account plus a CLI
 # secret):
-#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
-#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8
-ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
-ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
+#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.9
+#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.9
+ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.9
+ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.9
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
@@ -30,7 +30,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.9 pnpm@12.8.2
+RUN npm install -g turbo@2.11.9 pnpm@12.16.1
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 

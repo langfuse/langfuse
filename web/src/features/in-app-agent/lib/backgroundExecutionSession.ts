@@ -82,8 +82,8 @@ export type BackgroundExecutionSession = {
 type BackgroundExecutionAgent = {
   threadId: string;
   messages: readonly unknown[];
-  addMessage(message: AgUiMessage): void;
-  setMessages(messages: AgUiMessage[]): void;
+  addMessage(message: { id: string; role: "user"; content: string }): void;
+  setPersistedMessages(messages: AgUiMessage[]): void;
   subscribe(subscriber: AgentSubscriber): { unsubscribe(): void };
   runAgent(input: { context: AgUiContext }): Promise<unknown>;
   connectAgent(): Promise<unknown>;
@@ -108,6 +108,12 @@ type BackgroundExecutionHydration = Omit<
 type BackgroundExecutionAgentSubscriber = Pick<
   AgentSubscriber,
   | "onRunStartedEvent"
+  | "onRunFinishedEvent"
+  | "onTextMessageStartEvent"
+  | "onTextMessageEndEvent"
+  | "onReasoningMessageStartEvent"
+  | "onReasoningMessageEndEvent"
+  | "onToolCallStartEvent"
   | "onEvent"
   | "onMessagesChanged"
   | "onStateChanged"
@@ -498,7 +504,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
 
     this.isReplacingMessages = true;
     try {
-      this.agent.setMessages(hydrated.messages);
+      this.agent.setPersistedMessages(hydrated.messages);
     } finally {
       this.isReplacingMessages = false;
     }

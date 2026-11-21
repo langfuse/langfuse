@@ -1,4 +1,4 @@
-import { ToolSchema } from "@modelcontextprotocol/sdk/types.js";
+import { ToolSchema } from "@modelcontextprotocol/core";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { isoDateTime } from "@langfuse/shared";
@@ -35,7 +35,11 @@ describe("defineTool", () => {
     ]) {
       expect(pattern.test(timestamp)).toBe(true);
       await run({ timestamp }, context);
-      expect(handler).toHaveBeenLastCalledWith({ timestamp }, context);
+      expect(handler).toHaveBeenLastCalledWith(
+        { timestamp },
+        context,
+        undefined,
+      );
     }
     const invalid = "2024-02-30T06:15Z";
     expect(pattern.test(invalid)).toBe(false);
@@ -133,7 +137,7 @@ describe("defineTool", () => {
         run(invalid as Parameters<typeof run>[0], context),
       ).rejects.toThrow(z.ZodError);
     }
-    expect(handler).toHaveBeenCalledExactlyOnceWith(input, context);
+    expect(handler).toHaveBeenCalledExactlyOnceWith(input, context, undefined);
   });
 
   it("preserves root type: 'object' for plain object schemas", () => {

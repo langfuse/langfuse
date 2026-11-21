@@ -194,6 +194,7 @@ export default function ScoresAnalyticsPage() {
     <Page
       headerProps={{
         title: "Scores",
+        divider: false,
         breadcrumb: [{ name: "Scores", href: `/project/${projectId}/scores` }],
         help: {
           description:

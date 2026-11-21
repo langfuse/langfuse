@@ -30,6 +30,7 @@ export const LANGFUSE_END_NODE_NAME = "__end__";
 
 export const AgentGraphDataSchema = z.object({
   id: z.string(),
+  trace_id: z.string().optional(),
   parent_observation_id: z.string().nullish(),
   type: z.string(),
   name: z.string(),

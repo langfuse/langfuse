@@ -1,12 +1,18 @@
+import type { Session } from "next-auth";
+import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
+
 /** Account menu and organization settings share this gate for the personal preview modal. */
 export function canOpenPersonalFeaturePreviews({
+  session,
   isLangfuseCloud,
-  v4BetaEnabled,
-  isAdmin,
 }: {
+  session: Session | null | undefined;
   isLangfuseCloud: boolean;
-  v4BetaEnabled: boolean;
-  isAdmin: boolean;
 }): boolean {
-  return isLangfuseCloud || v4BetaEnabled || isAdmin;
+  return (
+    isLangfuseCloud ||
+    session?.user?.v4BetaEnabled === true ||
+    isInternalViewEnabled(session) ||
+    session?.user?.featureFlags.langfuseTopics === true
+  );
 }

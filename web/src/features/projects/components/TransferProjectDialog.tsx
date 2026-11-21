@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
@@ -12,7 +12,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { TriangleAlert } from "@langfuse/icons";
 import { useId } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -79,25 +78,20 @@ export function TransferProjectDialog({
           )}
         >
           <Dialog.Body>
-            <Alert variant="warning" icon={TriangleAlert}>
-              <Alert.Title>Warning</Alert.Title>
-              <Alert.Description>
-                Transferring the project will move it to a different
-                organization:
-                <ul className="list-disc pl-4">
-                  <li>
-                    Members who are not part of the new organization will lose
-                    access.
-                  </li>
-                  <li>
-                    The project remains fully operational as API keys, settings,
-                    and data will remain unchanged. All features (e.g. tracing,
-                    prompt management) will continue to work without
-                    interruption.
-                  </li>
-                </ul>
-              </Alert.Description>
-            </Alert>
+            <Banner variant="warning" title="Warning">
+              Transferring the project will move it to a different organization:
+              <ul className="list-disc pl-4">
+                <li>
+                  Members who are not part of the new organization will lose
+                  access.
+                </li>
+                <li>
+                  The project remains fully operational as API keys, settings,
+                  and data will remain unchanged. All features (e.g. tracing,
+                  prompt management) will continue to work without interruption.
+                </li>
+              </ul>
+            </Banner>
             <FormField
               control={form.control}
               name="organizationId"

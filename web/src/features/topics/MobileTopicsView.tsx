@@ -1,24 +1,40 @@
-import { useMemo, useState, type ComponentProps } from "react";
+import { useContext, useMemo, useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   type Facet,
+  type UseTopicTraces,
   orderedFacetTopics,
   topicTracesHref,
+  useTracesWithSelection,
 } from "./facet-topics";
-import { selectTopicTraceFilters } from "./topic-trace-filters";
+import {
+  filterTopicTraces,
+  selectTopicTraceFilters,
+} from "./topic-trace-filters";
 import { TopicMobileList } from "./TopicMobileList";
+import { TopicsEmptyActions } from "./TopicsEmptyActions";
+import { type TopicsActions } from "./prepare-topics-actions";
 import { TopicMobileTraceList } from "./TopicMobileTraceList";
 import { MobileTopicVisualization } from "./MobileTopicVisualization";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 import { prepareMobileTopics } from "./prepare-mobile-topics";
 import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
+import { FacetTraceSource } from "./useFacetTopicTraces";
+import { type MobileTopicsVisualization } from "./TopicsResultsViewSelect";
+
+const VISUALIZATIONS = [
+  { value: "treemap", label: "Treemap" },
+  { value: "map", label: "Scatter" },
+] as const;
 
 type MobileTopicsViewProps = {
   projectId: string;
   facet: Facet;
   view: ComponentProps<typeof MobileTopicVisualization>["view"];
+  onViewChange: (view: MobileTopicsVisualization) => void;
   mapResult: ComponentProps<typeof MobileTopicVisualization>["mapResult"];
   filters: FilterState;
   searchQuery: string | null;
@@ -27,9 +43,11 @@ type MobileTopicsViewProps = {
   selectedTraceId: string | null;
   onSelectTrace: (traceId: string | null) => void;
   onOpenTrace: (traceId: string) => void;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   isV4: boolean;
+  useTraces: UseTopicTraces;
+  showUnassigned: boolean;
+  /** Offered under an empty topic list. */
+  mapActions: TopicsActions;
 };
 
 /** Local navigation only; query data and persisted filters stay with the caller. */
@@ -37,6 +55,7 @@ export function MobileTopicsView({
   projectId,
   facet,
   view,
+  onViewChange,
   mapResult,
   filters,
   searchQuery,
@@ -45,9 +64,10 @@ export function MobileTopicsView({
   selectedTraceId,
   onSelectTrace,
   onOpenTrace,
-  onGenerateTopics,
-  canGenerateTopics,
   isV4,
+  useTraces,
+  showUnassigned,
+  mapActions,
 }: MobileTopicsViewProps) {
   const [navigation, setNavigation] = useState({
     view,
@@ -59,12 +79,29 @@ export function MobileTopicsView({
   function showPanel(panel: string) {
     setNavigation({ view, panel });
   }
-  const { topics, selectedTopicId, selectedTopic, visible } =
-    prepareMobileTopics(facet, view, filters, searchQuery);
-  const matchingTraceKey =
-    filters.length > 0 || searchQuery?.trim()
-      ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
-      : null;
+  const { topics, selectedTopicId, selectedTopic, traceQuery } =
+    prepareMobileTopics(facet, view, filters, searchQuery, showUnassigned);
+  const traces = useTracesWithSelection(useTraces, traceQuery, selectedTraceId);
+  const visible = traces.rows;
+  const mapPoints =
+    mapResult.data?.status === "ready" ? mapResult.data.points : null;
+  // The map highlights its own points that match the filters.
+  const matchingTraceKey = useMemo(() => {
+    if (!(filters.length > 0 || searchQuery?.trim()) || !mapPoints) return null;
+    const names = new Map(facet.topics.map((topic) => [topic.id, topic.name]));
+    return JSON.stringify(
+      filterTopicTraces(
+        mapPoints.map((point) => ({
+          ...point,
+          topicName: point.topicId ? (names.get(point.topicId) ?? null) : null,
+        })),
+        filters,
+        searchQuery,
+      )
+        .map((row) => row.traceId)
+        .sort(),
+    );
+  }, [filters, searchQuery, mapPoints, facet.topics]);
   // Map frame identity follows matching IDs, preserving tap previews across refreshes.
   const matchingTraceIds = useMemo(
     () =>
@@ -73,7 +110,19 @@ export function MobileTopicsView({
         : new Set<string>(JSON.parse(matchingTraceKey)),
     [matchingTraceKey],
   );
-  const tracingHref = topicTracesHref(projectId, visible, isV4);
+  // Only a plain topic selection maps to the tracing filter; analysis snapshots have their own topics.
+  const isAnalysis = Boolean(useContext(FacetTraceSource)?.analysisId);
+  const tracingHref = topicTracesHref(
+    projectId,
+    visible,
+    isV4,
+    selectedTopic &&
+      selectedTopic.id !== UNASSIGNED_TOPIC_ID &&
+      !searchQuery &&
+      !isAnalysis
+      ? { facet, name: selectedTopic.name }
+      : undefined,
+  );
 
   function showAllTraces() {
     onFiltersChange([]);
@@ -102,7 +151,12 @@ export function MobileTopicsView({
     showPanel("traces");
   }
   function selectTrace(traceId: string | null) {
-    if (traceId !== null && !visible.some((row) => row.traceId === traceId)) {
+    // A point outside the filters clears them; one inside is pinned once loaded.
+    if (
+      traceId !== null &&
+      matchingTraceIds &&
+      !matchingTraceIds.has(traceId)
+    ) {
       onFiltersChange([]);
       onSearchQueryChange(null);
     }
@@ -125,16 +179,16 @@ export function MobileTopicsView({
         <Tabs.Content value="topics" layout="fill">
           <TopicMobileList
             topics={topics}
-            totalCount={facet.rows.length}
+            totalCount={facet.counts.total}
             selectedTopicId={selectedTopicId}
             onSelectTopic={selectTopic}
             onShowAllTraces={showAllTraces}
           />
-          {facet.topics.length === 0 && canGenerateTopics && (
+          {facet.topics.length === 0 ? (
             <div className="shrink-0 border-t p-3">
-              <Button text="Generate topics" onClick={onGenerateTopics} />
+              <TopicsEmptyActions actions={mapActions} />
             </div>
-          )}
+          ) : null}
         </Tabs.Content>
         <Tabs.Content value="traces" layout="fill">
           <section
@@ -144,7 +198,7 @@ export function MobileTopicsView({
             <TopicMobileTraceList
               key={facet.facetId}
               filterKey={JSON.stringify([filters, searchQuery])}
-              rows={visible}
+              traces={traces}
               selectedTraceId={selectedTraceId}
               onOpenTrace={openTrace}
             >
@@ -154,7 +208,11 @@ export function MobileTopicsView({
                     {selectedTopic?.name ?? "Trace summaries"}
                   </h3>
                   <span className="text-muted-foreground text-xs tabular-nums">
-                    {visible.length.toLocaleString()} traces
+                    ~
+                    {(
+                      selectedTopic?.count ?? facet.counts.total
+                    ).toLocaleString()}{" "}
+                    traces
                   </span>
                 </div>
                 {selectedTopic?.description && (
@@ -193,6 +251,18 @@ export function MobileTopicsView({
           </section>
         </Tabs.Content>
         <Tabs.Content value="visualization" layout="fill">
+          <div className="flex shrink-0 items-center border-b p-2">
+            <div className="w-40">
+              <SelectInput
+                aria-label="Visualization"
+                placeholder="Visualization"
+                value={view}
+                onValueChange={onViewChange}
+                options={[...VISUALIZATIONS]}
+                noCapture
+              />
+            </div>
+          </div>
           <MobileTopicVisualization
             facet={facet}
             treemapTopics={topics}

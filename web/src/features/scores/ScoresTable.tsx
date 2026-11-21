@@ -296,9 +296,7 @@ export default function ScoresTable({
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: scoresFilterConfig.tableName,
     isV4,
-    extractParamsValuesFromRow: (
-      row: ScoresTableRow,
-    ): Record<string, string> =>
+    extractParamsValuesFromRow: (row: ScoresTableRow): Record<string, string> =>
       row.observationId ? { observation: row.observationId } : {},
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
@@ -376,6 +374,7 @@ export default function ScoresTable({
       utils.scores.all.invalidate();
       utils.scores.allFromEvents.invalidate();
       utils.scores.countAllFromEvents.invalidate();
+      utils.sessions.observationsForSessionFromEvents.invalidate({ projectId });
 
       if (traceId) {
         utils.traces.byIdWithObservationsAndScores.invalidate({
@@ -1182,10 +1181,12 @@ export default function ScoresTable({
       projectId={projectId}
       filterConfig={scoresFilterConfig}
       filterState={queryFilter.searchBarFilterState}
+      managedEnvironmentPolicy={queryFilter.managedEnvironmentPolicyConfig}
       setFilterState={setFiltersWrapper}
       filterOptions={newFilterOptions}
       isLoading={isSidebarFilterLoading}
       inset={insetToolbar}
+      spacing="page"
     />
   );
 
@@ -1206,7 +1207,8 @@ export default function ScoresTable({
           search={insetToolbar ? null : scoresSearchBar}
           toolbar={
             <DataTableToolbar
-              className={insetToolbar ? "px-4 py-2" : undefined}
+              className={insetToolbar ? "px-4 py-2" : "px-3"}
+              rowClassName={insetToolbar ? undefined : "mt-1 mb-4"}
               tableName={TableViewPresetTableName.Scores}
               leadingControls={
                 insetToolbar ? (

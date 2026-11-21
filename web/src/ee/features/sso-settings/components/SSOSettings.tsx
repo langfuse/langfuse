@@ -1,9 +1,8 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains/components/VerifiedDomainsSettings";
-import { AlertCircle } from "@langfuse/icons";
 import { ConnectedSsoConfigsTable } from "./SsoConfigsTable/ConnectedSsoConfigsTable";
 
 export const SSOSettings = ({ orgId }: { orgId: string }) => {
@@ -29,13 +28,10 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
         <VerifiedDomainsSettings orgId={orgId} />
         <div>
           {heading}
-          <Alert icon={AlertCircle}>
-            <Alert.Title>Not available</Alert.Title>
-            <Alert.Description>
-              Enterprise SSO is not available on your plan. Please upgrade to
-              access this feature.
-            </Alert.Description>
-          </Alert>
+          <Banner title="Not available">
+            Enterprise SSO is not available on your plan. Please upgrade to
+            access this feature.
+          </Banner>
         </div>
       </div>
     );
@@ -47,12 +43,9 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
         <VerifiedDomainsSettings orgId={orgId} />
         <div>
           {heading}
-          <Alert>
-            <Alert.Title>Access Denied</Alert.Title>
-            <Alert.Description>
-              You do not have permission to configure SSO for this organization.
-            </Alert.Description>
-          </Alert>
+          <Banner title="Access denied">
+            You do not have permission to configure SSO for this organization.
+          </Banner>
         </div>
       </div>
     );

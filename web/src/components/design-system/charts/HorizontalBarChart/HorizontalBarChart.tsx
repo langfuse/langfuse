@@ -10,10 +10,13 @@ import {
 import type { BarChartDatum } from "@/src/components/design-system/internal/charts/BarChartCore";
 import { CARTESIAN_CHART_INSETS } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
+import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { cn } from "@/src/utils/tailwind";
 
 const MIN_ROW_PX = 14;
 const CHARACTER_WIDTH = 7;
 const MAX_GRIDLINE_TO_VALUE_GAP = 24;
+const SCROLL_FADE_SIZE = "calc(var(--spacing) * 8)";
 
 export function HorizontalBarChart({
   data,
@@ -24,6 +27,12 @@ export function HorizontalBarChart({
   valueFormatter?: (value: number) => string;
   color?: string;
 }) {
+  const {
+    register,
+    recompute,
+    top: hasHiddenRowsAbove,
+    bottom: hasHiddenRowsBelow,
+  } = useScrollGradients<HTMLDivElement>(true);
   const maxMagnitude = Math.max(
     ...data.map((datum) => Math.abs(datum.value ?? 0)),
     0,
@@ -90,7 +99,16 @@ export function HorizontalBarChart({
           <ChartTooltip placementStrategy="horizontal">
             {({ activeIndex, hideTooltip, getReferenceProps }) => (
               <div
-                className="size-full overflow-x-hidden overflow-y-auto"
+                ref={register}
+                onScroll={recompute}
+                className={cn(
+                  "size-full overflow-x-hidden overflow-y-auto",
+                  hasHiddenRowsAbove && "scroll-pt-8",
+                  hasHiddenRowsBelow && "scroll-pb-8",
+                )}
+                style={{
+                  maskImage: `linear-gradient(to bottom, transparent, black ${hasHiddenRowsAbove ? SCROLL_FADE_SIZE : "0px"}, black calc(100% - ${hasHiddenRowsBelow ? SCROLL_FADE_SIZE : "0px"}), transparent)`,
+                }}
                 data-testid="top-list-chart"
               >
                 <svg

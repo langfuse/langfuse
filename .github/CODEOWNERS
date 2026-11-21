@@ -20,12 +20,15 @@
 /packages/shared/src/utils/normalized-io/ @marliessophie
 /packages/shared/src/server/transcript/ @marliessophie
 
-# Trace batching
-/worker/src/features/traceBatching/ @LysanderKie
-/packages/shared/src/server/traceBatch/ @LysanderKie
+# Trace dispatch
+/worker/src/features/traceDispatch/ @LysanderKie
+/packages/shared/src/server/eventsDispatch/ @LysanderKie
 
 # Topics
 /worker/src/features/topics/ @LysanderKie
 /web/src/features/topics/ @LysanderKie
 /packages/shared/src/server/topics/ @LysanderKie
 /packages/shared/src/topics/ @LysanderKie
+
+# Query AST
+/packages/shared/src/server/query-ast/ @niklassemmler

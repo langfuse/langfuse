@@ -27,10 +27,16 @@ export type QueryValidationResult =
     };
 
 const MAX_ENTITY_DIMENSION_BOUND_VALUES = 50;
+/**
+ * A time series may break down by a high cardinality dimension when a filter
+ * on that dimension bounds it to at most this many values, one series each.
+ */
+export const MAX_TIME_SERIES_BREAKDOWN_VALUES = 10;
 
-function hasSameFieldEntityDimensionBound(
+function hasSameFieldBound(
   filters: QueryType["filters"],
   field: string,
+  maxValues: number,
 ): boolean {
   return filters.some((filter) => {
     if (filter.column !== field) {
@@ -45,7 +51,7 @@ function hasSameFieldEntityDimensionBound(
       return (
         filter.operator === "any of" &&
         filter.value.length > 0 &&
-        filter.value.length <= MAX_ENTITY_DIMENSION_BOUND_VALUES &&
+        filter.value.length <= maxValues &&
         filter.value.every((value) => value.length > 0)
       );
     }
@@ -125,7 +131,7 @@ function validateEntityDimension(
 
   if (
     dimension.highCardinality &&
-    !hasSameFieldEntityDimensionBound(query.filters, field)
+    !hasSameFieldBound(query.filters, field, MAX_ENTITY_DIMENSION_BOUND_VALUES)
   ) {
     return {
       valid: false,
@@ -145,7 +151,8 @@ function validateEntityDimension(
  * Performs sanity checks for high cardinality dimension validation.
  *
  * High cardinality dimensions (id, traceId, userId, sessionId, etc.) are only allowed when:
- * 1. timeDimension is NOT set (timeseries with high cardinality produces unbounded results)
+ * 1. timeDimension is NOT set (timeseries with high cardinality produces unbounded results),
+ *    unless a same-field filter bounds each to MAX_TIME_SERIES_BREAKDOWN_VALUES values
  * 2. config.row_limit (or chartConfig.row_limit) is explicitly specified (LIMIT)
  * 3. orderBy with direction 'desc' on a measure field is specified (for top-N queries)
  *
@@ -194,14 +201,23 @@ export function validateQuery(
 
   // 2. Reject high cardinality dimensions in timeseries queries
   // A timeseries grouped by e.g. traceId produces unbounded rows (one per ID per time bucket)
-  // and cannot be meaningfully limited with row_limit.
+  // and cannot be meaningfully limited with row_limit, unless a same-field filter bounds it.
   if (query.timeDimension) {
+    const unbounded = highCardDims.filter(
+      (field) =>
+        !hasSameFieldBound(
+          query.filters,
+          field,
+          MAX_TIME_SERIES_BREAKDOWN_VALUES,
+        ),
+    );
+    if (unbounded.length === 0) return { valid: true };
     return {
       valid: false,
-      reason: `High cardinality dimension(s) '${highCardDims.join(", ")}' cannot be used with timeDimension. Time series queries with high cardinality dimensions produce unbounded result sets.`,
+      reason: `High cardinality dimension(s) '${unbounded.join(", ")}' cannot be used with timeDimension unless an 'any of' filter on the same field bounds each to at most ${MAX_TIME_SERIES_BREAKDOWN_VALUES} values. Time series queries with high cardinality dimensions produce unbounded result sets.`,
       highCardinality: {
         code: "time_dimension",
-        dimensions: highCardDims,
+        dimensions: unbounded,
       },
     };
   }

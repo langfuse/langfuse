@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
+import { env } from "@/src/env.mjs";
 
 export const useQueryProject = () => {
   const router = useRouter();
@@ -12,9 +12,7 @@ export const useQueryProject = () => {
 
 export const useProject = (projectId: string | null) => {
   const session = useSession();
-  const isAdmin = session.data?.user?.admin === true;
 
-  // Always call hooks first, then handle conditional logic in the return
   const fromSession = projectId
     ? session.data?.user?.organizations
         // map to {project, organization}[]
@@ -25,34 +23,10 @@ export const useProject = (projectId: string | null) => {
         .find(({ project }) => project.id === projectId)
     : null;
 
-  // Admin fallback: Langfuse admins are not members of customer projects, so
-  // the project/org is absent from their session. Resolve it (and its parent
-  // org) from the admin-aware API instead. Disabled for everyone else, so
-  // non-admins keep the exact previous behavior.
-  const adminFallback = api.projects.byId.useQuery(
-    { projectId: projectId as string },
-    {
-      enabled: Boolean(projectId) && isAdmin && !fromSession,
-      staleTime: 60_000,
-      // A stale/deleted project id is an expected miss for admins: resolve to
-      // null like the session-only lookup, without retries, error toast, or
-      // Sentry noise.
-      retry: false,
-      meta: { silentHttpCodes: [404] },
-    },
-  );
-
   if (fromSession) {
     return {
       project: fromSession.project,
       organization: fromSession.organization,
-    };
-  }
-
-  if (isAdmin && adminFallback.data) {
-    return {
-      project: adminFallback.data.project,
-      organization: adminFallback.data.organization,
     };
   }
 
@@ -78,6 +52,7 @@ export const useQueryProjectOrOrganization = () => {
  */
 export const useOrgProjectSwitchPaths = () => {
   const router = useRouter();
+  const session = useSession();
 
   /**
    * Truncate the path before the first dynamic segment that is not allowlisted.
@@ -104,13 +79,27 @@ export const useOrgProjectSwitchPaths = () => {
         )
       : `/project/${projectId}`;
 
-  const getOrgPath = (orgId: string) =>
-    router.query.organizationId
+  const getOrgPath = (orgId: string) => {
+    // The demo org has a single project, so skip its org overview.
+    if (
+      orgId === env.NEXT_PUBLIC_DEMO_ORG_ID &&
+      env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+      session.data?.user?.organizations
+        .find((organization) => organization.id === orgId)
+        ?.projects.some(
+          (project) => project.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+        )
+    ) {
+      return `/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`;
+    }
+
+    return router.query.organizationId
       ? truncatePathBeforeDynamicSegments(router.asPath).replace(
           router.query.organizationId as string,
           orgId,
         )
       : `/organization/${orgId}`;
+  };
 
   return { getProjectPath, getOrgPath };
 };

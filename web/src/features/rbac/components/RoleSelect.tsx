@@ -37,6 +37,8 @@ export function RoleSelect({
   canManageOwnership,
   disabled = false,
   triggerId,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
   size,
 }: {
   roles: Role[];
@@ -46,6 +48,8 @@ export function RoleSelect({
   canManageOwnership: boolean;
   disabled?: boolean;
   triggerId?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
 } & VariantProps<typeof triggerVariants>) {
   const [open, setOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -76,6 +80,8 @@ export function RoleSelect({
       >
         <SelectTrigger
           id={triggerId}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={triggerVariants({ size })}
           disableValueLineClamp
         >
