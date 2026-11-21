@@ -20,7 +20,7 @@ changing how it emits SQL.
 - `tenancy.ts` — the tenancy injection pass.
 - `schema.ts` — the physical table registry: one `defineTable` declaration per relation drives the Kysely row types (`ClickHouseDatabase`), the runtime column-type map (`COLUMN_DATA_TYPES`), the tenanted-table set (`TENANTED_TABLES`), and the per-table dedup specs (`DEDUP_SPECS`) — instead of hand-maintained tables that drift.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
-- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
+- `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `mapContains`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `toBool`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
 - `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup lowering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
   dialect's expressivity.
@@ -116,25 +116,7 @@ must carry the `.golden.test.ts` suffix to run there.
   `UInt64` is `number` so binds type-check, but query results arrive as raw
   JSON (dates as strings). Type rows with a read schema and convert them; do
   not type results with the builder's `InferResult`.
-- **Build shared expressions from the calling query's expression builder.**
-  A reusable events expression or select list is wrapped in
-  `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then
-  passed as `.select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))` or
-  called inside `.where((eb) => …)` with the query's own `eb`. Keyed select
-  lists (`traceAggregationSelects`, `sessionAggregationSelects`,
-  `eventsRowFieldSelects`) take the fields to select: pick only what the query
-  reads, because one selected `input`, `output` or metadata value routes a
-  logical `events` relation, CTE bodies included, to `events_full`. That only type-checks in a
-  query that reads a full events row as `e` and nothing else: no join, no
-  narrower `e`. Columns inside such a helper are written `e.…`, so an alias
-  of the same name in the calling query can't shadow them. A helper typed
-  `ExpressionBuilder<{ e: … }, "e">` checks the alias and the columns its type
-  names, but not joins or the rest of the row: fine for a fixed small column
-  set (`observationIoSelects` over `{ e: IoColumns }`), not a substitute for
-  `scopedToEvents`. A module-level constant built from a detached
-  `expressionBuilder()` loses the check entirely: helper results don't carry
-  their table scope in their type, and Kysely's `select()` / `where()` accept
-  any expression.
+- **Build shared expressions from the calling query's expression builder.** A reusable events expression or select list is wrapped in `scopedToEvents((eb) => …)` from `../repositories/events-selects.ts`, then passed as `.select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))` or called inside `.where((eb) => …)` with the query's own `eb`. Keyed select lists (`traceAggregationSelects`, `sessionAggregationSelects`, `eventsRowFieldSelects`) take the fields to select: pick only what the query reads, because one selected `input`, `output` or metadata value routes a logical `events` relation, CTE bodies included, to `events_full`. That only type-checks in a query that reads a full events row as `e` and nothing else: no join, no narrower `e`. Columns inside such a helper are written `e.…`, so an alias of the same name in the calling query can't shadow them. A helper typed `ExpressionBuilder<{ e: … }, "e">` checks the alias and the columns its type names, but not joins or the rest of the row: fine for a fixed small column set (`observationIoSelects` over `{ e: IoColumns }`), not a substitute for `scopedToEvents`. A module-level constant built from a detached `expressionBuilder()` loses the check entirely: helper results don't carry their table scope in their type, and Kysely's `select()` / `where()` accept any expression. A query that adds its joins conditionally builds with a detached builder typed over every relation it may join: `scoresExpressionBuilder()` in `../../features/query/server/scoresRegistry.ts` for the v2 score views, and `expressionBuilder<ObservationsDb, "e" | "scores">()` for the observations view's `countScores` measure. It type-checks a ref to a relation the query did not join. If the query reads several relations, the compiler rejects that ref in any clause. If it reads one relation, the compiler rejects it only where it is compared to a bound value; a SELECT ref or an uncompared WHERE term (`toBool(e.name)`) compiles, and only ClickHouse rejects the query.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.

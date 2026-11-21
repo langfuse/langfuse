@@ -4959,12 +4959,10 @@ describe("query builder measure-aggregation validation", () => {
     const queryBuilder = new QueryBuilder(undefined, "v2");
     const result = await queryBuilder.build(query, randomUUID());
 
-    expect(result.query).toContain(
-      "INNER JOIN events_core AS events_observations",
-    );
-    expect(result.query).toContain("events_observations.experiment_name");
+    expect(result.query).toMatch(/inner join events_core as e\b/i);
+    expect(result.query).toContain("e.experiment_name");
     expect(result.query).toContain("as entity_dimension");
-    expect(result.query).toContain("GROUP BY entity_dimension");
+    expect(result.query).toMatch(/group by entity_dimension/i);
   });
 
   it("should build run-level score entity queries without joining events", async () => {
@@ -5004,7 +5002,7 @@ describe("query builder measure-aggregation validation", () => {
 
     expect(result.query).toContain("scores.dataset_run_id");
     expect(result.query).toContain("entity_dimension");
-    expect(result.query).not.toContain("JOIN events_core");
+    expect(result.query).not.toMatch(/join events_core/i);
   });
 
   it("should reject queries with both timeDimension and entityDimension", async () => {
@@ -5695,10 +5693,10 @@ describe("query builder measure-aggregation validation", () => {
       );
 
       expect(compiledQuery).toContain("from events_core");
-      expect(compiledQuery).toMatch(/\) AS events_traces ON /);
-      expect(compiledQuery).not.toContain("events_core FINAL");
-      // scores base CTE should still use FINAL
-      expect(compiledQuery).toContain("scores scores_numeric FINAL");
+      expect(compiledQuery).toMatch(/\) as events_traces on /i);
+      expect(compiledQuery).not.toMatch(/events_core( as \w+)? final/i);
+      // the scores base table still reads FINAL
+      expect(compiledQuery).toMatch(/from scores final\b/i);
     });
 
     it("should omit FINAL for events_observations join in v2 scores-categorical view", async () => {
@@ -5721,10 +5719,8 @@ describe("query builder measure-aggregation validation", () => {
       );
 
       // events_core should be joined without FINAL (useFinal: false)
-      expect(compiledQuery).toContain("JOIN events_core");
-      expect(compiledQuery).not.toContain(
-        "JOIN events_core AS events_observations FINAL",
-      );
+      expect(compiledQuery).toMatch(/join events_core as e\b/i);
+      expect(compiledQuery).not.toMatch(/join events_core as e final/i);
     });
 
     it("should keep FINAL for non-events_core joins in v1 scores view", async () => {

@@ -349,6 +349,8 @@ const TABLE_REGISTRY = {
       execution_trace_id: "Nullable(String)",
       is_deleted: "UInt8",
       metadata: "Map(String, String)",
+      evaluator_id: "String",
+      evaluation_rule_id: "String",
     },
   }),
 } as const;
