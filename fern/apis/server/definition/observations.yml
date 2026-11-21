@@ -32,6 +32,7 @@ service:
         - `prompt` - promptId, promptName, promptVersion
         - `metrics` - latency, timeToFirstToken
         - `trace_context` - tags, release, traceName
+        - `all` - shorthand for every field group listed above
 
         If not specified, `core` and `basic` field groups are returned.
 
@@ -48,7 +49,8 @@ service:
             docs: |
               Comma-separated list of field groups to include in the response.
               Available groups: core, basic, time, io, metadata, model, usage, prompt, metrics, trace_context.
-              If not specified, `core` and `basic` field groups are returned.
+              Use `all` as a shorthand for every group. Unknown group names are ignored.
+              If not specified, or if the list is empty after ignoring unknown names, `core` and `basic` are returned.
               Example: "basic,usage,model"
           expandMetadata:
             type: optional<string>
