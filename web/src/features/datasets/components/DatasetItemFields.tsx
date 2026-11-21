@@ -128,7 +128,7 @@ export const DatasetItemFields = ({
   const showErrors = !isFormMode;
 
   return (
-    <div className="flex h-full flex-col space-y-4">
+    <div className="flex flex-col space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         {/* Input Field */}
         {isFormMode && control ? (
