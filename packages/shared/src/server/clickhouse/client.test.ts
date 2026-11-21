@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ClickHouseSettings } from "@clickhouse/client";
 
 const mocks = vi.hoisted(() => ({
@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
     CLICKHOUSE_EVENTS_READ_ONLY_URL: undefined as string | undefined,
     CLICKHOUSE_USER: "default",
     CLICKHOUSE_PASSWORD: "",
+    CLICKHOUSE_AUTH_MODE: "password" as "password" | "jwt",
+    CLICKHOUSE_JWT_TOKEN: undefined as string | undefined,
     CLICKHOUSE_DB: "default",
     LANGFUSE_JSON_BAD_UNICODE_ESCAPE: undefined as
       | "auto"
@@ -47,6 +49,7 @@ import {
   type PreferredClickhouseService,
 } from "./client";
 import { setClickHouseCompatibilityVersionForTests } from "./compatibility";
+import { resetClickhouseAuthForTests } from "./auth";
 
 describe("ClickHouseClientManager compatibility settings", () => {
   beforeEach(async () => {
@@ -255,4 +258,51 @@ describe("resolveClickhouseService", () => {
       }
     },
   );
+});
+
+describe("ClickHouseClientManager JWT authentication", () => {
+  beforeEach(async () => {
+    await ClickHouseClientManager.getInstance().closeAllConnections();
+    mocks.close.mockClear();
+    mocks.createClient.mockReset();
+    mocks.createClient.mockImplementation(() => ({ close: mocks.close }));
+    mocks.env.CLICKHOUSE_AUTH_MODE = "jwt";
+    mocks.env.CLICKHOUSE_JWT_TOKEN = "token-a";
+    resetClickhouseAuthForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    mocks.env.CLICKHOUSE_AUTH_MODE = "password";
+    mocks.env.CLICKHOUSE_JWT_TOKEN = undefined;
+    resetClickhouseAuthForTests();
+  });
+
+  it("sends the access token instead of a username and password", () => {
+    clickhouseClient();
+
+    const config = mocks.createClient.mock.calls[0][0];
+    expect(config.access_token).toBe("token-a");
+    expect(config).not.toHaveProperty("username");
+    expect(config).not.toHaveProperty("password");
+  });
+
+  it("replaces the client when the token changes and closes the old one after its request timeout", () => {
+    vi.useFakeTimers();
+    const first = clickhouseClient({ request_timeout: 60_000 });
+
+    mocks.env.CLICKHOUSE_JWT_TOKEN = "token-b";
+    resetClickhouseAuthForTests();
+    const second = clickhouseClient({ request_timeout: 60_000 });
+
+    expect(second).not.toBe(first);
+    expect(mocks.createClient.mock.calls[1][0].access_token).toBe("token-b");
+    expect(clickhouseClient({ request_timeout: 60_000 })).toBe(second);
+
+    // In-flight requests on the old client may run until its own timeout.
+    vi.advanceTimersByTime(60_000);
+    expect(mocks.close).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(5 * 60_000);
+    expect(mocks.close).toHaveBeenCalledTimes(1);
+  });
 });

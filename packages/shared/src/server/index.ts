@@ -134,6 +134,7 @@ export * from "./utils/withTransaction";
 export * from "./utils/withSerializableRetry";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
+export { initializeClickhouseAuth } from "./clickhouse/auth";
 export {
   getClickHouseCompatibilitySettings,
   getDetectedClickHouseVersion,
