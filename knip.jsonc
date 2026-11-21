@@ -65,6 +65,10 @@
         // Web Worker entry bundled into a string module by
         // scripts/build-json-parser-worker.mjs, never imported by the app.
         "src/workers/json-parser.worker.ts",
+        // MCP App view entry and its next/link alias, bundled by
+        // scripts/build-mcp-apps.mjs.
+        "src/features/mcp/views/widget/main.tsx",
+        "src/features/mcp/views/next-link/Link.tsx",
       ],
       "ignoreFiles": [
         // Standalone benchmark invoked directly with Node rather than imported by the application.
