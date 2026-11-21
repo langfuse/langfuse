@@ -120,6 +120,7 @@ const projectRoutes: Route[] = [
   { route: "otel/v1/metrics/index", methods: ["POST"] },
   { route: "prompts", methods: ["GET", "POST"] },
   { route: "v2/prompts/index", methods: ["GET", "POST"] },
+  { route: "v3/prompts/index", methods: ["GET"] },
   { route: "v2/prompts/[promptName]/index", methods: ["GET", "DELETE"] },
   {
     route: "v2/prompts/[promptName]/versions/[promptVersion]",
