@@ -36,17 +36,29 @@ export const getTRPCErrorCodeFromHTTPStatusCode = (
   return HTTP_STATUS_CODE_TO_TRPC_ERROR_CODE[httpStatus] ?? DEFAULT_ERROR_CODE;
 };
 
+const SIGN_IN_REQUIRED_MESSAGE = "Sign in required";
+
+/** The 401 for a request that reaches a signed-in-only procedure without a session. */
+export const signInRequiredError = () =>
+  new TRPCError({ code: "UNAUTHORIZED", message: SIGN_IN_REQUIRED_MESSAGE });
+
+/**
+ * Whether error is the sign-in gate's 401. These log at debug: a signed-out
+ * tab that keeps polling produces one per request, and the http.server trace
+ * metrics still count every one. Other 401s are refused credentials or
+ * permissions and keep their level.
+ */
+export const isSignInRequiredError = (error: TRPCError) =>
+  error.code === "UNAUTHORIZED" && error.message === SIGN_IN_REQUIRED_MESSAGE;
+
 type TRPCErrorLogLevel = "debug" | "info" | "warn" | "error";
 
 const isServerErrorStatus = (httpStatus: number) =>
   httpStatus >= 500 && httpStatus < 600;
 
-// A 401 is a request without a usable session, such as a signed-out tab that
-// keeps polling. The http.server trace metrics still count every one.
 const getLogLevelFromHTTPStatus = (httpStatus: number): TRPCErrorLogLevel => {
   if (isServerErrorStatus(httpStatus)) return "error";
-  if (httpStatus === 401) return "debug";
-  if (httpStatus === 404) return "info";
+  if (httpStatus === 401 || httpStatus === 404) return "info";
   return "warn";
 };
 
@@ -61,7 +73,9 @@ export const getTRPCErrorReporting = (
 
   return {
     httpStatus,
-    logLevel: getLogLevelFromHTTPStatus(httpStatus),
+    logLevel: isSignInRequiredError(error)
+      ? "debug"
+      : getLogLevelFromHTTPStatus(httpStatus),
     shouldTrace: isServerErrorStatus(httpStatus),
   };
 };

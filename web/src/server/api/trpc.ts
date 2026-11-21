@@ -26,6 +26,8 @@ import { type IncomingHttpHeaders } from "node:http";
 import {
   createScrubbedError,
   getTRPCErrorCodeFromHTTPStatusCode,
+  isSignInRequiredError,
+  signInRequiredError,
 } from "@/src/server/utils/trpc-utils";
 type CreateContextOptions = {
   session: Session | null;
@@ -204,12 +206,11 @@ const logErrorByStatus = ({
   httpStatus: number;
   error: TRPCError;
 }) => {
-  // A refused project membership also logs its own warning where it is thrown.
-  if (errorCode === "UNAUTHORIZED") {
+  if (isSignInRequiredError(error)) {
     logger.debug(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
-  } else if (errorCode === "NOT_FOUND") {
+  } else if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
     logger.info(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
@@ -334,7 +335,7 @@ export const publicProcedureWithoutTracing = t.procedure.use(withErrorHandling);
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
   if (!ctx.session || !ctx.session.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
+    throw signInRequiredError();
   }
   return next({
     ctx: {
@@ -379,7 +380,7 @@ const trackPosthogActivity = (
 const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   if (!ctx.session || !ctx.session.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
+    throw signInRequiredError();
   }
 
   const actualInput = await opts.getRawInput();
@@ -455,7 +456,7 @@ const inputOrganizationSchema = z.object({
 const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   if (!ctx.session || !ctx.session.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
+    throw signInRequiredError();
   }
 
   const actualInput = await opts.getRawInput();
