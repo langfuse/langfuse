@@ -1,11 +1,16 @@
 import {
-  BaseChunkTodo,
   ChunkedClickhouseBackfillMigration,
   ResolvedChunkedBackfillConfig,
   assertSafePartition,
   loadPartitionsFromClickhouse,
   runBackfillMigrationCli,
 } from "./utils/backfillBase";
+import {
+  LiveWriteChunkTodo,
+  buildLiveWriteFilter,
+  liveWriteWindowParams,
+  resolveLiveWriteWindow,
+} from "./utils/liveWriteWindow";
 
 // Hard-coded UUID identifying the row in background_migrations.
 // Must match the Prisma migration that registers this row.
@@ -14,11 +19,27 @@ const backgroundMigrationId = "8e1f4a2b-5c63-4d8e-9a47-1b2f3c4d5e6f";
 const LOG_PREFIX = "[Backfill Root Spans]";
 
 /**
+ * The months whose events partitions can hold spans of a trace in the given
+ * traces partition: a trace's spans may start in the month before or after its
+ * timestamp. Returns null for non-yyyymm partitions.
+ */
+function adjacentPartitions(partition: string): string[] | null {
+  if (!/^[0-9]{6}$/.test(partition)) return null;
+  const year = Number(partition.slice(0, 4));
+  const month = Number(partition.slice(4)) - 1;
+  return [-1, 0, 1].map((offset) => {
+    const date = new Date(Date.UTC(year, month + offset, 1));
+    return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+  });
+}
+
+/**
  * V4 chain step 1: materializes one virtual root span per trace into
  * `events_full`, chunked by yyyymm traces partition. Traces referenced by a
- * dataset run item are skipped — M4 owns those end-to-end.
+ * dataset run item are skipped — M4 owns those end-to-end. Traces written
+ * while dual write was active are skipped too (see liveWriteWindow).
  */
-export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfillMigration {
+export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfillMigration<LiveWriteChunkTodo> {
   protected readonly migrationId = backgroundMigrationId;
   protected readonly logPrefix = LOG_PREFIX;
   protected readonly requiredTables = [
@@ -31,12 +52,14 @@ export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfill
 
   protected async enumerateChunks(
     config: ResolvedChunkedBackfillConfig,
-  ): Promise<BaseChunkTodo[]> {
-    return loadPartitionsFromClickhouse(
+  ): Promise<LiveWriteChunkTodo[]> {
+    const liveWriteWindow = await resolveLiveWriteWindow(this.logPrefix);
+    const todos = await loadPartitionsFromClickhouse(
       "traces",
       config.partitions,
       this.logPrefix,
     );
+    return todos.map((todo) => ({ ...todo, liveWriteWindow }));
   }
 
   /**
@@ -44,17 +67,31 @@ export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfill
    * `events_full`. It
    *   - skips DRI-referenced traces entirely (M4 materializes those traces
    *     end-to-end, root + every observation, with experiment enrichment),
-   *   - is scoped to a single yyyymm partition so the scan is bounded.
+   *   - is scoped to a single yyyymm partition so the scan is bounded,
+   *   - skips traces written during dual write, which the events tables
+   *     already hold (directly, or with their own virtual root from the
+   *     propagation job).
    *
    * Unmerged duplicate trace rows are copied as-is: each carries its own
    * `event_ts`, so the ReplacingMergeTree semantics of `events_full` collapse
    * them to the latest version.
    */
-  protected buildChunkQuery(todo: BaseChunkTodo): {
+  protected buildChunkQuery(todo: LiveWriteChunkTodo): {
     query: string;
     params: Record<string, unknown>;
   } {
     assertSafePartition(todo.partition);
+
+    const window = todo.liveWriteWindow;
+    const livePartitions = adjacentPartitions(todo.partition);
+    const liveWriteFilter = buildLiveWriteFilter(window, {
+      createdAt: "t.created_at",
+      rowKey: "(t.project_id, t.id)",
+      liveKeyColumns: "project_id, trace_id",
+      liveRowsWhere: livePartitions
+        ? "_partition_id IN {livePartitions: Array(String)}"
+        : undefined,
+    });
 
     const query = `
       INSERT INTO events_full (
@@ -115,13 +152,18 @@ export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfill
         AND (t.project_id, t.id) NOT IN (
           SELECT project_id, trace_id FROM dataset_run_items_rmt
         )
+        ${liveWriteFilter}
       SETTINGS
         type_json_skip_duplicated_paths = 1
     `;
 
     return {
       query,
-      params: { partition: todo.partition },
+      params: {
+        partition: todo.partition,
+        ...liveWriteWindowParams(window),
+        ...(window && livePartitions ? { livePartitions } : {}),
+      },
     };
   }
 }

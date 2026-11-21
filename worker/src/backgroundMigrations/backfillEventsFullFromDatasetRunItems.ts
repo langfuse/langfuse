@@ -5,6 +5,7 @@ import {
   convertDateToClickhouseDateTime,
   logger,
   queryClickhouse,
+  parseClickhouseUTCDateTimeFormat,
   sleep,
   TupleParam,
 } from "@langfuse/shared/src/server";
@@ -227,10 +228,12 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
    * Deduplicated `(project_id, trace_id)` pairs for the batch, as ClickHouse
    * tuple params for composite `(project_id, trace_id) IN (...)` filters.
    */
-  private buildTracePairs(driBatch: DatasetRunItem[]): TupleParam[] {
+  private buildTracePairs(
+    rows: { project_id: string; trace_id: string }[],
+  ): TupleParam[] {
     return [
       ...new Map(
-        driBatch.map((d) => [
+        rows.map((d) => [
           JSON.stringify([d.project_id, d.trace_id]),
           new TupleParam([d.project_id, d.trace_id]),
         ]),
@@ -239,18 +242,64 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   }
 
   /**
-   * Fetches observations for the batch's traces, padded by `lookbackDays` on
-   * either side of the batch's DRI created_at window so trace timestamps that
-   * predate or postdate the DRI insert are still found.
+   * Fetches the batch's spans and the traces whose live rows already cover
+   * them. Observations come from the scratch table, padded by `lookbackDays`
+   * on either side of the batch's DRI created_at window so trace timestamps
+   * that predate or postdate the DRI insert are still found. A trace that is
+   * not covered but has no scratch rows (its DRI arrived after M2 copied the
+   * partition, so the live-write filter left it out) is read from the legacy
+   * `observations` table instead, which has the same columns.
    */
-  private async fetchObservationsForBatch(
+  private async fetchBatchSpans(
     driBatch: DatasetRunItem[],
     lookbackDays: number,
-  ): Promise<SpanRecord[]> {
-    if (driBatch.length === 0) return [];
+  ): Promise<{
+    observations: SpanRecord[];
+    traces: SpanRecord[];
+    coveredTraceKeys: Set<string>;
+  }> {
+    const [scratchObservations, traces] = await Promise.all([
+      this.fetchObservations(
+        pidTidSortingTable(),
+        this.buildTracePairs(driBatch),
+        computeBatchTimeWindow(driBatch, lookbackDays),
+      ),
+      this.fetchTracesForBatch(driBatch, lookbackDays),
+    ]);
+    const coveredTraceKeys = await this.fetchCoveredTraceKeys(traces);
 
-    const tracePairs = this.buildTracePairs(driBatch);
-    const { minTime, maxTime } = computeBatchTimeWindow(driBatch, lookbackDays);
+    const scratchTraceKeys = new Set(
+      scratchObservations.map((o) =>
+        projectScopedKey(o.project_id, o.trace_id),
+      ),
+    );
+    const missingTraces = traces.filter((trace) => {
+      const key = projectScopedKey(trace.project_id, trace.trace_id);
+      return !coveredTraceKeys.has(key) && !scratchTraceKeys.has(key);
+    });
+    const legacyObservations =
+      missingTraces.length > 0
+        ? await this.fetchObservations(
+            "observations",
+            this.buildTracePairs(missingTraces),
+            computeTraceTimeWindow(missingTraces),
+          )
+        : [];
+
+    return {
+      observations: [...scratchObservations, ...legacyObservations],
+      traces,
+      coveredTraceKeys,
+    };
+  }
+
+  /** Fetches the latest version of the given traces' observations. */
+  private async fetchObservations(
+    table: string,
+    tracePairs: TupleParam[],
+    { minTime, maxTime }: { minTime: Date; maxTime: Date },
+  ): Promise<SpanRecord[]> {
+    if (tracePairs.length === 0) return [];
 
     const query = `
       SELECT
@@ -295,7 +344,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         '' AS trace_name,
         '' AS user_id,
         '' AS session_id
-      FROM ${pidTidSortingTable()} o
+      FROM ${table} o
       WHERE (o.project_id, o.trace_id) IN {tracePairs: Array(Tuple(String, String))}
         AND o.start_time >= {minTime: DateTime64(3)}
         AND o.start_time <= {maxTime: DateTime64(3)}
@@ -315,7 +364,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       },
       tags: {
         surface: "worker",
-        route: "background-migration.fetchObservationsForBatch",
+        route: "background-migration.fetchObservations",
       },
     });
   }
@@ -398,6 +447,56 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     });
   }
 
+  /**
+   * Keys of the batch's traces whose live rows (written while dual write was
+   * active) make a backfilled copy unnecessary or harmful: rows that already
+   * carry experiment fields, or a tree without a virtual root, i.e. written
+   * directly, where a legacy-shaped copy would add a second root. Propagated
+   * trees without experiment fields are still enriched; their copies collapse
+   * with the live rows. The scan is bounded by the traces' own timestamps.
+   */
+  private async fetchCoveredTraceKeys(
+    traces: SpanRecord[],
+  ): Promise<Set<string>> {
+    if (traces.length === 0) return new Set();
+
+    const tracePairs = this.buildTracePairs(traces);
+    const { minTime, maxTime } = computeTraceTimeWindow(traces);
+
+    const rows = await queryClickhouse<{
+      project_id: string;
+      trace_id: string;
+    }>({
+      query: `
+          SELECT project_id, trace_id
+          FROM events_core
+          WHERE (project_id, trace_id) IN {tracePairs: Array(Tuple(String, String))}
+            AND start_time >= {minTime: DateTime64(3)}
+            AND start_time <= {maxTime: DateTime64(3)}
+            AND source NOT LIKE '%-backfill'
+          GROUP BY project_id, trace_id
+          HAVING max(experiment_id != '')
+            OR NOT max(span_id = concat('t-', trace_id))
+        `,
+      params: {
+        tracePairs,
+        minTime: convertDateToClickhouseDateTime(minTime),
+        maxTime: convertDateToClickhouseDateTime(maxTime),
+      },
+      clickhouseConfigs: {
+        request_timeout: 120_000,
+      },
+      tags: {
+        surface: "worker",
+        route: "background-migration.fetchCoveredTraceKeys",
+      },
+    });
+
+    return new Set(
+      rows.map((row) => projectScopedKey(row.project_id, row.trace_id)),
+    );
+  }
+
   // ============================================================================
   // Batch processing
   // ============================================================================
@@ -447,16 +546,17 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     driBatch: DatasetRunItem[],
     config: ResolvedConfig,
   ): Promise<{ enriched: number; skipped: number }> {
-    const [observations, traces] = await Promise.all([
-      this.fetchObservationsForBatch(driBatch, config.lookbackDays),
-      this.fetchTracesForBatch(driBatch, config.lookbackDays),
-    ]);
+    const { observations, traces, coveredTraceKeys } =
+      await this.fetchBatchSpans(driBatch, config.lookbackDays);
 
     logger.info(
-      `[Backfill Events DRIs] Fetched ${observations.length} observations and ${traces.length} traces for ${driBatch.length} DRIs`,
+      `[Backfill Events DRIs] Fetched ${observations.length} observations and ${traces.length} traces for ${driBatch.length} DRIs (${coveredTraceKeys.size} traces covered by live rows)`,
     );
 
-    const allSpans: SpanRecord[] = [...observations, ...traces];
+    const allSpans: SpanRecord[] = [...observations, ...traces].filter(
+      (span) =>
+        !coveredTraceKeys.has(projectScopedKey(span.project_id, span.trace_id)),
+    );
     const { spanMap, childMap } = buildSpanMaps(allSpans);
 
     const tracePropertiesMap = new Map<string, TraceProperties>();
@@ -483,6 +583,13 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     let skipped = 0;
 
     for (const dri of driBatch) {
+      if (
+        coveredTraceKeys.has(projectScopedKey(dri.project_id, dri.trace_id))
+      ) {
+        skipped++;
+        continue;
+      }
+
       const rootSpanId = dri.observation_id || `t-${dri.trace_id}`;
       const rootSpanKey = spanScopedKey(
         dri.project_id,
@@ -786,6 +893,24 @@ function computeBatchTimeWindow(
   return {
     minTime: new Date(minTs - lookbackDays * dayMs),
     maxTime: new Date(maxTs + lookbackDays * dayMs),
+  };
+}
+
+/**
+ * The traces' timestamps, padded by a day: a trace's spans start at or shortly
+ * after its timestamp.
+ */
+function computeTraceTimeWindow(traces: SpanRecord[]): {
+  minTime: Date;
+  maxTime: Date;
+} {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const timestamps = traces.map((t) =>
+    parseClickhouseUTCDateTimeFormat(t.start_time).getTime(),
+  );
+  return {
+    minTime: new Date(Math.min(...timestamps) - dayMs),
+    maxTime: new Date(Math.max(...timestamps) + dayMs),
   };
 }
 
