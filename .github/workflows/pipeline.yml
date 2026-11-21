@@ -780,9 +780,9 @@ jobs:
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Start dependency containers in background
         # Independent of the image build, so let the build overlap it. The
-        # healthcheck step below surfaces its output and re-validates health.
+        # healthcheck step below checks its result before starting the app.
         run: |
-          (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
+          (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit.tmp && mv /tmp/deps-up.exit.tmp /tmp/deps-up.exit) &
       - name: Build images
         # Type-checking runs in the lint job; release builds retain it.
         env:
@@ -804,8 +804,13 @@ jobs:
           fi
       - name: Start compose services and wait for healthchecks
         run: |
-          timeout 300 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' || true
+          timeout 300 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/deps-up.log; exit 1; }
           cat /tmp/deps-up.log
+          deps_exit="$(cat /tmp/deps-up.exit)"
+          if [ "$deps_exit" != "0" ]; then
+            exit "$deps_exit"
+          fi
           docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 "${{ matrix.service }}"
       - name: Check service health
         run: |
