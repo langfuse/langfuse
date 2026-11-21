@@ -27,7 +27,11 @@ fi
 
 # Construct the database URL
 if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true"
+    if [ "${CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY:-true}" != false ] ; then
+      DATABASE_URL="${DATABASE_URL}&skip_verify=true"
+    fi
+    DATABASE_URL="${DATABASE_URL}&x-migrations-table-engine=MergeTree"
 else
     DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
 fi

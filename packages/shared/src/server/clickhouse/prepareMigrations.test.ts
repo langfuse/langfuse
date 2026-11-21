@@ -65,6 +65,7 @@ function runMigrationScript({
   script = "up",
   skipConfirm = script === "up" ? "false" : "true",
   ssl = false,
+  sslSkipVerify,
 }: {
   clusterName?: string;
   databaseName?: string;
@@ -74,6 +75,7 @@ function runMigrationScript({
   script?: MigrationScript;
   skipConfirm?: "true" | "false" | "1";
   ssl?: boolean;
+  sslSkipVerify?: "true" | "false";
 }): MigrationRun {
   const root = createTemporaryDirectory("langfuse-clickhouse-migration-test-");
   const binaryDirectory = join(root, "bin");
@@ -149,6 +151,11 @@ function runMigrationScript({
     SKIP_CONFIRM: skipConfirm,
     TMPDIR: temporaryDirectory,
   };
+  if (sslSkipVerify === undefined) {
+    delete env.CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY;
+  } else {
+    env.CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY = sslSkipVerify;
+  }
   if (clusterName === undefined) {
     delete env.CLICKHOUSE_CLUSTER_NAME;
   } else {
@@ -353,6 +360,21 @@ describe("ClickHouse migration preparation", () => {
     expect(run.stdin).toBe("y\n");
     expect(existsSync(run.renderedMigrationsDirectory)).toBe(false);
   });
+
+  it.each(["up", "down", "drop"] as const)(
+    "verifies the TLS certificate in %s when CLICKHOUSE_MIGRATION_SSL_SKIP_VERIFY=false",
+    (script) => {
+      const run = runMigrationScript({
+        mode: "unclustered",
+        script,
+        ssl: true,
+        sslSkipVerify: "false",
+      });
+
+      expect(run.databaseUrl).toContain("&secure=true");
+      expect(run.databaseUrl).not.toContain("skip_verify");
+    },
+  );
 
   it.each(["true", "1"] as const)(
     "drops the configured database contents without prompting when SKIP_CONFIRM=%s",
