@@ -2,6 +2,7 @@ import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provi
 import { anthropicModelDiscoveryAdapter } from "./adapters/anthropic";
 import { azureModelDiscoveryAdapter } from "./adapters/azure";
 import { bedrockModelDiscoveryAdapter } from "./adapters/bedrock";
+import { fireworksModelDiscoveryAdapter } from "./adapters/fireworks";
 import { googleAiStudioModelDiscoveryAdapter } from "./adapters/googleAiStudio";
 import { openAiModelDiscoveryAdapter } from "./adapters/openAi";
 import { openRouterModelDiscoveryAdapter } from "./adapters/openRouter";
@@ -25,6 +26,7 @@ const MODEL_DISCOVERY_ADAPTERS: Record<
   AZURE: azureModelDiscoveryAdapter,
   GOOGLE_AI_STUDIO: googleAiStudioModelDiscoveryAdapter,
   VERTEX: vertexModelDiscoveryAdapter,
+  FIREWORKS: fireworksModelDiscoveryAdapter,
 };
 
 export function getModelDiscoveryAdapter(provider: GatewayProviderName) {

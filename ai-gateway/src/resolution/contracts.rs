@@ -56,6 +56,7 @@ pub enum Provider {
     #[serde(rename = "google_ai_studio")]
     GoogleAiStudio,
     Vertex,
+    Fireworks,
 }
 
 impl Provider {
@@ -71,18 +72,21 @@ impl Provider {
             Self::Vercel => "vercel",
             Self::GoogleAiStudio => "google_ai_studio",
             Self::Vertex => "vertex",
+            Self::Fireworks => "fireworks",
         }
     }
 
-    /// Vercel serves every API format. `OpenRouter` and Azure serve every format
-    /// but Decisions, each under its own path, and Bedrock neither Decisions nor
+    /// Vercel serves every API format. `OpenRouter`, Azure and Fireworks serve every
+    /// format but Decisions, each under its own path, and Bedrock neither Decisions nor
     /// Embeddings. xAI serves only the `OpenAI` Responses and Chat Completions formats,
     /// Google AI Studio only Chat Completions and Embeddings, and Vertex AI only its
     /// OpenAI-compatible Chat Completions endpoint.
     fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
-            Self::OpenRouter | Self::Azure => api_format != ApiFormat::OpenAiDecisions,
+            Self::OpenRouter | Self::Azure | Self::Fireworks => {
+                api_format != ApiFormat::OpenAiDecisions
+            }
             Self::Xai => matches!(
                 api_format,
                 ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions
@@ -101,10 +105,13 @@ impl Provider {
     }
 
     /// The credential scheme follows the API format, so Azure and Bedrock take both.
-    /// `OpenRouter` and Vercel take a Bearer key on every format, including Anthropic Messages,
-    /// and Vertex AI a Google OAuth access token.
+    /// `OpenRouter`, Vercel and Fireworks take a Bearer key on every format, including
+    /// Anthropic Messages, and Vertex AI a Google OAuth access token.
     fn accepts(self, api_format: ApiFormat, credential: ProviderCredential<'_>) -> bool {
-        if matches!(self, Self::OpenRouter | Self::Vercel | Self::Vertex) {
+        if matches!(
+            self,
+            Self::OpenRouter | Self::Vercel | Self::Vertex | Self::Fireworks
+        ) {
             return matches!(credential, ProviderCredential::Bearer(_));
         }
         matches!(
@@ -119,8 +126,8 @@ impl Provider {
     // the customer's resource, which Web validated on save; the transport's
     // outbound policy still decides whether the destination is reachable. Azure
     // serves each format family under its own path. Bedrock and Vertex AI only
-    // ever target their regional endpoints, and xAI, Vercel and Google AI Studio
-    // their single hosted API.
+    // ever target their regional endpoints, and xAI, Vercel, Google AI Studio and
+    // Fireworks their single hosted API.
     fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic | Self::OpenRouter => valid_custom_base_url(base_url),
@@ -139,6 +146,7 @@ impl Provider {
             Self::Vercel => base_url == VERCEL_BASE_URL,
             Self::GoogleAiStudio => base_url == GOOGLE_AI_STUDIO_BASE_URL,
             Self::Vertex => vertex::allows_openai_compatible_base_url(base_url),
+            Self::Fireworks => base_url == FIREWORKS_BASE_URL,
         }
     }
 }
@@ -283,7 +291,8 @@ impl ProviderConnection {
             | Provider::Xai
             | Provider::Vercel
             | Provider::GoogleAiStudio
-            | Provider::Vertex => return false,
+            | Provider::Vertex
+            | Provider::Fireworks => return false,
         };
         self.base_url.trim_end_matches('/') != official
     }
@@ -327,6 +336,7 @@ const OPENROUTER_BASE_URL: &str = "https://openrouter.ai/api/v1";
 const XAI_BASE_URL: &str = "https://api.x.ai/v1";
 const VERCEL_BASE_URL: &str = "https://ai-gateway.vercel.sh/v1";
 const GOOGLE_AI_STUDIO_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
+const FIREWORKS_BASE_URL: &str = "https://api.fireworks.ai/inference/v1";
 const AZURE_OPENAI_PATH: &str = "/openai/v1";
 const AZURE_ANTHROPIC_PATH: &str = "/anthropic/v1";
 

@@ -119,6 +119,19 @@ const keyCopy = {
     ),
     placeholder: "Paste service account key JSON",
   },
+  FIREWORKS: {
+    label: "Fireworks AI API key",
+    description: (
+      <>
+        Create one under{" "}
+        <DocsLink href="https://app.fireworks.ai/settings/users/api-keys">
+          API keys
+        </DocsLink>{" "}
+        in Fireworks AI.
+      </>
+    ),
+    placeholder: "Enter Fireworks AI API key",
+  },
 } satisfies Record<
   GatewayProvider,
   { label: string; description: ReactNode; placeholder: string }

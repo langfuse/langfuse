@@ -1433,6 +1433,68 @@ async fn vertex_connections_only_reach_the_openai_compatible_endpoint_of_their_l
     }
 }
 
+fn fireworks_success(api_format: &str, base_url: &str, auth: &Value) -> Value {
+    let mut body = bedrock_success(api_format, base_url, auth);
+    body["connection"]["provider"] = json!("fireworks");
+    body
+}
+
+#[tokio::test]
+async fn fireworks_connections_serve_supported_formats_from_its_hosted_api_with_bearer_auth() {
+    const FIREWORKS: &str = "https://api.fireworks.ai/inference/v1";
+    let bearer = json!({"type": "Bearer", "token": "fw-key"});
+    for api_format in [
+        ApiFormat::OpenAiResponses,
+        ApiFormat::OpenAiChatCompletions,
+        ApiFormat::OpenAiEmbeddings,
+        ApiFormat::AnthropicMessages,
+    ] {
+        let body = fireworks_success(api_format.as_str(), FIREWORKS, &bearer);
+        let web = FakeWeb::start(move |_| {
+            let body = body.clone();
+            async move { response(body) }
+        })
+        .await;
+        let context = web
+            .control_plane()
+            .resolve_at(
+                GATEWAY_KEY,
+                api_format,
+                "fireworks:accounts/fireworks/models/deepseek-v3p1",
+                0,
+                NOW_TIME,
+                REQUEST_ID,
+            )
+            .await
+            .unwrap();
+        assert_eq!(context.connection().provider().as_str(), "fireworks");
+        assert_eq!(context.connection().base_url(), FIREWORKS);
+        assert!(!context.connection().has_custom_base_url());
+    }
+
+    let x_api_key = json!({"type": "x-api-key", "header": "x-api-key", "value": "fw-key"});
+    for (api_format, base_url, auth) in [
+        (ApiFormat::OpenAiDecisions, FIREWORKS, &bearer),
+        (ApiFormat::AnthropicMessages, FIREWORKS, &x_api_key),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://api.fireworks.ai/inference/v1/",
+            &bearer,
+        ),
+        (
+            ApiFormat::OpenAiChatCompletions,
+            "https://proxy.example/inference/v1",
+            &bearer,
+        ),
+    ] {
+        assert_invalid_context_for(
+            fireworks_success(api_format.as_str(), base_url, auth),
+            api_format,
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [

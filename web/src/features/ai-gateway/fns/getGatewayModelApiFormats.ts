@@ -36,8 +36,9 @@ export function getGatewayModelApiFormats(
     ];
   }
   if (provider === "XAI") return [...providerFormats.OPENAI];
-  // A deployment's name does not say which model it serves.
-  if (provider === "AZURE") {
+  // Unlisted Azure deployments and custom Fireworks models do not indicate
+  // which format they serve.
+  if (provider === "AZURE" || provider === "FIREWORKS") {
     return [
       apiFormatLabels["openai.responses"],
       apiFormatLabels["openai.chat-completions"],

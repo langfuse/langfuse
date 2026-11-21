@@ -10,4 +10,5 @@ export const providerLabels: Record<GatewayProvider, string> = {
   AZURE: "Microsoft Azure",
   GOOGLE_AI_STUDIO: "Google AI Studio",
   VERTEX: "Google Vertex AI",
+  FIREWORKS: "Fireworks AI",
 };

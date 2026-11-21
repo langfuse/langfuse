@@ -477,10 +477,11 @@ export class GatewayProviderService {
     if (!connection) throw new LangfuseNotFoundError("Provider connection");
     const provider = connection.provider as GatewayProviderName;
     // Vercel's catalog says whether a model is a decision model, which serves
-    // only Decisions, and Azure's which formats a deployment serves, so only
-    // their test routes depend on the catalog.
+    // only Decisions, Azure's which formats a deployment serves, and Fireworks'
+    // whether a model is an embedding model, so their test routes depend on the
+    // catalog.
     const catalog =
-      provider === "VERCEL" || provider === "AZURE"
+      provider === "VERCEL" || provider === "AZURE" || provider === "FIREWORKS"
         ? await this.modelCatalogService.getModelCatalog({
             organizationId: params.organizationId,
             connectionId: connection.id,
@@ -825,9 +826,12 @@ async function validateGatewayCredential(
 
   const definition = getGatewayProviderDefinition(params.provider);
   const check = definition.credentialCheck;
-  if ("path" in check) {
+  if ("path" in check || "url" in check) {
     return checkCredentialEndpoint({
-      url: new URL(`${params.baseURL ?? definition.baseUrl}${check.path}`),
+      url:
+        "url" in check
+          ? new URL(check.url)
+          : new URL(`${params.baseURL ?? definition.baseUrl}${check.path}`),
       credential: params.credential,
       baseURL: params.baseURL,
       extraHeaders: params.extraHeaders,
