@@ -15,6 +15,7 @@ import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { LayerProvider } from "../src/context/LayerContext/LayerContext";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
+import { fontVariables } from "../src/styles/fonts";
 import "./storybook.css";
 import "./docs.css";
 // Mirror the global CSS that _app.tsx imports so vendored components
@@ -68,6 +69,12 @@ function StorybookThemeProvider({
     </ThemeProvider>
   );
 }
+
+// `--font-sans` and `--font-mono` resolve on :root, so the font variables go
+// on <html>, as in _document.tsx.
+document.documentElement.classList.add(
+  ...fontVariables.split(" ").filter(Boolean),
+);
 
 const syncTheme = ({ globals }: { globals?: { theme?: unknown } }) => {
   document.documentElement.classList.toggle("dark", globals?.theme === "dark");

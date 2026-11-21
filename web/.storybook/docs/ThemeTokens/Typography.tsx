@@ -34,6 +34,10 @@ const monoToken = parsed.fontTokens.find((t) => t.name === "--font-mono");
 const weightTokens = parsed.fontTokens.filter((t) =>
   t.name.startsWith("--font-weight-"),
 );
+/** An alias such as `--font-weight-normal` adds a utility, not a weight. */
+const weightRoleCount = weightTokens.filter(
+  (t) => !t.value.startsWith("var("),
+).length;
 const regularWeight = resolveStatic("var(--font-weight-regular)");
 const boldWeight = resolveStatic("var(--font-weight-bold)");
 
@@ -179,7 +183,7 @@ function WeightRoleRow({ token }: { token: TokenDeclaration }) {
       <span
         className="text-foreground block truncate text-xl"
         title="The quick brown fox jumps over the lazy dog"
-        style={{ fontWeight: Number(token.value) }}
+        style={{ fontWeight: Number(resolveStatic(token.value)) }}
       >
         The quick brown fox jumps over the lazy dog
       </span>
@@ -240,7 +244,7 @@ export function Typography() {
           title="Typography"
           lede={
             <>
-              Two typefaces, {weightTokens.length} weights, {sizeTokens.length}{" "}
+              Two typefaces, {weightRoleCount} weights, {sizeTokens.length}{" "}
               sizes. Parsed at build time from{" "}
               <code className="font-mono">src/styles/globals.css</code>.
             </>
@@ -249,7 +253,7 @@ export function Typography() {
             <>
               {sansToken && `--font-sans "${familyName(sansToken)}"`}
               {monoToken && ` · --font-mono "${familyName(monoToken)}"`}
-              {` · ${weightTokens.length} weight roles · ${sizeTokens.length} text-* sizes`}
+              {` · ${weightRoleCount} weight roles · ${sizeTokens.length} text-* sizes`}
             </>
           }
         />
@@ -281,7 +285,7 @@ export function Typography() {
         <PageSection
           title="Weight roles"
           blurb="Three roles: regular, medium and bold. Components never hardcode weight numbers."
-          aside={<InlineCode>{weightTokens.length} roles</InlineCode>}
+          aside={<InlineCode>{weightRoleCount} roles</InlineCode>}
         >
           <div className="flex flex-col">
             {weightTokens.map((token) => (

@@ -50,6 +50,7 @@
 import {
   type CSSProperties,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -385,18 +386,26 @@ export function TimelineDense({
   );
   // Measured in the font the labels ACTUALLY render in, read off a probe span
   // that carries their own size — `10px ui-sans-serif` is a guess, and the
-  // canvas resolves it to a different face than the app's system stack, ~6px
+  // canvas resolves it to a different face than the app's sans stack, ~6px
   // narrow on a duration. layout() decides which side a label goes on, and that
   // decision is only as good as the font it measured.
-  const [labelFont, setLabelFont] = useState<string | null>(null);
+  const [labelFont, setLabelFont] = useState<{ font: string } | null>(null);
   const labelProbeRef = useCallback((element: HTMLSpanElement | null) => {
     if (!element) return;
     const style = getComputedStyle(element);
     const font = `${style.fontSize} ${style.fontFamily}`;
-    setLabelFont((previous) => (previous === font ? previous : font));
+    setLabelFont((previous) => (previous?.font === font ? previous : { font }));
+  }, []);
+  // Until the webfont loads, the canvas measures its fallback face. A fresh
+  // object on load rebuilds the measurer and with it the layout.
+  useEffect(() => {
+    const remeasure = () =>
+      setLabelFont((previous) => previous && { ...previous });
+    document.fonts?.addEventListener("loadingdone", remeasure);
+    return () => document.fonts?.removeEventListener("loadingdone", remeasure);
   }, []);
   const measurer = useMemo(
-    () => createTextMeasurer(labelFont ?? "10px ui-sans-serif"),
+    () => createTextMeasurer(labelFont?.font ?? "10px ui-sans-serif"),
     [labelFont],
   );
   // Resolved per theme, because three of these colours flip lightness between

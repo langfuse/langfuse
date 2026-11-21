@@ -11,22 +11,22 @@
 /* Session metrics bar is open above a stacked annotation column. */
 @custom-variant session-review-stack (&:is([data-trace-review-open][data-review-orientation=vertical] *));
 
-/* App font tokens. The typeface is deliberately DEFERRED: the app ships the
-   system stacks while the token system (families here, weight roles below,
-   text-* size+weight tokens) stays fully font-relative. Adopting a webfont
-   later = load it via next/font in a src/styles/fonts.ts (declare its vars on
-   :root from _app — next/font CSS is silently dropped in _document), prepend
-   its var to the stacks below, and retune the weight-role numbers
-   (history: IBM Plex wanted bold 500, Inter bold 600). The theme-lab panel
-   can preview typefaces live without shipping them. Deliberately a plain
+/* App font tokens. Both families are self-hosted (public/fonts/README.md) and
+   loaded via next/font in src/styles/fonts.ts, which declares their vars on
+   :root from _app — next/font CSS is silently dropped in _document. The token
+   system (families here, weight roles below, text-* size+weight tokens) stays
+   font-relative: swapping a typeface = put its var first in a stack and
+   retune the weight-role numbers. The theme-lab panel can preview typefaces
+   live without shipping them. Deliberately a plain
    @theme block (not `inline`): preflight reads var(--font-sans) at runtime,
    and only non-inline themes emit the :root custom property. `static`: emit
    the weight-role vars even when unused in source — the theme-lab tool and
    inline styles read them at runtime. */
 @theme static {
   --font-sans:
-    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-    "Segoe UI Symbol", "Noto Color Emoji";
+    var(--font-plex-sans, "IBM Plex Sans"), ui-sans-serif, system-ui,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+    "Noto Color Emoji";
   --font-mono:
     var(--font-plex-mono, "IBM Plex Mono"), ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -36,10 +36,13 @@
      `--font-weight-bold` deliberately overrides Tailwind's built-in bold
      (700): the `font-bold` utility IS the bold role. Medium is for names that
      identify an entity, e.g. the org and project switchers. font-semibold /
-     raw numbers are drift. */
-  --font-weight-regular: 400;
-  --font-weight-medium: 500;
-  --font-weight-bold: 600;
+     raw numbers are drift. The numbers are tuned to IBM Plex Sans
+     (public/fonts/README.md). `--font-weight-normal` aliases regular so
+     `font-normal` follows the role. */
+  --font-weight-regular: 410;
+  --font-weight-normal: var(--font-weight-regular);
+  --font-weight-medium: 480;
+  --font-weight-bold: 560;
 }
 
 @theme inline {
@@ -882,6 +885,7 @@
 
   body {
     @apply bg-background text-foreground;
+    font-weight: var(--font-weight-regular);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings:
