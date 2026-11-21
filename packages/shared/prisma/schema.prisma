@@ -297,6 +297,7 @@ enum SystemRole {
   SCORES_INGEST
   INGEST
   AI_GATEWAY
+  AI_GATEWAY_INFERENCE
   APPLICATION
 }
 
@@ -450,6 +451,8 @@ model GatewaySpendLimit {
   user              User?                     @relation("GatewaySpendLimitUser", fields: [userId], references: [id], onDelete: Cascade)
   interval          GatewaySpendLimitInterval
   limitUsd          Decimal                   @map("limit_usd")
+  // Usage percentages (subset of 85, 95, 100) that trigger email alerts.
+  alertThresholds   Int[]                     @default([100]) @map("alert_thresholds")
   // When the limit starts counting spend, set when it is created; earlier spend does not count. The gateway's usage counters and the alert rows are keyed by it, so moving it starts counting afresh.
   countingStartedAt DateTime                  @map("counting_started_at")
   // Whoever last created or updated the limit. Gateway members may change only their own limits; admins may change all.
@@ -467,10 +470,11 @@ model GatewaySpendLimit {
 }
 
 enum GatewaySpendLimitAlertType {
+  WARNING
   EXCEEDED
 }
 
-/// One notification per limit, subject, alert type, counting start and window, so the gateway may report a limit any number of times.
+/// One notification per limit, subject, alert type, threshold, counting start and window, so the gateway may report a limit any number of times.
 model GatewaySpendLimitAlert {
   id                String                     @id @default(cuid())
   spendLimitId      String                     @map("spend_limit_id")
@@ -478,11 +482,13 @@ model GatewaySpendLimitAlert {
   // The key or user a default limit was reached for; empty for a limit of one key or user.
   subjectId         String                     @default("") @map("subject_id")
   type              GatewaySpendLimitAlertType
+  // Usage percentage threshold (e.g. 85, 95, 100) that fired; defaults to 100 for exceeded alerts.
+  thresholdPercent  Int                        @default(100) @map("threshold_percent")
   countingStartedAt DateTime                   @map("counting_started_at")
   windowStart       DateTime                   @map("window_start")
   createdAt         DateTime                   @default(now()) @map("created_at")
 
-  @@unique([spendLimitId, subjectId, type, countingStartedAt, windowStart], map: "gateway_spend_limit_alerts_limit_type_counting_window_key")
+  @@unique([spendLimitId, subjectId, type, thresholdPercent, countingStartedAt, windowStart], map: "gateway_spend_limit_alerts_limit_type_counting_window_key")
   @@map("gateway_spend_limit_alerts")
 }
 

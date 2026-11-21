@@ -180,7 +180,7 @@ describe("project API keys trpc", () => {
         caller.projectApiKeys.create({
           projectId,
           name: "org-only role on project key",
-          role: "AI_GATEWAY",
+          role: "AI_GATEWAY_INFERENCE",
         }),
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
@@ -252,6 +252,7 @@ describe("project API keys trpc", () => {
             "",
             "OWNER",
             "AI_GATEWAY",
+            "AI_GATEWAY_INFERENCE",
             "invalid",
           ];
           if (migration !== "enforce" || enabled === "false")

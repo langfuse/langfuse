@@ -746,7 +746,14 @@ export { getAuditLogResourceRefs } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForUserId } from "./repositories/auditLogs";
 export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
-export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
+export {
+  BILLING_SETTLE_MS,
+  type BillableUnitBucketGranularity,
+  bucketStartSql,
+  getBillableEventsLedgerStart,
+  getBillableUnitCountsByProjectAndBucket,
+  getBillableUnitCountsByProjectInWindow,
+} from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
 export {
   getTopicSetupTraceBounds,
@@ -951,6 +958,8 @@ export { isExecutionIssue } from "./transcript/context";
 export type { ExecutionIssue } from "./transcript/types";
 export type { TranscriptContext } from "./transcript/types";
 export { getTracingCountsByProjectInCreationIntervalFromEventsTable } from "./repositories/events";
+export { AI_GATEWAY_COST_SOURCE_CALCULATED } from "./otel/OtelIngestionProcessor";
+export { AI_GATEWAY_COST_SOURCE_METADATA_KEY } from "./otel/OtelIngestionProcessor";
 export { AI_GATEWAY_KEY_ID_METADATA_KEY } from "./otel/OtelIngestionProcessor";
 export { aiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";
 export { isAiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";

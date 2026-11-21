@@ -22,7 +22,7 @@ import {
   topicAnalysisCohort,
   readTopicMapAssignments,
   getTopicClusteringSummaries,
-  getNewestTopicClusteringSummaries,
+  getSampledTopicClusteringSummaries,
   summarizedTopicMatchesQuery,
   saveTopicRun,
   getTopicsModels,
@@ -163,6 +163,7 @@ async function assignSummaries(
                 embeddingConfig: scope.embeddingConfig,
                 summaries: batch.slice(offset, offset + 64),
                 run,
+                ruleId: run.ruleId ?? null,
                 origin: "initial",
                 assignedAt,
                 coordinates,
@@ -529,7 +530,7 @@ async function clusterFacet(
         projectId: scope.projectId,
         createdByRunId: run.id,
         createdAt: run.createdAt,
-        tags: [],
+        labels: [],
         name: label?.name ?? `Unnamed topic ${topics.length + 1}`,
         description:
           label?.description ??
@@ -915,8 +916,8 @@ const refitLimits = () => ({
 });
 
 /**
- * The newest summaries whose trace meets the rule's current filter, and the
- * window they cover. Never sampled: sampling only selects traces to summarize.
+ * A stable hash sample of the summaries whose trace meets the rule's current
+ * filter, so consecutive nights refit mostly the same traces, and the window it covers.
  */
 async function refitCohort({
   projectId,
@@ -932,25 +933,20 @@ async function refitCohort({
   scheduled: TopicTimeRange;
 }): Promise<{ summaries: TopicSummary[]; timeRange: TopicTimeRange }> {
   const filter = (await getTopicRule(projectId, ruleId))?.filter ?? [];
-  const summaries = await getNewestTopicClusteringSummaries(
+  const { summaries, timeRange } = await getSampledTopicClusteringSummaries(
     projectId,
     facet,
     embeddingConfig,
     scheduled,
     refitLimits(),
     filter.length
-      ? (slice) =>
+      ? (window) =>
           summarizedTopicMatchesQuery(
-            { projectId, facet, filter, ...slice },
+            { projectId, facet, filter, ...window },
             prisma,
           )
       : undefined,
   );
-  // The map covers the window from its oldest summary, as the limits may cut it.
-  const oldest = summaries.at(-1);
-  const timeRange = oldest
-    ? { from: new Date(oldest.unitStartTime), to: scheduled.to }
-    : scheduled;
   getCurrentSpan()?.setAttribute(
     "langfuse.topics.refit_window_days",
     (timeRange.to.getTime() - timeRange.from.getTime()) / 86_400_000,

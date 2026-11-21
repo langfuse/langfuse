@@ -3,15 +3,10 @@ import {
   type User as PrismaUser,
   type Project as PrismaProject,
   type Organization as PrismaOrganization,
-  type Role,
 } from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
-import {
-  type CloudConfigSchema,
-  type Plan,
-  type ProjectScope,
-} from "@langfuse/shared";
-import { type OrganizationScope } from "@langfuse/shared/rbac";
+import { type Policy } from "@/src/features/rbac/types";
+import { type CloudConfigSchema, type Plan } from "@langfuse/shared";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -39,8 +34,6 @@ declare module "next-auth" {
           organizations: {
             id: PrismaOrganization["id"];
             name: PrismaOrganization["name"];
-            role: Role; // direct org role
-            scopes?: OrganizationScope[]; // role + group permissions; absent = no group applies
             supportAccess?: boolean; // granted through a ConductorOne support access request, not a real membership
             cloudConfig: CloudConfigSchema | undefined;
             plan: Plan;
@@ -61,8 +54,6 @@ declare module "next-auth" {
               scoreEditsDisabled?: boolean; // scores are read without dedup, so existing scores stay immutable; absent = off
               forceV3Experience?: boolean; // LANGFUSE_FORCE_V3_EXPERIENCE allowlist, resolved server-side; absent = off
               metadata: Record<string, unknown>;
-              role: Role; // direct role: project role, else org role
-              scopes?: ProjectScope[]; // role + group permissions; absent = no group applies
               createdAt: string; // iso datetime string — JWT does not support Date objects
             }[];
           }[];
@@ -70,6 +61,9 @@ declare module "next-auth" {
           hasPassword?: boolean;
         } & DefaultSession["user"])
       | null; // null if user does not exist anymore in the database but has active jwt
+
+    // The user's policy sets; empty when the session has no user.
+    policies: Policy[][];
 
     environment: {
       // Run-time environment variables that need to be available client-side

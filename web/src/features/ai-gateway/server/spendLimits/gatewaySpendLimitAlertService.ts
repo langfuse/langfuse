@@ -25,19 +25,27 @@ import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpe
 
 const REPORTED_USER_SELECT = { id: true, email: true, name: true } as const;
 
-type GatewaySpendLimitEmail = Extract<
+type GatewaySpendLimitReachedEmail = Extract<
   NotificationEventType,
   { type: "AI_GATEWAY_SPEND_LIMIT_REACHED" }
 >;
+type GatewaySpendLimitAlertEmail = Extract<
+  NotificationEventType,
+  { type: "AI_GATEWAY_SPEND_LIMIT_ALERT" }
+>;
+type GatewaySpendLimitEmail =
+  | GatewaySpendLimitReachedEmail
+  | GatewaySpendLimitAlertEmail;
 
 /**
  * Emails whom a limit applies to (the key's owner, or the user of a user
  * limit) and the organization's owners when the gateway reports that a key
- * reached spend limits. The gateway may report a limit any
- * number of times; the stored alert lets only the first report of a limit's
- * counting start and window send emails. Limits one report claims share one
- * email per recipient. The gateway names each window, so a report that arrives
- * after the window closed still counts toward the window it was reached in.
+ * reached a configured budget alert threshold. The gateway may report a limit
+ * threshold any number of times; the stored alert lets only the first report
+ * of a limit's counting start, threshold, and window send emails. Alerts one
+ * report claims for the same scope share one email per recipient. The gateway
+ * names each window, so a report that arrives after the window closed still
+ * counts toward the window it was reached in.
  */
 type ReportedLimit = Awaited<
   ReturnType<typeof findReportedLimits>
@@ -49,10 +57,14 @@ type AlertKey = {
   /** The key or user a default limit was reached for; empty for their own limits. */
   subjectId: string;
   type: GatewaySpendLimitAlertType;
+  thresholdPercent: number;
   countingStartedAt: Date;
   windowStart: Date;
 };
-type ClaimedAlert = { limit: ReportedLimit; alert: AlertKey };
+type ClaimedAlert = {
+  limit: ReportedLimit;
+  alert: AlertKey;
+};
 type Recipient = {
   to: string;
   name: string | null;
@@ -64,9 +76,14 @@ export class GatewaySpendLimitAlertService {
 
   async reportReached(params: {
     fastHashedSecretKey: string;
-    limits: { limitId: string; countingStartedAt: Date; windowStart: Date }[];
+    limits: {
+      limitId: string;
+      countingStartedAt: Date;
+      windowStart: Date;
+      thresholdPercent?: number;
+    }[];
   }): Promise<void> {
-    // A deleted limit, or a report from an earlier counting start, no longer applies.
+    // A deleted limit, an unconfigured threshold, or a report from an earlier counting start no longer applies.
     const reported = await findReportedLimits(this.prisma, params);
     if (reported.length === 0) return;
     for (const { limit, windowStart } of reported) {
@@ -94,17 +111,28 @@ export class GatewaySpendLimitAlertService {
 
     const claimed: ClaimedAlert[] = [];
     try {
-      for (const { limit, subjectId, windowStart } of reported) {
+      for (const {
+        limit,
+        subjectId,
+        windowStart,
+        thresholdPercent,
+      } of reported) {
         const alert: AlertKey = {
           spendLimitId: limit.id,
           subjectId,
-          type: GatewaySpendLimitAlertType.EXCEEDED,
+          type:
+            thresholdPercent < 100
+              ? GatewaySpendLimitAlertType.WARNING
+              : GatewaySpendLimitAlertType.EXCEEDED,
+          thresholdPercent,
           countingStartedAt: limit.countingStartedAt,
           windowStart,
         };
-        if (await this.claimAlert(alert)) claimed.push({ limit, alert });
+        if (await this.claimAlert(alert)) {
+          claimed.push({ limit, alert });
+        }
       }
-      // A request can reach its key's and its user's limits; each scope gets its own email.
+      // A request can trigger alerts across key, user, and organization limits; each scope gets its own email.
       for (const group of groupByScope(claimed)) {
         const recipients = await this.getRecipients(group[0]!.limit);
         await queue.addBulk(
@@ -156,15 +184,21 @@ export class GatewaySpendLimitAlertService {
 
 /**
  * The reported limits that still apply to the calling key at the reported
- * counting start: the key's own, and its owner's in the key's organization.
- * A default is reported under an id naming the key or user it applied to, and
- * still applies only while that key or user has no limit of its own.
+ * counting start and have the reported threshold enabled: the key's own, its
+ * owner's in the key's organization, or the organization's own limit. A default
+ * is reported under an id naming the key or user it applied to, and still
+ * applies only while that key or user has no limit of its own.
  */
 async function findReportedLimits(
   prisma: PrismaClient,
   params: {
     fastHashedSecretKey: string;
-    limits: { limitId: string; countingStartedAt: Date; windowStart: Date }[];
+    limits: {
+      limitId: string;
+      countingStartedAt: Date;
+      windowStart: Date;
+      thresholdPercent?: number;
+    }[];
   },
 ) {
   const callingKey = await prisma.apiKey.findUnique({
@@ -214,7 +248,12 @@ async function findReportedLimits(
     const [spendLimitId = "", subjectId = ""] = limit.limitId.split(
       GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR,
     );
-    return { ...limit, spendLimitId, subjectId };
+    return {
+      ...limit,
+      spendLimitId,
+      subjectId,
+      thresholdPercent: limit.thresholdPercent ?? (100 as const),
+    };
   });
   const limits = await prisma.gatewaySpendLimit.findMany({
     where: {
@@ -223,7 +262,16 @@ async function findReportedLimits(
       OR: [
         { apiKeyId: callingKey.id },
         ...(userId ? [{ scope: "USER" as const, userId }] : []),
-        { scope: { in: [...defaultSubjects.keys()] } },
+        {
+          scope: {
+            in: [
+              ...defaultSubjects.keys(),
+              GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE,
+            ],
+          },
+          apiKeyId: null,
+          userId: null,
+        },
       ],
     },
     select: {
@@ -231,6 +279,7 @@ async function findReportedLimits(
       scope: true,
       interval: true,
       limitUsd: true,
+      alertThresholds: true,
       countingStartedAt: true,
       organization: { select: { id: true, name: true } },
       apiKey: {
@@ -251,27 +300,46 @@ async function findReportedLimits(
   };
 
   return reported.flatMap(
-    ({ spendLimitId, subjectId, countingStartedAt, windowStart }) => {
+    ({
+      spendLimitId,
+      subjectId,
+      countingStartedAt,
+      windowStart,
+      thresholdPercent,
+    }) => {
       const found = limits.find(
         ({ id, countingStartedAt: started }) =>
           id === spendLimitId &&
           started.getTime() === countingStartedAt.getTime(),
       );
-      if (!found) return [];
+      if (!found || !found.alertThresholds.includes(thresholdPercent)) {
+        return [];
+      }
       const { scope, ...limit } = found;
       if (scope === "API_KEY" || scope === "USER") {
         return subjectId === "" && (limit.apiKey || limit.user)
-          ? [{ limit, subjectId, windowStart }]
+          ? [{ limit, subjectId, windowStart, thresholdPercent }]
           : [];
       }
-      // Not loaded above: reaching an organization limit sends no email.
-      if (scope === GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE) return [];
+      if (scope === GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE) {
+        return subjectId === ""
+          ? [
+              {
+                limit: { ...limit, apiKey: null, user: null },
+                subjectId,
+                windowStart,
+                thresholdPercent,
+              },
+            ]
+          : [];
+      }
       if (defaultSubjects.get(scope) !== subjectId) return [];
       const appliesToKey = scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.API_KEY;
       return [
         {
           subjectId,
           windowStart,
+          thresholdPercent,
           limit: {
             ...limit,
             apiKey: appliesToKey
@@ -290,16 +358,20 @@ async function findReportedLimits(
   );
 }
 
-/** The claimed alerts per limit subject, keys before users. */
+/** The claimed alerts per limit subject, keys before users before organization. */
 function groupByScope(claimed: ClaimedAlert[]): ClaimedAlert[][] {
   const groups = new Map<string, ClaimedAlert[]>();
   for (const entry of claimed) {
-    const subject = entry.limit.apiKey
-      ? `key:${entry.limit.apiKey.id}`
-      : `user:${entry.limit.user?.id}`;
+    const subject = getGroupKey(entry.limit);
     groups.set(subject, [...(groups.get(subject) ?? []), entry]);
   }
   return [...groups.values()];
+}
+
+function getGroupKey(limit: ReportedLimit) {
+  if (limit.apiKey) return `key:${limit.apiKey.id}`;
+  if (limit.user) return `user:${limit.user.id}`;
+  return `org:${limit.organization.id}`;
 }
 
 function toEmailScope(limit: ReportedLimit): GatewaySpendLimitEmail["scope"] {
@@ -311,40 +383,65 @@ function toEmailScope(limit: ReportedLimit): GatewaySpendLimitEmail["scope"] {
       displaySecretKey: limit.apiKey.displaySecretKey,
     };
   }
-  const email = limit.user?.email ?? "";
-  return {
-    type: "USER",
-    userId: limit.user?.id ?? "",
-    name: limit.user?.name || email,
-    email,
-  };
+  if (limit.user) {
+    const email = limit.user.email ?? "";
+    return {
+      type: "USER",
+      userId: limit.user.id,
+      name: limit.user.name || email,
+      email,
+    };
+  }
+  return { type: "ORGANIZATION" };
 }
 
 function toNotificationJob(claimed: ClaimedAlert[], recipient: Recipient) {
   const { limit } = claimed[0]!;
-  const payload: GatewaySpendLimitEmail = {
-    type: "AI_GATEWAY_SPEND_LIMIT_REACHED",
+  const scope = toEmailScope(limit);
+  const needsAlertPayload =
+    scope.type === "ORGANIZATION" ||
+    claimed.some(({ alert }) => alert.thresholdPercent < 100);
+  const base = {
     orgId: limit.organization.id,
     orgName: limit.organization.name,
     to: recipient.to,
     receiverName: recipient.name ?? undefined,
     audience: recipient.audience,
-    scope: toEmailScope(limit),
-    limits: claimed.map(({ limit, alert }) => ({
-      interval: limit.interval,
-      limitUsd: limit.limitUsd.toNumber(),
-      resetsAt: getGatewaySpendLimitWindowEnd(
-        limit.interval,
-        alert.windowStart,
-      )?.toISOString(),
-    })),
   };
+  const payload: GatewaySpendLimitEmail = needsAlertPayload
+    ? {
+        ...base,
+        type: "AI_GATEWAY_SPEND_LIMIT_ALERT",
+        scope,
+        limits: claimed.map(({ limit, alert }) => ({
+          interval: limit.interval,
+          limitUsd: limit.limitUsd.toNumber(),
+          thresholdPercent: alert.thresholdPercent,
+          resetsAt: getGatewaySpendLimitWindowEnd(
+            limit.interval,
+            alert.windowStart,
+          )?.toISOString(),
+        })),
+      }
+    : {
+        ...base,
+        type: "AI_GATEWAY_SPEND_LIMIT_REACHED",
+        scope,
+        limits: claimed.map(({ limit, alert }) => ({
+          interval: limit.interval,
+          limitUsd: limit.limitUsd.toNumber(),
+          resetsAt: getGatewaySpendLimitWindowEnd(
+            limit.interval,
+            alert.windowStart,
+          )?.toISOString(),
+        })),
+      };
   const alertsHash = createHash("sha256")
     .update(
       claimed
         .map(
           ({ alert }) =>
-            `${alert.spendLimitId}-${alert.subjectId}-${alert.type}-${alert.countingStartedAt.getTime()}-${alert.windowStart.getTime()}`,
+            `${alert.spendLimitId}-${alert.subjectId}-${alert.type}-${alert.thresholdPercent}-${alert.countingStartedAt.getTime()}-${alert.windowStart.getTime()}`,
         )
         .toSorted()
         .join(","),

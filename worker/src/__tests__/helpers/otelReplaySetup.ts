@@ -86,7 +86,8 @@ export function configureDefaultOtelReplayMocks(): void {
   });
   otelReplayMocks.getPrompt.mockResolvedValue(null);
   otelReplayMocks.fetchEvalRules.mockResolvedValue({
-    observationRules: [],
+    // Exercise the production evaluation parser on corpus and property replays.
+    observationRules: [{}],
     traceTranscriptRules: [],
   });
   otelReplayMocks.hasNoEvalConfigsCache.mockResolvedValue(true);

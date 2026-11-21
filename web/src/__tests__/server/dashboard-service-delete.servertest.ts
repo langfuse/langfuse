@@ -33,10 +33,8 @@ async function createOwnerCaller() {
       id: `widget-delete-user-${uuidv4()}`,
       name: "Test User",
       featureFlags: {
-        excludeClickhouseRead: false,
         templateFlag: true,
         v4BetaToggleVisible: false,
-        observationEvals: false,
         experimentsV4Enabled: false,
         langfuseTopics: false,
       },

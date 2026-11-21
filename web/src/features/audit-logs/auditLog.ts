@@ -5,6 +5,8 @@ import {
   type Prisma,
 } from "@langfuse/shared/src/db";
 import { type AuditLogActor as StagedAuditLogActor } from "@langfuse/shared";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { type Session } from "next-auth";
 import {
   deriveAuditLogEventId,
   formatSubmittedPublicKeyForLog,
@@ -18,6 +20,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { isAuditLogEnabled } from "@/src/features/audit-logs/isAuditLogEnabled";
+import { rolesFor } from "@/src/features/rbac/authorize";
 
 type AuditableResource =
   | "annotationQueue"
@@ -84,20 +87,7 @@ export type AuditLogActor =
       projectRole?: Role;
     }
   | {
-      session: {
-        user: {
-          id: string;
-          name?: string | null;
-          email?: string | null;
-          // The session's organizations. The entry for `orgId` tells whether
-          // the user acts through a support access grant.
-          organizations?: { id: string; supportAccess?: boolean }[];
-        };
-        orgId: string;
-        orgRole?: Role;
-        projectId?: string;
-        projectRole?: Role;
-      };
+      session: UserSession & { orgId: string; projectId?: string };
     }
   | {
       apiKeyId: string;
@@ -248,6 +238,11 @@ export async function auditLog(
   }
 
   if ("session" in log) {
+    const access = sessionAccess(
+      log.session,
+      log.session.orgId,
+      log.session.projectId,
+    );
     // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,
@@ -262,9 +257,9 @@ export async function auditLog(
       data: {
         userId: log.session.user.id,
         orgId: log.session.orgId,
-        userOrgRole: log.session.orgRole,
+        userOrgRole: access.orgRole,
         projectId: log.session.projectId,
-        userProjectRole: log.session.projectRole,
+        userProjectRole: access.projectRole,
         type: AuditLogRecordType.USER,
         ...makeShared(),
       },
@@ -276,13 +271,7 @@ export async function auditLog(
         log,
         record,
         { orgId: log.session.orgId, projectId: log.session.projectId },
-        toUserActor(log.session.user, {
-          orgRole: log.session.orgRole,
-          projectRole: log.session.projectRole,
-          supportAccess: log.session.user.organizations?.some(
-            (org) => org.id === log.session.orgId && org.supportAccess === true,
-          ),
-        }),
+        userActor(log.session.user, access),
         db,
       );
     }
@@ -291,6 +280,8 @@ export async function auditLog(
   }
 
   if ("userId" in log) {
+    const orgRole = log.orgRole && SystemRoleId(log.orgRole);
+    const projectRole = log.projectRole && SystemRoleId(log.projectRole);
     // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,
@@ -305,9 +296,9 @@ export async function auditLog(
       data: {
         userId: log.userId,
         orgId: log.orgId,
-        userOrgRole: log.orgRole,
+        userOrgRole: orgRole,
         projectId: log.projectId,
-        userProjectRole: log.projectRole,
+        userProjectRole: projectRole,
         type: AuditLogRecordType.USER,
         ...makeShared(),
       },
@@ -319,7 +310,7 @@ export async function auditLog(
         log,
         record,
         { orgId: log.orgId, projectId: log.projectId },
-        toUserActor({ id: log.userId }, log),
+        userActor({ id: log.userId }, { orgRole, projectRole }),
         db,
       );
     }
@@ -328,10 +319,42 @@ export async function auditLog(
   }
 }
 
-/** `supportAccess` is set when the user reaches the org through a ConductorOne support access grant. */
+/** toUserActor names the session's user as actor, with the roles they hold on orgId and projectId. */
 export function toUserActor(
+  session: UserSession,
+  orgId: string,
+  projectId?: string,
+): StagedAuditLogActor {
+  return userActor(session.user, sessionAccess(session, orgId, projectId));
+}
+
+/** sessionAccess lists the session's roles on orgId and projectId, and whether the user reaches orgId through a ConductorOne support access grant. */
+function sessionAccess(
+  session: UserSession,
+  orgId: string,
+  projectId?: string,
+): UserAccess {
+  const tenant = OrganizationId(orgId);
+  return {
+    orgRole: joinRoles(rolesFor(session, tenant, tenant)),
+    projectRole: projectId
+      ? joinRoles(rolesFor(session, tenant, ProjectId(projectId)))
+      : undefined,
+    supportAccess: session.user.organizations.some(
+      (org) => org.id === orgId && org.supportAccess === true,
+    ),
+  };
+}
+
+/** joinRoles records role ids as one sorted, comma-separated value, or none. */
+function joinRoles(roleIds: string[]): string | undefined {
+  return [...roleIds].sort().join(",") || undefined;
+}
+
+/** userActor names user as actor with the given access. */
+function userActor(
   user: { id: string; name?: string | null; email?: string | null },
-  access: { orgRole?: Role; projectRole?: Role; supportAccess?: boolean },
+  access: UserAccess,
 ): StagedAuditLogActor {
   const systemActor = getSystemAuditLogActorForUserId(user.id);
   if (systemActor) return systemActor;
@@ -432,3 +455,18 @@ async function stageInSavepoint(
   }
   await tx.$executeRaw`RELEASE SAVEPOINT audit_log_staging`;
 }
+
+/** UserSession is the part of a signed-in session an audit log names its actor from. */
+type UserSession = Pick<Session, "policies"> & {
+  user: Pick<
+    NonNullable<Session["user"]>,
+    "id" | "name" | "email" | "organizations"
+  >;
+};
+
+/** UserAccess is the roles a user holds on an org and project, and whether they act through a support access grant. */
+type UserAccess = {
+  orgRole?: string;
+  projectRole?: string;
+  supportAccess?: boolean;
+};
