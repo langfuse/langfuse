@@ -1,19 +1,12 @@
-import { useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { TopicsEmptyState } from "./TopicsEmptyState";
-import {
-  type Facet,
-  type TopicTraceQuery,
-  type UseTopicTraces,
-} from "./facet-topics";
-import {
-  prepareTopicDisplay,
-  UNASSIGNED_TOPIC_ID,
-} from "./prepare-topic-display";
+import { type Facet, type UseTopicTraces } from "./facet-topics";
+import { prepareTopicDisplay } from "./prepare-topic-display";
 import { TopicTreemap } from "./TopicTreemap";
 import { TopicTraceList } from "./TopicTraceList";
 import { TopicsSplit } from "./TopicsSplit";
+import { useTopicSearchSelection } from "./topic-selection";
 
 type TopicTreemapViewProps = {
   projectId: string;
@@ -26,6 +19,8 @@ type TopicTreemapViewProps = {
   useTraces: UseTopicTraces;
   /** Off leaves unassigned traces out of the all-traces list, as their tile is hidden. */
   showUnassigned?: boolean;
+  /** The page's trace search and filters; picking a tile writes its topic there. */
+  traceFilters: Parameters<typeof useTopicSearchSelection>[0]["traceFilters"];
 };
 
 export function TopicTreemapView({
@@ -36,13 +31,19 @@ export function TopicTreemapView({
   tracePanelRef,
   useTraces,
   showUnassigned = true,
+  traceFilters,
 }: TopicTreemapViewProps) {
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const { topics, total } = prepareTopicDisplay(facet, "treemap");
   // No tile picked lists every trace; picking a tile again clears it.
-  const selected = topics.find((topic) => topic.id === selectedTopicId);
-  const allTraces = showUnassigned ? {} : { assigned: true };
-  const traces = useTraces(selected ? topicQuery(selected.id) : allTraces);
+  const { selected, isSearching, query, selectTopic, listProps } =
+    useTopicSearchSelection({
+      projectId,
+      facet,
+      topics,
+      traceFilters,
+      showUnassigned,
+    });
+  const traces = useTraces(query);
   const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
   const horizontal = sideBySide && isWide;
   if (facet.topics.length === 0) {
@@ -58,31 +59,16 @@ export function TopicTreemapView({
           total={total}
           topics={topics}
           selectedTopicId={selected?.id ?? null}
-          onSelectTopic={(topicId) =>
-            setSelectedTopicId(topicId === selectedTopicId ? null : topicId)
-          }
+          onSelectTopic={selectTopic}
         />
       }
       traces={
         <TopicTraceList
-          key={selected?.id ?? "all"}
+          key={isSearching ? "search" : (selected?.id ?? "all")}
           rowHeightKey="topicTracesTreemap"
           projectId={projectId}
-          title={selected ? selected.name : "All traces"}
-          description={
-            !selected || selected.id === UNASSIGNED_TOPIC_ID
-              ? undefined
-              : selected.description
-          }
-          swatchColor={selected?.color}
+          {...listProps}
           traces={traces}
-          totalCount={selected ? selected.count : facet.counts.total}
-          tracingTopic={
-            !selected || selected.id === UNASSIGNED_TOPIC_ID
-              ? undefined
-              : { facet, name: selected.name }
-          }
-          topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
           peekView={peekView}
           tracePanelRef={horizontal ? tracePanelRef : undefined}
           divider="none"
@@ -90,9 +76,4 @@ export function TopicTreemapView({
       }
     />
   );
-}
-
-function topicQuery(topicId: string): TopicTraceQuery {
-  if (topicId === UNASSIGNED_TOPIC_ID) return { assigned: false };
-  return { topicIds: { operator: "any of", values: [topicId] } };
 }

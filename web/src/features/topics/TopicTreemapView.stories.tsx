@@ -1,4 +1,4 @@
-import { type ComponentProps } from "react";
+import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
@@ -67,6 +67,12 @@ const defaultArgs: ComponentProps<typeof TopicTreemapView> = {
   projectId: "storybook-topics",
   facet,
   useTraces: staticTopicTraces(rows),
+  traceFilters: {
+    filters: [],
+    setFilters: fn(),
+    searchQuery: null,
+    setSearchQuery: fn(),
+  },
   peekView: {
     itemType: "TRACE",
     tableName: "topics-topic-traces",
@@ -80,7 +86,7 @@ const meta = preview.meta({
   args: defaultArgs,
   render: (args) => (
     <div className="flex h-screen flex-col p-2">
-      <TopicTreemapView {...args} />
+      <ControlledTreemap {...args} />
     </div>
   ),
 });
@@ -253,7 +259,7 @@ export const LongNamesOnShortTiles = meta.story({
   },
   render: (args) => (
     <div className="flex flex-col" style={{ width: 1736, height: 1000 }}>
-      <TopicTreemapView {...args} />
+      <ControlledTreemap {...args} />
     </div>
   ),
 });
@@ -334,7 +340,7 @@ export const DescriptionTooltipWhenClipped = meta.story({
   name: "(Test) Hover shows the full text only when clipped",
   render: (args) => (
     <div className="flex flex-col" style={{ width: 720, height: 900 }}>
-      <TopicTreemapView {...args} />
+      <ControlledTreemap {...args} />
     </div>
   ),
   play: async ({ canvasElement }) => {
@@ -360,3 +366,15 @@ export const DescriptionTooltipWhenClipped = meta.story({
     await expect(name).not.toHaveAttribute("title");
   },
 });
+
+/** The search bar holds the picked tile, so stories keep its state. */
+function ControlledTreemap(args: ComponentProps<typeof TopicTreemapView>) {
+  const [filters, setFilters] = useState(args.traceFilters.filters);
+  const [searchQuery, setSearchQuery] = useState(args.traceFilters.searchQuery);
+  return (
+    <TopicTreemapView
+      {...args}
+      traceFilters={{ filters, setFilters, searchQuery, setSearchQuery }}
+    />
+  );
+}
