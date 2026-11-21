@@ -128,6 +128,7 @@ export default {
         "no-else-return": "warn",
         "no-unneeded-ternary": "warn",
         "no-nested-ternary": "warn",
+        "unicorn/throw-new-error": "warn",
         "no-use-before-define": [
           "warn",
           {
