@@ -86,7 +86,7 @@ export const InAppAiAgentButton = ({
           : undefined
       }
       className={cn(
-        "relative gap-2",
+        "gap-2",
         // Compact icon-only launcher for the top bar.
         prominent && "size-9 shrink-0 px-0",
         !prominent &&
@@ -94,18 +94,17 @@ export const InAppAiAgentButton = ({
           "border-primary-accent bg-primary-accent/10 hover:bg-primary-accent/15",
       )}
     >
-      <HaloIcon variant={prominent && open ? "launcherActive" : "launcher"} />
-      {/* Conversations still owed a look. Anchored to the button rather than
-          the icon so it survives the prominent (icon-only) variant. Visual
-          only — accessible name is on the button. */}
-      {attentionCount > 0 && (
-        <span
-          aria-hidden="true"
-          className="bg-primary-accent text-primary-foreground absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold"
-        >
-          {attentionCount > 99 ? "99+" : attentionCount}
-        </span>
-      )}
+      <span className="relative inline-flex">
+        <HaloIcon variant={prominent && open ? "launcherActive" : "launcher"} />
+        {/* Conversations still owed a look: a dot on the icon, so it stays
+            inside the button. Visual only, the count is in the button name. */}
+        {attentionCount > 0 && (
+          <span
+            aria-hidden="true"
+            className="bg-primary-accent absolute -top-0.5 -right-0.5 size-1.5 rounded-full"
+          />
+        )}
+      </span>
       {/* The prominent launcher is a fixed 36px square (top bar, below md), so
           it stays strictly icon-only — the `sm:inline` label would otherwise
           reveal in the 640–767px band and overflow the box. */}

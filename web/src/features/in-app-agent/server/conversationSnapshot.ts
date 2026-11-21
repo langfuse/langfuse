@@ -9,6 +9,7 @@ import {
 import {
   createInAppAgentDisplayState,
   recordInAppAgentMessagesForDisplay,
+  recordInAppAgentRunStartForDisplay,
   recordInAppAgentToolCallForDisplay,
 } from "@/src/features/in-app-agent/lib/display";
 
@@ -30,6 +31,10 @@ export function getConversationSnapshotFromEvents(
   const deferredToolCallParents = new Map<string, string | undefined>();
 
   for (const { event, runId, createdAt } of events) {
+    if (event.type === EventType.RUN_STARTED) {
+      displayState = recordInAppAgentRunStartForDisplay(displayState, event);
+    }
+
     if (event.type === EventType.TOOL_CALL_START) {
       const toolCallId = getEventString(event, "toolCallId");
       if (toolCallId) {

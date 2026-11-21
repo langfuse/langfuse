@@ -13,9 +13,19 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useInAppAiAgent: () => ({
     deleteConversation: vi.fn(),
     isExpanded: false,
+    layoutMode: "floating",
     open: mocks.open,
     setIsExpanded: vi.fn(),
+    setLayoutMode: vi.fn(),
     setOpen: mocks.setOpen,
+  }),
+}));
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({
+    asPath: "/project/project-1",
+    pathname: "/project/[projectId]",
+    events: { on: vi.fn(), off: vi.fn() },
   }),
 }));
 

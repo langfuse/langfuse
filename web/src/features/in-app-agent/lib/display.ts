@@ -4,6 +4,7 @@ import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
+import { getInAppAgentContextPagePath } from "../context";
 import type { InAppAgentUiMessage } from "../schema";
 
 /**
@@ -45,11 +46,14 @@ export type InAppAgentDisplayState = {
     }
   >;
   toolCallPlacements: Record<string, InAppAgentDisplayPlacement | null>;
+  /** User message id to the path of the page it was sent from. */
+  askedFromByMessageId?: Record<string, string>;
 };
 
 type InAppAgentDisplayMessage = InAppAgentUiMessage & {
   feedbackMessageId?: string;
   timestamp?: number;
+  askedFrom?: string;
 };
 
 type InAppAgentToolCall = NonNullable<
@@ -102,6 +106,7 @@ const SerializedInAppAgentDisplayStateSchema = z.object({
     z.string(),
     InAppAgentDisplayPlacementSchema.nullable(),
   ),
+  askedFromByMessageId: z.record(z.string(), z.string()).optional(),
 });
 
 export type SerializedInAppAgentDisplayState = z.infer<
@@ -249,6 +254,51 @@ export function recordInAppAgentMessagesForDisplay(
     nextOrder,
     messageTimestamps,
     textByMessageId,
+  };
+}
+
+const RunStartedInputSchema = z.object({
+  input: z.object({
+    messages: z.array(z.object({ id: z.string(), role: z.string() })),
+    context: z.array(z.object({ description: z.string(), value: z.string() })),
+  }),
+});
+
+/** Records the page each user message of a starting run was sent from. */
+export function recordInAppAgentRunStartForDisplay(
+  state: InAppAgentDisplayState,
+  runStartedEvent: unknown,
+): InAppAgentDisplayState {
+  const parsed = RunStartedInputSchema.safeParse(runStartedEvent);
+  if (!parsed.success) {
+    return state;
+  }
+
+  return recordInAppAgentAskedFromForDisplay(
+    state,
+    parsed.data.input.messages.flatMap((message) =>
+      message.role === "user" ? [message.id] : [],
+    ),
+    parsed.data.input.context,
+  );
+}
+
+export function recordInAppAgentAskedFromForDisplay(
+  state: InAppAgentDisplayState,
+  userMessageIds: readonly string[],
+  context: ReadonlyArray<{ description: string; value: string }>,
+): InAppAgentDisplayState {
+  const pagePath = getInAppAgentContextPagePath([...context]);
+  if (!pagePath || userMessageIds.length === 0) {
+    return state;
+  }
+
+  return {
+    ...state,
+    askedFromByMessageId: {
+      ...state.askedFromByMessageId,
+      ...Object.fromEntries(userMessageIds.map((id) => [id, pagePath])),
+    },
   };
 }
 
@@ -408,6 +458,10 @@ export function projectInAppAgentMessagesForDisplay(
           {
             ...message,
             timestamp: state.messageTimestamps[message.id],
+            ...(message.role === "user" &&
+            state.askedFromByMessageId?.[message.id]
+              ? { askedFrom: state.askedFromByMessageId[message.id] }
+              : {}),
           };
     const isEmptyDuplicateToolCallMessage =
       message.role === "assistant" &&
