@@ -11,8 +11,11 @@ export type BillableUnitBucketGranularity = "hour" | "day" | "week" | "month";
 
 const BILLING_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
-/** UTC bucket start of a DateTime expression; weeks start on Monday. */
-const bucketStartSql = (
+/**
+ * UTC bucket start of a DateTime column; weeks start on Monday. Code that
+ * builds a bucket axis itself must start buckets at the same instants.
+ */
+export const bucketStartSql = (
   column: string,
   granularity: BillableUnitBucketGranularity,
 ): string => {

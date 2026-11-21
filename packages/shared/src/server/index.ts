@@ -749,6 +749,7 @@ export { type BillableEventType } from "./repositories/billable-events";
 export {
   BILLING_SETTLE_MS,
   type BillableUnitBucketGranularity,
+  bucketStartSql,
   getBillableEventsLedgerStart,
   getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,

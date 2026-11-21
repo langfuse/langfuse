@@ -6,6 +6,7 @@ import {
 import {
   type BillableEventType,
   type BillableUnitBucketGranularity,
+  bucketStartSql,
   convertDateToClickhouseDateTime,
   getBillableEventsLedgerStart,
   getBillableUnitCountsByProjectAndBucket,
@@ -55,14 +56,7 @@ const getUsageBreakdownGranularity = (
   return "month";
 };
 
-/** UTC bucket expression; weeks start on Monday. Must match `startOfBucket`. */
-const BUCKET_SQL: Record<UsageBreakdownGranularity, string> = {
-  hour: "toStartOfHour(created_at, 'UTC')",
-  day: "toStartOfDay(created_at, 'UTC')",
-  week: "toDateTime(toStartOfWeek(created_at, 1, 'UTC'), 'UTC')",
-  month: "toDateTime(toStartOfMonth(created_at, 'UTC'), 'UTC')",
-};
-
+/** Must start buckets where `bucketStartSql` does. */
 const startOfBucket = (
   date: Date,
   granularity: UsageBreakdownGranularity,
@@ -142,7 +136,7 @@ const getLegacyBillableUnitsByBucket = async ({
   to: Date;
   granularity: UsageBreakdownGranularity;
 }): Promise<UsageBreakdownRow[]> => {
-  const bucket = `toUnixTimestamp(${BUCKET_SQL[granularity]})`;
+  const bucket = `toUnixTimestamp(${bucketStartSql("created_at", granularity)})`;
   const where = `
     project_id IN {projectIds: Array(String)}
     AND created_at >= {from: DateTime64(3)}
