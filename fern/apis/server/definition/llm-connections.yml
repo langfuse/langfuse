@@ -22,7 +22,7 @@ service:
       response: PaginatedLlmConnections
     upsert:
       method: PUT
-      docs: Create or update an LLM connection. The connection is upserted on provider.
+      docs: Create or update an LLM connection. The connection is upserted on provider. An existing connection's adapter cannot change between `typesafe` and a text adapter.
       path: /llm-connections
       request: UpsertLlmConnectionRequest
       response: LlmConnection
@@ -49,7 +49,7 @@ service:
       response: PaginatedLlmConnections
     upsertOrganization:
       method: PUT
-      docs: Create or update an organization-level LLM connection. The connection is upserted on provider and inherited by projects without a provider override. Requires an organization-scoped API key.
+      docs: Create or update an organization-level LLM connection. The connection is upserted on provider and inherited by projects without a provider override. An existing connection's adapter cannot change between `typesafe` and a text adapter. Requires an organization-scoped API key.
       path: /organizations/llm-connections
       request: UpsertLlmConnectionRequest
       response: LlmConnection
@@ -149,3 +149,5 @@ types:
         name: GoogleVertexAI
       - value: google-ai-studio
         name: GoogleAIStudio
+      - value: typesafe
+        name: TypeSafe
