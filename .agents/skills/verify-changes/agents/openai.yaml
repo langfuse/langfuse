@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify changes"
+  short_description: "Prove Langfuse changes with evidence"
+  default_prompt: "Use $verify-changes to prove this Langfuse change with a goal, finish condition, evidence, and constraints."
