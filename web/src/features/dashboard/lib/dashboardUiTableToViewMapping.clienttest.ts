@@ -7,7 +7,33 @@ import {
   mapLegacyUiTableFilterToView,
   mapViewFilterToUiTableFilter,
   mapWidgetUiTableFilterToView,
+  partitionWidgetQueryFiltersToView,
 } from "./dashboardUiTableToViewMapping";
+
+describe("partitionWidgetQueryFiltersToView", () => {
+  const numericMetadata = {
+    column: "metadata",
+    type: "numberObject" as const,
+    key: "latency_ms",
+    operator: ">" as const,
+    value: 200,
+  };
+
+  it.each([
+    ["observations", "v2", true],
+    ["observations", "v1", false],
+    ["scores-numeric", "v2", false],
+  ] as const)(
+    "numeric metadata row on %s %s: queried = %s",
+    (view, viewVersion, queried) => {
+      const { mappedFilters, unsupportedFilters } =
+        partitionWidgetQueryFiltersToView(view, viewVersion, [numericMetadata]);
+
+      expect(mappedFilters).toEqual(queried ? [numericMetadata] : []);
+      expect(unsupportedFilters).toEqual(queried ? [] : [numericMetadata]);
+    },
+  );
+});
 
 describe("widget filter mappings", () => {
   it.each([

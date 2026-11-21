@@ -42,7 +42,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
-import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { partitionWidgetQueryFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   resolveMonitorNameForSave,
@@ -343,10 +343,11 @@ export const MonitorForm = ({
       const normalizedValues = {
         ...values,
         name: nameResolution.name,
-        filters: partitionWidgetUiTableFiltersToView(
+        filters: partitionWidgetQueryFiltersToView(
           values.view as Parameters<
-            typeof partitionWidgetUiTableFiltersToView
+            typeof partitionWidgetQueryFiltersToView
           >[0],
+          "v2",
           (values.filters ?? []) as FilterState,
         ).mappedFilters,
       } as typeof values;
@@ -414,10 +415,11 @@ export const MonitorForm = ({
   /** previewFilters strips unsupported rows from the picked view's filters for the preview query. */
   const previewFilters = useMemo<FilterState>(
     () =>
-      partitionWidgetUiTableFiltersToView(
+      partitionWidgetQueryFiltersToView(
         (watched.view ?? "observations") as Parameters<
-          typeof partitionWidgetUiTableFiltersToView
+          typeof partitionWidgetQueryFiltersToView
         >[0],
+        "v2",
         (watched.filters ?? []) as FilterState,
       ).mappedFilters,
     [watched.view, watched.filters],

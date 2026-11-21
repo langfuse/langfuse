@@ -12,6 +12,7 @@ import { type ImportedWidgetFormSnapshot } from "@/src/features/widgets/utils/im
 import {
   buildWidgetOrderBy,
   getValidAggregationsForMeasureType,
+  isNumericMetadataFilter,
   isV2BreakdownChart,
   validateQuery,
   viewDeclarations,
@@ -23,7 +24,7 @@ import {
 } from "@langfuse/shared/query";
 import {
   mapWidgetUiTableFilterToView,
-  partitionWidgetUiTableFiltersToView,
+  partitionWidgetQueryFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import React, { useMemo, useRef } from "react";
 import {
@@ -1685,23 +1686,30 @@ export function useWidgetFormState({
       setTimeRange({ range: option });
     }
   };
-  const unsupportedFilters = useMemo(
+  const { mappedFilters: normalizedUserFilters, unsupportedFilters } = useMemo(
     () =>
-      partitionWidgetUiTableFiltersToView(selectedView, values.filters)
-        .unsupportedFilters,
-    [selectedView, values.filters],
+      partitionWidgetQueryFiltersToView(
+        selectedView,
+        viewVersion,
+        values.filters,
+      ),
+    [selectedView, viewVersion, values.filters],
   );
-  const unsupportedFilterColumns = useMemo(
-    () =>
-      Array.from(
-        new Set(unsupportedFilters.map((filter) => filter.column)),
-      ).join(", "),
-    [unsupportedFilters],
-  );
-  const normalizedUserFilters = useMemo(
-    () => mapWidgetUiTableFilterToView(selectedView, values.filters),
-    [selectedView, values.filters],
-  );
+  const { unsupportedFilterColumns, hasUnsupportedNumericMetadata } =
+    useMemo(() => {
+      return {
+        unsupportedFilterColumns: Array.from(
+          new Set(
+            unsupportedFilters
+              .filter((filter) => !isNumericMetadataFilter(filter))
+              .map((filter) => filter.column),
+          ),
+        ).join(", "),
+        hasUnsupportedNumericMetadata: unsupportedFilters.some(
+          isNumericMetadataFilter,
+        ),
+      };
+    }, [unsupportedFilters]);
 
   const previewSortState = effectiveSort ?? null;
   const pivotDimensionFields = values.dimensions.map((d) => d.field);
@@ -1790,15 +1798,27 @@ export function useWidgetFormState({
 
   const queryValidation = useMemo(() => {
     if (unsupportedFilters.length > 0) {
+      const reasons = [
+        hasUnsupportedNumericMetadata &&
+          "Numeric metadata filters are only supported on observations view (v4).",
+        unsupportedFilterColumns &&
+          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}.`,
+      ].filter(Boolean);
       return {
         valid: false as const,
         reason:
-          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}. ` +
+          `${reasons.join(" ")} ` +
           "Remove them or switch to a compatible view before saving this widget.",
       };
     }
     return validateQuery(query, viewVersion);
-  }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
+  }, [
+    query,
+    unsupportedFilterColumns,
+    hasUnsupportedNumericMetadata,
+    unsupportedFilters.length,
+    viewVersion,
+  ]);
 
   useCaptureWidgetHighCardinalityError({
     validation: queryValidation,
