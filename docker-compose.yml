@@ -96,10 +96,13 @@ services:
       LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES: ${LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES:-}
       # Low-confidence eval backstop (worker-only job; web ignores these).
       # Re-judges low-confidence JEV decision-model scores via a cheap LLM.
+      # No PROVIDER var here on purpose: DefaultEvalModelService only resolves
+      # a usable LLM adapter via the project's Default evaluation model
+      # (Settings > Evaluations), never via an explicitly supplied provider
+      # string. Set the judge model there, not through an env var.
       LANGFUSE_EVAL_BACKSTOP_ENABLED: ${LANGFUSE_EVAL_BACKSTOP_ENABLED:-false}
       LANGFUSE_EVAL_BACKSTOP_DRY_RUN: ${LANGFUSE_EVAL_BACKSTOP_DRY_RUN:-true}
       LANGFUSE_EVAL_BACKSTOP_PROJECT_IDS: ${LANGFUSE_EVAL_BACKSTOP_PROJECT_IDS:-}
-      LANGFUSE_EVAL_BACKSTOP_PROVIDER: ${LANGFUSE_EVAL_BACKSTOP_PROVIDER:-}
       LANGFUSE_EVAL_BACKSTOP_MODEL: ${LANGFUSE_EVAL_BACKSTOP_MODEL:-google/gemini-2.5-flash}
       LANGFUSE_EVAL_BACKSTOP_CRON: ${LANGFUSE_EVAL_BACKSTOP_CRON:-*/15 * * * *}
       LANGFUSE_EVAL_BACKSTOP_CONFIDENCE_THRESHOLD: ${LANGFUSE_EVAL_BACKSTOP_CONFIDENCE_THRESHOLD:-0.30}
