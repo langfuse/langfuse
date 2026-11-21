@@ -3,6 +3,7 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
+import { scoreV3Refs } from "@/src/features/audit-logs/server/auditedQuery";
 import {
   listScoresV3ForPublicApi,
   buildScoreSubjectUrl,
@@ -18,9 +19,10 @@ export const [getScoreTool, handleGetScore] = defineTool({
     "Score reads are eventually consistent: a score created with createScore may not be returned by getScore immediately. If a newly created score is not found, wait briefly and retry.",
   ].join("\n"),
   action: "scores:read",
+  accessAudit: { resourceType: "score", action: "read", idKey: "scoreId" },
   baseSchema: GetScoreInputSchema,
   inputSchema: GetScoreInputSchema,
-  handler: async (input, context) => {
+  handler: async (input, context, audit) => {
     return await runMcpTool({
       spanName: "mcp.scores.get",
       context,
@@ -41,6 +43,7 @@ export const [getScoreTool, handleGetScore] = defineTool({
         if (!score) {
           throw new LangfuseNotFoundError("Score not found");
         }
+        audit.refs(scoreV3Refs([score]));
 
         const url = buildScoreSubjectUrl(context.projectId, score.subject);
         return url ? { ...score, url } : score;

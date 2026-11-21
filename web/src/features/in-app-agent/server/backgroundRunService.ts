@@ -196,6 +196,7 @@ export async function startBackgroundRun(params: {
   message: string;
   context: AgUiContext;
   isV4Enabled: boolean;
+  topicsAvailable: boolean;
   model: string | undefined;
   aiTelemetryEnabled: boolean;
 }) {
@@ -250,7 +251,11 @@ export async function startBackgroundRun(params: {
     conversationId: conversation.id,
     triggeredByUserId: params.userId,
     model: params.model,
-    request: { kind: "userMessage", context },
+    request: {
+      kind: "userMessage",
+      context,
+      ...(params.topicsAvailable ? { topicsAvailable: true } : {}),
+    },
     runStartedEvent: {
       type: EventType.RUN_STARTED,
       threadId: conversation.id,

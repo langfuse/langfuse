@@ -33,7 +33,7 @@ describe("legacy prompt filter decoding", () => {
           ],
           options: { [column]: [value] },
         },
-        [{ column, type, operator: "any of", value: [value] }],
+        [],
         column,
         [],
       );
@@ -47,6 +47,29 @@ describe("legacy prompt filter decoding", () => {
           column: name,
         })),
       );
+    },
+  );
+});
+
+describe("legacy object key decoding", () => {
+  it.each(["deployment region", "key;name", "%41"])(
+    "decodes object key %s from a shared filter link",
+    (key) => {
+      url.filter = encodeFiltersGeneric([
+        {
+          column: "metadata",
+          type: "stringObject",
+          key,
+          operator: "=",
+          value: "value",
+        },
+      ]);
+      const { result } = renderHook(() =>
+        useQueryFilterState([], "traces", "project"),
+      );
+      expect(result.current[0]).toEqual([
+        expect.objectContaining({ column: "Metadata", key }),
+      ]);
     },
   );
 });

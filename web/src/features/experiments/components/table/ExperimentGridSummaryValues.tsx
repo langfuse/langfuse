@@ -154,7 +154,7 @@ export function ExperimentGridSummaryValues({
                   )}
                 {!isLoading && delta !== null && delta !== 0 && (
                   <DiffLabel
-                    variant="ghost"
+                    plain
                     diff={{
                       type: "NUMERIC",
                       absoluteDifference: Math.abs(delta),

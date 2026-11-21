@@ -348,6 +348,7 @@ type DropdownMenuItemAction = {
 );
 
 type DropdownMenuItemWithSecondaryActionProps = {
+  noCapture?: boolean;
   disabled?: { reason: string };
   icon?: IconComponent;
   title: string;
@@ -453,7 +454,10 @@ const DropdownMenuItemWithSecondaryAction = (
   return (
     <DropdownMenuItem
       allowPointerEventsWhenDisabled
-      className="h-8 p-0 data-disabled:cursor-not-allowed"
+      className={cn(
+        "h-8 p-0 data-disabled:cursor-not-allowed",
+        props.noCapture && "ph-no-capture",
+      )}
       disabled={isDisabled}
       title={props.disabled?.reason}
       onClick={(event) => {

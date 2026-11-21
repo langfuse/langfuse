@@ -1,18 +1,13 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+import { randomBytes } from "crypto";
 import { Model, Prisma } from "../../";
-import {
-  instrumentAsync,
-  logger,
-  recordIncrement,
-  redis,
-  safeMultiDel,
-  scanKeys,
-} from "../";
+import { instrumentAsync, logger, recordIncrement, redis } from "../";
 import { LocalCache } from "../cache/localCache";
 import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
 import type { PricingTierWithPrices } from "../pricing-tiers/types";
+import { modelScopeRankSql, visibleModelsSql } from "./modelVisibility";
 
 export type ModelMatchProps = {
   projectId: string;
@@ -24,7 +19,27 @@ export type ModelWithPrices = {
   pricingTiers: PricingTierWithPrices[];
 };
 
-const MODEL_MATCH_CACHE_LOCKED_KEY = "LOCK:model-match-clear";
+/**
+ * Cache entries live in a namespace made of a global epoch (rotated when
+ * default prices change) and a per-project epoch (rotated when the project's
+ * visible models change). Clearing rotates an epoch; entries of the old
+ * namespace are never read again and expire through their TTL.
+ *
+ * A missing epoch is a valid state, not a miss: when neither epoch exists the
+ * key is `<prefix>:<projectId>:<model>`, so entries cached before epochs
+ * existed stay hits. Reads therefore never create epochs, and an epoch must
+ * outlive every entry written before it existed.
+ */
+type ModelMatchEpochs = { global: string | null; project: string | null };
+
+const PROJECT_EPOCH_TTL_SECONDS = Math.max(
+  7 * 24 * 60 * 60,
+  2 * env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
+);
+const GLOBAL_EPOCH_TTL_SECONDS = Math.max(
+  30 * 24 * 60 * 60,
+  2 * env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
+);
 const DEFAULT_LOCAL_CACHE_MODEL_MATCH_TTL_MS = 10_000;
 const DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX = 20_000;
 // This L1 cache is intentionally TTL-only. Cross-container consistency continues
@@ -61,11 +76,20 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
           }),
         );
       }
-      const localCacheKey = getRedisModelKey(p);
+      const localCacheKey = buildRedisModelKey(p, NO_EPOCHS);
       const { source, value } = await modelMatchLocalCache.getOrLoad(
         localCacheKey,
         async () => {
-          const cachedResult = await getModelWithPricesFromRedis(p);
+          // Resolved before Postgres so a fill that races a clear is written
+          // into the namespace the clear has just retired.
+          const epochs =
+            env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true"
+              ? await getModelMatchEpochs(p.projectId)
+              : null;
+          const redisKey = epochs ? buildRedisModelKey(p, epochs) : null;
+          const cachedResult = redisKey
+            ? await getModelWithPricesFromRedis(p, redisKey)
+            : null;
           if (cachedResult) {
             return {
               value: cachedResult,
@@ -79,9 +103,9 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
               postgresModel.id,
             );
 
-            if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
+            if (redisKey) {
               await addModelWithPricingTiersToRedis(
-                p,
+                redisKey,
                 postgresModel,
                 pricingTiers,
               );
@@ -93,8 +117,8 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
             };
           }
 
-          if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
-            await addModelNotFoundTokenToRedis(p);
+          if (redisKey) {
+            await addModelNotFoundTokenToRedis(redisKey);
           }
 
           return {
@@ -178,21 +202,9 @@ export const clearModelMatchLocalCache = (): void => {
 
 const getModelWithPricesFromRedis = async (
   p: ModelMatchProps,
+  key: string,
 ): Promise<ModelWithPrices | null> => {
-  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false") {
-    return null;
-  }
-
   try {
-    if (await isModelMatchCacheLocked()) {
-      logger.info(
-        "Model match cache is locked. Skipping model lookup from Redis.",
-      );
-
-      return null;
-    }
-
-    const key = getRedisModelKey(p);
     const redisValue = await redis?.get(key);
     if (!redisValue) {
       recordIncrement("langfuse.model_match.cache_miss", 1);
@@ -280,7 +292,9 @@ export async function findModelInPostgres(
       id,
       created_at AS "createdAt",
       updated_at AS "updatedAt",
+      scope,
       project_id AS "projectId",
+      organization_id AS "organizationId",
       model_name AS "modelName",
       match_pattern AS "matchPattern",
       start_date AS "startDate",
@@ -292,12 +306,15 @@ export async function findModelInPostgres(
       tokenizer_config AS "tokenizerConfig"
     FROM
       models
-      WHERE (project_id = ${projectId}
-      OR project_id IS NULL)
+    WHERE ${visibleModelsSql(projectId)}
     ${modelCondition}
+    -- Scope wins over pattern specificity: any matching project model beats
+    -- any matching organization model, which beats any Langfuse model.
     ORDER BY
-      project_id ASC,
-      start_date DESC NULLS LAST
+      ${modelScopeRankSql()},
+      start_date DESC NULLS LAST,
+      updated_at DESC,
+      id
     LIMIT 1
   `;
 
@@ -308,9 +325,8 @@ export async function findModelInPostgres(
 
 const NOT_FOUND_TOKEN = "LANGFUSE_MODEL_MATCH_NOT_FOUND" as const;
 
-const addModelNotFoundTokenToRedis = async (p: ModelMatchProps) => {
+const addModelNotFoundTokenToRedis = async (key: string) => {
   try {
-    const key = getRedisModelKey(p);
     await redis?.set(
       key,
       NOT_FOUND_TOKEN,
@@ -319,20 +335,18 @@ const addModelNotFoundTokenToRedis = async (p: ModelMatchProps) => {
     );
   } catch (error) {
     logger.error(
-      `Error adding model not found token for ${JSON.stringify(p)} to Redis`,
+      `Error adding model not found token for ${key} to Redis`,
       error,
     );
   }
 };
 
 const addModelWithPricingTiersToRedis = async (
-  p: ModelMatchProps,
+  key: string,
   model: Model,
   pricingTiers: PricingTierWithPrices[],
 ) => {
   try {
-    const key = getRedisModelKey(p);
-
     const cachedPricingTiers = pricingTiers.map((tier) => {
       return {
         ...tier,
@@ -350,15 +364,54 @@ const addModelWithPricingTiersToRedis = async (
     );
   } catch (error) {
     logger.error(
-      `Error adding model with pricing tiers for ${JSON.stringify(p)} to Redis`,
+      `Error adding model with pricing tiers for ${key} to Redis`,
       error,
     );
   }
 };
 
-export const getRedisModelKey = (p: ModelMatchProps) => {
+const NO_EPOCHS: ModelMatchEpochs = { global: null, project: null };
+
+const buildRedisModelKey = (p: ModelMatchProps, epochs: ModelMatchEpochs) => {
+  // Encoded model names contain no ":", so the namespace segment is unambiguous.
   const uriEncodedModel = encodeURIComponent(p.model);
-  return `${getModelMatchKeyPrefix()}:${p.projectId}:${uriEncodedModel}`;
+  const projectKey = `${getModelMatchKeyPrefix()}:${p.projectId}`;
+  if (epochs.global === null && epochs.project === null) {
+    return `${projectKey}:${uriEncodedModel}`;
+  }
+  return `${projectKey}:${epochs.global ?? "-"}.${epochs.project ?? "-"}:${uriEncodedModel}`;
+};
+
+/** Redis key under which a match for `p` is currently cached. */
+export const getRedisModelKey = async (p: ModelMatchProps) => {
+  const epochs = await getModelMatchEpochs(p.projectId);
+  return epochs ? buildRedisModelKey(p, epochs) : null;
+};
+
+const getGlobalEpochKey = () => `${getModelMatchKeyPrefix()}:epoch:global`;
+
+const getProjectEpochKey = (projectId: string) =>
+  `${getModelMatchKeyPrefix()}:epoch:project:${projectId}`;
+
+const newEpochToken = () => randomBytes(6).toString("base64url");
+
+/** Returns null when Redis is unavailable, so callers skip the cache. */
+const getModelMatchEpochs = async (
+  projectId: string,
+): Promise<ModelMatchEpochs | null> => {
+  if (!redis) return null;
+
+  try {
+    // Both keys share the prefix hash tag, so MGET is valid on a cluster.
+    const [global, project] = await redis.mget(
+      getGlobalEpochKey(),
+      getProjectEpochKey(projectId),
+    );
+    return { global: global ?? null, project: project ?? null };
+  } catch (error) {
+    logger.error(`Error reading model cache epochs for ${projectId}`, error);
+    return null;
+  }
 };
 
 const getModelMatchKeyPrefix = () => {
@@ -370,9 +423,17 @@ const getModelMatchKeyPrefix = () => {
   return "model-price-tiers";
 };
 
-export const redisModelToPrismaModel = (redisModel: Model): Model => {
+export const redisModelToPrismaModel = (
+  redisModel: Omit<Model, "scope" | "organizationId"> & {
+    scope?: Model["scope"];
+    organizationId?: Model["organizationId"];
+  },
+): Model => {
   return {
     ...redisModel,
+    // Entries cached before the scope or organization columns existed only ever held project or Langfuse rows.
+    scope: redisModel.scope ?? (redisModel.projectId ? "PROJECT" : "LANGFUSE"),
+    organizationId: redisModel.organizationId ?? null,
     createdAt: new Date(redisModel.createdAt),
     updatedAt: new Date(redisModel.updatedAt),
     inputPrice:
@@ -402,15 +463,12 @@ export async function clearModelCacheForProject(
   }
 
   try {
-    const pattern = `${getModelMatchKeyPrefix()}:${projectId}:*`;
-    const keys = await scanKeys(redis, pattern);
-
-    if (keys.length > 0) {
-      await safeMultiDel(redis, keys);
-      logger.info(
-        `Cleared ${keys.length} model cache entries for project ${projectId}`,
-      );
-    }
+    await redis.set(
+      getProjectEpochKey(projectId),
+      newEpochToken(),
+      "EX",
+      PROJECT_EPOCH_TTL_SECONDS,
+    );
   } catch (error) {
     logger.error(
       `Error clearing model cache for project ${projectId}: ${error}`,
@@ -418,55 +476,62 @@ export async function clearModelCacheForProject(
   }
 }
 
-export async function isModelMatchCacheLocked() {
-  try {
-    return Boolean(await redis?.exists(MODEL_MATCH_CACHE_LOCKED_KEY));
-  } catch (err) {
-    logger.error("Failed to check whether model match is locked", err);
+/**
+ * Clears cached matches of every project in the organization. Call after
+ * changing an organization's model definitions.
+ */
+export async function clearModelCacheForOrganization(
+  orgId: string,
+): Promise<void> {
+  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false" || !redis) {
+    return;
+  }
 
-    return false;
+  try {
+    const projects = await prisma.project.findMany({
+      where: { orgId },
+      select: { id: true },
+    });
+    if (projects.length === 0) return;
+
+    // Epoch keys share the prefix hash tag, so one pipeline is valid on a cluster.
+    const pipeline = redis.pipeline();
+    for (const { id } of projects) {
+      pipeline.set(
+        getProjectEpochKey(id),
+        newEpochToken(),
+        "EX",
+        PROJECT_EPOCH_TTL_SECONDS,
+      );
+    }
+    const results = await pipeline.exec();
+    const failed = results?.find(([error]) => error);
+    if (failed) throw failed[0];
+  } catch (error) {
+    logger.error(
+      `Error clearing model cache for organization ${orgId}: ${error}`,
+    );
   }
 }
 
+/**
+ * Retires every cached match. Runs on each worker start, so concurrent starts
+ * may rotate the epoch more than once; each rotation only costs cache misses.
+ */
 export async function clearFullModelCache() {
   if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false" || !redis) {
     return;
   }
 
   try {
-    // Use lock to protect for concurrent executions
-    // This function is called on worker startup, so we want to avoid all workers triggering this delete
-    if (await isModelMatchCacheLocked()) {
-      logger.info("Model cache clearing already in progress; skipping.");
-
-      return;
-    }
-
-    const startTime = Date.now();
-    logger.info("Clearing full model cache...");
-
-    const tenMinutesInSeconds = 60 * 10;
-    await redis.setex(
-      MODEL_MATCH_CACHE_LOCKED_KEY,
-      tenMinutesInSeconds,
-      "locked",
+    await redis.set(
+      getGlobalEpochKey(),
+      newEpochToken(),
+      "EX",
+      GLOBAL_EPOCH_TTL_SECONDS,
     );
-
-    const pattern = getModelMatchKeyPrefix() + "*";
-
-    const keys = await scanKeys(redis, pattern);
-
-    if (keys.length > 0) {
-      await safeMultiDel(redis, keys);
-      logger.info(
-        `Cleared full model cache with ${keys.length} keys in ${Date.now() - startTime}ms.`,
-      );
-    } else {
-      logger.info(`No keys found for match pattern '${pattern}'`);
-    }
+    logger.info("Cleared full model cache.");
   } catch (error) {
     logger.error(`Error clearing full model cache: ${error}`);
-  } finally {
-    await redis?.del(MODEL_MATCH_CACHE_LOCKED_KEY);
   }
 }

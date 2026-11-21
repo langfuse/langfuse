@@ -9,7 +9,11 @@ export function useGatewayConfig(organizationId: string) {
 
   // A failed background refetch keeps the cached config, so the page stays mounted.
   if (query.data)
-    return { status: "success" as const, config: query.data.config };
+    return {
+      status: "success" as const,
+      config: query.data.config,
+      hasSpendLimits: query.data.hasSpendLimits,
+    };
   if (query.isError) return { status: "error" as const, retry };
   return { status: "pending" as const };
 }

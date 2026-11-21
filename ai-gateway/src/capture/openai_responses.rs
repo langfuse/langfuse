@@ -1,6 +1,6 @@
 //! `OpenAI` Responses request, JSON response and completed SSE item capture.
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string,
+    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string, error_detail,
     facts::ProviderFacts, parse_request, response::ResponseBody,
 };
 use crate::{resolution::IngestionMode, telemetry};
@@ -9,9 +9,9 @@ use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
 pub(super) struct OpenAiResponsesCapture {
-    facts: ProviderFacts,
+    pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     items: BTreeMap<u64, Value>,
     output_bytes: usize,
     terminal: bool,
@@ -49,20 +49,16 @@ impl OpenAiResponsesCapture {
     }
 
     pub(super) fn record_response(&mut self, headers: &HeaderMap) {
-        self.facts.provider_request_id = headers
-            .get("x-request-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(bounded_string);
         self.body = ResponseBody::from_headers(headers);
         if matches!(self.body, ResponseBody::Unavailable) {
             self.response_valid = false;
         }
     }
 
-    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    pub(super) fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
-        if !body.push(bytes, |event| {
+        if !body.push(bytes, parse_limit, |event| {
             completion_started |= self.handle_event(event);
         }) {
             self.response_valid = false;
@@ -295,6 +291,9 @@ impl OpenAiResponsesCapture {
             // The enclosing JSON body or SSE event already enforces the byte limit.
             self.facts.usage_details = Some(usage.clone());
         }
+        if let Some(metadata) = response.get("provider_metadata").filter(|v| v.is_object()) {
+            self.facts.provider_metadata = Some(metadata.clone());
+        }
     }
 
     fn record_error(&mut self, error: &Map<String, Value>) {
@@ -302,16 +301,8 @@ impl OpenAiResponsesCapture {
         if self.mode != IngestionMode::Full {
             return;
         }
-        let detail = ["code", "message"]
-            .into_iter()
-            .filter_map(|key| error.get(key).and_then(Value::as_str))
-            .filter(|value| !value.is_empty())
-            .map(|value| &value[..value.floor_char_boundary(MAX_FACT_STRING)])
-            .collect::<Vec<_>>()
-            .join(": ");
-        if !detail.is_empty() {
-            self.facts.error_message =
-                Some(detail[..detail.floor_char_boundary(MAX_FACT_STRING)].to_owned());
+        if let Some(detail) = error_detail(error, ["code", "message"]) {
+            self.facts.error_message = Some(detail);
         }
     }
 }

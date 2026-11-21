@@ -1,3 +1,4 @@
+import { visibleModelsWhere } from "../ingestion/modelVisibility";
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import {
   commandClickhouse,
@@ -619,7 +620,7 @@ export const getObservationsTableWithModelData = async (
             id: {
               in: uniqueModels,
             },
-            OR: [{ projectId: opts.projectId }, { projectId: null }],
+            ...visibleModelsWhere(opts.projectId),
           },
           include: {
             Price: {

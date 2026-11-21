@@ -1,15 +1,10 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import type { ComponentProps } from "react";
 import { Loader2, Sparkles } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 type AIAssistedInputProps = Pick<
@@ -61,9 +56,12 @@ export function AIAssistedInput({
         </span>
       ) : null}
       {isAvailable ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip
+          label={isGenerating ? `Generating ${fieldName}…` : generateLabel}
+        >
+          {({ getTriggerProps }) => (
             <Button
+              {...getTriggerProps()}
               type="button"
               variant="ghost"
               size="icon-xs"
@@ -86,10 +84,7 @@ export function AIAssistedInput({
                 <Sparkles size="sm" color="default" />
               )}
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {isGenerating ? `Generating ${fieldName}…` : generateLabel}
-          </TooltipContent>
+          )}
         </Tooltip>
       ) : null}
     </div>

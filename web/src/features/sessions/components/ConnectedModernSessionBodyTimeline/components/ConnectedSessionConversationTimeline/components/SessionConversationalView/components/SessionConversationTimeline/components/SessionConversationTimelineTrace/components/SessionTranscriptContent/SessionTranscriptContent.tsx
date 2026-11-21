@@ -182,9 +182,11 @@ function SessionTranscriptRow({
   const timing = row.message.timing;
   const isTool = row.type === "tool";
   const isSystem = row.message.role === "system";
+  // Invisible metadata still takes width, so on phones it only joins the
+  // layout once the row is expanded, leaving room for the label.
   const metadata = (isTool || isSystem) &&
     (timing || row.message.observationId) && (
-      <div className="text-muted-foreground flex items-center gap-3 font-mono text-xs opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:opacity-100">
+      <div className="text-muted-foreground hidden items-center gap-3 font-mono text-xs opacity-0 group-hover/collapsible-row:opacity-100 group-has-[:focus-visible]/collapsible-row:opacity-100 group-data-[expanded=true]/collapsible-row:flex group-data-[expanded=true]/collapsible-row:opacity-100 sm:flex pointer-coarse:opacity-100">
         {row.message.observationId && onOpenObservation && (
           <button
             type="button"
@@ -202,7 +204,10 @@ function SessionTranscriptRow({
           </span>
         )}
         {timing && (isTool || isSystem) && (
-          <time dateTime={timing.startTime.toISOString()}>
+          <time
+            className="hidden sm:inline"
+            dateTime={timing.startTime.toISOString()}
+          >
             {timing.startTime.toLocaleTimeString()}
           </time>
         )}

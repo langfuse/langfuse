@@ -307,36 +307,41 @@ describe("withMiddlewares error handling", () => {
   });
 
   describe("ClickHouseResourceError handling", () => {
-    it("should handle ClickHouseResourceError with 422 status", async () => {
-      const originalError = new Error("Memory limit exceeded: maximum: 10GB");
-      const resourceError = new ClickHouseResourceError(
-        "MEMORY_LIMIT",
-        originalError,
-      );
+    it.each(["MEMORY_LIMIT", "RESULT_SIZE"] as const)(
+      "should handle %s with 422 status",
+      async (errorType) => {
+        const originalError = new Error("Memory limit exceeded: maximum: 10GB");
+        const resourceError = new ClickHouseResourceError(
+          errorType,
+          originalError,
+        );
 
-      const handler = withMiddlewares({
-        POST: async () => {
-          throw resourceError;
-        },
-      });
+        const handler = withMiddlewares({
+          POST: async () => {
+            throw resourceError;
+          },
+        });
 
-      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-        method: "POST",
-        headers: {
-          "x-langfuse-public-key": "test-key",
-        },
-      });
+        const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+          method: "POST",
+          headers: {
+            "x-langfuse-public-key": "test-key",
+          },
+        });
 
-      await handler(req, res);
+        await handler(req, res);
 
-      expect(res._getStatusCode()).toBe(422);
-      const jsonData = JSON.parse(res._getData());
-      expect(jsonData["message"]).toBeDefined();
-      expect(jsonData["message"]).toContain(
-        ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
-      );
-      expect(jsonData["error"]).toBe("Request timed out");
-    });
+        expect(res._getStatusCode()).toBe(422);
+        const jsonData = JSON.parse(res._getData());
+        expect(jsonData["message"]).toBeDefined();
+        expect(jsonData["message"]).toContain(resourceError.adviceMessage);
+        expect(jsonData["error"]).toBe(
+          errorType === "RESULT_SIZE"
+            ? "Query result too large"
+            : "Request timed out",
+        );
+      },
+    );
 
     it("should include tags from the error in the warn log", async () => {
       const originalError = new Error("Memory limit exceeded");
@@ -347,6 +352,8 @@ describe("withMiddlewares error handling", () => {
           tag_schema_version: "1",
           surface: "publicapi",
           route: "GET /api/public/test",
+          projectSize: "unknown",
+          queryWindow: "none",
         },
       );
 
@@ -375,6 +382,8 @@ describe("withMiddlewares error handling", () => {
             tag_schema_version: "1",
             surface: "publicapi",
             route: "GET /api/public/test",
+            projectSize: "unknown",
+            queryWindow: "none",
           },
         }),
       );

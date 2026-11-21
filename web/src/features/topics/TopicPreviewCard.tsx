@@ -6,8 +6,13 @@ export function TopicPreviewCard({
   total,
 }: {
   topic: Pick<TopicDisplay, "name" | "description" | "count">;
-  total: number;
+  total?: number | null;
 }) {
+  // Counts are approximate, so a topic can slightly exceed the total.
+  const share =
+    total && total > 0
+      ? Math.min(100, Math.round((topic.count / total) * 100))
+      : null;
   return (
     <div
       role="tooltip"
@@ -15,8 +20,8 @@ export function TopicPreviewCard({
     >
       <p className="font-bold">{topic.name}</p>
       <p className="text-muted-foreground mt-1">
-        {topic.count.toLocaleString()} traces ·{" "}
-        {Math.round((topic.count / Math.max(1, total)) * 100)}% of traces
+        {topic.count.toLocaleString()} traces
+        {share !== null && ` · ${share}% of traces`}
       </p>
       {topic.description && (
         <p className="mt-1 line-clamp-3">{topic.description}</p>

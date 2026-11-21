@@ -16,13 +16,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Card } from "@/src/components/ui/card";
 import {
   featurePreviewFlags,
   featurePreviewLabels,
   defaultOnFeaturePreviewFlags,
-  isOrganizationOnlyFeaturePreviewFlag,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import { OrganizationFeaturePreviewIntro } from "./OrganizationFeaturePreviewIntro";
@@ -52,9 +51,8 @@ export function OrganizationFeaturePreviewsSettings({
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
   const canOpenPersonalPreviews = canOpenPersonalFeaturePreviews({
+    session: session.data,
     isLangfuseCloud,
-    v4BetaEnabled: session.data?.user?.v4BetaEnabled === true,
-    isAdmin: session.data?.user?.admin === true,
   });
   const openPersonalPreviews = (source: "description" | "preview_row") => {
     capture("organization_settings:personal_feature_previews_opened", {
@@ -104,10 +102,9 @@ export function OrganizationFeaturePreviewsSettings({
 
   if (defaultsQuery.isError) {
     return (
-      <Alert variant="destructive">
-        <Alert.Title>Feature previews unavailable</Alert.Title>
-        <Alert.Description>{defaultsQuery.error.message}</Alert.Description>
-      </Alert>
+      <Banner variant="error" title="Feature previews unavailable">
+        {defaultsQuery.error.message}
+      </Banner>
     );
   }
 
@@ -127,16 +124,11 @@ export function OrganizationFeaturePreviewsSettings({
       </div>
 
       {experimentalFeaturesEnabled ? (
-        <Alert>
-          <Alert.Title>
-            Experimental features enabled deployment-wide
-          </Alert.Title>
-          <Alert.Description>
-            Every preview on this page is enabled by the env variable
-            LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true. Per-user opt-outs do not
-            disable these previews.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Experimental features enabled deployment-wide">
+          Every preview on this page is enabled by the env variable
+          LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true. Per-user opt-outs do not
+          disable these previews.
+        </Banner>
       ) : null}
 
       <div className="flex flex-col gap-3">
@@ -144,10 +136,7 @@ export function OrganizationFeaturePreviewsSettings({
           const selected = selectedDefaults.has(flag);
           const enabledForAdmin =
             session.data?.user?.featureFlags[flag] === true;
-          const requiresPersonalEnablement =
-            !isOrganizationOnlyFeaturePreviewFlag(flag) &&
-            !selected &&
-            !enabledForAdmin;
+          const requiresPersonalEnablement = !selected && !enabledForAdmin;
           return (
             <Card
               key={flag}
@@ -214,16 +203,12 @@ export function OrganizationFeaturePreviewsSettings({
               organization defaults.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {proposedChange?.enabled &&
-          !isOrganizationOnlyFeaturePreviewFlag(proposedChange.flag) ? (
-            <Alert>
-              <Alert.Title>Already enabled for you</Alert.Title>
-              <Alert.Description>
-                This preview is already enabled in your personal Feature Preview
-                settings. Make sure you have tested it before enabling it for
-                the organization.
-              </Alert.Description>
-            </Alert>
+          {proposedChange?.enabled ? (
+            <Banner title="Already enabled for you">
+              This preview is already enabled in your personal Feature Preview
+              settings. Make sure you have tested it before enabling it for the
+              organization.
+            </Banner>
           ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={updateDefault.isPending}>

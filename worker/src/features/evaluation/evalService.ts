@@ -69,6 +69,7 @@ import {
   validateEvaluatorFiltersForTarget,
   type EvalExecutionContext,
 } from "@langfuse/shared";
+import { isV4CutoffActive } from "@langfuse/shared/src/server/v4Cutoff";
 import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils/utilities";
@@ -357,6 +358,8 @@ export const createEvalJobs = async ({
 
     return;
   }
+
+  if (isTraceDatasetEvalCutoff(event.projectId)) return;
 
   logger.debug(
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
@@ -1314,6 +1317,7 @@ export async function executeLLMAsJudgeEvaluation(
   await completeEvalExecution({
     projectId: params.projectId,
     jobExecutionId: params.jobExecutionId,
+    scoreTimestamp: params.job.createdAt,
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
     environment: params.environment,
@@ -1415,6 +1419,23 @@ async function resolveTraceExecution(params: {
     evaluatorId: evaluator.id,
     evaluatorVersionId: version.id,
   };
+}
+
+/** isTraceDatasetEvalCutoff reports and skips trace and dataset evals while that switch is on. */
+function isTraceDatasetEvalCutoff(projectId: string): boolean {
+  if (
+    !isV4CutoffActive({
+      cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      enabled: env.LANGFUSE_V4_CUTOFF_EVALS,
+      exemptProjectIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
+      projectId,
+    })
+  ) {
+    return false;
+  }
+  recordIncrement("langfuse.v4_cutoff", 1, { surface: "evals" });
+  logger.debug("Langfuse v3 cutoff", { surface: "evals", projectId });
+  return true;
 }
 
 async function cancelTraceExecution(

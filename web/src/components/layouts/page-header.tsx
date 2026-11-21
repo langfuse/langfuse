@@ -1,8 +1,10 @@
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure */
-import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
-import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { EntityTitle } from "@/src/components/EntityTitle";
+import {
+  EntityTitleTabs,
+  type EntityTitleTabsProps,
+} from "@/src/components/EntityTitleTabs";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
@@ -48,6 +50,8 @@ export type PageHeaderProps = {
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;
+  /** Replaces the entity icon immediately before the title. */
+  titleTabs?: EntityTitleTabsProps;
   container?: boolean;
   tabsProps?: PageTabsProps;
   className?: string;
@@ -66,6 +70,7 @@ export type PageHeaderProps = {
 const PageHeader = ({
   title,
   itemType,
+  titleTabs,
   actionButtonsLeft,
   actionButtonsRight,
   actionButtonsRightClassName,
@@ -83,7 +88,6 @@ const PageHeader = ({
   hideTitleRow = false,
 }: PageHeaderProps) => {
   const hasAppSidebar = useHasAppSidebar();
-  const envLabel = useEnvLabel();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   // The sidebar trigger + brand mark only make sense where a real AppSidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
@@ -121,7 +125,8 @@ const PageHeader = ({
             <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-2">
               {showSidebarChrome ? (
                 <>
-                  <SidebarTrigger />
+                  {/* Above the breadcrumb trigger, whose box reaches under it. */}
+                  <SidebarTrigger className="relative z-10" />
                   {/* Brand the app in the top bar while the sidebar (which
                       owns the logo) is off-canvas below `md`. Hidden on
                       desktop where the sidebar logo is visible. */}
@@ -133,12 +138,6 @@ const PageHeader = ({
                 )
               )}
               <div className="flex flex-wrap items-center gap-1.5">
-                {envLabel.visible && (
-                  <EnvLabelBadge
-                    region={envLabel.region}
-                    onDismiss={envLabel.dismiss}
-                  />
-                )}
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>
@@ -165,10 +164,15 @@ const PageHeader = ({
             {/* Left side content */}
             <div className="flex min-w-0 grow flex-wrap items-center md:grow-0">
               <div className="mr-2 flex min-w-0 items-center gap-2">
+                {titleTabs && (
+                  <div className="shrink-0">
+                    <EntityTitleTabs {...titleTabs} />
+                  </div>
+                )}
                 <div className="max-w-md min-w-0 md:max-w-none">
                   <EntityTitle
                     as="h2"
-                    type={itemType}
+                    type={titleTabs ? undefined : itemType}
                     title={title}
                     tooltip={titleTooltip}
                     help={help}

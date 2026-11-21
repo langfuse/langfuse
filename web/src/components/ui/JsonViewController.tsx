@@ -589,6 +589,7 @@ export function JsonViewController(props: {
     parsedJson === null ||
     parsedJson === undefined ||
     parsedJson === "" ||
+    (Array.isArray(parsedJson) && parsedJson.length === 0) ||
     (typeof parsedJson === "object" &&
       !Array.isArray(parsedJson) &&
       Object.keys(parsedJson).length === 0);

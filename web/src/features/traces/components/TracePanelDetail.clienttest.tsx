@@ -4,13 +4,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 
-const { mockUseSelection, mockUseTraceData, mockByIdQuery } = vi.hoisted(
-  () => ({
-    mockUseSelection: vi.fn(),
-    mockUseTraceData: vi.fn(),
-    mockByIdQuery: vi.fn(),
-  }),
-);
+const {
+  mockUseSelection,
+  mockUseTraceData,
+  mockByIdQuery,
+  mockUseTraceDetailData,
+} = vi.hoisted(() => ({
+  mockUseSelection: vi.fn(),
+  mockUseTraceData: vi.fn(),
+  mockByIdQuery: vi.fn(),
+  mockUseTraceDetailData: vi.fn(),
+}));
+
+vi.mock("@/src/features/traces/hooks/useTraceDetailData", () => ({
+  useTraceDetailData: (input: unknown) => mockUseTraceDetailData(input),
+}));
 
 vi.mock("@/src/features/traces/contexts/SelectionProvider", () => ({
   useSelection: () => mockUseSelection(),
@@ -20,6 +28,15 @@ vi.mock("@/src/features/traces/contexts/TraceDataProvider", () => ({
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
+    sessions: {
+      tracesFromEvents: {
+        useQuery: () => ({
+          data: [
+            { id: "other", timestamp: new Date("2026-08-12T00:00:00.000Z") },
+          ],
+        }),
+      },
+    },
     observations: {
       byId: {
         useQuery: (input: unknown, options: unknown) =>
@@ -32,16 +49,45 @@ vi.mock("@/src/utils/api", () => ({
 // job is picking between them.
 vi.mock(
   "@/src/features/traces/components/TraceDetailView/TraceDetailView",
-  () => ({ TraceDetailView: () => <div data-testid="trace-detail" /> }),
+  () => ({
+    TraceDetailView: ({
+      trace,
+      isLoading,
+    }: {
+      trace?: {
+        id: string;
+        input?: string;
+        output?: string;
+        metadata?: string;
+      };
+      isLoading?: boolean;
+    }) => (
+      <div
+        data-testid="trace-detail"
+        data-trace-id={trace?.id}
+        data-loading={isLoading}
+      >
+        {trace?.input}
+        {trace?.output}
+        {trace?.metadata}
+      </div>
+    ),
+  }),
 );
 vi.mock(
   "@/src/features/traces/components/ObservationDetailView/ConnectedObservationDetailView",
   () => ({
     ConnectedObservationDetailView: ({
       observation,
+      traceId,
     }: {
       observation: ObservationReturnTypeWithMetadata;
-    }) => <div data-testid="observation-detail">{observation.id}</div>,
+      traceId: string;
+    }) => (
+      <div data-testid="observation-detail" data-trace-id={traceId}>
+        {observation.id}
+      </div>
+    ),
   }),
 );
 
@@ -57,6 +103,9 @@ describe("TracePanelDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockByIdQuery.mockReturnValue({ data: undefined, error: null });
+    mockUseTraceDetailData.mockReturnValue({
+      data: { id: "other", observations: [], scores: [], corrections: [] },
+    });
     // The loaded list is capped, so it holds only "in-list" — and the tree built
     // from it knows only that node plus the synthetic TRACE node.
     mockUseTraceData.mockReturnValue({
@@ -105,5 +154,122 @@ describe("TracePanelDetail", () => {
     render(<TracePanelDetail />);
 
     expect(screen.getByTestId("trace-detail")).toBeInTheDocument();
+  });
+
+  it("opens a session observation using its own trace, not the anchor trace", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "foreign-observation" });
+    mockUseTraceData.mockReturnValue({
+      trace: { id: "anchor", projectId: "p" },
+      observations: [
+        { ...observation("foreign-observation"), traceId: "other-trace" },
+      ],
+      serverScores: [],
+      corrections: [],
+    });
+    render(<TracePanelDetail />);
+    expect(screen.getByTestId("observation-detail")).toHaveAttribute(
+      "data-trace-id",
+      "other-trace",
+    );
+  });
+
+  it("shows the selected session trace wrapper instead of fetching it as an observation", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "trace-other" });
+    mockUseTraceData.mockReturnValue({
+      trace: { id: "anchor", projectId: "p" },
+      sessionTraces: [{ id: "other", projectId: "p" }],
+      observations: [],
+      serverScores: [],
+      corrections: [],
+    });
+    render(<TracePanelDetail />);
+    expect(screen.getByTestId("trace-detail")).toHaveAttribute(
+      "data-trace-id",
+      "other",
+    );
+    expect(mockByIdQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("loads full I/O and metadata for a selected non-anchor trace", () => {
+    const timestamp = new Date("2026-08-12T00:00:00.000Z");
+    mockUseSelection.mockReturnValue({ selectedNodeId: "trace-other" });
+    mockUseTraceData.mockReturnValue({
+      trace: { id: "anchor", projectId: "p" },
+      sessionTraces: [{ id: "other", projectId: "p", timestamp }],
+      observations: [],
+      serverScores: [],
+      corrections: [],
+    });
+    mockUseTraceDetailData.mockReturnValue({
+      data: {
+        id: "other",
+        input: "full input",
+        output: "full output",
+        metadata: "full metadata",
+        observations: [],
+        scores: [],
+        corrections: [],
+      },
+    });
+
+    const { rerender } = render(<TracePanelDetail />);
+    expect(mockUseTraceDetailData).toHaveBeenCalledWith({
+      projectId: "p",
+      traceId: "other",
+      timestamp,
+    });
+    expect(screen.getByTestId("trace-detail")).toHaveTextContent(
+      "full inputfull outputfull metadata",
+    );
+
+    mockUseTraceDetailData.mockReturnValue({
+      data: { id: "previous", input: "stale input" },
+      isPlaceholderData: true,
+    });
+    rerender(<TracePanelDetail key="placeholder" />);
+    expect(screen.getByTestId("trace-detail")).toHaveAttribute(
+      "data-loading",
+      "true",
+    );
+    expect(screen.queryByText("stale input")).not.toBeInTheDocument();
+  });
+
+  it("loads a message trace missing from the capped session tree", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "trace-other" });
+    mockUseTraceData.mockReturnValue({
+      trace: { id: "anchor", projectId: "p", sessionId: "session" },
+      sessionTraces: [{ id: "anchor", projectId: "p" }],
+      observations: [],
+      serverScores: [],
+      corrections: [],
+    });
+
+    render(<TracePanelDetail />);
+
+    expect(screen.getByTestId("trace-detail")).toHaveAttribute(
+      "data-trace-id",
+      "other",
+    );
+    expect(mockByIdQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("shows errors instead of synthetic empty trace details", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "trace-other" });
+    mockUseTraceData.mockReturnValue({
+      trace: { id: "anchor", projectId: "p" },
+      sessionTraces: [{ id: "other", projectId: "p" }],
+      observations: [],
+      serverScores: [],
+      corrections: [],
+    });
+    mockUseTraceDetailData.mockReturnValue({ isError: true });
+    render(<TracePanelDetail />);
+    expect(screen.getByText("Could not load trace")).toBeInTheDocument();
   });
 });

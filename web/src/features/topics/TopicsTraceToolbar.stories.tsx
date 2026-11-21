@@ -161,13 +161,13 @@ export const SearchAndClear = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const search = canvas.getByRole("combobox", { name: "Search" });
-    await replaceQuery(search, "invoice");
+    await replaceQuery(search, "billing");
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("1 of 4 traces"),
     );
     await replaceQuery(
       search,
-      'topic:("Billing questions" OR "Project setup") assignment:Outlier invoice',
+      'topic:("Billing questions" OR "Project setup") assignment:Outlier billing',
     );
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("0 of 4 traces"),
@@ -175,7 +175,7 @@ export const SearchAndClear = meta.story({
     await expect(
       canvas.getByText("No matches. Adjust or clear your filters."),
     ).toBeVisible();
-    await expect(search).toHaveTextContent("invoice");
+    await expect(search).toHaveTextContent("billing");
     await expect(search).not.toHaveTextContent("in:");
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith([
       {
@@ -191,7 +191,7 @@ export const SearchAndClear = meta.story({
         value: ["outlier"],
       },
     ]);
-    await expect(args.onSearchQueryChange).toHaveBeenLastCalledWith("invoice");
+    await expect(args.onSearchQueryChange).toHaveBeenLastCalledWith("billing");
     await replaceQuery(search, "");
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("4 of 4 traces"),
@@ -216,7 +216,9 @@ export const Exclusions = meta.story({
     await expect(canvas.getByRole("status")).toHaveTextContent("2 of 4 traces");
     await userEvent.hover(canvas.getByTestId("search-bar-token"));
     await userEvent.click(
-      await canvas.findByRole("button", { name: /Remove -assignment/ }),
+      await canvas.findByRole("button", {
+        name: "Remove Assignment state none of 2 values",
+      }),
     );
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("4 of 4 traces"),
@@ -226,6 +228,9 @@ export const Exclusions = meta.story({
 
 export const TopicAutocomplete = meta.story({
   name: "(Test) Topic Autocomplete Uses Stable IDs",
+  args: {
+    topics: [...topics, { id: "support", name: "Technical support" }],
+  },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
@@ -255,6 +260,30 @@ export const TopicAutocomplete = meta.story({
     await expect(canvas.getByTestId("search-bar-token")).toHaveTextContent(
       'topic:"Billing questions"',
     );
+    await replaceQuery(
+      search,
+      'topic:("Billing questions" OR "Project setup")',
+    );
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Edit.*2 values/ }),
+    );
+    const dialog = await body.findByRole("dialog", {
+      name: "Edit filter values",
+    });
+    const unselectedTopic = within(dialog).getByRole("checkbox", {
+      name: "Technical support",
+    });
+    await expect(unselectedTopic).not.toBeChecked();
+    await userEvent.click(unselectedTopic);
+    await expect(unselectedTopic).toBeChecked();
+    await expect(args.onFiltersChange).toHaveBeenLastCalledWith([
+      {
+        column: "topicId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["billing", "setup", "support"],
+      },
+    ]);
   },
 });
 

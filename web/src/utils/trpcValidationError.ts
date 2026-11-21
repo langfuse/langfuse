@@ -116,3 +116,12 @@ export const formatTrpcZodValidationDescription = (
   const zodError = getZodError(error);
   return zodError ? formatFlattenedZodError(zodError) : null;
 };
+
+/** Toast and completion-banner text for one failed score write. */
+export const scoreWriteErrorDescription = (error: unknown): string => {
+  const formatted = formatTrpcZodValidationDescription(error);
+  if (formatted) return formatted;
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return "Could not save this score";
+};

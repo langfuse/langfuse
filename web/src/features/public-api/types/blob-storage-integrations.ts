@@ -5,6 +5,8 @@ import {
   SCORE_EXPORT_FIELD_GROUPS,
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   BLOB_STORAGE_REGION_REGEX,
+  STORAGE_ROLE_ARN_INVALID_MESSAGE,
+  STORAGE_ROLE_ARN_REGEX,
 } from "@langfuse/shared";
 import {
   validateAzureContainerName,
@@ -22,6 +24,8 @@ const BlobStorageIntegrationType = z.enum([
   "AZURE_BLOB_STORAGE",
   "GOOGLE_CLOUD_STORAGE",
 ]);
+
+const BlobStorageIntegrationAuthType = z.enum(["ACCESS_KEYS", "ROLE_ARN"]);
 
 const BlobStorageIntegrationFileType = z.enum([
   "JSON",
@@ -121,8 +125,17 @@ export const CreateBlobStorageIntegrationRequest = z
     region: z.string().trim().min(1).regex(BLOB_STORAGE_REGION_REGEX, {
       message: BLOB_STORAGE_REGION_INVALID_MESSAGE,
     }),
+    authType: BlobStorageIntegrationAuthType.optional(),
     accessKeyId: z.string().nullable().optional(),
     secretAccessKey: z.string().nullable().optional(),
+    roleArn: z
+      .string()
+      .trim()
+      .regex(STORAGE_ROLE_ARN_REGEX, {
+        message: STORAGE_ROLE_ARN_INVALID_MESSAGE,
+      })
+      .nullable()
+      .optional(),
     prefix: z
       .string()
       .optional()
@@ -163,6 +176,24 @@ export const CreateBlobStorageIntegrationRequest = z
   )
   .superRefine(validateAzureContainerName)
   .superRefine((data, ctx) => {
+    if (data.authType !== "ROLE_ARN") return;
+    if (data.type !== "S3") {
+      ctx.addIssue({
+        code: "custom",
+        message: "authType ROLE_ARN is only available for type S3",
+        path: ["authType"],
+      });
+    }
+    if (data.accessKeyId || data.secretAccessKey) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "accessKeyId and secretAccessKey must not be set when authType is ROLE_ARN",
+        path: ["authType"],
+      });
+    }
+  })
+  .superRefine((data, ctx) => {
     if (data.exportSource == null && data.exportFieldGroups != null) {
       ctx.addIssue({
         code: "custom",
@@ -187,7 +218,11 @@ const BlobStorageIntegrationResponse = z
     bucketName: z.string(),
     endpoint: z.string().nullable(),
     region: z.string(),
+    authType: BlobStorageIntegrationAuthType,
     accessKeyId: z.string().nullable(),
+    roleArn: z.string().nullable(),
+    externalId: z.string().nullable(),
+    crossAccountRoleArn: z.string().nullable(),
     prefix: z.string(),
     exportFrequency: z.string(),
     enabled: z.boolean(),

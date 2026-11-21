@@ -6,14 +6,16 @@ import {
 } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { type FacetRow } from "./facet-topics";
+import { type TopicTracesResult } from "./facet-topics";
+import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
+import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
-const PAGE_SIZE = 20;
+export const PAGE_SIZE = 20;
 
 type TopicMobileTraceListProps = {
   children: ReactNode;
   filterKey: string;
-  rows: FacetRow[];
+  traces: TopicTracesResult;
   selectedTraceId: string | null;
   onOpenTrace: (traceId: string) => void;
 };
@@ -21,35 +23,98 @@ type TopicMobileTraceListProps = {
 export function TopicMobileTraceList({
   children,
   filterKey,
-  rows,
+  traces,
   selectedTraceId,
   onOpenTrace,
 }: TopicMobileTraceListProps) {
+  const { rows } = traces;
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
+  const selectedRowIndex = rows.findIndex(
+    (row) => row.traceId === selectedTraceId,
+  );
   const [pageRequest, setPageRequest] = useState(() => ({
     filterKey,
+    selectedTraceId,
     pageSize: PAGE_SIZE,
-    pageIndex: Math.max(
-      0,
-      Math.floor(
-        rows.findIndex((row) => row.traceId === selectedTraceId) / PAGE_SIZE,
-      ),
-    ),
+    pageIndex: Math.max(0, Math.floor(selectedRowIndex / PAGE_SIZE)),
+    // Manual paging stays put until the selection or filters change again.
+    manual: false,
+    // Index where this selection was shown. Null until the row is in the list,
+    // so a later load can open its page once. Refetches after that do not.
+    revealedIndex: selectedRowIndex >= 0 ? selectedRowIndex : null,
   }));
-  if (pageRequest.filterKey !== filterKey) {
-    setPageRequest({ ...pageRequest, filterKey, pageIndex: 0 });
+  const selectionChanged =
+    pageRequest.filterKey !== filterKey ||
+    pageRequest.selectedTraceId !== selectedTraceId;
+  const targetPage =
+    selectedRowIndex >= 0
+      ? Math.floor(selectedRowIndex / pageRequest.pageSize)
+      : null;
+  if (selectionChanged) {
+    setPageRequest({
+      filterKey,
+      selectedTraceId,
+      pageSize: pageRequest.pageSize,
+      pageIndex: targetPage ?? 0,
+      manual: false,
+      revealedIndex: selectedRowIndex >= 0 ? selectedRowIndex : null,
+    });
+  } else if (
+    !pageRequest.manual &&
+    pageRequest.revealedIndex === null &&
+    targetPage !== null &&
+    targetPage !== pageRequest.pageIndex
+  ) {
+    // The row arrived after the selection. Open its page once.
+    setPageRequest({
+      ...pageRequest,
+      pageIndex: targetPage,
+      revealedIndex: selectedRowIndex,
+    });
+  } else if (
+    !pageRequest.manual &&
+    pageRequest.revealedIndex === null &&
+    targetPage !== null
+  ) {
+    setPageRequest({ ...pageRequest, revealedIndex: selectedRowIndex });
+  } else if (
+    !pageRequest.manual &&
+    pageRequest.revealedIndex === 0 &&
+    targetPage !== null &&
+    targetPage !== pageRequest.pageIndex &&
+    selectedRowIndex >= pageRequest.pageSize
+  ) {
+    // A trace pinned at the top settles onto its own later page once.
+    setPageRequest({
+      ...pageRequest,
+      pageIndex: targetPage,
+      revealedIndex: selectedRowIndex,
+    });
   }
-  // The DOM scroll position follows map selection without moving keyboard focus.
-  useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest" });
-  }, [selectedTraceId]);
   const { pageSize } = pageRequest;
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const pageIndex = Math.min(pageRequest.pageIndex, pageCount - 1);
   const pageRows = rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
+  const selectedOnPage = pageRows.some(
+    (row) => row.traceId === selectedTraceId,
+  );
+  // Scroll when the selection, page, or the row's first appearance changes.
+  // A refresh that only shifts the row's index does not scroll again.
+  useEffect(() => {
+    if (!selectedOnPage) return;
+    selectedRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selectedTraceId, filterKey, pageIndex, selectedOnPage]);
   function changePage(pagination: PaginationBarState) {
-    setPageRequest({ filterKey, ...pagination });
+    // Reaching the last loaded page fetches the next server page.
+    if (pagination.pageIndex >= pageCount - 1) traces.loadMore();
+    setPageRequest({
+      filterKey,
+      selectedTraceId,
+      manual: true,
+      revealedIndex: pageRequest.revealedIndex,
+      ...pagination,
+    });
     scrollRef.current?.scrollTo({ top: 0 });
   }
 
@@ -100,17 +165,29 @@ export function TopicMobileTraceList({
             </li>
           ))}
         </ul>
-        {rows.length === 0 && (
-          <p className="text-muted-foreground p-4 text-sm">
-            No matches. Adjust or clear your filters.
-          </p>
+        {rows.length === 0 && traces.isLoading && (
+          <p className="text-muted-foreground p-4 text-sm">Loading traces…</p>
+        )}
+        {rows.length === 0 && !traces.isLoading && (
+          <>
+            {traces.error ? (
+              <div className="p-4">
+                <TopicsErrorMessage message={traces.error} />
+              </div>
+            ) : (
+              <p className="text-muted-foreground p-4 text-sm">
+                No matches. Adjust or clear your filters.
+              </p>
+            )}
+            {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
+          </>
         )}
       </div>
       {rows.length > 0 && (
         <nav aria-label="Trace pagination" className="shrink-0">
           <PaginationBar
             mode="offset"
-            totalCount={rows.length}
+            totalCount={rows.length + (traces.hasMore ? pageSize : 0)}
             state={{ pageIndex, pageSize }}
             onChange={changePage}
           />

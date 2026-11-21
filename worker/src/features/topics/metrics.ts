@@ -1,4 +1,5 @@
 import {
+  ClickHouseResourceError,
   recordDistribution,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -7,7 +8,6 @@ import { TopicsProviderUnavailable } from "./provider-error";
 type TopicStage =
   | "execution"
   | "trace"
-  | "transcript"
   | "summary"
   | "embedding"
   | "clustering"
@@ -16,7 +16,6 @@ type TopicStage =
   | "storage";
 export type TopicResult =
   | "generated"
-  | "cached"
   | "applicable"
   | "not_applicable"
   | "insufficient_input"
@@ -27,17 +26,14 @@ export type TopicResult =
   | "insufficient_data"
   | "no_applicable_summaries"
   | "assigned"
-  | "awaiting_topics"
   | "outlier"
   | "name_conflict"
   | "duplicate_name";
 type TopicErrorReason =
   | TopicsProviderUnavailable["reason"]
-  | "trace_load"
   | "storage"
   | "numerical"
   | "input_too_large"
-  | "trace_too_large"
   | "definition_readback"
   | "unknown";
 
@@ -79,6 +75,9 @@ export function recordTopicModelCall(
 export class TopicMetrics {
   private readonly reportedErrors = new WeakSet<object>();
 
+  /** `tags` go on every stage metric, e.g. first attempt versus retry. */
+  constructor(private readonly tags: Record<string, string> = {}) {}
+
   execution(
     outcome: "started" | "completed" | "completed_with_errors" | "failed",
   ): void {
@@ -94,10 +93,19 @@ export class TopicMetrics {
   ): void {
     if (count > 0)
       recordIncrement("langfuse.topics.results", count, {
+        ...this.tags,
         stage,
         result,
         ...tags,
       });
+  }
+
+  /** Summary input size per format: the rendered text sent, and the JSON projection it replaced. */
+  summaryInputCharacters(format: "text" | "json", characters: number): void {
+    recordDistribution("langfuse.topics.summary_input_characters", characters, {
+      ...this.tags,
+      format,
+    });
   }
 
   clusteringWorkload(vectors: number, dimensions: number): void {
@@ -123,7 +131,7 @@ export class TopicMetrics {
       recordDistribution(
         "langfuse.topics.stage_duration_ms",
         performance.now() - startedAt,
-        { stage, outcome, unit: "milliseconds" },
+        { ...this.tags, stage, outcome, unit: "milliseconds" },
       );
     }
   }
@@ -153,7 +161,6 @@ export class TopicMetrics {
       if (["AbortError", "TimeoutError"].includes(error.name))
         reason = "timeout";
       if (error.name === "TopicInputTooLarge") reason = "input_too_large";
-      if (error.name === "TopicTraceTooLarge") reason = "trace_too_large";
       if (error.name === "TopicDefinitionReadbackError")
         reason = "definition_readback";
       if (
@@ -166,7 +173,13 @@ export class TopicMetrics {
         ].includes(error.name)
       )
         reason = "storage";
+      if (ClickHouseResourceError.is(error))
+        reason = error.errorType === "TIMEOUT" ? "timeout" : "storage";
     }
-    recordIncrement("langfuse.topics.errors", 1, { stage, reason });
+    recordIncrement("langfuse.topics.errors", 1, {
+      ...this.tags,
+      stage,
+      reason,
+    });
   }
 }

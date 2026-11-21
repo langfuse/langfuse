@@ -33,7 +33,6 @@ export function ConnectedApiKeySettingsTable({
   const [searchQuery, setSearchQuery] = useState("");
   const [includeGatewayKeys, setIncludeGatewayKeys] = useState(false);
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
     organizationId: scope === "organization" ? entityId : undefined,
   });
   const showGatewayKeyFilter =

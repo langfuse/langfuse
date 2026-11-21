@@ -7,10 +7,9 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  compareWithBillingLedger,
-  getObservationCountsByProjectInCreationInterval,
-  getScoreCountsByProjectInCreationInterval,
-  getTraceCountsByProjectInCreationInterval,
+  BILLING_SETTLE_MS,
+  type BillableEventType,
+  getBillableUnitCountsByProjectInWindow,
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -19,8 +18,10 @@ import {
  * Billing metrics API for ClickHouse Billing (CHB).
  *
  * CHB's metering pipeline polls this endpoint per project (`resourceId`) and
- * short trailing time window to derive billable usage. Response contract:
- * unknown resources return zeros, never 404.
+ * time window to derive billable usage. Counts come from the billable_events
+ * ledger, so deletes and retention never lower them: a unit counts once in
+ * the window when its id did not appear in the 24 hours before the window
+ * starts. Response contract: unknown resources return zeros, never 404.
  *
  * Auth: dedicated bearer secret (`CLICKHOUSE_BILLING_METRICS_API_KEY`).
  *
@@ -28,9 +29,16 @@ import {
  * failures.
  */
 
-// Reject windows above 35 days: keeps a misbehaving caller from issuing
-// full-history created_at scans; CHB polls short trailing windows.
-const MAX_WINDOW_MS = 35 * 24 * 60 * 60 * 1000;
+// Reject windows above 24 hours: the ledger read holds every unit of the
+// window in memory. CHB polls windows of at most an hour.
+const MAX_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+const METRIC_BY_EVENT_TYPE = {
+  trace: "traces",
+  observation: "observations",
+  score: "scores",
+  topic_facet_summary: "topicFacetSummaries",
+} as const satisfies Record<BillableEventType, string>;
 
 const MetricsQuerySchema = z.object({
   startTime: isoDateTime({ offset: true }),
@@ -38,13 +46,22 @@ const MetricsQuerySchema = z.object({
   resourceId: z.string().min(1),
 });
 
-const sumForProject = (
-  rows: { projectId: string; count: number }[],
+const metricsForProject = (
+  rows: { projectId: string; eventType: BillableEventType; count: number }[],
   projectId: string,
-): number =>
-  rows
-    .filter((row) => row.projectId === projectId)
-    .reduce((sum, row) => sum + row.count, 0);
+) => {
+  const metrics = {
+    traces: { sum: 0 },
+    observations: { sum: 0 },
+    scores: { sum: 0 },
+    topicFacetSummaries: { sum: 0 },
+  };
+  for (const row of rows) {
+    if (row.projectId !== projectId) continue;
+    metrics[METRIC_BY_EVENT_TYPE[row.eventType]].sum += row.count;
+  }
+  return metrics;
+};
 
 const isAuthorized = (req: NextRequest, apiKey: string): boolean => {
   const authHeader = req.headers.get("authorization");
@@ -108,8 +125,33 @@ export async function chbMetricsApiHandler(req: NextRequest) {
   }
   if (end.getTime() - start.getTime() > MAX_WINDOW_MS) {
     return NextResponse.json(
-      { message: "Requested window exceeds the 35 day maximum" },
+      { message: "Requested window exceeds the 24 hour maximum" },
       { status: 400 },
+    );
+  }
+  const now = Date.now();
+  if (end.getTime() > now) {
+    return NextResponse.json(
+      { message: "endTime must not be in the future" },
+      { status: 400 },
+    );
+  }
+  // Rows stamped just before endTime can take a moment to become readable.
+  // That is a state of our ingestion, not a client error: answering now would
+  // under-bill the window for good, so ask CHB to retry once it has settled.
+  const settlesAt = end.getTime() + BILLING_SETTLE_MS;
+  if (settlesAt > now) {
+    recordIncrement("langfuse.billing_metrics.unsettled_window", 1, {
+      unit: "requests",
+    });
+    return NextResponse.json(
+      { message: "Requested window has not settled yet, retry later" },
+      {
+        status: 503,
+        headers: {
+          "Retry-After": String(Math.ceil((settlesAt - now) / 1000)),
+        },
+      },
     );
   }
 
@@ -132,48 +174,14 @@ export async function chbMetricsApiHandler(req: NextRequest) {
       );
     }
 
-    const [traceCounts, observationCounts, scoreCounts] = await Promise.all([
-      getTraceCountsByProjectInCreationInterval({
-        start,
-        end,
-        projectId: resourceId,
-      }),
-      getObservationCountsByProjectInCreationInterval({
-        start,
-        end,
-        projectId: resourceId,
-      }),
-      getScoreCountsByProjectInCreationInterval({
-        start,
-        end,
-        projectId: resourceId,
-      }),
-    ]);
-
-    // Not awaited, so the comparison never delays CHB's poll, and it never
-    // throws. Windows longer than an hour are skipped.
-    if (env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED === "true") {
-      compareWithBillingLedger({
-        source: "chb_metrics_api",
-        from: start,
-        to: end,
-        projectId: resourceId,
-        legacy: {
-          traces: traceCounts,
-          observations: observationCounts,
-          scores: scoreCounts,
-        },
-      });
-    }
+    const counts = await getBillableUnitCountsByProjectInWindow({
+      windowFrom: start,
+      windowTo: end,
+      projectId: resourceId,
+    });
 
     return NextResponse.json(
-      {
-        metrics: {
-          traces: { sum: sumForProject(traceCounts, resourceId) },
-          observations: { sum: sumForProject(observationCounts, resourceId) },
-          scores: { sum: sumForProject(scoreCounts, resourceId) },
-        },
-      },
+      { metrics: metricsForProject(counts, resourceId) },
       { status: 200 },
     );
   } catch (err) {

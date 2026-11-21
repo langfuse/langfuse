@@ -33,7 +33,13 @@ import {
   INGESTION_DEPRECATION,
   LEGACY_INGESTION_ORG_CUTOFF_MESSAGE,
   setDeprecationHeaders,
+  V4_CUTOFF_INGESTION_MESSAGE,
 } from "@/src/features/public-api/server/deprecations";
+import {
+  isWebV4CutoffActive,
+  recordV4CutoffRejection,
+  v4CutoffRejectionBody,
+} from "@/src/features/public-api/server/v4Cutoff";
 import {
   SDK_NAME_ATTRIBUTE,
   SDK_VERSION_ATTRIBUTE,
@@ -53,6 +59,8 @@ import {
   isLegacyIngestionScoreOnlyOrg,
   recordLegacyIngestionScoreOnlyRejection,
 } from "@/src/features/public-api/server/legacyIngestionScoreOnlyCutoff";
+
+const INGESTION_ROUTE = "POST /api/public/ingestion";
 
 export const config = {
   api: {
@@ -149,8 +157,9 @@ export default async function handler(
         route: clickHouseRouteForRequest(req),
       },
     });
-    // Execute the rest of the handler within the context
-    return opentelemetry.context.with(ctx, async () => {
+    // Execute the rest of the handler within the context. Await so rejections
+    // reach the outer catch, which maps BaseErrors (e.g. 503 + Retry-After).
+    return await opentelemetry.context.with(ctx, async () => {
       try {
         try {
           const rateLimitCheck =
@@ -194,15 +203,41 @@ export default async function handler(
           env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
         const scoreOnlyReason = scoreOnlyReasonFor(
           isEventsOnlyMode,
+          isWebV4CutoffActive("ingestion", projectId),
           scope.organizationCreatedAt,
         );
         const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
           parsedSchema.data.batch,
           scoreOnlyReason,
         );
+        if (scoreOnlyReason === "v4_cutoff" && rejectedErrors.length > 0) {
+          recordV4CutoffRejection({
+            surface: "ingestion",
+            route: INGESTION_ROUTE,
+            orgId: scope.orgId,
+            projectId,
+            headers: req.headers,
+          });
+          // Nothing left to store: refuse the whole request before upload and queueing.
+          if (batchForProcessing.length === 0) {
+            setDeprecationHeaders(res, INGESTION_DEPRECATION);
+            return res.status(410).json(
+              attachDeprecation(
+                {
+                  ...v4CutoffRejectionBody(
+                    INGESTION_ROUTE,
+                    INGESTION_DEPRECATION,
+                  ),
+                  message: `${INGESTION_ROUTE} no longer accepts trace and observation events. ${V4_CUTOFF_INGESTION_MESSAGE}`,
+                },
+                INGESTION_DEPRECATION,
+              ),
+            );
+          }
+        }
         if (scoreOnlyReason === "org_cutoff") {
           recordLegacyIngestionScoreOnlyRejection({
-            route: "POST /api/public/ingestion",
+            route: INGESTION_ROUTE,
             count: rejectedErrors.length,
             orgId: scope.orgId,
             projectId,
@@ -330,18 +365,21 @@ const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set<string>(
 );
 
 /** ScoreOnlyReason is why this request may only ingest scores; it picks the rejection text. */
-type ScoreOnlyReason = "events_only" | "org_cutoff";
+type ScoreOnlyReason = "events_only" | "org_cutoff" | "v4_cutoff";
 
 const SCORE_ONLY_REJECTION: Record<ScoreOnlyReason, string> = {
   events_only: `is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
   org_cutoff: `is not accepted. ${LEGACY_INGESTION_ORG_CUTOFF_MESSAGE}`,
+  v4_cutoff: `is not accepted. ${V4_CUTOFF_INGESTION_MESSAGE}`,
 };
 
 function scoreOnlyReasonFor(
   isEventsOnlyMode: boolean,
+  isV4Cutoff: boolean,
   organizationCreatedAt: string | null | undefined,
 ): ScoreOnlyReason | null {
   if (isEventsOnlyMode) return "events_only";
+  if (isV4Cutoff) return "v4_cutoff";
   if (isLegacyIngestionScoreOnlyOrg(organizationCreatedAt)) return "org_cutoff";
   return null;
 }
@@ -372,7 +410,7 @@ export function filterBatchForEventsOnly(
     } else {
       rejectedErrors.push({
         id,
-        status: 400,
+        status: scoreOnlyReason === "v4_cutoff" ? 410 : 400,
         message: "Event type not accepted",
         error: `Event type "${type ?? "unknown"}" ${SCORE_ONLY_REJECTION[scoreOnlyReason]}`,
       });

@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Decimal } from "decimal.js";
 import { encrypt } from "@langfuse/shared/encryption";
 
 const state = vi.hoisted(() => ({
-  env: { LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: ["project"] },
+  env: {
+    LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: ["project"],
+  },
   call: vi.fn(),
+  findModel: vi.fn(),
   embed: vi.fn(),
   increment: vi.fn(),
   project: vi.fn(),
@@ -27,6 +31,7 @@ vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
+  findModel: state.findModel,
   LangfuseInternalTraceEnvironment: { Topics: "langfuse-topics" },
   logger: { warn: vi.fn() },
   recordIncrement: state.increment,
@@ -119,8 +124,31 @@ const evidence = {
 };
 
 beforeEach(() => {
-  state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = ["project"];
+  state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [
+    "project",
+  ];
   state.call.mockReset();
+  state.findModel.mockReset().mockResolvedValue({
+    model: null,
+    pricingTiers: [
+      {
+        id: "project-price",
+        name: "Standard",
+        isDefault: true,
+        priority: 0,
+        conditions: [],
+        prices: Object.entries({
+          input: 1e-6,
+          output: 5e-6,
+          input_cached_tokens: 0.1e-6,
+          input_cache_creation: 1.25e-6,
+        }).map(([usageType, price]) => ({
+          usageType,
+          price: new Decimal(price),
+        })),
+      },
+    ],
+  });
   state.embed.mockReset();
   state.increment.mockReset();
   state.responseMetadata.mockReset();
@@ -170,7 +198,7 @@ describe("Topics naming boundary", () => {
       typeof import("@langfuse/shared/topics/server")
     >("@langfuse/shared/topics/server");
     state.call.mockImplementation(generateTopicText);
-    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = [];
+    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -198,9 +226,7 @@ describe("Topics naming boundary", () => {
       summarizeOne(
         models,
         "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: models.summary.model,
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
     ).rejects.toMatchObject({ name: "ZodError" });
     expect(state.increment).toHaveBeenCalledWith("langfuse.topics.tokens", 12, {
@@ -218,7 +244,7 @@ describe("Topics naming boundary", () => {
       typeof import("@langfuse/shared/topics/server")
     >("@langfuse/shared/topics/server");
     state.call.mockImplementation(generateTopicText);
-    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = [];
+    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -244,79 +270,117 @@ describe("Topics naming boundary", () => {
       summarizeOne(
         models,
         "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: models.summary.model,
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
     ).rejects.toMatchObject({ reason: "invalid_output" });
   });
 
-  it.each([
-    ["us.openai.gpt-5.6-luna", 0.00002, 0.000036],
-    ["us.openai.gpt-6-luna", 0.000011, 0.0000165],
-    ["global.openai.gpt-6-luna", 0.00001, 0.000015],
-  ])(
-    "summarizes a trace and prices %s usage",
-    async (model, inputCost, outputCost) => {
-      state.call.mockResolvedValue({
-        output: keyed({ summary: "A billing request.", status: "applicable" }),
-        usage: { inputTokens: 100, outputTokens: 30 },
-      });
-      const result = await summarizeOne(
-        topicsModels(model),
-        "RAW_TRANSCRIPT_SENTINEL",
-        topicProcessingConfigSchema.parse({
-          summaryModel: model,
-        }),
-      );
-      expect(result.output).toEqual(
-        keyed({ summary: "A billing request.", status: "applicable" }),
-      );
-      expect(result.providedUsageDetails).toEqual({
-        summary_input: 100,
-        summary_output: 30,
-      });
-      expect(result.usageDetails).toEqual({
-        summary_input: 100,
-        summary_output: 30,
-        total: 130,
-      });
-      expect(result.providedCostDetails).toEqual({});
-      expect(result.costDetails.summary_input).toBeCloseTo(inputCost, 10);
-      expect(result.costDetails.summary_output).toBeCloseTo(outputCost, 10);
-      expect(result.costDetails.total).toBeCloseTo(inputCost + outputCost, 10);
-      const request = state.call.mock.calls[0][0];
-      expect(request.model).toMatchObject({ slot: "summary", model });
-      expect(request.trace).toMatchObject({
-        targetProjectId: "ai-features",
-        traceName: "topics-summary",
-        environment: "langfuse-topics",
-        aiFeatureOtelIngestion: false,
-        metadata: {
-          langfuse_project_id: "project",
-          facets: [{ key: "intent", facet_id: "facet", facet_version: 1 }],
-        },
-      });
-      expect(request.system).toEqual([
-        { text: expect.stringContaining(facet.prompt), cache: true },
-      ]);
-      expect(request.input).toBe(
-        "<transcript>\nRAW_TRANSCRIPT_SENTINEL\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.",
-      );
-    },
-  );
+  it("prices Haiku usage with the source project's Langfuse prices", async () => {
+    const model = "eu.anthropic.claude-haiku-5-5";
+    const inputCost = 0.0001;
+    const outputCost = 0.00015;
+    state.call.mockResolvedValue({
+      output: keyed({ summary: "A billing request.", status: "applicable" }),
+      usage: { inputTokens: 100, outputTokens: 30 },
+      usageDetails: { input: 100, output: 30 },
+      providedCostDetails: {},
+    });
+    const result = await summarizeOne(
+      topicsModels(model),
+      "RAW_TRANSCRIPT_SENTINEL",
+      topicProcessingConfigSchema.parse({}),
+    );
+    expect(result.output).toEqual(
+      keyed({ summary: "A billing request.", status: "applicable" }),
+    );
+    expect(result.providedUsageDetails).toEqual({
+      summary_input: 100,
+      summary_output: 30,
+    });
+    expect(result.usageDetails).toMatchObject({
+      summary_input: 100,
+      summary_output: 30,
+    });
+    expect(result.providedCostDetails).toEqual({});
+    expect(result.costDetails.summary_input).toBeCloseTo(inputCost, 10);
+    expect(result.costDetails.summary_output).toBeCloseTo(outputCost, 10);
+    expect(result.costDetails.total).toBeCloseTo(inputCost + outputCost, 10);
+    expect(state.findModel).toHaveBeenCalledWith({
+      projectId: "project",
+      model,
+    });
+    const request = state.call.mock.calls[0][0];
+    expect(request.model).toMatchObject({ slot: "summary", model });
+    expect(request.trace).toMatchObject({
+      targetProjectId: "ai-features",
+      traceName: "topics-summary",
+      environment: "langfuse-topics",
+      aiFeatureOtelIngestion: false,
+      metadata: {
+        langfuse_project_id: "project",
+        facets: [{ key: "intent", facet_id: "facet", facet_version: 1 }],
+      },
+    });
+    expect(request.system).toEqual([
+      { text: expect.stringContaining(facet.prompt), cache: true },
+    ]);
+    expect(request.input).toBe(
+      "<transcript>\nRAW_TRANSCRIPT_SENTINEL\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.",
+    );
+  });
 
-  it("rejects a request frozen on another summary model before calling the provider", async () => {
-    await expect(
-      summarizeOne(
-        topicsModels("us.openai.gpt-6-luna"),
+  it("keeps successful output and supplied costs when pricing is unavailable", async () => {
+    state.findModel.mockRejectedValue(new Error("Pricing unavailable"));
+    state.call.mockResolvedValue({
+      output: keyed({ summary: "A billing request.", status: "applicable" }),
+      usage: { inputTokens: 100 },
+      usageDetails: { input: 100 },
+      providedCostDetails: { total: 0 },
+    });
+    const result = await summarizeOne(
+      topicsModels(),
+      "Trace evidence.",
+      topicProcessingConfigSchema.parse({}),
+    );
+    expect(result.costDetails).toEqual({ total: 0 });
+    expect(result.providedCostDetails).toEqual({ total: 0 });
+    expect(result.usageDetails).toEqual({ summary_input: 100 });
+    expect(state.call).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Failed to price Topics model usage",
+      expect.any(Object),
+    );
+  });
+
+  it("returns paid output and supplied costs when pricing stalls", async () => {
+    vi.useFakeTimers();
+    try {
+      state.findModel.mockReturnValue(new Promise(() => {}));
+      const output = keyed({
+        summary: "A billing request.",
+        status: "applicable",
+      });
+      state.call.mockResolvedValue({
+        output,
+        usage: { inputTokens: 100 },
+        usageDetails: { input: 100 },
+        providedCostDetails: { total: 0 },
+      });
+      const resolved = vi.fn();
+      const result = summarizeOne(
+        topicsModels(),
         "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
-      ),
-    ).rejects.toMatchObject({ reason: "configuration" });
-    expect(state.call).not.toHaveBeenCalled();
+        topicProcessingConfigSchema.parse({}),
+      ).then(resolved);
+      await vi.runAllTimersAsync();
+      expect(resolved).toHaveBeenCalledWith(
+        expect.objectContaining({ output, costDetails: { total: 0 } }),
+      );
+      await result;
+      expect(state.call).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each([
@@ -367,6 +431,28 @@ describe("Topics naming boundary", () => {
           status: "400",
         },
       );
+    },
+  );
+
+  it.each([
+    [404, "EVAL_MODEL_UNAVAILABLE"],
+    [403, "LLM_CONNECTION_AUTH_INVALID"],
+    [429, null],
+  ])(
+    "pauses Topics like evaluators for HTTP %i provider errors",
+    async (statusCode, blockReason) => {
+      state.call.mockRejectedValue(
+        Object.assign(new Error("provider error"), {
+          [Symbol.for("vercel.ai.error")]: true,
+          [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+          name: "AI_APICallError",
+          statusCode,
+          isRetryable: statusCode === 429,
+        }),
+      );
+      await expect(
+        nameTopicGroup(topicsModels(), evidence),
+      ).rejects.toMatchObject({ blockReason });
     },
   );
 
@@ -460,9 +546,7 @@ describe("Topics naming boundary", () => {
       summarizeOne(
         topicsModels(),
         "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
     ).rejects.toMatchObject({ reason: "invalid_input" });
     const [, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
@@ -470,14 +554,14 @@ describe("Topics naming boundary", () => {
     expect(JSON.stringify(fields)).not.toMatch(/secret/);
   });
 
-  it("keeps fallback token counts out of provider-reported usage", async () => {
+  it("does not invent usage from the configured token limits", async () => {
     state.call.mockResolvedValue({
       output: keyed({ summary: "A billing request.", status: "applicable" }),
       usage: { inputTokens: 100 },
+      usageDetails: { input: 100 },
+      providedCostDetails: {},
     });
-    const config = topicProcessingConfigSchema.parse({
-      summaryModel: "us.openai.gpt-5.6-luna",
-    });
+    const config = topicProcessingConfigSchema.parse({});
     const result = await summarizeOne(
       topicsModels(),
       "A request for an invoice.",
@@ -494,8 +578,6 @@ describe("Topics naming boundary", () => {
     ]);
     expect(result.usageDetails).toEqual({
       summary_input: 100,
-      summary_output: config.maxOutputTokens,
-      total: 100 + config.maxOutputTokens,
     });
   });
   it("rejects an oversized shared transcript before calling the provider", async () => {
@@ -505,7 +587,6 @@ describe("Topics naming boundary", () => {
         "Trace evidence. ".repeat(1000),
         topicProcessingConfigSchema.parse({
           maxInputTokens: 256,
-          summaryModel: "us.openai.gpt-5.6-luna",
         }),
       ),
     ).rejects.toThrow(
@@ -524,22 +605,27 @@ describe("Topics naming boundary", () => {
         cacheReadTokens: 2840,
         cacheWriteTokens: 100,
       },
+      usageDetails: {
+        input: 1060,
+        output: 300,
+        total: 4300,
+        input_cached_tokens: 2840,
+        input_cache_creation: 100,
+      },
+      providedCostDetails: {},
     });
     const result = await summarizeOne(
       topicsModels("us.openai.gpt-6-luna"),
       "RAW_TRANSCRIPT_SENTINEL",
-      topicProcessingConfigSchema.parse({
-        summaryModel: "us.openai.gpt-6-luna",
-      }),
+      topicProcessingConfigSchema.parse({}),
     );
     expect(result.usageDetails).toMatchObject({
-      summary_input: 4000,
-      summary_input_cache_read: 2840,
+      summary_input: 1060,
+      summary_input_cached_tokens: 2840,
     });
-    expect(result.usageDetails.summary_input_cache_write).toBe(100);
-    // 1,060 uncached at $0.11, 2,840 cache reads at $0.011 and 100 cache writes at $0.1375 per million.
-    expect(result.costDetails.summary_input).toBeCloseTo(
-      (1060 * 0.11 + 2840 * 0.011 + 100 * 0.1375) / 1_000_000,
+    expect(result.usageDetails.summary_input_cache_creation).toBe(100);
+    expect(result.costDetails.total).toBeCloseTo(
+      (1060 + 2840 * 0.1 + 100 * 1.25 + 300 * 5) / 1_000_000,
       12,
     );
   });
@@ -555,10 +641,10 @@ describe("Topics naming boundary", () => {
         issues_2: { notes: "n", summary: "", status: "not_applicable" },
       },
       usage: { inputTokens: 100, outputTokens: 30 },
+      usageDetails: { input: 100, output: 30 },
+      providedCostDetails: {},
     });
-    const config = topicProcessingConfigSchema.parse({
-      summaryModel: "us.openai.gpt-5.6-luna",
-    });
+    const config = topicProcessingConfigSchema.parse({});
     const issues = {
       ...facet,
       facetId: "issues",
@@ -630,7 +716,6 @@ describe("Topics naming boundary", () => {
         "Trace evidence. ".repeat(1000),
         topicProcessingConfigSchema.parse({
           maxInputTokens: 256,
-          summaryModel: "us.openai.gpt-5.6-luna",
         }),
       ),
     ).rejects.toThrow(/above this run's 256-token input limit/);
@@ -650,6 +735,8 @@ describe("Topics naming boundary", () => {
         evidenceSummaryIds: ["m400"],
       },
       usage: { inputTokens: 16000, outputTokens: 30 },
+      usageDetails: { input: 16000, output: 30 },
+      providedCostDetails: {},
     });
     const result = await nameTopicGroup(topicsModels(), {
       members,
@@ -669,7 +756,7 @@ describe("Topics naming boundary", () => {
       slot: "clustering",
       model: "us.openai.gpt-5.6-terra",
     });
-    expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
+    expect(result.costDetails.total).toBeCloseTo(0.01615, 10);
     const submitted = JSON.parse(state.call.mock.calls[0][0].input);
     expect(
       submitted.members
@@ -723,8 +810,10 @@ describe("Topics naming boundary", () => {
         evidenceSummaryIds: [JSON.parse(input).members[0].id],
       },
       usage: {},
+      usageDetails: {},
+      providedCostDetails: {},
     }));
-    const first = await namePreparedTopicGroup(topicsModels(), prepared);
+    await namePreparedTopicGroup(topicsModels(), prepared);
     const conflict = {
       name: "Billing support",
       description: "Support for billing problems.",
@@ -733,12 +822,7 @@ describe("Topics naming boundary", () => {
         "A billing question.",
       ],
     };
-    const renamed = await namePreparedTopicGroup(
-      topicsModels(),
-      prepared,
-      undefined,
-      conflict,
-    );
+    await namePreparedTopicGroup(topicsModels(), prepared, undefined, conflict);
     const [initialCall, renameCall] = state.call.mock.calls.map(
       ([call]) => call,
     );
@@ -756,10 +840,12 @@ describe("Topics naming boundary", () => {
     expect(initialCall.trace.traceName).toBe("topics-naming");
     expect(renameCall.trace.traceName).toBe("topics-naming-conflict");
     expect(renameCall.system[0].text).toContain(initialCall.system[0].text);
-    expect(renamed.usageDetails.naming_input).toBeGreaterThan(
-      first.usageDetails.naming_input!,
-    );
-    expect(renamed.usageDetails.naming_input).toBeLessThanOrEqual(900_000);
+    expect(
+      renameCall.trace.metadata.naming_input_tokens_estimated,
+    ).toBeGreaterThan(initialCall.trace.metadata.naming_input_tokens_estimated);
+    expect(
+      renameCall.trace.metadata.naming_input_tokens_estimated,
+    ).toBeLessThanOrEqual(900_000);
 
     const omittedId = Array.from(
       { length: group.members.length },
@@ -772,6 +858,8 @@ describe("Topics naming boundary", () => {
         evidenceSummaryIds: [omittedId],
       },
       usage: { inputTokens: 100, outputTokens: 30 },
+      usageDetails: { input: 100, output: 30 },
+      providedCostDetails: {},
     });
     await expect(
       namePreparedTopicGroup(topicsModels(), prepared),
@@ -870,6 +958,8 @@ describe("Topics naming boundary", () => {
         evidenceSummaryIds: ["m1"],
       },
       usage: {},
+      usageDetails: {},
+      providedCostDetails: {},
     });
     expect((await nameTopicGroup(topicsModels(), evidence)).output.name).toBe(
       "Invoice assistance",
@@ -881,6 +971,8 @@ describe("Topics naming boundary", () => {
         evidenceSummaryIds: ["m1"],
       },
       usage: {},
+      usageDetails: {},
+      providedCostDetails: {},
     });
     await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
   });
@@ -895,6 +987,8 @@ describe("Topics naming boundary", () => {
           evidenceSummaryIds,
         },
         usage: { inputTokens: 100, outputTokens: 30 },
+        usageDetails: { input: 100, output: 30 },
+        providedCostDetails: {},
       });
       await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
@@ -932,6 +1026,8 @@ describe("Topics naming boundary", () => {
             status: "applicable",
           }),
           usage: {},
+          usageDetails: {},
+          providedCostDetails: {},
         })
         .mockResolvedValueOnce({
           output: {
@@ -940,13 +1036,13 @@ describe("Topics naming boundary", () => {
             evidenceSummaryIds: ["m1"],
           },
           usage: {},
+          usageDetails: {},
+          providedCostDetails: {},
         });
       await summarizeOne(
         topicsModels(),
         "A billing request.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
+        topicProcessingConfigSchema.parse({}),
       );
       await nameTopicGroup(topicsModels(), evidence);
       state.call.mockResolvedValueOnce({
@@ -958,14 +1054,14 @@ describe("Topics naming boundary", () => {
           },
         },
         usage: {},
+        usageDetails: {},
+        providedCostDetails: {},
       });
       await summarizeTopicTraceFacets(
         topicsModels(),
         [{ key: "intent", facet, builtIn: true }],
         "Request invoice.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
+        topicProcessingConfigSchema.parse({}),
       );
       expect(state.call).toHaveBeenCalledTimes(3);
       for (const [request] of state.call.mock.calls)
@@ -979,18 +1075,18 @@ describe("Topics naming boundary", () => {
       if (reason === "unconfigured destination")
         state.traceSink.mockReturnValue(undefined);
       else
-        state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS =
+        state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL =
           reason === "empty allowlist" ? [] : ["ai-features", "project-other"];
       state.call.mockResolvedValue({
         output: keyed({ summary: "A billing request.", status: "applicable" }),
         usage: {},
+        usageDetails: {},
+        providedCostDetails: {},
       });
       await summarizeOne(
         topicsModels(),
         "A billing request.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
+        topicProcessingConfigSchema.parse({}),
       );
       expect(state.project).not.toHaveBeenCalled();
       expect(state.call).toHaveBeenCalledOnce();
@@ -999,6 +1095,28 @@ describe("Topics naming boundary", () => {
         expect(state.traceSink).not.toHaveBeenCalled();
     },
   );
+
+  it("prices the full embedding batch through the shared engine", async () => {
+    state.embed.mockResolvedValue({
+      embeddings: [Array(256).fill(0.25), Array(256).fill(0.5)],
+      tokens: 120,
+    });
+    const result = await embedTopicSummaries(
+      topicsModels().embedding,
+      ["An invoice request.", "A billing question."],
+      256,
+      "project",
+    );
+    expect(result.costDetails).toEqual({
+      embedding_input: 0.00012,
+      total: 0.00012,
+    });
+    expect(result.usageDetails).toEqual({ embedding_input: 120, total: 120 });
+    expect(state.findModel).toHaveBeenCalledWith({
+      projectId: "project",
+      model: "eu.cohere.embed-v4:0",
+    });
+  });
 
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embeddings: [[]], tokens: 12 });

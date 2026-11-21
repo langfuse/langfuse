@@ -1,6 +1,6 @@
 import React from "react";
 import { cn } from "@/src/utils/tailwind";
-import { KeyRound, User } from "@langfuse/icons";
+import { KeyRound, Lock, User } from "@langfuse/icons";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -177,19 +177,77 @@ export const Default = meta.story({
   },
 });
 
+export const MobileOverflow = meta.story({
+  name: "(Test) Mobile overflow",
+  globals: { viewport: { value: "tabs-phone", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        "tabs-phone": {
+          name: "Phone",
+          styles: { width: "390px", height: "844px" },
+        },
+      },
+    },
+  },
+  render: () => <OverflowTabs initialValue="preview" width="w-sm" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      canvas.getByRole("combobox", { name: "Detail views" }),
+    );
+    await userEvent.click(await page.findByRole("option", { name: "Scores" }));
+    await expect(canvas.getByText("Scores panel")).toBeVisible();
+    await expect(canvas.queryByRole("tablist")).not.toBeInTheDocument();
+  },
+});
+
+const disabledChildren = (
+  <>
+    <Tabs.List variant="inset" size="md">
+      <Tabs.Trigger value="account" label="Account" />
+      <Tabs.Trigger value="password" disabled label="Password" />
+      <Tabs.Trigger
+        value="sso"
+        disabled={{
+          disabledReason: "SSO is available on the Enterprise plan.",
+        }}
+        icon={Lock}
+        label="SSO"
+      />
+    </Tabs.List>
+    <Tabs.Content value="account">Account settings</Tabs.Content>
+    <Tabs.Content value="password">Password settings</Tabs.Content>
+  </>
+);
+
 export const Disabled = meta.story({
   args: {
     defaultValue: "account",
-    children: (
-      <>
-        <Tabs.List variant="inset" size="md">
-          <Tabs.Trigger value="account" label="Account" />
-          <Tabs.Trigger value="password" disabled label="Password" />
-        </Tabs.List>
-        <Tabs.Content value="account">Account settings</Tabs.Content>
-        <Tabs.Content value="password">Password settings</Tabs.Content>
-      </>
-    ),
+    children: disabledChildren,
+  },
+});
+
+export const ExplainsDisabledTab = meta.story({
+  name: "(Test) Explains Disabled Tab",
+  args: {
+    defaultValue: "account",
+    children: disabledChildren,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const ssoTab = canvas.getByRole("tab", { name: "SSO" });
+    await expect(ssoTab).toBeDisabled();
+
+    // A disabled button ignores the pointer, so its wrapper shows the reason.
+    const wrapper = ssoTab.parentElement;
+    if (!wrapper) throw new Error("Disabled tab has no tooltip wrapper");
+    await userEvent.hover(wrapper);
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(await page.findByRole("tooltip")).toHaveTextContent(
+      "SSO is available on the Enterprise plan.",
+    );
   },
 });
 

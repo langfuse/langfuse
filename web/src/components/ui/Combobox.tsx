@@ -56,6 +56,8 @@ export interface ComboboxProps<
   className?: string;
   name?: string;
   footer?: (args: { search: string; close: () => void }) => React.ReactNode;
+  /** Edge of the trigger the list lines up with. Use "end" for triggers near the right edge. */
+  align?: "start" | "end";
 }
 
 function isGroupedOptions<T extends string | number | boolean | { id: string }>(
@@ -97,6 +99,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
   className,
   name,
   footer,
+  align = "start",
 }: ComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
@@ -154,12 +157,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
           </span>
           {selectedOption?.badge && (
             <span className="ml-1.5 flex shrink-0">
-              <Badge
-                color="filled"
-                font="mono"
-                size="sm"
-                text={selectedOption.badge}
-              />
+              <Badge color="filled" size="sm" text={selectedOption.badge} />
             </span>
           )}
           <span className="ml-2 flex">
@@ -168,6 +166,8 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        align={align}
+        collisionPadding={8}
         className="w-(--radix-popover-trigger-width) p-0"
         onCloseAutoFocus={(event) => {
           if (disabled) event.preventDefault();
@@ -228,12 +228,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                       {option.label ?? String(option.value)}
                       {option.badge && (
                         <span className="ml-auto flex shrink-0">
-                          <Badge
-                            color="filled"
-                            font="mono"
-                            size="sm"
-                            text={option.badge}
-                          />
+                          <Badge color="filled" size="sm" text={option.badge} />
                         </span>
                       )}
                     </CommandItem>
@@ -285,12 +280,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     {option.label ?? String(option.value)}
                     {option.badge && (
                       <span className="ml-auto flex shrink-0">
-                        <Badge
-                          color="filled"
-                          font="mono"
-                          size="sm"
-                          text={option.badge}
-                        />
+                        <Badge color="filled" size="sm" text={option.badge} />
                       </span>
                     )}
                   </CommandItem>

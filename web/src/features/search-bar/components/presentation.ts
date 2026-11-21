@@ -4,6 +4,7 @@
 
 import type { ComposerSegment } from "@/src/features/search-bar/lib/composer-segments";
 import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
+import type { CompareOp } from "@/src/features/search-bar/lib/ast";
 
 /** Per-view: the examples have to name fields the view actually has. */
 export function composerPlaceholder(registry: FieldRegistry): string {
@@ -20,9 +21,7 @@ export function composerPlaceholder(registry: FieldRegistry): string {
  *  while leaving underscore literal, so it is injective — distinct option ids
  *  always map to distinct DOM ids (a `\s+ → _` collapse would alias
  *  `My Test`/`My_Test` to the same duplicate id). */
-export function optionDomId(listboxId: string, optionId: string): string {
-  return `${listboxId}-opt-${encodeURIComponent(optionId)}`;
-}
+export { optionDomId } from "@/src/components/design-system/QueryInput/QueryInput";
 
 /**
  * Why this token is NOT applied on the current surface (e.g. a column the chart
@@ -31,11 +30,11 @@ export function optionDomId(listboxId: string, optionId: string): string {
  */
 export function deactivationReason(
   segment: ComposerSegment,
-  fieldReason?: (field: string) => string | null,
+  fieldReason?: (field: string, op?: CompareOp) => string | null,
   freeTextReason?: string | null,
 ): string | null {
   if (segment.kind === "filter")
-    return fieldReason?.(segment.displayField) ?? null;
+    return fieldReason?.(segment.displayField, segment.op) ?? null;
   if (segment.kind === "freeText") return freeTextReason ?? null;
   return null;
 }

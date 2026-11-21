@@ -16,6 +16,7 @@ import {
   invalidateCachedProjectApiKeys as invalidateCachedProjectApiKeysShared,
   createApiKeyCacheKey,
   API_KEY_NON_EXISTENT,
+  getOrganizationPlanServerSide,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -25,7 +26,6 @@ import {
 } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan, UnauthorizedError } from "@langfuse/shared";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
@@ -185,9 +185,9 @@ export class ApiAuthService {
             );
 
             const accessLevel =
-              finalApiKey.scope === "ORGANIZATION"
-                ? ("organization" as const)
-                : ("project" as const);
+              finalApiKey.scope === "PROJECT"
+                ? ("project" as const)
+                : ("organization" as const);
 
             // The API key is resolved via the hash of the secret key, so the
             // submitted public key may not belong to it, e.g. after a partial
@@ -225,7 +225,7 @@ export class ApiAuthService {
 
             const dbKey = await this.findDbKeyOrThrow(publicKey);
 
-            if (dbKey.scope === "ORGANIZATION") {
+            if (dbKey.scope !== "PROJECT") {
               throw new Error(
                 "Unauthorized: Cannot use organization key with bearer auth",
               );
