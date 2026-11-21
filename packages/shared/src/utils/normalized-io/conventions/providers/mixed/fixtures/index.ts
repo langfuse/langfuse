@@ -4,6 +4,7 @@ import { outputOnlyPlainTextFixture } from "./output-only-plain-text";
 import { outputOnlyStructuredMessageFixture } from "./output-only-structured-message";
 import { paramsMessagesFixture } from "./params-messages";
 import { rawPassthroughToolCallsFixture } from "./raw-passthrough-tool-calls";
+import { textBesideToolCallsFixtures } from "./text-beside-tool-calls";
 
 // Verbatim stored observation IO from ChatML integration-example exports.
 const capturedTraceFixtures: NormalizedIOFixture[] = [
@@ -282,4 +283,5 @@ export const mixedNormalizedIOFixtures = [
   paramsMessagesFixture,
   outputOnlyPlainTextFixture,
   rawPassthroughToolCallsFixture,
+  ...textBesideToolCallsFixtures,
 ];
