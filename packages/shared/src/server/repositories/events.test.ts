@@ -41,6 +41,7 @@ vi.mock("./clickhouse", async () => {
   };
 });
 
+import { OBSERVATION_FIELD_GROUPS_PUBLIC_API } from "../../domain/observation-field-groups";
 import {
   getObservationsForTraceFromEventsTable,
   getObservationsV2FromEventsTableForPublicApi,
@@ -194,6 +195,27 @@ describe("getObservationsV2FromEventsTableForPublicApi query shape", () => {
     expect(query).toContain("FROM events_core");
     expect(query).toContain("FROM base");
     expect(query).toContain("_io_start_time");
+  });
+
+  it("projects timeToFirstToken for every public field group", async () => {
+    await getObservationsV2FromEventsTableForPublicApi({
+      ...baseOpts,
+      fields: [...OBSERVATION_FIELD_GROUPS_PUBLIC_API],
+    });
+
+    const query = captureQuery();
+    expect(query).toContain("time_to_first_token");
+    expect(query).toContain("completion_start_time");
+  });
+
+  it("omits timeToFirstToken for core and basic", async () => {
+    await getObservationsV2FromEventsTableForPublicApi({
+      ...baseOpts,
+      fields: ["core", "basic"],
+    });
+
+    const query = captureQuery();
+    expect(query).not.toContain("time_to_first_token");
   });
 
   it("walks past empty windows, keeps the lookahead, and resumes with a row cursor", async () => {
