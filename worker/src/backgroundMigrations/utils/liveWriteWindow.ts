@@ -109,71 +109,14 @@ const UNBOUNDED_QUERY = {
 
 /**
  * Resolves the live-write window from the events tables and the legacy
- * `observations` table (only ingestion writes it, so every row written during
- * dual write has a live counterpart). Without a live period on record, a
- * deployment that writes the events tables now starts it at this moment, as
- * the backfill may run long after dual write was switched on. Returns null in
- * `legacy` write mode with no live period, in which case every legacy row is
- * copied.
+ * `observations` table. Returns null when no live period applies, in which
+ * case every legacy row is copied.
  */
 export async function resolveLiveWriteWindow(
   logPrefix: string,
 ): Promise<LiveWriteWindow | null> {
-  const live = (
-    await queryClickhouse<{ hour_ms: string; first_event_ms: string }>({
-      query: `
-        SELECT
-          toUnixTimestamp(toStartOfHour(event_ts)) * 1000 AS hour_ms,
-          toUnixTimestamp64Milli(min(event_ts)) AS first_event_ms
-        FROM events_core
-        WHERE source NOT LIKE '%-backfill'
-        GROUP BY hour_ms
-      `,
-      ...UNBOUNDED_QUERY,
-      tags: {
-        surface: "worker",
-        route: "background-migration.resolveLiveWriteWindow.live",
-      },
-    })
-  ).map((r) => ({
-    hourMs: Number(r.hour_ms),
-    firstEventMs: Number(r.first_event_ms),
-  }));
-
-  let startMs: number | null = null;
-  if (live.length > 0) {
-    const firstLiveHourMs = live.reduce(
-      (min, h) => Math.min(min, h.hourMs),
-      Number.POSITIVE_INFINITY,
-    );
-    const legacy = (
-      await queryClickhouse<{ hour_ms: string; legacy_rows: string }>({
-        query: `
-          SELECT
-            toUnixTimestamp(toStartOfHour(event_ts)) * 1000 AS hour_ms,
-            count() AS legacy_rows
-          FROM observations
-          WHERE event_ts >= {firstLiveHour: DateTime64(3)}
-          GROUP BY hour_ms
-        `,
-        params: {
-          firstLiveHour: convertDateToClickhouseDateTime(
-            new Date(firstLiveHourMs),
-          ),
-        },
-        ...UNBOUNDED_QUERY,
-        tags: {
-          surface: "worker",
-          route: "background-migration.resolveLiveWriteWindow.legacy",
-        },
-      })
-    ).map((r) => ({ hourMs: Number(r.hour_ms), rows: Number(r.legacy_rows) }));
-    startMs = findLiveWriteStart({ live, legacy, nowMs: Date.now() });
-  }
-
-  if (startMs === null && env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
-    startMs = Date.now();
-  }
+  const startMs =
+    (await findRecordedLiveWriteStart()) ?? currentLiveWriteStart();
   if (startMs === null) {
     logger.info(
       `${logPrefix} No current live-write period and legacy write mode; copying all legacy rows`,
@@ -181,15 +124,95 @@ export async function resolveLiveWriteWindow(
     return null;
   }
 
-  const window: LiveWriteWindow = {
-    start: new Date(startMs).toISOString(),
-    overlapEnd: new Date(startMs + OVERLAP_MS).toISOString(),
-    lookupEnd: new Date(startMs + OVERLAP_MS + LOOKUP_SLACK_MS).toISOString(),
-  };
+  const window = buildWindow(startMs);
   logger.info(
     `${logPrefix} Live writes started at ${window.start}; copying legacy rows created before ${window.overlapEnd}, deduplicating against live rows from ${window.start}`,
   );
   return window;
+}
+
+/**
+ * Start of the current live period on record, from hourly histograms of live
+ * writes and of legacy `observations` writes (only ingestion writes that
+ * table, so every row written during dual write has a live counterpart).
+ */
+async function findRecordedLiveWriteStart(): Promise<number | null> {
+  const live = await fetchLiveHourlyWrites();
+  if (live.length === 0) return null;
+
+  const firstLiveHourMs = live.reduce(
+    (min, h) => Math.min(min, h.hourMs),
+    Number.POSITIVE_INFINITY,
+  );
+  const legacy = await fetchLegacyHourlyWrites(firstLiveHourMs);
+  return findLiveWriteStart({ live, legacy, nowMs: Date.now() });
+}
+
+/**
+ * Without a live period on record, a deployment that writes the events tables
+ * now starts one at this moment: the backfill may run long after dual write
+ * was switched on. Null in `legacy` write mode.
+ */
+function currentLiveWriteStart(): number | null {
+  return env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? null : Date.now();
+}
+
+async function fetchLiveHourlyWrites(): Promise<HourlyLiveWrites[]> {
+  const rows = await queryClickhouse<{
+    hour_ms: string;
+    first_event_ms: string;
+  }>({
+    query: `
+      SELECT
+        toUnixTimestamp(toStartOfHour(event_ts)) * 1000 AS hour_ms,
+        toUnixTimestamp64Milli(min(event_ts)) AS first_event_ms
+      FROM events_core
+      WHERE source NOT LIKE '%-backfill'
+      GROUP BY hour_ms
+    `,
+    ...UNBOUNDED_QUERY,
+    tags: {
+      surface: "worker",
+      route: "background-migration.resolveLiveWriteWindow.live",
+    },
+  });
+  return rows.map((r) => ({
+    hourMs: Number(r.hour_ms),
+    firstEventMs: Number(r.first_event_ms),
+  }));
+}
+
+async function fetchLegacyHourlyWrites(
+  sinceMs: number,
+): Promise<HourlyLegacyWrites[]> {
+  const rows = await queryClickhouse<{ hour_ms: string; legacy_rows: string }>({
+    query: `
+        SELECT
+          toUnixTimestamp(toStartOfHour(event_ts)) * 1000 AS hour_ms,
+          count() AS legacy_rows
+        FROM observations
+        WHERE event_ts >= {since: DateTime64(3)}
+        GROUP BY hour_ms
+      `,
+    params: { since: convertDateToClickhouseDateTime(new Date(sinceMs)) },
+    ...UNBOUNDED_QUERY,
+    tags: {
+      surface: "worker",
+      route: "background-migration.resolveLiveWriteWindow.legacy",
+    },
+  });
+  return rows.map((r) => ({
+    hourMs: Number(r.hour_ms),
+    rows: Number(r.legacy_rows),
+  }));
+}
+
+function buildWindow(startMs: number): LiveWriteWindow {
+  return {
+    start: new Date(startMs).toISOString(),
+    overlapEnd: new Date(startMs + OVERLAP_MS).toISOString(),
+    lookupEnd: new Date(startMs + OVERLAP_MS + LOOKUP_SLACK_MS).toISOString(),
+  };
 }
 
 /** Query parameters for `buildLiveWriteFilter`; empty without a window. */
@@ -209,9 +232,8 @@ export function liveWriteWindowParams(
 }
 
 /**
- * `AND` clause keeping the legacy rows the backfill should copy: rows matching
- * `alwaysKeep`, rows created before the live-write period, and overlap rows
- * whose key has no live row. `liveKeyColumns` must
+ * `AND` clause keeping the legacy rows the backfill should copy: rows created
+ * before the live-write period, and overlap rows whose key has no live row. `liveKeyColumns` must
  * line up with `rowKey`; `liveRowsWhere` narrows the live-row scan (e.g. to the
  * chunk's partitions). Empty without a window.
  */
@@ -222,12 +244,10 @@ export function buildLiveWriteFilter(
     rowKey: string;
     liveKeyColumns: string;
     liveRowsWhere?: string;
-    alwaysKeep?: string;
   },
 ): string {
   if (!window) return "";
   return `AND (
-    ${columns.alwaysKeep ? `${columns.alwaysKeep} OR` : ""}
     ${columns.createdAt} < {liveWriteStart: DateTime64(3)}
     OR (
       ${columns.createdAt} < {liveWriteOverlapEnd: DateTime64(3)}

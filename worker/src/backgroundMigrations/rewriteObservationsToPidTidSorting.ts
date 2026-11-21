@@ -57,11 +57,7 @@ function replacingMergeTreeEngine(): string {
 export default class RewriteObservationsToPidTidSorting extends ChunkedClickhouseBackfillMigration<LiveWriteChunkTodo> {
   protected readonly migrationId = backgroundMigrationId;
   protected readonly logPrefix = LOG_PREFIX;
-  protected readonly requiredTables = [
-    "observations",
-    "events_core",
-    "dataset_run_items_rmt",
-  ];
+  protected readonly requiredTables = ["observations", "events_core"];
 
   // ==========================================================================
   // Lazy DDL: scratch table
@@ -254,17 +250,13 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
     assertSafePartition(todo.partition);
 
     // Live rows share the observation's start_time, so the events partition
-    // with the same yyyymm id holds every possible live twin. DRI-referenced
-    // traces are kept whole: M4 decides per trace whether the live rows
-    // already cover them.
+    // with the same yyyymm id holds every possible live twin.
     const window = todo.liveWriteWindow;
     const liveWriteFilter = buildLiveWriteFilter(window, {
       createdAt: "created_at",
       rowKey: "(project_id, trace_id, id)",
       liveKeyColumns: "project_id, trace_id, span_id",
       liveRowsWhere: "_partition_id = {partition: String}",
-      alwaysKeep:
-        "(project_id, trace_id) IN (SELECT project_id, trace_id FROM dataset_run_items_rmt)",
     });
 
     const query = `

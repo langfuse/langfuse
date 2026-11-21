@@ -10,6 +10,7 @@ import {
   createTracesCh,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
+import BackfillEventsFullFromDatasetRunItems from "../backgroundMigrations/backfillEventsFullFromDatasetRunItems";
 import CreateRootSpansFromTraces from "../backgroundMigrations/createRootSpansFromTraces";
 import RewriteObservationsToPidTidSorting from "../backgroundMigrations/rewriteObservationsToPidTidSorting";
 import { LiveWriteChunkTodo } from "../backgroundMigrations/utils/liveWriteWindow";
@@ -125,5 +126,77 @@ describe("V4 historic backfill during dual write", () => {
         WHERE project_id = {projectId: String}
       `),
     ).toEqual(expected.map((t) => t.observation.id).sort());
+  });
+
+  it("enriches a propagated trace whose DRI arrived after its partition was copied", async () => {
+    const projectId = v4();
+    const createdAt = at(120);
+    const trace = createTrace({
+      project_id: projectId,
+      timestamp: createdAt,
+      created_at: createdAt,
+      event_ts: createdAt,
+    });
+    const observation = createObservation({
+      project_id: projectId,
+      trace_id: trace.id,
+      parent_observation_id: null,
+      start_time: createdAt,
+      created_at: createdAt,
+      event_ts: createdAt,
+    });
+    await createTracesCh([trace]);
+    await createObservationsCh([observation]);
+    // The propagation job's copy, written before the DRI existed. The
+    // live-write filter kept the observation out of the scratch table.
+    const root = `t-${trace.id}`;
+    await createEventsCh(
+      [root, observation.id].map((spanId) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: trace.id,
+          span_id: spanId,
+          parent_span_id: spanId === root ? "" : root,
+          source: "ingestion-api-dual-write",
+          start_time: createdAt,
+          created_at: createdAt,
+          event_ts: createdAt,
+        }),
+      ),
+    );
+    await new PidTidSortingStep().createScratchTable();
+
+    const dri = {
+      id: v4(),
+      project_id: projectId,
+      trace_id: trace.id,
+      observation_id: observation.id,
+      dataset_run_id: v4(),
+      dataset_run_name: "run",
+      dataset_run_description: "",
+      dataset_run_metadata: {},
+      dataset_id: v4(),
+      dataset_item_version: null,
+      dataset_item_id: v4(),
+      dataset_item_expected_output: "{}",
+      dataset_item_metadata: {},
+      created_at: at(130).toISOString(),
+    };
+    await new BackfillEventsFullFromDatasetRunItems()["processBatch"]([dri], {
+      pollIntervalMs: 0,
+      maxRetries: 1,
+      batchSize: 1,
+      maxDescendantsPerDri: 100,
+      lookbackDays: 1,
+    });
+
+    const rows = await queryClickhouse<{ experiment_id: string }>({
+      query: `
+        SELECT experiment_id FROM events_full FINAL
+        WHERE project_id = {projectId: String} AND span_id = {spanId: String}
+      `,
+      params: { projectId, spanId: observation.id },
+    });
+    expect(rows.map((r) => r.experiment_id)).toEqual([dri.dataset_run_id]);
   });
 });
