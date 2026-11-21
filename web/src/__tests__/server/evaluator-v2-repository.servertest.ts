@@ -851,6 +851,22 @@ describe("evaluator v2 repository", () => {
       ]);
     });
 
+    it("applies every search term before the limit, in any order", async () => {
+      const [, matching] = await Promise.all([
+        createEvaluator({ name: "A production check" }),
+        createEvaluator({ name: "Z toxicity production" }),
+      ]);
+
+      await expect(
+        evaluatorRepository.listEvaluatorOptions({
+          prisma,
+          projectId,
+          search: "production  TOXICITY",
+          limit: 1,
+        }),
+      ).resolves.toEqual([expect.objectContaining({ id: matching.id })]);
+    });
+
     it("excludes evaluators attached to legacy rules when requested", async () => {
       const [standalone, legacy] = await Promise.all([
         createEvaluator({ name: "Standalone batch evaluator" }),
