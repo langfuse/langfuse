@@ -816,9 +816,7 @@ describe("DataTableControls facet ordering", () => {
         <DataTableControls queryFilter={{ ...queryFilter([]), clearAll }} />
       </TooltipProvider>,
     );
-    fireEvent.keyDown(screen.getByRole("button", { name: "Filter options" }), {
-      key: "Enter",
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Filter options" }));
     const clear = screen.getByRole("menuitem", { name: "Clear all filters" });
     expect(clear).not.toHaveAttribute("aria-disabled", "true");
     fireEvent.click(clear);
@@ -841,11 +839,7 @@ describe("DataTableControls facet ordering", () => {
     // An in-list interaction that changes no promotion leaves its attribution
     // outstanding — Clear all must not inherit it and keep Beta pinned.
     fireEvent.pointerDown(screen.getByText("Beta"));
-    // Radix opens the menu on pointer-down, which jsdom doesn't synthesize
-    // reliably; the keyboard path opens it without PointerEvent support.
-    fireEvent.keyDown(screen.getByRole("button", { name: "Filter options" }), {
-      key: "Enter",
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Filter options" }));
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Clear all filters" }),
     );

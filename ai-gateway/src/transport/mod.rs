@@ -72,9 +72,10 @@ const COMMON_RESPONSE_HEADERS: &[&str] = &[
 
 pub(crate) fn request_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
     match api_format {
-        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => {
-            selected_headers(source, COMMON_REQUEST_HEADERS, &[])
-        }
+        ApiFormat::OpenAiResponses
+        | ApiFormat::OpenAiChatCompletions
+        | ApiFormat::OpenAiDecisions
+        | ApiFormat::OpenAiEmbeddings => selected_headers(source, COMMON_REQUEST_HEADERS, &[]),
         ApiFormat::AnthropicMessages => {
             selected_headers(source, COMMON_REQUEST_HEADERS, &["anthropic-"])
         }
@@ -83,7 +84,10 @@ pub(crate) fn request_headers(source: &HeaderMap, api_format: ApiFormat) -> Head
 
 pub(crate) fn response_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
     match api_format {
-        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => selected_headers(
+        ApiFormat::OpenAiResponses
+        | ApiFormat::OpenAiChatCompletions
+        | ApiFormat::OpenAiDecisions
+        | ApiFormat::OpenAiEmbeddings => selected_headers(
             source,
             &[
                 COMMON_RESPONSE_HEADERS,
@@ -117,7 +121,10 @@ pub(crate) fn response_headers(source: &HeaderMap, api_format: ApiFormat) -> Hea
 /// The provider's own request ID, bounded like other captured provider facts.
 pub(crate) fn provider_request_id(headers: &HeaderMap, api_format: ApiFormat) -> Option<&str> {
     let name = match api_format {
-        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => "x-request-id",
+        ApiFormat::OpenAiResponses
+        | ApiFormat::OpenAiChatCompletions
+        | ApiFormat::OpenAiDecisions
+        | ApiFormat::OpenAiEmbeddings => "x-request-id",
         ApiFormat::AnthropicMessages => "request-id",
     };
     headers

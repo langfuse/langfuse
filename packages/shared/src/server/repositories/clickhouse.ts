@@ -27,7 +27,10 @@ import {
   isProgressRow,
   isRow,
 } from "@clickhouse/client";
-import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
+import {
+  RESOURCE_LIMIT_ERROR_MESSAGE,
+  RESULT_SIZE_LIMIT_ERROR_MESSAGE,
+} from "../../errors/errorMessages";
 import {
   buildClickHouseLogComment,
   normalizeClickHouseQueryTags,
@@ -37,6 +40,8 @@ import {
 import {
   CLICKHOUSE_NETWORK_ERROR_PATTERNS,
   CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  type ClickHouseQueryOutcome,
+  clickHouseQueryErrorCode,
   clickHouseQueryShape,
   clickHouseQueryTableLabel,
   recordClickHouseQueryOutcome,
@@ -56,11 +61,14 @@ export { TupleParam } from "@clickhouse/client";
  */
 // Error type configuration map
 const ERROR_TYPE_CONFIG: Record<
-  "MEMORY_LIMIT" | "OVERCOMMIT" | "TIMEOUT",
+  "MEMORY_LIMIT" | "OVERCOMMIT" | "TIMEOUT" | "RESULT_SIZE",
   {
     discriminators: string[];
   }
 > = {
+  RESULT_SIZE: {
+    discriminators: ["too_many_rows_or_bytes", "limit for result exceeded"],
+  },
   // Order matters: matched top-to-bottom, first hit wins. OvercommitTracker
   // kills also carry a "Memory limit … exceeded" phrase, so OVERCOMMIT must
   // precede MEMORY_LIMIT to keep the more specific cause in the outcome metric.
@@ -88,6 +96,12 @@ export class ClickHouseResourceError extends Error {
 
   public readonly errorType: ErrorType;
   public readonly tags?: NormalizedClickHouseQueryTags;
+
+  get adviceMessage(): string {
+    return this.errorType === "RESULT_SIZE"
+      ? RESULT_SIZE_LIMIT_ERROR_MESSAGE
+      : ClickHouseResourceError.ERROR_ADVICE_MESSAGE;
+  }
 
   constructor(
     errType: ErrorType,
@@ -700,11 +714,26 @@ function isRetryableError(error: unknown): boolean {
   );
 }
 
+/** `cause` is the abort signal's reason. */
 export class ClickHouseQueryAbortedError extends Error {
   constructor(cause?: unknown) {
     super("ClickHouse query aborted", { cause });
     this.name = "ClickHouseQueryAbortedError";
   }
+
+  /** Aborted by a deadline such as `AbortSignal.timeout()`, not by a client leaving. */
+  get isClientTimeout(): boolean {
+    return this.cause instanceof Error && this.cause.name === "TimeoutError";
+  }
+}
+
+function isResourceError(error: unknown): boolean {
+  return (
+    error instanceof ClickHouseResourceError ||
+    (error instanceof Error &&
+      ClickHouseResourceError.wrapIfResourceError(error) instanceof
+        ClickHouseResourceError)
+  );
 }
 
 export async function queryClickhouse<T>(
@@ -809,8 +838,18 @@ export async function queryClickhouse<T>(
   );
 }
 
+type ClickHouseProgressQueryOpts = ClickhouseQueryOpts & {
+  abortSignal?: AbortSignal;
+  /**
+   * `max_execution_time` is the caller's remaining time budget, so a ClickHouse
+   * `TIMEOUT_EXCEEDED` is that budget running out and is recorded as
+   * `deadline`. Other timeouts, such as a socket timeout, stay `timeout`.
+   */
+  callerDeadline?: boolean;
+};
+
 export async function* queryClickhouseWithProgress<T>(
-  opts: ClickhouseQueryOpts & { abortSignal?: AbortSignal },
+  opts: ClickHouseProgressQueryOpts,
 ): AsyncGenerator<RowOrProgress<T>> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
@@ -824,6 +863,7 @@ export async function* queryClickhouseWithProgress<T>(
     table,
     shape,
     clickhouseService,
+    callerDeadline: opts.callerDeadline ?? false,
   };
 
   const tracer = getTracer("clickhouse-query-progress");
@@ -840,7 +880,7 @@ export async function* queryClickhouseWithProgress<T>(
 }
 
 async function* runClickHouseProgressAttempts<T>(
-  opts: ClickhouseQueryOpts & { abortSignal?: AbortSignal },
+  opts: ClickHouseProgressQueryOpts,
   span: Span,
   progressContext: ClickHouseProgressQueryContext,
 ): AsyncGenerator<RowOrProgress<T>> {
@@ -883,8 +923,14 @@ async function* runClickHouseProgressAttempts<T>(
         return;
       } catch (error) {
         if (opts.abortSignal?.aborted) {
-          const aborted = new ClickHouseQueryAbortedError(error);
-          if (!outcomeRecorded) recordError(aborted, queryId);
+          const aborted = new ClickHouseQueryAbortedError(
+            opts.abortSignal.reason,
+          );
+          // A deadline reason reads like a CH timeout, so only a different error is checked.
+          const resourceError =
+            error !== opts.abortSignal.reason && isResourceError(error);
+          if (!outcomeRecorded)
+            recordError(resourceError ? error : aborted, queryId);
           throw aborted;
         }
         if (outcomeRecorded) throw error;
@@ -910,8 +956,19 @@ async function* runClickHouseProgressAttempts<T>(
       }
     }
   } finally {
-    /** Consumer return()/break closes the stream without reaching EOF or catch. */
-    if (!outcomeRecorded) recordError(new ClickHouseQueryAbortedError());
+    /**
+     * Consumer return()/break, or a throw in its loop body, closes the stream
+     * without reaching EOF or catch. A consumer that stops on purpose aborts
+     * its signal first; without an abort this path counts as an error.
+     */
+    if (!outcomeRecorded)
+      recordError(
+        opts.abortSignal?.aborted
+          ? new ClickHouseQueryAbortedError(opts.abortSignal.reason)
+          : new Error(
+              "ClickHouse stream closed by its consumer without an abort",
+            ),
+      );
   }
 }
 
@@ -1050,6 +1107,24 @@ async function retryClickHouseProgress(
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
 
+function clickHouseProgressFailureOutcome(
+  error: unknown,
+  wrapped: Error,
+  callerDeadline: boolean,
+): ClickHouseQueryOutcome {
+  if (error instanceof ClickHouseQueryAbortedError) {
+    return error.isClientTimeout ? "deadline" : "client_closed";
+  }
+  if (!(wrapped instanceof ClickHouseResourceError)) return "error";
+  if (
+    callerDeadline &&
+    clickHouseQueryErrorCode(error) === "timeout_exceeded"
+  ) {
+    return "deadline";
+  }
+  return CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType];
+}
+
 function recordClickHouseProgressError(
   error: unknown,
   queryId: string | undefined,
@@ -1067,12 +1142,8 @@ function recordClickHouseProgressError(
           enrichWithQueryId(originalError, queryId),
           context.normalizedTags,
         );
-  const fallbackOutcome =
-    error instanceof ClickHouseQueryAbortedError ? "client_closed" : "error";
   recordClickHouseQueryOutcome(
-    wrapped instanceof ClickHouseResourceError
-      ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]
-      : fallbackOutcome,
+    clickHouseProgressFailureOutcome(error, wrapped, context.callerDeadline),
     context.normalizedTags,
     context.table,
     context.shape,
@@ -1097,6 +1168,7 @@ type ClickHouseProgressQueryContext = {
   table: ReturnType<typeof clickHouseQueryTableLabel>;
   shape: ReturnType<typeof clickHouseQueryShape>;
   clickhouseService: ReturnType<typeof resolveClickhouseService>;
+  callerDeadline: boolean;
 };
 
 export async function commandClickhouse(opts: {

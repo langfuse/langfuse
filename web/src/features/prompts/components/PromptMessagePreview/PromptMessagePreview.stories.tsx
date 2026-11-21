@@ -1,6 +1,6 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, spyOn } from "storybook/test";
-import { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+import { ChatMlMessageSchema } from "@langfuse/shared";
 import { MarkdownRenderCharacterLimitContext } from "@/src/components/MarkdownRenderCharacterLimitProvider/MarkdownRenderCharacterLimitContext";
 import { PromptMessagePreview } from "./PromptMessagePreview";
 

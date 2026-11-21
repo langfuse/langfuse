@@ -1,6 +1,78 @@
 import { describe, expect, it } from "vitest";
 
-import { parseGeneratedFilters } from "@/src/features/search-bar/server/parseFilterCompletion";
+import {
+  parseGeneratedFilters,
+  parseRefinedFilters,
+} from "@/src/features/search-bar/server/parseFilterCompletion";
+
+describe("parseRefinedFilters", () => {
+  const filter = {
+    type: "stringOptions",
+    column: "level",
+    operator: "any of",
+    value: ["ERROR"],
+  };
+  it("keeps a complete refinement and rejects truncated or invalid replacements", () => {
+    expect(parseRefinedFilters(JSON.stringify([filter]))).toMatchObject({
+      status: "complete",
+      filters: [filter],
+    });
+    expect(parseRefinedFilters("[]")).toMatchObject({
+      status: "complete",
+      filters: [],
+    });
+    for (const language of [
+      "json",
+      "markdown",
+      "",
+      "application-json",
+      "json title=filters",
+    ]) {
+      expect(
+        parseRefinedFilters(
+          `\`\`\`${language}\n${JSON.stringify({ filters: [filter] })}\n\`\`\``,
+        ),
+      ).toMatchObject({ status: "complete", filters: [filter] });
+    }
+    const fenced = `\`\`\`markdown\n${JSON.stringify([filter])}\n\`\`\``;
+    for (const incomplete of [
+      `Here are the filters:\n${fenced}`,
+      `${fenced}\nUpdated filters`,
+      `${fenced}\n${fenced}`,
+      `\`\`\`markdown\n${JSON.stringify([filter])}`,
+      `\`\`\`markdown\n${JSON.stringify([filter]).slice(0, -1)}\n\`\`\``,
+    ]) {
+      expect(parseRefinedFilters(incomplete)).toEqual({
+        status: "incomplete",
+        unknownScoreNames: [],
+      });
+    }
+    const draftThenTruncated = `${JSON.stringify([filter])}\nUpdated filters:\n[{"type":"stringOptions","column":"name","operator":"any of","value":["unfinished`;
+    expect(parseRefinedFilters(draftThenTruncated)).toEqual({
+      status: "incomplete",
+      unknownScoreNames: [],
+    });
+    expect(
+      parseRefinedFilters(JSON.stringify([filter, { type: "not-a-filter" }])),
+    ).toEqual({ status: "incomplete", unknownScoreNames: [] });
+  });
+  it("rejects the complete replacement while retaining unknown-score details", () => {
+    const completion = JSON.stringify([
+      filter,
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "private-score",
+        operator: ">",
+        value: 0.5,
+      },
+    ]);
+    expect(parseRefinedFilters(completion, { numeric: ["accuracy"] })).toEqual({
+      status: "incomplete",
+      unknownScoreNames: ["private-score"],
+    });
+  });
+});
 
 describe("parseGeneratedFilters", () => {
   it("parses a plain JSON array of v4 filters and derives query text", () => {

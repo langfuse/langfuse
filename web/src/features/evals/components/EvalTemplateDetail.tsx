@@ -1,11 +1,11 @@
 /* eslint-disable no-nested-ternary */
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import * as React from "react";
 import { EvalTemplateForm } from "@/src/features/evals/components/EvalTemplateForm";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/Page";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Command } from "@/src/components/ui/command";
@@ -18,7 +18,7 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/DeleteEvalTemplateDialog";
+import { DeleteEvalTemplateDialogController } from "@/src/features/evals/components/DeleteEvalTemplateDialogController";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { TrashIcon } from "@langfuse/icons";
 
@@ -28,7 +28,6 @@ export const EvalTemplateDetail = () => {
   const templateId = router.query.id as string;
   const mode = router.query.mode;
   const isEditing = mode === "edit";
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const capture = usePostHogClientCapture();
   const hasDeleteAccess = useHasProjectAccess({
     projectId,
@@ -109,39 +108,40 @@ export const EvalTemplateDetail = () => {
             />
 
             {template.data?.projectId ? (
-              <>
-                <IconOnlyButton
-                  icon={<TrashIcon size="base" color="default" />}
-                  label="Delete"
-                  aria-label="delete"
-                  variant="outline"
-                  size="icon"
-                  disabledReason={
-                    hasDeleteAccess
-                      ? undefined
-                      : "You don't have permission to delete this evaluator."
-                  }
-                  onClick={() => {
-                    capture("eval_templates:delete_form_open", {
-                      source: "template",
-                    });
-                    setIsDeleteDialogOpen(true);
-                  }}
-                />
-                <DeleteEvalTemplateDialog
-                  projectId={projectId}
-                  templateId={templateId}
-                  templateName={template.data.name}
-                  open={isDeleteDialogOpen}
-                  onOpenChange={setIsDeleteDialogOpen}
-                  onSuccess={() => {
-                    capture("eval_templates:delete_template_button_click", {
-                      source: "template",
-                    });
-                    router.push(`/project/${projectId}/evals/templates`);
-                  }}
-                />
-              </>
+              <DeleteEvalTemplateDialogController
+                projectId={projectId}
+                onSuccess={() => {
+                  capture("eval_templates:delete_template_button_click", {
+                    source: "template",
+                  });
+                  router.push(`/project/${projectId}/evals/templates`);
+                }}
+              >
+                {({ openDialog }) => (
+                  <IconOnlyButton
+                    icon={<TrashIcon size="base" color="default" />}
+                    label="Delete"
+                    aria-label="delete"
+                    variant="outline"
+                    size="icon"
+                    disabledReason={
+                      hasDeleteAccess
+                        ? undefined
+                        : "You don't have permission to delete this evaluator."
+                    }
+                    onClick={() => {
+                      if (!template.data) return;
+                      capture("eval_templates:delete_form_open", {
+                        source: "template",
+                      });
+                      openDialog({
+                        templateId,
+                        templateName: template.data.name,
+                      });
+                    }}
+                  />
+                )}
+              </DeleteEvalTemplateDialogController>
             ) : null}
           </>
         ),
@@ -193,7 +193,7 @@ export const EvalTemplateDetail = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                             }}
-                            color="primary"
+                            color="outline"
                             size="lg"
                             text={`# ${template.version}`}
                             data-version-trigger="false"

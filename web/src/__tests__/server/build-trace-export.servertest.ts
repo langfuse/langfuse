@@ -14,7 +14,6 @@ const {
   mockGetScoresAndCorrectionsForTraces,
   mockTraceSessionFindFirst,
   mockProjectFindFirst,
-  mockSendAdminAccessWebhook,
 } = vi.hoisted(() => ({
   mockGetTraceByIdFromEventsTable: vi.fn(),
   mockGetObservationsCountFromEventsTable: vi.fn(),
@@ -22,7 +21,6 @@ const {
   mockGetScoresAndCorrectionsForTraces: vi.fn(),
   mockTraceSessionFindFirst: vi.fn(),
   mockProjectFindFirst: vi.fn(),
-  mockSendAdminAccessWebhook: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async () => ({
@@ -48,11 +46,6 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-vi.mock("../../server/adminAccessWebhook", () => ({
-  sendAdminAccessWebhook: (...args: unknown[]) =>
-    mockSendAdminAccessWebhook(...args),
-}));
-
 const projectId = "project-1";
 const traceId = "trace-1";
 const traceTimestamp = new Date("2024-01-01T00:00:00.000Z");
@@ -61,14 +54,13 @@ const observationStartTimeFilter = new Date(
 );
 
 const makeSession = (overrides?: {
-  admin?: boolean;
   projects?: Array<{ id: string }>;
 }): TraceExportSession => ({
   user: {
     email: "test@example.com",
-    admin: overrides?.admin ?? false,
     organizations: [
       {
+        id: "org-1",
         projects: overrides?.projects ?? [{ id: projectId }],
       },
     ],
@@ -447,19 +439,5 @@ describe("buildTraceExport", () => {
         session: null,
       }),
     ).rejects.toBeInstanceOf(UnauthorizedError);
-  });
-
-  it("notifies on admin access", async () => {
-    await buildTraceExport({
-      traceId,
-      projectId,
-      session: makeSession({ admin: true, projects: [] }),
-    });
-
-    expect(mockSendAdminAccessWebhook).toHaveBeenCalledWith({
-      email: "test@example.com",
-      projectId,
-      orgId: "org-1",
-    });
   });
 });

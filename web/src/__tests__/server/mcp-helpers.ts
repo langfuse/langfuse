@@ -7,6 +7,7 @@
 
 import { randomUUID } from "crypto";
 import { prisma, type Role } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
@@ -16,7 +17,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import type { ServerContext } from "@/src/features/mcp/types";
-import { authenticator } from "@/src/features/apiKey/server";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 
 /**
  * Creates a complete MCP test setup including:
@@ -58,6 +59,7 @@ export async function createMcpTestSetup(): Promise<{
     publicKey: result.publicKey,
     plan: "oss",
     rateLimitOverrides: [],
+    accessAuditLogEnabled: false,
     auth: authenticated.context,
   };
 
@@ -85,12 +87,10 @@ export async function createUserWithOrgRole(params: {
     },
   });
 
-  await prisma.organizationMembership.create({
-    data: {
-      orgId: params.orgId,
-      userId: user.id,
-      role: params.role,
-    },
+  await createOrgMembership(prisma, {
+    orgId: params.orgId,
+    userId: user.id,
+    role: params.role,
   });
 
   return { userId: user.id };
@@ -138,6 +138,7 @@ export async function createInAppAgentMcpContext(params: {
       publicKey: apiKey.publicKey,
       plan: "oss",
       rateLimitOverrides: [],
+      accessAuditLogEnabled: false,
       auth: authenticated.context,
     },
   };
@@ -170,6 +171,7 @@ export function mockServerContext(
     publicKey: overrides?.publicKey ?? "pk-lf-test",
     plan: overrides?.plan ?? "oss",
     rateLimitOverrides: overrides?.rateLimitOverrides ?? [],
+    accessAuditLogEnabled: overrides?.accessAuditLogEnabled ?? false,
     ...overrides,
   };
 }

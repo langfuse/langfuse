@@ -1,5 +1,6 @@
 import {
   Ban,
+  BotMessageSquare,
   Building2,
   Eye,
   FolderGit2,
@@ -24,5 +25,7 @@ export const roleIcons: Record<SystemRole, IconComponent> = {
   LEGACY_ORGANIZATION_API_KEY: Building2,
   SCORES_INGEST: Star,
   INGEST: Radio,
+  APPLICATION: BotMessageSquare,
   AI_GATEWAY: Network,
+  AI_GATEWAY_INFERENCE: Network,
 };

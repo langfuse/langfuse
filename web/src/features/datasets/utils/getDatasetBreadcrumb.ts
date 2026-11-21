@@ -1,4 +1,4 @@
-import { createBreadcrumbItems } from "@/src/features/folders";
+import { createBreadcrumbItems } from "@/src/features/folders/utils";
 
 export const getDatasetBreadcrumb = (
   projectId: string,

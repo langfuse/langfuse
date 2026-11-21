@@ -1,4 +1,4 @@
-import { polymorphicValue } from "@/src/features/public-api/server/scores-api-v3";
+import { polymorphicValueForV3 as polymorphicValue } from "@langfuse/shared/src/server";
 
 describe("polymorphicValue", () => {
   it.each([

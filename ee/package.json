@@ -21,18 +21,17 @@
     "build": "tsc",
     "typecheck": "dotenv -e ../../.env -- tsc --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "tsc --watch",
-    "lint": "eslint --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",
-    "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix --concurrency 2"
+    "lint": "oxlint --max-warnings 0",
+    "lint:fix": "oxlint --fix ."
   },
   "dependencies": {
     "@langfuse/shared": "workspace:*",
     "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
+    "@repo/oxlint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.3.0",
-    "eslint": "catalog:",
     "typescript": "catalog:"
   }
 }

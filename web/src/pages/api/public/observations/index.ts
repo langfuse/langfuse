@@ -2,6 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
+  visibleModelsWhere,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -21,7 +22,7 @@ import {
 } from "@/src/features/public-api/server/observations";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { OBSERVATIONS_V1_DEPRECATION } from "@/src/features/public-api/server/deprecations";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
@@ -116,10 +117,7 @@ export default withMiddlewares(
                   id: {
                     in: uniqueModels,
                   },
-                  OR: [
-                    { projectId: auth.scope.projectId },
-                    { projectId: null },
-                  ],
+                  ...visibleModelsWhere(auth.scope.projectId),
                 },
                 include: {
                   Price: {

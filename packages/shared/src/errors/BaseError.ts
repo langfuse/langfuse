@@ -8,8 +8,9 @@ export class BaseError extends Error {
     httpCode: number,
     description: string,
     isOperational: boolean,
+    options?: ErrorOptions,
   ) {
-    super(description);
+    super(description, options);
     Object.setPrototypeOf(this, new.target.prototype); // restore prototype chain
 
     this.name = name;

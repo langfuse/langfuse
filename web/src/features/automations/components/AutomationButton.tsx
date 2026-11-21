@@ -1,5 +1,5 @@
 import { ActionButton } from "@/src/components/ActionButton";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Zap } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";

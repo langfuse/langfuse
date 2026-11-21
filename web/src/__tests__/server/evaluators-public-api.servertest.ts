@@ -11,15 +11,15 @@ import {
   createCodeEvaluator,
   createEvaluationRule,
 } from "@/src/__tests__/server/stable-evaluation-public-api-test-utils";
-import { EvaluatorService, RuleService } from "@/src/features/evals/server";
+import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import {
   DeleteEvaluatorResponse,
   Evaluator,
   ListEvaluatorsResponse,
   LlmAsJudgeEvaluator,
-  PublicApiError,
-} from "@/src/features/public-api";
-import { toApiReadMappings } from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/evaluation/evaluators";
+import { PublicApiError } from "@/src/features/public-api/types/public-api-errors";
 
 describe("stable evaluators public API", () => {
   it("creates evaluators", async () => {
@@ -388,32 +388,6 @@ describe("stable evaluators public API", () => {
         dataType: "NUMERIC",
       },
     });
-  });
-
-  it("reads snake-case tool call mappings", () => {
-    expect(
-      toApiReadMappings([
-        {
-          templateVariable: "input",
-          selectedColumnId: "input",
-          jsonSelector: null,
-        },
-        {
-          templateVariable: "output",
-          selectedColumnId: "output",
-          jsonSelector: null,
-        },
-        {
-          templateVariable: "tool_calls",
-          selectedColumnId: "tool_calls",
-          jsonSelector: null,
-        },
-      ]),
-    ).toEqual([
-      { variable: "input", source: "input" },
-      { variable: "output", source: "output" },
-      { variable: "tool_calls", source: "tool_calls" },
-    ]);
   });
 
   it("returns 404 when getting an invalid evaluator ID", async () => {

@@ -25,15 +25,19 @@ const windowBucketCases = [
 ] as const;
 
 /** buildWindowQuery compiles a minimal traces query bucketed by the given window granularity. */
-const buildWindowQuery = async (granularity: string) => {
+const buildWindowQuery = async (
+  granularity: string,
+  fromTimestamp = "2025-01-01T00:00:00.000Z",
+  toTimestamp = "2025-01-02T00:00:00.000Z",
+) => {
   const query = {
     view: "traces",
     dimensions: [],
     metrics: [{ measure: "count", aggregation: "count" }],
     filters: [],
     timeDimension: { granularity },
-    fromTimestamp: "2025-01-01T00:00:00.000Z",
-    toTimestamp: "2025-01-02T00:00:00.000Z",
+    fromTimestamp,
+    toTimestamp,
     orderBy: null,
   } as unknown as QueryType;
   return new QueryBuilder().build(query, "test-project");
@@ -47,6 +51,26 @@ describe("queryBuilder interval bucketing", () => {
       expect(query).toContain("toStartOfInterval");
       expect(query).toContain(interval);
       expect(query).toContain(`STEP ${interval}`);
+    },
+  );
+
+  // Fill bounds are bucketed to 32-bit DateTime, which overflows after 2106-02-07T06:28:15Z.
+  it.each([
+    ["month", "2025-01-01T00:00:00.000Z", "2106-01-01T00:00:00.000Z", true],
+    ["month", "2025-01-01T00:00:00.000Z", "2106-01-01T00:00:00.001Z", false],
+    ["day", "1969-12-31T23:59:59.999Z", "1970-02-01T00:00:00.000Z", false],
+    // 50,000 and 50,001 one-minute buckets.
+    ["minute", "2025-01-01T00:00:00.000Z", "2025-02-04T17:20:00.000Z", true],
+    ["minute", "2025-01-01T00:00:00.000Z", "2025-02-04T17:21:00.000Z", false],
+  ] as const)(
+    "%s from %s to %s applies WITH FILL: %s",
+    async (granularity, fromTimestamp, toTimestamp, fills) => {
+      const { query } = await buildWindowQuery(
+        granularity,
+        fromTimestamp,
+        toTimestamp,
+      );
+      expect(query.includes("WITH FILL")).toBe(fills);
     },
   );
 });

@@ -9,7 +9,8 @@
 import { useState, useCallback } from "react";
 import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showToast } from "@/src/features/notifications/showToast";
 import { type ObservationIOData } from "./useLogViewAllObservationsIO";
 
 export interface UseLogViewDownloadParams {

@@ -124,6 +124,20 @@ const commonArgs = {
   onOpenObservation: () => {},
   scrollTarget: null,
 };
+export const QueueAnnotationActions = meta.story({
+  name: "Queue corrections and trace comments",
+  args: {
+    ...commonArgs,
+    onOpenTrace: fn(),
+    state: { type: "transcript", result },
+    annotationActions: {
+      commentCount: 3,
+      commentsDisabled: false,
+      onOpenComments: fn(),
+      onOpenCorrections: fn(),
+    },
+  },
+});
 function transcriptState({
   messages,
   history,
@@ -654,6 +668,37 @@ export const OpenToolObservation = meta.story({
       within(tool).getByRole("button", { name: "Open observation" }),
     );
     await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
+  },
+});
+
+export const ToolNameFitsOnPhone = meta.story({
+  name: "(Test) Tool Name Fits On Phone",
+  args: {
+    ...commonArgs,
+    state: toolPreviewState([
+      {
+        name: "get_subscription_details",
+        input: { customerId: "cus_1" },
+        output: { plan: "pro" },
+      },
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    if (!("__vitest_browser__" in globalThis)) return;
+    const { page } = await import("vitest/browser");
+    const originalViewport = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+    try {
+      await page.viewport(375, 812);
+      const label = within(canvasElement).getByText("get_subscription_details");
+      await waitFor(() =>
+        expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth),
+      );
+    } finally {
+      await page.viewport(originalViewport.width, originalViewport.height);
+    }
   },
 });
 

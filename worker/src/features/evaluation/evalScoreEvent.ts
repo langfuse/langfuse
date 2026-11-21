@@ -21,6 +21,7 @@ export type EvalScoreWritePayload = {
 export function buildEvalScoreWritePayloads(params: {
   scores: CodeEvalScoreWithName[];
   jobExecutionId: string;
+  scoreTimestamp: Date;
   traceId: string | null;
   observationId: string | null;
   environment: string;
@@ -41,7 +42,9 @@ export function buildEvalScoreWritePayloads(params: {
       scoreId,
       event: {
         id: eventId,
-        timestamp: new Date().toISOString(),
+        // The score's ClickHouse key includes its UTC date. Keep it stable
+        // across retries, including retries that run on a different day.
+        timestamp: params.scoreTimestamp.toISOString(),
         type: eventTypes.SCORE_CREATE,
         body: {
           id: scoreId,

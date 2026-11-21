@@ -3,7 +3,7 @@
  */
 
 import type { Session } from "next-auth";
-import type { Entitlement } from "@/src/features/entitlements/constants/entitlements";
+import type { Entitlement } from "@langfuse/shared";
 
 /**
  * Context object containing all data needed for navigation filtering
@@ -18,8 +18,6 @@ export type NavigationFilterContext = {
   session: Session | null;
   /** Whether experimental features are enabled globally */
   enableExperimentalFeatures: boolean;
-  /** Whether user is a cloud admin (bypasses most checks) */
-  cloudAdmin: boolean;
   /** Plan-based entitlements available to current user/org */
   entitlements: Entitlement[];
   /** UI customization settings (enterprise feature) */
@@ -31,6 +29,4 @@ export type NavigationFilterContext = {
   /** Whether the current project must remain on v3. */
   forceV3Experience: boolean;
   internalFeaturesEnabled: boolean;
-  /** Current router path for active state detection */
-  currentPath: string;
 };

@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React, { useMemo, useRef } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useRouter } from "next/router";
@@ -38,11 +39,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useProject } from "@/src/features/projects";
-import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useProject } from "@/src/features/projects/hooks";
+import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   resolveMonitorNameForSave,
   type MonitorNameResolution,
@@ -66,9 +67,10 @@ import {
   UpdateMonitorSchema,
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
-import { viewDeclarations, type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
+import { getMetricUnit } from "@langfuse/shared/query";
 
-import { TagManager } from "@/src/features/tag";
+import { default as TagManager } from "@/src/features/tag/components/TagManager";
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
@@ -82,15 +84,6 @@ import {
   windowLabels,
 } from "../helpers/monitorLabels";
 import { renderNamePlaceholder } from "../helpers/renderMonitorLabels";
-
-/** numericMeasureTypes are the measure types whose values carry their own unit. */
-const numericMeasureTypes = new Set(["integer", "decimal", "number"]);
-
-/** unitLabels spells out measure units that read better pluralized. */
-const unitLabels: Record<string, string> = { millisecond: "milliseconds" };
-
-/** unitlessMeasureLabels names the unit of measures declared without one. */
-const unitlessMeasureLabels: Record<string, string> = { value: "score value" };
 
 /** createDefaults returns the form defaults for a brand-new monitor. */
 const createDefaults = (
@@ -442,10 +435,12 @@ export const MonitorForm = ({
     updateMutation.isPending ||
     suggestName.isPending;
   /** thresholdUnitLabel names the unit the thresholds are compared in, e.g. "milliseconds". */
-  const thresholdUnitLabel = thresholdUnit(
+  const thresholdUnitLabel = getMetricUnit(
     (watched.view ?? "observations") as MonitorView,
-    watched.metric?.measure ?? "count",
-    watched.metric?.aggregation ?? "count",
+    {
+      measure: watched.metric?.measure ?? "count",
+      aggregation: watched.metric?.aggregation ?? "count",
+    },
   );
   /** isIncomplete is true while a new alert is missing required fields. */
   const isIncomplete = !isEdit && !form.formState.isValid;
@@ -986,26 +981,32 @@ const NoDataField = ({
             <code className="bg-secondary rounded border px-0.5">0</code>
           </span>
         </SelectItem>
-        <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
+        <SelectItem value={MonitorNoDataModeSchema.enum.SUBSTITUTE_OK}>
           <span className="inline-flex items-center gap-1.5">
-            Keep the previous
-            <Badge color="inverted" text="SEVERITY" />
-          </span>
-        </SelectItem>
-        <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>
-          <span className="inline-flex items-center gap-1.5">
-            Show severity
-            <MonitorSeverityBadge
-              severity={MonitorSeveritySchema.enum.NO_DATA}
-            />
+            Treat missing data as
+            <MonitorSeverityBadge severity={MonitorSeveritySchema.enum.OK} />
           </span>
         </SelectItem>
         <SelectItem value={MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA}>
           <span className="inline-flex items-center gap-1.5">
-            Notify after sustained
+            Notify
             <MonitorSeverityBadge
               severity={MonitorSeveritySchema.enum.NO_DATA}
             />
+          </span>
+        </SelectItem>
+        <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>
+          <span className="inline-flex items-center gap-1.5">
+            Silence
+            <MonitorSeverityBadge
+              severity={MonitorSeveritySchema.enum.NO_DATA}
+            />
+          </span>
+        </SelectItem>
+        <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
+          <span className="inline-flex items-center gap-1.5">
+            Keep the previous
+            <Badge color="inverted" text="SEVERITY" />
           </span>
         </SelectItem>
       </SelectContent>
@@ -1088,25 +1089,9 @@ const RenotifyField = ({
   </div>
 );
 
-/** thresholdUnit returns the unit a metric's value is in, or undefined when it has none. */
-function thresholdUnit(
-  view: MonitorView,
-  measure: string,
-  aggregation: string,
-): string | undefined {
-  const measures = viewDeclarations.v2[view]?.measures ?? {};
-  const definition = measures[measure];
-  const isNumeric = numericMeasureTypes.has(definition?.type ?? "");
-  if (aggregation === "count" && isNumeric) return measures.count?.unit;
-  if (aggregation === "uniq" && isNumeric) return undefined;
-  if (!definition?.unit) return unitlessMeasureLabels[measure];
-  return unitLabels[definition.unit] ?? definition.unit;
-}
-
 /** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {
   createDefaults,
-  thresholdUnit,
   monitorToDefaults,
   nameOrPlaceholder,
   monitorCreateAnalyticsProperties,

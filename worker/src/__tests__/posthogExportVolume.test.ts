@@ -30,12 +30,20 @@ describe("countingFetch (posthog export volume)", () => {
     });
     expect(volume.bytes).toBe(14);
 
+    // posthog-node gzips with node:zlib and sends the bytes
+    await wrapped("https://app.posthog.com/batch/", {
+      method: "POST",
+      headers: {},
+      body: new Uint8Array(6),
+    });
+    expect(volume.bytes).toBe(20);
+
     await wrapped("https://app.posthog.com/i/v1/analytics/events", {
       method: "POST",
       headers: {},
       body: "v1-body",
     });
-    expect(volume.bytes).toBe(21);
+    expect(volume.bytes).toBe(27);
 
     // Feature-flag traffic must not be counted as export egress.
     await wrapped("https://app.posthog.com/flags/?v=2", {
@@ -43,9 +51,9 @@ describe("countingFetch (posthog export volume)", () => {
       headers: {},
       body: "ignored",
     });
-    expect(volume.bytes).toBe(21);
+    expect(volume.bytes).toBe(27);
 
     // Every request is still forwarded to the underlying fetch.
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 });

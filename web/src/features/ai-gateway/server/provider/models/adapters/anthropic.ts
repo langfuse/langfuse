@@ -11,6 +11,8 @@ const responseSchema = z.object({
       id: z.string(),
       display_name: z.string(),
       created_at: z.iso.datetime(),
+      // The list omits retired models by default; filtering them too keeps that guarantee if the default changes.
+      lifecycle: z.string().optional().catch(undefined),
     }),
   ),
   has_more: z.boolean(),
@@ -18,13 +20,15 @@ const responseSchema = z.object({
 });
 
 export const anthropicModelDiscoveryAdapter: ModelDiscoveryAdapter = {
-  async fetchCatalog({ credential, fetcher }) {
+  async fetchCatalog({ credential, baseURL, extraHeaders, fetcher }) {
     const definition = getGatewayProviderDefinition("ANTHROPIC");
     const models: GatewayModelCatalogEntry[] = [];
     let cursor: string | undefined;
 
     for (let page = 0; page < 100; page += 1) {
-      const url = new URL(`${definition.baseUrl}${definition.modelsPath}`);
+      const url = new URL(
+        `${baseURL ?? definition.baseUrl}${definition.modelsPath}`,
+      );
       url.searchParams.set("limit", "1000");
       if (cursor) url.searchParams.set("after_id", cursor);
 
@@ -32,8 +36,9 @@ export const anthropicModelDiscoveryAdapter: ModelDiscoveryAdapter = {
         fetcher,
         url,
         headers: {
-          "x-api-key": credential,
           "anthropic-version": "2023-06-01",
+          ...extraHeaders,
+          "x-api-key": credential,
         },
       });
       if (!result.success) return result;
@@ -44,13 +49,15 @@ export const anthropicModelDiscoveryAdapter: ModelDiscoveryAdapter = {
       const parsed = responseSchema.safeParse(result.value);
       if (!parsed.success) return { success: false, error: "provider_error" };
       models.push(
-        ...parsed.data.data.map((model) => ({
-          id: model.id,
-          provider: "ANTHROPIC" as const,
-          canonicalSlug: model.id,
-          displayName: model.display_name,
-          createdAt: model.created_at,
-        })),
+        ...parsed.data.data
+          .filter((model) => model.lifecycle !== "retired")
+          .map((model) => ({
+            id: model.id,
+            provider: "ANTHROPIC" as const,
+            canonicalSlug: model.id,
+            displayName: model.display_name,
+            createdAt: model.created_at,
+          })),
       );
 
       if (!parsed.data.has_more) {

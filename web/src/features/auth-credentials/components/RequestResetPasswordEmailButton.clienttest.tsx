@@ -11,7 +11,7 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({ status: "unauthenticated", data: null }),
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 

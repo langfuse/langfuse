@@ -16,17 +16,35 @@ const apiKeyCreationFields = {
     .nullish(),
 };
 
-export const organizationApiKeyCreationSchema = z.object({
-  ...apiKeyCreationFields,
-  role: apiKeyCreationRoleSchema("organization"),
-});
+export const organizationApiKeyCreationSchema = withNoteAlias(
+  z.object({
+    ...apiKeyCreationFields,
+    role: apiKeyCreationRoleSchema("organization"),
+  }),
+);
 
-export const projectApiKeyCreationSchema = z.object({
-  ...apiKeyCreationFields,
-  role: apiKeyCreationRoleSchema("project"),
-  publicKey: z.string().optional(),
-  secretKey: z.string().optional(),
-});
+export const projectApiKeyCreationSchema = withNoteAlias(
+  z.object({
+    ...apiKeyCreationFields,
+    role: apiKeyCreationRoleSchema("project"),
+    publicKey: z.string().optional(),
+    secretKey: z.string().optional(),
+  }),
+);
+
+/** withNoteAlias rejects a body with both name and its deprecated note alias, then folds note into name. */
+function withNoteAlias<T extends { name?: string; note?: string }>(
+  schema: z.ZodType<T>,
+) {
+  return schema
+    .refine((input) => input.name === undefined || input.note === undefined, {
+      message: "Provide either name or note, not both",
+    })
+    .transform(({ note, ...input }) => ({
+      ...input,
+      name: input.name ?? note,
+    }));
+}
 
 /** apiKeyToResponse exposes the name alias and a role when exactly one is assigned. */
 export function apiKeyToResponse<

@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../../packages/shared/src/server/logger";
-import { fetchWithSecureRedirects } from "../../../packages/shared/src/server/outbound-url";
+import { fetchWithSecureRedirects } from "../../../packages/shared/src/server/outbound-url/fetch";
 
 const strictWhitelist = { hosts: [], ips: [], ip_ranges: [] };
 

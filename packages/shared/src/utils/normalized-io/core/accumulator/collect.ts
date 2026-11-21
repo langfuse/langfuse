@@ -11,11 +11,9 @@ import type { NormalizedMessage, NormalizedMessagePart } from "../../types";
 import { addMessage, addToolDefinitionValue } from "./helpers";
 import type { NormalizedIOAccumulator } from "./interface";
 import type { ParserContext } from "../parser-context";
-import {
-  normalizePartValue,
-  normalizeMessage,
-  normalizeFinishReason,
-} from "../normalize";
+import { normalizePartValue } from "../normalize/part";
+import { normalizeMessage } from "../normalize/message";
+import { normalizeFinishReason } from "../normalize/finish-reason";
 import { isMessageLike, isToolDefinitionMessage } from "../utils/format";
 
 export type ParsedIOValue = {

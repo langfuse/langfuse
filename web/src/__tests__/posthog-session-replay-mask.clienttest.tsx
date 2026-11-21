@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 
 import type { PostHogConfig } from "posthog-js";
-import { createElement } from "react";
-import { render, screen } from "@testing-library/react";
-import { AutocompleteListbox } from "@/src/features/search-bar/components/AutocompleteListbox";
+import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  QueryInput,
+  useQueryInputController,
+} from "@/src/components/design-system/QueryInput/QueryInput";
+import { LayerContainerProvider } from "@/src/context/LayerContext/LayerContext";
 import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
-import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
+import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer/SearchComposer";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import { createSearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 
@@ -31,30 +34,45 @@ describe("PostHog session replay privacy", () => {
   });
 
   it("blocks observed search values outside the masked input", () => {
-    render(
-      createElement(AutocompleteListbox, {
-        highlightedId: null,
-        plan: {
-          stage: "value",
-          from: 0,
-          to: 0,
-          loading: false,
-          sections: [
-            {
-              title: "Observed values",
-              options: [
-                {
-                  id: "private-option",
-                  kind: "value",
-                  label: "private-search-value",
-                  value: "private-search-value",
+    function ControlledQueryInput() {
+      const controller = useQueryInputController();
+      return (
+        <QueryInput
+          label="Query"
+          placeholder="Filter…"
+          value=""
+          tokens={[]}
+          diagnostics={[]}
+          onValueChange={vi.fn()}
+          onCommit={vi.fn()}
+          onRemoveToken={vi.fn()}
+          areEquivalent={(left, right) => left === right}
+          controller={controller}
+          completions={{
+            loading: false,
+            autoHighlight: false,
+            options: [
+              {
+                id: "private-option",
+                label: "private-search-value",
+                edit: {
+                  next: "private-search-value",
+                  caret: 20,
+                  keepOpen: false,
                 },
-              ],
-            },
-          ],
-        },
-      }),
+                onApplied: vi.fn(),
+              },
+            ],
+          }}
+        />
+      );
+    }
+    render(
+      <LayerContainerProvider name="popover" container={document.body}>
+        <ControlledQueryInput />
+      </LayerContainerProvider>,
     );
+    fireEvent.focus(screen.getByRole("combobox", { name: "Query" }));
 
     expect(
       screen.getByText("private-search-value").closest(".ph-no-capture"),

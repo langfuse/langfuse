@@ -5,12 +5,10 @@ import {
   protectedProjectProcedure,
   requireV4Writes,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
-import {
-  listLinkedEvaluatorAlerts,
-  suggestMonitorName,
-} from "@/src/features/monitors/server";
+import { listLinkedEvaluatorAlerts } from "@/src/features/monitors/server/listLinkedEvaluatorAlerts";
+import { suggestMonitorName } from "@/src/features/monitors/server/suggestMonitorName";
 import {
   CreateMonitorSchema,
   DeleteMonitorSchema,

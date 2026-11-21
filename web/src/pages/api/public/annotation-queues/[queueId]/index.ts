@@ -4,7 +4,7 @@ import {
   GetAnnotationQueueByIdQuery,
   GetAnnotationQueueByIdResponse,
 } from "@/src/features/public-api/types/annotation-queues";
-import { getAnnotationQueueForApi } from "@/src/features/annotation-queues/server";
+import { getAnnotationQueueForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

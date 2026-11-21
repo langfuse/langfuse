@@ -9,9 +9,12 @@ import { MediaEnabledFields } from "@/src/features/media/validation";
 vi.mock("@/src/components/ui/JsonViewController", () => ({
   JsonViewController: vi.fn(() => null),
 }));
-vi.mock("@/src/features/feature-flags", () => ({
-  useInternalFeaturesEnabled: () => false,
-}));
+vi.mock(
+  "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
+  () => ({
+    useInternalFeaturesEnabled: () => false,
+  }),
+);
 vi.mock("next/router", () => ({
   useRouter: () => ({
     asPath: "/project/project/traces",
@@ -19,7 +22,7 @@ vi.mock("next/router", () => ({
     push: vi.fn(),
   }),
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 

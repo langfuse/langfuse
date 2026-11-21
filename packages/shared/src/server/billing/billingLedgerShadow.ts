@@ -9,7 +9,9 @@ import {
 export type BillingLedgerShadowSource = "stripe_metering" | "chb_metrics_api";
 
 type ProjectCount = { projectId: string; count: number };
-type Units = Record<BillableEventType, number>;
+// Topics facet summaries exist only in the ledger, so they have no legacy count.
+type ComparedEventType = Exclude<BillableEventType, "topic_facet_summary">;
+type Units = Record<ComparedEventType, number>;
 
 // Bounds the ledger scan of one comparison. Stripe meters one hour, and the
 // CHB endpoint accepts ranges of up to 35 days.
@@ -22,11 +24,7 @@ const DIVERGENCE_MIN_UNITS = 100;
 const DIVERGENCE_MIN_RATIO = 0.05;
 const LOGGED_PROJECTS = 10;
 
-const UNIT_TYPES: readonly BillableEventType[] = [
-  "trace",
-  "observation",
-  "score",
-];
+const UNIT_TYPES: ComparedEventType[] = ["trace", "observation", "score"];
 
 const zeroUnits = (): Units => ({ trace: 0, observation: 0, score: 0 });
 
@@ -66,8 +64,10 @@ const isDiverging = ({ legacy, delta }: { legacy: Units; delta: Units }) =>
  * One log line lists the projects with the largest gaps.
  *
  * Shadow only: it never changes what is billed and never throws. The legacy
- * score count leaves CORRECTION scores out and the ledger does not, so a
- * project with CORRECTION scores shows a score gap of that size.
+ * score count includes each CORRECTION row whose created_at is at or after
+ * CORRECTION_SCORES_BILLABLE_FROM. The ledger includes every CORRECTION score
+ * and dedupes ids across a 24-hour lookback, so a project can still show a
+ * score gap.
  */
 export const compareWithBillingLedger = async ({
   source,
@@ -114,7 +114,7 @@ export const compareWithBillingLedger = async ({
       }
       return units;
     };
-    const legacyByType: Array<[BillableEventType, ProjectCount[]]> = [
+    const legacyByType: Array<[ComparedEventType, ProjectCount[]]> = [
       ["trace", legacy.traces],
       ["observation", legacy.observations],
       ["score", legacy.scores],
@@ -124,6 +124,7 @@ export const compareWithBillingLedger = async ({
         unitsOf(row.projectId).legacy[eventType] += row.count;
     }
     for (const row of ledger) {
+      if (row.eventType === "topic_facet_summary") continue;
       unitsOf(row.projectId).ledger[row.eventType] += row.count;
     }
 

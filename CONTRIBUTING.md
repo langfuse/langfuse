@@ -48,6 +48,8 @@ pnpm run test        # see "Running Unit Tests" below for the setup this needs
 
 `lint` and `typecheck` are cached, so a pass can be a replay of an earlier run. Read turbo's `Cached:` line as well as its `Tasks:` line, and re-run with `pnpm exec turbo run lint --force` if you need to be sure it executed. For a user-visible change, also open the affected screen in a browser and check it — every pull request gets a full preview deployment at `pr-<N>.preview.langfuse.com`.
 
+Repository formatting uses [Oxfmt](https://oxc.rs/docs/guide/usage/formatter.html). Run `pnpm run format` to format JavaScript, TypeScript, and CSS, or `pnpm run format:check` to check them. The configuration keeps 80-column lines and uses Oxfmt's default Tailwind class sorting in `web`; extra helper-call sorting (`cn`/`clsx`) is not enabled. VS Code and Cursor use the recommended Oxc extension. The web app still uses Prettier standalone in the browser for code evaluator editing.
+
 If a change is too large to review in one pull request, split it into a chained stack of small PRs rather than widening one.
 
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
@@ -576,7 +578,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --light-green                    | Light green for success status badge background                    | StatusBadge                      |
 | --dark-green                     | Dark green for success text, badge text and dots (emerald-800)     | StatusBadge, Badge, Switch       |
 | --light-blue                     | Light blue for background of Staging label                         | LangfuseLogo                     |
-| --dark-blue                      | Dark blue for info text, links and badge text (blue-800)           | StatusBadge, Badge, Alert        |
+| --dark-blue                      | Dark blue for info text, links and badge text (blue-800)           | StatusBadge, Badge, Banner       |
 | --accent-light-blue              | Light blue accent for table link hover effect                      | TableLink                        |
 | --accent-dark-blue               | Dark blue accent for table link text                               | TableLink                        |
 | --find-match-selected-background | Background color for selected search matches                       | CodeMirrorEditor                 |

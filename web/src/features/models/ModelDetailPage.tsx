@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Card,
   CardContent,
@@ -11,7 +11,6 @@ import { DeleteModelButton } from "@/src/features/models/components/DeleteModelB
 import { EditModelButton } from "@/src/features/models/components/EditModelButton";
 import { CloneModelButton } from "@/src/features/models/components/CloneModelButton";
 import { TestModelMatchButton } from "@/src/features/models/components/test-match/TestModelMatchButton";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
@@ -19,7 +18,11 @@ import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { useMemo, useState } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import { ObservationsTable as Generations } from "@/src/features/tracing-tables";
+import {
+  isProjectEditableModel,
+  modelMaintainerByScope,
+} from "@/src/features/models/modelMaintainer";
+import { default as Generations } from "@/src/features/tracing-tables/observations/ObservationsTable";
 import Page from "@/src/components/layouts/Page";
 import { SquareArrowOutUpRight, Info as InfoIcon } from "@langfuse/icons";
 import {
@@ -30,7 +33,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 
 const resolvePricingTier = <T extends { id: string }>(
   tiers: T[],
@@ -102,8 +105,6 @@ export default function ModelDetailPage() {
     );
   }
 
-  const isLangfuseModel = !Boolean(model?.projectId);
-
   if (isLoading || !model) {
     return <div className="p-3">Loading...</div>;
   }
@@ -133,7 +134,7 @@ export default function ModelDetailPage() {
             {hasWriteAccess && (
               <>
                 <TestModelMatchButton projectId={projectId} variant="outline" />
-                {!isLangfuseModel ? (
+                {isProjectEditableModel(model.scope) ? (
                   <>
                     <EditModelButton projectId={projectId} modelData={model} />
                     <DeleteModelButton
@@ -171,27 +172,9 @@ export default function ModelDetailPage() {
                 Maintained by
               </div>
               <div className="mt-1 text-sm">
-                {isLangfuseModel ? "Langfuse" : "User"}
+                {modelMaintainerByScope[model.scope]}
               </div>
             </div>
-
-            <div>
-              <div className="text-muted-foreground text-sm font-bold">
-                Tokenizer
-              </div>
-              <div className="mt-1 text-sm">{model.tokenizerId || "None"}</div>
-            </div>
-
-            {model.tokenizerId && (
-              <div>
-                <div className="text-muted-foreground text-sm font-bold">
-                  Tokenizer Config
-                </div>
-                <pre className="bg-muted mt-1 rounded p-2 text-sm">
-                  <JSONView json={model.tokenizerConfig} />
-                </pre>
-              </div>
-            )}
           </CardContent>
         </Card>
 

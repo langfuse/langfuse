@@ -177,6 +177,7 @@ describe("ResetPasswordPage re-authentication", () => {
         email: "user@example.com",
         token: "123456",
         password: "Newpass1!",
+        intent: "reset",
       });
     });
     expect(signInMock).toHaveBeenCalledWith("credentials", {

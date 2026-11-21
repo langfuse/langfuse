@@ -26,7 +26,11 @@ import {
   shouldRetryResourceQuery,
   shouldSendQueryAsPost,
 } from "@/src/utils/api";
-import { getTrpcToastOperation } from "@/src/utils/trpcToastOperation";
+import { TrpcNonJsonResponseError } from "@/src/utils/trpcResponseParseError";
+import {
+  getTrpcToastOperation,
+  rememberTrpcToastOperation,
+} from "@/src/utils/trpcToastOperation";
 
 const {
   captureExceptionMock,
@@ -99,6 +103,38 @@ const ZOD4_TOO_SMALL_MESSAGE = JSON.stringify([
 ]);
 
 describe("buildIdLink toast operation context", () => {
+  it("remembers the procedure path for a non-JSON response error", async () => {
+    const cause = new TrpcNonJsonResponseError(504);
+    const requestError = TRPCClientError.from(cause);
+    const execute = buildIdLink()({} as never);
+    const result = execute({
+      op: {
+        id: 1,
+        type: "query",
+        path: "prompts.allVersions",
+        input: undefined,
+        context: {},
+        signal: undefined,
+      },
+      next: () =>
+        observable((observer) => {
+          observer.error(requestError);
+        }),
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      result.subscribe({
+        next: () => reject(new Error("expected request to fail")),
+        error: (error) => {
+          expect(error).toBe(requestError);
+          expect(getTrpcErrorPath(error)).toBe("prompts.allVersions");
+          resolve();
+        },
+        complete: () => reject(new Error("expected request to fail")),
+      });
+    });
+  });
+
   it("records the typed request path before forwarding a transport error", async () => {
     const requestError = new TypeError("Failed to fetch");
     const execute = buildIdLink()({} as never);
@@ -277,6 +313,19 @@ describe("isTrpcResponseParseError", () => {
 
     expect(isTrpcResponseParseError(error)).toBe(true);
   });
+
+  // Safari's Response.json() rejects with a DOMException whose name is
+  // "SyntaxError" — it is not `instanceof SyntaxError` (LANGFUSE-55X).
+  it("matches Safari's Response.json() DOMException", () => {
+    const cause = new DOMException(
+      "The string did not match the expected pattern.",
+      "SyntaxError",
+    );
+    const error = TRPCClientError.from(cause);
+
+    expect(cause instanceof SyntaxError).toBe(false);
+    expect(isTrpcResponseParseError(error)).toBe(true);
+  });
 });
 
 describe("shouldSendQueryAsPost", () => {
@@ -371,12 +420,26 @@ describe("shouldSendQueryAsPost", () => {
   });
 });
 
+const responseWithJson = (
+  body: BodyInit | null,
+  status: number,
+  contentType: string,
+  json?: () => Promise<unknown>,
+) => {
+  const response = new Response(body, {
+    status,
+    headers: { "content-type": contentType },
+  });
+  if (json) response.json = json;
+  return response;
+};
+
 describe("fetchWithParseErrorStatus", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("annotates the parse SyntaxError with the response HTTP status", async () => {
+  it("wraps an empty non-JSON body with the response HTTP status", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response("", { status: 431 })),
@@ -384,19 +447,105 @@ describe("fetchWithParseErrorStatus", () => {
 
     const response = await fetchWithParseErrorStatus("http://localhost/x");
     await expect(response.json()).rejects.toMatchObject({
-      name: "SyntaxError",
+      name: "TrpcNonJsonResponseError",
       responseStatus: 431,
     });
   });
 
-  it("returns parsed JSON unchanged when the body is valid", async () => {
+  it("returns parsed JSON unchanged when the body is valid JSON", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response('{"ok":true}', { status: 200 })),
+      vi.fn(
+        async () =>
+          new Response('{"ok":true}', {
+            status: 200,
+            headers: { "content-type": "application/json; charset=utf-8" },
+          }),
+      ),
     );
 
     const response = await fetchWithParseErrorStatus("http://localhost/x");
     await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
+  it.each([
+    [502, "text/html"],
+    [504, "text/html; charset=utf-8"],
+  ] as const)(
+    "does not parse a %i %s gateway body",
+    async (status, contentType) => {
+      const response = new Response("<html><title>gateway</title></html>", {
+        status,
+        headers: { "content-type": contentType },
+      });
+      const json = vi.fn(response.json.bind(response));
+      response.json = json;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => response),
+      );
+
+      const wrapped = await fetchWithParseErrorStatus(
+        "http://localhost/api/trpc/prompts.allVersions",
+      );
+      await expect(wrapped.json()).rejects.toMatchObject({
+        name: "TrpcNonJsonResponseError",
+        responseStatus: status,
+      });
+      expect(json).not.toHaveBeenCalled();
+    },
+  );
+
+  it("wraps Chrome's Response.json() SyntaxError with the HTTP status", async () => {
+    const chrome = new SyntaxError(
+      "Failed to execute 'json' on 'Response': Unexpected token '<', \"<html>\" is not valid JSON",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        responseWithJson("<html>", 502, "application/json", async () => {
+          throw chrome;
+        }),
+      ),
+    );
+
+    const response = await fetchWithParseErrorStatus("http://localhost/x");
+    const thrown = await response.json().then(
+      () => {
+        throw new Error("expected json() to reject");
+      },
+      (error: unknown) => error,
+    );
+
+    expect(thrown).toBeInstanceOf(TrpcNonJsonResponseError);
+    expect(thrown).toMatchObject({ responseStatus: 502, cause: chrome });
+  });
+
+  it("wraps Safari's Response.json() DOMException with the HTTP status", async () => {
+    const safari = new DOMException(
+      "The string did not match the expected pattern.",
+      "SyntaxError",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        responseWithJson("<html>", 504, "application/json", async () => {
+          throw safari;
+        }),
+      ),
+    );
+
+    const response = await fetchWithParseErrorStatus("http://localhost/x");
+    const thrown = await response.json().then(
+      () => {
+        throw new Error("expected json() to reject");
+      },
+      (error: unknown) => error,
+    );
+
+    expect(safari instanceof SyntaxError).toBe(false);
+    expect(thrown).toBeInstanceOf(TrpcNonJsonResponseError);
+    expect(thrown).toMatchObject({ responseStatus: 504, cause: safari });
   });
 });
 
@@ -510,6 +659,21 @@ describe("isExpectedTrpcClientError", () => {
     expect(isExpectedTrpcClientError(error)).toBe(true);
   });
 
+  it("treats an already-member invite conflict as expected", () => {
+    // members.create returns 409 only from the membership unique constraint
+    // (`rethrowIfMembershipExists`). The invite form shows that sentence.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "CONFLICT",
+          httpStatus: 409,
+          path: "members.create",
+          message: "User is already a member of this project",
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("does not treat CONFLICT on other procedures as expected", () => {
     // Negative fixture: duplicate-name / unique-constraint CONFLICTs must
     // still reach Sentry. Widening the allowlist would hide those.
@@ -533,10 +697,11 @@ describe("isExpectedTrpcClientError", () => {
     ).toBe(false);
   });
 
-  it("treats a rejected remote-experiment URL as expected", () => {
-    // triggerRemoteExperiment / upsertRemoteExperiment throw BAD_REQUEST
-    // only when validateWebhookURL rejects a user-configured URL (DNS
-    // lookup failed, private IP, …). The UI already toasts the message.
+  it("treats BAD_REQUEST on an allowlisted procedure as expected", () => {
+    // Each path throws BAD_REQUEST for rejected user input the UI already
+    // explains: a remote-experiment URL, a model or gateway connection, an
+    // invite for someone who is already a member or already invited, or a
+    // prompt export over the version limit.
     for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
       expect(
         isExpectedTrpcClientError(
@@ -796,6 +961,30 @@ describe("getTrpcErrorFingerprint", () => {
     ]);
   });
 
+  it("fingerprints a gateway non-JSON response apart from an app tRPC error", () => {
+    const gateway = TRPCClientError.from(new TrpcNonJsonResponseError(504));
+    rememberTrpcToastOperation(gateway, "prompts.allVersions");
+    const app = trpcServerError({
+      code: "INTERNAL_SERVER_ERROR",
+      httpStatus: 500,
+      path: "prompts.allVersions",
+    });
+
+    expect(getTrpcErrorFingerprint(gateway)).toEqual([
+      "trpc-gateway-response",
+      "504",
+    ]);
+    expect(getTrpcErrorPath(gateway)).toBe("prompts.allVersions");
+    expect(getTrpcErrorFingerprint(app)).toEqual([
+      "trpc-client-error",
+      "INTERNAL_SERVER_ERROR",
+      "prompts.allVersions",
+    ]);
+    expect(getTrpcErrorFingerprint(gateway)).not.toEqual(
+      getTrpcErrorFingerprint(app),
+    );
+  });
+
   it("never leaks the error message into the fingerprint (bounded cardinality)", () => {
     const message = "user-specific advice with dynamic content 12345";
     const error = trpcServerError({
@@ -868,12 +1057,10 @@ describe("reportTrpcErrorWithoutToast", () => {
     });
   });
 
-  it("suppresses expected codes (breadcrumb, no capture) — same policy as the seam", () => {
-    // The organizations.delete FORBIDDEN advice: previously console.error'd by
-    // the component (one Sentry event per retry), now classified as expected.
+  it("suppresses organization deletion while projects are still purging", () => {
     const error = trpcServerError({
-      code: "FORBIDDEN",
-      httpStatus: 403,
+      code: "PRECONDITION_FAILED",
+      httpStatus: 412,
       path: "organizations.delete",
       message:
         "Deletion of your projects is still being processed, please try deleting the organization later",
@@ -884,7 +1071,7 @@ describe("reportTrpcErrorWithoutToast", () => {
     expect(captureExceptionMock).not.toHaveBeenCalled();
     expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
     expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
-      code: "FORBIDDEN",
+      code: "PRECONDITION_FAILED",
       path: "organizations.delete",
     });
   });
@@ -947,6 +1134,62 @@ describe("reportTrpcErrorWithoutToast", () => {
       "trpc.code": "INTERNAL_SERVER_ERROR",
       "trpc.path": "projects.create",
     });
+    expect(options.tags["http.status"]).toBeUndefined();
+    expect(options.fingerprint[0]).toBe("trpc-client-error");
+  });
+
+  it("does not capture Safari, Chrome, or HTML gateway parse failures", async () => {
+    const safari = TRPCClientError.from(
+      new DOMException(
+        "The string did not match the expected pattern.",
+        "SyntaxError",
+      ),
+    );
+    const chromeCause = new TrpcNonJsonResponseError(
+      502,
+      new SyntaxError(
+        "Failed to execute 'json' on 'Response': Unexpected token '<'",
+      ),
+    );
+    const chrome = TRPCClientError.from(chromeCause);
+    rememberTrpcToastOperation(chrome, "prompts.allVersions");
+    const html = TRPCClientError.from(new TrpcNonJsonResponseError(504));
+    rememberTrpcToastOperation(html, "prompts.allVersions");
+
+    reportTrpcErrorWithoutToast(safari, "prompts");
+    reportTrpcErrorWithoutToast(chrome, "prompts");
+    reportTrpcErrorWithoutToast(html, "prompts");
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(3);
+    expect(addBreadcrumbMock.mock.calls[1]![0].data).toMatchObject({
+      status: 502,
+      path: "prompts.allVersions",
+    });
+    expect(addBreadcrumbMock.mock.calls[2]![0].data).toMatchObject({
+      status: 504,
+      path: "prompts.allVersions",
+    });
+  });
+
+  it("reports an oversized non-JSON response with http status and procedure path", () => {
+    const oversized = TRPCClientError.from(new TrpcNonJsonResponseError(431));
+    rememberTrpcToastOperation(oversized, "traces.all");
+
+    reportTrpcErrorWithoutToast(oversized, "traces");
+
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    const [, options] = captureExceptionMock.mock.calls[0]!;
+    expect(options.tags).toMatchObject({
+      area: "trpc",
+      "http.status": "431",
+      "trpc.path": "traces.all",
+    });
+    expect(options.fingerprint).toEqual([
+      "trpc-client-error",
+      "unknown",
+      "traces.all",
+    ]);
   });
 
   it("still captures a 5xx on an allowlisted remote-experiment path", () => {

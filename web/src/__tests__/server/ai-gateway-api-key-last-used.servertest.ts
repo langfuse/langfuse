@@ -8,7 +8,9 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { AI_GATEWAY_SERVICE_NAME } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -63,32 +65,23 @@ async function callerFor(
     },
   });
   cleanupUsers.push(user.id);
-  await prisma.organizationMembership.create({
-    data: { orgId: org.id, userId: user.id, role },
-  });
-  const session: Session = {
-    expires: "1",
+  await createOrgMembership(prisma, { orgId: org.id, userId: user.id, role });
+  const session: Session = createSession({
     user: {
       id: user.id,
       name: user.name,
-      canCreateOrganizations: true,
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role,
-          cloudConfig: undefined,
-          plan: "oss",
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
     },
-    environment: {} as Session["environment"],
-  };
+    organizations: [
+      {
+        id: org.id,
+        role,
+        name: org.name,
+        plan: "oss",
+        aiTelemetryEnabled: true,
+      },
+    ],
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
 }
@@ -219,6 +212,59 @@ describe("aiGateway.getApiKeysLastUsed", () => {
     await expect(
       viewer.aiGateway.getApiKeysLastUsed({ orgId: org.id, apiKeyIds }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("returns budget spend only for budgeted keys the caller can list", async () => {
+    const { org, ingestionProject } = await prepareOrganization();
+    const owner = await callerFor(org, Role.OWNER);
+    const member = await callerFor(org, Role.MEMBER);
+    await prisma.gatewayConfig.create({
+      data: {
+        organizationId: org.id,
+        defaultIngestionProjectId: ingestionProject.id,
+      },
+    });
+    const spendLimit = { interval: "MONTHLY" as const, limitUsd: 10 };
+    const ownerKey = await owner.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Owner key",
+      metadata: {},
+      spendLimit,
+    });
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Member key",
+      metadata: {},
+      spendLimit,
+    });
+    const unbudgetedKey = await member.aiGateway.createApiKey({
+      orgId: org.id,
+      name: "Unbudgeted key",
+      metadata: {},
+    });
+    const at = new Date();
+    await createEventsCh(
+      [ownerKey, memberKey, memberKey, unbudgetedKey].map((key) =>
+        createEvent({
+          ...gatewayRequest({
+            projectId: ingestionProject.id,
+            apiKeyId: key.id,
+            at,
+          }),
+          cost_details: { total: 2.5 },
+        }),
+      ),
+    );
+
+    await expect(
+      member.aiGateway.getApiKeysSpend({
+        orgId: org.id,
+        apiKeyIds: [ownerKey.id, memberKey.id, unbudgetedKey.id],
+      }),
+    ).resolves.toEqual({
+      available: true,
+      apiKeys: [{ id: memberKey.id, spentUsd: 5 }],
+    });
   });
 
   it("reports usage as untracked in ingestion mode NONE or without an active ingestion project", async () => {
