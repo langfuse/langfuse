@@ -1,4 +1,4 @@
-import { UiColumnMappings } from "../../tableDefinitions";
+import { UiColumnMappings } from "../../tableDefinitions/types";
 import { EvalExecutionMetadataKey } from "../../features/evals/evalExecutionMetadata";
 import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 

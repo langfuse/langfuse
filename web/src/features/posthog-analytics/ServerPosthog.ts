@@ -47,3 +47,16 @@ export class ServerPosthog {
     await this.posthog?.flush();
   }
 }
+
+let sharedServerPosthog: ServerPosthog | undefined;
+
+/**
+ * The process's shared client for callers that only capture. It sends in the
+ * background and is never shut down, so a capture never waits on PostHog.
+ */
+export const getServerPosthog = (): ServerPosthog => {
+  if (!sharedServerPosthog) {
+    sharedServerPosthog = new ServerPosthog();
+  }
+  return sharedServerPosthog;
+};

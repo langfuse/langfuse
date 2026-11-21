@@ -10,8 +10,7 @@
   animation: dialogContentOut 180ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 
-/* A closing dialog must be inert: its handlers are stale (ConfirmDialog even
-   freezes its last-open content), so e.g. a click landing on the fading
+/* A closing dialog must be inert: its handlers may be stale, so a click on a fading
    confirm button must not fire. Disable pointer events on descendants only —
    the container keeps Radix's inline `pointer-events: auto`, which we rely on
    as a shield so clicks during the fade-out do not reach the page beneath. */

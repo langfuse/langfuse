@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { type RouterOutputs } from "@/src/utils/api";
-import { type SdkVersionInfo } from "@/src/features/sdk-version";
+import type { SdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 import { LANGFUSE_SDK_LATEST_MAJOR } from "@langfuse/shared";
 
 type V4MigrationSdkStatus =

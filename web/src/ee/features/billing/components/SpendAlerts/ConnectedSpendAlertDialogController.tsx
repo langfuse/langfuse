@@ -14,8 +14,9 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { Info } from "@langfuse/icons";
 

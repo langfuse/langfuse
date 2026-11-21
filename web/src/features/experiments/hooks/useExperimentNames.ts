@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 
 export type ExperimentNameOption = {

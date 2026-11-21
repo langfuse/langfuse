@@ -1,9 +1,7 @@
 /* eslint-disable @repo/no-null-render */
 import { useMemo, useState, useRef } from "react";
-import {
-  mediaUrlQueryOptions,
-  type MediaReturnType,
-} from "@/src/features/media";
+import { mediaUrlQueryOptions } from "@/src/features/media/constants/mediaUrlQueryOptions";
+import { type MediaReturnType } from "@/src/features/media/validation";
 import { File, Image as ImageIcon, Volume2, Video } from "@langfuse/icons";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import {
@@ -70,7 +68,6 @@ function ImagePreview({ src }: { src?: string }) {
       className="bg-muted h-24 w-24 overflow-hidden rounded-md border transition-opacity hover:opacity-80"
       aria-label="Open image in new tab"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt="Media preview"

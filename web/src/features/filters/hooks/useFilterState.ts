@@ -15,8 +15,9 @@ import {
   splitOnUnescapedPipe,
   unescapePipeInValue,
   normalizeLegacySessionPositionInTraceKey,
+  scoresTableCols,
 } from "@langfuse/shared";
-import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
+
 import {
   useQueryParam,
   encodeDelimitedArray,
@@ -52,7 +53,7 @@ const getCommaArrayParam = (table: TableName) => ({
             f.type === "booleanObject" ||
             f.type === "categoryOptions" ||
             f.type === "positionInTrace"
-              ? f.key
+              ? encodeURIComponent(f.key ?? "")
               : ""
           };${f.operator};${encodeURIComponent(
             f.type === "datetime"
@@ -83,11 +84,12 @@ const getCommaArrayParam = (table: TableName) => ({
 
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
-        const decodedValue = value ? decodeURIComponent(value) : undefined;
+        const decodedValue =
+          value !== undefined ? decodeURIComponent(value) : undefined;
         const normalizedKey =
           type === "positionInTrace"
-            ? normalizeLegacySessionPositionInTraceKey(key)
-            : key;
+            ? normalizeLegacySessionPositionInTraceKey(decodeObjectKey(key))
+            : decodeObjectKey(key);
         const parsedValue = (() => {
           if (decodedValue === undefined || type === undefined) {
             return undefined;
@@ -103,6 +105,9 @@ const getCommaArrayParam = (table: TableName) => ({
               return undefined;
             }
             return Number(decodedValue);
+          }
+          if (type === "arrayOptions" && decodedValue === "") {
+            return [];
           }
           if (
             type === "stringOptions" ||
@@ -226,4 +231,14 @@ function getColumnId(table: TableName, name: string): string | undefined {
 
 function getColumnName(table: TableName, id: string): string | undefined {
   return tableCols[table]?.find((col) => col.id === id)?.name;
+}
+
+/** decodeObjectKey percent-decodes a filter key, keeping keys from older raw links as written */
+function decodeObjectKey(key: string | undefined): string | undefined {
+  if (key === undefined) return undefined;
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return key;
+  }
 }

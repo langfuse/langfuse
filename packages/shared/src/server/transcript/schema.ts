@@ -48,4 +48,6 @@ export const executionIssueSchema = z.object({
   /** First 1,000 characters of the status message. */
   statusMessage: z.string().nullable(),
   startTime: z.date(),
+  /** Null for the trace's root observation; absent on issues stored before this field. */
+  parentObservationId: z.string().nullable().optional(),
 });

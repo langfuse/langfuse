@@ -23,7 +23,8 @@ export type InAppAgentScreenContextDescription =
   | { type: "observations-list" }
   | { type: "sessions-list" }
   | { type: "prompts-list" }
-  | { type: "datasets-list" };
+  | { type: "datasets-list" }
+  | { type: "topics" };
 
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
 const MAX_SCREEN_CONTEXT_SEARCH_PARAMS = 30;
@@ -137,6 +138,10 @@ export function getInAppAgentScreenContextDescription(
 
   if (section === "datasets" && !detailId) {
     return { type: "datasets-list" };
+  }
+
+  if (section === "topics") {
+    return { type: "topics" };
   }
 
   return { type: "page" };

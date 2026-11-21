@@ -3,11 +3,9 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 
 import { env } from "../../env";
-import {
-  InvalidRequestError,
-  LangfuseNotFoundError,
-  UnauthorizedError,
-} from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
+import { UnauthorizedError } from "../../errors/UnauthorizedError";
 import { type AuthHeaderValidVerificationResultIngestion } from "../auth/types";
 import {
   getClickhouseEntityType,
@@ -55,12 +53,17 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 };
 
 /**
- * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between
- * 23:45 and 00:15, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS otherwise.
+ * Get the delay for the event based on the event type. Uses delay if set, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS
+ * if the current UTC timestamp is between 23:45 and 00:15. Outside that window, OTel events and scores are processed
+ * immediately and all other events wait up to 5s.
  * We need the delay around date boundaries to avoid duplicates for out-of-order processing of events.
  * @param delay - Delay overwrite. Used if non-null.
  */
-const getDelay = (delay: number | null, source: "api" | "otel") => {
+const getDelay = (
+  delay: number | null,
+  source: "api" | "otel",
+  entityType: IngestionEntityTypes,
+) => {
   if (delay !== null) {
     return delay;
   }
@@ -72,7 +75,9 @@ const getDelay = (delay: number | null, source: "api" | "otel") => {
     return env.LANGFUSE_INGESTION_QUEUE_DELAY_MS;
   }
 
-  if (source === "otel") {
+  // Scores are rarely updated after creation, so batching their updates does
+  // not save enough S3 list calls to justify delaying them.
+  if (source === "otel" || entityType === "score") {
     return 0;
   }
 
@@ -389,7 +394,7 @@ export const processEventBatch = async (
                 },
               },
             },
-            { delay: getDelay(delay, source) },
+            { delay: getDelay(delay, source, eventData.entityType) },
           )
         : Promise.reject("Failed to instantiate ingestion queue");
     }),

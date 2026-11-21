@@ -56,15 +56,15 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-vi.mock("@/src/features/organizations", () => ({
+vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({ isLangfuseCloud: harness.isLangfuseCloud }),
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-vi.mock("@/src/features/notifications", () => ({
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
   showErrorToast: (...args: unknown[]) => showErrorToastMock(...args),
 }));
 

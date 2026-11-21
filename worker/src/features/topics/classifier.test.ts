@@ -77,6 +77,21 @@ describe("Topics original-space classifier", () => {
     });
   });
 
+  it("keeps a topic's own outer members when a neighboring topic reaches toward its centroid", async () => {
+    const at = (angle: number) => [Math.cos(angle), Math.sin(angle)];
+    const summaries = [-0.4, 0, 0.4, 0.3, 0.9, 1.5].map((angle, index) => ({
+      id: String(index),
+      embedding: at(angle),
+    }));
+    const prototypes = await buildTopicPrototypes(
+      summaries,
+      [0, 0, 0, 1, 1, 1],
+    );
+    expect(classifyTopic(at(-0.4), prototypes)).toMatchObject({
+      topicId: "cluster_0",
+    });
+  });
+
   it("calibrates with leave-one-out distances and never falls through to a farther topic", async () => {
     const summaries = [
       { id: "a", embedding: [1, 0] },

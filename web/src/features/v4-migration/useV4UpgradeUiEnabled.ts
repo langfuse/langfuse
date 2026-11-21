@@ -17,7 +17,7 @@ export function useV4UpgradeUiFlag(): boolean {
  * Master gate for the v4 migration/upgrade UI. Every migration surface (nav
  * pill, upgrade badges, panel provider, banner, status page) checks this hook,
  * so returning false for a forced-v3 project hides all of them at once — and
- * automatically restores the sidebar "V4 Preview" toggle, which only renders
+ * automatically restores the sidebar "V4 preview" toggle, which only renders
  * when the migration UI is off.
  */
 export function useV4UpgradeUiEnabled(projectId?: string): boolean {

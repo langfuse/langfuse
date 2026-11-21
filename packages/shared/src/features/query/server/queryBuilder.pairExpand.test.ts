@@ -34,7 +34,7 @@ const costByTypeQuery = {
 
 describe("queryBuilder pairExpand ARRAY JOIN aliases", () => {
   it("does not re-alias usageType in a single-level usageByType timeseries", async () => {
-    // Dashboard ModelUsageChart (v2) compiles this shape. ClickHouse rejects
+    // Dashboard ModelUsageCard (v2) compiles this shape. ClickHouse rejects
     // `usageType AS usageType` in the same SELECT as `ARRAY JOIN … AS usageType`.
     const { query } = await new QueryBuilder(undefined, "v2").build(
       usageByTypeTimeseries,
@@ -42,8 +42,8 @@ describe("queryBuilder pairExpand ARRAY JOIN aliases", () => {
       true,
     );
 
-    expect(query).toContain("ARRAY JOIN");
-    expect(query).toMatch(/mapKeys\([^)]*usage_details\) AS usageType/);
+    expect(query).toMatch(/array join/i);
+    expect(query).toMatch(/mapKeys\([^)]*usage_details\) as usageType/i);
     expect(query).not.toMatch(/usageType\s+as\s+usageType/i);
     expect(query).toMatch(/sum\(usage_value\)\s+as\s+sum_usageByType/i);
   });
@@ -55,8 +55,8 @@ describe("queryBuilder pairExpand ARRAY JOIN aliases", () => {
       false,
     );
 
-    expect(query).toContain("ARRAY JOIN");
-    expect(query).toMatch(/mapKeys\([^)]*cost_details\) AS costType/);
+    expect(query).toMatch(/array join/i);
+    expect(query).toMatch(/mapKeys\([^)]*cost_details\) as costType/i);
     expect(query).not.toMatch(/costType\s+as\s+costType/i);
   });
 });

@@ -1,6 +1,5 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { type ReactNode } from "react";
-import { type Prisma } from "@langfuse/shared/src/db";
 import { Copy, Pencil, Trash } from "@langfuse/icons";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -9,11 +8,7 @@ import {
   SettingsTable,
   type SettingsTableProps,
 } from "@/src/components/SettingsTable/SettingsTable";
-import {
-  resolveRowHeightRendering,
-  type RowHeight,
-} from "@/src/components/table/data-table-row-height-switch";
-import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -22,15 +17,18 @@ import {
   type PriceUnit,
 } from "@/src/features/models/validation";
 import { PriceBreakdownTooltip } from "@/src/features/models/components/PriceBreakdownTooltip";
+import {
+  type ModelMaintainer,
+  isProjectEditableModel,
+  modelMaintainerBadgeVariant,
+} from "@/src/features/models/modelMaintainer";
 
 export type ModelTableRow = {
   modelId: string;
-  maintainer: "User" | "Langfuse";
+  maintainer: ModelMaintainer;
   modelName: string;
   matchPattern: string;
   prices?: Record<string, number>;
-  tokenizerId?: string;
-  config?: Prisma.JsonValue;
   serverResponse: GetModelResult;
 };
 
@@ -42,12 +40,8 @@ const modelConfigDescriptions = {
   startDate:
     "Date to start pricing model. If not set, model is active unless a more recent version exists.",
   prices: "Prices per usage type",
-  tokenizerId:
-    "Tokenizer used for this model to calculate token counts if none are ingested. Pick from list of supported tokenizers.",
-  config:
-    "Some tokenizers require additional configuration (e.g. openai tiktoken). See docs for details.",
   maintainer:
-    "Maintainer of the model. Langfuse managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse managed model, set the custom model name to the Langfuse model name.",
+    "Maintainer of the model. Langfuse and organization managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse or organization managed model, set the custom model name to its model name.",
   lastUsed: "Start time of the latest generation using this model",
 } as const;
 
@@ -100,9 +94,9 @@ export function ModelDefinitionsTable({
       },
       size: 60,
       range: "decorative",
-      getBadge: (maintainer) => ({
+      getBadge: (maintainer, { row }) => ({
         value: maintainer,
-        variant: maintainer === "Langfuse" ? "teal" : "blue",
+        variant: modelMaintainerBadgeVariant[row.original.maintainer],
       }),
     }),
     createTextTableColumn<ModelTableRow>({
@@ -143,26 +137,6 @@ export function ModelDefinitionsTable({
       },
       enableHiding: true,
     },
-    createTextTableColumn<ModelTableRow>({
-      accessorKey: "tokenizerId",
-      header: "Tokenizer",
-      headerTooltip: {
-        description: modelConfigDescriptions.tokenizerId,
-      },
-      enableHiding: true,
-      size: 120,
-    }),
-    createIOTableColumn<ModelTableRow>({
-      accessorKey: "config",
-      header: "Tokenizer Configuration",
-      headerTooltip: {
-        description: modelConfigDescriptions.config,
-      },
-      enableHiding: true,
-      size: 120,
-      getCell: (value) => value || undefined,
-      singleLine: resolveRowHeightRendering({ preset: rowHeight }).compact,
-    }),
     createDateTableColumn<ModelTableRow>({
       accessorFn: () => undefined,
       id: "lastUsed",
@@ -185,7 +159,7 @@ export function ModelDefinitionsTable({
       tableName="models"
       columns={columns}
       actions={(model) =>
-        model.maintainer === "Langfuse"
+        !isProjectEditableModel(model.serverResponse.scope)
           ? [
               {
                 id: "clone",

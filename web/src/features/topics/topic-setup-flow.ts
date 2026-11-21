@@ -1,4 +1,8 @@
-import { LLMAdapter, supportedModels } from "@langfuse/shared";
+import {
+  LLMAdapter,
+  supportedModels,
+  type FilterState,
+} from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
@@ -41,6 +45,8 @@ export type TopicSetupDraft = {
   waitMinutes: TopicSetupWaitMinutes;
   advancedOpen: boolean;
   samplePercent: number;
+  /** Observation filter of the first rule; empty means every trace. */
+  filter: FilterState;
 };
 
 // Best family first; within a family the highest version wins (6.1 over 6).
@@ -154,47 +160,29 @@ function compareModelVersions(a: string, b: string) {
   return 0;
 }
 
-function topicJudgeModel(
-  slot: { llmApiKeyId: string; model: string } | null,
-  connections: Array<{ id: string; provider: string }>,
-): JudgeModel | null {
-  if (!slot) return null;
-  const connection = connections.find((item) => item.id === slot.llmApiKeyId);
-  return {
-    provider: connection?.provider ?? "Missing connection",
-    model: slot.model,
-  };
-}
-
+/** The slot to save when the project's connection for the provider offers the model; `saved` keeps a stored model selectable. */
 export function resolveTopicModelSlot(
   model: JudgeModel | null,
   connections: TopicSetupConnection[],
-  preferredId: string | undefined,
   kind: "chat" | "embedding",
-  savedModel?: string | null,
-) {
+  saved?: JudgeModel | null,
+): JudgeModel | null {
   if (!model) return null;
-  const matches = connections.filter(
-    (connection) =>
-      connection.provider === model.provider &&
-      topicModelsFor(
-        connection,
-        kind,
-        connection.id === preferredId ? savedModel : null,
-      ).includes(model.model),
+  const connection = connections.find(
+    (item) => item.provider === model.provider,
   );
-  const llmApiKeyId =
-    matches.find((connection) => connection.id === preferredId)?.id ??
-    matches[0]?.id ??
-    null;
-  return llmApiKeyId ? { llmApiKeyId, model: model.model } : null;
+  const savedModel = saved?.provider === model.provider ? saved.model : null;
+  return connection &&
+    topicModelsFor(connection, kind, savedModel).includes(model.model)
+    ? { provider: model.provider, model: model.model }
+    : null;
 }
 
 export function initialTopicSetupDraft(input: {
   stored: {
-    summary: { llmApiKeyId: string; model: string } | null;
-    embedding: { llmApiKeyId: string; model: string } | null;
-    clustering: { llmApiKeyId: string; model: string } | null;
+    summary: JudgeModel | null;
+    embedding: JudgeModel | null;
+    clustering: JudgeModel | null;
   };
   connections: TopicSetupConnection[];
   facets: Array<{
@@ -204,6 +192,8 @@ export function initialTopicSetupDraft(input: {
     isBuiltIn: boolean;
   }>;
   enabledFacetIds: ReadonlySet<string> | null;
+  /** The first rule's stored filter, when the project has one. */
+  filter?: FilterState;
   traceIdleMs: number | null;
 }): TopicSetupDraft {
   const summaryGroups = topicProviderGroups(
@@ -239,17 +229,18 @@ export function initialTopicSetupDraft(input: {
       };
     }),
     summary:
-      topicJudgeModel(input.stored.summary, input.connections) ??
+      input.stored.summary ??
       pickRecommendedTopicModel("summary", summaryGroups),
     embedding:
-      topicJudgeModel(input.stored.embedding, input.connections) ??
+      input.stored.embedding ??
       pickRecommendedTopicModel("embedding", embeddingGroups),
     clustering:
-      topicJudgeModel(input.stored.clustering, input.connections) ??
+      input.stored.clustering ??
       pickRecommendedTopicModel("clustering", clusteringGroups),
     waitMinutes: setupWaitMinutes(input.traceIdleMs),
     advancedOpen: false,
     samplePercent: 100,
+    filter: input.filter ?? [],
   };
 }
 
@@ -289,67 +280,54 @@ export function followsTopicRecommendations(input: {
 
 export function backfillNotice(matched: number) {
   if (matched >= TOPIC_SETUP_MIN_PAST_TRACES) return null;
-  return `Only ${matched.toLocaleString("en-US")} traces from the last ${TOPIC_SETUP_BACKFILL_DAYS} days. Topics need about ${TOPIC_SETUP_MIN_PAST_TRACES} to form, so the first topics may take longer.`;
+  return `Only ${matched.toLocaleString("en-US")} matching traces in the last 30 days. Topics need about ${TOPIC_SETUP_MIN_PAST_TRACES} to form, so the first topics may take longer.`;
 }
 
-export type TopicSetupStage =
-  | "summarizing"
-  | "grouping"
-  | "naming"
-  | "done"
-  | "failed";
+export type TopicSetupStage = "summarizing" | "grouping" | "done" | "failed";
 
-type SetupExecution = {
-  id: string;
-  status: string;
-  phase: string;
-  updatedAt: string;
-  input:
-    | { operation: "process"; requestId: string; thenUpdate?: unknown }
-    | { operation: "update"; requestId: string };
+type RuleSetup = {
+  phase: "selecting" | "summarizing" | "fitting" | "done" | "failed";
+  seededCount: number;
+  facets: {
+    facetId: string;
+    state: string;
+    settledCount: number;
+    runId: string | null;
+    runStatus: string | null;
+  }[];
 };
 
-/** The newest setup backfill and the topic update it starts once summaries finish. */
-export function topicSetupRun<T extends SetupExecution>(executions: T[]) {
-  const process = executions.find(
-    (execution) =>
-      execution.input.operation === "process" &&
-      Boolean(execution.input.thenUpdate),
-  );
-  if (!process) return null;
-  const update =
-    executions.find(
-      (execution) =>
-        execution.input.operation === "update" &&
-        execution.input.requestId === `${process.id}-topics`,
-    ) ?? null;
-  return { process, update };
-}
-
-// The worker starts the topic update right after the last batch; longer means it failed to start.
-const FOLLOW_UP_GRACE_MS = 2 * 60_000;
-
-export function topicSetupStage(
-  run: { process: SetupExecution; update: SetupExecution | null },
-  now: number,
-): { stage: TopicSetupStage; retryId: string | null } {
-  const { process, update } = run;
-  if (process.status === "failed")
-    return { stage: "failed", retryId: process.id };
-  if (process.status === "queued" || process.status === "running")
-    return { stage: "summarizing", retryId: null };
-  if (!update && now - Date.parse(process.updatedAt) > FOLLOW_UP_GRACE_MS)
-    return { stage: "failed", retryId: null };
-  if (!update || update.status === "queued")
-    return { stage: "grouping", retryId: null };
-  if (update.status === "failed")
-    return { stage: "failed", retryId: update.id };
-  if (update.status === "running")
-    return {
-      stage: update.phase === "clustering" ? "grouping" : "naming",
-      retryId: null,
-    };
-  return { stage: "done", retryId: null };
+/** A rule setup's stage and per-facet progress over its seeded traces. */
+export function topicRuleSetupProgress(setup: RuleSetup) {
+  const stages: Record<RuleSetup["phase"], TopicSetupStage> = {
+    selecting: "summarizing",
+    summarizing: "summarizing",
+    fitting: "grouping",
+    done: "done",
+    failed: "failed",
+  };
+  const stage = stages[setup.phase];
+  const fitted = setup.facets.filter((facet) => facet.state !== "has_map");
+  return {
+    stage,
+    active: setup.phase !== "done" && setup.phase !== "failed",
+    fits: {
+      done: fitted.filter(
+        (facet) =>
+          facet.runStatus !== null &&
+          facet.runStatus !== "pending" &&
+          facet.runStatus !== "running",
+      ).length,
+      total: fitted.length,
+    },
+    // Facets that reuse summaries or a map have nothing left to summarize.
+    facets: setup.facets.map((facet) => ({
+      facetId: facet.facetId,
+      complete:
+        facet.state === "short" ? facet.settledCount : setup.seededCount,
+      requested: setup.seededCount,
+    })),
+  };
 }
 
 function topicQuestionDescription(name: string, stored: string | undefined) {

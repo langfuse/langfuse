@@ -10,10 +10,10 @@
 # with DoD provenance and scan attestations. Release builds opt in by overriding
 # both args after `docker login registry1.dso.mil` (free P1 account plus a CLI
 # secret):
-#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
-#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8
-ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
-ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
+#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.9
+#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.9
+ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.9
+ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.9
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS toolchain
 

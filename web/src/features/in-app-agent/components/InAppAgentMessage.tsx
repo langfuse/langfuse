@@ -316,9 +316,9 @@ function TextMessageWithActions({
         onClick={handleCopy}
       >
         {isCopied ? (
-          <Check __rawClassName={isCompact ? "icon-sm" : "icon-base"} />
+          <Check size={isCompact ? "sm" : "base"} />
         ) : (
-          <Copy __rawClassName={isCompact ? "icon-sm" : "icon-base"} />
+          <Copy size={isCompact ? "sm" : "base"} />
         )}
       </button>
       {canSubmitFeedback ? (
@@ -579,7 +579,7 @@ function MessageFeedbackControls({
         >
           <ThumbsUp
             color={selectedValue === "thumbs_up" ? "foreground" : "inherit"}
-            __rawClassName={cn(isCompact ? "icon-sm" : "icon-base")}
+            size={isCompact ? "sm" : "base"}
           />
         </FeedbackButton>
       </PopoverAnchor>
@@ -593,7 +593,7 @@ function MessageFeedbackControls({
       >
         <ThumbsDown
           color={selectedValue === "thumbs_down" ? "foreground" : "inherit"}
-          __rawClassName={cn(isCompact ? "icon-sm" : "icon-base")}
+          size={isCompact ? "sm" : "base"}
         />
       </FeedbackButton>
       {committedComment ? (
@@ -663,7 +663,7 @@ function SourcesPopover({
             isCompact && "py-0.5",
           )}
         >
-          <BookOpenText __rawClassName={isCompact ? "icon-sm" : "icon-base"} />
+          <BookOpenText size={isCompact ? "sm" : "base"} />
           Sources
         </button>
       </PopoverTrigger>
@@ -898,8 +898,34 @@ function MessageText({
       className={cn(styles.Streamdown, isCompact && styles.compact)}
     >
       <Streamdown
+        disallowedElements={[
+          "source",
+          "iframe",
+          "video",
+          "audio",
+          "object",
+          "embed",
+          "svg",
+        ]}
         // Remove all default classNames so that tailwind's prose styling can be applied without conflicts
         components={{
+          img: ({ src, alt, title }) => {
+            // Never forward srcSet or other model-controlled fetching attributes.
+            if (typeof src !== "string") {
+              return alt ?? null;
+            }
+            const isRasterDataUrl =
+              /^data:image\/(?:png|jpeg|gif|webp);base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/i.test(
+                src,
+              );
+            const isBlobUrl =
+              /^blob:(?:https?:\/\/[^/]+|null)\/[0-9a-f-]{36}$/i.test(src) &&
+              URL.canParse(src);
+            if (!isRasterDataUrl && !isBlobUrl) {
+              return alt ?? null;
+            }
+            return <img src={src} alt={alt ?? ""} title={title} />;
+          },
           h1: ({ children }) => <h1>{children}</h1>,
           h2: ({ children }) => <h2>{children}</h2>,
           h3: ({ children }) => <h3>{children}</h3>,
@@ -1247,9 +1273,7 @@ function ThinkingIndicator({
         className,
       )}
     >
-      <Loader2
-        __rawClassName={cn("animate-spin", isCompact ? "icon-sm" : "icon-base")}
-      />
+      <Loader2 size={isCompact ? "sm" : "base"} __rawClassName="animate-spin" />
       <span>{label}</span>
     </div>
   );

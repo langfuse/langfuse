@@ -229,6 +229,7 @@ function wrapPhysicalFrom(
   from: PhysicalFrom,
   spec: LimitBySpec,
 ): ClickHouseSelectQueryNode {
+  // `select * from <table> where … order by <version> desc limit 1 by <key>`
   const inner: ClickHouseSelectQueryNode = {
     kind: "SelectQueryNode",
     from: FromNode.create([from.fromItem]),
@@ -237,6 +238,7 @@ function wrapPhysicalFrom(
     orderBy: versionOrderBy(from, spec),
     limitBy: limitByNode(from, spec),
   };
+  // The caller's select over `from (<inner>) as <alias>`; its WHERE moved inside.
   const alias = IdentifierNode.create(from.alias ?? from.tableName);
   return {
     ...node,
@@ -260,6 +262,7 @@ function versionOrderBy(from: PhysicalFrom, spec: LimitBySpec): OrderByNode {
   return OrderByNode.create([versionOrderItem(from, spec)]);
 }
 
+/** `<alias>.<version> desc` */
 function versionOrderItem(
   from: PhysicalFrom,
   spec: LimitBySpec,
@@ -270,6 +273,7 @@ function versionOrderItem(
   );
 }
 
+/** `limit 1 by <alias>.<key>, …` */
 function limitByNode(from: PhysicalFrom, spec: LimitBySpec): LimitByNode {
   return LimitByNode.create(
     ValueNode.createImmediate(1),
@@ -277,6 +281,7 @@ function limitByNode(from: PhysicalFrom, spec: LimitBySpec): LimitByNode {
   );
 }
 
+/** `<alias>.<column>`, or bare `<column>` for an unaliased table. */
 function qualifyColumn(from: PhysicalFrom, column: string): OperationNode {
   const col = ColumnNode.create(column);
   return from.alias

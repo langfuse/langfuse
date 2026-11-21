@@ -1,6 +1,11 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { createHash } from "node:crypto";
+import { LANGFUSE_SKILLS } from "@repo/langfuse-skills";
+import {
+  Client,
+  InMemoryTransport,
+  ProtocolError,
+  ProtocolErrorCode,
+} from "@modelcontextprotocol/client";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { ClickHouseResourceError } from "@langfuse/shared/src/server";
 import { describe, expect, it, vi } from "vitest";
@@ -8,7 +13,7 @@ import { z } from "zod";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "@/src/features/mcp/types";
 
 vi.mock("@/src/features/mcp/server/registry", () => ({
@@ -23,6 +28,7 @@ const context: ServerContext = {
   publicKey: "pk-lf-test",
   plan: "oss",
   rateLimitOverrides: [],
+  accessAuditLogEnabled: false,
 };
 
 describe("MCP tool results", () => {
@@ -51,7 +57,7 @@ describe("MCP tool results", () => {
     },
     ...[
       new Error("internal secret"),
-      new McpError(ErrorCode.InternalError, "internal secret"),
+      new ProtocolError(ProtocolErrorCode.InternalError, "internal secret"),
     ].map((error) => ({
       name: error.constructor.name,
       error,
@@ -92,11 +98,66 @@ describe("MCP tool results", () => {
         expect(result.isError).toBe(message === "ok" ? undefined : true);
         await expect(
           client.callTool({ name: "unknown", arguments: {} }),
-        ).rejects.toMatchObject({ code: ErrorCode.InvalidParams });
+        ).rejects.toMatchObject({ code: ProtocolErrorCode.InvalidParams });
       } finally {
         await client.close();
         await server.close();
       }
     },
   );
+});
+
+describe("MCP skill resources", () => {
+  it("exposes manifests separately from resource contents without leaking bundle fields", async () => {
+    const server = createMcpServer(context);
+    const client = new Client({ name: "skill-test", version: "1.0.0" });
+    const [serverTransport, clientTransport] =
+      InMemoryTransport.createLinkedPair();
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      const expected = LANGFUSE_SKILLS.map(
+        ({ uri, frontmatter, resources }) => ({
+          uri,
+          frontmatter,
+          resources: resources.map((resource) => {
+            const bytes = Buffer.from(resource.text);
+            return {
+              uri: resource.uri,
+              digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+              size: bytes.length,
+            };
+          }),
+        }),
+      );
+      const listed = await client.request(
+        { method: "skills/list" },
+        z.object({ skills: z.array(z.unknown()) }),
+      );
+      expect(listed.skills).toEqual(expected);
+      const selected = await client.request(
+        { method: "skills/get", params: { uri: expected[0]!.uri } },
+        z.object({ skill: z.unknown() }),
+      );
+      expect(selected.skill).toEqual(expected[0]);
+      for (const resource of LANGFUSE_SKILLS.flatMap(
+        ({ resources }) => resources,
+      )) {
+        const result = await client.request(
+          { method: "resources/read", params: { uri: resource.uri } },
+          z.object({ contents: z.array(z.unknown()) }),
+        );
+        expect(result.contents).toEqual([
+          {
+            uri: resource.uri,
+            mimeType: resource.mimeType,
+            text: resource.text,
+          },
+        ]);
+      }
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
 });

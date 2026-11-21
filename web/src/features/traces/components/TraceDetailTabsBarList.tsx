@@ -8,7 +8,7 @@ import type { DetailTab } from "../contexts/SelectionProvider";
 
 const labels: Record<DetailTab, string> = {
   preview: "Preview",
-  attributes: "Attributes",
+  attributes: "Metadata",
   scores: "Scores",
   log: "Log View",
 };

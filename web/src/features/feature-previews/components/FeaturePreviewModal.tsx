@@ -15,10 +15,13 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import {
   featurePreviewLabels,
+  isInternalFeaturePreviewFlag,
   type PersonalFeaturePreviewFlag,
-} from "@/src/features/feature-flags";
+} from "@/src/features/feature-flags/available-flags";
+
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 /** Flags the Feature Preview modal can toggle. Keep in sync with the
  *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts. */
@@ -36,7 +39,7 @@ type PreviewRegistryItem = {
   flag: PreviewFlag;
   description: string;
   details: string;
-  feedbackUrl: string;
+  feedbackUrl?: string;
   illustration?: PreviewIllustration;
 };
 
@@ -53,14 +56,6 @@ export type PreviewState = {
 // Static registry — one entry per preview, in sidebar order.
 // Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
-  {
-    flag: "skillManagement",
-    description:
-      "Create, version, and distribute reusable agent skills from one place.",
-    details:
-      "Import skills, manage their versions and labels, install them with the CLI, and inspect the skills available or loaded in your traces.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
-  },
   {
     flag: "langfuseTopics",
     description:
@@ -82,9 +77,15 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       alt: "Redesigned Session View with a continuous session conversation feed.",
     },
   },
+  {
+    flag: "unifiedTraceSessionView",
+    description: "Explore traces and their full session in one unified view.",
+    details:
+      "Switch between Trace and Session scope without leaving the trace UI. Requires the events-backed read path and a trace belonging to a session.",
+  },
 ];
 
-const FEATURE_PREVIEW_MODAL_TITLE = "Feature Preview";
+const FEATURE_PREVIEW_MODAL_TITLE = "Feature preview";
 const FEATURE_PREVIEW_MODAL_SUBTITLE =
   "Try upcoming and experimental product experiences before they become generally available.";
 
@@ -125,7 +126,7 @@ export function FeaturePreviewModal({
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="grid min-h-0 gap-0 overflow-hidden p-0 md:grid-cols-[220px_1fr]">
+        <DialogBody className="grid min-h-0 gap-0 overflow-hidden p-0 md:grid-cols-[220px_minmax(0,1fr)]">
           <aside className="border-border bg-muted/20 border-b p-3 md:border-r md:border-b-0">
             <div className="flex gap-2 overflow-x-auto md:flex-col md:overflow-x-visible">
               {items.map((item) => {
@@ -144,7 +145,10 @@ export function FeaturePreviewModal({
                     )}
                   >
                     <span className="min-w-0">
-                      <span className="block text-sm font-bold">
+                      <span
+                        className="block truncate text-sm font-bold"
+                        title={featurePreviewLabels[item.flag]}
+                      >
                         {featurePreviewLabels[item.flag]}
                       </span>
                       <span className="text-muted-foreground mt-1 line-clamp-2 block text-xs">
@@ -167,22 +171,32 @@ export function FeaturePreviewModal({
                 ) : null}
 
                 <div className="flex items-start justify-between gap-6">
-                  <div>
-                    <h2 className="text-foreground text-xl font-bold">
-                      {featurePreviewLabels[selected.flag]}
+                  <div className="min-w-0">
+                    <h2 className="text-foreground flex items-center gap-2 text-xl font-bold whitespace-nowrap">
+                      <span
+                        className="truncate"
+                        title={featurePreviewLabels[selected.flag]}
+                      >
+                        {featurePreviewLabels[selected.flag]}
+                      </span>
+                      {isInternalFeaturePreviewFlag(selected.flag) && (
+                        <FeatureReleaseStatus status="internal" />
+                      )}
                     </h2>
                     <p className="text-muted-foreground mt-2 max-w-2xl text-sm">
                       {selected.description}
                     </p>
-                    <Button asChild className="mt-4">
-                      <a
-                        href={selected.feedbackUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Give feedback
-                      </a>
-                    </Button>
+                    {selected.feedbackUrl && (
+                      <Button asChild className="mt-4">
+                        <a
+                          href={selected.feedbackUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Give feedback
+                        </a>
+                      </Button>
+                    )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <Switch

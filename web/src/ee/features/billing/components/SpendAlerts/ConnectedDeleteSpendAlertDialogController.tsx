@@ -1,8 +1,9 @@
 import { type ComponentProps } from "react";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function ConnectedDeleteSpendAlertDialogController({

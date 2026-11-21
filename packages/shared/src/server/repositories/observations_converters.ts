@@ -1,3 +1,4 @@
+import { visibleModelsWhere } from "../ingestion/modelVisibility";
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { normalizeEventsTraceName } from "../../eventsTable";
@@ -13,7 +14,7 @@ import {
   PartialEventsObservation,
   PartialObservation,
   ObservationCoreFields,
-} from "../../domain";
+} from "../../domain/observations";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import {
   RenderingProps,
@@ -46,7 +47,7 @@ export const createModelCache = (projectId: string) => {
     const model = await prisma.model.findFirst({
       where: {
         id: internalModelId,
-        OR: [{ projectId }, { projectId: null }],
+        ...visibleModelsWhere(projectId),
       },
       include: {
         Price: {

@@ -11,10 +11,8 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import Header from "@/src/components/layouts/header";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useReadPath } from "@/src/features/events";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { XIcon, Check } from "@langfuse/icons";
@@ -57,12 +55,6 @@ export default function ProtectedLabelsSettings({
     scope: "promptProtectedLabels:CUD",
   });
   const hasEntitlement = useHasEntitlement("prompt-protected-labels");
-  const { isV4 } = useReadPath();
-  const skillManagementEnabled = useIsFeatureEnabled("skillManagement", {
-    projectId,
-    enableForAdmins: false,
-  });
-  const skillsEnabled = isV4 && skillManagementEnabled;
 
   const form = useForm({
     resolver: zodResolver(AddLabelFormSchema),
@@ -122,7 +114,7 @@ export default function ProtectedLabelsSettings({
         <p className="text-primary mb-4 text-sm">
           Protected labels can only be modified by users with admin or owner
           access. This prevents other users from changing or removing these
-          labels from {skillsEnabled ? "prompts and skills" : "prompts"}.
+          labels from prompts and skills.
         </p>
         <div className="mb-4 flex flex-wrap gap-2">
           {protectedLabels.map((label) => (
@@ -168,6 +160,7 @@ export default function ProtectedLabelsSettings({
                       <FormControl>
                         <Button
                           variant="outline"
+                          // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                           role="combobox"
                           aria-expanded={open}
                           className={cn(

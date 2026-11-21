@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/src/features/natural-language-filters/server", () => ({
+vi.mock("@/src/features/natural-language-filters/server/utils", () => ({
   getLangfuseClient: vi.fn(),
 }));
 
 import { logger } from "@langfuse/shared/src/server";
-import { getLangfuseClient } from "@/src/features/natural-language-filters/server";
+import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import {
   buildFieldCatalog,
   buildFilterSystemPrompt,
@@ -68,7 +68,9 @@ describe("resolveFilterSystemPrompt", () => {
       compile,
     };
     const getPrompt = vi.fn().mockResolvedValue(fakePromptResponse);
-    mockedGetLangfuseClient.mockReturnValue({ getPrompt } as any);
+    mockedGetLangfuseClient.mockReturnValue({
+      prompt: { get: getPrompt },
+    } as any);
 
     const result = await resolveFilterSystemPrompt({
       ...baseParams,
@@ -90,7 +92,9 @@ describe("resolveFilterSystemPrompt", () => {
 
   it("falls back to the code-built prompt (with a warn log) when the managed-prompt fetch throws", async () => {
     const getPrompt = vi.fn().mockRejectedValue(new Error("network error"));
-    mockedGetLangfuseClient.mockReturnValue({ getPrompt } as any);
+    mockedGetLangfuseClient.mockReturnValue({
+      prompt: { get: getPrompt },
+    } as any);
     const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
 
     const result = await resolveFilterSystemPrompt({
@@ -108,17 +112,13 @@ describe("resolveFilterSystemPrompt", () => {
         type: "public-api-created",
       },
     ]);
-    expect(getPrompt).toHaveBeenCalledWith(
-      SEARCH_BAR_FILTER_PROMPT_NAME,
-      undefined,
-      {
-        type: "chat",
-        // Caps cold-start latency: a slow/erroring AI-features project must
-        // never stall the user's request when a fast local fallback exists.
-        fetchTimeoutMs: 2000,
-        maxRetries: 0,
-      },
-    );
+    expect(getPrompt).toHaveBeenCalledWith(SEARCH_BAR_FILTER_PROMPT_NAME, {
+      type: "chat",
+      // Caps cold-start latency: a slow/erroring AI-features project must
+      // never stall the user's request when a fast local fallback exists.
+      fetchTimeoutMs: 2000,
+      maxRetries: 0,
+    });
     // A broken managed prompt must be visible, not silent.
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
@@ -126,7 +126,7 @@ describe("resolveFilterSystemPrompt", () => {
 
   it("falls back to the code-built prompt (with a warn log) when the managed prompt compiles to a non-chat result", async () => {
     // If the server ever stores a TEXT prompt under this name,
-    // `getPrompt(..., { type: "chat" })` still resolves, but `.compile()`
+    // `prompt.get(..., { type: "chat" })` still resolves, but `.compile()`
     // returns a STRING (the `TextPromptClient` shape), not an array of chat
     // messages. This must degrade to the fallback via an explicit guard, not
     // by relying on the TypeError `.map` would otherwise throw.
@@ -137,7 +137,9 @@ describe("resolveFilterSystemPrompt", () => {
       compile,
     };
     const getPrompt = vi.fn().mockResolvedValue(fakePromptResponse);
-    mockedGetLangfuseClient.mockReturnValue({ getPrompt } as any);
+    mockedGetLangfuseClient.mockReturnValue({
+      prompt: { get: getPrompt },
+    } as any);
     const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
 
     const result = await resolveFilterSystemPrompt({
@@ -181,7 +183,9 @@ describe("resolveFilterSystemPrompt", () => {
         compile,
       };
       const getPrompt = vi.fn().mockResolvedValue(fakePromptResponse);
-      mockedGetLangfuseClient.mockReturnValue({ getPrompt } as any);
+      mockedGetLangfuseClient.mockReturnValue({
+        prompt: { get: getPrompt },
+      } as any);
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
 
       const result = await resolveFilterSystemPrompt({
@@ -216,7 +220,9 @@ describe("resolveFilterSystemPrompt", () => {
       compile,
     };
     const getPrompt = vi.fn().mockResolvedValue(fakePromptResponse);
-    mockedGetLangfuseClient.mockReturnValue({ getPrompt } as any);
+    mockedGetLangfuseClient.mockReturnValue({
+      prompt: { get: getPrompt },
+    } as any);
 
     const result = await resolveFilterSystemPrompt({
       ...baseParams,
@@ -229,7 +235,6 @@ describe("resolveFilterSystemPrompt", () => {
       "pk-test",
       "sk-test",
       "https://example.com",
-      false,
     );
     expect(compile).toHaveBeenCalledWith({
       catalog: buildFieldCatalog(),

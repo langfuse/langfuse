@@ -79,7 +79,7 @@ vi.mock("@/src/utils/api", () => ({
   reportNonTrpcError: reportNonTrpcErrorMock,
 }));
 
-import { useAccountSettingsPages } from "@/src/features/account";
+import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
 
 function AccountSettingsPage() {
   const [general] = useAccountSettingsPages();

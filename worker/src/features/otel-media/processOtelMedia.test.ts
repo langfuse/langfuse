@@ -959,21 +959,40 @@ describe("processOtelEventMedia", () => {
     );
   });
 
-  it("does not let an unterminated marker consume a later known reference", async () => {
-    const { batch } = createFakeMediaBatch();
-    const prefix = "prefix @@@langfuseMedia:unterminated ";
-    const payload = {
-      traceId: "trace-id",
-      spanId: "span-id",
-      input: `${prefix}${DEFAULT_MEDIA_REFERENCE}`,
-    };
+  it.each([
+    ...[0, 1, 2, 3, 4, 5].map((extraAts) => ({
+      direction: "before" as const,
+      extraAts,
+    })),
+    ...[1, 2, 3].map((extraAts) => ({
+      direction: "after" as const,
+      extraAts,
+    })),
+  ])(
+    "does not consume a known reference in the $direction overlap with $extraAts adjacent @ characters",
+    async ({ direction, extraAts }) => {
+      const { batch } = createFakeMediaBatch();
+      const prefix = "prefix @@@langfuseMedia:unterminated ";
+      const input =
+        direction === "before"
+          ? `${prefix}${"@".repeat(extraAts)}${DEFAULT_MEDIA_REFERENCE}`
+          : `prefix ${DEFAULT_MEDIA_REFERENCE}${"@".repeat(extraAts)}langfuseMedia:unknown@@@`;
+      const payload = {
+        traceId: "trace-id",
+        spanId: "span-id",
+        input,
+      };
 
-    await resolveTarget(batch, payload);
+      await resolveTarget(batch, payload);
 
-    expect(payload.input).toBe(
-      `${prefix}${DEFAULT_MEDIA_REFERENCE.replace("provider", "uploaded")}`,
-    );
-  });
+      expect(payload.input).toBe(
+        input.replace(
+          DEFAULT_MEDIA_REFERENCE,
+          DEFAULT_MEDIA_REFERENCE.replace("provider", "uploaded"),
+        ),
+      );
+    },
+  );
 
   it("rewrites known references without altering unrelated text in either walker", async () => {
     const { batch, mediaBody } = createFakeMediaBatch();

@@ -43,23 +43,28 @@ component using `Object.assign`:
 
 ```tsx
 // ✅ Single component export with compound subcomponents
-const Alert = Object.assign(AlertRoot, {
-  Title: AlertTitle,
-  Description: AlertDescription,
+const Accordion = Object.assign(AccordionRoot, {
+  Item: AccordionItem,
+  Trigger: AccordionTrigger,
+  Content: AccordionContent,
 });
 
-export { Alert };
+export { Accordion };
 
-<Alert>
-  <Alert.Title>Title</Alert.Title>
-  <Alert.Description>Description</Alert.Description>
-</Alert>
+<Accordion>
+  <Accordion.Item>
+    <Accordion.Trigger>Title</Accordion.Trigger>
+    <Accordion.Content>Content</Accordion.Content>
+  </Accordion.Item>
+</Accordion>
 
 // ❌ Separate component exports
-<Alert>
-  <AlertTitle>Title</AlertTitle>
-  <AlertDescription>Description</AlertDescription>
-</Alert>
+<Accordion>
+  <AccordionItem>
+    <AccordionTrigger>Title</AccordionTrigger>
+    <AccordionContent>Content</AccordionContent>
+  </AccordionItem>
+</Accordion>
 ```
 
 ---

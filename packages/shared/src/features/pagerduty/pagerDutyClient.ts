@@ -1,13 +1,12 @@
 import { backOff } from "exponential-backoff";
 
-import {
-  GatewayTimeoutError,
-  isBaseError,
-  ServiceUnavailableError,
-  TooManyRequestsError,
-  toBaseError,
-} from "../../errors";
+import { GatewayTimeoutError } from "../../errors/GatewayTimeoutError";
+import { isBaseError } from "../../errors/BaseError";
+import { TooManyRequestsError } from "../../errors/TooManyRequestsError";
+import { toBaseError } from "../../errors/toBaseError";
+import { ServiceUnavailableError } from "../../errors/ServiceUnavailableError";
 import { logger } from "../../server/logger";
+import { withoutBaggage } from "../../server/instrumentation";
 import { type PagerDutyRegion } from "./types";
 
 /** PAGERDUTY_EVENTS_HOSTS is the fixed allowlist of Events API hosts per service region. */
@@ -96,13 +95,15 @@ async function fetchEvent(
   body: PagerDutyAlertEvent | PagerDutyChangeEvent,
 ): Promise<Response> {
   try {
-    return await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      redirect: "error",
-      signal: AbortSignal.timeout(requestTimeoutMs),
-    });
+    return await withoutBaggage(() =>
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        redirect: "error",
+        signal: AbortSignal.timeout(requestTimeoutMs),
+      }),
+    );
   } catch (error) {
     if (error instanceof Error && error.name === "TimeoutError") {
       throw new GatewayTimeoutError(

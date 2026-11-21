@@ -15,11 +15,15 @@ use tower_http::timeout::{RequestBodyDeadlineLayer, TimeoutError};
 use tracing::Instrument;
 
 use crate::{
+    capture::{GatewayRejection, MAX_OUTPUT_CAPTURE_BYTES, MAX_RESPONSE_PARSE_BYTES},
     correlation::{RequestCorrelation, assign_request_id},
-    inference::{InferenceService, MemoryReservation, provider_origin, resolution_origin},
+    inference::{
+        InferenceService, MemoryReservation, provider_origin, rate_limited_reason,
+        resolution_origin,
+    },
     observability::{ErrorOrigin, Wait},
     providers::{ProviderError, RequestBody, Route},
-    resolution::{ApiFormat, ResolutionError},
+    resolution::{ApiFormat, ResolutionError, SpendLimitExceeded},
     server::GatewayLifecycleState,
 };
 
@@ -43,6 +47,8 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
             post(handle_responses_compact),
         )
         .route("/openai/v1/chat/completions", post(handle_chat_completions))
+        .route("/openai/v1/decisions", post(handle_decisions))
+        .route("/openai/v1/embeddings", post(handle_embeddings))
         .route("/openai/v1/models", get(handle_openai_models))
         .route("/anthropic/v1/messages", post(handle_messages))
         .route(
@@ -77,6 +83,14 @@ async fn handle_chat_completions(
     request: Request,
 ) -> Response {
     handle_inference(state, request, Route::OpenAiChatCompletions).await
+}
+
+async fn handle_decisions(State(state): State<InferenceRouteState>, request: Request) -> Response {
+    handle_inference(state, request, Route::OpenAiDecisions).await
+}
+
+async fn handle_embeddings(State(state): State<InferenceRouteState>, request: Request) -> Response {
+    handle_inference(state, request, Route::OpenAiEmbeddings).await
 }
 
 async fn handle_openai_models(
@@ -220,17 +234,25 @@ async fn relay(
         .observation()
         .record_wait(Wait::RequestBody, started.elapsed());
     let (bytes, reservation) = read?;
-    correlation.observation().record_request_bytes(bytes.len());
+    let request_bytes = bytes.len();
+    correlation
+        .observation()
+        .record_request_bytes(request_bytes);
     let request_body = request_body_and_model(bytes)?;
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
-            route.api_format(),
+            route,
             &request_body.model,
+            &parts.headers,
+            &request_body.bytes,
             correlation,
         )
         .await
         .map_err(InferenceHttpError::Resolution)?;
+    let parse_growth = permit
+        .charges_spend()
+        .then(|| reservation.deferred(MAX_RESPONSE_PARSE_BYTES - MAX_OUTPUT_CAPTURE_BYTES));
     inference
         .forward(
             permit,
@@ -241,6 +263,7 @@ async fn relay(
                 model_range: request_body.model_range,
                 streaming: request_body.streaming,
                 reservation: Some(Box::new(reservation)),
+                parse_growth,
             },
             route,
             correlation,
@@ -375,7 +398,10 @@ fn gateway_key(headers: &HeaderMap, api_format: ApiFormat) -> Result<&str, Infer
         })
         .transpose()?;
     let api_key = match api_format {
-        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => None,
+        ApiFormat::OpenAiResponses
+        | ApiFormat::OpenAiChatCompletions
+        | ApiFormat::OpenAiDecisions
+        | ApiFormat::OpenAiEmbeddings => None,
         ApiFormat::AnthropicMessages => single_header(headers, "x-api-key")?,
     };
     let key = match (api_key, bearer) {
@@ -427,12 +453,12 @@ enum InferenceHttpError {
 
 #[derive(Serialize)]
 struct OpenAiErrorResponse<'a> {
-    error: OpenAiErrorDetail,
+    error: OpenAiErrorDetail<'a>,
     request_id: &'a str,
 }
 #[derive(Serialize)]
-struct OpenAiErrorDetail {
-    message: &'static str,
+struct OpenAiErrorDetail<'a> {
+    message: &'a str,
     #[serde(rename = "type")]
     kind: &'static str,
     param: Option<&'static str>,
@@ -443,14 +469,14 @@ struct OpenAiErrorDetail {
 struct AnthropicErrorResponse<'a> {
     #[serde(rename = "type")]
     kind: &'static str,
-    error: AnthropicErrorDetail,
+    error: AnthropicErrorDetail<'a>,
     request_id: &'a str,
 }
 #[derive(Serialize)]
-struct AnthropicErrorDetail {
+struct AnthropicErrorDetail<'a> {
     #[serde(rename = "type")]
     kind: &'static str,
-    message: &'static str,
+    message: &'a str,
 }
 
 impl InferenceHttpError {
@@ -472,6 +498,10 @@ impl InferenceHttpError {
                     R::Forbidden => "forbidden",
                     R::ModelNotAllowed => "model_not_allowed",
                     R::NoRoute => "no_route",
+                    R::RateLimited(limit) => rate_limited_reason(limit.kind()),
+                    R::SpendLimitExceeded(_) => "spend_limit_exceeded",
+                    R::SpendLimitUnavailable => "spend_limit_unavailable",
+                    R::SpendLimitUnpricedModel => "spend_limit_unpriced_model",
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -492,7 +522,7 @@ impl InferenceHttpError {
         }
     }
 
-    fn classify(&self) -> (StatusCode, &'static str, &'static str, &'static str) {
+    fn classify(&self) -> Classification {
         use ResolutionError as R;
         match self {
             Self::Credential | Self::Resolution(R::InvalidCredential | R::Authentication) => (
@@ -519,6 +549,14 @@ impl InferenceHttpError {
                 "permission_error",
                 "model_not_allowed",
             ),
+            // OpenAI's own rate-limit type and code, so SDKs treat it as a 429 to back off.
+            Self::Resolution(R::RateLimited(_)) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Langfuse AI Gateway rate limit exceeded",
+                "requests",
+                "rate_limit_exceeded",
+            ),
+            Self::Resolution(R::SpendLimitExceeded(_)) => SPEND_LIMIT_EXCEEDED,
             Self::Resolution(R::NoRoute) => (
                 StatusCode::NOT_FOUND,
                 "No eligible provider connection",
@@ -543,6 +581,7 @@ impl InferenceHttpError {
                 "invalid_request_error",
                 "unsupported_content_encoding",
             ),
+            Self::Resolution(R::SpendLimitUnpricedModel) => SPEND_LIMIT_UNPRICED_MODEL,
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
                 "Invalid request body",
@@ -556,7 +595,9 @@ impl InferenceHttpError {
                 "invalid_model",
             ),
             Self::Unavailable
-            | Self::Resolution(R::Unavailable | R::Configuration | R::Busy)
+            | Self::Resolution(
+                R::Unavailable | R::Configuration | R::Busy | R::SpendLimitUnavailable,
+            )
             | Self::Provider(ProviderError::Configuration) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Gateway temporarily unavailable",
@@ -588,8 +629,36 @@ impl InferenceHttpError {
             Self::RequestTimeout => (ErrorOrigin::Client, "body_timeout"),
             Self::UnsupportedEncoding => (ErrorOrigin::Client, "unsupported_content_encoding"),
             Self::InvalidBody => (ErrorOrigin::Client, "invalid_body"),
-            Self::Resolution(error) => resolution_origin(*error),
+            Self::Resolution(error) => resolution_origin(error),
             Self::Provider(error) => provider_origin(*error),
+        }
+    }
+
+    fn spend_limit(&self) -> Option<&SpendLimitExceeded> {
+        match self {
+            Self::Resolution(ResolutionError::SpendLimitExceeded(limit)) => Some(limit.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Rate and spend limits name the exhausted limit instead of the generic `message`.
+    fn message<'a>(&'a self, message: &'a str) -> &'a str {
+        match self {
+            Self::Resolution(ResolutionError::RateLimited(limit)) => limit.message(),
+            _ => self
+                .spend_limit()
+                .map_or(message, SpendLimitExceeded::message),
+        }
+    }
+
+    fn rejection(&self) -> GatewayRejection {
+        let (status, message, _, _) = self.classify();
+        let (origin, reason) = self.origin();
+        GatewayRejection {
+            status: status.as_u16(),
+            origin,
+            reason,
+            message: self.message(message).to_owned(),
         }
     }
 
@@ -601,8 +670,23 @@ impl InferenceHttpError {
         let (phase, reason) = self.category();
         let (origin, _) = self.origin();
         let (status, message, kind, code) = self.classify();
+        let rate_limit = match &self {
+            Self::Resolution(ResolutionError::RateLimited(limit)) => Some(limit.as_ref()),
+            _ => None,
+        };
         // Caller mistakes are routine; only failures that need an operator warn.
-        if status.is_server_error() {
+        if let Some(limit) = rate_limit {
+            tracing::warn!(
+                phase,
+                reason,
+                error.origin = origin.as_str(),
+                status = status.as_u16(),
+                rate_limit = limit.kind().as_str(),
+                retry_after_secs = limit.retry_after_secs(),
+                organization_id = limit.organization_id(),
+                "gateway request rate limited"
+            );
+        } else if status.is_server_error() {
             tracing::warn!(
                 phase,
                 reason,
@@ -620,8 +704,13 @@ impl InferenceHttpError {
             );
         }
         let request_id = correlation.id();
-        match api_format {
-            ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => (
+        let spend_limit = self.spend_limit();
+        let message = self.message(message);
+        let mut response = match api_format {
+            ApiFormat::OpenAiResponses
+            | ApiFormat::OpenAiChatCompletions
+            | ApiFormat::OpenAiDecisions
+            | ApiFormat::OpenAiEmbeddings => (
                 status,
                 Json(OpenAiErrorResponse {
                     error: OpenAiErrorDetail {
@@ -646,15 +735,49 @@ impl InferenceHttpError {
                 }),
             )
                 .into_response(),
+        };
+        if let Some(limit) = rate_limit {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, limit.retry_after_secs().into());
         }
+        if let Some(retry_after_secs) = spend_limit.and_then(SpendLimitExceeded::retry_after_secs) {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, retry_after_secs.into());
+        }
+        response
     }
 }
+
+/// The status and message a refused resolution returns, for its generation.
+pub(crate) fn resolution_rejection(error: &ResolutionError) -> GatewayRejection {
+    InferenceHttpError::Resolution(error.clone()).rejection()
+}
+
+/// Status, message, error type and error code of a rejection.
+type Classification = (StatusCode, &'static str, &'static str, &'static str);
+
+/// `OpenAI`'s type for an exhausted budget; the message names the limit.
+const SPEND_LIMIT_EXCEEDED: Classification = (
+    StatusCode::TOO_MANY_REQUESTS,
+    "Budget exceeded",
+    "insufficient_quota",
+    "spend_limit_exceeded",
+);
+const SPEND_LIMIT_UNPRICED_MODEL: Classification = (
+    StatusCode::BAD_REQUEST,
+    "A budget applies to this API key, and Langfuse has no price for this model. Add a model price in Langfuse to use the model with this key.",
+    "invalid_request_error",
+    "spend_limit_unpriced_model",
+);
 
 fn anthropic_error_type(status: StatusCode) -> &'static str {
     match status {
         StatusCode::UNAUTHORIZED => "authentication_error",
         StatusCode::FORBIDDEN => "permission_error",
         StatusCode::NOT_FOUND => "not_found_error",
+        StatusCode::TOO_MANY_REQUESTS => "rate_limit_error",
         StatusCode::PAYLOAD_TOO_LARGE => "request_too_large",
         StatusCode::SERVICE_UNAVAILABLE => "overloaded_error",
         status if status.is_client_error() => "invalid_request_error",

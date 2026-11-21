@@ -5,14 +5,26 @@ import {
   getDimensionSummaries,
   getEvenTickInterval,
   toFullMetricString,
+  parseMetricUnit,
 } from "@/src/features/widgets/chart-library/utils";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import type { ComponentProps } from "react";
+import type { WidgetChartCard } from "../components/WidgetChartCard";
+
+it("restricts chart units to supported literals", () => {
+  expectTypeOf<ComponentProps<typeof WidgetChartCard>["unit"]>().toEqualTypeOf<
+    "USD" | "milliseconds" | "tokens" | "traces" | undefined
+  >();
+  expect(parseMetricUnit("milliseconds")).toBe("milliseconds");
+  expect(parseMetricUnit("millisecond")).toBeUndefined();
+  expect(parseMetricUnit("unsupported")).toBeUndefined();
+});
 
 describe("formatMetric", () => {
   it("keeps sub-millisecond duration ticks distinct", () => {
     expect(
       [0, 0.002, 0.004, 0.006, 0.008, 0.01].map((value) =>
-        formatMetric(value, { unit: "millisecond", style: "compact" }),
+        formatMetric(value, { unit: "milliseconds", style: "compact" }),
       ),
     ).toEqual(
       ["0", "0.002", "0.004", "0.006", "0.008", "0.01"].map((main) => ({
@@ -135,7 +147,7 @@ describe("formatMetric", () => {
   it("trims duration precision to fit maxCharacters", () => {
     expect(
       formatMetric(1_500, {
-        unit: "millisecond",
+        unit: "milliseconds",
         style: "compact",
         maxCharacters: 3,
       }),

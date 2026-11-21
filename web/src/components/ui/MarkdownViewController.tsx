@@ -5,7 +5,7 @@ import {
   isOpenAITextContentPart,
 } from "@langfuse/shared";
 import { type z } from "zod";
-import { type MediaReturnType } from "@/src/features/media";
+import { type MediaReturnType } from "@/src/features/media/validation";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   filterAlreadyRenderedMedia,

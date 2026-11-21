@@ -474,6 +474,40 @@ describe("isDenylistedNoiseEvent", () => {
         ),
       ).toBe(true);
     });
+
+    // Safari's Response.json() DOMException, captured via reportError as a
+    // TRPCClientError with the DOM SYNTAX_ERR chained (LANGFUSE-55X).
+    // `beforeSend` sees causes either first (SDK linkedErrors) or after the
+    // primary exception (some stored-event views). Both orders must drop.
+    const safariResponseJsonEvent = (
+      order: "cause-first" | "primary-first",
+    ): ErrorEvent => {
+      const message = "The string did not match the expected pattern.";
+      const trpc = {
+        type: "TRPCClientError",
+        value: message,
+        mechanism: { type: "generic", handled: true },
+      };
+      const cause = {
+        type: "SyntaxError",
+        value: message,
+        mechanism: { type: "chained", handled: true },
+      };
+      return {
+        exception: {
+          values: order === "cause-first" ? [cause, trpc] : [trpc, cause],
+        },
+      } as ErrorEvent;
+    };
+
+    it.each(["cause-first", "primary-first"] as const)(
+      "drops Safari's Response.json() failure (%s)",
+      (order) => {
+        expect(isDenylistedNoiseEvent(safariResponseJsonEvent(order))).toBe(
+          true,
+        );
+      },
+    );
   });
 
   describe("B. drops NextAuth session-poll CLIENT_FETCH_ERROR", () => {
@@ -1187,6 +1221,40 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           messageEvent("Failed to load kitesurf: connection timed out"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps Safari's generic SyntaxError when it is not a tRPC response.json() failure", () => {
+      // App JSON.parse, and a server error that happens to use the sentence,
+      // must still reach Sentry. The drop requires BOTH the TRPCClientError
+      // wrap and a chained SyntaxError/DOMException with the exact message.
+      const message = "The string did not match the expected pattern.";
+      expect(
+        isDenylistedNoiseEvent(exceptionEvent(message, "SyntaxError")),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(exceptionEvent(message, "TRPCClientError")),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "The string did not match the expected pattern for this field",
+            "TRPCClientError",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("tRPC response was not JSON", "TRPCClientError"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a real JSON tRPC error", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("Internal server error", "TRPCClientError"),
         ),
       ).toBe(false);
     });

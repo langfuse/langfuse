@@ -1,0 +1,2 @@
+ALTER TABLE topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE} DROP INDEX IF EXISTS idx_trace_id{CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2};
+ALTER TABLE topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE} MODIFY COLUMN embedding Array(Float32) SETTINGS mutations_sync = 2{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2};

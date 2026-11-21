@@ -36,7 +36,7 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/features/rbac", () => ({
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: ({ scope }: { scope: string }) =>
     scope === "comments:read" ? accessState.hasReadAccess : true,
 }));

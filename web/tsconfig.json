@@ -3,29 +3,26 @@
   "compilerOptions": {
     "declaration": false,
     "declarationMap": false,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
       "@/*": ["./*"]
     },
     "strictNullChecks": true,
-    "types": ["node"]
+    "types": [
+      "node",
+      "vitest/globals",
+      "vitest/importMeta",
+      "@testing-library/jest-dom"
+    ]
   },
-  "exclude": [
-    "node_modules",
-    "sdk",
-    "storybook-static",
-    ".storybook",
-    "**/__tests__/**",
-    "**/__e2e__/**",
-    "**/*.test.*",
-    "**/*.spec.*",
-    "**/*.clienttest.*",
-    "**/*.servertest.*",
-    "**/*.story.*",
-    "**/*.stories.*",
-    "vitest.config.mts",
-    "playwright.config.ts"
-  ],
+  "exclude": ["node_modules", "sdk"],
   "include": [
+    ".storybook/**/*",
+    "vitest.config.mts",
     "**/*.cjs",
     "**/*.mjs",
     "**/*.ts",
@@ -34,6 +31,6 @@
     ".next/types/**/*.ts",
     "next-env.d.ts",
     "src",
-    "types/**/*.d.ts"
+    "types/global.d.ts"
   ]
 }

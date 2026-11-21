@@ -1,4 +1,4 @@
-// TEMPORARY(node-24.22.1-security): see build.sh.
+// Disabled; see README.md.
 //
 // Fails unless the installed Node has every fix that build.sh patches in. Each
 // check calls the affected API directly and needs no network or certificates.

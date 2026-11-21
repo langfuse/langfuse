@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import type { Observation } from "../../domain";
+import type { Observation } from "../../domain/observations";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
 } from "../../utils/normalized-io";
-import { normalizeIO } from "../normalized-io";
+import { normalizeIO } from "../normalized-io/parser";
 import { orderObservations } from "./ordering";
 import { assembleTranscript } from "./transcript";
 import { isExecutionIssue } from "./context";
@@ -61,6 +61,53 @@ const redactInlineMedia = (text: string): string =>
   text.replace(/data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g, "[media omitted]");
 
 /**
+ * Scrubs a JSON payload for model input: media data, nested reasoning and opaque
+ * provider blobs are replaced or dropped (the Topics JSON projection's rules).
+ */
+export function redactModelPayload(value: unknown, field?: string): unknown {
+  if (typeof value === "string") return redactInlineMedia(value);
+  if (Array.isArray(value))
+    return value.map((item) => redactModelPayload(item, field));
+  if (value === null || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  if (
+    ["reasoning", "thinking", "redacted_thinking"].includes(
+      String(record.type),
+    ) ||
+    record.thought === true
+  )
+    return "[reasoning omitted]";
+  const isMedia =
+    record.type === "base64" ||
+    typeof record.mimeType === "string" ||
+    typeof record.mime_type === "string" ||
+    field === "audio" ||
+    field === "input_audio";
+  return Object.fromEntries(
+    Object.entries(record)
+      .filter(([key]) => !OPAQUE_PAYLOAD_KEYS.has(key))
+      .map(([key, nested]) => [
+        key,
+        key === "data" && isMedia
+          ? "[media omitted]"
+          : redactModelPayload(nested, key),
+      ]),
+  );
+}
+
+const OPAQUE_PAYLOAD_KEYS = new Set([
+  "reasoning",
+  "reasoning_content",
+  "thinking",
+  "signature",
+  "thoughtSignature",
+  "encrypted_content",
+  "providerMetadata",
+  "toolDefinitions",
+  "tool_definitions",
+]);
+
+/**
  * Render an assembled trace for Topics without assembling it a second time.
  * Observations provide root I/O and operation context omitted by assembly.
  */
@@ -102,7 +149,9 @@ export function renderTranscript(
     return text;
   };
   const json = (value: unknown) =>
-    typeof value === "string" ? value : (JSON.stringify(value) ?? "");
+    typeof value === "string"
+      ? value
+      : (JSON.stringify(redactModelPayload(value)) ?? "");
   const labeled = (
     label: string,
     content: string,
@@ -112,6 +161,13 @@ export function renderTranscript(
     maxChars === 0
       ? `[${label}]`
       : `[${label}] ${clip(content, maxChars, block)}`.trimEnd();
+  // Audio replies keep their spoken words in the provider transcript.
+  const fileContent = (
+    part: Extract<NormalizedMessagePart, { type: "file" }>,
+  ) => {
+    const spoken = part.providerMetadata?.transcript;
+    return `[${part.mediaType ?? "file"} omitted]${typeof spoken === "string" ? ` transcript: ${spoken}` : ""}`;
+  };
   const partContent = (part: NormalizedMessagePart): string => {
     switch (part.type) {
       case "text":
@@ -125,7 +181,7 @@ export function renderTranscript(
           ? toolResultContent(part.output.value)
           : json(part.output.value);
       case "file":
-        return `[${part.mediaType ?? "file"} omitted]`;
+        return fileContent(part);
       case "data":
         return json(part.value);
       case "custom":
@@ -399,7 +455,7 @@ export function renderTranscript(
           : null;
       case "file":
         return role.include && !part.reasoning
-          ? `[${userLabel}] [${part.mediaType ?? "file"} omitted]`
+          ? `[${userLabel}] ${fileContent(part)}`
           : null;
       case "data":
       case "custom":
@@ -575,9 +631,16 @@ export function renderTranscript(
     let activeThread: number | null = null;
     for (const { event, text } of events) {
       const thread = event.thread;
-      if (threads.length > 1 && thread !== null && thread !== activeThread) {
+      // An error without a thread (run-level, or placed by time across threads) belongs to no thread block.
+      // Operation markers without a thread stay inside the active thread.
+      const leavesThread = thread === null && event.kind === "error";
+      if (
+        threads.length > 1 &&
+        thread !== activeThread &&
+        (thread !== null || leavesThread)
+      ) {
         if (activeThread !== null) header("</thread>");
-        header(`<thread n="${thread + 1}">`);
+        if (thread !== null) header(`<thread n="${thread + 1}">`);
         activeThread = thread;
       }
       lines.push({
@@ -621,8 +684,30 @@ export function renderTranscript(
       lastAction = "assistant text";
     else lastAction = `${lastPart.message.role} message`;
   }
+  // Reasoning and tool calls are not shown to end users; only non-blank text, spoken audio or the root output is.
+  const assistantParts = current.flatMap(({ event }) =>
+    event.kind === "part" && event.message.role === "assistant"
+      ? [event.part]
+      : [],
+  );
+  let visibleReply = "none";
+  if (assistantParts.some((part) => part.type === "text" && part.text.trim()))
+    visibleReply = "assistant text";
+  else if (
+    assistantParts.some(
+      (part) =>
+        part.type === "file" &&
+        !part.reasoning &&
+        typeof part.providerMetadata?.transcript === "string" &&
+        part.providerMetadata.transcript.trim() !== "",
+    )
+  )
+    visibleReply = "assistant audio";
+  // The root output reached the user even when it repeats the final message.
+  else if (rootOutput) visibleReply = "application output";
   header("<end_of_run>");
   header(`last action: ${lastAction}`);
+  header(`visible reply: ${visibleReply}`);
   if (rootOutputLine) header("final output: application output");
   else if (outputMatchesMessage)
     header(

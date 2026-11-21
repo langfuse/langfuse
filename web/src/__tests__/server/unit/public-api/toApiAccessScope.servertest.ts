@@ -12,6 +12,7 @@ const scopeOrg = {
   rateLimitOverrides: [],
   projectIds: ["prj_1"],
   isIngestionSuspended: false,
+  accessAuditLogEnabled: false,
 };
 
 const apiKeyPrincipal = (
@@ -43,6 +44,7 @@ const projectScope = {
   publicKey: "pk-lf-1",
   isIngestionSuspended: false,
   isInAppAgentKey: false,
+  accessAuditLogEnabled: false,
 };
 
 describe("toApiAccessScope", () => {
@@ -63,6 +65,7 @@ describe("toApiAccessScope", () => {
       publicKey: "pk-lf-1",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
+      accessAuditLogEnabled: false,
     });
   });
 
@@ -100,6 +103,7 @@ describe("toApiAccessScope", () => {
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
+      accessAuditLogEnabled: null,
     });
   });
 

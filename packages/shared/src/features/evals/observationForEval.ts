@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { type EventRecordBaseType } from "../../server/repositories/definitions";
-import { ObservationLevel } from "../../domain";
+import { ObservationLevel } from "../../domain/observations";
 import { metadataArraysToRecord } from "../../server/utils/metadata_conversion";
 import { parseJsonIfString } from "../../utils/json";
 
@@ -291,6 +291,7 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
 
 export {
   mapEventEvalFilterColumnIdToField,
+  evalFilterEmptyEqualsNullColumns,
   type ObservationEvalFilterColumnInternal,
 } from "./filterFields";
 export {
