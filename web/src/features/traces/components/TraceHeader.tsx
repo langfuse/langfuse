@@ -11,6 +11,7 @@ import {
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { numberFormatter } from "@/src/utils/numbers";
 import { traceTopicRows } from "@/src/features/topics/trace/trace-topic-rows";
 import { treemapBadgeColor } from "@/src/features/topics/topic-map-colors";
 /** Trace totals, session/user links and tags, above the panels. */
@@ -24,7 +25,11 @@ import {
   traceDeleteCandidateFromObservation,
   traceDeleteCandidateFromTrace,
 } from "@/src/features/traces/pendingTraceDeletionMatch";
-import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
+import {
+  aggregateTraceMetrics,
+  countObservationLevels,
+  visibleObservationLevelCounts,
+} from "@/src/features/traces/fns/traceAggregation";
 import { useTraceTopicFacets } from "@/src/features/topics/trace/useTraceTopicFacets";
 import { PlusIcon, SquarePen, MessageSquare } from "@langfuse/icons";
 import { AnnotationQueueObjectType } from "@langfuse/shared";
@@ -65,11 +70,16 @@ function LoadedTraceHeader({
     corrections,
     sessionTraces,
     isPlaceholderData,
+    truncatedAtObservations,
   } = useTraceData();
   const topicFacets = useTraceTopicFacets(trace);
 
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
+    [observations],
+  );
+  const observationLevelCounts = useMemo(
+    () => countObservationLevels(observations),
     [observations],
   );
   const latency = useMemo(() => {
@@ -125,6 +135,25 @@ function LoadedTraceHeader({
       text: formatIntervalSeconds(latency),
       searchText: `latency ${latency}`,
     });
+  const loadedLevelCountNote = truncatedAtObservations
+    ? ` among the first ${truncatedAtObservations.toLocaleString()} loaded`
+    : "";
+  for (const item of visibleObservationLevelCounts(
+    observationLevelCounts,
+    observations.length > 0,
+  )) {
+    metrics.push({
+      id: `observation-level-${item.label}`,
+      type: "value",
+      label: item.label,
+      text: numberFormatter(item.count, 0),
+      ...(item.color ? { color: item.color } : {}),
+      title: `${item.count} ${item.label} observation${
+        item.count === 1 ? "" : "s"
+      }${loadedLevelCountNote}`,
+      searchText: `${item.label} ${item.count}`,
+    });
+  }
   if (aggregatedMetrics.totalCost != null && aggregatedMetrics.costDetails) {
     const text = formatMetricCost(aggregatedMetrics.totalCost);
     const title = `exact $${aggregatedMetrics.totalCost.toFixed(6)}`;
