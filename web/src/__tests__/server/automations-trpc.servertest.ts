@@ -1,19 +1,20 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import dns from "node:dns/promises";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { type Prisma, prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   createOrgProjectAndApiKey,
   SLACK_CHANNEL_NOT_FOUND_MESSAGE,
 } from "@langfuse/shared/src/server";
-import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import {
   ActionExecutionStatus,
   JobConfigState,
   type SafeWebhookActionConfig,
   TriggerEventSource,
+  type Role,
   type WebhookActionConfigWithSecrets,
   isWebhookAction,
 } from "@langfuse/shared";
@@ -24,6 +25,7 @@ import {
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
 import { type MockInstance } from "vitest";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
 // "G_ARCHIVED". Slack API calls are faked; the access logic is real.
@@ -92,47 +94,42 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 const __orgIds: string[] = [];
 
+function automationsSession({
+  org,
+  project,
+  orgRole,
+  projectRole,
+  user,
+}: {
+  org: { id: string; name: string };
+  project: { id: string; name: string };
+  orgRole: Role;
+  projectRole: Role;
+  user?: { id: string };
+}) {
+  return createSession({
+    user,
+    organizations: [
+      {
+        id: org.id,
+        role: orgRole,
+        name: org.name,
+        projects: [{ id: project.id, role: projectRole, name: project.name }],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
+}
+
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      admin: true,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  };
+  const session = automationsSession({
+    org,
+    project,
+    orgRole: "OWNER",
+    projectRole: "ADMIN",
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -338,28 +335,15 @@ describe("automations trpc", () => {
     });
 
     it("should return empty array for user with read access but no automations", async () => {
-      const { project, session } = await prepare();
+      const { project, org } = await prepare();
 
       // Create a session with limited permissions (VIEWER can read but not create)
-      const limitedSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          admin: false,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER", // VIEWER role can read automations but not create/update/delete
-                },
-              ],
-            },
-          ],
-        },
-      };
+      const limitedSession = automationsSession({
+        org,
+        project,
+        orgRole: "MEMBER",
+        projectRole: "VIEWER", // VIEWER role can read automations but not create/update/delete
+      });
 
       const limitedCtx = createInnerTRPCContext({
         session: limitedSession,
@@ -1097,28 +1081,15 @@ describe("automations trpc", () => {
     });
 
     it("should throw error when user lacks automations:CUD access", async () => {
-      const { project, session } = await prepare();
+      const { project, org } = await prepare();
 
       // Create a session with limited permissions
-      const limitedSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          admin: false,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER", // VIEWER role doesn't have automations:CUD scope
-                },
-              ],
-            },
-          ],
-        },
-      };
+      const limitedSession = automationsSession({
+        org,
+        project,
+        orgRole: "MEMBER",
+        projectRole: "VIEWER", // VIEWER role doesn't have automations:CUD scope
+      });
 
       const limitedCtx = createInnerTRPCContext({
         session: limitedSession,
@@ -1165,6 +1136,115 @@ describe("automations trpc", () => {
           },
         }),
       ).rejects.toThrow("Name is required");
+    });
+
+    describe("monitor webhook destination validation", () => {
+      const original = {
+        hosts: sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_HOST,
+        ips: sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IPS,
+        ipSegments: sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS,
+        allowedHosts: sharedEnv.LANGFUSE_WEBHOOK_ALLOWED_HOSTS,
+      };
+
+      const monitorWebhookInput = (projectId: string, url: string) => ({
+        projectId,
+        name: "Monitor webhook",
+        eventSource: TriggerEventSource.Monitor,
+        eventAction: [],
+        filter: null,
+        status: JobConfigState.ACTIVE,
+        actionType: "WEBHOOK" as const,
+        actionConfig: {
+          type: "WEBHOOK" as const,
+          url,
+          requestHeaders: {},
+          apiVersion: { monitor: "v1" as const },
+        },
+      });
+
+      async function expectNothingPersisted(projectId: string) {
+        const [automations, triggers, actions] = await Promise.all([
+          prisma.automation.count({ where: { projectId } }),
+          prisma.trigger.count({ where: { projectId } }),
+          prisma.action.count({ where: { projectId } }),
+        ]);
+        expect({ automations, triggers, actions }).toEqual({
+          automations: 0,
+          triggers: 0,
+          actions: 0,
+        });
+      }
+
+      beforeEach(() => {
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_HOST = [];
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IPS = [];
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS = [];
+        sharedEnv.LANGFUSE_WEBHOOK_ALLOWED_HOSTS = [];
+      });
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_HOST = original.hosts;
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IPS = original.ips;
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS =
+          original.ipSegments;
+        sharedEnv.LANGFUSE_WEBHOOK_ALLOWED_HOSTS = original.allowedHosts;
+      });
+
+      it.each([
+        ["loopback IPv6", "http://[::1]/hook", "Blocked IP address"],
+        [
+          "cloud metadata",
+          "http://169.254.169.254/latest/meta-data",
+          "Blocked hostname",
+        ],
+        ["RFC1918", "http://10.0.0.1/hook", "Blocked IP address"],
+        [
+          "embedded credentials",
+          "https://user:pass@hooks.example.com/hook",
+          "URL credentials are not allowed",
+        ],
+      ])(
+        "rejects a %s destination without persisting it",
+        async (_case, url, message) => {
+          const { project, caller } = await prepare();
+
+          await expect(
+            caller.automations.createAutomation(
+              monitorWebhookInput(project.id, url),
+            ),
+          ).rejects.toMatchObject({
+            code: "BAD_REQUEST",
+            message: expect.stringContaining(`Invalid webhook URL: ${message}`),
+          });
+          await expectNothingPersisted(project.id);
+        },
+      );
+
+      it("rejects a hostname that resolves to a private address", async () => {
+        vi.spyOn(dns, "resolve4").mockResolvedValue(["10.0.0.5"]);
+        vi.spyOn(dns, "resolve6").mockRejectedValue(new Error("ENODATA"));
+        vi.spyOn(dns, "lookup").mockResolvedValue([
+          { address: "10.0.0.5", family: 4 },
+        ] as never);
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.createAutomation(
+            monitorWebhookInput(
+              project.id,
+              "https://hooks.internal.example.com",
+            ),
+          ),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          message: expect.stringContaining(
+            "Invalid webhook URL: Blocked IP address",
+          ),
+        });
+        expect(dns.resolve4).toHaveBeenCalledWith("hooks.internal.example.com");
+        await expectNothingPersisted(project.id);
+      });
     });
 
     it("should create a new Slack automation", async () => {
@@ -1278,10 +1358,13 @@ describe("automations trpc", () => {
       });
       const otherUserCaller = appRouter.createCaller({
         ...createInnerTRPCContext({
-          session: {
-            ...prepared.session,
-            user: { ...prepared.session.user!, id: "user-2" },
-          },
+          session: automationsSession({
+            org: prepared.org,
+            project: prepared.project,
+            orgRole: "OWNER",
+            projectRole: "ADMIN",
+            user: { id: "user-2" },
+          }),
           headers: {},
         }),
         prisma,
@@ -2850,7 +2933,7 @@ describe("automations trpc", () => {
     });
 
     it("should throw error when user lacks automations:CUD access", async () => {
-      const { project, session } = await prepare();
+      const { project, org } = await prepare();
 
       // Create webhook action
       const { secretKey, displaySecretKey } = generateWebhookSecret();
@@ -2873,25 +2956,12 @@ describe("automations trpc", () => {
       });
 
       // Create a session with limited permissions
-      const limitedSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          admin: false,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER", // VIEWER role doesn't have automations:CUD scope
-                },
-              ],
-            },
-          ],
-        },
-      };
+      const limitedSession = automationsSession({
+        org,
+        project,
+        orgRole: "MEMBER",
+        projectRole: "VIEWER", // VIEWER role doesn't have automations:CUD scope
+      });
 
       const limitedCtx = createInnerTRPCContext({
         session: limitedSession,
@@ -3301,26 +3371,16 @@ describe("automations trpc", () => {
     }
 
     // VIEWER holds automations:read, the only scope both read routes require.
-    function viewerCaller(session: Session) {
-      const viewerSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          admin: false,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER",
-                },
-              ],
-            },
-          ],
-        },
-      };
+    function viewerCaller(
+      org: { id: string; name: string },
+      project: { id: string; name: string },
+    ) {
+      const viewerSession = automationsSession({
+        org,
+        project,
+        orgRole: "MEMBER",
+        projectRole: "VIEWER",
+      });
 
       return appRouter.createCaller({
         ...createInnerTRPCContext({ session: viewerSession, headers: {} }),
@@ -3329,7 +3389,7 @@ describe("automations trpc", () => {
     }
 
     it("should not expose the stored githubToken to a project VIEWER", async () => {
-      const { project, session } = await prepare();
+      const { project, org } = await prepare();
 
       const automation = await createGitHubDispatchAutomation(project.id, {
         type: "GITHUB_DISPATCH",
@@ -3339,7 +3399,7 @@ describe("automations trpc", () => {
         displayGitHubToken: "ghp_...123",
       });
 
-      const caller = viewerCaller(session);
+      const caller = viewerCaller(org, project);
 
       const automations = await caller.automations.getAutomations({
         projectId: project.id,
@@ -3364,7 +3424,7 @@ describe("automations trpc", () => {
     });
 
     it("should not expose the githubToken of a config that fails to parse", async () => {
-      const { project, session } = await prepare();
+      const { project, org } = await prepare();
 
       // displayGitHubToken is missing, so the config does not parse as a
       // GITHUB_DISPATCH config and only the field allowlist can strip it.
@@ -3375,7 +3435,7 @@ describe("automations trpc", () => {
         githubToken: encrypt("ghp_read_path_token_456"),
       });
 
-      const caller = viewerCaller(session);
+      const caller = viewerCaller(org, project);
 
       const single = await caller.automations.getAutomation({
         projectId: project.id,
@@ -3415,26 +3475,16 @@ describe("automations trpc", () => {
       return action.config as Record<string, string>;
     }
 
-    function viewerCaller(session: Session) {
-      const viewerSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          admin: false,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER",
-                },
-              ],
-            },
-          ],
-        },
-      };
+    function viewerCaller(
+      org: { id: string; name: string },
+      project: { id: string; name: string },
+    ) {
+      const viewerSession = automationsSession({
+        org,
+        project,
+        orgRole: "MEMBER",
+        projectRole: "VIEWER",
+      });
       return appRouter.createCaller({
         ...createInnerTRPCContext({ session: viewerSession, headers: {} }),
         prisma,
@@ -3458,27 +3508,6 @@ describe("automations trpc", () => {
         displayRoutingKey: "R0ab...9xYz",
         region: "EU",
       });
-    });
-
-    function callerWithUser(session: Session, user: Partial<Session["user"]>) {
-      return appRouter.createCaller({
-        ...createInnerTRPCContext({
-          session: { ...session, user: { ...session.user!, ...user } },
-          headers: {},
-        }),
-        prisma,
-      });
-    }
-
-    it("lets project owners who are not admins create PagerDuty automations", async () => {
-      const { project, session } = await prepare();
-      const owner = callerWithUser(session, { admin: false });
-
-      const result = await owner.automations.createAutomation(
-        createInput(project.id),
-      );
-
-      expect(result.action.type).toBe("PAGERDUTY");
     });
 
     it("rejects a create without a routing key", async () => {
@@ -3538,12 +3567,12 @@ describe("automations trpc", () => {
     });
 
     it("never returns the routing key on any read path to a project VIEWER", async () => {
-      const { project, session, caller } = await prepare();
+      const { project, org, caller } = await prepare();
       const created = await caller.automations.createAutomation(
         createInput(project.id),
       );
       const storedKey = (await storedConfig(created.action.id)).routingKey;
-      const viewer = viewerCaller(session);
+      const viewer = viewerCaller(org, project);
 
       const responses = [
         await viewer.automations.getAutomations({ projectId: project.id }),

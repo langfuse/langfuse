@@ -1,9 +1,9 @@
-import type { FilterConfig } from "@/src/features/filters";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { FilterState } from "@langfuse/shared";
 import {
   fieldRegistryFromColumns,
   withFieldOptions,
-} from "@/src/features/search-bar";
+} from "@/src/features/search-bar/lib/fields";
 import {
   evaluatorTableFilterConfig,
   evaluatorTableFilterOptions,

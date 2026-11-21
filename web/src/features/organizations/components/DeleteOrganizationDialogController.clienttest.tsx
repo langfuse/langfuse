@@ -34,15 +34,15 @@ vi.mock("@/src/features/organizations/hooks", () => ({
   useQueryOrganization: () => ({ id: "org-1", name: "Acme", projects: [] }),
 }));
 
-vi.mock("@/src/features/rbac", () => ({
+vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
   useHasOrganizationAccess: () => true,
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-vi.mock("@/src/features/notifications", () => ({
+vi.mock("@/src/features/notifications/showSuccessToast", () => ({
   showSuccessToast: mocks.showSuccessToast,
 }));
 
@@ -53,11 +53,24 @@ vi.mock("@/src/utils/api", () => ({
         useMutation: () => ({
           mutateAsync: mocks.mutateAsync,
           isPending: false,
+          error: null,
+          reset: () => undefined,
+        }),
+      },
+      projectsPendingDeletion: {
+        useQuery: () => ({
+          data: false,
+          isSuccess: true,
+          isError: false,
+          isFetching: false,
+          error: null,
+          refetch: async () => ({ data: false }),
         }),
       },
     },
   },
   reportNonTrpcError: vi.fn(),
+  reportTrpcErrorWithoutToast: vi.fn(),
 }));
 
 describe("DeleteOrganizationDialogController", () => {

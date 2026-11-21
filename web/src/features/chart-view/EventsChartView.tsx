@@ -7,7 +7,7 @@ import { chartConfigToWidgetInput } from "./lib/chartConfigToWidget";
 import { toChartFilters } from "./lib/chartFilterCompatibility";
 import { ChartViewPanel } from "./components/ChartViewPanel";
 import { AddToDashboardButton } from "./components/AddToDashboardButton";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 /**
  * Production chart view for the v4 events table. Builds the observations
  * aggregate query from the same filters + time window the table is showing,

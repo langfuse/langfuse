@@ -49,6 +49,7 @@ import {
   EvalExecutionQueue,
   generateLlmEvaluatorOutput,
 } from "@langfuse/shared/src/server";
+import { env } from "../env";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
 import {
   EvalFailureReason,
@@ -952,88 +953,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].status.toString()).toBe("PENDING");
       expect(jobs[0].startTime).not.toBeNull();
     }, 10_000);
-
-    test("handle dataset upsert with cached traces", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-      const datasetId = randomUUID();
-      const datasetItemId = randomUUID();
-
-      await upsertTrace({
-        id: traceId,
-        project_id: projectId,
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-        created_at: convertDateToClickhouseDateTime(new Date()),
-        updated_at: convertDateToClickhouseDateTime(new Date()),
-      });
-
-      await prisma.dataset.create({
-        data: {
-          id: datasetId,
-          projectId,
-          name: "test-dataset",
-        },
-      });
-
-      await prisma.datasetItem.create({
-        data: {
-          id: datasetItemId,
-          projectId,
-          datasetId,
-          sourceTraceId: traceId,
-        },
-      });
-
-      await createMigratedEvalConfig({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.DATASET,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-        },
-      });
-
-      // Use two job configurations to ensure we're using the cache
-      await createMigratedEvalConfig({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: [
-            {
-              type: "string",
-              value: "a",
-              column: "Dataset",
-              operator: "contains",
-            },
-          ],
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.DATASET,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-        },
-      });
-
-      const payload = {
-        projectId,
-        traceId: traceId,
-        datasetItemId: datasetItemId,
-      };
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      });
-      // If this does not throw, we're good.
-      expect(true).toBe(true);
-    });
 
     test("creates new eval job for a dataset on upsert of the trace", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
@@ -3909,4 +3828,62 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs.length).toBe(0);
     }, 10_000);
   });
+});
+
+describe("Langfuse Cloud v3 eval cutoff", () => {
+  const original = {
+    cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    evals: env.LANGFUSE_V4_CUTOFF_EVALS,
+    exempt: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
+  };
+
+  afterAll(() => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.cloudRegion;
+    (env as any).LANGFUSE_V4_CUTOFF_EVALS = original.evals;
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = original.exempt;
+  });
+
+  test("creates no trace eval job while the switch is on, and still creates one for an exempt project", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const traceId = randomUUID();
+    await upsertTrace({
+      id: traceId,
+      project_id: projectId,
+      environment: "production",
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
+    await createMigratedEvalConfig({
+      data: {
+        id: randomUUID(),
+        projectId,
+        filter: JSON.parse("[]"),
+        jobType: "EVAL",
+        delay: 0,
+        sampling: new Decimal("1"),
+        targetObject: EvalTargetObject.TRACE,
+        scoreName: "score",
+        variableMapping: JSON.parse("[]"),
+      },
+    });
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    (env as any).LANGFUSE_V4_CUTOFF_EVALS = "true";
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = [];
+
+    await createEvalJobs({
+      sourceEventType: "trace-upsert",
+      event: { projectId, traceId, traceEnvironment: "production" },
+      jobTimestamp,
+    });
+    expect(await prisma.jobExecution.count({ where: { projectId } })).toBe(0);
+
+    (env as any).LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS = [projectId];
+    await createEvalJobs({
+      sourceEventType: "trace-upsert",
+      event: { projectId, traceId, traceEnvironment: "production" },
+      jobTimestamp,
+    });
+    expect(await prisma.jobExecution.count({ where: { projectId } })).toBe(1);
+  }, 10_000);
 });

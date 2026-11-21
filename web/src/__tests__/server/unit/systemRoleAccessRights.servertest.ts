@@ -32,9 +32,7 @@ describe("systemRoleAccessRights", () => {
       const actions = systemRoleAccessRights[role].policies
         .filter((policy) => policy.resourceKind === "organization")
         .flatMap((policy) => policy.actions);
-      expect(actions.includes("organizationMembers:manageOwnership")).toBe(
-        expected,
-      );
+      expect(actions.includes("organization:manageOwnership")).toBe(expected);
     },
   );
 
@@ -103,6 +101,23 @@ describe("systemRoleAccessRights", () => {
     ]);
   });
 
+  it("grants APPLICATION exactly the application project actions", () => {
+    expect(systemRoleAccessRights.APPLICATION.policies).toEqual([
+      {
+        resourceKind: "project",
+        effect: "ALLOW",
+        actions: [
+          "traces:create",
+          "scores:save",
+          "media:create",
+          "project:read",
+          "prompts:read",
+          "skills:read",
+        ],
+      },
+    ]);
+  });
+
   it("grants AI_GATEWAY exactly gateway:read and gateway:invoke at org scope", () => {
     expect(systemRoleAccessRights.AI_GATEWAY.policies).toEqual([
       {
@@ -165,12 +180,17 @@ describe("systemRoleAccessRights", () => {
   it("tags api-key roles and user roles disjointly", () => {
     const tagsFor = (role: keyof typeof systemRoleAccessRights) =>
       systemRoleAccessRights[role].tags;
-    for (const role of ["SCORES_INGEST", "INGEST"] as const) {
+    for (const role of [
+      "SCORES_INGEST",
+      "APPLICATION",
+      "AI_GATEWAY_INFERENCE",
+    ] as const) {
       expect(tagsFor(role)).toEqual(["principal:apiKey"]);
     }
     for (const role of [
       "LEGACY_PROJECT_API_KEY",
       "LEGACY_ORGANIZATION_API_KEY",
+      "INGEST",
     ] as const) {
       expect(tagsFor(role)).toEqual(["principal:apiKey", "legacy"]);
     }
@@ -184,5 +204,6 @@ describe("systemRoleAccessRights", () => {
     ] as const) {
       expect(tagsFor(role)).toContain("principal:user");
     }
+    expect(tagsFor("AI_GATEWAY")).toEqual(["principal:user"]);
   });
 });

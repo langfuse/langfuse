@@ -447,6 +447,53 @@ function coreMessage(value: string): string {
 }
 
 /**
+ * WebKit's DOM SYNTAX_ERR text. `Response.json()` throws a DOMException with
+ * this exact message and `name` `"SyntaxError"` when the body is not JSON
+ * (LANGFUSE-55X). Sentry records `error.name`, so the cause's type is
+ * `SyntaxError` even though the thrown value is not a JS `SyntaxError`.
+ * Chrome's equivalent starts with "Failed to execute 'json' on 'Response'"
+ * ({@link NOISE_MESSAGE_PREFIXES}); Firefox's starts with "JSON.parse:".
+ *
+ * The phrase is also WebKit's generic SyntaxError wording, so a whole-message
+ * match alone would hide an app `JSON.parse` failure or a server error that
+ * happens to use the sentence. Drop only a `TRPCClientError` wrapped around a
+ * chained `SyntaxError` / `DOMException` that both carry this exact message —
+ * the shape `captureException` records when the tRPC client fails `res.json()`.
+ * A lone SyntaxError, a TRPCClientError with no parse-error cause, and any
+ * longer message are kept.
+ *
+ * Stored without a trailing period because {@link coreMessage} strips one.
+ */
+const SAFARI_RESPONSE_JSON_PARSE_MESSAGE =
+  "The string did not match the expected pattern";
+
+function isSafariResponseJsonParseMessage(value: string): boolean {
+  return coreMessage(value) === SAFARI_RESPONSE_JSON_PARSE_MESSAGE;
+}
+
+/**
+ * True for LANGFUSE-55X: Safari's `Response.json()` failure captured as a
+ * TRPCClientError whose cause is that DOM SYNTAX_ERR. See
+ * {@link SAFARI_RESPONSE_JSON_PARSE_MESSAGE}.
+ */
+function isSafariResponseJsonParseEvent(event: ErrorEvent): boolean {
+  const values = event.exception?.values;
+  if (!values || values.length < 2) return false;
+
+  let sawTrpcClientError = false;
+  let sawJsonParseCause = false;
+  for (const value of values) {
+    if (typeof value?.value !== "string") continue;
+    if (!isSafariResponseJsonParseMessage(value.value)) continue;
+    if (value.type === "TRPCClientError") sawTrpcClientError = true;
+    if (value.type === "SyntaxError" || value.type === "DOMException") {
+      sawJsonParseCause = true;
+    }
+  }
+  return sawTrpcClientError && sawJsonParseCause;
+}
+
+/**
  * True for React DevTools' internal probes against React's private fiber
  * properties (`__reactContextDevtoolDebugId` and similar). These are benign:
  * DevTools reads properties React does not guarantee exist, and the resulting
@@ -523,6 +570,12 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
  *    Only the console-captured sibling is dropped (LANGFUSE-61R).
  */
 export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
+  // Safari Response.json() on a non-JSON body (LANGFUSE-55X). The WebKit
+  // sentence is a generic SyntaxError message, unlike Chrome's
+  // "Failed to execute 'json' on 'Response'" prefix, so it must be the tRPC
+  // client wrap of a chained parse error.
+  if (isSafariResponseJsonParseEvent(event)) return true;
+
   const exception = event.exception?.values?.[0];
   const exceptionType = exception?.type;
   const exceptionValue = exception?.value;

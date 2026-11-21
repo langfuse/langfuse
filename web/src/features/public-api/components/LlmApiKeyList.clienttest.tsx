@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
+import { QueryParamProvider } from "use-query-params";
+import { WindowHistoryAdapter } from "use-query-params/adapters/window";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
@@ -20,14 +22,18 @@ vi.mock("@/src/components/ui/InfoTooltip/InfoTooltip", () => ({
     <span aria-label={label}>{children}</span>
   ),
 }));
-vi.mock("@/src/features/rbac", () => ({
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => true,
   useHasOrganizationAccess: () => true,
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+  useHasProjectAccess: () => true,
+  useHasOrganizationAccess: () => true,
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
-vi.mock("@/src/ee/features/ui-customization", () => ({
+vi.mock("@/src/ee/features/ui-customization/useUiCustomization", () => ({
   useUiCustomization: () => undefined,
 }));
 vi.mock("./CreateLLMApiKeyDialog", () => ({
@@ -71,9 +77,11 @@ vi.mock("@/src/utils/api", () => ({
 
 function TestProvider({ children }: PropsWithChildren) {
   return (
-    <TooltipProvider>
-      <LayerProvider>{children}</LayerProvider>
-    </TooltipProvider>
+    <QueryParamProvider adapter={WindowHistoryAdapter}>
+      <TooltipProvider>
+        <LayerProvider>{children}</LayerProvider>
+      </TooltipProvider>
+    </QueryParamProvider>
   );
 }
 

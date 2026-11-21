@@ -1,0 +1,23 @@
+{
+  "name": "@repo/oxlint-config",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./library.js",
+    "./library": "./library.js",
+    "./next": "./next.js",
+    "./eslint-rules": "./eslint-rules.js"
+  },
+  "dependencies": {
+    "@next/eslint-plugin-next": "16.4.6",
+    "@repo/eslint-plugin": "workspace:*",
+    "eslint": "10.8.0",
+    "eslint-plugin-react": "^7.37.0",
+    "eslint-plugin-turbo": "2.11.9"
+  },
+  "peerDependencies": {
+    "oxlint": "^1.90.0"
+  }
+}

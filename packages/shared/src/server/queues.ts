@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { TopicProcessBatchState } from "../topics";
 import { eventTypes } from "./ingestion/types";
 import {
   ActionId,
@@ -7,7 +6,7 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
-import { EventActionSchema } from "../domain";
+import { ActionTypeSchema, EventActionSchema } from "../domain/automations";
 import { SkillVersionSchema } from "../features/skills/types";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
@@ -157,11 +156,11 @@ export const EvalExecutionEvent = z.object({
   evaluationRuleId: z.string().optional(),
 });
 
-// Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
-export const ObservationEvalExecutionEventSchema = z.object({
+// Observation payloads may omit `type` and parse as observation jobs.
+// A transcript payload must include `type` and `transcriptS3Path`.
+const evalJobExecutionFields = {
   projectId: z.string(),
   jobExecutionId: z.string(),
-  observationS3Path: z.string(),
   executionMode: EvalExecutionMode.optional(),
   // Evaluator v2 identity, carried so the worker never has to re-derive which
   // evaluator a job belongs to from `jobConfigurationId`: the legacy backfill
@@ -175,12 +174,29 @@ export const ObservationEvalExecutionEventSchema = z.object({
   evaluationRuleId: z.string().optional(),
   // Ruleless manual batch runs have no assignment row to hold a mapping
   // override. Optional for jobs queued before this field existed; those
-  // inherit the evaluator version mapping.
+  // inherit the evaluator version mapping. Transcript jobs leave this off and
+  // read the mapping from the assignment at execution.
   variableMapping: observationVariableMappingList.optional(),
   // Manual batch runs record their batch action on the execution trace and
   // scores so a run's outputs can be found together.
   batchActionId: z.string().optional(),
-});
+};
+
+export const EvalJobExecutionEventSchema = z.union([
+  z.object({
+    type: z.literal("trace-transcript"),
+    traceId: z.string(),
+    revision: z.string(),
+    transcriptS3Path: z.string(),
+    ...evalJobExecutionFields,
+  }),
+  // Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
+  z.object({
+    type: z.literal("observation").optional(),
+    observationS3Path: z.string(),
+    ...evalJobExecutionFields,
+  }),
+]);
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
@@ -306,6 +322,78 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
     inviterName: z.string(),
     inviterEmail: z.string(),
   }),
+  /** One "spend limit reached" email to a gateway key's owner or an organization owner, listing the limits one request reached. */
+  z.object({
+    type: z.literal("AI_GATEWAY_SPEND_LIMIT_REACHED"),
+    orgId: z.string(),
+    orgName: z.string(),
+    to: z.string(),
+    receiverName: z.string().optional(),
+    /** `keyOwner` is the person the limit belongs to: the key's owner, or the user of a user limit. */
+    audience: z.enum(["keyOwner", "orgOwner"]),
+    /** What the limit applies to, mirroring the limit's scope. */
+    scope: z.discriminatedUnion("type", [
+      z.object({
+        type: z.literal("API_KEY"),
+        apiKeyId: z.string(),
+        name: z.string(),
+        /** Masked secret key, as the gateway keys table shows it. */
+        displaySecretKey: z.string(),
+      }),
+      z.object({
+        type: z.literal("USER"),
+        userId: z.string(),
+        name: z.string(),
+        email: z.string(),
+      }),
+    ]),
+    limits: z
+      .array(
+        z.object({
+          interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
+          limitUsd: z.number(),
+          /** ISO timestamp of the next window; absent for total limits. */
+          resetsAt: z.string().optional(),
+        }),
+      )
+      .min(1),
+  }),
+  /** Spend budget warning (85%/95%) or organization-scope alert email; separate type so an older worker never renders a warning as an exceeded rejection. */
+  z.object({
+    type: z.literal("AI_GATEWAY_SPEND_LIMIT_ALERT"),
+    orgId: z.string(),
+    orgName: z.string(),
+    to: z.string(),
+    receiverName: z.string().optional(),
+    audience: z.enum(["keyOwner", "orgOwner"]),
+    scope: z.discriminatedUnion("type", [
+      z.object({
+        type: z.literal("API_KEY"),
+        apiKeyId: z.string(),
+        name: z.string(),
+        displaySecretKey: z.string(),
+      }),
+      z.object({
+        type: z.literal("USER"),
+        userId: z.string(),
+        name: z.string(),
+        email: z.string(),
+      }),
+      z.object({
+        type: z.literal("ORGANIZATION"),
+      }),
+    ]),
+    limits: z
+      .array(
+        z.object({
+          interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
+          limitUsd: z.number(),
+          thresholdPercent: z.number().int().min(1).max(100),
+          resetsAt: z.string().optional(),
+        }),
+      )
+      .min(1),
+  }),
   // Future notification types can be added here
 ]);
 
@@ -341,6 +429,7 @@ export const WebhookInputSchema = z.object({
   projectId: z.string(),
   automationId: z.string(),
   executionId: z.string(),
+  actionType: ActionTypeSchema.optional(), // optional for jobs enqueued before producers set it
   payload: WebhookOutboundEnvelopeSchema,
 });
 
@@ -383,8 +472,8 @@ export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
-export type ObservationEvalExecutionEventType = z.infer<
-  typeof ObservationEvalExecutionEventSchema
+export type EvalJobExecutionEventType = z.infer<
+  typeof EvalJobExecutionEventSchema
 >;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
@@ -419,11 +508,8 @@ export const RetryBaggage = z.object({
 export type RetryBaggage = z.infer<typeof RetryBaggage>;
 
 export enum QueueName {
-  Topics = "topics",
   TopicsUpdate = "topics-update",
-  TopicsEmbedding = "topics-embedding",
-  TopicsAutomation = "topics-automation",
-  TraceBatch = "trace-batch",
+  TopicsSetup = "topics-setup",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -463,13 +549,14 @@ export enum QueueName {
   MonitorQueue = "monitor-queue",
   InAppAgentRunQueue = "in-app-agent-run-queue",
   V4LegacyApiUsageQueue = "v4-legacy-api-usage-queue",
+  TopicsTrace = "topics-trace-queue",
+  EventsDispatch = "events-dispatch-queue",
 }
 
 export enum QueueJobs {
   Topics = "topics",
-  TopicsEmbedding = "topics-embedding",
-  TopicsAutomation = "topics-automation",
-  TraceBatch = "trace-batch",
+  TopicsRuleRefit = "topics-rule-refit",
+  TopicsSetup = "topics-setup",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -507,102 +594,75 @@ export enum QueueJobs {
   MonitorJob = "monitor-job",
   InAppAgentRunJob = "in-app-agent-run-job",
   V4LegacyApiUsageJob = "v4-legacy-api-usage-job",
+  TopicsTraceJob = "topics-trace-job",
+  EventsDispatchJob = "events-dispatch-job",
 }
 
-export const TraceBatchTraceSchema = z.object({
+export const EventsDispatchTraceSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
   minStart: z.number(),
   maxStart: z.number(),
   revision: z.string(),
+  // Rule IDs recorded at ingestion and prior per-trace failures.
+  ruleIds: z.array(z.string()).optional(),
+  failedCount: z.number().int().nonnegative().optional(),
+  // Dispatcher estimate of the trace's retained serialized event bytes; describes the read on its span.
+  serializedEventBytes: z.number().nonnegative().optional(),
 });
 
-export const TopicEmbeddingBatchSchema = z.object({
+/** One trace's Topics summaries, from the transcript stored for this revision. */
+export const TopicsTraceEventSchema = z.object({
   projectId: z.string().min(1),
-  executionId: z.string().min(1),
-  batchId: z.string().min(1),
-  summaries: z
-    .array(
-      z.object({
-        facetId: z.string().min(1),
-        facetVersion: z.number().int().positive(),
-        traceId: z.string().min(1),
-      }),
-    )
-    .min(1),
+  traceId: z.string().min(1),
+  revision: z.string().min(1),
+  // Key `put` returned for the stored transcript.
+  transcriptS3Path: z.string().min(1),
+  // Rules that selected the trace; the job resolves their facets at the current version.
+  ruleIds: z.array(z.string().min(1)),
+  // A snapshot that seeded the trace: its facets are summarized, tagged with its ID.
+  batchActionId: z.string().min(1).optional(),
+  // Set on a retry: only these facets still need a summary.
+  facetIds: z.array(z.string().min(1)).min(1).optional(),
 });
+export type TopicsTraceEventType = z.infer<typeof TopicsTraceEventSchema>;
 
-// Summaries one trace batch stored for a project, with the facets and vector space they used.
-export const TopicAutomationBatchSchema = z.object({
-  projectId: z.string().min(1),
-  traceIds: z.array(z.string().min(1)).min(1).max(100),
-  facets: z
-    .array(
-      z.object({
-        facetId: z.string().min(1),
-        version: z.number().int().positive(),
-      }),
-    )
-    .min(1),
-  embeddingConfig: z.object({
-    embeddingModel: z.string().min(1),
-    embeddingDimensions: z.number().int().positive(),
-  }),
-  timeRange: z.object({ from: z.coerce.date(), to: z.coerce.date() }),
-});
-
-export const TraceBatchEventSchema = z.object({
+/** Ready traces with the rule IDs recorded at ingestion. */
+export const EventsDispatchEventSchema = z.object({
   timestamp: z.coerce.date(),
   id: z.string(),
-  name: z.literal(QueueJobs.TraceBatch),
-  payload: z.union([
-    z
-      .object({
-        traces: z.array(TraceBatchTraceSchema).min(1),
-      })
-      .strict(),
-    // Persisted single-project jobs must remain readable while consumers drain.
-    z
-      .object({
-        projectId: z.string(),
-        traces: z
-          .array(TraceBatchTraceSchema.omit({ projectId: true }).strict())
-          .min(1),
-      })
-      .strict()
-      .transform(({ projectId, traces }) => ({
-        traces: traces.map((trace) => ({ ...trace, projectId })),
-      })),
-  ]),
+  name: z.literal(QueueJobs.EventsDispatchJob),
+  payload: z.object({
+    traces: z.array(EventsDispatchTraceSchema).min(1),
+    // Set by a snapshot, which enqueues its traces directly instead of through the dispatch maps.
+    batchActionId: z.string().min(1).optional(),
+  }),
 });
 
 export type TQueueJobTypes = {
-  [QueueName.Topics]: {
+  // A snapshot's fit (job name `topics`) or a rule's refit.
+  [QueueName.TopicsUpdate]:
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.Topics;
+        payload: { projectId: string; executionId: string };
+      }
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.TopicsRuleRefit;
+        payload: { projectId: string; runId: string };
+      };
+  [QueueName.TopicsSetup]: {
     timestamp: Date;
     id: string;
-    name: QueueJobs.Topics;
-    payload: {
-      projectId: string;
-      executionId: string;
-      traceIds?: string[];
-      batchId?: string;
-    };
-    batchState?: TopicProcessBatchState;
+    name: QueueJobs.TopicsSetup;
+    // A rule's setup, or a snapshot's summarizing before it groups.
+    payload:
+      | { projectId: string; ruleId: string }
+      | { projectId: string; executionId: string };
   };
-  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
-  [QueueName.TopicsEmbedding]: {
-    timestamp: Date;
-    id: string;
-    name: QueueJobs.TopicsEmbedding;
-    payload: z.infer<typeof TopicEmbeddingBatchSchema>;
-  };
-  [QueueName.TopicsAutomation]: {
-    timestamp: Date;
-    id: string;
-    name: QueueJobs.TopicsAutomation;
-    payload: z.infer<typeof TopicAutomationBatchSchema>;
-  };
-  [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {
     timestamp: Date;
     id: string;
@@ -657,14 +717,22 @@ export type TQueueJobTypes = {
   [QueueName.LLMAsJudgeExecution]: {
     timestamp: Date;
     id: string;
-    payload: ObservationEvalExecutionEventType;
+    payload: EvalJobExecutionEventType;
     name: QueueJobs.LLMAsJudgeExecution;
     retryBaggage?: RetryBaggage;
   };
+  [QueueName.TopicsTrace]: {
+    timestamp: Date;
+    id: string;
+    payload: TopicsTraceEventType;
+    name: QueueJobs.TopicsTraceJob;
+    retryBaggage?: RetryBaggage;
+  };
+  [QueueName.EventsDispatch]: z.infer<typeof EventsDispatchEventSchema>;
   [QueueName.CodeEvalExecution]: {
     timestamp: Date;
     id: string;
-    payload: ObservationEvalExecutionEventType;
+    payload: EvalJobExecutionEventType;
     name: QueueJobs.CodeEvalExecution;
     retryBaggage?: RetryBaggage;
   };

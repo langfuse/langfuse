@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import { type Session } from "next-auth";
 
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
+
 import { MonitorsOnboarding } from "./MonitorsOnboarding";
 
 vi.mock(
@@ -19,15 +21,14 @@ const sessionMock = vi.hoisted(() => ({ data: null as Session | null }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({ data: sessionMock.data, status: "authenticated" }),
 }));
-/** signIn sets the session user's admin flag. */
-const signIn = ({ admin }: { admin: boolean }) => {
-  sessionMock.data = {
-    expires: "1",
-    user: { admin, organizations: [] },
-  } as unknown as Session;
-};
-
 const PROJECT_ID = "proj_test123";
+
+/** signIn sets the session user's project role for PROJECT_ID. */
+const signIn = ({ role }: { role: "OWNER" | "VIEWER" }) => {
+  sessionMock.data = createSession({
+    organizations: [{ id: "org-1", role, projects: [{ id: PROJECT_ID }] }],
+  });
+};
 
 describe("MonitorsOnboarding", () => {
   afterEach(() => {
@@ -60,7 +61,7 @@ describe("MonitorsOnboarding", () => {
   });
 
   it("opens the new automation dialog locked to each clicked channel, without leaving the page", () => {
-    signIn({ admin: true });
+    signIn({ role: "OWNER" });
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     const cases: Array<{ label: RegExp; expected: string }> = [
@@ -79,7 +80,7 @@ describe("MonitorsOnboarding", () => {
   });
 
   it("disables the channel buttons for users who cannot create automations", () => {
-    signIn({ admin: false });
+    signIn({ role: "VIEWER" });
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     expect(
@@ -88,7 +89,7 @@ describe("MonitorsOnboarding", () => {
   });
 
   it("shows the PagerDuty CTA without a Langfuse Cloud region", () => {
-    signIn({ admin: true });
+    signIn({ role: "OWNER" });
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     const button = screen.getByRole("button", { name: /Connect PagerDuty/i });

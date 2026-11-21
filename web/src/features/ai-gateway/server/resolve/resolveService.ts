@@ -1,6 +1,10 @@
 import type { GatewayIngestionMode } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import {
+  decryptAndParseExtraHeaders,
+  instrumentAsync,
+  logger,
+} from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -17,8 +21,10 @@ import {
   type GatewayApiFormat,
   type GatewayProviderId,
   type GatewayResolveResponse,
-  getGatewayProviderDefinition,
-} from "@/src/features/ai-gateway/server/provider";
+  getGatewayUpstream,
+  getGatewayUpstreamSecret,
+} from "@/src/features/ai-gateway/server/provider/registry";
+import { findGatewayModelPricing } from "@/src/features/ai-gateway/server/resolve/gatewayModelPricing";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 
@@ -62,9 +68,39 @@ function getGatewayIngestionTokenSigner() {
 }
 
 export class GatewayResolveService {
+  /**
+   * Starts the pricing lookup for `resolve`. It needs only the authenticated
+   * context, so callers can run it while they rate-limit the request.
+   */
+  findPricing(
+    context: GatewayApiKeyAuthContext,
+  ): Promise<GatewayResolveResponse["pricing"]> {
+    const { ingestionProjectId, providerModel } = context;
+    // Skip requests `resolve` rejects with 403 or 404, so a client looping on
+    // an unroutable model cannot turn each rejection into a pricing query.
+    if (
+      !getIngestionMode(context) ||
+      !context.connection ||
+      getEnforcedSpendLimits(context).length === 0 ||
+      !ingestionProjectId ||
+      !providerModel
+    ) {
+      return Promise.resolve(null);
+    }
+    const pricing = findGatewayModelPricing({
+      projectId: ingestionProjectId,
+      providerModel,
+    });
+    // A request rejected before `resolve` awaits this would otherwise leave
+    // the rejection unhandled; `resolve` still rethrows it.
+    pricing.catch(() => {});
+    return pricing;
+  }
+
   async resolve(params: {
     context: GatewayApiKeyAuthContext;
     apiFormat: GatewayApiFormat;
+    pricing: ReturnType<GatewayResolveService["findPricing"]>;
   }): Promise<GatewayResolveResponse> {
     return instrumentAsync({ name: "gateway-resolve" }, async (span) => {
       span.setAttribute(
@@ -73,11 +109,7 @@ export class GatewayResolveService {
       );
       const { context } = params;
       const { ingestionProjectId } = context;
-      // Applied after the resolve cache, so an entry cached as NONE still
-      // captures on Cloud.
-      const ingestionMode =
-        context.ingestionMode &&
-        getEffectiveGatewayIngestionMode(context.ingestionMode);
+      const ingestionMode = getIngestionMode(context);
       // NONE mode delivers nothing to Langfuse, so it needs neither an
       // ingestion project nor ingestion signing keys.
       const deliversToLangfuse = ingestionMode !== "NONE";
@@ -94,10 +126,23 @@ export class GatewayResolveService {
           404,
         );
       }
-      const provider = getGatewayProviderDefinition(
-        context.connection.provider,
+      const decryptedCredential = decrypt(
+        context.connection.encryptedCredential,
       );
-      const credential = decrypt(context.connection.encryptedCredential);
+      const upstream = getGatewayUpstream({
+        provider: context.connection.provider,
+        apiFormat: params.apiFormat,
+        config: context.connection.config,
+        baseURL: context.connection.baseURL,
+        credential: decryptedCredential,
+      });
+      const spendLimits = getEnforcedSpendLimits(context);
+      const pricing = await params.pricing;
+      const credential = await this.getUpstreamSecret({
+        connectionId: context.connection.id,
+        provider: context.connection.provider,
+        credential: decryptedCredential,
+      });
       return {
         version: 1 as const,
         connection: {
@@ -107,9 +152,11 @@ export class GatewayResolveService {
             context.connection.provider.toLowerCase() as GatewayProviderId,
           provider_model: context.providerModel,
           api_format: params.apiFormat,
-          base_url: provider.baseUrl,
+          base_url: upstream.baseUrl,
+          extra_headers:
+            decryptAndParseExtraHeaders(context.connection.extraHeaders) ?? {},
           auth:
-            provider.authType === "bearer"
+            upstream.authType === "bearer"
               ? ({ type: "Bearer", token: credential } as const)
               : ({
                   type: "x-api-key",
@@ -138,8 +185,34 @@ export class GatewayResolveService {
                 projectId: ingestionProjectId,
               })
             : null,
+        spend_limits: spendLimits,
+        pricing,
       };
     });
+  }
+
+  // Vertex AI exchanges its key for a token on every cache miss. A revoked key
+  // and a Google outage both fail here, and the gateway reports either as
+  // unavailable rather than blaming the caller's gateway key.
+  private async getUpstreamSecret(
+    params: Parameters<typeof getGatewayUpstreamSecret>[0] & {
+      connectionId: string;
+    },
+  ) {
+    try {
+      return await getGatewayUpstreamSecret(params);
+    } catch (error) {
+      if (params.provider !== "VERTEX") throw error;
+      logger.warn("Gateway connection credential exchange failed", {
+        connectionId: params.connectionId,
+        provider: params.provider,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new GatewayResolveError(
+        "The connection's credential could not be exchanged for an access token",
+        503,
+      );
+    }
   }
 
   private createIngestionResponse(params: {
@@ -171,4 +244,18 @@ export class GatewayResolveService {
         Math.floor(Date.now() / 1000) + GATEWAY_INGESTION_TOKEN_TTL_SECONDS,
     };
   }
+}
+
+// Applied after the resolve cache, so an entry cached as NONE still captures
+// on Cloud.
+function getIngestionMode(context: GatewayApiKeyAuthContext) {
+  return (
+    context.ingestionMode &&
+    getEffectiveGatewayIngestionMode(context.ingestionMode)
+  );
+}
+
+// NONE mode records no spend, so it enforces no limits.
+function getEnforcedSpendLimits(context: GatewayApiKeyAuthContext) {
+  return getIngestionMode(context) === "NONE" ? [] : context.spendLimits;
 }

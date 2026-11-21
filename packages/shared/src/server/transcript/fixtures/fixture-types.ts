@@ -1,4 +1,4 @@
-import { createObservation } from "../../test-utils";
+import { createObservation } from "../../test-utils/tracing-factory";
 import type { Transcript } from "../types";
 
 /**

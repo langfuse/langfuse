@@ -21,8 +21,12 @@ const context: CachedResolveContext = {
   userName: "Alice",
   userEmail: "alice@example.com",
   keyMetadata: {},
+  keyAllowedModels: null,
+  spendLimits: [],
   ingestionProjectId: null,
   ingestionMode: null,
+  plan: "cloud:hobby",
+  rateLimitOverrides: [],
   connections: [],
 };
 
@@ -116,8 +120,12 @@ describe("GatewayResolveCache", () => {
       apiKeyId: "key-1",
       userId: "user-1",
       keyMetadata: {},
+      keyAllowedModels: null,
+      spendLimits: [],
       ingestionProjectId: null,
       ingestionMode: null,
+      plan: "cloud:hobby",
+      rateLimitOverrides: [],
       connections: [],
     };
     await cache.set({
@@ -137,6 +145,64 @@ describe("GatewayResolveCache", () => {
       userName: null,
       userEmail: null,
     });
+  });
+
+  it("refetches entries cached before key model patterns existed", async () => {
+    const redis = createStatefulRedis();
+    const cache = new GatewayResolveCache(redis);
+    const { keyAllowedModels: _keyAllowedModels, ...withoutPatterns } = context;
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context: withoutPatterns as unknown as CachedResolveContext,
+    });
+
+    await expect(
+      cache.get({
+        fastHashedSecretKey: "hashed-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("refetches entries cached before spend limits existed", async () => {
+    const redis = createStatefulRedis();
+    const cache = new GatewayResolveCache(redis);
+    const { spendLimits: _spendLimits, ...withoutSpendLimits } = context;
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context: withoutSpendLimits as unknown as CachedResolveContext,
+    });
+
+    await expect(
+      cache.get({
+        fastHashedSecretKey: "hashed-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("refetches entries cached before the plan was part of the context", async () => {
+    const redis = createStatefulRedis();
+    const cache = new GatewayResolveCache(redis);
+    const {
+      plan: _plan,
+      rateLimitOverrides: _overrides,
+      ...withoutPlan
+    } = context;
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context: withoutPlan as unknown as CachedResolveContext,
+    });
+
+    await expect(
+      cache.get({
+        fastHashedSecretKey: "hashed-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toBeNull();
   });
 
   it("invalidates cached contexts for an organization", async () => {

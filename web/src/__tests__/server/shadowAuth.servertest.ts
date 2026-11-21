@@ -22,7 +22,7 @@ import { assignRole } from "@langfuse/shared/rbac/server";
 
 import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/rbac/authorize";
-import { type ShadowAuthParams } from "@/src/features/public-api/server";
+import type { ShadowAuthParams } from "@/src/features/public-api/server/shadowAuth";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
 // The seam is imported dynamically so the authenticator singleton captures

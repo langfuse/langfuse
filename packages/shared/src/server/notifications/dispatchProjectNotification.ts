@@ -109,6 +109,7 @@ async function dispatchToChannels({
         projectId,
         automationId: automation.id,
         executionId,
+        actionType: automation.action.type,
         payload: {
           id: executionId,
           timestamp: new Date(),

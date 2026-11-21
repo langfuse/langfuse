@@ -1,6 +1,6 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import {
   deriveSyncStatus,

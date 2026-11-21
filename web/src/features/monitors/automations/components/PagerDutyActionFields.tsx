@@ -1,10 +1,8 @@
 import { type UseFormReturn } from "react-hook-form";
 
 import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
-import {
-  PagerDutyTestEventButtonsView,
-  type PagerDutyTestEventState,
-} from "@/src/features/pagerduty";
+import { PagerDutyTestEventButtonsView } from "@/src/features/pagerduty/components/PagerDutyTestEventButtonsView";
+import { type PagerDutyTestEventState } from "@/src/features/pagerduty/hooks/usePagerDutyTestEvent";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 

@@ -23,7 +23,7 @@ import {
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const CATEGORY_ICONS: Record<SystemTableViewPresetCategory, IconComponent> = {
   [SystemTableViewPresetCategory.SlowCalls]: Timer,

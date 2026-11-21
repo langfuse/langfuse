@@ -2,7 +2,7 @@ import {
   hasEntitlementLimit,
   throwIfExceedsLimit,
 } from "@/src/features/entitlements/server/hasEntitlementLimit";
-import { type EntitlementLimit } from "@/src/features/entitlements/constants/entitlements";
+import { type EntitlementLimit } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { type Session } from "next-auth";
 

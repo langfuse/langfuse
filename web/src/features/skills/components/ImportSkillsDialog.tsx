@@ -10,7 +10,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, getTrpcErrorCode, type RouterOutputs } from "@/src/utils/api";
 
@@ -378,8 +378,8 @@ export function ImportSkillsDialog({
                                         }
                                         color={
                                           skill.exists && !skill.hasChanges
-                                            ? "yellow"
-                                            : "blue"
+                                            ? "warning"
+                                            : "info"
                                         }
                                         size="sm"
                                       />
@@ -387,7 +387,7 @@ export function ImportSkillsDialog({
                                     {!skill.error ? (
                                       <Badge
                                         text={`${skill.files.length} ${skill.files.length === 1 ? "file" : "files"}`}
-                                        color="primary"
+                                        color="outline"
                                         size="sm"
                                       />
                                     ) : null}

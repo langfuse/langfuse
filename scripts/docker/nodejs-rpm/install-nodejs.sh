@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# TEMPORARY(node-24.22.1-security): see build.sh.
+# Disabled; see README.md.
 #
 # Enables the nodejs:24 module and installs the given packages in one dnf
 # transaction, taking nodejs, nodejs-libs, nodejs-full-i18n and npm from the
 # patched RPMs built by build.sh only while those are newer than what Red Hat's
 # repos offer. Once Red Hat ships a newer nodejs, this installs theirs instead,
 # and test-node-security-fixes.js (run by the Dockerfiles right after) decides
-# whether it also has every fix: if it does, delete scripts/docker/nodejs-rpm/;
-# if not, rebase the patches onto Red Hat's new source RPM.
+# whether it also has every fix: if it does, disable the patched RPMs again
+# (README.md); if not, rebase the patches onto Red Hat's new source RPM.
 #
 # Usage: install-nodejs.sh RPM_DIR PACKAGE...
 #   NODEJS_INSTALLROOT  install into this root instead of /. Pass every package
@@ -46,8 +46,9 @@ if [ "$(rpm --eval "%{lua: print(rpm.vercmp('${vendored}', '${available}'))}")" 
     packages[$i]="$file"
   done
 else
-  echo "Red Hat's nodejs ${available} is not older than the patched ${vendored};" \
-    "installing it. If the security fix checks pass, remove scripts/docker/nodejs-rpm/."
+  echo "Red Hat's nodejs ${available} is newer than the patched ${vendored};" \
+    "installing it. If the security fix checks pass, disable the patched RPMs" \
+    "again (scripts/docker/nodejs-rpm/README.md)."
 fi
 
 # The patched RPMs are built in CI from Red Hat's signed source RPM and pulled

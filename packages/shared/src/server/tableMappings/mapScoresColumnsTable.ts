@@ -1,4 +1,4 @@
-import { UiColumnMappings } from "../../tableDefinitions";
+import { UiColumnMappings } from "../../tableDefinitions/types";
 import { SCORE_BOOLEAN_VALUE_SQL } from "./mapScoresTable";
 
 export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [

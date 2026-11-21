@@ -54,7 +54,7 @@ export const UsageThresholdWarningEmailTemplate = ({
               <Img
                 src="https://static.langfuse.com/langfuse_logo_transactional_email.png"
                 width="40"
-                height="40"
+                height="26"
                 alt="Langfuse"
                 className="mx-auto my-0"
               />
@@ -110,9 +110,9 @@ export const UsageThresholdWarningEmailTemplate = ({
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
                 • Your usage continues to be tracked for a grace period
-                <br />
-                • Ingestion will soon be suspended and incoming observations,
-                traces, and scores will be dropped unless you upgrade
+                <br />• Ingestion will soon be suspended and incoming
+                observations, traces, and scores will be dropped unless you
+                upgrade
                 <br />• Your usage limit resets on{" "}
                 <strong>{formattedResetDate}</strong>
               </Text>
@@ -124,12 +124,9 @@ export const UsageThresholdWarningEmailTemplate = ({
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
                 When you upgrade, you can:
-                <br />
-                • Add unlimited number of users
-                <br />
-                • Retain data for 90 days
-                <br />
-                • Access unlimited evaluators
+                <br />• Add unlimited number of users
+                <br />• Retain data for 90 days
+                <br />• Access unlimited evaluators
                 <br />• Get support via Email/Chat
               </Text>
               <Text className="text-gray-700 text-sm leading-6 mt-4">

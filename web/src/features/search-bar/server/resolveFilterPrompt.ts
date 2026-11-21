@@ -43,8 +43,8 @@ import {
   ChatMessageType,
   logger,
 } from "@langfuse/shared/src/server";
-import type { ChatPromptClient } from "langfuse";
-import { getLangfuseClient } from "@/src/features/natural-language-filters/server";
+import type { ChatPromptClient } from "@langfuse/client";
+import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import {
   buildFieldCatalog,
   buildFilterSystemPrompt,
@@ -133,11 +133,9 @@ export async function resolveFilterSystemPrompt(params: {
       params.aiFeaturesPublicKey!,
       params.aiFeaturesSecretKey!,
       params.aiFeaturesHost,
-      false,
     );
-    const promptResponse = await client.getPrompt(
+    const promptResponse = await client.prompt.get(
       SEARCH_BAR_FILTER_PROMPT_NAME,
-      undefined,
       // A slow or erroring AI-features project must never stall the user's
       // request — a fast local fallback exists, so there is no reason to
       // inherit the SDK's default retry/timeout budget (~15s worst case).
@@ -148,7 +146,7 @@ export async function resolveFilterSystemPrompt(params: {
       nullable_ids: nullableFieldIds(registry),
       current_datetime: params.currentDatetime,
     });
-    // `getPrompt` is typed to return chat messages for `{ type: "chat" }`, but
+    // `prompt.get` is typed to return chat messages for `{ type: "chat" }`, but
     // that only holds if the live prompt is actually a well-formed chat prompt.
     // A bad edit can compile to: a STRING (if stored as a text prompt), an
     // EMPTY array, or an array with a MALFORMED message (unsupported role /

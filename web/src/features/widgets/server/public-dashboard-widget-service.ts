@@ -13,18 +13,19 @@ import {
   getViewDeclaration,
   type ViewVersion,
 } from "@langfuse/shared/query";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { createStructuredPublicApiError } from "@/src/features/public-api";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { createStructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 import {
   PostUnstableDashboardWidgetResponse,
   type DashboardWidgetViewOutputType,
   type PostUnstableDashboardWidgetBodyType,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/unstable-dashboard-widgets";
+
 import { ChartConfigSchema, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   getWidgetImportFilterConfig,
   partitionStoredUiTableFiltersToView,
-} from "@/src/features/dashboard/server";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,

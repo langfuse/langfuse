@@ -146,8 +146,6 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
-        externalMediaStorage: false,
-        skillManagement: false,
         sessionViewV2: true,
         sessionViewV2Timeline: false,
       },
@@ -170,8 +168,6 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
-        externalMediaStorage: false,
-        skillManagement: false,
         sessionViewV2: false,
         sessionViewV2Timeline: false,
       },
@@ -195,8 +191,6 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
-        externalMediaStorage: false,
-        skillManagement: false,
         sessionViewV2: false,
         sessionViewV2Timeline: false,
       },
@@ -243,8 +237,6 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
-        externalMediaStorage: false,
-        skillManagement: false,
         sessionViewV2: false,
         sessionViewV2Timeline: false,
       },
@@ -276,8 +268,6 @@ describe("UserFeaturePreviewsControl", () => {
       orgId: "org-1",
       userId: "user-1",
       featurePreviews: {
-        externalMediaStorage: false,
-        skillManagement: false,
         sessionViewV2: false,
         sessionViewV2Timeline: false,
       },

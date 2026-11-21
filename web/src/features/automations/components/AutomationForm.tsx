@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React from "react";
 import {
   Card,
@@ -48,18 +49,15 @@ import {
   PagerDutyRegionSchema,
   PagerDutyRoutingKeySchema,
 } from "@langfuse/shared/pagerduty";
-import { InlineFilterBuilder, MultiSelect } from "@/src/features/filters";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { ActionHandlerRegistry } from "./actions";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { ActionHandlerRegistry } from "@/src/features/automations/components/actions/ActionHandlerRegistry";
 import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 import { webhookSchema } from "./actions/WebhookActionForm";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import Link from "next/link";
-import { Info } from "@langfuse/icons";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useReadPath } from "@/src/features/events";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useVersionFilterOptions } from "../hooks/useVersionFilterOptions";
 
 // Define Slack action schema
@@ -208,22 +206,15 @@ type FormValues = z.infer<typeof formSchema>;
 
 /** EventSourceField renders the trigger source picker and routes changes through onSourceChange so the parent can reset dependent fields. */
 const EventSourceField = ({
-  projectId,
   control,
   onSourceChange,
   disabled,
 }: {
-  projectId: string;
   control: Control<FormValues>;
   onSourceChange: (value: TriggerEventSource) => void;
   disabled: boolean;
 }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { isV4 } = useReadPath();
-  const skillsEnabled = useIsFeatureEnabled("skillManagement", {
-    projectId,
-    enableForAdmins: false,
-  });
   return (
     <FormField
       control={control}
@@ -245,10 +236,7 @@ const EventSourceField = ({
             </FormControl>
             <SelectContent>
               <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
-              {((isV4 && skillsEnabled) ||
-                field.value === TriggerEventSource.Skill) && (
-                <SelectItem value={TriggerEventSource.Skill}>Skill</SelectItem>
-              )}
+              <SelectItem value={TriggerEventSource.Skill}>Skill</SelectItem>
               {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>
@@ -367,19 +355,14 @@ const VersionTriggerFields = ({
 
 /** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
 const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
-  <Alert icon={Info}>
-    <Alert.Title>How Alerts Connect</Alert.Title>
-    <Alert.Description>
-      Add this automation to an alert from the{" "}
-      <Link
-        href={`/project/${projectId}/alerts/new`}
-        className="text-primary underline underline-offset-2"
-      >
-        create alerts page
-      </Link>
-      .
-    </Alert.Description>
-  </Alert>
+  <Banner
+    title="How alerts connect"
+    actions={[
+      { text: "Create alerts page", href: `/project/${projectId}/alerts/new` },
+    ]}
+  >
+    Add this automation to an alert from the create alerts page.
+  </Banner>
 );
 
 interface AutomationFormProps {
@@ -778,7 +761,6 @@ export const AutomationForm = ({
             <CardContent className="space-y-4">
               {!lockedEventSource && (
                 <EventSourceField
-                  projectId={projectId}
                   control={form.control}
                   onSourceChange={handleEventSourceChange}
                   disabled={!hasAccess || !isEditing}
@@ -873,7 +855,7 @@ export const AutomationForm = ({
                       <Button
                         type="button"
                         variant="outline"
-                        className="border-light-red flex items-center"
+                        className="border-dark-red/30 flex items-center"
                         disabled={disabled !== undefined}
                         onClick={openDialog}
                       >

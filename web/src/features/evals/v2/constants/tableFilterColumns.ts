@@ -1,5 +1,5 @@
 import { EvalTemplateType, type ColumnDefinition } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 
 const evaluatorStatusOptions = [
   { value: "ACTIVE", displayValue: "Active" },

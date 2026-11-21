@@ -2,6 +2,8 @@
 use serde::Serialize;
 use serde_json::{Map, Value, value::RawValue};
 
+use crate::resolution::ApiFormat;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum RelayOutcome {
@@ -43,9 +45,21 @@ pub(crate) struct InputOmission {
     pub body_bytes: usize,
 }
 
+/// A request the gateway refused before it reached the provider.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub(crate) struct GatewayRejection {
+    /// The HTTP status the caller received.
+    pub status: u16,
+    #[serde(skip)]
+    pub origin: crate::observability::ErrorOrigin,
+    /// The bounded `error.reason` of the gateway's own request telemetry.
+    pub reason: &'static str,
+    pub message: String,
+}
+
 #[derive(Serialize)]
 pub(crate) struct InferenceFacts {
-    pub api_format: &'static str,
+    pub api_format: ApiFormat,
     pub start_time_unix_ms: u128,
     pub duration_ms: u128,
     pub first_byte_ms: Option<u128>,
@@ -57,6 +71,10 @@ pub(crate) struct InferenceFacts {
     pub response_body_bytes: u64,
     pub metadata: Value,
     pub outcome: RelayOutcome,
+    /// What a spend-limited key was charged, priced from the model's tiers. The
+    /// generation carries it so Langfuse stores the amount the limit counted.
+    pub charged_cost_details: Option<crate::spend::UsageCostType>,
+    pub rejection: Option<GatewayRejection>,
     #[serde(flatten)]
     pub inference: ProviderFacts,
 }
@@ -70,6 +88,9 @@ pub(crate) struct ProviderFacts {
     pub request_metadata: Map<String, Value>,
     pub error_message: Option<String>,
     pub usage_details: Option<Value>,
+    /// The response's top-level `provider_metadata`, where gateways such as
+    /// Vercel report what they billed when `usage` has no cost.
+    pub provider_metadata: Option<Value>,
     pub input: Option<Box<RawValue>>,
     pub input_omission: Option<InputOmission>,
     pub output: Option<Value>,

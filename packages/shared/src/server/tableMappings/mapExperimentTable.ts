@@ -1,7 +1,7 @@
 import type {
   ColumnDefinition,
   UiColumnMappings,
-} from "../../tableDefinitions";
+} from "../../tableDefinitions/types";
 import type { ApiColumnMapping } from "../queries/public-api-filter-builder";
 
 /**

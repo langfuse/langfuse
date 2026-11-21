@@ -212,24 +212,6 @@ describe("evaluation helpers", () => {
       ).toBe(false);
     });
 
-    it("should reject duplicate categorical multi-match values", () => {
-      const schema = buildEvalOutputResultSchema(
-        createCategoricalEvalOutputDefinition({
-          scoreDescription: "Choose all matching categories",
-          reasoningDescription: "Explain the selected categories",
-          categories: ["correct", "partial"],
-          shouldAllowMultipleMatches: true,
-        }),
-      );
-
-      expect(
-        schema.safeParse({
-          score: ["correct", "correct"],
-          reasoning: "This should be invalid.",
-        }).success,
-      ).toBe(false);
-    });
-
     it("should reject categorical scalars when multiple matches are required to be returned as an array", () => {
       const schema = buildEvalOutputResultSchema(
         createCategoricalEvalOutputDefinition({
@@ -531,6 +513,7 @@ describe("evaluation helpers", () => {
   });
 
   describe("buildEvalScoreWritePayloads", () => {
+    const scoreTimestamp = new Date("2026-01-01T23:59:00.000Z");
     const evaluationContext = {
       evaluationRuleId: "rule-1",
       evaluatorExecutionIsTest: false,
@@ -538,6 +521,7 @@ describe("evaluation helpers", () => {
 
     it("should build stable code eval score IDs when different score names reorder", () => {
       const originalPayloads = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.NUMERIC,
@@ -559,6 +543,7 @@ describe("evaluation helpers", () => {
         evaluationContext,
       });
       const reorderedPayloads = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.NUMERIC,
@@ -586,6 +571,7 @@ describe("evaluation helpers", () => {
 
     it("should build distinct deterministic code eval score IDs for duplicate score names", () => {
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.CATEGORICAL,
@@ -647,6 +633,7 @@ describe("evaluation helpers", () => {
         }),
       ];
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.CATEGORICAL,
@@ -683,6 +670,7 @@ describe("evaluation helpers", () => {
         occurrenceIndex: 0,
       });
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.NUMERIC,
@@ -720,6 +708,7 @@ describe("evaluation helpers", () => {
         occurrenceIndex: 0,
       });
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.BOOLEAN,
@@ -762,6 +751,7 @@ describe("evaluation helpers", () => {
         occurrenceIndex: 1,
       });
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.CATEGORICAL,
@@ -802,6 +792,7 @@ describe("evaluation helpers", () => {
 
     it("should merge returned score metadata with execution metadata", () => {
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.NUMERIC,

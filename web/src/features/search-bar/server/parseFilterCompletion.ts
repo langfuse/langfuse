@@ -14,6 +14,39 @@ import {
 import { planCommit } from "../lib/commit";
 import { filterStateToQueryText } from "../lib/filter-state-to-query";
 import type { ObservedScoreNames } from "../lib/observed-options";
+import type { AiFilterResult } from "../lib/ai-filter-result";
+
+// Refinement replaces applied state: never recover an earlier balanced
+// fragment or keep only valid siblings from an incomplete replacement.
+export function parseRefinedFilters(
+  completion: string,
+  scoreNames?: ObservedScoreNames,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+):
+  | (GeneratedFilters & { status: "complete" })
+  | Extract<AiFilterResult, { status: "incomplete" }> {
+  const trimmed = completion.trim();
+  const fenced = /^```[^\r\n`]*\r?\n([\s\S]*?)\r?\n?```$/.exec(trimmed);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fenced?.[1] ?? trimmed);
+  } catch {
+    return { status: "incomplete", unknownScoreNames: [] };
+  }
+  const raw = Array.isArray(parsed)
+    ? parsed
+    : (parsed as { filters?: unknown } | null)?.filters;
+  const complete = singleFilter.array().safeParse(raw);
+  if (!complete.success) return { status: "incomplete", unknownScoreNames: [] };
+  const result = parseGeneratedFilters(
+    JSON.stringify(complete.data),
+    scoreNames,
+    registry,
+  );
+  return result.droppedCount > 0
+    ? { status: "incomplete", unknownScoreNames: result.unknownScoreNames }
+    : { ...result, status: "complete" };
+}
 
 // Mirrors COMPATIBLE_FILTER_TYPES in
 // packages/shared/src/server/queries/clickhouse-sql/filterTypeCompatibility.ts —

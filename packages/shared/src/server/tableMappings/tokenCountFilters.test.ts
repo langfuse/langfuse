@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type UiColumnMappings } from "../../tableDefinitions";
+import type { UiColumnMappings } from "../../tableDefinitions/types";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { eventsTableUiColumnDefinitions } from "./mapEventsTable";
 import { observationsTableUiColumnDefinitions } from "./mapObservationsTable";

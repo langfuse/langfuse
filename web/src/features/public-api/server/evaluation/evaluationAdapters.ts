@@ -12,12 +12,10 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
-import {
-  EvaluatorDefinitionInputSchema,
-  isLegacyEvalTarget,
-  type EvaluatorService,
-  type RuleService,
-} from "@/src/features/evals/server";
+import { EvaluatorDefinitionInputSchema } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import type { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import type { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import {
   EvaluationRule,
   type CreateEvaluationRuleBodyType,
@@ -114,10 +112,17 @@ export function toApiReadMappings(
   }
 
   return parsed.data.map((mapping) => {
-    const source =
-      INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE[mapping.selectedColumnId];
+    const source = Object.hasOwn(
+      INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE,
+      mapping.selectedColumnId,
+    )
+      ? INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE[mapping.selectedColumnId]
+      : undefined;
+    // One unknown column must not fail a whole page of evaluators or rules.
     if (!source && mapping.selectedColumnId.trim()) {
-      throw new InternalServerError("Evaluation rule mapping is corrupted");
+      logger.warn("Unknown column in public evaluation mapping", {
+        selectedColumnId: mapping.selectedColumnId,
+      });
     }
     return {
       variable: mapping.templateVariable,

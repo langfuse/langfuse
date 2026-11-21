@@ -3,7 +3,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
-import { formatBucketRange } from "@/src/features/events";
+import { formatBucketRange } from "@/src/features/events/components/outlier-strip/lib/binning";
 import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
 import { prepareScoreOutlierYTicks } from "@/src/features/scores-chart-view/fns/binning/scoreOutlierBinning";
 import {

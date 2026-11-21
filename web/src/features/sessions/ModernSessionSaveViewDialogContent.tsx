@@ -1,35 +1,52 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { Button } from "@/src/components/ui/button";
 import { useState } from "react";
-import {
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import { Input } from "@/src/components/ui/input";
+import { type z } from "zod";
+import { type SessionViewInputSchema } from "@langfuse/shared";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { Input } from "@/src/components/design-system/Input/Input";
+import { RadioCardGroup } from "@/src/components/design-system/RadioCardGroup/RadioCardGroup";
+
+type SessionViewInput = z.infer<typeof SessionViewInputSchema>;
 
 type ModernSessionSaveViewDialogContentProps = {
   isSaving: boolean;
-  onCancel: () => void;
-  onSave: (viewName: string) => void;
+  onSave: (viewName: string, ownership: SessionViewInput["ownership"]) => void;
+  allowedOwnerships: SessionViewInput["ownership"][];
+  showOwnership: boolean;
+  error?: string;
 };
 
 export function ModernSessionSaveViewDialogContent({
   isSaving,
-  onCancel,
   onSave,
+  error,
+  allowedOwnerships,
+  showOwnership,
 }: ModernSessionSaveViewDialogContentProps) {
+  const canSavePrivate = allowedOwnerships.includes("PRIVATE");
+  const canSaveProject = allowedOwnerships.includes("PROJECT");
   const [viewName, setViewName] = useState("");
-  const saveView = () => onSave(viewName.trim());
+  const [ownership, setOwnership] = useState<SessionViewInput["ownership"]>(
+    canSavePrivate ? "PRIVATE" : "PROJECT",
+  );
+  const canSave = ownership === "PRIVATE" ? canSavePrivate : canSaveProject;
+  const saveView = () => {
+    if (!canSave || isSaving || !viewName.trim()) return;
+    onSave(viewName.trim(), ownership);
+  };
 
   return (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Save as new view</DialogTitle>
-      </DialogHeader>
-      <DialogBody>
+    <Dialog
+      title="Save as new view"
+      actions={[
+        {
+          label: "Save view",
+          loading: isSaving,
+          disabled: !viewName.trim() || isSaving || !canSave,
+          onClick: saveView,
+        },
+      ]}
+    >
+      <Dialog.Body>
         <div>
           <label
             htmlFor="modern-session-view-name"
@@ -50,19 +67,34 @@ export function ModernSessionSaveViewDialogContent({
             }}
           />
         </div>
-      </DialogBody>
-      <DialogFooter>
-        <Button variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button
-          loading={isSaving}
-          disabled={!viewName.trim()}
-          onClick={saveView}
-        >
-          Save view
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+        {showOwnership && (
+          <>
+            <RadioCardGroup<SessionViewInput["ownership"]>
+              aria-label="View ownership"
+              value={ownership}
+              onValueChange={setOwnership}
+              options={[
+                ...(canSavePrivate
+                  ? [{ value: "PRIVATE" as const, label: "Private view" }]
+                  : []),
+                ...(canSaveProject
+                  ? [{ value: "PROJECT" as const, label: "Project view" }]
+                  : []),
+              ]}
+            />
+            <p className="text-muted-foreground text-sm">
+              {ownership === "PRIVATE"
+                ? "Only you can see and edit this view. Private views cannot be used by annotation queues."
+                : "Shared with the project. Anyone with project-view write permission can edit it, including for all queues using it."}
+            </p>
+          </>
+        )}
+        {error ? (
+          <p role="alert" className="text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </Dialog.Body>
+    </Dialog>
   );
 }

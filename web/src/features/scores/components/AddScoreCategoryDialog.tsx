@@ -14,10 +14,10 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { validateNewCategoryLabel } from "@/src/features/scores/lib/annotationFormHelpers";
 import { type AnnotationAnalyticsContext } from "@/src/features/scores/lib/annotationAnalytics";
-import { showToast } from "@/src/features/notifications";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function AddScoreCategoryDialog({

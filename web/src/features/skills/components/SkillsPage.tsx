@@ -8,7 +8,9 @@ import {
   Download,
   FileCode2,
   GitBranch,
+  TriangleAlert,
   Plus,
+  Sparkles,
   Terminal,
   Trash,
   Zap,
@@ -20,6 +22,7 @@ import {
   withDefault,
 } from "use-query-params";
 import Page from "@/src/components/layouts/Page";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -42,12 +45,10 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useSidebarFilterState } from "@/src/features/filters";
-import {
-  TableSearchBar,
-  toObservedOptions,
-  useFullTextSearch,
-} from "@/src/features/search-bar";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -59,16 +60,20 @@ import {
   skillsFilterConfig,
 } from "../constants/skillsFilterConfig";
 import { ImportSkillsDialog } from "./ImportSkillsDialog";
+import { useSkillHaloActions } from "./useSkillHaloActions";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { InstallSkillDialog } from "./InstallSkillDialog";
 import { useSkillInstallOptions } from "../hooks/useSkillInstallOptions";
 import {
   DEFAULT_SKILL_LIST_ORDER_BY,
   SkillListOrderBySchema,
 } from "../constants/skillsSorting";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
 export function SkillsPage() {
+  const { isV3Legacy } = useReadPath();
   const projectId = useProjectIdFromURL() ?? "";
   const canCreate = useHasProjectAccess({ projectId, scope: "skills:CUD" });
   const { query: filterOptions } = useSkillInstallOptions(projectId, "");
@@ -94,11 +99,24 @@ export function SkillsPage() {
         <Page
           headerProps={{
             title: "Skills",
-            titleBadges: <Badge text="Beta" color="blue" size="sm" />,
+            titleBadges: (
+              <>
+                <FeatureReleaseStatus status="beta" />
+                {isV3Legacy && (
+                  <Badge
+                    text="Skill tracing requires v4"
+                    title="You can still create and use skills in the legacy view."
+                    color="warning"
+                    size="md"
+                    leadingIcon={TriangleAlert}
+                  />
+                )}
+              </>
+            ),
             help: {
               description:
                 "Create, version, and distribute reusable agent skills from one place.",
-              href: "https://langfuse.com/docs",
+              href: "https://langfuse.com/docs/skill-management/get-started",
             },
             actionButtonsRight: (
               <SkillsHeaderActions
@@ -146,6 +164,8 @@ function SkillsHeaderActions({
   closeMenu,
 }: SkillsHeaderActionsProps) {
   const capture = usePostHogClientCapture();
+  const isHaloVisible = useIsInAppAgentLauncherVisible();
+  const { createSkill, isRunning: isHaloRunning } = useSkillHaloActions();
   const canReadAutomations = useHasProjectAccess({
     projectId,
     scope: "automations:read",
@@ -207,7 +227,7 @@ function SkillsHeaderActions({
               {
                 type: "item",
                 id: "create",
-                title: "Create from scratch",
+                title: "Create manually",
                 icon: Plus,
                 href: `/project/${projectId}/skills/new`,
                 onAfterNavigate: () => {
@@ -215,6 +235,27 @@ function SkillsHeaderActions({
                   capture("skills:new_form_open");
                 },
               },
+              ...(isHaloVisible
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "create-with-halo",
+                      title: "Create with Halo",
+                      tooltip:
+                        "Halo asks what you need and writes the skill with you.",
+                      icon: Sparkles,
+                      disabled: isHaloRunning
+                        ? {
+                            reason: "Halo is still working on another request.",
+                          }
+                        : undefined,
+                      onClick: () => {
+                        closeMenu?.();
+                        createSkill().catch(() => undefined);
+                      },
+                    },
+                  ]
+                : []),
               {
                 type: "item",
                 id: "import",
@@ -272,10 +313,13 @@ function SkillsList({
     { projectId },
     { enabled: Boolean(projectId) },
   );
-  const observedOptions = filterOptions.data ?? { tags: [] };
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions.data, filterOptions.isPending),
+    [filterOptions.data, filterOptions.isPending],
+  );
   const queryFilter = useSidebarFilterState(
     skillsFilterConfig,
-    observedOptions,
+    observedOptions ?? { tags: [] },
     {
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
@@ -385,10 +429,7 @@ function SkillsList({
               registry={SKILLS_FIELD_REGISTRY}
               filterState={queryFilter.searchBarFilterState}
               setFilterState={queryFilter.setFilterState}
-              observed={toObservedOptions(
-                observedOptions,
-                filterOptions.isPending,
-              )}
+              observed={observedOptions}
               isV4={false}
               search={{
                 query: searchQuery,

@@ -15,7 +15,8 @@ import {
 } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { GatewayHero } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayHero";
-import { GATEWAY_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
+import { GATEWAY_OVERVIEW_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
+import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 
 const copy = {
   admin: {
@@ -55,8 +56,7 @@ export function GatewayLaunchDialog({
     useState<HTMLDivElement | null>(null);
   const { title, lead, points } =
     copy[state === "get-key" ? "member" : "admin"];
-  const setupHref = (orgId: string) =>
-    `/organization/${orgId}/settings/ai-gateway`;
+  const setupHref = (orgId: string) => buildGatewayPagePath(orgId);
 
   return (
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- design-system Dialog has no hero slot
@@ -93,7 +93,7 @@ export function GatewayLaunchDialog({
             </div>
             <div className="flex shrink-0 items-center justify-between border-t px-8 py-4">
               <Link
-                href={GATEWAY_DOCS_URL}
+                href={GATEWAY_OVERVIEW_DOCS_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() =>
@@ -153,7 +153,7 @@ export function GatewayLaunchDialog({
                   <Button
                     variant="primary"
                     text="Get gateway key"
-                    href={`/organization/${organizationId}/settings/ai-gateway-api-keys`}
+                    href={buildGatewayPagePath(organizationId, "api-keys")}
                   />
                 </span>
               )}

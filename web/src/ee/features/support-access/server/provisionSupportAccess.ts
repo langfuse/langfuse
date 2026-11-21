@@ -36,34 +36,48 @@ async function findUser(email: string) {
 
 type User = NonNullable<Awaited<ReturnType<typeof findUser>>>;
 
+async function resolveOrgId(orgOrProjectId: string): Promise<string | null> {
+  const project = await prisma.project.findFirst({
+    where: {
+      deletedAt: null,
+      OR: [{ id: orgOrProjectId }, { orgId: orgOrProjectId }],
+    },
+    select: { orgId: true },
+  });
+  return project?.orgId ?? null;
+}
+
 async function grant(
   request: GrantRequest,
   user: User | null,
   now: Date,
 ): Promise<ProvisionResult> {
   if (!request.durationMs || request.durationMs > MAX_GRANT_MS) {
-    return rejected("Grant must be time-bound to at most 12h");
+    return rejected("Access must be time-bound to at most 12 hours.");
   }
   if (!request.email.endsWith(`@${SUPPORT_EMAIL_DOMAIN}`)) {
-    return rejected("Requester email domain is not allowed");
+    return rejected(
+      `Requester email is not allowed. Only @${SUPPORT_EMAIL_DOMAIN} accounts can request support access; request again with your @${SUPPORT_EMAIL_DOMAIN} identity.`,
+    );
   }
   if (!user) {
-    return rejected("Sign in to this Langfuse region once, then retry");
+    return rejected(
+      `No Clickhouse account found for the requester in this region. Sign up with Google first using your @${SUPPORT_EMAIL_DOMAIN} account, then submit a new request.`,
+    );
   }
 
-  const org = await prisma.organization.findUnique({
-    where: { id: request.orgId },
-    select: { id: true },
-  });
-  if (!org) {
-    return rejected("Organization not found in this region");
+  const orgId = await resolveOrgId(request.orgOrProjectId);
+  if (!orgId) {
+    return rejected(
+      `Organization or project ${request.orgOrProjectId} not found in this region.`,
+    );
   }
 
   const expiresAt = new Date(now.getTime() + request.durationMs);
-  await grantSupportAccess(user.id, org.id, expiresAt);
+  await grantSupportAccess(user.id, orgId, expiresAt);
   logger.info("ConductorOne support access granted", {
     userId: user.id,
-    orgId: org.id,
+    orgId,
     expiresAt: expiresAt.toISOString(),
     c1TaskId: request.taskId,
   });
@@ -93,7 +107,7 @@ export async function provisionSupportAccess(
   now: Date = new Date(),
 ): Promise<ProvisionResult> {
   if (request.entitlementId !== entitlementId) {
-    return rejected("Entitlement is not handled by this Langfuse region");
+    return rejected(`This entitlement is not handled by this region`);
   }
 
   const user = await findUser(request.email);
