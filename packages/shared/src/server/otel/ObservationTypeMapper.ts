@@ -184,8 +184,12 @@ export class ObservationTypeMapperRegistry {
         // Check version <= 3.3.0
         const scopeVersion = scopeData?.version as string;
         if (scopeVersion) {
-          const [major, minor] = scopeVersion.split(".").map(Number);
-          if (major > 3 || (major === 3 && minor > 3)) {
+          const [major, minor, patch] = scopeVersion.split(".").map(Number);
+          if (
+            major > 3 ||
+            (major === 3 && minor > 3) ||
+            (major === 3 && minor === 3 && patch > 0)
+          ) {
             return null;
           }
         }
