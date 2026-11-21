@@ -209,6 +209,7 @@ export default {
           },
         ],
         "typescript/no-deprecated": "warn",
+        "typescript/only-throw-error": "warn",
       },
     },
   ],
