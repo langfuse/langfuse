@@ -462,6 +462,8 @@ export const createScoreAnalyticsRouter = ({
             avg1: row.col2 ?? null,
             avg2: row.col3 ?? null,
             count: row.col4 ?? 0,
+            count1: row.col5 ?? null,
+            count2: row.col6 ?? null,
           })),
           distribution1: dist1Rows.map((row) => ({
             binIndex: row.col1 ?? 0,
@@ -490,6 +492,8 @@ export const createScoreAnalyticsRouter = ({
             avg1: row.col2 ?? null,
             avg2: row.col3 ?? null,
             count: row.col4 ?? 0,
+            count1: row.col5 ?? null,
+            count2: row.col6 ?? null,
           })),
           distribution1Matched: dist1MatchedRows.map((row) => ({
             binIndex: row.col1 ?? 0,
