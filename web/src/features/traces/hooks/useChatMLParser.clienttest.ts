@@ -102,6 +102,7 @@ describe("useChatMLParser", () => {
       { name: "loadSkill", arguments: { name: "unknown-skill" } },
       { name: "loadSkillResource", arguments: { name: "shipping-policy" } },
       { name: "search", arguments: { name: "shipping-policy" } },
+      { name: "skill", arguments: { id: 123 } },
       {
         name: "Read",
         arguments: { path: "/skills/shipping-policy-backup/SKILL.md" },
@@ -118,6 +119,14 @@ describe("useChatMLParser", () => {
       {
         name: "readFile",
         arguments: { path: "/repo/shipping-policy/notes.txt" },
+      },
+      {
+        name: "read",
+        arguments: { path: "/repo/shipping-policy/references/refunds.md" },
+      },
+      {
+        name: "read",
+        arguments: { path: "/skills/shipping-policy/../other/refunds.md" },
       },
       {
         name: "Read",
@@ -157,7 +166,18 @@ describe("useChatMLParser", () => {
 
   it.each([
     ["Skill", { skill: "refund-policy" }, "SKILL.md"],
+    ["Skill", { id: "refund-policy" }, "SKILL.md"],
+    ["loadSkill", { id: "refund-policy" }, "SKILL.md"],
+    ["langfuse_loadSkill", { id: "refund-policy" }, "SKILL.md"],
     ["skill", { name: "refund-policy" }, "SKILL.md"],
+    ["skill", { id: "refund-policy" }, "SKILL.md"],
+    ["skill", '{"id":"refund-policy"}', "SKILL.md"],
+    ["skill", { skill: "refund-policy", id: "other-skill" }, "SKILL.md"],
+    [
+      "skill",
+      { name: "refund-policy", skill: "other-skill", id: "another-skill" },
+      "SKILL.md",
+    ],
     ["skill", { name: "/skills/refund-policy" }, "SKILL.md"],
     ["skill", { name: "/skills/refund-policy/SKILL.md" }, "SKILL.md"],
     [
@@ -183,6 +203,11 @@ describe("useChatMLParser", () => {
       { path: "/skills/refund-policy/SKILL.md" },
       "/skills/refund-policy/SKILL.md",
     ],
+    [
+      "read",
+      { path: "/repo/.agents/skills/refund-policy/references/refunds.md" },
+      "/repo/.agents/skills/refund-policy/references/refunds.md",
+    ],
     ["langfuse_loadSkill", { name: "refund-policy" }, "SKILL.md"],
     [
       "langfuse_loadSkillResource",
@@ -198,6 +223,25 @@ describe("useChatMLParser", () => {
       ),
     ).toEqual(new Set([filePath]));
   });
+
+  it.each([
+    { available: [] },
+    { available: [{ skillName: "shipping-policy" }] },
+  ])(
+    "does not infer a read skill resource without a matching catalog: $available",
+    ({ available }) => {
+      const call = {
+        name: "read",
+        arguments: {
+          path: "/repo/.agents/skills/refund-policy/references/refunds.md",
+        },
+        invocationNumber: 1,
+      };
+      expect(
+        getSkillLoadRequests(available, new Map([[call.name, [call]]])).size,
+      ).toBe(0);
+    },
+  );
 
   it.each([
     ["skill", { name: "/skills/unknown" }],
