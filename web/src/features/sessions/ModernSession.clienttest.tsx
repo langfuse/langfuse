@@ -106,6 +106,67 @@ describe("ModernSession", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it("merges the session tree and custom views into one tab bar", () => {
+    const onViewChange = vi.fn();
+    render(
+      <ModernSession
+        {...defaultProps}
+        navigation={{
+          activeView: "trace",
+          onViewChange,
+        }}
+        treeContent={<div>Session tree</div>}
+        viewTabs={{
+          ...defaultProps.viewTabs,
+          savedViews: [{ id: "custom-view", name: "My view", canEdit: true }],
+        }}
+      />,
+    );
+
+    expect(screen.getAllByRole("tablist")).toHaveLength(1);
+    expect(screen.getByRole("tab", { name: "Session" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(
+      screen.queryByRole("tab", { name: "Trace" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Session tree")).toBeInTheDocument();
+    expect(screen.queryByText("Timeline body")).not.toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "My view" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(defaultProps.viewTabs.onValueChange).toHaveBeenCalledWith(
+      "custom-view",
+    );
+    expect(onViewChange).toHaveBeenCalledWith("messages");
+  });
+
+  it("returns to the session tree without changing the selected custom view", () => {
+    const onViewChange = vi.fn();
+    render(
+      <ModernSession
+        {...defaultProps}
+        navigation={{
+          activeView: "messages",
+          onViewChange,
+        }}
+        treeContent={<div>Session tree</div>}
+      />,
+    );
+
+    expect(screen.getByText("Timeline body")).toBeInTheDocument();
+    expect(screen.queryByText("Session tree")).not.toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Session" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(onViewChange).toHaveBeenCalledWith("trace");
+    expect(defaultProps.viewTabs.onValueChange).not.toHaveBeenCalled();
+  });
+
   it("shows a recovery action when every view is unpinned", () => {
     render(
       <ModernSession

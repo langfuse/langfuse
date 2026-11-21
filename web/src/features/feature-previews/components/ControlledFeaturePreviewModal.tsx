@@ -64,24 +64,30 @@ export function ControlledFeaturePreviewModal({
     (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
       authSession.data?.environment.enableExperimentalFeatures === true);
 
+  const enableExperimentalFeatures =
+    authSession.data?.environment.enableExperimentalFeatures === true;
+  const unifiedViewWarningReason = (() => {
+    if (!isV4) {
+      return `Unified Trace and Session View requires ${V4_PREVIEW_LABEL}.`;
+    }
+    if (enableExperimentalFeatures) {
+      return "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it.";
+    }
+    return undefined;
+  })();
+
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
-    ...(internalViewEnabled ||
-    authSession.data?.user?.featureFlags.unifiedTraceSessionView === true
-      ? {
-          unifiedTraceSessionView: {
-            enabled:
-              isV4 &&
-              authSession.data?.user?.featureFlags.unifiedTraceSessionView ===
-                true,
-            disabled: !isV4,
-            warningReason: !isV4
-              ? `Unified Trace and Session View requires ${V4_PREVIEW_LABEL}.`
-              : undefined,
-            onToggle: onToggle("unifiedTraceSessionView"),
-            isToggling: setFeaturePreviewEnabled.isPending,
-          },
-        }
-      : {}),
+    unifiedTraceSessionView: {
+      enabled:
+        isV4 &&
+        (authSession.data?.user?.featureFlags.unifiedTraceSessionView ===
+          true ||
+          enableExperimentalFeatures),
+      disabled: !isV4 || enableExperimentalFeatures,
+      warningReason: unifiedViewWarningReason,
+      onToggle: onToggle("unifiedTraceSessionView"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
     ...(isTopicsEnabled
       ? {
           langfuseTopics: {

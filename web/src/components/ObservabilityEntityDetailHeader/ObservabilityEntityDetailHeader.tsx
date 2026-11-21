@@ -204,7 +204,7 @@ export function ObservabilityEntityDetailHeader({
   const content = (
     <div
       className={cn(
-        "flex min-w-0 px-4 pt-0 pb-2",
+        "flex min-h-8 min-w-0 items-center px-4 pt-0 pb-2",
         !isLoading && stale.className,
       )}
       inert={!isLoading && stale.inert}
