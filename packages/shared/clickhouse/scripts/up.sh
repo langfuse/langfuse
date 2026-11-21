@@ -113,5 +113,20 @@ if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
 fi
 DATABASE_URL="${DATABASE_URL}${CLICKHOUSE_CLUSTER_QUERY}&x-migrations-table-engine=${MIGRATIONS_TABLE_ENGINE}"
 
+# With a replica down, a pending ON CLUSTER migration times out and leaves the
+# version dirty, so check the replicas first. Only when something is pending:
+# without pending migrations nothing runs ON CLUSTER and startup must not depend
+# on every replica. A dirty version is left to `migrate up`, which reports it.
+if [ "$MIGRATION_MODE" = "clustered" ]; then
+  LATEST_VERSION=$(ls "$MIGRATIONS_DIRECTORY" | sed -n 's/^0*\([0-9][0-9]*\)_.*\.up\.sql$/\1/p' | sort -n | tail -n 1)
+  CURRENT_VERSION=$(migrate -source "file://${MIGRATIONS_DIRECTORY}" -database "$DATABASE_URL" version 2>&1 | sed -n 's/^\([0-9][0-9]*\).*/\1/p')
+  if [ "${CURRENT_VERSION:-0}" != "$LATEST_VERSION" ]; then
+    require_node
+    if ! node "$SCRIPT_DIR/check-cluster-replicas.mjs"; then
+      exit 1
+    fi
+  fi
+fi
+
 # Execute the up command against delivered or custom-rendered migrations.
 migrate -source "file://${MIGRATIONS_DIRECTORY}" -database "$DATABASE_URL" up
