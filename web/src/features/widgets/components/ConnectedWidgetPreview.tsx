@@ -42,10 +42,11 @@ type ConnectedWidgetPreviewProps = Pick<
   | "pivotDimensionFields"
   | "displayName"
   | "displayDescription"
->;
+> & { enabled?: boolean };
 
 export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
   const {
+    enabled = true,
     viewVersion,
     queryValidation,
     chartType,
@@ -65,7 +66,7 @@ export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
     loadingProgress,
     transformedData,
     chartPresentation,
-  } = useWidgetPreviewData(props);
+  } = useWidgetPreviewData({ ...props, enabled });
 
   const showEmpty =
     (isTimeSeriesChart(chartType) ||
@@ -221,6 +222,7 @@ export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
 }
 
 function useWidgetPreviewData({
+  enabled = true,
   projectId,
   query,
   viewVersion,
@@ -241,7 +243,7 @@ function useWidgetPreviewData({
     {
       trpc: { context: { skipBatch: true } },
       meta: { silentHttpCodes: [412, 422] },
-      enabled: queryValidation.valid,
+      enabled: enabled && queryValidation.valid,
     },
   );
 

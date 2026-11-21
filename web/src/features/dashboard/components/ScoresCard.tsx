@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-style-props */
+import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
 import { useMemo } from "react";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
@@ -36,6 +37,7 @@ export function ScoresCard(props: {
     onActiveKeyChange: (key: string | undefined) => void;
   };
 }) {
+  const track = useDashboardStudioCapture(props.metricsVersion === "v2");
   const scoresQuery: QueryType = {
     view: "scores-numeric",
     dimensions: [{ field: "name" }, { field: "dataType" }, { field: "source" }],
@@ -110,6 +112,15 @@ export function ScoresCard(props: {
   return (
     <div className={props.className}>
       <WidgetChartCard
+        onLegendInteraction={(event) =>
+          track("legend_interacted", {
+            widgetKind: "preset",
+            presetId: "home-chart-scores",
+            scope: "display",
+            interaction: event.action,
+            selectedCount: event.selectedCount,
+          })
+        }
         chartType="LINE_TIME_SERIES"
         actions={props.actions}
         title="Scores"

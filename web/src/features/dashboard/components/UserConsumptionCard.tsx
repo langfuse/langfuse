@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-style-props */
+import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
@@ -37,6 +38,7 @@ export const UserConsumptionCard = ({
   metricsVersion: ViewVersion;
   schedulerId?: string;
 }) => {
+  const track = useDashboardStudioCapture(metricsVersion === "v2");
   const userCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "userId" }],
@@ -182,12 +184,24 @@ export const UserConsumptionCard = ({
     selectedItem: item,
     selectedIndex,
     tabs,
-  } = useDashboardCardTabs(data);
+  } = useDashboardCardTabs(data, {
+    presetId: "home-users",
+    isV4: metricsVersion === "v2",
+  });
   const chartData = item.data;
 
   return (
     <div className={cn(className, "h-full")}>
       <WidgetChartCard
+        onLegendInteraction={(event) =>
+          track("legend_interacted", {
+            widgetKind: "preset",
+            presetId: "home-users",
+            scope: "display",
+            interaction: event.action,
+            selectedCount: event.selectedCount,
+          })
+        }
         chartType="HORIZONTAL_BAR"
         actions={actions}
         title="User consumption"

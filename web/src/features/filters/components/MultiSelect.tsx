@@ -185,7 +185,10 @@ export function MultiSelect({
         >
           {chipsOnly && selectedValues.size > 0 ? (
             <>
-              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+              <div
+                data-slot="selected-filter-values"
+                className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+              >
                 {selectedBadges}
               </div>
               <DropdownIndicator />

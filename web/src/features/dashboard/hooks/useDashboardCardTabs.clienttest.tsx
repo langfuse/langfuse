@@ -15,7 +15,12 @@ describe("useDashboardCardTabs", () => {
       { tabTitle: "Traces" },
       { tabTitle: "Observations" },
     ] as const;
-    const { result } = renderHook(() => useDashboardCardTabs(items));
+    const { result } = renderHook(() =>
+      useDashboardCardTabs(items, {
+        presetId: "home-traces-obs-time-series",
+        isV4: true,
+      }),
+    );
     expect(result.current.selectedItem).toBe(items[0]);
     expect(result.current.tabs.options).toEqual([
       { value: "0", label: "Traces" },
@@ -26,7 +31,12 @@ describe("useDashboardCardTabs", () => {
     expect(result.current.tabs.value).toBe("1");
     expect(capture).toHaveBeenCalledWith("dashboard:chart_tab_switch", {
       tabLabel: "Observations",
+      presetId: "home-traces-obs-time-series",
+      tabIndex: 1,
+      isV4: true,
     });
+    act(() => result.current.tabs.onValueChange("1"));
+    expect(capture).toHaveBeenCalledTimes(1);
   });
 
   it("falls back when the selected tab disappears", () => {
@@ -36,6 +46,7 @@ describe("useDashboardCardTabs", () => {
           showObservations
             ? [{ tabTitle: "Traces" }, { tabTitle: "Observations" }]
             : [{ tabTitle: "Traces" }],
+          { presetId: "home-traces-obs-time-series", isV4: false },
         ),
       { initialProps: { showObservations: true } },
     );
@@ -49,7 +60,10 @@ describe("useDashboardCardTabs", () => {
 
   it("ignores invalid selections", () => {
     const { result } = renderHook(() =>
-      useDashboardCardTabs([{ tabTitle: "Traces" }]),
+      useDashboardCardTabs([{ tabTitle: "Traces" }], {
+        presetId: "home-traces-obs-time-series",
+        isV4: false,
+      }),
     );
     for (const value of ["-1", "1", "invalid", "0.5"]) {
       act(() => result.current.tabs.onValueChange(value));

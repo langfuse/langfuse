@@ -8,6 +8,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import type { DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { useDashboardStudioEnabled } from "@/src/features/dashboard-studio/useDashboardStudioEnabled";
 
 /**
  * Clone-first flow for Langfuse-managed (read-only) dashboards: any edit
@@ -94,6 +95,7 @@ function ConnectedCloneDashboardDialog({
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const studioEnabled = useDashboardStudioEnabled(projectId).data === true;
 
   // Detect existing copies of this dashboard so we can offer navigating to
   // one instead of accumulating "(Clone)" duplicates.
@@ -163,6 +165,9 @@ function ConnectedCloneDashboardDialog({
       projectId,
       dashboardId,
       definition: pendingDefinition ?? undefined,
+      supportedPlacementTypes: studioEnabled
+        ? ["widget", "preset", "query", "text"]
+        : ["widget", "preset"],
       setAsHome,
     });
   };

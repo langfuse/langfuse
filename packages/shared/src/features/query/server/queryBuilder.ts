@@ -45,6 +45,7 @@ import {
   arrayJoin,
   arrayJoinElements,
   histogram,
+  fixedHistogram,
   interval,
   literal,
   quantile,
@@ -107,6 +108,7 @@ type AppliedMetricType = {
   aggs?: Record<string, string>;
   measureName: string; // Original measure name for lookups
   requiresDimension?: string;
+  percentile?: number;
 };
 
 type RawSqlPart = { query: string; params: Record<string, unknown> };
@@ -306,13 +308,21 @@ const MAX_WITH_FILL_TO_MS = Date.UTC(2106, 0, 1);
 const MAX_WITH_FILL_BUCKETS = 50_000;
 
 export class QueryBuilder {
-  private chartConfig?: { bins?: number; row_limit?: number };
+  private chartConfig?: {
+    bins?: number;
+    row_limit?: number;
+    histogramEdges?: number[];
+  };
   private version: ViewVersion;
   private rootEventConditionMaxWindowHours: number =
     env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
   constructor(
-    chartConfig?: { bins?: number; row_limit?: number },
+    chartConfig?: {
+      bins?: number;
+      row_limit?: number;
+      histogramEdges?: number[];
+    },
     version: ViewVersion = "v1",
   ) {
     this.chartConfig = chartConfig;
@@ -325,6 +335,8 @@ export class QueryBuilder {
 
   private translateAggregation(metric: AppliedMetricType): string {
     const aggregation = metric.queryAggregation ?? metric.aggregation;
+    if (metric.percentile !== undefined)
+      return `quantile(${metric.percentile / 100})(${metric.alias || metric.sql})`;
 
     switch (aggregation) {
       case "sum":
@@ -348,6 +360,31 @@ export class QueryBuilder {
       case "p99":
         return `quantile(0.99)(${metric.alias || metric.sql})`;
       case "histogram": {
+        const edges = this.chartConfig?.histogramEdges;
+        if (edges) {
+          if (
+            edges.length < 2 ||
+            edges.length > 51 ||
+            edges.some(
+              (edge, index) =>
+                !Number.isFinite(edge) ||
+                (index > 0 && edge <= edges[index - 1]),
+            )
+          )
+            throw new InvalidRequestError(
+              "Histogram edges must be finite, strictly increasing and contain 2–51 values",
+            );
+          const value = metric.alias || metric.sql;
+          return `[tuple(NULL, ${edges[0]}, countIf(${value} < ${edges[0]})), ${edges
+            .slice(0, -1)
+            .map(
+              (edge, index) =>
+                `tuple(${edge}, ${edges[index + 1]}, countIf(${value} >= ${edge} AND ${value} < ${edges[index + 1]}))`,
+            )
+            .join(
+              ", ",
+            )}, tuple(${edges.at(-1)}, NULL, countIf(${value} >= ${edges.at(-1)})), tuple(NULL, NULL, countIf(isNull(${value})))]`;
+        }
         // Get histogram bins from chart config, fallback to 10
         const bins = this.chartConfig?.bins ?? 10;
         return `histogram(${bins})(toFloat64(${metric.alias || metric.sql}))`;
@@ -484,6 +521,7 @@ export class QueryBuilder {
     metrics: Array<{
       measure: string;
       aggregation: z.infer<typeof metricAggregations>;
+      percentile?: number;
     }>,
     view: ViewDeclarationType,
   ): AppliedMetricType[] {
@@ -512,6 +550,7 @@ export class QueryBuilder {
         aggregation: metric.aggregation,
         aggs: resolvedMeasureDef.aggs,
         measureName: metric.measure,
+        percentile: metric.percentile,
       };
     });
   }
@@ -2245,6 +2284,8 @@ export class QueryBuilder {
     value: Expression<unknown>,
   ): AliasableExpression<unknown> {
     const aggregation = metric.queryAggregation ?? metric.aggregation;
+    if (metric.percentile !== undefined)
+      return quantile(metric.percentile / 100, value);
     switch (aggregation) {
       case "sum":
         return eb.fn.sum(value);
@@ -2267,7 +2308,9 @@ export class QueryBuilder {
       case "p99":
         return quantile(0.99, value);
       case "histogram":
-        return histogram(this.chartConfig?.bins ?? 10, toFloat64(value));
+        return this.chartConfig?.histogramEdges
+          ? fixedHistogram(this.chartConfig.histogramEdges, value)
+          : histogram(this.chartConfig?.bins ?? 10, toFloat64(value));
       case "uniq":
         return uniq(value);
       default:

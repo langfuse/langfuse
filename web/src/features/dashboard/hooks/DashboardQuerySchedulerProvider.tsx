@@ -157,6 +157,42 @@ const unmanagedSchedulerStore = createDashboardQuerySchedulerStore({
   maxConcurrent: Number.POSITIVE_INFINITY,
 });
 
+/** Registers an aggregate request with the dashboard's shared execution budget. */
+export function useDashboardQuerySlot({
+  queryId,
+  runKey,
+  enabled,
+  priority = 1000,
+}: {
+  queryId: string;
+  runKey: string;
+  enabled: boolean;
+  priority?: number;
+}) {
+  const context = useContext(DashboardQuerySchedulerContext);
+  const store = context?.store ?? unmanagedSchedulerStore;
+  const { actions } = store.getState();
+
+  // The scheduler is an external store; registration lasts for this consumer.
+  useEffect(() => () => actions.unregister(queryId), [actions, queryId]);
+  useEffect(() => {
+    actions.register(queryId, priority, enabled, runKey);
+  }, [actions, enabled, priority, queryId, runKey]);
+
+  const canFetch = useStore(
+    store,
+    (state) =>
+      state.items[queryId]?.status === "running" &&
+      state.items[queryId]?.runKey === runKey,
+  );
+  const markDone = () => {
+    if (store.getState().items[queryId]?.runKey === runKey) {
+      actions.markDone(queryId);
+    }
+  };
+  return { canFetch, markDone };
+}
+
 type DashboardExecuteQueryInput = RouterInputs["dashboard"]["executeQuery"];
 type DashboardExecuteQueryOutput = RouterOutputs["dashboard"]["executeQuery"];
 type DashboardExecuteQueryOptions = Omit<
@@ -193,22 +229,32 @@ type ScheduledDashboardExecuteQueryOptions = Omit<
 };
 
 const getDashboardExecuteQueryDurationMs = (
-  input: DashboardExecuteQueryInput,
+  range:
+    | Pick<
+        NonNullable<DashboardExecuteQueryInput["query"]>,
+        "fromTimestamp" | "toTimestamp"
+      >
+    | undefined,
 ): number | null => {
-  const fromMs = parseIsoDateMs(input.query?.fromTimestamp);
-  const toMs = parseIsoDateMs(input.query?.toTimestamp);
+  const fromMs = parseIsoDateMs(range?.fromTimestamp);
+  const toMs = parseIsoDateMs(range?.toTimestamp);
 
   if (fromMs === null || toMs === null) return null;
   return Math.max(0, toMs - fromMs);
 };
 
-const getDashboardExecuteQueryCachePolicy = (
-  input: DashboardExecuteQueryInput,
+export const getDashboardQueryCachePolicy = (
+  range:
+    | Pick<
+        NonNullable<DashboardExecuteQueryInput["query"]>,
+        "fromTimestamp" | "toTimestamp"
+      >
+    | undefined,
 ): {
   staleTime: number;
   gcTime: number;
 } => {
-  const durationMs = getDashboardExecuteQueryDurationMs(input);
+  const durationMs = getDashboardExecuteQueryDurationMs(range);
 
   if (durationMs === null) {
     return {
@@ -319,7 +365,7 @@ export const useScheduledDashboardExecuteQuery = (
   const shouldBucketQueriesByTimeRange =
     context?.shouldBucketQueriesByTimeRange ?? false;
   const cachePolicy = useMemo(
-    () => getDashboardExecuteQueryCachePolicy(input),
+    () => getDashboardQueryCachePolicy(input.query),
     [input],
   );
   const cacheKeyInput = useMemo(

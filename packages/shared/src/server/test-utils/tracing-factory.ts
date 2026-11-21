@@ -170,7 +170,16 @@ export const createTraceScore = (
     "timestamp" | "created_at" | "updated_at" | "event_ts"
   >,
 ): ScoreRecordInsertType => {
-  const { timestamp, created_at, updated_at, event_ts, ...rest } = score;
+  const { timestamp, created_at, updated_at, event_ts, string_value, ...rest } =
+    score;
+  let stringValue = string_value ?? null;
+  if (
+    string_value === undefined &&
+    rest.data_type === "BOOLEAN" &&
+    (rest.value === 0 || rest.value === 1)
+  ) {
+    stringValue = rest.value === 1 ? "True" : "False";
+  }
   return {
     id: v4(),
     project_id: v4(),
@@ -180,7 +189,7 @@ export const createTraceScore = (
     name: "test-score" + v4(),
     timestamp: toClickhouseDateTime(timestamp),
     value: 100.5,
-    string_value: null,
+    string_value: stringValue,
     long_string_value: "",
     source: "API",
     comment: "comment",

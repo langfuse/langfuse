@@ -1,4 +1,11 @@
-import { type ComponentProps } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import {
   GripVerticalIcon,
   MoreVerticalIcon,
@@ -13,6 +20,7 @@ import {
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { useFittingCount } from "@/src/components/design-system/internal/useFittingCount";
 import {
@@ -32,9 +40,66 @@ export type DataCardActions = {
   menu?: DropdownMenuItemDefinition[];
 };
 
+function ExpandableDescription({ description }: { description: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const contentId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+    if (!container || !content) return;
+    const measure = () =>
+      setIsOverflowing(content.scrollHeight > container.clientHeight + 1);
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div className="flex min-h-0 flex-col gap-1">
+      {isOverflowing || expanded ? (
+        <div className="shrink-0">
+          <ExpandToggle
+            expanded={expanded}
+            onExpandedChange={setExpanded}
+            controls={contentId}
+            label="Read more"
+            expandedLabel="Read less"
+            variant="underline"
+          />
+        </div>
+      ) : null}
+      <div
+        id={contentId}
+        ref={containerRef}
+        className={
+          expanded
+            ? "max-h-32 min-h-0 overflow-y-auto"
+            : "max-h-10 min-h-0 overflow-hidden"
+        }
+        tabIndex={expanded ? 0 : undefined}
+        role={expanded ? "region" : undefined}
+        aria-label={expanded ? "Full widget description" : undefined}
+      >
+        <p
+          ref={contentRef}
+          className="text-muted-foreground text-sm break-words"
+        >
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function DataCard({
   title,
   description,
+  descriptionBehavior = "truncate",
+  descriptor,
   badge,
   filter,
   controls = [],
@@ -45,6 +110,8 @@ export function DataCard({
 }: {
   title: string;
   description?: string | null;
+  descriptionBehavior?: "truncate" | "expandable";
+  descriptor?: ReactNode;
   badge?: { text: string; description: string };
   /**
    * What the card is filtered by, chosen elsewhere on the page (e.g. selected
@@ -69,10 +136,11 @@ export function DataCard({
         | "emptyMessage"
         | "selectAllLabel"
         | "disabled"
+        | "noCapture"
       >)
     | ({ type: "select" } & Pick<
         ComponentProps<typeof SelectInput<string>>,
-        "value" | "options" | "onValueChange" | "disabled"
+        "value" | "options" | "onValueChange" | "disabled" | "noCapture"
       >)
   ))[];
   tabs?: {
@@ -154,8 +222,20 @@ export function DataCard({
   const isToggle = tabs?.variant === "toggle";
 
   const header = (
-    <div className="flex shrink-0 flex-col p-4">
-      <div className="flex h-5 min-w-0 items-center justify-between gap-3">
+    <div
+      className={
+        descriptionBehavior === "expandable"
+          ? "flex max-h-[60%] min-h-0 shrink-0 flex-col p-4"
+          : "flex shrink-0 flex-col p-4"
+      }
+    >
+      <div
+        className={
+          descriptionBehavior === "expandable"
+            ? "flex h-5 min-w-0 shrink-0 items-center justify-between gap-3"
+            : "flex h-5 min-w-0 items-center justify-between gap-3"
+        }
+      >
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex min-w-0 items-center gap-1.5">
             <h3
@@ -199,9 +279,11 @@ export function DataCard({
                   emptyMessage={control.emptyMessage}
                   selectAllLabel={control.selectAllLabel}
                   disabled={control.disabled}
+                  noCapture={control.noCapture}
                 />
               ) : (
                 <SelectInput
+                  noCapture={control.noCapture}
                   aria-label={control.label}
                   placeholder={control.label}
                   value={control.value}
@@ -253,13 +335,21 @@ export function DataCard({
           )}
         </div>
       </div>
-      {description && (
+      {description && descriptionBehavior === "expandable" && (
+        <ExpandableDescription key={description} description={description} />
+      )}
+      {description && descriptionBehavior === "truncate" && (
         <p
           className="text-muted-foreground truncate text-sm"
           title={description}
         >
           {description}
         </p>
+      )}
+      {descriptor && (
+        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+          {descriptor}
+        </div>
       )}
     </div>
   );

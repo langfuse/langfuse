@@ -11,11 +11,22 @@ import {
   type PresetPlacement,
 } from "../components/PresetDashboardWidget";
 import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
-import { type FilterState } from "@langfuse/shared";
+import { type DashboardDefinition, type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import Router from "next/router";
+import { v4 as uuidv4 } from "uuid";
+import { StudioPlacementCard } from "@/src/features/dashboard-studio/StudioPlacementCard";
+import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
+import { useDashboardStudioEnabled } from "@/src/features/dashboard-studio/useDashboardStudioEnabled";
+import { findFreeGridPosition } from "../utils/grid-placement";
+import { buildDashboardEditorHref } from "@/src/features/dashboard/lib/dashboardEditorHref";
 
-export type DashboardPlacement = WidgetPlacement | PresetPlacement;
+export type DashboardPlacement = DashboardDefinition["widgets"][number];
+export type StudioPlacement = Extract<
+  DashboardPlacement,
+  { type: "query" | "text" }
+>;
 
 /**
  * Container width, measured once immediately and then with a trailing
@@ -69,7 +80,7 @@ function useMediaQuery(query: string) {
 export function DashboardGrid({
   widgets,
   onChange,
-  canEdit,
+  canEdit: requestedCanEdit,
   dashboardId,
   projectId,
   readPath,
@@ -82,6 +93,8 @@ export function DashboardGrid({
   readOnly,
   onDuplicateWidget,
   onDuplicatePreset,
+  onEditStudioPlacement,
+  onDuplicateStudioPlacement,
 }: {
   widgets: DashboardPlacement[];
   onChange: (widgets: DashboardPlacement[]) => void;
@@ -111,7 +124,17 @@ export function DashboardGrid({
   ) => void;
   /** Duplicate a preset card next to it (editable dashboards only). */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
+  onEditStudioPlacement?: (placement: StudioPlacement) => void;
+  onDuplicateStudioPlacement?: (placement: StudioPlacement) => void;
 }) {
+  const studioCapability = useDashboardStudioEnabled(projectId);
+  const canEdit =
+    requestedCanEdit &&
+    (studioCapability.data === true ||
+      widgets.every(
+        (widget) => widget.type !== "query" && widget.type !== "text",
+      ));
+  const track = useDashboardStudioCapture(readPath === "v4");
   const [activeChartKey, setActiveChartKey] = useState<string>();
   const chartSync: ChartProps["sync"] = {
     activeKey: activeChartKey,
@@ -159,7 +182,8 @@ export function DashboardGrid({
       y: w.y,
       w: w.x_size,
       h:
-        w.type === "preset" && w.presetId === "home-score-analytics"
+        w.type === "text" ||
+        (w.type === "preset" && w.presetId === "home-score-analytics")
           ? Math.max(w.y_size, contentRows)
           : w.y_size,
       isDraggable: canEdit && !isSmallScreen, // Disable dragging on small screens
@@ -168,7 +192,10 @@ export function DashboardGrid({
     };
   });
 
-  const handleLayoutChange = (newLayout: any[]) => {
+  const handleLayoutChange = (
+    newLayout: any[],
+    action: "widget_moved" | "widget_resized",
+  ) => {
     // Safety checks: prevent layout changes on small screens and when editing is disabled
     // This prevents unintended saves during responsive transitions or on mobile devices
     if (!canEdit || isSmallScreen) return;
@@ -190,14 +217,74 @@ export function DashboardGrid({
       };
     });
 
+    const changedCount = updatedWidgets.filter((widget, index) => {
+      const original = widgets[index];
+      return (
+        widget.x !== original.x ||
+        widget.y !== original.y ||
+        widget.x_size !== original.x_size ||
+        widget.y_size !== original.y_size
+      );
+    }).length;
+    if (changedCount === 0) return;
+    track(action, { widgetCount: changedCount });
     onChange(updatedWidgets);
   };
 
-  // Dispatch a placement to its renderer: "preset" placements render a
-  // registered curated component; "widget" placements render the generic
-  // query-backed widget.
-  const renderPlacement = (widget: DashboardPlacement) =>
-    widget.type === "preset" ? (
+  const renderPlacement = (widget: DashboardPlacement) => {
+    if (widget.type === "query" || widget.type === "text") {
+      const canChange = !readOnly && canEdit;
+      return (
+        <StudioPlacementCard
+          projectId={projectId}
+          placement={widget}
+          readPath={readPath}
+          dateRange={dateRange}
+          filterState={filterState}
+          onContentHeightChange={
+            widget.type === "text" ? handleContentHeightChange : undefined
+          }
+          onEdit={
+            canChange
+              ? () => {
+                  if (onEditStudioPlacement) onEditStudioPlacement(widget);
+                  else
+                    Router.push(
+                      buildDashboardEditorHref({
+                        projectId,
+                        dashboardId,
+                        query: Router.query,
+                        fallbackDateRange: dateRange
+                          ? `${dateRange.from.getTime()}-${dateRange.to.getTime()}`
+                          : undefined,
+                        editId: widget.id,
+                      }),
+                    );
+                }
+              : undefined
+          }
+          onDelete={canChange ? () => onDeleteWidget(widget.id) : undefined}
+          onDuplicate={
+            canChange
+              ? () => {
+                  if (onDuplicateStudioPlacement) {
+                    onDuplicateStudioPlacement(widget);
+                    return;
+                  }
+                  const copy = {
+                    ...structuredClone(widget),
+                    id: uuidv4(),
+                    ...findFreeGridPosition(widgets, widget),
+                  };
+                  track("widget_duplicated", { widgetKind: widget.type });
+                  onChange([...widgets, copy]);
+                }
+              : undefined
+          }
+        />
+      );
+    }
+    return widget.type === "preset" ? (
       <PresetDashboardWidget
         dashboardId={dashboardId}
         chartSync={chartSync}
@@ -238,6 +325,7 @@ export function DashboardGrid({
         onDuplicateWidget={onDuplicateWidget}
       />
     );
+  };
 
   // Render flex layout for small screens
   if (isSmallScreen) {
@@ -255,7 +343,10 @@ export function DashboardGrid({
               // space they get); presets size to their content like the
               // stacked bespoke Home did.
               style={{
-                height: widget.type === "preset" ? "auto" : "300px",
+                height:
+                  widget.type === "preset" || widget.type === "text"
+                    ? "auto"
+                    : "300px",
               }}
             >
               {renderPlacement(widget)}
@@ -279,8 +370,10 @@ export function DashboardGrid({
           rowHeight={rowHeight}
           isDraggable={canEdit}
           isResizable={canEdit}
-          onDragStop={handleLayoutChange} // Save immediately when drag stops
-          onResizeStop={handleLayoutChange} // Save immediately when resize stops
+          onDragStop={(layout) => handleLayoutChange(layout, "widget_moved")}
+          onResizeStop={(layout) =>
+            handleLayoutChange(layout, "widget_resized")
+          }
           draggableHandle=".drag-handle"
           useCSSTransforms
         >

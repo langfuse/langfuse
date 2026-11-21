@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { pushDownForInsertion } from "./grid-placement";
+import { findFreeGridPosition, pushDownForInsertion } from "./grid-placement";
 
 const tile = (id: string, x: number, y: number, x_size = 6, y_size = 6) => ({
   id,
@@ -8,6 +8,15 @@ const tile = (id: string, x: number, y: number, x_size = 6, y_size = 6) => ({
   y,
   x_size,
   y_size,
+});
+
+it("fills the free half-row before placing another tile below without overlap", () => {
+  const first = tile("first", 0, 0, 6, 5);
+  const size = tile("next", 0, 10, 6, 5);
+  const secondPosition = findFreeGridPosition([first], size);
+  expect(secondPosition).toEqual({ x: 6, y: 0 });
+  const second = { ...tile("second", 0, 0, 6, 5), ...secondPosition };
+  expect(findFreeGridPosition([first, second], size)).toEqual({ x: 0, y: 5 });
 });
 
 describe("pushDownForInsertion", () => {

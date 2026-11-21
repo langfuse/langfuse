@@ -7,6 +7,7 @@ import {
   HOME_DASHBOARD_PRESET_IDS,
   LangfuseConflictError,
   LangfuseNotFoundError,
+  InvalidRequestError,
 } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
@@ -34,8 +35,12 @@ const PLACEMENT_DEFAULT_SIZE = 6;
 
 // The public contract exposes placement sizes as width/height; storage and
 // the UI keep x_size/y_size.
-const toPublicPlacement = (placement: InternalPlacement): PublicPlacement =>
-  placement.type === "widget"
+const toPublicPlacement = (placement: InternalPlacement): PublicPlacement => {
+  if (placement.type !== "widget" && placement.type !== "preset")
+    throw new InvalidRequestError(
+      "This placement type is not supported by the public dashboard API",
+    );
+  return placement.type === "widget"
     ? {
         type: "widget",
         id: placement.id,
@@ -54,6 +59,7 @@ const toPublicPlacement = (placement: InternalPlacement): PublicPlacement =>
         width: placement.x_size,
         height: placement.y_size,
       };
+};
 
 const toInternalPlacement = (placement: PublicPlacement): InternalPlacement =>
   placement.type === "widget"
@@ -84,7 +90,12 @@ const toApiDashboard = (dashboard: DashboardDomain) =>
     name: dashboard.name,
     description: dashboard.description,
     definition: {
-      widgets: dashboard.definition.widgets.map(toPublicPlacement),
+      widgets: dashboard.definition.widgets
+        .filter(
+          (placement) =>
+            placement.type === "widget" || placement.type === "preset",
+        )
+        .map(toPublicPlacement),
     },
     filters: dashboard.filters,
   });
@@ -118,6 +129,7 @@ async function assertPlacementReferences(params: {
         }
         return;
       }
+      if (placement.type !== "widget") return;
       // getWidget resolves project-owned and Langfuse-managed (projectId
       // null) widgets; both are placeable, matching the UI.
       const widget = await DashboardService.getWidget(
@@ -365,6 +377,7 @@ export async function updatePublicDashboardPlacement(params: {
     throw new LangfuseNotFoundError(
       `Placement ${params.placementId} not found`,
     );
+  toPublicPlacement(existing);
   // Pure move/resize: the placement's content is immutable, so no reference
   // re-validation is needed.
   const updated: InternalPlacement = {
@@ -395,6 +408,10 @@ export async function deletePublicDashboardPlacement(params: {
     params.projectId,
     params.dashboardId,
   );
+  const target = current.definition.widgets.find(
+    (placement) => placement.id === params.placementId,
+  );
+  if (target) toPublicPlacement(target);
   if (
     !current.definition.widgets.some(
       (placement) => placement.id === params.placementId,

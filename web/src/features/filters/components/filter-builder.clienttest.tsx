@@ -1,5 +1,5 @@
 import { StrictMode, useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { FilterState } from "@langfuse/shared";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { InlineFilterBuilder, PopoverFilterBuilder } from "./filter-builder";
@@ -39,6 +39,58 @@ describe("filter builder change notifications", () => {
     Element.prototype.scrollIntoView = scrollIntoView;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+  it("reports incomplete object keys and unfinished rows until they are completed or removed", () => {
+    function Harness() {
+      const [valid, setValid] = useState(true);
+      const [filters, setFilters] = useState<FilterState>([
+        {
+          column: "Metadata",
+          type: "stringObject",
+          key: "abc",
+          operator: "is set",
+          value: "",
+        },
+      ]);
+      return (
+        <>
+          <InlineFilterBuilder
+            columns={[
+              {
+                id: "metadata",
+                name: "Metadata",
+                type: "stringObject",
+                internal: "metadata",
+              },
+            ]}
+            filterState={filters}
+            onChange={setFilters}
+            onValidityChange={setValid}
+          />
+          <button disabled={!valid}>Run query</button>
+        </>
+      );
+    }
+    render(
+      <TooltipProvider>
+        <Harness />
+      </TooltipProvider>,
+    );
+    const runQuery = screen.getByRole("button", { name: "Run query" });
+    fireEvent.change(screen.getByPlaceholderText("key"), {
+      target: { value: "" },
+    });
+    expect(runQuery).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText("key"), {
+      target: { value: "abc" },
+    });
+    expect(runQuery).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: /Add filter/ }));
+    expect(runQuery).toBeDisabled();
+    fireEvent.click(
+      within(screen.getByText("And").closest("tr")!).getByRole("button"),
+    );
+    expect(runQuery).toBeEnabled();
   });
   it.each([
     ["inline", InlineFilterBuilder],
