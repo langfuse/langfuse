@@ -25,5 +25,9 @@ export const stringify = (data: any, key?: string, indent?: number): string => {
  */
 export const stringifyForCsv = (data: any, key?: string): string => {
   if (typeof data === "string") return decodeUnicodeEscapesOnly(data, true);
-  return stringify(data, key);
+  // toJSON can produce a scalar string even when the input is an object.
+  const serialized = stringify(data, key);
+  return serialized?.startsWith('"')
+    ? (JSON.parse(serialized) as string)
+    : serialized;
 };
