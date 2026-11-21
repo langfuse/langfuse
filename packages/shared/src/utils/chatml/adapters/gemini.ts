@@ -141,6 +141,12 @@ function extractFromParts(parts: unknown[]): {
       continue;
     }
 
+    // OTel GenAI text part: {type: "text", content: "..."}
+    if (p.type === "text" && typeof p.content === "string") {
+      textParts.push(p.content);
+      continue;
+    }
+
     // {function_response: {name, response}} OR {functionResponse: {name, response}}
     const fr = getField(p, "function_response", "functionResponse");
     if (fr && typeof fr === "object") {
