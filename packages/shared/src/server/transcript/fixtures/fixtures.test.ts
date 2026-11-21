@@ -293,6 +293,31 @@ describe("transcript fixtures", () => {
     expect(transcript?.threads[0].conversationHistory).toHaveLength(2);
   });
 
+  it("preserves generation depth when a nested generation leaves an empty current turn", () => {
+    const root = {
+      ...generation("0", [], []),
+      id: "root",
+      type: "SPAN" as const,
+      parentObservationId: null,
+    };
+    const emptyTurnGeneration = {
+      ...generation("1", [], []),
+      parentObservationId: "root",
+      input: [
+        { role: "user", content: "A" },
+        { role: "assistant", content: "B" },
+      ],
+      output: null,
+    };
+
+    const transcript = assembleTranscript(
+      orderObservations([root, emptyTurnGeneration]),
+    );
+    expect(transcript?.threads).toHaveLength(1);
+    expect(transcript?.threads[0].currentTurn.messages).toEqual([]);
+    expect(transcript?.threads[0].currentTurn.nestingLevel).toBe(1);
+  });
+
   it("continues when replay omits reasoning, without losing the original output", () => {
     const first = {
       ...generation("1", ["A"], []),
