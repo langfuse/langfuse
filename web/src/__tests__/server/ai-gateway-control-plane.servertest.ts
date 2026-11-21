@@ -112,6 +112,7 @@ import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const cleanupOrganizations: string[] = [];
 const cleanupUsers: string[] = [];
+const originalGatewayDeployed = env.LANGFUSE_AI_GATEWAY_DEPLOYED;
 const originalGatewayOrganizationAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
@@ -169,6 +170,7 @@ afterEach(async () => {
     ...originalGatewayOrganizationAllowlist,
   );
   Object.assign(env, {
+    LANGFUSE_AI_GATEWAY_DEPLOYED: originalGatewayDeployed,
     LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: originalGatewayJwtConfig.privateKey,
     LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: originalGatewayJwtConfig.publicKey,
     LANGFUSE_AI_GATEWAY_JWT_KEY_ID: originalGatewayJwtConfig.keyId,
@@ -244,6 +246,7 @@ async function prepare(role: Role = Role.OWNER) {
   cleanupOrganizations.push(org.id);
   cleanupUsers.push(user.id);
   env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
+  Object.assign(env, { LANGFUSE_AI_GATEWAY_DEPLOYED: "true" });
 
   const session = gatewaySession({ user, org, project, role });
   const ctx = createInnerTRPCContext({ session, headers: {} });
