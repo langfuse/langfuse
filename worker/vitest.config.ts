@@ -15,6 +15,11 @@ export default defineConfig({
     // slow threshold on CI and the default reporter prints a line for each.
     // VitestCiReporter's top-10 slowest summary is unaffected (own accounting).
     slowTestThreshold: process.env.CI ? 2_000 : 300,
+    // On a replicated ClickHouse cluster every lightweight DELETE waits until
+    // all replicas applied it (lightweight_deletes_sync=2), about 1-2 s each,
+    // and deletion tests issue several in sequence.
+    testTimeout:
+      process.env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? 20_000 : undefined,
     dir: "./src",
     pool: "forks",
     server: {
