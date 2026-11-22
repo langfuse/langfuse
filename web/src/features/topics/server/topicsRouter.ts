@@ -533,13 +533,12 @@ export const topicsRouter = createTRPCRouter({
       });
       return rule;
     }),
-  modelSettings: topicsProcedure.query(async ({ input }) => {
-    const [settings, embeddingLock] = await Promise.all([
-      readTopicsModelSettings(input.projectId),
-      readTopicsEmbeddingLock(input.projectId),
-    ]);
-    return { ...settings, embeddingLock };
-  }),
+  modelSettings: topicsProcedure.query(({ input }) =>
+    readTopicsModelSettings(input.projectId),
+  ),
+  embeddingLock: topicsProcedure.query(({ input }) =>
+    readTopicsEmbeddingLock(input.projectId),
+  ),
   tracingReadinessSettings: topicsProcedure.query(({ input }) =>
     getTracingReadinessSettings(input.projectId),
   ),
