@@ -61,7 +61,8 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
-  // Internal Topics PoC controls; not a supported self-hosting configuration.
+  // Topics deployment switch, read by web and worker. Processing also needs the
+  // worker's events dispatch (LANGFUSE_EVENTS_DISPATCH_ENABLED).
   LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
     .string()
