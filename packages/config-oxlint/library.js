@@ -125,6 +125,7 @@ export default {
           },
         ],
         "no-void": "warn",
+        eqeqeq: ["warn", "always", { null: "ignore" }],
         "no-else-return": "warn",
         "no-unneeded-ternary": "warn",
         "no-nested-ternary": "warn",
