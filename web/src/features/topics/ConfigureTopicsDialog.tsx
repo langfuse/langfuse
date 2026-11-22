@@ -145,9 +145,14 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
     )
     .every((slot) => !slotChecks || slotChecks[slot]?.status === "ok");
   const lock = draft.embeddingLock;
-  // Without a stored connection the picker stays open, so the locked model can
-  // be chosen on another connection.
-  const embeddingPickerLocked = lock !== null && draft.embedding !== null;
+  // The server locks the model and dimensions, not the connection, so a locked
+  // model can still move to another connection.
+  const embeddingGroups = lock
+    ? embeddingProviderGroups.map<[string, string[]]>(([provider]) => [
+        provider,
+        [lock.model],
+      ])
+    : embeddingProviderGroups;
   const embeddingChanged =
     embedding !== null &&
     (!sameModel(embedding, draft.embedding) ||
@@ -239,7 +244,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             <ModelSlot
               name="summary"
               model={summary}
-              locked={false}
               disabled={!canWrite}
               check={slotChecks?.summary}
               connectionMissing={paused !== null}
@@ -253,32 +257,26 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             <ModelSlot
               name="embedding"
               model={embedding}
-              locked={embeddingPickerLocked}
               disabled={!canWrite}
               check={slotChecks?.embedding}
               dimensions={dimensions}
+              dimensionsLocked={lock !== null}
               onDimensionsChange={(value) => {
                 setDimensions(value);
                 if (embedding) commitSlot("embedding", embedding, value);
               }}
-              providerGroups={embeddingProviderGroups}
+              providerGroups={embeddingGroups}
               onConfigureProviders={onConfigureProviders}
               onSelect={(model) => {
                 setEmbedding(model);
                 commitSlot("embedding", model);
               }}
             />
-            {lock ? (
-              <EmbeddingLockedWarning
-                lock={lock}
-                needsConnection={!embeddingPickerLocked}
-              />
-            ) : null}
+            {lock ? <EmbeddingLockedWarning lock={lock} /> : null}
             {!lock && embeddingChanged ? <EmbeddingChangeWarning /> : null}
             <ModelSlot
               name="clustering"
               model={clustering}
-              locked={false}
               disabled={!canWrite}
               check={slotChecks?.clustering}
               providerGroups={providerGroups}
@@ -323,8 +321,8 @@ function ModelSlot({
   check,
   connectionMissing = false,
   dimensions,
+  dimensionsLocked = false,
   disabled = false,
-  locked,
   model,
   name,
   onConfigureProviders,
@@ -335,8 +333,8 @@ function ModelSlot({
   check?: TopicSlotCheck;
   connectionMissing?: boolean;
   dimensions?: string;
+  dimensionsLocked?: boolean;
   disabled?: boolean;
-  locked: boolean;
   model: JudgeModel | null;
   name: keyof typeof SLOT_COPY;
   onConfigureProviders: () => void;
@@ -346,52 +344,24 @@ function ModelSlot({
 }) {
   const [open, setOpen] = useState(false);
   const copy = SLOT_COPY[name];
-  const inactive = locked || disabled;
-  const controls = (
-    <>
+  const dimensionsInactive = disabled || dimensionsLocked;
+  const dimensionsInput =
+    dimensions !== undefined ? (
       <div
-        className={`min-w-0 flex-1 [&_button]:w-full ${inactive ? "[&_button]:pointer-events-none" : ""}`}
+        className={`w-20 shrink-0 ${dimensionsInactive ? "pointer-events-none" : ""}`}
       >
-        <JudgeModelPicker
-          purpose="decision"
-          open={open && !inactive}
-          onOpenChange={setOpen}
-          providerGroups={providerGroups}
-          selectedModel={model}
-          onSelect={onSelect}
-          onConfigureProviders={onConfigureProviders}
-        >
-          <PopoverTrigger asChild>
-            <JudgeModelPickerTrigger
-              mode={model ? "custom" : "default"}
-              selectedModel={model}
-              disabled={inactive}
-              modelAvailability={connectionMissing ? "missing" : "available"}
-            />
-          </PopoverTrigger>
-        </JudgeModelPicker>
+        <Input
+          aria-label="Embedding dimensions"
+          type="number"
+          inputMode="numeric"
+          min={TOPICS_MIN_EMBEDDING_DIMENSIONS}
+          max={TOPICS_MAX_EMBEDDING_DIMENSIONS}
+          value={dimensions}
+          disabled={dimensionsInactive}
+          onChange={(event) => onDimensionsChange?.(event.target.value)}
+        />
       </div>
-      {dimensions !== undefined ? (
-        <div
-          className={`w-20 shrink-0 ${inactive ? "pointer-events-none" : ""}`}
-        >
-          <Input
-            aria-label="Embedding dimensions"
-            type="number"
-            inputMode="numeric"
-            min={TOPICS_MIN_EMBEDDING_DIMENSIONS}
-            max={TOPICS_MAX_EMBEDDING_DIMENSIONS}
-            value={dimensions}
-            disabled={inactive}
-            onChange={(event) => onDimensionsChange?.(event.target.value)}
-          />
-        </div>
-      ) : null}
-    </>
-  );
-  const fields = (
-    <div className="flex min-w-0 flex-1 items-center gap-2">{controls}</div>
-  );
+    ) : null;
 
   return (
     <div className="flex flex-col items-start gap-2 sm:flex-row">
@@ -399,23 +369,41 @@ function ModelSlot({
         {copy.label}
       </p>
       <div className="flex w-full min-w-0 flex-1 flex-col gap-1">
-        {locked ? (
-          <Tooltip
-            label={name === "embedding" ? SLOT_COPY.embedding.lockedHint : ""}
-            placement="bottom"
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div
+            className={`min-w-0 flex-1 [&_button]:w-full ${disabled ? "[&_button]:pointer-events-none" : ""}`}
           >
-            {({ getTriggerProps }) => (
-              <div
-                {...getTriggerProps()}
-                className="flex min-w-0 flex-1 items-center gap-2"
-              >
-                {controls}
-              </div>
-            )}
-          </Tooltip>
-        ) : (
-          fields
-        )}
+            <JudgeModelPicker
+              purpose="decision"
+              open={open && !disabled}
+              onOpenChange={setOpen}
+              providerGroups={providerGroups}
+              selectedModel={model}
+              onSelect={onSelect}
+              onConfigureProviders={onConfigureProviders}
+            >
+              <PopoverTrigger asChild>
+                <JudgeModelPickerTrigger
+                  mode={model ? "custom" : "default"}
+                  selectedModel={model}
+                  disabled={disabled}
+                  modelAvailability={
+                    connectionMissing ? "missing" : "available"
+                  }
+                />
+              </PopoverTrigger>
+            </JudgeModelPicker>
+          </div>
+          {dimensionsLocked && dimensionsInput ? (
+            <Tooltip label={SLOT_COPY.embedding.lockedHint} placement="bottom">
+              {({ getTriggerProps }) => (
+                <div {...getTriggerProps()}>{dimensionsInput}</div>
+              )}
+            </Tooltip>
+          ) : (
+            dimensionsInput
+          )}
+        </div>
         <SlotStatus check={check} recommendation={copy.recommendation} />
       </div>
     </div>
@@ -442,10 +430,8 @@ const EMBEDDING_SPACE_CONSEQUENCE =
 
 function EmbeddingLockedWarning({
   lock,
-  needsConnection,
 }: {
   lock: { model: string; dimensions: number };
-  needsConnection: boolean;
 }) {
   return (
     <Banner variant="warning" title="The embedding model is locked">
@@ -454,12 +440,10 @@ function EmbeddingLockedWarning({
         <span className="font-mono">{lock.model}</span> at {lock.dimensions}{" "}
         dimensions. {EMBEDDING_SPACE_CONSEQUENCE}
       </p>
-      {needsConnection ? (
-        <p className="mt-1">
-          Choose <span className="font-mono">{lock.model}</span> on another
-          connection to keep Topics running.
-        </p>
-      ) : null}
+      <p className="mt-1">
+        You can still choose <span className="font-mono">{lock.model}</span> on
+        another connection.
+      </p>
     </Banner>
   );
 }

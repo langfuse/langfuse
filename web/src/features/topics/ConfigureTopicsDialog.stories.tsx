@@ -90,6 +90,29 @@ export const WarnsBeforeEmbeddingChange = meta.story({
   },
 });
 
+export const LockedEmbeddingMovesConnections = meta.story({
+  name: "(Test) A locked embedding model can only move to another connection",
+  args: {
+    draft: filledDraft,
+    notice: "none",
+  },
+  play: async () => {
+    const body = within(document.body);
+    await expect(
+      body.getByRole("spinbutton", { name: "Embedding dimensions" }),
+    ).toBeDisabled();
+    await userEvent.click(
+      body.getByRole("button", { name: /us\.cohere\.embed-v4:0/ }),
+    );
+    await expect(
+      body.getAllByRole("option", { name: "us.cohere.embed-v4:0" }),
+    ).toHaveLength(providerGroups.length);
+    await expect(
+      body.queryByRole("option", { name: "text-embedding-3-small" }),
+    ).not.toBeInTheDocument();
+  },
+});
+
 export const SavesTheSheet = meta.story({
   name: "(Test) Save sends models and idle time",
   args: {

@@ -42,6 +42,7 @@ export function ConfigureTopicsDialogController({
   children,
 }: ConfigureTopicsDialogControllerProps) {
   const save = useSaveTopicsSetup(projectId);
+  const utils = api.useUtils();
   return (
     <DialogController
       renderDialog={({ closeDialog }) =>
@@ -56,6 +57,9 @@ export function ConfigureTopicsDialogController({
     >
       {({ openDialog }) => {
         function openConfigureDialog() {
+          // The embedding lock starts with the first embedded summary, which
+          // can finish while the page stays open.
+          utils.topics.modelSettings.invalidate({ projectId });
           openDialog();
         }
         return children({ openDialog: openConfigureDialog });
