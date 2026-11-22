@@ -35,14 +35,17 @@ import {
 import { env } from "@/src/env.mjs";
 import { randomBytes } from "crypto";
 import { z } from "zod";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   MAX_SCORE_NAME_LENGTH,
   MAX_SCORE_NAMES_PER_TYPE,
 } from "../lib/observed-options";
 import { buildFilterContextMessage } from "./buildFilterPrompt";
 import { resolveFilterSystemPrompt } from "./resolveFilterPrompt";
-import { parseGeneratedFilters } from "./parseFilterCompletion";
+import {
+  parseGeneratedFilters,
+  parseRefinedFilters,
+} from "./parseFilterCompletion";
 import {
   deriveParseOutcomeScores,
   recordParseOutcomeScores,
@@ -54,10 +57,8 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { DATASET_NAME_COLUMN } from "@/src/features/evals/v2/utils/datasetNameFilter";
-import {
-  SESSIONS_FIELD_REGISTRY,
-  USERS_FIELD_REGISTRY,
-} from "@/src/features/filters";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { USERS_FIELD_REGISTRY } from "@/src/features/filters/config/usersSearchRegistry";
 
 import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
 
@@ -67,6 +68,13 @@ import {
   withFieldOptions,
   type FieldRegistry,
 } from "../lib/fields";
+import { MAX_QUERY_LENGTH } from "../lib/validate";
+import {
+  AI_FILTER_MAX_OUTPUT_TOKENS,
+  AI_REFINEMENT_MAX_OUTPUT_TOKENS,
+  aiRefinementBudgetError,
+} from "../lib/ai-refine-budget";
+import type { AiFilterResult } from "../lib/ai-filter-result";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
 // which sends a set as undefined instead of ever exceeding them.
@@ -107,7 +115,7 @@ const GenerateFilterInput = z.object({
   prompt: z.string().min(1).max(2048),
   registryId: z.enum(REGISTRY_IDS).default("events"),
   /** Existing bar query text, so the model refines the current filters. */
-  currentQuery: z.string().max(4096).optional(),
+  currentQuery: z.string().max(MAX_QUERY_LENGTH).optional(),
   /** Project data context (observed values, metadata keys, result count) built
    *  on the client from already-loaded filterOptions + visible rows. */
   dataContext: z.string().max(16000).optional(),
@@ -129,7 +137,7 @@ const GenerateFilterInput = z.object({
 export const searchBarRouter = createTRPCRouter({
   generateFilter: protectedProjectProcedure
     .input(GenerateFilterInput)
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<AiFilterResult> => {
       try {
         const baseRegistry = REGISTRIES_BY_ID[input.registryId];
         // Defence in depth for the client gate above: a view that has no AI
@@ -195,6 +203,17 @@ export const searchBarRouter = createTRPCRouter({
             )
           : baseRegistry;
 
+        const refinementError = aiRefinementBudgetError(
+          input.currentQuery,
+          registry,
+          input.scoreNames,
+        );
+        if (refinementError) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: refinementError,
+          });
+        }
         const modelConfig = getInAppAgentModelConfig();
 
         if (!modelConfig) {
@@ -277,7 +296,9 @@ export const searchBarRouter = createTRPCRouter({
         const llmCompletion = await generateLangfuseAIText({
           messages,
           model,
-          maxTokens: 2048,
+          maxTokens: input.currentQuery?.trim()
+            ? AI_REFINEMENT_MAX_OUTPUT_TOKENS
+            : AI_FILTER_MAX_OUTPUT_TOKENS,
           timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
@@ -295,7 +316,6 @@ export const searchBarRouter = createTRPCRouter({
                   ...(ctx.session.user.email
                     ? { langfuse_user_email: ctx.session.user.email }
                     : {}),
-                  langfuse_user_project_role: ctx.session.projectRole,
                   langfuse_cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
                   // Debugging context for prompt iteration: a trace alone should
                   // explain WHY the model produced what it did. refine_mode marks
@@ -322,8 +342,18 @@ export const searchBarRouter = createTRPCRouter({
         // unique `_`/`-`/space/case-normalized match corrects, anything else is
         // dropped and reported) so a misspelled score name can never apply as a
         // dead filter that silently matches nothing.
-        const { filters, queryText, droppedCount, unknownScoreNames } =
-          parseGeneratedFilters(llmCompletion, input.scoreNames, registry);
+        const parsed = input.currentQuery?.trim()
+          ? parseRefinedFilters(llmCompletion, input.scoreNames, registry)
+          : {
+              ...parseGeneratedFilters(
+                llmCompletion,
+                input.scoreNames,
+                registry,
+              ),
+              status: "complete" as const,
+            };
+        if (parsed.status === "incomplete") return parsed;
+        const { filters, queryText, droppedCount, unknownScoreNames } = parsed;
 
         if (droppedCount > 0) {
           logger.warn(
@@ -373,7 +403,7 @@ export const searchBarRouter = createTRPCRouter({
           }
         }
 
-        return { filters, queryText, unknownScoreNames };
+        return { status: "complete", filters, queryText, unknownScoreNames };
       } catch (error) {
         // Already-shaped rejections (auth / precondition / not-found) are
         // expected control flow, not backend faults — rethrow them without

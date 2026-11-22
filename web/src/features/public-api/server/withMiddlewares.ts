@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isPrismaException } from "@/src/utils/exceptions";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -29,7 +28,6 @@ import { setRetryAfterHeader } from "@/src/features/public-api/server/writeError
 import { withDeprecationResponse } from "@/src/features/public-api/server/deprecations";
 import { env } from "@/src/env.mjs";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
 /** RouteHandler is a method handler; `deprecation` marks it as a deprecated route. */
@@ -131,8 +129,10 @@ export function withMiddlewares(
 
         if (error instanceof ClickHouseResourceError) {
           const errorMessage =
-            options?.clickHouseResourceErrorMessage ??
-            DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE;
+            error.errorType === "RESULT_SIZE"
+              ? error.adviceMessage
+              : (options?.clickHouseResourceErrorMessage ??
+                DEFAULT_CLICKHOUSE_RESOURCE_ERROR_MESSAGE);
 
           logger.warn("ClickHouse resource limit exceeded", {
             errorType: error.errorType,
@@ -150,7 +150,10 @@ export function withMiddlewares(
 
           return res.status(422).json({
             message: errorMessage,
-            error: "Request timed out",
+            error:
+              error.errorType === "RESULT_SIZE"
+                ? "Query result too large"
+                : "Request timed out",
           });
         }
 

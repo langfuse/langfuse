@@ -45,6 +45,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
           </p>
           <CodeBlock
             language="shell"
+            // eslint-disable-next-line react/jsx-curly-brace-presence
             value={`npx skills add langfuse/skills --skill "langfuse"`}
           />
           <div className="mt-4 flex items-center gap-2">

@@ -1,8 +1,8 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayResolveService } from "./resolveService";
 
 const mockEnv = vi.hoisted(() => ({
@@ -17,6 +17,7 @@ const mockEnv = vi.hoisted(() => ({
   LANGFUSE_AI_GATEWAY_JWT_KEY_ID: "key-id" as string | undefined,
   LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
   LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: mockEnv }));
@@ -38,7 +39,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
     roleAssignment: {
       findMany: () =>
         Promise.resolve([
-          { systemRole: "AI_GATEWAY", orgId: keyOrgId, projectId: null },
+          {
+            systemRole: "AI_GATEWAY_INFERENCE",
+            orgId: keyOrgId,
+            projectId: null,
+          },
         ]),
     },
   } as unknown as PrismaClient;
@@ -54,7 +59,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
         ...params,
         model: "Production OpenAI:gpt-4o",
       });
-      return service.resolve({ context, apiFormat: params.apiFormat });
+      return service.resolve({
+        context,
+        apiFormat: params.apiFormat,
+        pricing: service.findPricing(context),
+      });
     },
   };
 };
@@ -65,14 +74,26 @@ const row = (overrides: {
   withoutProject?: boolean;
   metadata?: unknown;
   userId?: string | null;
+  note?: string | null;
+  user?: { name: string | null; email: string | null } | null;
 }) => ({
   id: "key-1",
   orgId: "org-1",
   userId: overrides.userId === undefined ? "user-1" : overrides.userId,
   expiresAt: null,
+  note: overrides.note === undefined ? "CI key" : overrides.note,
+  user:
+    overrides.user === null
+      ? null
+      : {
+          ...(overrides.user ?? { name: "Alice", email: "alice@example.com" }),
+          organizationMemberships: [{ orgId: "org-1", role: "MEMBER" }],
+        },
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
+  gatewaySpendLimits: [],
   organization: {
+    gatewaySpendLimits: [],
     gatewayConfig: {
       defaultIngestionProjectId: overrides.withoutProject ? null : "project-1",
       ingestionMode: overrides.ingestionMode ?? "USAGE",
@@ -119,6 +140,7 @@ describe("GatewayResolveService", () => {
         api_format: "openai.responses",
         base_url: "https://api.openai.com/v1",
         auth: { type: "Bearer", token: "sk-test" },
+        extra_headers: {},
       },
       // Metadata stays in its own object, so a metadata key called project_id
       // cannot redirect attribution.
@@ -127,6 +149,9 @@ describe("GatewayResolveService", () => {
         project_id: "project-1",
         key_id: "key-1",
         user_id: "user-1",
+        key_name: "CI key",
+        user_name: "Alice",
+        user_email: "alice@example.com",
         key_metadata: { team: "platform", project_id: "spoofed-project" },
         provider_connection_id: "connection-1",
       },
@@ -136,8 +161,37 @@ describe("GatewayResolveService", () => {
         token_type: "Bearer",
         expires_at: expect.any(Number),
       },
+      spend_limits: [],
+      pricing: null,
     });
   });
+
+  it.each([
+    { note: "", userId: null, user: null },
+    { note: null, userId: "user-1", user: { name: null, email: null } },
+    { note: null, userId: "user-1", user: { name: "", email: "" } },
+  ])(
+    "sends absent key snapshots as null (%o)",
+    async ({ note, userId, user }) => {
+      const service = serviceWith(() =>
+        Promise.resolve(row({ note, userId, user })),
+      );
+
+      await expect(
+        service.resolve({
+          fastHashedSecretKey: "hashed-secret-key",
+          apiFormat: "openai.responses",
+        }),
+      ).resolves.toMatchObject({
+        attribution: {
+          key_name: null,
+          user_id: userId,
+          user_name: null,
+          user_email: null,
+        },
+      });
+    },
+  );
 
   it("drops key metadata that is not a flat object of scalars", async () => {
     const service = serviceWith(() =>
@@ -252,6 +306,45 @@ describe("GatewayResolveService", () => {
     },
   );
 
+  describe("on Langfuse Cloud", () => {
+    beforeEach(() => {
+      mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    });
+    afterEach(() => {
+      mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    });
+
+    it("resolves a stored NONE mode as USAGE with an ingestion grant", async () => {
+      const service = serviceWith(() =>
+        Promise.resolve(row({ ingestionMode: "NONE" })),
+      );
+
+      await expect(
+        service.resolve({
+          fastHashedSecretKey: "hashed-secret-key",
+          apiFormat: "openai.responses",
+        }),
+      ).resolves.toMatchObject({
+        attribution: { project_id: "project-1" },
+        ingestion_mode: "usage",
+        ingestion: { access_token: "ingestion-token", token_type: "Bearer" },
+      });
+    });
+
+    it("refuses to resolve a stored NONE mode without an ingestion project", async () => {
+      const service = serviceWith(() =>
+        Promise.resolve(row({ ingestionMode: "NONE", withoutProject: true })),
+      );
+
+      await expect(
+        service.resolve({
+          fastHashedSecretKey: "hashed-secret-key",
+          apiFormat: "openai.responses",
+        }),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+  });
+
   it("rejects an unknown or expired gateway key", async () => {
     const service = serviceWith(() => Promise.resolve(null));
 
@@ -271,7 +364,12 @@ describe("GatewayResolveService", () => {
           orgId: "org-not-allowed",
           expiresAt: null,
           gatewayAssociation: null,
-          organization: { gatewayConfig: null, gatewayAiConnections: [] },
+          gatewaySpendLimits: [],
+          organization: {
+            gatewaySpendLimits: [],
+            gatewayConfig: null,
+            gatewayAiConnections: [],
+          },
         }),
       "org-not-allowed",
     );

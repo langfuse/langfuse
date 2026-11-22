@@ -1,8 +1,8 @@
-import { deleteAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server";
+import { deleteAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import {
   DeleteAnnotationQueueItemQuery,
   DeleteAnnotationQueueItemResponse,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/annotation-queues";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 

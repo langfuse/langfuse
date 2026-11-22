@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME } from "@langfuse/shared/in-app-agent";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
@@ -15,7 +16,8 @@ import {
 } from "@langfuse/shared/rbac";
 import { ResumeForwardedPropsSchema } from "./runtime/types";
 import { env } from "../../env";
-import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./runtime/skills";
+import { InAppAgentSkillSource } from "./runtime/skill-source";
+import { LANGFUSE_HALO_SKILLS } from "@repo/langfuse-skills";
 
 const createConversationId = () => `aconv_${randomUUID()}`;
 const createRunId = () => `arun_${randomUUID()}`;
@@ -65,7 +67,7 @@ type AgentScenario = (ctx: {
     awsProfile?: string;
     langfuseClient?: unknown;
     useLocalPrompt: boolean;
-    skills: Array<{ name: string }>;
+    skillSource: InAppAgentSkillSource;
     langfuseMcp: {
       toolPolicy: {
         available: ReadonlySet<string>;
@@ -259,8 +261,10 @@ async function seedBackgroundRun(opts?: {
   const user = await prisma.user.create({
     data: { email: `bg-${randomUUID()}@langfuse.com`, name: "bg-user" },
   });
-  await prisma.organizationMembership.create({
-    data: { orgId: project.orgId, userId: user.id, role: "MEMBER" },
+  await createOrgMembership(prisma, {
+    orgId: project.orgId,
+    userId: user.id,
+    role: "MEMBER",
   });
   const conversation = await prisma.inAppAgentConversation.create({
     data: {
@@ -361,17 +365,25 @@ describe("executeInAppAgentRun", () => {
     observabilityRef.traceException.mockClear();
   });
 
-  it("passes bundled skills from the loader when no managed tag is configured", async () => {
+  it("passes repository skills when no managed tag is configured", async () => {
     const { projectId, run } = await seedBackgroundRun();
     let selectedSkills: unknown;
+    let selectedEntries: unknown;
     scenarioRef.current = async (params) => {
-      selectedSkills = params.options.skills;
+      selectedSkills = params.options.skillSource;
+      selectedEntries = await params.options.skillSource.readdir("/skills");
       await completingScenario(params);
     };
 
     await executeInAppAgentRun({ projectId, runId: run.id });
 
-    expect(selectedSkills).toBe(LANGFUSE_IN_APP_AGENT_SKILLS);
+    expect(selectedSkills).toBeInstanceOf(InAppAgentSkillSource);
+    expect(selectedEntries).toEqual(
+      LANGFUSE_HALO_SKILLS.map(({ frontmatter }) => ({
+        name: frontmatter.name,
+        type: "directory",
+      })),
+    );
   });
 
   it("does not regenerate the conversation title after executing a user-message run", async () => {

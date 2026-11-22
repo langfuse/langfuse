@@ -1,13 +1,11 @@
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  createAuthedProjectAPIRoute,
-  withMiddlewares,
-} from "@/src/features/public-api/server";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   GetSkillFileContentsQuerySchema,
   GetSkillFileContentsResponseSchema,
 } from "@/src/features/public-api/types/skills";
-import { SkillService } from "@/src/features/skills/server";
+import { SkillService } from "@/src/features/skills/server/skill-service";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

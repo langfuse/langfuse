@@ -33,6 +33,17 @@ export const createOrgProjectAndApiKey = async (
       name: v4(),
       cloudConfig: CloudConfigSchema.parse({
         plan: props?.plan ?? "Team",
+        // Team's public-api-legacy cap is 20 requests per minute, shared
+        // across legacy trace, observation, and session reads. A single test
+        // org issues more than that while exercising those routes, so lift
+        // the cap here. Production plans are unchanged.
+        rateLimitOverrides: [
+          {
+            resource: "public-api-legacy",
+            points: null,
+            durationInSec: null,
+          },
+        ],
       }),
     },
   });

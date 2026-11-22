@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { Building2, Plug } from "@langfuse/icons";
 
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import Header from "@/src/components/layouts/header";
 import { LlmConnectionEmptyState } from "@/src/features/public-api/components/LlmConnectionEmptyState/LlmConnectionEmptyState";
@@ -53,12 +53,9 @@ export function LlmApiKeyList(props: {
 
   if (!hasAccess) {
     return (
-      <Alert>
-        <Alert.Title>Access Denied</Alert.Title>
-        <Alert.Description>
-          You do not have permission to view LLM API keys for this project.
-        </Alert.Description>
-      </Alert>
+      <Banner title="Access denied">
+        You do not have permission to view LLM API keys for this project.
+      </Banner>
     );
   }
 

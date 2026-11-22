@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import React from "react";
 import { api } from "@/src/utils/api";
 import {
@@ -8,6 +7,7 @@ import {
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 
 interface AutomationSidebarProps {
   projectId: string;
@@ -113,11 +113,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                             : automation.trigger.eventSource}
                         </span>
                         {" → "}
-                        {automation.action.type === "WEBHOOK"
-                          ? "Webhook"
-                          : automation.action.type === "SLACK"
-                            ? "Slack"
-                            : "Annotation Queue"}
+                        {actionTypeLabel[automation.action.type]}
                       </p>
                     </div>
                   </div>

@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../../db";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as commentsRepository from "../repositories/comments";
 import {
@@ -91,6 +91,27 @@ describe("applyCommentFilters", () => {
       ...commonArgs,
       operator: ">",
       value: 0,
+    });
+  });
+
+  it("resolves a set comment content filter as having a comment", async () => {
+    const commentedIds = ["commented-observation"];
+    const countLookup = mockResults("getObjectIdsByCommentCount", commentedIds);
+
+    await expect(
+      resolve([
+        {
+          type: "null",
+          column: "commentContent",
+          operator: "is not null",
+          value: "",
+        },
+      ]),
+    ).resolves.toEqual(selection(commentedIds));
+    expect(countLookup).toHaveBeenCalledExactlyOnceWith({
+      ...commonArgs,
+      operator: ">=",
+      value: 1,
     });
   });
 

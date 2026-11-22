@@ -1,9 +1,7 @@
-import {
-  fetchObservationEvalRules,
-  scheduleObservationEvals,
-  createObservationEvalSchedulerDeps,
-  type ObservationForEval,
-} from "../evaluation/observationEval";
+import { fetchEvalRules } from "../evaluation/fetchEvalRules";
+import { scheduleObservationEvals } from "../evaluation/observationEval/scheduleObservationEvals";
+import { createObservationEvalSchedulerDeps } from "../evaluation/observationEval/createSchedulerDeps";
+import type { ObservationForEval } from "../evaluation/observationEval/types";
 import { logger, traceException } from "@langfuse/shared/src/server";
 
 interface ScheduleExperimentEvalsParams {
@@ -16,7 +14,9 @@ export async function scheduleExperimentObservationEvals(
   const { observation } = params;
 
   try {
-    const configs = await fetchObservationEvalRules(observation.project_id);
+    const { observationRules: configs } = await fetchEvalRules(
+      observation.project_id,
+    );
     if (configs.length === 0) {
       return;
     }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Filter, PanelLeftClose } from "@langfuse/icons";

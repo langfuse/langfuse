@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { format } from "date-fns";
 import {
   compactNumberFormatter,
@@ -162,6 +161,15 @@ const COMPOUND_DURATION_UNITS = [
   { label: "s", ms: 1_000 },
 ] as const;
 
+/** Adaptive USD fraction digits for outlier-strip cost labels and tooltips. */
+const usdMaxFractionDigits = (value: number): number => {
+  if (value < 1e-9) return 12;
+  if (value < 1e-6) return 9;
+  if (value < 0.001) return 6;
+  if (value < 0.1) return 4;
+  return 2;
+};
+
 export const formatCompoundDuration = (ms: number): string => {
   // Threshold on the SECOND-ROUNDED value: 59,998ms must take the compound
   // path ("1m") — the single-unit formatter's own rounding would print
@@ -213,20 +221,7 @@ export const OUTLIER_STRIP_METRICS: Record<
     // values the precision they need ("$0.0042"). Deeper tiers keep
     // micro-dollar Y TICKS honest — a 6-digit cap would label a 2e-7
     // gridline "$0".
-    format: (value) =>
-      usdFormatter(
-        value,
-        0,
-        value < 1e-9
-          ? 12
-          : value < 1e-6
-            ? 9
-            : value < 0.001
-              ? 6
-              : value < 0.1
-                ? 4
-                : 2,
-      ),
+    format: (value) => usdFormatter(value, 0, usdMaxFractionDigits(value)),
   },
   latency: {
     shortLabel: "Latency",

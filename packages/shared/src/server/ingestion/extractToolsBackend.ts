@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 
 type IngestionJsonValue = string | object | number | boolean | null | undefined;
@@ -331,6 +330,11 @@ function extractToolCallsFromRawOutput(
   if (isToolCallLike(obj) && !isMessageLike(obj)) {
     addToolArgument(args, obj);
     return;
+  }
+
+  // OpenAI Responses response object: {output: [{type: "function_call", ...}]}
+  if (Array.isArray(obj.output)) {
+    extractToolCallsFromRawOutput(obj.output, args);
   }
 
   // Direct tool_calls at top level
@@ -778,6 +782,15 @@ function extractToolsFromParsedObservation(
   const toolArguments: ClickhouseToolArgument[] = [];
 
   extractToolsFromRawInput(parsedInput, toolDefinitions);
+  // Fallback to tools echoed in an OpenAI Responses object (`output` array check targets only those)
+  if (
+    toolDefinitions.length === 0 &&
+    isPlainRecord(parsedOutput) &&
+    Array.isArray(parsedOutput.output) &&
+    Array.isArray(parsedOutput.tools)
+  ) {
+    extractToolsFromRawInput({ tools: parsedOutput.tools }, toolDefinitions);
+  }
   extractToolCallsFromRawOutput(parsedOutput, toolArguments);
 
   // Deduplicate tool arguments by id

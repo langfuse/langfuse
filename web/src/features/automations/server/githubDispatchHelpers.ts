@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt } from "@langfuse/shared/encryption";
 import {
   type ActionCreate,
@@ -61,15 +60,6 @@ export async function processGitHubDispatchActionConfig({
     });
   }
 
-  try {
-    await validateWebhookURL(urlToUse);
-  } catch (error) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
-    });
-  }
-
   // Validate GitHub API URL format
   const urlPattern =
     /^https:\/\/api\.github\.com\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
@@ -81,6 +71,15 @@ export async function processGitHubDispatchActionConfig({
       code: "BAD_REQUEST",
       message:
         "URL must be a valid GitHub repository dispatch endpoint (e.g., https://api.github.com/repos/owner/repo/dispatches)",
+    });
+  }
+
+  try {
+    await validateWebhookURL(urlToUse);
+  } catch (error) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
     });
   }
 

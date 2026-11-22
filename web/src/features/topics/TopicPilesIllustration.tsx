@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { cn } from "@/src/utils/tailwind";
 
 const PILE_LEFT = ["left-5", "left-33.5", "left-62"] as const;

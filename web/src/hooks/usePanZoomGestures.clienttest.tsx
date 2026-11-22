@@ -239,6 +239,61 @@ describe("pan and zoom device input", () => {
     expect(onZoom).toHaveBeenCalledOnce();
   });
 
+  it("leaves one-finger touch to native scrolling and zooms on a two-finger touch pinch", () => {
+    const element = surface();
+    const onZoom = vi.fn();
+    const onPan = vi.fn();
+    const onInteractionEnd = vi.fn();
+    renderHook(() =>
+      usePanZoomGestures({
+        target: { current: element },
+        pointerPan: false,
+        touchPinch: true,
+        onPan,
+        onZoom,
+        onInteractionEnd,
+      }),
+    );
+    const touch = (
+      type: string,
+      ...points: [number, number, EventTarget?][]
+    ) => {
+      const event = new Event(type, { cancelable: true });
+      Object.defineProperty(event, "touches", {
+        value: points.map(([clientX, clientY, target = element]) => ({
+          clientX,
+          clientY,
+          target,
+        })),
+      });
+      element.dispatchEvent(event);
+      return event;
+    };
+    const scroll = touch("touchmove", [120, 140]);
+    expect(scroll.defaultPrevented).toBe(false);
+    // A finger resting outside the surface does not make a pinch.
+    const resting = touch("touchstart", [120, 140], [10, 10, document.body]);
+    expect(resting.defaultPrevented).toBe(false);
+    touch("touchend");
+    expect(touch("touchstart", [120, 140], [220, 140]).defaultPrevented).toBe(
+      true,
+    );
+    expect(touch("touchmove", [120, 140], [320, 160]).defaultPrevented).toBe(
+      true,
+    );
+    flushFrame();
+    // 100px → ~223.6px about the original midpoint; the moved midpoint does not pan.
+    expect(onZoom).toHaveBeenCalledExactlyOnceWith(
+      Math.log2(Math.hypot(200, 20) / 100),
+      { x: 0.375, y: 0.5 },
+    );
+    touch("touchend", [120, 140]);
+    expect(onInteractionEnd).toHaveBeenCalledOnce();
+    touch("touchmove", [120, 200]);
+    flushFrame();
+    expect(onPan).not.toHaveBeenCalled();
+  });
+
   it("continues pinching when three contacts become a different pair", () => {
     const element = surface();
     const onZoom = vi.fn();

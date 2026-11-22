@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { env } from "../../env";
+import { clickhouseComputesEventBytes } from "../../services/ClickhouseWriter/eventByteAccounting";
 
 const LAST_PROCESSED_PARTITION_KEY =
   "langfuse:event-propagation:last-processed-partition";
@@ -95,6 +96,7 @@ const updateLastProcessedPartition = async (
 export const handleEventPropagationJob = async (
   job: Job<TQueueJobTypes[QueueName.EventPropagationQueue]>,
 ) => {
+  const computeEventBytesInClickhouse = clickhouseComputesEventBytes();
   getCurrentSpan()?.setAttribute(
     "messaging.bullmq.job.input.jobId",
     job.data.id,
@@ -162,12 +164,6 @@ export const handleEventPropagationJob = async (
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
     // will significantly affect run-time. This may be an accepted degradation and we test the outcome
     // to check the likelihood of this happening in practice.
-    const excludeProjectIds =
-      env.LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS;
-    const excludeProjectIdsInClause =
-      excludeProjectIds.length > 0
-        ? `NOT IN (${excludeProjectIds.map((id) => `'${id}'`).join(",")})`
-        : "";
     await commandClickhouse({
       query: `
         with batch_stats as (
@@ -178,7 +174,6 @@ export const handleEventPropagationJob = async (
             max(start_time) as max_start_time
           from observations_batch_staging
           where _partition_value = tuple('${partitionToProcess}')
-          ${excludeProjectIdsInClause ? `AND project_id ${excludeProjectIdsInClause}` : ""}
         ), experiment_traces_to_exclude as (
           select distinct
             project_id,
@@ -256,7 +251,7 @@ export const handleEventPropagationJob = async (
           metadata_values,
           source,
           blob_storage_file_path,
-          event_bytes,
+          ${computeEventBytesInClickhouse ? "" : "event_bytes,"}
           created_at,
           updated_at,
           event_ts,
@@ -315,7 +310,7 @@ export const handleEventPropagationJob = async (
           mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_values,
           multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
           '' AS blob_storage_file_path,
-          byteSize(*) AS event_bytes,
+          ${computeEventBytesInClickhouse ? "" : "byteSize(*) AS event_bytes,"}
           obs.created_at,
           obs.updated_at,
           obs.event_ts,
@@ -335,7 +330,6 @@ export const handleEventPropagationJob = async (
           excl.trace_id = obs.trace_id
         )
         WHERE obs._partition_value = tuple('${partitionToProcess}')
-        ${excludeProjectIdsInClause ? `AND obs.project_id ${excludeProjectIdsInClause}` : ""}
       `,
       clickhouseConfigs: {
         request_timeout: 1_800_000, // 30 minutes timeout

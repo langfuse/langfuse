@@ -8,6 +8,7 @@ import React from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { deepParseJson, type FilterState } from "@langfuse/shared";
 import { SessionObservationIO } from "@/src/features/sessions/SessionObservationIO";
+import { useObservationCorrections } from "@/src/features/sessions/useObservationCorrections";
 import { FilterX } from "@langfuse/icons";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/features/sessions/session-detail-presets";
 import { SessionTraceActionButtons } from "@/src/features/sessions/SessionTraceActionButtons";
@@ -17,10 +18,10 @@ import {
 } from "@/src/features/sessions/sessionVisibleObservations";
 import {
   hasRenderableConversationMessages,
-  type IOPreviewContentMode,
   isOnlyJsonMessage,
-  useChatMLParser,
-} from "@/src/features/traces";
+} from "@/src/features/traces/fns/chatMessageUtils";
+import type { IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { useChatMLParser } from "@/src/features/traces/hooks/useChatMLParser";
 
 export type TraceEventsSurface = "card" | "modern";
 
@@ -34,6 +35,7 @@ const ModernSessionObservation = ({
   traceId,
   environment,
   showCorrections,
+  outputCorrection,
   contentMode,
   showSystemPrompt,
   onOpenInTraceView,
@@ -44,6 +46,9 @@ const ModernSessionObservation = ({
   traceId: string;
   environment?: string;
   showCorrections: boolean;
+  outputCorrection?: React.ComponentProps<
+    typeof SessionObservationIO
+  >["outputCorrection"];
   contentMode: IOPreviewContentMode;
   showSystemPrompt?: boolean;
   onOpenInTraceView: (observationId: string) => void;
@@ -100,6 +105,7 @@ const ModernSessionObservation = ({
         traceId={traceId}
         environment={environment}
         showCorrections={showCorrections}
+        outputCorrection={outputCorrection}
         onOpenInTraceView={onOpenInTraceView}
         contentMode={isConversation ? contentMode : "all"}
         showSystemPrompt={showSystemPrompt}
@@ -151,7 +157,13 @@ const openSessionViewMenu = () => {
  * card. It is purely informational: to see the trace's content the user
  * switches the view above — there is no per-card state.
  */
-const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => (
+const ViewMismatchNotice = ({
+  viewLabel,
+  onCustomizeView,
+}: {
+  viewLabel: string | null;
+  onCustomizeView: (() => void) | null;
+}) => (
   <div className="flex flex-col items-start gap-1.5 rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
     <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-500">
       <FilterX size="base" />
@@ -160,15 +172,20 @@ const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => (
         : "No observation matches the current filter in this trace"}
     </div>
     <p className="text-muted-foreground text-xs">
-      Its content is hidden by the current view, not missing.{" "}
-      <button
-        type="button"
-        onClick={openSessionViewMenu}
-        className="text-primary underline underline-offset-2 hover:no-underline"
-      >
-        Switch the view
-      </button>{" "}
-      to see it.
+      Its content is hidden by the current view, not missing.
+      {onCustomizeView && (
+        <>
+          {" "}
+          <button
+            type="button"
+            onClick={onCustomizeView}
+            className="text-primary underline underline-offset-2 hover:no-underline"
+          >
+            Switch the view
+          </button>{" "}
+          to see it.
+        </>
+      )}
     </p>
   </div>
 );
@@ -232,6 +249,7 @@ export const TraceEventsRow = React.memo(
     surface = "card",
     contentMode = "all",
     showSystemPrompt,
+    onCustomizeView = openSessionViewMenu,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
     projectId: string;
@@ -245,6 +263,7 @@ export const TraceEventsRow = React.memo(
     surface?: TraceEventsSurface;
     contentMode?: IOPreviewContentMode;
     showSystemPrompt?: boolean;
+    onCustomizeView?: (() => void) | null;
   }) => {
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
@@ -302,6 +321,13 @@ export const TraceEventsRow = React.memo(
     );
     const { visibleObservations, hasMoreObservations } =
       visibleObservationState;
+
+    const correctionsByObservation = useObservationCorrections({
+      projectId,
+      traceId: trace.id,
+      showCorrections,
+      visibleObservations,
+    });
 
     const Frame = surface === "card" ? Card : "div";
     const showTracePanel = surface === "card" && !hideTracePanel;
@@ -376,6 +402,9 @@ export const TraceEventsRow = React.memo(
                           undefined
                         }
                         showCorrections={showCorrections}
+                        outputCorrection={correctionsByObservation.get(
+                          observation.id,
+                        )}
                         contentMode={contentMode}
                         showSystemPrompt={showSystemPrompt}
                         onOpenInTraceView={openObservationInTraceView}
@@ -384,7 +413,11 @@ export const TraceEventsRow = React.memo(
                   }
 
                   return (
-                    <div key={observation.id} className="flex flex-col gap-2">
+                    <div
+                      key={observation.id}
+                      data-session-observation-id={observation.id}
+                      className="flex flex-col gap-2"
+                    >
                       <ObservationHeader observation={observation} />
                       <SessionObservationIO
                         observation={observation}
@@ -397,6 +430,9 @@ export const TraceEventsRow = React.memo(
                           undefined
                         }
                         showCorrections={showCorrections}
+                        outputCorrection={correctionsByObservation.get(
+                          observation.id,
+                        )}
                         onOpenInTraceView={openObservationInTraceView}
                         contentMode={contentMode}
                         showSystemPrompt={showSystemPrompt}
@@ -428,7 +464,10 @@ export const TraceEventsRow = React.memo(
             ) : (
               // The selected view/filter matched nothing (or hid the only
               // observations, e.g. "with I/O" on a trace with none) — say so.
-              <ViewMismatchNotice viewLabel={viewLabel} />
+              <ViewMismatchNotice
+                viewLabel={viewLabel}
+                onCustomizeView={onCustomizeView}
+              />
             )}
           </div>
           {showTracePanel && (

@@ -7,14 +7,14 @@ import {
 } from "@/src/server/api/trpc";
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
-  createMediaUploadUrl,
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
-  MediaContentType,
-} from "@/src/features/media/server";
+} from "@/src/features/media/server/datasetItemMediaReferences";
+import { MediaContentType } from "@/src/features/media/validation";
 import {
   paginationZod,
   singleFilterList,
@@ -94,7 +94,7 @@ import {
   deleteDatasetsByIds,
   findDatasetsForDeletion,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/server";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   updateDataset,
   upsertDataset,
@@ -109,7 +109,7 @@ import {
   RemoteExperimentHeadersSchema,
 } from "@/src/features/datasets/server/remoteExperimentHelpers";
 import { v4 } from "uuid";
-import { createBatchActionJob } from "@/src/features/table/server";
+import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;

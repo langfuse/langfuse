@@ -9,25 +9,26 @@
       }
     ],
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     },
     "strictNullChecks": true,
-    "types": ["node", "vitest/globals", "vitest/importMeta", "@testing-library/jest-dom"]
+    "types": [
+      "node",
+      "vitest/globals",
+      "vitest/importMeta",
+      "@testing-library/jest-dom"
+    ]
   },
-  "exclude": [
-    "node_modules",
-    "sdk"
-  ],
+  "exclude": ["node_modules", "sdk"],
   "include": [
+    ".storybook/**/*",
+    "vitest.config.mts",
     "**/*.cjs",
     "**/*.mjs",
     "**/*.ts",
     "**/*.tsx",
     ".eslintrc.js",
     ".next/types/**/*.ts",
-    "next-env.d.ts",
     "next-env.d.ts",
     "src",
     "types/global.d.ts"

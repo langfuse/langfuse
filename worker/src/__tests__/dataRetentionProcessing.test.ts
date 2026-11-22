@@ -23,6 +23,7 @@ import {
   getTraceById,
   StorageService,
   StorageServiceFactory,
+  storageKeys,
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { prisma, Prisma, PrismaClient } from "@langfuse/shared/src/db";
@@ -70,8 +71,10 @@ describe("DataRetentionProcessingJob", () => {
 
   beforeAll(() => {
     storageService = StorageServiceFactory.getInstance({
-      accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      credentials: storageKeys(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
+      ),
       bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
@@ -1089,19 +1092,25 @@ describe("DataRetentionProcessingJob", () => {
       expect(trace).toBeDefined();
     });
 
-    it("should delete expired data on a self-hosted enterprise license", async () => {
-      const traceId = `${randomUUID()}-trace-ee`;
-      await seedExpiredTrace(traceId);
+    it.each([
+      ["enterprise", "langfuse_ee_some-key"],
+      ["government", "lf_gov_some-key"],
+    ])(
+      "should delete expired data on a self-hosted %s license",
+      async (label, licenseKey) => {
+        const traceId = `${randomUUID()}-trace-${label}`;
+        await seedExpiredTrace(traceId);
 
-      await withSelfHostedLicense("langfuse_ee_some-key", async () => {
-        await handleDataRetentionProcessingJob({
-          data: { payload: { projectId, retention: 7 } },
-        } as Job);
-      });
+        await withSelfHostedLicense(licenseKey, async () => {
+          await handleDataRetentionProcessingJob({
+            data: { payload: { projectId, retention: 7 } },
+          } as Job);
+        });
 
-      // Pins that the guard is the license and not an unrelated skip.
-      const trace = await getTraceById({ traceId, projectId });
-      expect(trace).toBeUndefined();
-    });
+        // Pins that the guard is the license and not an unrelated skip.
+        const trace = await getTraceById({ traceId, projectId });
+        expect(trace).toBeUndefined();
+      },
+    );
   });
 });

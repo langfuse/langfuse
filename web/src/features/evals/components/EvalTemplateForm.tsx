@@ -36,24 +36,24 @@ import {
 } from "@langfuse/shared";
 import router from "next/router";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { PromptVariableListPreview } from "@/src/features/prompts";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { useModelParams } from "@/src/features/playground";
-import { showSuccessToast } from "@/src/features/notifications";
+import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   getDefaultOutputDefinitionFormValues,
   shouldReplaceDefaultOutputDefinitionField,
 } from "@/src/features/evals/utils/template-form-defaults";
 import { templateFormSchema } from "@/src/features/evals/utils/template-form-schema";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";
 import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
-import { AlertCircle, AlertTriangle, PlusIcon, Trash } from "@langfuse/icons";
+import { AlertCircle, PlusIcon, Trash } from "@langfuse/icons";
 import { useValidateCustomModel } from "@/src/features/evals/hooks/useValidateCustomModel";
 import {
   Select,
@@ -75,7 +75,7 @@ import {
   EvalTemplateTypeSelector,
   type EvalTemplateTypeSelectorMode,
 } from "@/src/features/evals/components/EvalTemplateTypeSelector";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 
 type PartialEvalTemplate = Partial<EvalTemplate> &
@@ -621,29 +621,20 @@ const InnerEvalTemplateForm = (props: {
             evalCapabilities.compatibilityCheckWasPerformed &&
             !evalCapabilities.isNewCompatible && (
               <div className="w-full max-w-4xl">
-                <Alert variant="warning" icon={AlertTriangle}>
-                  <Alert.Description>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-foreground font-bold">
-                        Please verify your SDK version
-                      </span>
-                      <span className="text-foreground text-sm">
-                        Code evaluators require JS SDK v4+ or Python SDK v3+.
-                        You can create this evaluator now, but it will only run
-                        once your project ingests data with a compatible SDK.{" "}
-                        <a
-                          href="https://langfuse.com/docs/observability/sdk/upgrade-path"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-dark-blue font-bold hover:opacity-80"
-                        >
-                          Learn more
-                        </a>
-                        .
-                      </span>
-                    </div>
-                  </Alert.Description>
-                </Alert>
+                <Banner
+                  variant="warning"
+                  title="Please verify your SDK version"
+                  actions={[
+                    {
+                      text: "Learn more",
+                      href: "https://langfuse.com/docs/observability/sdk/upgrade-path",
+                    },
+                  ]}
+                >
+                  Code evaluators require JS SDK v4+ or Python SDK v3+. You can
+                  create this evaluator now, but it will only run once your
+                  project ingests data with a compatible SDK.
+                </Banner>
               </div>
             )}
           <FormField

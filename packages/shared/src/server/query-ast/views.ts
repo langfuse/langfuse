@@ -62,6 +62,7 @@ class VirtualViewPlugin implements KyselyPlugin {
     for (const name of viewNames) {
       const def = this.views.get(name)!;
       const inner = def.build().toOperationNode();
+      // `with <name> as (<view body>), …`, appended after existing CTEs.
       const cte = CommonTableExpressionNode.create(
         CommonTableExpressionNameNode.create(name),
         inner,

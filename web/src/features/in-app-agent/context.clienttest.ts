@@ -118,6 +118,11 @@ describe("getInAppAgentScreenContextDescription", () => {
       expected: { type: "datasets-list" },
     },
     {
+      name: "topics page with a selected map and facet",
+      url: "/project/project-1/topics?map=rule%3Arule-1&topicFacet=facet-1",
+      expected: { type: "topics" },
+    },
+    {
       name: "unknown project page",
       url: "/project/project-1/scores",
       expected: { type: "page" },

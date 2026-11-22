@@ -13,17 +13,17 @@ use prost::Message;
 use serde_json::Value;
 use std::{
     io::{BufRead, BufReader},
-    process::{Child, Command, Stdio},
+    process::{Child, Command, ExitStatus, Stdio},
     sync::{Arc, Mutex, mpsc},
-    thread::JoinHandle,
     time::{Duration, Instant},
 };
+use tokio::task::JoinHandle;
 
 struct Gateway {
     child: Child,
     url: String,
     logs: Arc<Mutex<Vec<Value>>>,
-    reader: Option<JoinHandle<()>>,
+    reader: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Gateway {
@@ -32,13 +32,22 @@ impl Gateway {
         clippy::expect_used,
         reason = "test helper outside #[test]; a panic fails the test"
     )]
-    fn start(endpoint: &str, shutdown_seconds: &str, level: &str) -> Self {
+    fn start(
+        endpoint: &str,
+        drain_seconds: &str,
+        telemetry_shutdown_seconds: &str,
+        level: &str,
+    ) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()
             .env("LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS", "127.0.0.1:0")
             .env(
-                "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS",
-                shutdown_seconds,
+                "LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS",
+                drain_seconds,
+            )
+            .env(
+                "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS",
+                telemetry_shutdown_seconds,
             )
             .env("LANGFUSE_LOG_FORMAT", "json")
             .env("LANGFUSE_LOG_LEVEL", level)
@@ -117,7 +126,7 @@ impl Gateway {
         clippy::expect_used,
         reason = "test helper outside #[test]; a panic fails the test"
     )]
-    async fn stop(&mut self) {
+    async fn terminate(&mut self) -> ExitStatus {
         assert!(
             Command::new("/bin/kill")
                 .args(["-TERM", &self.child.id().to_string()])
@@ -125,11 +134,10 @@ impl Gateway {
                 .unwrap()
                 .success()
         );
-        tokio::time::timeout(Duration::from_secs(6), async {
+        let status = tokio::time::timeout(Duration::from_secs(6), async {
             loop {
                 if let Some(status) = self.child.try_wait().unwrap() {
-                    assert!(status.success());
-                    break;
+                    break status;
                 }
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
@@ -137,18 +145,20 @@ impl Gateway {
         .await
         .expect("gateway shutdown deadline");
         self.reader.take().unwrap().join().unwrap();
+        status
+    }
+
+    async fn stop(&mut self) {
+        assert!(self.terminate().await.success());
     }
 }
 
-impl Drop for Gateway {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-#[tokio::test]
-async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
+/// Record every OTLP export request as `(path, body)`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "test helper outside #[test]; a panic fails the test"
+)]
+async fn start_collector() -> (String, Arc<Mutex<Vec<(String, Bytes)>>>, JoinHandle<()>) {
     let captured = Arc::new(Mutex::new(Vec::new()));
     let receiver = captured.clone();
     let app = Router::new().route(
@@ -168,7 +178,67 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    let mut gateway = Gateway::start(&endpoint, "5", "debug");
+    (endpoint, captured, server)
+}
+
+/// Wait until the gateway has read everything `client` sent it.
+///
+/// Graceful shutdown stops accepting and closes connections whose HTTP version
+/// is still being sniffed, so a connection only holds the drain open once the
+/// gateway has accepted it and parsed its first bytes. Both happen out of sight
+/// of the client; the kernel's socket queues show when they are done: the
+/// client's send queue empties when loopback delivers, and the gateway's
+/// receive queue empties when it reads.
+#[cfg(target_os = "linux")]
+#[expect(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test helper outside #[test]; a panic fails the test"
+)]
+async fn wait_until_gateway_read(client: &tokio::net::TcpStream) {
+    let client_port = client.local_addr().unwrap().port();
+    let gateway_port = client.peer_addr().unwrap().port();
+    let queued = |table: &str, local: u16, remote: u16| {
+        table.lines().skip(1).find_map(|row| {
+            let columns: Vec<&str> = row.split_whitespace().collect();
+            let port = |address: &str| {
+                u16::from_str_radix(address.rsplit(':').next().unwrap(), 16).unwrap()
+            };
+            (port(columns[1]) == local && port(columns[2]) == remote).then(|| {
+                let (tx, rx) = columns[4].split_once(':').unwrap();
+                (
+                    u64::from_str_radix(tx, 16).unwrap(),
+                    u64::from_str_radix(rx, 16).unwrap(),
+                )
+            })
+        })
+    };
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let table = std::fs::read_to_string("/proc/net/tcp").unwrap();
+            let unsent = queued(&table, client_port, gateway_port).map(|(tx, _)| tx);
+            let unread = queued(&table, gateway_port, client_port).map(|(_, rx)| rx);
+            if unsent == Some(0) && unread == Some(0) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("gateway reads the stalled request");
+}
+
+impl Drop for Gateway {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+#[tokio::test]
+async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
+    let (endpoint, captured, server) = start_collector().await;
+    let mut gateway = Gateway::start(&endpoint, "5", "5", "debug");
     let request_ids = [gateway.request(true).await, gateway.request(false).await];
     assert_ne!(request_ids[0], request_ids[1]);
     assert_eq!(
@@ -391,10 +461,41 @@ async fn an_unresponsive_collector_does_not_extend_the_shutdown_deadline() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    let mut gateway = Gateway::start(&endpoint, "1", "info");
+    let mut gateway = Gateway::start(&endpoint, "1", "1", "info");
     gateway.request(true).await;
     let start = Instant::now();
     gateway.stop().await;
     assert!(start.elapsed() < Duration::from_secs(2));
     server.abort();
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_drain_timeout_leaves_the_telemetry_flush_its_own_budget() {
+    use tokio::io::AsyncWriteExt;
+
+    let (endpoint, captured, server) = start_collector().await;
+    let mut gateway = Gateway::start(&endpoint, "1", "3", "info");
+    gateway.request(true).await;
+    // A request whose headers never complete keeps its connection open past the drain deadline.
+    let mut stalled = tokio::net::TcpStream::connect(gateway.url.trim_start_matches("http://"))
+        .await
+        .unwrap();
+    stalled
+        .write_all(b"POST /openai/v1/responses HTTP/1.1\r\nhost: gateway\r\n")
+        .await
+        .unwrap();
+    wait_until_gateway_read(&stalled).await;
+    let start = Instant::now();
+    assert!(!gateway.terminate().await.success());
+    assert!(start.elapsed() >= Duration::from_secs(1));
+    server.abort();
+    assert!(
+        captured
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(path, _)| path == "/v1/metrics"),
+        "metrics export only on shutdown, so they must flush after the drain timed out"
+    );
 }

@@ -5,12 +5,15 @@ import {
   duplicateNameIndexes,
   PricingTierConditionSchema,
   PricingTierInputSchema,
+  type ModelScope,
   tiersMissingConditions,
   validatePricingTiers,
 } from "@langfuse/shared";
 
-const USAGE_TYPE_PATTERN = /^[a-zA-Z0-9_-]+$/;
-const UsageTypeSchema = z.string().regex(USAGE_TYPE_PATTERN);
+// Usage keys follow the shared write contract (`PricingTierInputSchema`), which
+// accepts any string. Narrowing them here makes rows written through the
+// public API unreadable, and one such row fails the whole model list.
+const UsageTypeSchema = z.string();
 const PriceSchema = z.number().nonnegative();
 const TokenizerSchema = z.enum(["openai", "claude"]).nullish();
 // Input version: allows optional prices for form
@@ -42,14 +45,7 @@ const FormUsageTypeSchema = z.object({
   key: z.string(),
   // Trimmed here, so every later check and the submitted payload see one
   // normalised name. The value in the input is untouched while typing.
-  name: z
-    .string()
-    .trim()
-    .min(1, "Usage type required")
-    .regex(
-      USAGE_TYPE_PATTERN,
-      "Only letters, numbers, hyphens and underscores",
-    ),
+  name: z.string().trim().min(1, "Usage type required"),
 });
 
 export type FormUsageType = z.infer<typeof FormUsageTypeSchema>;
@@ -68,6 +64,7 @@ export type FormPricingTier = z.input<typeof FormPricingTierSchema>;
 
 export const GetModelResultSchema = z.object({
   id: z.string(),
+  scope: z.enum(["LANGFUSE", "ORGANIZATION", "PROJECT"] satisfies ModelScope[]),
   projectId: z.string().nullable(),
   modelName: z.string(),
   matchPattern: z.string(),

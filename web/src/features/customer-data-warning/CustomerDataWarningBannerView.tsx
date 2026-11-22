@@ -5,7 +5,7 @@ import {
 
 /**
  * Top-of-page strip for ClickHouse and Langfuse staff viewing a customer
- * project or organization through admin access. Same placement and shape as the preview
+ * project or organization through admin or support access. Same placement and shape as the preview
  * deployment strip, in amber so the two cannot be confused. It is not
  * dismissible.
  */

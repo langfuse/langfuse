@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { BLOB_STORAGE_REGION_REGEX } from "../../utils/stringChecks";
 import {
   isDnsCompatibleBucketName,
   type OutboundUrlValidationWhitelist,
   parseOutboundUrl,
-} from "../outbound-url";
+} from "../outbound-url/validation";
 
 export type S3VirtualHostTarget = {
   endpoint?: string | null;

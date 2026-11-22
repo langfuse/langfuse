@@ -40,6 +40,14 @@ const codeVariants = cva(
         true: "line-clamp-6",
         false: "block",
       },
+      // Keeps text clear of the floating body actions; unwrapped lines can scroll out from under them.
+      reservedButtons: {
+        0: null,
+        1: "pr-10",
+        2: "pr-17",
+        3: "pr-24",
+        4: "pr-31",
+      },
     },
     defaultVariants: {
       wrap: true,
@@ -55,7 +63,14 @@ const actionGroupVariants = cva(
     variants: {
       placement: {
         header: null,
-        body: "pt-2 pr-2",
+        // Floats over the code so long lines keep the full width; top-2 centers the
+        // button on the first text line (py-3 plus half of the 16px line height).
+        body: "absolute top-2 right-1.5 rounded-md",
+      },
+      surface: {
+        filled: "bg-surface-section",
+        outline: "bg-background",
+        plain: "bg-background",
       },
       // Copy feedback stays visible even when the pointer has already left.
       isPinned: {
@@ -63,10 +78,21 @@ const actionGroupVariants = cva(
         false: "opacity-0",
       },
     },
+    compoundVariants: [
+      {
+        // Invisible controls over the code must not swallow clicks on the text below.
+        placement: "body",
+        isPinned: false,
+        class:
+          "pointer-events-none group-hover/codesection:pointer-events-auto focus-within:pointer-events-auto pointer-coarse:pointer-events-auto",
+      },
+    ],
   },
 );
 
 type CodeSectionAction = {
+  /** Stable React key; set it when `label` changes so focus survives the change. */
+  id?: string;
   icon: IconComponent;
   label: string;
   onClick: () => void;
@@ -86,6 +112,10 @@ type CodeSectionProps = {
   actions?: CodeSectionAction[];
   /** Shown next to the check icon after copying. */
   copiedMessage?: string;
+  /** Called after the built-in copy button wrote `content` to the clipboard. */
+  onAfterCopy?: () => void;
+  /** False hides the copy button, e.g. while the body is a masked or placeholder value. */
+  isCopyable?: boolean;
   /** Clamps the body to six lines and adds an expand/collapse control. */
   isCollapsible?: boolean;
   defaultCollapsed?: boolean;
@@ -100,6 +130,8 @@ export function CodeSection({
   variant = "filled",
   actions = [],
   copiedMessage,
+  onAfterCopy,
+  isCopyable = true,
   isCollapsible = false,
   defaultCollapsed = false,
   shouldWrapLines = true,
@@ -114,15 +146,22 @@ export function CodeSection({
   const handleCopy = async () => {
     try {
       await copy(content);
+      onAfterCopy?.();
     } catch {
       // Clipboard writes can be rejected when the browser denies permission.
     }
   };
 
+  const bodyButtonCount = Math.min(
+    actions.length + (isCollapsible ? 1 : 0) + (isCopyable ? 1 : 0),
+    4,
+  ) as 0 | 1 | 2 | 3 | 4;
+
   const actionGroup = (
     <div
       className={actionGroupVariants({
         placement: title ? "header" : "body",
+        surface: title ? undefined : variant,
         isPinned: isCopied,
       })}
     >
@@ -135,7 +174,7 @@ export function CodeSection({
         </span>
       ) : null}
       {actions.map((action) => (
-        <Tooltip key={action.label} label={action.label}>
+        <Tooltip key={action.id ?? action.label} label={action.label}>
           {({ getTriggerProps }) => (
             <IconButton
               {...getTriggerProps()}
@@ -163,18 +202,20 @@ export function CodeSection({
           )}
         </Tooltip>
       ) : null}
-      <Tooltip label={isCopied ? "Copied" : "Copy"}>
-        {({ getTriggerProps }) => (
-          <IconButton
-            {...getTriggerProps()}
-            icon={isCopied ? Check : CopyIcon}
-            label="Copy to clipboard"
-            size="sm"
-            variant="ghost"
-            onClick={handleCopy}
-          />
-        )}
-      </Tooltip>
+      {isCopyable ? (
+        <Tooltip label={isCopied ? "Copied" : "Copy"}>
+          {({ getTriggerProps }) => (
+            <IconButton
+              {...getTriggerProps()}
+              icon={isCopied ? Check : CopyIcon}
+              label="Copy to clipboard"
+              size="sm"
+              variant="ghost"
+              onClick={handleCopy}
+            />
+          )}
+        </Tooltip>
+      ) : null}
     </div>
   );
 
@@ -193,6 +234,7 @@ export function CodeSection({
           className={codeVariants({
             wrap: shouldWrapLines,
             collapsed: isCollapsed,
+            reservedButtons: title ? 0 : bodyButtonCount,
           })}
           dir="auto"
           style={{ unicodeBidi: "plaintext" }}

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState, type ComponentProps, type ReactNode } from "react";
 import {
   ActionButton,
@@ -17,17 +16,18 @@ import { SearchInput } from "@/src/components/design-system/SearchInput/SearchIn
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { SettingsTableCard } from "@/src/components/layouts/SettingsTableCard";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/DataTableColumnVisibilityFilter";
+import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/DataTableSelectAllBanner";
+import { isSelectAllBannerVisible } from "@/src/components/table/data-table-multi-select-actions/isSelectAllBannerVisible";
+import { type MultiSelect } from "@/src/components/table/data-table-toolbar";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Rows3 } from "@langfuse/icons";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 
 export type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
   ? TAction extends ActionButtonProps
@@ -51,6 +51,8 @@ type SettingsTableFilter =
       value: string;
       onChange: (value: string) => void;
       muted?: boolean;
+      /** The trigger's minimum width in px; the open menu is as wide as the trigger, so this also widens the menu. */
+      minWidth?: number;
     });
 
 type SettingsTableFilterBase = {
@@ -81,6 +83,8 @@ export type SettingsTableProps<TData extends object> = Omit<
     onRowHeightChange: (height: RowHeight) => void;
   };
   pagination?: PaginationBarProps;
+  /** Offers selecting every matching row across pages once the whole first page is selected. */
+  multiSelect?: MultiSelect;
 };
 
 export function SettingsTable<TData extends object>({
@@ -94,6 +98,7 @@ export function SettingsTable<TData extends object>({
   toolbarActions,
   rowHeightControl,
   pagination,
+  multiSelect,
   ...tableProps
 }: SettingsTableProps<TData>) {
   const capture = usePostHogClientCapture();
@@ -165,7 +170,7 @@ export function SettingsTable<TData extends object>({
             ))}
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {columnVisibilityKey && (
               <DataTableColumnVisibilityFilter
                 columns={columns}
@@ -238,6 +243,10 @@ export function SettingsTable<TData extends object>({
         </div>
       )}
 
+      {multiSelect && isSelectAllBannerVisible(multiSelect) && (
+        <DataTableSelectAllBanner {...multiSelect} />
+      )}
+
       {showEmptyState ? (
         emptyState
       ) : (
@@ -262,7 +271,7 @@ function SettingsTableFilterInput({ filter }: { filter: SettingsTableFilter }) {
 
   if (filter.type === "select") {
     return (
-      <div className="grid shrink-0">
+      <div className="grid shrink-0" style={{ minWidth: filter.minWidth }}>
         {/* The open menu is as wide as the trigger, so the trigger is sized to
             its longest option rather than to the current selection. */}
         {filter.options.map((option) => (

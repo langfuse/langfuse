@@ -1,9 +1,65 @@
-import { expect, fn, userEvent, within } from "storybook/test";
+import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { GatewaySetupGuide } from "./GatewaySetupGuide";
+import { useTeamInviteEmails } from "@/src/features/ai-gateway/hooks/useTeamInviteEmails";
+import type { TeamInviteMember } from "@/src/features/ai-gateway/types/teamInviteMembers";
+import {
+  GatewaySetupGuide,
+  type GatewaySetupGuideProps,
+} from "./GatewaySetupGuide";
 
-const meta = preview.meta({ component: GatewaySetupGuide });
+const organizationMembers = [
+  { id: "user-1", name: "Ada Lovelace", email: "ada@company.com", image: null },
+  {
+    id: "user-2",
+    name: "Grace Hopper",
+    email: "grace@company.com",
+    image: null,
+  },
+  { id: "user-3", name: null, email: "alan@company.com", image: null },
+  {
+    id: "user-4",
+    name: "Edsger Dijkstra",
+    email: "edsger@company.com",
+    image: null,
+  },
+];
+
+/**
+ * Holds the invitee list like the connected page does. `organizationMembers`
+ * are the organization; every other address counts as someone to invite.
+ */
+function GatewaySetupGuideWithInvitees({
+  notifiableMembers,
+  ...props
+}: Omit<GatewaySetupGuideProps, "recipients"> & {
+  notifiableMembers: GatewaySetupGuideProps["recipients"]["notifiableMembers"];
+}) {
+  const invitees = useTeamInviteEmails();
+  const membersByEmail = new Map(
+    organizationMembers.map((member) => [
+      member.email,
+      { name: member.name, isSelf: false, canUseGateway: true },
+    ]),
+  );
+  const inviteeMembers = new Map<string, TeamInviteMember | null>(
+    invitees.emails.map((email) => [email, membersByEmail.get(email) ?? null]),
+  );
+
+  return (
+    <GatewaySetupGuide
+      {...props}
+      recipients={{
+        notifiableMembers,
+        suggestedMembers: organizationMembers,
+        invitees,
+        inviteeMembers,
+      }}
+    />
+  );
+}
+
+const meta = preview.meta({ component: GatewaySetupGuideWithInvitees });
 
 const projects = [
   { id: "project-production", name: "Production" },
@@ -26,27 +82,6 @@ const savedConfig = {
 const notifiableMembers = {
   isEmailConfigured: true,
   count: 12,
-  preview: [
-    {
-      id: "user-1",
-      name: "Ada Lovelace",
-      email: "ada@company.com",
-      image: null,
-    },
-    {
-      id: "user-2",
-      name: "Grace Hopper",
-      email: "grace@company.com",
-      image: null,
-    },
-    { id: "user-3", name: null, email: "alan@company.com", image: null },
-    {
-      id: "user-4",
-      name: "Edsger Dijkstra",
-      email: "edsger@company.com",
-      image: null,
-    },
-  ],
 };
 
 export const ChoosingIngestion = meta.story({
@@ -58,10 +93,20 @@ export const ChoosingIngestion = meta.story({
     isSavingIngestion: false,
     onSaveIngestion: fn(async () => true),
     onAddCredential: fn(),
+    budgetStep: {
+      budgets: { organization: null, user: null },
+      unavailableReason: undefined,
+      isSaving: false,
+      errorMessage: null,
+      onSave: fn(),
+      onSkip: fn(),
+    },
     notifiableMembers,
     isInviting: false,
     onInvite: fn(async () => null),
     onFinish: fn(),
+    onCreateKey: fn(),
+    onSkipKey: fn(),
   },
 });
 
@@ -73,11 +118,31 @@ export const AddingCredential = meta.story({
   },
 });
 
-export const InvitingTeam = meta.story({
+export const SettingBudgets = meta.story({
   args: {
     ...AddingCredential.input.args,
     activeStep: 3,
     firstConnection: { provider: "OPENAI" },
+  },
+});
+
+export const SettingBudgetsPrefilled = meta.story({
+  args: {
+    ...SettingBudgets.input.args,
+    budgetStep: {
+      ...SettingBudgets.input.args.budgetStep,
+      budgets: {
+        organization: { interval: "MONTHLY", limitUsd: 1000 },
+        user: { interval: "MONTHLY", limitUsd: 50 },
+      },
+    },
+  },
+});
+
+export const InvitingTeam = meta.story({
+  args: {
+    ...SettingBudgets.input.args,
+    activeStep: 4,
   },
 });
 
@@ -88,33 +153,9 @@ export const InvitingTeamWithoutEmail = meta.story({
   },
 });
 
-export const TestRetryDoesNotNotifyAgain = meta.story({
-  name: "(Test) Retrying failed invites does not notify members again",
+export const CreatingKey = meta.story({
   args: {
     ...InvitingTeam.input.args,
-    onInvite: fn(async () => ({
-      invitedCount: 0,
-      failed: [{ email: "grace@company.com", message: "Already a member" }],
-      notifiedCount: 12,
-    })),
-  },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.type(
-      canvas.getByRole("textbox", { name: "Email addresses" }),
-      "grace@company.com ",
-    );
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Send 1 invite" }),
-    );
-
-    await expect(args.onInvite).toHaveBeenCalledWith({
-      emails: ["grace@company.com"],
-      notifyMembers: true,
-    });
-    await expect(
-      await canvas.findByText("Some invitations were not sent"),
-    ).toBeVisible();
-    await expect(canvas.queryByRole("switch")).not.toBeInTheDocument();
+    activeStep: 5,
   },
 });

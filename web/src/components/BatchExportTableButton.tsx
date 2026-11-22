@@ -1,16 +1,7 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuPortal,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { Download, Info } from "@langfuse/icons";
+import { Download } from "@langfuse/icons";
 import {
   type BatchExportTableName,
   exportOptions,
@@ -20,7 +11,7 @@ import {
 } from "@langfuse/shared";
 import React from "react";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -29,6 +20,7 @@ export type BatchExportTableButtonProps = {
   filterState: any;
   searchQuery?: any;
   searchType?: any;
+  disabledReason?: string;
 };
 
 export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
@@ -89,9 +81,25 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   const warningMessage = getWarningMessage();
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <DropdownMenu
+      title="Export"
+      description={warningMessage ?? undefined}
+      emptyText={props.disabledReason}
+      width="wide"
+      items={
+        props.disabledReason
+          ? []
+          : Object.entries(exportOptions).map(([key, options]) => ({
+              type: "item",
+              id: key,
+              title: `As ${options.label}`,
+              onClick: () => handleExport(key as BatchExportFileFormat),
+            }))
+      }
+    >
+      {({ getTriggerProps }) => (
         <Button
+          {...getTriggerProps()}
           variant="ghost"
           size="icon"
           title="Export"
@@ -103,30 +111,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
             <Download size="base" color="default" />
           )}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuPortal>
-        <DropdownMenuContent className="w-80">
-          <DropdownMenuLabel>Export</DropdownMenuLabel>
-          {warningMessage && (
-            <div className="text-muted-foreground px-2 py-1.5 text-xs">
-              <div className="flex items-start gap-1.5">
-                <Info size="base" __rawClassName="mt-0.5" />
-                <span>{warningMessage}</span>
-              </div>
-            </div>
-          )}
-          <DropdownMenuSeparator />
-          {Object.entries(exportOptions).map(([key, options]) => (
-            <DropdownMenuItem
-              key={key}
-              className="capitalize"
-              onClick={() => handleExport(key as BatchExportFileFormat)}
-            >
-              as {options.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenuPortal>
+      )}
     </DropdownMenu>
   );
 };

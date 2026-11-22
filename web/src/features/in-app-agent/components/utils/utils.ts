@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -54,6 +54,8 @@ export function getInAppAgentToolDisplayName(toolName: string): string {
 const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   addDashboardPlacement: "Adding widget to dashboard",
   bash: "Running command",
+  batchCreateAnnotationQueueItems: "Adding to annotation queue",
+  batchCreateScores: "Creating scores",
   batchUpsertDatasetItems: "Saving dataset items",
   configureExternalMediaStorage: "Configuring external media storage",
   createAnnotationQueueAssignment: "Assigning annotation queue",
@@ -88,6 +90,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   queryMetrics: "Checking metrics",
   read: "Reading file",
   runBatchEvaluation: "Running batch evaluation",
+  setDefaultEvaluationModel: "Setting default evaluation model",
   submitFeedback: "Submitting user feedback",
   testEvaluator: "Testing evaluator",
   testExternalMediaStorage: "Testing external media storage",
