@@ -17,6 +17,7 @@ export function NewMapDialogView({
   onFacetIdsChange,
   disabledReason,
   samplingField,
+  costEstimateField,
   canStart,
   starting,
   errors,
@@ -53,6 +54,7 @@ export function NewMapDialogView({
           />
           {filterField}
           {samplingField}
+          {disabledReason ? null : costEstimateField}
           {disabledReason ? (
             <div className="bg-light-yellow text-dark-yellow rounded-md px-4 py-2.5 text-sm">
               {disabledReason} Create a snapshot instead.
@@ -103,6 +105,8 @@ type NewMapDialogViewProps = {
   disabledReason?: string;
   /** The share of new matching traces the map analyzes. */
   samplingField: ReactNode;
+  /** Starts and shows a cost estimate for the selected facets and filter. */
+  costEstimateField?: ReactNode;
   canStart: boolean;
   starting: boolean;
   errors: string[];

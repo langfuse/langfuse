@@ -12,6 +12,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
+import { TopicCostEstimate } from "./TopicCostEstimate";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
@@ -164,6 +165,9 @@ function TopicSetupSession({
   });
   // The rule a save created; going Back and Next again must update it, not add one.
   const [savedRuleId, setSavedRuleId] = useState(settings.rule?.id);
+  const [savedFacetIds, setSavedFacetIds] = useState(
+    settings.rule?.facetIds ?? [],
+  );
   // Counted once per step 2 visit; the slider only rescales the result.
   const counts = api.topics.setupTraceCounts.useQuery(
     { projectId, filter: draft.filter },
@@ -240,7 +244,10 @@ function TopicSetupSession({
         ? { ruleId: savedRuleId }
         : { name: DEFAULT_TOPIC_RULE_NAME }),
     });
-    if (saved) setSavedRuleId(saved.id);
+    if (saved) {
+      setSavedRuleId(saved.id);
+      setSavedFacetIds(saved.facetIds);
+    }
     return saved?.id ?? savedRuleId;
   }
 
@@ -321,6 +328,18 @@ function TopicSetupSession({
       onFilterChange={changeFilter}
       traceFilter={traceFilter}
       pastCount={pastCount}
+      costEstimate={
+        <TopicCostEstimate
+          projectId={projectId}
+          filter={draft.filter}
+          facetIds={savedFacetIds}
+          samplingPercent={draft.samplePercent}
+          backfillTraces={
+            pastCount.status === "ready" ? pastCount.matched : null
+          }
+          source="setup"
+        />
+      }
       onQuestionEnabled={(name, enabled) =>
         setDraft((current) => ({
           ...current,

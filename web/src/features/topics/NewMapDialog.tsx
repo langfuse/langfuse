@@ -2,7 +2,11 @@ import { useForm } from "react-hook-form";
 import type { FilterState } from "@langfuse/shared";
 import { topicRuleFilterError, type TopicFacet } from "@langfuse/shared/topics";
 import { api } from "@/src/utils/api";
-import { TOPIC_SETUP_BACKFILL_DAYS } from "./topic-setup-flow";
+import {
+  TOPIC_SETUP_BACKFILL_DAYS,
+  TOPIC_SETUP_BACKFILL_LIMIT,
+} from "./topic-setup-flow";
+import { TopicCostEstimate } from "./TopicCostEstimate";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
@@ -102,6 +106,25 @@ export function NewMapDialog({
               : null
           }
           tooltip="Share of new matching traces this map analyzes."
+        />
+      }
+      costEstimateField={
+        <TopicCostEstimate
+          projectId={projectId}
+          filter={filter}
+          facetIds={filterError ? [] : facetIds}
+          samplingPercent={samplingPercent}
+          backfillTraces={
+            traceCounts.data
+              ? Math.min(
+                  TOPIC_SETUP_BACKFILL_LIMIT,
+                  Math.round(
+                    (traceCounts.data.finished30d * samplingPercent) / 100,
+                  ),
+                )
+              : null
+          }
+          source="new_map"
         />
       }
       canStart={

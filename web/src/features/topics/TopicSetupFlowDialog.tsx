@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { TopicSliceFields } from "./TopicSliceFields";
@@ -59,6 +59,8 @@ export type TopicSetupFlowDialogProps = {
   busy: boolean;
   canWrite: boolean;
   clustering: JudgeModel | null;
+  /** Shown in the Review step below the trace summary. */
+  costEstimate?: ReactNode;
   connectionCaption: string;
   /** False when the project has no AI connection yet; models cannot be picked. */
   hasConnection: boolean;
@@ -102,6 +104,7 @@ export function TopicSetupFlowDialog({
   busy,
   canWrite,
   clustering,
+  costEstimate,
   connectionCaption,
   hasConnection,
   canAddConnection,
@@ -376,6 +379,7 @@ export function TopicSetupFlowDialog({
                   { value: backfillLine(pastCount) },
                 ]}
               />
+              {costEstimate}
               {notice ? <Banner variant="warning">{notice}</Banner> : null}
               <div className="bg-light-blue text-dark-blue mt-1 flex flex-col gap-1.5 rounded-md px-4 py-2.5 text-sm">
                 {pastCount.status !== "ready" || pastCount.matched > 0 ? (
