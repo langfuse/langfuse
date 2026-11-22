@@ -195,6 +195,80 @@ export async function getTopicSetupTraceBounds(input: {
 }
 
 /**
+ * One pass for the Topics cost estimate: how many traces finished in the last
+ * 7 days and a seeded sample of them with each trace's start bounds and size.
+ * Reads one hour before the window so traces that started there are left out
+ * rather than counted with a cut-off start.
+ */
+export async function getTopicCostEstimateSample(input: {
+  projectId: string;
+  idleMs: number;
+  now: Date;
+  limit: number;
+  seed: number;
+  matching?: TopicSetupMatching;
+}) {
+  const rows = await queryClickhouse<{
+    finished: string;
+    sample: Array<[string, string, string, string, string, string]>;
+  }>({
+    query: `
+      SELECT
+        count() AS finished,
+        groupArraySample({limit: UInt32}, {seed: UInt64})(
+          (trace_id, toString(min_start), toString(max_start), toString(rows), toString(event_bytes), trace_name)
+        ) AS sample
+      FROM (
+        SELECT
+          trace_id,
+          max(event_ts) AS last_ts,
+          toUnixTimestamp64Milli(min(start_time)) AS min_start,
+          toUnixTimestamp64Milli(max(start_time)) AS max_start,
+          count() AS rows,
+          sum(event_bytes) AS event_bytes,
+          anyIf(trace_name, trace_name != '') AS trace_name
+        FROM events_core
+        WHERE project_id = {projectId: String}
+          AND start_time >= {now: DateTime64(3)} - INTERVAL 7 DAY - INTERVAL 1 HOUR
+          AND start_time <= {now: DateTime64(3)}
+          AND trace_id != ''
+          AND is_deleted = 0
+          AND NOT startsWith(environment, {internalEnvironmentPrefix: String})
+          AND environment != {publicLlmJudgeEnvironment: String}
+          ${input.matching ? `AND trace_id IN (${input.matching.query})` : ""}
+        GROUP BY trace_id
+        HAVING last_ts < {now: DateTime64(3)} - toIntervalMillisecond({idleMs: UInt32})
+          AND min_start >= toUnixTimestamp64Milli({now: DateTime64(3)} - INTERVAL 7 DAY)
+      )`,
+    params: {
+      ...input.matching?.params,
+      ...topicSetupParams(input.projectId, input.idleMs, input.now),
+      limit: input.limit,
+      seed: input.seed,
+    },
+    tags: { route: "topics-cost-estimate-sample", projectId: input.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+    clickhouseSettings: {
+      max_execution_time: TOPIC_SETUP_SELECTION_TIMEOUT_SECONDS,
+    },
+  });
+  const row = rows[0];
+  return {
+    finishedTraces: Number(row?.finished ?? 0),
+    traces: (row?.sample ?? []).map(
+      ([traceId, minStart, maxStart, eventRows, eventBytes, name]) => ({
+        traceId,
+        minStart: Number(minStart),
+        maxStart: Number(maxStart),
+        rows: Number(eventRows),
+        eventBytes: Number(eventBytes),
+        name: name || null,
+      }),
+    ),
+  };
+}
+
+/**
  * Stored trace names of the last 7 days, most used first. Unlike the events
  * filter options, no root observation name stands in for a missing one, since
  * rule matching reads only the stored value.
