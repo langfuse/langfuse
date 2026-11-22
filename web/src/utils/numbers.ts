@@ -26,6 +26,12 @@ export const numberFormatter = (
 };
 
 const durationDivisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
+const durationMaximumFractionDigits = 2;
+
+const durationRoundingFormatter = Intl.NumberFormat("en-US", {
+  maximumFractionDigits: durationMaximumFractionDigits,
+  useGrouping: false,
+});
 
 const durationFormatters = [
   "millisecond",
@@ -40,7 +46,7 @@ const durationFormatters = [
     unitDisplay: "narrow",
     notation: "compact",
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: durationMaximumFractionDigits,
   }),
 );
 
@@ -52,7 +58,21 @@ const selectDurationFormatter = (
     (acc, divisor, i) => (Math.abs(ms) >= divisor ? i : acc),
     0,
   );
-  return [durationFormatters[tier], ms / durationDivisors[tier]!];
+  const value = ms / durationDivisors[tier]!;
+  const nextTier = tier + 1;
+
+  if (nextTier < durationDivisors.length) {
+    const nextUnit = durationDivisors[nextTier]! / durationDivisors[tier]!;
+    const roundedValue = Number(
+      durationRoundingFormatter.format(Math.abs(value)),
+    );
+
+    if (roundedValue >= nextUnit) {
+      return [durationFormatters[nextTier], ms < 0 ? -1 : 1];
+    }
+  }
+
+  return [durationFormatters[tier], value];
 };
 
 export const latencyFormatter = (milliseconds?: number): string => {
