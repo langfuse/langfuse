@@ -753,7 +753,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         });
 
         expect(normalize).not.toHaveBeenCalled();
-        if (rate > 0 && ingestionEnabled && cloud) {
+        if (rate > 0 && ingestionEnabled) {
           expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
             projectId,
             expect.any(Array),
