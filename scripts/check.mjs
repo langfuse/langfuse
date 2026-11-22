@@ -173,6 +173,16 @@ export function createPlan(
   taskGraph,
   exists = existsSync,
 ) {
+  return planChecks(
+    files,
+    options,
+    base,
+    () => ({ packages, taskGraph }),
+    exists,
+  );
+}
+
+function planChecks(files, options, base, getWorkspace, exists = existsSync) {
   const commands = [];
   const checks = new Set(
     (options.only ?? components).filter(
@@ -185,6 +195,7 @@ export function createPlan(
   );
   if (!options.all && codeFiles.length === 0) return commands;
 
+  const { packages, taskGraph } = getWorkspace();
   const changes = classifyChanges(codeFiles, packages, options, taskGraph);
   const packageChecks = planPackageChecks(
     codeFiles,
@@ -1118,8 +1129,7 @@ async function main() {
   const files = collectChanges(git, base);
   const output = createOutput();
   printHeader(files, options, output);
-  const { packages, taskGraph } = loadWorkspace(base);
-  const plan = createPlan(files, packages, options, base, taskGraph);
+  const plan = planChecks(files, options, base, () => loadWorkspace(base));
   if (plan.length === 0) {
     console.log(`No applicable checks (${elapsed(commandStartedAt)}).`);
     return;
