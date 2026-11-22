@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
@@ -15,7 +15,7 @@ import { Button } from "@/src/components/ui/button";
 import { Bot, Check, Code2 } from "@langfuse/icons";
 import { EvaluatorSelector } from "./EvaluatorSelector";
 import { EvalTemplateForm } from "./EvalTemplateForm";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {

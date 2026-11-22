@@ -4,12 +4,15 @@ import { useState } from "react";
 
 import { ErrorPage } from "@/src/components/error-page";
 import Page from "@/src/components/layouts/Page";
-import { DeleteMonitorButton } from "@/src/features/monitors/components/DeleteMonitorButton";
+import { Trash2 } from "@langfuse/icons";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { DeleteMonitorDialogController } from "@/src/features/monitors/components/DeleteMonitorDialogController/DeleteMonitorDialogController";
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
 import { invalidateMonitorQueriesAfterDelete } from "@/src/features/monitors/fns/invalidateMonitorQueriesAfterDelete";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, type APIError } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { type Monitor } from "@langfuse/shared/monitors";
@@ -77,24 +80,37 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
       withPadding
       headerProps={{
         ...getHeaderProps(monitor.projectId, liveName),
-        actionButtonsRight: canDelete ? (
-          <DeleteMonitorButton
-            monitorName={monitor.name}
-            deleting={deleteMonitor.isPending}
-            onDelete={async () => {
-              await deleteMonitor.mutateAsync({
-                projectId: monitor.projectId,
-                id: monitor.id,
-              });
-            }}
-          />
-        ) : undefined,
+        hideTitleRow: true,
       }}
     >
       <MonitorForm
         projectId={monitor.projectId}
         monitor={monitor}
         onNameChange={setLiveName}
+        secondaryAction={
+          canDelete && (
+            <DeleteMonitorDialogController
+              monitorName={monitor.name}
+              deleting={deleteMonitor.isPending}
+              onDelete={async () => {
+                await deleteMonitor.mutateAsync({
+                  projectId: monitor.projectId,
+                  id: monitor.id,
+                });
+              }}
+            >
+              {({ openDialog }) => (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  icon={Trash2}
+                  text="Delete alert"
+                  onClick={openDialog}
+                />
+              )}
+            </DeleteMonitorDialogController>
+          )
+        }
       />
     </Page>
   );

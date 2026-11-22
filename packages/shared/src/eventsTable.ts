@@ -1,4 +1,4 @@
-import { type ColumnDefinition } from "./tableDefinitions";
+import type { ColumnDefinition } from "./tableDefinitions/types";
 
 export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
 export const eventsTableIsRootObservationSqlForAlias = (alias: string) => {
@@ -37,7 +37,7 @@ export const normalizeEventsTraceName = (
   traceName: string | null | undefined,
 ): string | null => traceName || null;
 export const eventsTableTraceNameAggregationSqlForAlias = (alias: string) =>
-  `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, ${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> ''), ''))`;
+  `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, (${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> '')), ''))`;
 export const eventsTableTraceNameAggregationSql =
   eventsTableTraceNameAggregationSqlForAlias("e");
 
@@ -454,6 +454,13 @@ const eventsTableColsDefinition = [
     id: "commentContent",
     type: "string",
     internal: "", // handled by comment filter helpers
+  },
+  {
+    name: "Topics",
+    id: "topics",
+    type: "categoryOptions",
+    internal: "", // resolved to trace ids by the web topic filter
+    options: [], // to be added at runtime
   },
   {
     name: "Has Parent Observation",

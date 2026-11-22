@@ -1,7 +1,6 @@
 import type { FilterState } from "@langfuse/shared";
-import { AlertTriangle } from "@langfuse/icons";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 
 export function EvaluatorSavedRuleFilterPreview({
@@ -14,15 +13,12 @@ export function EvaluatorSavedRuleFilterPreview({
   return (
     <div className="space-y-2">
       {unsupportedReasons.size > 0 ? (
-        <Alert variant="warning" size="sm" icon={AlertTriangle}>
-          <Alert.Title>Some filters won&apos;t be included</Alert.Title>
-          <Alert.Description>
-            {unsupportedReasons.size} of {filter.length} sample{" "}
-            {filter.length === 1 ? "filter" : "filters"}{" "}
-            {unsupportedReasons.size === 1 ? "is" : "are"} only used for testing
-            and won&apos;t be included in this rule.
-          </Alert.Description>
-        </Alert>
+        <Banner variant="warning" title="Some filters won't be included">
+          {unsupportedReasons.size} of {filter.length} sample{" "}
+          {filter.length === 1 ? "filter" : "filters"}{" "}
+          {unsupportedReasons.size === 1 ? "is" : "are"} only used for testing
+          and won&apos;t be included in this rule.
+        </Banner>
       ) : null}
       <RuleFilterPills
         filter={filter}

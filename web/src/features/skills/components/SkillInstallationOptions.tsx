@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, useState, type ChangeEvent } from "react";
 import { SkillNameSchema } from "@langfuse/shared";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -91,7 +90,7 @@ export function SkillInstallationOptions({
 
 Follow the CLI setup and authentication guidance:
 https://github.com/langfuse/langfuse-cli
-Use @langfuse/cli@beta for skill installation.
+Use @langfuse/cli for skill installation.
 
 Langfuse host: ${JSON.stringify(host)}
 

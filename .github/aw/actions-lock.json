@@ -1,14 +1,9 @@
 {
   "entries": {
-    "docker/login-action@v4.6.0": {
-      "repo": "docker/login-action",
-      "version": "v4.6.0",
-      "sha": "dbcb813823bdd20940b903addbd779551569679f"
-    },
-    "github/gh-aw-actions/setup@v0.86.2": {
+    "github/gh-aw-actions/setup@v1.2.2": {
       "repo": "github/gh-aw-actions/setup",
-      "version": "v0.86.2",
-      "sha": "6aab9e5b5c91c615506061f09bedd81a23babe3c"
+      "version": "v1.2.2",
+      "sha": "53d0749e19424a918acd82b4d140264ce48f2f14"
     },
     "pnpm/setup@v2.1.0": {
       "repo": "pnpm/setup",

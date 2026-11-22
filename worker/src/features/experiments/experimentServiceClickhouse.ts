@@ -1,9 +1,11 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import {
   asRecord,
   convertEventRecordToObservationForEval,
   DatasetItemDomain,
   Prisma,
+  validateDatasetItem,
+  normalizeDatasetItemInput,
 } from "@langfuse/shared";
 import {
   ChatMessage,
@@ -36,12 +38,9 @@ import {
   validateAndSetupExperiment,
   type PromptExperimentConfig,
 } from "./utils";
-import {
-  validateDatasetItem,
-  normalizeDatasetItemInput,
-} from "@langfuse/shared";
+
 import { randomUUID } from "crypto";
-import { createW3CTraceId } from "../utils";
+import { createW3CTraceId } from "../utils/utilities";
 import { scheduleExperimentObservationEvals } from "./scheduleExperimentEvals";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 

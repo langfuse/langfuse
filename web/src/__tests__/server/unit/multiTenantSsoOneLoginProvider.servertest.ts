@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt } from "@langfuse/shared/encryption";
 import { describe, expect, it, vi } from "vitest";
 import { loadSsoProviders } from "@/src/ee/features/multi-tenant-sso/utils";

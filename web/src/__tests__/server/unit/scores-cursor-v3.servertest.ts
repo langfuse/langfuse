@@ -1,7 +1,7 @@
 import {
   EncodedScoresCursorV3,
   encodeCursorV3,
-} from "@/src/features/public-api/types/scores";
+} from "@langfuse/shared/src/server";
 
 describe("Scores v3 cursor", () => {
   it("encode → decode round-trip preserves v, lastTimestamp, lastId", () => {

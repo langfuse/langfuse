@@ -26,7 +26,7 @@ import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/helpers";
 
 export type ScoreConfigTableRow = {
   id: string;

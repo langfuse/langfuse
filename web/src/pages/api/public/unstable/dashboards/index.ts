@@ -11,7 +11,7 @@ import {
 import {
   createPublicDashboard,
   listPublicDashboards,
-} from "@/src/features/dashboard/server";
+} from "@/src/features/dashboard/server/public-dashboard-service";
 
 export default withUnstablePublicApiMiddlewares({
   GET: createUnstablePublicApiRoute({

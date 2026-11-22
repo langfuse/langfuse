@@ -4,7 +4,7 @@ import SessionsTable from "@/src/features/sessions/SessionsTable";
 import Page from "@/src/components/layouts/Page";
 import { SessionsOnboarding } from "@/src/components/onboarding/SessionsOnboarding";
 import { api } from "@/src/utils/api";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export default function SessionsPage() {
   const router = useRouter();
@@ -46,6 +46,7 @@ export default function SessionsPage() {
     <Page
       headerProps={{
         title: "Sessions",
+        divider: false,
         help: {
           description: (
             <>

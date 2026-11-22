@@ -10,6 +10,7 @@ import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarI
 import {
   createTopicTraceRegistry,
   filterTopicTraces,
+  topicTraceQuery,
   getTopicAssignment,
   selectTopicTraceFilters,
 } from "./topic-trace-filters";
@@ -136,7 +137,7 @@ describe("topic trace filtering", () => {
       "trace-one",
       "trace-two",
     ]);
-    expect(ids(filterTopicTraces(rows, filters, "REFUND POLICY"))).toEqual([
+    expect(ids(filterTopicTraces(rows, filters, "trace-one"))).toEqual([
       "trace-one",
     ]);
   });
@@ -181,16 +182,62 @@ describe("topic trace filtering", () => {
     ).toEqual(["trace-four", "trace-five", "trace-six"]);
   });
 
-  it("searches summary, topic name and trace ID as a literal case-insensitive phrase", () => {
+  it("searches topic names case-insensitively and trace IDs exactly, like the server", () => {
     expect(ids(filterTopicTraces(rows, [], "BILLING QUESTIONS"))).toEqual([
       "trace-one",
     ]);
-    expect(ids(filterTopicTraces(rows, [], "TRACE-FOUR"))).toEqual([
+    expect(ids(filterTopicTraces(rows, [], "trace-four"))).toEqual([
       "trace-four",
     ]);
-    expect(ids(filterTopicTraces(rows, [], "a*b"))).toEqual(["trace-one"]);
-    expect(filterTopicTraces(rows, [], "refund%policy")).toEqual([]);
-    expect(filterTopicTraces(rows, [], "questions refund")).toEqual([]);
+    expect(filterTopicTraces(rows, [], "TRACE-FOUR")).toEqual([]);
+    expect(filterTopicTraces(rows, [], "refund policy")).toEqual([]);
+  });
+
+  it("turns filters and search into the server query, or null when nothing can match", () => {
+    const topics = [
+      { id: "billing", name: "Billing questions" },
+      { id: "support", name: "Support" },
+    ];
+    const assignment = (operator: "any of" | "none of", value: string[]) => ({
+      column: "assignment",
+      type: "stringOptions" as const,
+      operator,
+      value,
+    });
+    expect(
+      topicTraceQuery(
+        [
+          {
+            column: "topicId",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["billing", "support"],
+          },
+          assignment("any of", ["no_topic"]),
+        ],
+        "billing",
+        topics,
+      ),
+    ).toEqual({
+      topicIds: { operator: "any of", values: ["billing"] },
+      statuses: {
+        operator: "any of",
+        values: ["not_applicable", "insufficient_input"],
+      },
+    });
+    expect(
+      topicTraceQuery([], "trace-1", topics, { assignedOnly: true }),
+    ).toEqual({ assigned: true, traceId: "trace-1" });
+    expect(
+      topicTraceQuery(
+        [
+          assignment("any of", ["assigned"]),
+          assignment("none of", ["assigned"]),
+        ],
+        null,
+        topics,
+      ),
+    ).toBeNull();
   });
 
   it("handles empty results, cleared filters and empty positive selections", () => {

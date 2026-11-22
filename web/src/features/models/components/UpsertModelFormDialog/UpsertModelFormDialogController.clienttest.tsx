@@ -43,7 +43,7 @@ vi.mock("@/src/features/notifications/showSuccessToast", () => ({
   showSuccessToast: vi.fn(),
 }));
 
-vi.mock("@/src/components/editor", () => ({
+vi.mock("@/src/components/editor/CodeMirrorEditor", () => ({
   CodeMirrorEditor: () => null,
 }));
 
@@ -92,6 +92,7 @@ const modelData = (
   pricingTiers: GetModelResult["pricingTiers"],
 ): GetModelResult => ({
   id: "model-1",
+  scope: "PROJECT",
   projectId: "p1",
   modelName: "gpt-realtime-2.1",
   matchPattern: "(?i)^(gpt-realtime-2.1)$",

@@ -1,4 +1,4 @@
-import { VERSION } from "@/src/constants";
+import { VERSION } from "@/src/constants/VERSION";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {

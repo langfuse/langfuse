@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import langfuseDashboards from "../constants/langfuse-dashboards.json";

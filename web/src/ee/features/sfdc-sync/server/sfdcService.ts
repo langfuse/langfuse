@@ -16,7 +16,8 @@ import {
  * Two endpoints, four logical events:
  *   - `/manage-user` — upsertUser (lead/contact) on user signup
  *   - org endpoint  — upsertOrg (type:"updateOrg") on org create and on plan
- *                     changes (Stripe webhook). Mulesoft ignores user fields
+ *                     changes (Stripe and ClickHouse Billing webhooks).
+ *                     Mulesoft ignores user fields
  *                     on updateOrg, so the payload is org-only; members are
  *                     linked exclusively via setUserRole.
  *                   — setUserRole (type:"setUserRole") on member add or role change
@@ -53,7 +54,14 @@ import {
  * never sent as a role — `setUserRole` syncs it as a removal instead, since
  * a NONE member must hold no org-member bridge in SFDC.
  */
-const LangfuseRole = z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]);
+const LangfuseRole = z.enum([
+  "OWNER",
+  "ADMIN",
+  "MEMBER",
+  "VIEWER",
+  "NONE",
+  "AI_GATEWAY",
+]);
 type LangfuseRole = z.infer<typeof LangfuseRole>;
 
 // The SFDC org-member role picklist allows only ADMIN and DEVELOPER.
@@ -62,6 +70,7 @@ const LANGFUSE_TO_SFDC_ROLE = {
   ADMIN: "ADMIN",
   MEMBER: "DEVELOPER",
   VIEWER: "DEVELOPER",
+  AI_GATEWAY: "DEVELOPER",
 } as const;
 
 /**

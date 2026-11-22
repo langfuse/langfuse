@@ -1,24 +1,13 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useLayoutEffect, useRef, useState } from "react";
-import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
 import { EntityTitle } from "@/src/components/EntityTitle";
-import {
-  DetailPageNav,
-  type ListEntry,
-} from "@/src/features/navigate-detail-pages";
+import { EntityTitleTabs } from "@/src/components/EntityTitleTabs";
+import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import type { ListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import {
   ExternalLink,
   Maximize2,
@@ -30,60 +19,18 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import {
   planPeekHeaderLayout,
   type PeekHeaderPlan,
-} from "@/src/components/table/peek/peekHeaderOverflow";
+} from "./peekHeaderOverflow";
 
-type PeekHeaderProps = {
-  itemType: LangfuseItemType;
-  title: string;
-  itemId: string;
-  detailNavigationKey?: string;
-  resolveDetailNavigationPath?: (entry: ListEntry) => string;
-  /** Item actions (star / publish / delete …) as the inline icon row. */
-  actions?: React.ReactNode;
-  /** The same actions as labeled rows for the overflow "…" menu. */
-  actionsMenu?: React.ReactNode;
-  /** Expand-to-max-width toggle. Desktop only; hidden on mobile. */
-  expand?: { isExpanded: boolean; onToggle: () => void };
-  /** Open the standalone detail page in a new browser tab. Optional. */
-  openInNewTab?: () => void;
-  onClose: () => void;
-};
-
-// The title keeps at least this much width before anything else collapses; the
-// type tile is fixed-width; the "…" trigger is an icon button. Tuned by eye —
-// planner `safety` covers inter-control gaps.
 const MIN_TITLE_PX = 240;
 const TILE_PX = 32;
 const MORE_BUTTON_PX = 36;
 const NAV_FALLBACK_PX = 68;
 
-const samePlan = (a: PeekHeaderPlan, b: PeekHeaderPlan) =>
-  a.foldActions === b.foldActions &&
-  a.foldOpenInTab === b.foldOpenInTab &&
-  a.navCompact === b.navCompact;
-
-const FULL: PeekHeaderPlan = {
-  foldActions: false,
-  foldOpenInTab: false,
-  navCompact: false,
-};
-
-// Header tooltips appear quickly and share one style (Radix Tooltip, not the
-// slow/inconsistent native `title`).
-
-/**
- * Visible peek chrome shared by the desktop sheet and the mobile drawer. The
- * accessible dialog title is provided (visually hidden) by each shell, so this
- * stays a plain view component that works inside either primitive.
- *
- * The header adapts to the PEEK's own width (measured, not screen breakpoints):
- * it keeps the title readable and, as the peek narrows, folds the trace actions
- * into a labeled "…" menu, compacts the prev/next nav, then folds open-in-tab
- * — see {@link planPeekHeaderLayout}.
- */
+/** Generic peek chrome for both desktop sheets and mobile drawers. */
 export function PeekHeader({
   itemType,
   title,
+  titleTabs,
   itemId,
   detailNavigationKey,
   resolveDetailNavigationPath,
@@ -92,19 +39,31 @@ export function PeekHeader({
   expand,
   openInNewTab,
   onClose,
-}: PeekHeaderProps) {
+}: {
+  itemType: LangfuseItemType;
+  title: string;
+  titleTabs?: React.ComponentProps<typeof EntityTitleTabs>;
+  itemId: string;
+  detailNavigationKey?: string;
+  resolveDetailNavigationPath?: (entry: ListEntry) => string;
+  actions?: React.ReactNode;
+  actionsMenu?: React.ReactNode;
+  expand?: { isExpanded: boolean; onToggle: () => void };
+  openInNewTab?: () => void;
+  onClose: () => void;
+}) {
+  const [isMenuOpen, setMenuOpen] = useState(false);
   const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
-  // The header width equals the peek width and so doesn't change when the
-  // controls settle (or data loads) after the first measurement — observe the
-  // control cluster too, whose width does change, to re-trigger the plan.
+  // Control widths can change without the peek itself resizing.
   const [clusterRef, clusterSize] = useElementSize<HTMLDivElement>();
+  const [titleTabsRef, titleTabsSize] = useElementSize<HTMLDivElement>();
+  const hasTitleTabs = Boolean(titleTabs);
   const actionsRef = useRef<HTMLDivElement>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLDivElement>(null);
-  // Cached widths survive a part being folded / collapsed (it can't be
-  // re-measured while hidden, in the closed popover, or in the other nav mode).
+  // Folded controls cannot be measured, so retain their last visible widths.
   const widthsRef = useRef<{
     actions?: number;
     openInTab?: number;
@@ -112,20 +71,19 @@ export function PeekHeader({
     navCompact?: number;
     otherPinned?: number;
   }>({});
-  const [plan, setPlan] = useState<PeekHeaderPlan>(FULL);
-
+  const [plan, setPlan] = useState<PeekHeaderPlan>({
+    foldActions: false,
+    foldOpenInTab: false,
+    navCompact: false,
+  });
   const hasActions = Boolean(actions);
   const hasOpenInTab = Boolean(openInNewTab);
   const hasNav = Boolean(detailNavigationKey && resolveDetailNavigationPath);
 
-  // Measure + plan in a layout effect (before paint), reading width from the
-  // ref directly — useElementSize's state lands post-paint, which would flash
-  // the un-adapted header for a frame.
   useLayoutEffect(() => {
     const width =
       headerRef.current?.getBoundingClientRect().width ?? headerSize?.width;
     if (!width) return;
-
     if (hasActions && !plan.foldActions && actionsRef.current) {
       widthsRef.current.actions = actionsRef.current.offsetWidth;
     }
@@ -133,21 +91,25 @@ export function PeekHeader({
       widthsRef.current.openInTab = openInTabRef.current.offsetWidth;
     }
     if (pinnedRef.current) {
-      const navW = hasNav && navRef.current ? navRef.current.offsetWidth : 0;
+      const navWidth =
+        hasNav && navRef.current ? navRef.current.offsetWidth : 0;
       if (hasNav) {
-        widthsRef.current.navCompact = navW;
-        widthsRef.current.navFull = navW;
+        widthsRef.current.navCompact = navWidth;
+        widthsRef.current.navFull = navWidth;
       }
       widthsRef.current.otherPinned =
         pinnedRef.current.offsetWidth -
-        navW +
+        navWidth +
         (closeRef.current?.offsetWidth ?? 0);
     }
-
     const next = planPeekHeaderLayout({
       headerWidth: width,
       minTitle: MIN_TITLE_PX,
-      tileWidth: TILE_PX,
+      tileWidth: hasTitleTabs
+        ? (titleTabsRef.current?.getBoundingClientRect().width ??
+          titleTabsSize?.width ??
+          TILE_PX * 2)
+        : TILE_PX,
       navFullWidth: hasNav ? (widthsRef.current.navFull ?? NAV_FALLBACK_PX) : 0,
       navCompactWidth: hasNav
         ? (widthsRef.current.navCompact ?? NAV_FALLBACK_PX)
@@ -159,7 +121,13 @@ export function PeekHeader({
         ? (widthsRef.current.openInTab ?? 0)
         : undefined,
     });
-    setPlan((prev) => (samePlan(prev, next) ? prev : next));
+    setPlan((previous) =>
+      previous.foldActions === next.foldActions &&
+      previous.foldOpenInTab === next.foldOpenInTab &&
+      previous.navCompact === next.navCompact
+        ? previous
+        : next,
+    );
   }, [
     headerRef,
     headerSize?.width,
@@ -168,113 +136,132 @@ export function PeekHeader({
     hasOpenInTab,
     hasNav,
     plan,
+    hasTitleTabs,
+    titleTabsRef,
+    titleTabsSize?.width,
   ]);
 
-  const anyFolded = plan.foldActions || plan.foldOpenInTab;
-
   return (
-    <TooltipProvider>
+    <header
+      aria-label="Peek details"
+      ref={headerRef}
+      className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-4 pb-1.5 pl-4"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        {titleTabs && (
+          <div ref={titleTabsRef} className="shrink-0">
+            <EntityTitleTabs {...titleTabs} />
+          </div>
+        )}
+        <EntityTitle
+          as="span"
+          type={titleTabs ? undefined : itemType}
+          title={title}
+          isFocusable
+        />
+      </div>
       <div
-        ref={headerRef}
-        className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-4 pb-1.5 pl-4"
+        ref={clusterRef}
+        className="flex shrink-0 flex-row items-center gap-1"
       >
-        <EntityTitle as="span" type={itemType} title={title} isFocusable />
+        {hasOpenInTab && !plan.foldOpenInTab && openInNewTab ? (
+          <div ref={openInTabRef}>
+            <Tooltip label="Open in new tab" placement="bottom">
+              {({ getTriggerProps }) => (
+                <IconButton
+                  {...getTriggerProps()}
+                  label="Open in new tab"
+                  icon={ExternalLink}
+                  onClick={openInNewTab}
+                />
+              )}
+            </Tooltip>
+          </div>
+        ) : null}
         <div
-          ref={clusterRef}
-          className="flex shrink-0 flex-row items-center gap-1"
+          ref={pinnedRef}
+          className="flex h-full flex-row items-center gap-1"
         >
-          {hasOpenInTab && !plan.foldOpenInTab && openInNewTab ? (
-            <div ref={openInTabRef}>
-              <HeaderActionButton
-                label="Open in new tab"
-                icon={<ExternalLink size="base" />}
-                onClick={openInNewTab}
+          {expand && (
+            <Tooltip
+              label={expand.isExpanded ? "Collapse" : "Expand"}
+              placement="bottom"
+            >
+              {({ getTriggerProps }) => (
+                <IconButton
+                  {...getTriggerProps()}
+                  label={expand.isExpanded ? "Collapse" : "Expand"}
+                  icon={expand.isExpanded ? Minimize2 : Maximize2}
+                  onClick={expand.onToggle}
+                />
+              )}
+            </Tooltip>
+          )}
+          {detailNavigationKey && resolveDetailNavigationPath && (
+            <div ref={navRef} className="flex flex-row items-center">
+              <DetailPageNav
+                currentId={itemId}
+                path={resolveDetailNavigationPath}
+                listKey={detailNavigationKey}
+                compact
               />
             </div>
-          ) : null}
-
-          {/* Pinned block: expand, nav (keeps K/J live). */}
-          <div
-            ref={pinnedRef}
-            className="flex h-full flex-row items-center gap-1"
-          >
-            {expand && (
-              <HeaderActionButton
-                label={expand.isExpanded ? "Collapse" : "Expand"}
-                icon={
-                  expand.isExpanded ? (
-                    <Minimize2 size="base" />
-                  ) : (
-                    <Maximize2 size="base" />
-                  )
-                }
-                onClick={expand.onToggle}
-              />
-            )}
-            {hasNav && (
-              <div ref={navRef} className="flex flex-row items-center">
-                <DetailPageNav
-                  currentId={itemId}
-                  path={resolveDetailNavigationPath!}
-                  listKey={detailNavigationKey!}
-                  compact
-                />
+          )}
+        </div>
+        {hasActions && !plan.foldActions ? (
+          <div ref={actionsRef} className="flex flex-row items-center gap-1">
+            {actions}
+          </div>
+        ) : null}
+        {(plan.foldActions || plan.foldOpenInTab) && (
+          <FloatingController
+            interaction="click"
+            placement="bottom-end"
+            open={isMenuOpen}
+            onOpenChange={setMenuOpen}
+            renderContent={(floatingProps) => (
+              <div
+                {...floatingProps}
+                className="bg-popover text-popover-foreground flex w-auto min-w-44 flex-col gap-0.5 rounded-md border p-1 shadow-md outline-hidden"
+              >
+                {plan.foldActions && (actionsMenu ?? actions)}
+                {plan.foldOpenInTab && openInNewTab && (
+                  <Button
+                    variant="ghost"
+                    text="Open in new tab"
+                    icon={ExternalLink}
+                    onClick={openInNewTab}
+                  />
+                )}
               </div>
             )}
-          </div>
-
-          {hasActions && !plan.foldActions ? (
-            <div ref={actionsRef} className="flex flex-row items-center gap-1">
-              {actions}
-            </div>
-          ) : null}
-
-          {/* Overflow: a labeled menu of whatever folded away. */}
-          {anyFolded && (
-            <Popover>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="More actions"
-                      className="text-foreground-secondary hover:text-foreground-secondary"
-                    >
-                      <MoreHorizontal size="base" color="default" />
-                    </Button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent>More</TooltipContent>
+          >
+            {({ getTriggerProps: getMenuTriggerProps }) => (
+              <Tooltip label="More actions" placement="bottom">
+                {({ getTriggerProps }) => (
+                  <IconButton
+                    {...getMenuTriggerProps(getTriggerProps())}
+                    label="More actions"
+                    icon={MoreHorizontal}
+                  />
+                )}
               </Tooltip>
-              <PopoverContent
-                align="end"
-                className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
-              >
-                {plan.foldActions ? actionsMenu : null}
-                {plan.foldOpenInTab && openInNewTab ? (
-                  <button
-                    type="button"
-                    onClick={openInNewTab}
-                    className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
-                  >
-                    <ExternalLink size="base" />
-                    Open in new tab
-                  </button>
-                ) : null}
-              </PopoverContent>
-            </Popover>
-          )}
-
-          <div ref={closeRef}>
-            <HeaderActionButton
-              label="Close"
-              icon={<X size="base" />}
-              onClick={onClose}
-            />
-          </div>
+            )}
+          </FloatingController>
+        )}
+        <div ref={closeRef}>
+          <Tooltip label="Close" placement="bottom">
+            {({ getTriggerProps }) => (
+              <IconButton
+                {...getTriggerProps()}
+                label="Close"
+                icon={X}
+                onClick={onClose}
+              />
+            )}
+          </Tooltip>
         </div>
       </div>
-    </TooltipProvider>
+    </header>
   );
 }

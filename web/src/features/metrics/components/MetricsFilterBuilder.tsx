@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { startCase } from "lodash";
-import { AlertCircle } from "@langfuse/icons";
 
 import {
   type ColumnDefinition,
@@ -11,18 +10,16 @@ import {
 } from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 import { type z } from "zod";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import {
   displayNameForFilterColumn,
   mapViewFilterToUiTableFilter,
   partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard";
-import {
-  InlineFilterBuilder,
-  normalizeSingleValueOptions,
-  sortOptionValues,
-} from "@/src/features/filters";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { type GetMetricsFilterColumnsParams } from "@/src/features/metrics/metricsFilterColumns";
 
 const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({
@@ -67,12 +64,9 @@ export function MetricsFilterBuilder({
   return (
     <div className="space-y-2">
       {unsupportedColumns.length > 0 && (
-        <Alert variant="warning" icon={AlertCircle}>
-          <Alert.Title>Unsupported filters</Alert.Title>
-          <Alert.Description>
-            {`These filter columns are not supported for ${startCase(view)} and were dropped: ${unsupportedColumns}. Switch back to a compatible view to restore them.`}
-          </Alert.Description>
-        </Alert>
+        <Banner variant="warning" title="Unsupported filters">
+          {`These filter columns are not supported for ${startCase(view)} and were dropped: ${unsupportedColumns}. Switch back to a compatible view to restore them.`}
+        </Banner>
       )}
       <InlineFilterBuilder
         columns={columns}
@@ -198,6 +192,9 @@ const scoreNameOptionsForView = (
     return (filterOptions?.score_categories ?? []).map((category) => ({
       value: category.label,
     }));
+  }
+  if (view === "scores-boolean") {
+    return (filterOptions?.score_booleans ?? []).map((value) => ({ value }));
   }
   return [];
 };

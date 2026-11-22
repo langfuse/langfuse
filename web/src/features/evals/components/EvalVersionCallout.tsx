@@ -1,5 +1,4 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AlertTriangle } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
   isTraceTarget,
@@ -15,6 +14,7 @@ interface EvalVersionCalloutProps {
 interface CalloutContent {
   title: string;
   description: React.ReactNode;
+  action: { text: string; href: string };
 }
 
 export const getEvalVersionCalloutContent = (
@@ -29,22 +29,12 @@ export const getEvalVersionCalloutContent = (
 
     return {
       title: "Please verify your SDK version",
-      description: (
-        <>
-          This evaluator targets observations, which require JS SDK v4+ or
-          Python SDK v3+. You can still configure this evaluator now—it will
-          start running once you upgrade.{" "}
-          <a
-            href="https://langfuse.com/docs/observability/sdk/upgrade-path"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-dark-blue font-bold hover:opacity-80"
-          >
-            Learn more
-          </a>
-          .
-        </>
-      ),
+      description:
+        "This evaluator targets observations, which require JS SDK v4+ or Python SDK v3+. You can still configure this evaluator now—it will start running once you upgrade.",
+      action: {
+        text: "Learn more",
+        href: "https://langfuse.com/docs/observability/sdk/upgrade-path",
+      },
     };
   }
 
@@ -53,22 +43,12 @@ export const getEvalVersionCalloutContent = (
     if (!evalCapabilities.isNewCompatible) {
       return {
         title: "Please verify you are using the Experiment Runner SDK",
-        description: (
-          <>
-            The Experiment Runner SDK requires JS SDK v4.4+ or Python SDK v3.9+.
-            You can still configure this evaluator now—it will start running
-            once you upgrade.{" "}
-            <a
-              href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-dark-blue font-bold hover:opacity-80"
-            >
-              Learn more about the Experiment Runner SDK.
-            </a>
-            .
-          </>
-        ),
+        description:
+          "The Experiment Runner SDK requires JS SDK v4.4+ or Python SDK v3.9+. You can still configure this evaluator now—it will start running once you upgrade.",
+        action: {
+          text: "Learn more about the Experiment Runner SDK",
+          href: "https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk",
+        },
       };
     }
 
@@ -85,23 +65,12 @@ export const getEvalVersionCalloutContent = (
 
     return {
       title: "Legacy low-level SDK methods",
-      description: (
-        <>
-          This evaluator targets traces from legacy low-level SDK methods for
-          dataset runs that manually linked dataset items to traces. Consider
-          upgrading to the Experiment Runner SDK for improved performance and
-          features.{" "}
-          <a
-            href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-dark-blue font-bold hover:opacity-80"
-          >
-            Learn more
-          </a>
-          .
-        </>
-      ),
+      description:
+        "This evaluator targets traces from legacy low-level SDK methods for dataset runs that manually linked dataset items to traces. Consider upgrading to the Experiment Runner SDK for improved performance and features.",
+      action: {
+        text: "Learn more",
+        href: "https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk",
+      },
     };
   }
 
@@ -115,21 +84,12 @@ export const getEvalVersionCalloutContent = (
 
     return {
       title: "Consider upgrading to observation evaluators",
-      description: (
-        <>
-          Observation evaluators provide more granular control and an easier
-          workflow. We strongly recommend upgrading to observation evaluators.{" "}
-          <a
-            href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-dark-blue font-bold hover:opacity-80"
-          >
-            Learn more
-          </a>
-          .
-        </>
-      ),
+      description:
+        "Observation evaluators provide more granular control and an easier workflow. We strongly recommend upgrading to observation evaluators.",
+      action: {
+        text: "Learn more",
+        href: "https://langfuse.com/faq/all/llm-as-a-judge-migration",
+      },
     };
   }
 
@@ -139,18 +99,13 @@ export const getEvalVersionCalloutContent = (
 export function EvalVersionCallout({ content }: EvalVersionCalloutProps) {
   return (
     <div className="mt-2 w-full max-w-4xl">
-      <Alert variant="warning" icon={AlertTriangle}>
-        <Alert.Description>
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-foreground font-bold">{content.title}</span>
-              <span className="text-foreground text-sm">
-                {content.description}
-              </span>
-            </div>
-          </div>
-        </Alert.Description>
-      </Alert>
+      <Banner
+        variant="warning"
+        title={content.title}
+        actions={[content.action]}
+      >
+        {content.description}
+      </Banner>
     </div>
   );
 }

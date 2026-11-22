@@ -21,11 +21,13 @@ const TraceReviewPanelContext = createContext<TraceReviewPanelStore | null>(
 export function TraceReviewPanelProvider({
   projectId,
   initialComments,
+  deepLinkNodeId,
   onOpen,
   children,
 }: {
   projectId: string;
   initialComments?: CommentTarget;
+  deepLinkNodeId?: string | null;
   onOpen?: (panel: "annotation" | "comments", target?: CommentTarget) => void;
   children: ReactNode;
 }) {
@@ -33,6 +35,7 @@ export function TraceReviewPanelProvider({
     createTraceReviewPanelStore({
       projectId,
       initialComments,
+      deepLinkNodeId,
     }),
   );
 

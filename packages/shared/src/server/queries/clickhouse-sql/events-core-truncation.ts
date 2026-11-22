@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ClickhouseOperator } from "./clickhouse-filter";
 
 // events_core_mv truncates each metadata_values element (and input/output) to
 // the first 200 UTF-8 code points via leftUTF8(v, 200). A metadata filter is
 // only safe to answer against events_core when 200-char truncation cannot
 // change its result.
-const EVENTS_CORE_TRUNCATION_LIMIT = 200;
+export const EVENTS_CORE_TRUNCATION_LIMIT = 200;
 
 // Metadata operators that can be answered correctly against the truncated
 // events_core copy — an allow-list, so any operator not named here defaults to

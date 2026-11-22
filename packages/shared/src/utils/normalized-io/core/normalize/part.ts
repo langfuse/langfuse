@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { claimed } from "../../conventions";
 import type {
   PartHandler,
@@ -31,9 +30,10 @@ const rawToolCallKeys = new WeakMap<object, string>();
  * up in the convention registry.
  */
 
-// `image` and `file` are contested type names: Anthropic/AI-SDK and
-// OpenAI/AI-SDK register guarded handlers for them in their own conventions;
-// a handler returning `unmatched` falls through to the next provider.
+// `image` and `file` are contested type names: Anthropic/LangChain/AI-SDK and
+// OpenAI/LangChain/AI-SDK register guarded handlers for them in their own
+// conventions; a handler returning `unmatched` falls through to the next
+// provider.
 const SHARED_TYPED_PART_HANDLERS: Readonly<Record<string, PartHandler>> = {
   text: (value) => claimed(normalizeTextPart(value)),
   input_text: (value) => claimed(normalizeTextPart(value)),
@@ -119,6 +119,7 @@ function normalizePartBase(
 
 const COMMON_CONSUMED_PART_KEYS = [
   "type",
+  "part_kind", // Pydantic part discriminator
   "providerMetadata",
   "providerOptions",
 ] as const;
@@ -147,6 +148,7 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     "data",
     "encrypted_content",
     "summary",
+    "reasoning",
     "thought",
     "thoughtSignature",
     "thought_signature",
@@ -156,8 +158,10 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     "id",
     "call_id",
     "toolCallId",
+    "tool_call_id",
     "name",
     "toolName",
+    "tool_name",
     "input",
     "arguments",
     "args",
@@ -174,6 +178,7 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     "id",
     "call_id",
     "toolCallId",
+    "tool_call_id",
     "tool_use_id",
     "name",
     "toolName",
@@ -195,6 +200,7 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     ...COMMON_CONSUMED_PART_KEYS,
     "image",
     "data",
+    "base64",
     "url",
     "mediaType",
     "mimeType",

@@ -1,11 +1,11 @@
 /* eslint-disable no-nested-ternary */
 // Langfuse Cloud only
 
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import Header from "@/src/components/layouts/header";
-import { useHasEntitlement } from "@/src/features/entitlements";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useRouter } from "next/router";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
@@ -17,7 +17,7 @@ import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCl
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
-import { OrganizationUsageBreakdown } from "@/src/features/organization-usage";
+import { OrganizationUsageBreakdown } from "@/src/features/organization-usage/components/OrganizationUsageBreakdown";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
@@ -62,13 +62,10 @@ export const BillingSettings = () => {
 
   if (!hasAccess) {
     return (
-      <Alert>
-        <Alert.Title>Access Denied</Alert.Title>
-        <Alert.Description>
-          You do not have permission to view the billing settings of this
-          organization.
-        </Alert.Description>
-      </Alert>
+      <Banner title="Access denied">
+        You do not have permission to view the billing settings of this
+        organization.
+      </Banner>
     );
   }
 

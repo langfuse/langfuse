@@ -2,12 +2,30 @@ import type { NextApiResponse } from "next";
 import { createHash } from "node:crypto";
 import { v4 } from "uuid";
 import { omit } from "lodash";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import {
   createOrFetchDatasetRun,
+  addToDeleteDatasetQueue,
+  createDatasetItemFilterState,
+  createUnknownSdkIngestionAttribution,
+  deleteDatasetItem,
+  escapeSqlLikePattern,
+  eventTypes,
+  getDatasetItemById,
+  getDatasetItems,
+  getDatasetItemsCount,
+  getObservationById,
+  logger,
+  processEventBatch,
+  type AuthHeaderValidVerificationResultIngestion,
+  upsertDatasetItem,
+} from "@langfuse/shared/src/server";
+import {
   generateDatasetRunItemsForPublicApi,
   getDatasetRunItemsCountForPublicApi,
+} from "@/src/features/public-api/server/dataset-run-items";
+import {
   type APIDatasetRunItem,
   type GetDatasetsV1Query,
   type GetDatasetV1Query,
@@ -24,7 +42,8 @@ import {
   transformDbDatasetItemDomainToAPIDatasetItem,
   transformDbDatasetRunToAPIDatasetRun,
   transformDbDatasetToAPIDataset,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/datasets";
+
 import {
   ApiError,
   type JSONValue,
@@ -38,24 +57,9 @@ import { env } from "@/src/env.mjs";
 import {
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
-} from "@/src/features/media/server";
+} from "@/src/features/media/server/datasetItemMediaReferences";
 import { upsertDataset } from "./actions/createDataset";
-import {
-  addToDeleteDatasetQueue,
-  createDatasetItemFilterState,
-  createUnknownSdkIngestionAttribution,
-  deleteDatasetItem,
-  escapeSqlLikePattern,
-  eventTypes,
-  getDatasetItemById,
-  getDatasetItems,
-  getDatasetItemsCount,
-  getObservationById,
-  logger,
-  processEventBatch,
-  type AuthHeaderValidVerificationResultIngestion,
-  upsertDatasetItem,
-} from "@langfuse/shared/src/server";
+
 import type { z } from "zod";
 
 type DatasetAuditScope = {

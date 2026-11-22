@@ -6,19 +6,36 @@ import {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+type ExpirationOption<TPreset extends string> = {
+  value: TPreset;
+  days: number | null;
+};
+
+/** Resolves a preset from `options` to an absolute date, null for no expiration, or undefined for an invalid custom date. */
+export const resolveExpirationFromOptions = <TPreset extends string>(
+  options: readonly ExpirationOption<TPreset>[],
+  preset: TPreset,
+  customDate: string,
+  now: Date = new Date(),
+): Date | null | undefined => {
+  if (preset === "custom") return parseCustomExpiry(customDate, now);
+  const days = options.find((option) => option.value === preset)?.days ?? null;
+  if (days === null) return null;
+  return new Date(now.getTime() + days * MS_PER_DAY);
+};
+
 /** Resolves an expiration preset to an absolute date, null for no expiration, or undefined for an invalid custom date. */
 export const resolveApiKeyExpiration = (
   preset: ApiKeyExpirationPreset,
   customDate: string,
   now: Date = new Date(),
-): Date | null | undefined => {
-  if (preset === "custom") return parseCustomExpiry(customDate, now);
-  const days =
-    apiKeyExpirationOptions.find((option) => option.value === preset)?.days ??
-    null;
-  if (days === null) return null;
-  return new Date(now.getTime() + days * MS_PER_DAY);
-};
+): Date | null | undefined =>
+  resolveExpirationFromOptions(
+    apiKeyExpirationOptions,
+    preset,
+    customDate,
+    now,
+  );
 
 const parseCustomExpiry = (customDate: string, now: Date): Date | undefined => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(customDate);

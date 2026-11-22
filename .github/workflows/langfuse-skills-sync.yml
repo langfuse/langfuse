@@ -74,10 +74,12 @@ jobs:
             exit 0
           fi
 
-          if [ "${#changed_files[@]}" -ne 1 ] || [ "${changed_files[0]}" != "$GENERATED_FILE" ]; then
-            printf "::error::Skill sync changed unexpected files: %s\n" "${changed_files[*]}"
-            exit 1
-          fi
+          for file in "${changed_files[@]}"; do
+            if [ "$file" != "$GENERATED_FILE" ]; then
+              printf "::error::Skill sync changed unexpected file: %s\n" "$file"
+              exit 1
+            fi
+          done
 
           pnpm --filter @repo/langfuse-skills run sync:check
           node --check "$GENERATED_FILE"
@@ -93,11 +95,12 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           branch: ${{ env.BOT_BRANCH }}
           base: main
-          add-paths: ${{ env.GENERATED_FILE }}
+          add-paths: |
+            ${{ env.GENERATED_FILE }}
           commit-message: "chore(assistant): refresh embedded Langfuse skills"
           title: "chore(assistant): refresh embedded Langfuse skills"
           body: |
-            Automated refresh of the embedded Langfuse skill catalog.
+            Automated refresh of the embedded skill catalog used by Halo and the MCP server.
 
             **Upstream commit:** [${{ steps.upstream.outputs.short_commit }}](https://github.com/langfuse/skills/commit/${{ steps.upstream.outputs.commit }})
 

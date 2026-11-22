@@ -171,7 +171,7 @@ const bidiSupport = [
       build(view: EditorView) {
         const builder = new RangeSetBuilder<Decoration>();
         for (const { from, to } of view.visibleRanges) {
-          for (let pos = from; pos <= to; ) {
+          for (let pos = from; pos <= to;) {
             const line = view.state.doc.lineAt(pos);
             builder.add(line.from, line.from, dirAutoDecoration);
             pos = line.to + 1;

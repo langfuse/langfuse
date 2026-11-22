@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { VitestCiReporter } from "./ci-reporter.ts";
 
@@ -50,6 +53,156 @@ const block = (output, header) => {
 
   return lines;
 };
+
+test("timing artifacts keep every project/file and reject incomplete measurements", () => {
+  const directory = mkdtempSync(join(tmpdir(), "vitest-ci-timings-"));
+  const timingPath = join(directory, "nested", "timings.json");
+  const modules = Array.from({ length: 12 }, (_, index) => ({
+    id: `module-${index}`,
+    moduleId: "/repo/web/src/example.test.ts",
+    relativeModuleId: "src/example.test.ts",
+    project: {
+      name: `project-${index}`,
+      config: {
+        root: "/repo/web",
+        sequence: {
+          seed: 9382,
+          shuffle: true,
+          sequencer: class FileSequencer {},
+        },
+      },
+    },
+    state: () => "passed",
+    diagnostic: () => ({
+      duration: 400 + index,
+      collectDuration: 20,
+      setupDuration: 10,
+      prepareDuration: 5,
+      environmentSetupDuration: 3,
+    }),
+    children: { allTests: () => [] },
+  }));
+  const specifications = modules.map((module) => ({
+    taskId: module.id,
+    moduleId: module.moduleId,
+    project: module.project,
+  }));
+  modules[11].project.config.sequence = { shuffle: false };
+  modules[10].project.config.browser = { enabled: true };
+  try {
+    const reporter = new VitestCiReporter(timingPath);
+    reporter.onTestRunStart(specifications);
+    reporter.onTestModuleStart(modules[1]);
+    reporter.onTestModuleStart(modules[0]);
+    reporter.onTestRunEnd(modules, [], "passed");
+    const complete = JSON.parse(readFileSync(timingPath, "utf8"));
+    assert.equal(complete.complete, true);
+    assert.equal(complete.files.length, 12);
+    assert.equal(
+      new Set(complete.files.map((file) => file.project.name)).size,
+      12,
+    );
+    assert.deepEqual(complete.files[0].timingsMs, {
+      execution: 400,
+      collect: 20,
+      setup: 10,
+      prepare: 5,
+      environmentSetup: 3,
+    });
+    assert.deepEqual(complete.files[0].sequence, {
+      seed: 9382,
+      shuffleTests: true,
+      shuffleFiles: null,
+      fileSequencer: "FileSequencer",
+      shuffleFilesUnavailableReason:
+        "Resolved Vitest configuration exposes the sequencer, not a file-shuffle flag",
+    });
+    assert.deepEqual(complete.files[11].sequence, {
+      seed: null,
+      shuffleTests: false,
+      shuffleFiles: null,
+      fileSequencer: null,
+      shuffleFilesUnavailableReason:
+        "Resolved Vitest configuration exposes the sequencer, not a file-shuffle flag",
+    });
+    assert.deepEqual(complete.startedFileIds, ["module-1", "module-0"]);
+    assert.equal(complete.files[10].timingsMs.environmentSetup, null);
+    assert.equal(
+      complete.files[10].unavailableTimings.environmentSetup,
+      "Browser runner does not measure environment loading",
+    );
+    assert.equal(complete.usableForSharding, true);
+    assert.equal(complete.allFilesMeasured, true);
+
+    modules[11].state = () => "skipped";
+    reporter.onTestRunStart(specifications);
+    reporter.onTestRunEnd(modules, [], "passed");
+    const partial = JSON.parse(readFileSync(timingPath, "utf8"));
+    assert.equal(partial.complete, true);
+    assert.equal(partial.usableForSharding, true);
+    assert.equal(partial.allFilesMeasured, false);
+    assert.equal(partial.eligibleFileCount, 11);
+    assert.deepEqual(partial.unmeasuredFileIds, ["module-11"]);
+    assert.deepEqual(partial.startedFileIds, []);
+    assert.equal(partial.files.length, 12);
+    assert.equal(partial.files[11].timingsMs.execution, null);
+    assert.equal(partial.files[11].eligibleForSharding, false);
+    assert.equal(
+      partial.files[11].unavailableTimings.execution,
+      "File skipped",
+    );
+    modules[0].diagnostic = () => ({
+      duration: Number.NaN,
+      collectDuration: 20,
+      setupDuration: 10,
+      prepareDuration: 5,
+      environmentSetupDuration: 3,
+    });
+    const missing = {
+      ...specifications[0],
+      taskId: "missing-file",
+      moduleId: "/repo/web/src/missing.test.ts",
+    };
+    modules[0].state = () => "failed";
+    modules[0].children.allTests = () => [
+      testCase({
+        file: "src/example.test.ts",
+        name: "underlying failure",
+        duration: 12,
+        state: "failed",
+      }),
+    ];
+    reporter.onTestRunStart([...specifications, missing]);
+    const lines = [];
+    const original = console.log;
+    console.log = (line) => lines.push(String(line));
+    try {
+      assert.throws(
+        () => reporter.onTestRunEnd(modules, [], "failed"),
+        /Incomplete Vitest timing report/,
+      );
+    } finally {
+      console.log = original;
+    }
+    const diagnostics = lines.join("\n");
+    assert.deepEqual(block(diagnostics, "\nFailed tests (1):"), [
+      "1. retries=0 src/example.test.ts > underlying failure",
+    ]);
+    assert.match(diagnostics, /Slowest tests \(top 10\)/);
+    assert.match(
+      diagnostics,
+      /Slowest test files \(top 10, summed test durations\)/,
+    );
+    const incomplete = JSON.parse(readFileSync(timingPath, "utf8"));
+    assert.equal(incomplete.complete, false);
+    assert.equal(incomplete.files.length, 13);
+    assert.equal(incomplete.files[0].timingsMs.execution, null);
+    assert.ok(incomplete.files[0].invalid.includes("execution"));
+    assert.ok(incomplete.files[12].invalid.includes("module not reported"));
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("lists a failed test that no other block would have shown", () => {
   // The langfuse#18741 case: a suite opting out with `describe(..., {retry: 0})`

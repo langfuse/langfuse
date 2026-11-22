@@ -9,6 +9,10 @@ const automationRow = {
 
 const useQueryMock = vi.fn();
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+
 vi.mock("@/src/utils/api", () => ({
   api: {
     automations: {

@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { Mock } from "vitest";
 import { TRPCError } from "@trpc/server";
@@ -22,6 +21,7 @@ import {
   getTracesIdentifierForSessionFromEvents,
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@langfuse/shared/encryption", async () => {
   const actual = await vi.importActual("@langfuse/shared/encryption");
@@ -67,42 +67,17 @@ const buildSession = ({
   projectId: string;
   projectRole?: "ADMIN" | "MEMBER" | "NONE" | "OWNER" | "VIEWER";
   v4BetaEnabled?: boolean;
-}): Session => ({
-  expires: "1",
-  user: {
-    id: "user-1",
-    name: "Demo User",
-    canCreateOrganizations: true,
+}): Session =>
+  createSession({
+    user: { v4BetaEnabled },
     organizations: [
       {
         id: orgId,
-        name: "Test Organization",
         role: "OWNER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: false,
-        projects: [
-          {
-            id: projectId,
-            role: projectRole,
-            name: "Test Project",
-            deletedAt: null,
-            retentionDays: null,
-            hasTraces: false,
-            metadata: {},
-            createdAt: new Date().toISOString(),
-          },
-        ],
+        projects: [{ id: projectId, role: projectRole, retentionDays: null }],
       },
     ],
-    featureFlags: testFeatureFlags(),
-    admin: false,
-    v4BetaEnabled,
-  },
-  environment: {} as any,
-});
+  });
 
 type StoredEndpoint = {
   id: string;
@@ -881,6 +856,52 @@ describe("webCallouts router", () => {
       'encrypted:{"Authorization":"Bearer secret-token","X-New":"new-value"}',
     );
     expect(stored?.requestHeaderKeys).toEqual(["Authorization", "X-New"]);
+  });
+
+  it("requires request header values again when the URL changes", async () => {
+    const { caller, prismaStub, projectId } = await prepare();
+    const endpoint = await createEndpoint(caller, projectId, {
+      requestHeaders: {
+        Authorization: "Bearer secret-token",
+      },
+    });
+    const update = {
+      projectId,
+      id: endpoint.id,
+      name: "Default",
+      url: "https://other.example.com/collect",
+      enabled: true,
+      toastMessage: "Sent to app",
+    };
+
+    await expect(
+      caller.webCallouts.upsert({
+        ...update,
+        requestHeaders: { Authorization: "" },
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        'Header "Authorization" value must be re-entered when changing the endpoint URL.',
+    });
+    expect(decrypt).not.toHaveBeenCalled();
+
+    const stored = prismaStub.endpoints.find(
+      (candidate) => candidate.id === endpoint.id,
+    );
+    expect(stored?.url).toBe("https://example.com/callout");
+    expect(stored?.requestHeaders).toBe(
+      'encrypted:{"Authorization":"Bearer secret-token"}',
+    );
+
+    await caller.webCallouts.upsert({
+      ...update,
+      requestHeaders: { Authorization: "Bearer new-token" },
+    });
+    expect(stored?.url).toBe("https://other.example.com/collect");
+    expect(stored?.requestHeaders).toBe(
+      'encrypted:{"Authorization":"Bearer new-token"}',
+    );
   });
 
   it("rejects blank values for new or renamed request headers", async () => {

@@ -1,4 +1,4 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { LLMAdapter, type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -14,8 +14,14 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
-import { assignRole } from "@langfuse/shared/rbac/server";
-import type { Session } from "next-auth";
+import {
+  createOrgMembership,
+  createProjectMembership,
+  deleteProjectMembership,
+  saveOrgMembership,
+  saveProjectMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 import { v4 as uuidv4 } from "uuid";
 import {
   afterAll,
@@ -41,13 +47,16 @@ vi.mock("@langfuse/shared/topics/server", () => ({
 vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
   isCloudBillingEnabled: () => false,
 }));
-vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    isCloudBillingEnabled: () => false,
-  };
-});
+vi.mock(
+  "@/src/ee/features/billing/utils/isCloudBillingEnabled",
+  async (importOriginal) => {
+    const actual = (await importOriginal()) as Record<string, unknown>;
+    return {
+      ...actual,
+      isCloudBillingEnabled: () => false,
+    };
+  },
+);
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -121,6 +130,29 @@ async function seedOrgScopedKey(orgId: string) {
   return keys;
 }
 
+async function seedUserScopedKey(orgId: string, userId: string) {
+  const { publicKey, secretKey } = await createApiKey(prisma, {
+    tenant: OrganizationId(orgId),
+    scope: UserId(userId),
+    role: SystemRoleId("AI_GATEWAY"),
+    createdBy: UserId(userId),
+  });
+  const fastHash = createShaHash(secretKey, env.SALT!);
+  const keys = cacheKeysFor({ fastHash, publicKey });
+  for (const key of keys) {
+    await setRedisValue(redis, key, "1");
+  }
+  return keys;
+}
+
+async function orgMembershipIdOf(orgId: string, userId: string) {
+  const { id } = await prisma.organizationMembership.findUniqueOrThrow({
+    where: { orgId_userId: { orgId, userId } },
+    select: { id: true },
+  });
+  return id;
+}
+
 async function survivingKeys(keys: string[]) {
   const present: string[] = [];
   for (const key of keys) {
@@ -140,8 +172,10 @@ async function createUserInOrgs(orgIds: string[]) {
     },
   });
   for (const orgId of orgIds) {
-    await prisma.organizationMembership.create({
-      data: { userId: user.id, orgId, role: Role.OWNER },
+    await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId,
+      role: Role.OWNER,
     });
   }
   return user;
@@ -158,42 +192,20 @@ function makeCaller({
   projectId?: string;
   plan?: Plan;
 }) {
-  const session: Session = {
-    expires: "1",
+  const session = createSession({
     user: {
       id: userId,
-      canCreateOrganizations: true,
       name: "Test User",
       email: "cache-inval@test.com",
-      organizations: orgIds.map((orgId) => ({
-        id: orgId,
-        name: "Test Organization",
-        role: Role.OWNER,
-        plan,
-        cloudConfig: undefined,
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: true,
-        projects: projectId
-          ? [
-              {
-                id: projectId,
-                role: Role.OWNER,
-                retentionDays: 0,
-                deletedAt: null,
-                hasTraces: false,
-                name: "Test Project",
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ]
-          : [],
-      })),
-      featureFlags: testFeatureFlags(),
-      admin: false,
     },
-    environment: {} as any,
-  };
+    organizations: orgIds.map((orgId) => ({
+      id: orgId,
+      role: Role.OWNER,
+      plan,
+      aiTelemetryEnabled: true,
+      projects: projectId ? [{ id: projectId, retentionDays: 0 }] : [],
+    })),
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma, session });
 }
@@ -373,29 +385,19 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     expect(await survivingKeys(keys)).toEqual([]);
   });
 
-  it("admin project deletion keeps the ingestion project and its keys", async () => {
+  it("accessAuditLog.setEnabled evicts the org's cached keys", async () => {
     const orgId = await createOrg();
-    const projectId = await createProject(orgId);
+    const user = await createUserInOrgs([orgId]);
     const keys = await seedOrgScopedKey(orgId);
-    await prisma.gatewayConfig.create({
-      data: { organizationId: orgId, defaultIngestionProjectId: projectId },
-    });
 
-    const res = makeRes();
-    await handleDeleteProject({} as any, res, projectId, {
-      orgId,
-      apiKeyId: "ADMIN_KEY",
-    } as any);
-
-    expect(res.statusCode).toBe(409);
-    expect(res.body).toEqual({
-      message:
-        "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [orgId],
+      plan: "cloud:enterprise",
     });
-    expect(await survivingKeys(keys)).toEqual(keys);
-    await expect(
-      prisma.project.findUnique({ where: { id: projectId } }),
-    ).resolves.toMatchObject({ deletedAt: null });
+    await caller.accessAuditLog.setEnabled({ orgId, enabled: true });
+
+    expect(await survivingKeys(keys)).toEqual([]);
   });
 
   it("admin project soft deletion preserves user permissions and evicts cached keys", async () => {
@@ -404,12 +406,15 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     const keys = await seedOrgScopedKey(orgId);
 
     const user = await createUserInOrgs([orgId]);
-    const assignment = await assignRole(prisma, {
-      tenantId: OrganizationId(orgId),
-      ownerId: ProjectId(projectId),
-      principalId: UserId(user.id),
-      roleId: SystemRoleId("VIEWER"),
-      tags: [],
+    await createProjectMembership(prisma, {
+      orgId,
+      orgMembershipId: await orgMembershipIdOf(orgId, user.id),
+      projectId,
+      userId: user.id,
+      role: Role.VIEWER,
+    });
+    const assignment = await prisma.roleAssignment.findFirstOrThrow({
+      where: { userId: user.id, ownerId: ProjectId(projectId) },
     });
 
     const res = makeRes();
@@ -439,6 +444,69 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     );
 
     expect(res.statusCode).toBe(200);
+    expect(await survivingKeys(keys)).toEqual([]);
+  });
+});
+
+describe("API-key cache invalidation on membership role changes", () => {
+  beforeEach(async () => {
+    await ensureRedisReady(redis);
+  });
+
+  it.each([
+    { name: "updateOrgMembership", change: updateOrgMembership },
+    { name: "saveOrgMembership", change: saveOrgMembership },
+  ])(
+    "$name evicts the user's USER keys and leaves organization keys cached",
+    async ({ change }) => {
+      const orgId = await createOrg();
+      const user = await createUserInOrgs([orgId]);
+      const userKeys = await seedUserScopedKey(orgId, user.id);
+      const orgKeys = await seedOrgScopedKey(orgId);
+
+      await change(prisma, { orgId, userId: user.id, role: Role.VIEWER });
+
+      expect(await survivingKeys(userKeys)).toEqual([]);
+      expect(await survivingKeys(orgKeys)).toEqual(orgKeys);
+    },
+  );
+
+  it("saveProjectMembership evicts the user's USER keys", async () => {
+    const orgId = await createOrg();
+    const projectId = await createProject(orgId);
+    const user = await createUserInOrgs([orgId]);
+    const keys = await seedUserScopedKey(orgId, user.id);
+
+    await saveProjectMembership(prisma, {
+      orgId,
+      orgMembershipId: await orgMembershipIdOf(orgId, user.id),
+      projectId,
+      userId: user.id,
+      role: Role.VIEWER,
+    });
+
+    expect(await survivingKeys(keys)).toEqual([]);
+  });
+
+  it("deleteProjectMembership evicts the user's USER keys", async () => {
+    const orgId = await createOrg();
+    const projectId = await createProject(orgId);
+    const user = await createUserInOrgs([orgId]);
+    await saveProjectMembership(prisma, {
+      orgId,
+      orgMembershipId: await orgMembershipIdOf(orgId, user.id),
+      projectId,
+      userId: user.id,
+      role: Role.VIEWER,
+    });
+    const keys = await seedUserScopedKey(orgId, user.id);
+
+    await deleteProjectMembership(prisma, {
+      orgId,
+      projectId,
+      userId: user.id,
+    });
+
     expect(await survivingKeys(keys)).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@ import { env } from "../../env";
 import {
   qualifiedClickhouseTableName,
   quoteClickhouseIdentifier,
-} from "../../utils/clickhouseIdentifiers";
+} from "@langfuse/shared/src/server/clickhouse/clickhouseIdentifiers";
 
 /**
  * Scratch table created by M2, read by M3/M4, dropped by M5. Single source of

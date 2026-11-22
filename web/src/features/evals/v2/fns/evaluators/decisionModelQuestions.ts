@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
+/* eslint-disable array-callback-return */
 import {
   DECISION_MODEL_LIMITS,
   DecisionModelQuestionType,
   DecisionModelQuestionsSchema,
-  isOpenAIDecisionModel,
-  LLMAdapter,
+  isTextAdapterDecisionModel,
+  isTextDecisionAdapter,
   type DecisionModelEntry,
   type DecisionModelQuestion,
   type DecisionModelQuestions,
@@ -126,13 +126,15 @@ export function getQuestionDraftErrors(
   return errors;
 }
 
-/** OpenAI questions are plain text. Field chips are only for TypeSafe. */
+/** OpenAI and Google questions are plain text. Field chips are only for TypeSafe. */
 export function usesPlainDecisionInstructions(params: {
   model: string | undefined;
   adapter: string | undefined;
 }) {
-  if (params.adapter === LLMAdapter.OpenAI) return true;
-  return params.model != null && isOpenAIDecisionModel(params.model);
+  if (params.adapter != null && isTextDecisionAdapter(params.adapter)) {
+    return true;
+  }
+  return params.model != null && isTextAdapterDecisionModel(params.model);
 }
 
 /** Persistable questions, or null while any draft is incomplete. */

@@ -13,7 +13,7 @@ use super::{
 };
 use crate::{
     capture::RelayOutcome,
-    resolution::signing,
+    resolution::{ApiFormat, signing},
     test_support::{
         FakeServer, ingestion_token, resolved_request_context, upload_json, upload_text,
     },
@@ -21,14 +21,20 @@ use crate::{
 
 fn facts(project: &str) -> InferenceFacts {
     InferenceFacts {
-        api_format: "openai.responses",
+        api_format: ApiFormat::OpenAiResponses,
         start_time_unix_ms: 1_735_689_600_000,
         duration_ms: 100,
         first_byte_ms: Some(10),
         completion_start_ms: None,
         http_status: Some(200),
-        metadata: json!({"project_id": project, "ingestion_mode": "usage"}),
+        retry_after_ms: None,
+        upstream_model: None,
+        request_body_bytes: 0,
+        response_body_bytes: 0,
+        metadata: json!({"key_id": project, "ingestion_mode": "usage"}),
         outcome: RelayOutcome::Eof,
+        charged_cost_details: None,
+        rejection: None,
         inference: crate::capture::ProviderFacts::default(),
     }
 }
@@ -93,6 +99,16 @@ async fn upload_uses_prefixed_path_signed_grant_and_gateway_sdk_headers() {
         assert_eq!(headers["x-langfuse-ingestion-version"], "4");
         let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
         let payload = upload_json(&bytes);
+        // No `service.version`: ingestion would use it as the generation's
+        // user-facing version. Langfuse takes the gateway version from the scope.
+        assert_eq!(
+            payload["resourceSpans"][0]["resource"]["attributes"],
+            json!([{"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}}])
+        );
+        assert_eq!(
+            payload["resourceSpans"][0]["scopeSpans"][0]["scope"]["version"],
+            env!("CARGO_PKG_VERSION")
+        );
         let spans = payload["resourceSpans"][0]["scopeSpans"][0]["spans"]
             .as_array()
             .unwrap();
@@ -146,7 +162,7 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
                 serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
             received.lock().unwrap().push((
                 authorization,
-                metadata["langfuse.gateway.project.id"]
+                metadata["langfuse.gateway.api_key.id"]
                     .as_str()
                     .unwrap()
                     .to_owned(),
@@ -374,7 +390,7 @@ fn span_projects(payload: &Value) -> Vec<String> {
                 .unwrap();
             let metadata: Value =
                 serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
-            metadata["langfuse.gateway.project.id"]
+            metadata["langfuse.gateway.api_key.id"]
                 .as_str()
                 .unwrap()
                 .to_owned()
@@ -671,7 +687,7 @@ async fn full_input_at_capture_limit_is_uploaded() {
     let quotes = (crate::capture::MAX_INPUT_CAPTURE_BYTES - 16) / 2;
     let input = json!({"input": "\"".repeat(quotes)});
     assert!(input.to_string().len() <= crate::capture::MAX_INPUT_CAPTURE_BYTES);
-    large.inference.input = Some(input);
+    large.inference.input = serde_json::value::to_raw_value(&input).ok();
     large.inference.output = Some(json!([
         "x".repeat(crate::capture::MAX_OUTPUT_CAPTURE_BYTES - 16)
     ]));
@@ -737,7 +753,7 @@ async fn input_that_does_not_fit_is_omitted_instead_of_dropping_the_generation()
         });
         let mut large = facts("project-1");
         large.metadata["ingestion_mode"] = json!("full");
-        large.inference.input = Some(json!("x".repeat(input_size)));
+        large.inference.input = serde_json::value::to_raw_value(&"x".repeat(input_size)).ok();
         large.inference.output = Some(json!(["output-canary"]));
         telemetry.record(grant().await, large);
         drop(held);
@@ -770,10 +786,91 @@ async fn input_that_does_not_fit_is_omitted_instead_of_dropping_the_generation()
         )
         .unwrap();
         assert_eq!(metadata["langfuse.gateway.request.input_omitted"], reason);
-        assert_eq!(
-            metadata["langfuse.gateway.request.input_bytes"],
-            input_size + 2
+    }
+}
+
+#[tokio::test]
+async fn content_that_does_not_fit_leaves_a_usage_only_generation() {
+    for (buffer, held, reason) in [
+        (512 * 1024, 0, "record_limit"),
+        (
+            DEFAULT_RETAINED_BYTES,
+            DEFAULT_RETAINED_BYTES - 1024 * 1024,
+            "telemetry_buffer",
+        ),
+    ] {
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let sink = received.clone();
+        let web = FakeServer::start(move |request| {
+            let sink = sink.clone();
+            async move {
+                let bytes = to_bytes(request.into_body(), usize::MAX).await.unwrap();
+                let payload = upload_json(&bytes);
+                let attributes: Map<String, Value> =
+                    payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|attribute| {
+                            (
+                                attribute["key"].as_str().unwrap().to_owned(),
+                                attribute["value"]["stringValue"].clone(),
+                            )
+                        })
+                        .collect();
+                sink.lock().unwrap().push(attributes);
+                response(200, "{}")
+            }
+        })
+        .await;
+        let telemetry = Telemetry::with_uploader(
+            uploader(&web.url),
+            1,
+            buffer,
+            BatchPolicy::default(),
+            fast_retry(),
         );
+        let held = (held > 0).then(|| {
+            telemetry
+                .0
+                .retained
+                .clone()
+                .try_acquire_many_owned(u32::try_from(held).unwrap())
+                .unwrap()
+        });
+        let mut large = facts("project-1");
+        large.metadata["ingestion_mode"] = json!("full");
+        large.inference.input = serde_json::value::to_raw_value(
+            &"x".repeat(crate::capture::MAX_INPUT_CAPTURE_BYTES - 16),
+        )
+        .ok();
+        large.inference.output = Some(json!([
+            "x".repeat(crate::capture::MAX_OUTPUT_CAPTURE_BYTES - 16)
+        ]));
+        large.inference.usage_details =
+            Some(json!({"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}));
+        telemetry.record(grant().await, large);
+        drop(held);
+        telemetry
+            .shutdown(Instant::now() + Duration::from_secs(5))
+            .await;
+        assert_eq!(
+            telemetry.0.stats.dropped.load(Ordering::Relaxed),
+            0,
+            "{reason}"
+        );
+        let received = received.lock().unwrap();
+        let attributes = &received[0];
+        assert!(!attributes.contains_key("langfuse.observation.input"));
+        assert!(!attributes.contains_key("langfuse.observation.output"));
+        assert!(attributes.contains_key("langfuse.observation.usage_details"));
+        let metadata: Value = serde_json::from_str(
+            attributes["langfuse.observation.metadata"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(metadata["langfuse.gateway.response.output_omitted"], reason);
     }
 }
 

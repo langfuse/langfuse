@@ -36,7 +36,10 @@ pub(crate) fn provider_response(
     let catalog: Catalog =
         serde_json::from_slice(body).map_err(|_| ResolutionError::InvalidResponse)?;
     let provider = match api_format {
-        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => CatalogProvider::OpenAi,
+        ApiFormat::OpenAiResponses
+        | ApiFormat::OpenAiChatCompletions
+        | ApiFormat::OpenAiDecisions
+        | ApiFormat::OpenAiEmbeddings => CatalogProvider::OpenAi,
         ApiFormat::AnthropicMessages => CatalogProvider::Anthropic,
     };
     if catalog.data.iter().any(|entry| entry.provider != provider) {

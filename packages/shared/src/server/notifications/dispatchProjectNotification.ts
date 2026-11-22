@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 
 import { ActionExecutionStatus, JobConfigState, prisma } from "../../db";
@@ -110,6 +109,7 @@ async function dispatchToChannels({
         projectId,
         automationId: automation.id,
         executionId,
+        actionType: automation.action.type,
         payload: {
           id: executionId,
           timestamp: new Date(),

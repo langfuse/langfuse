@@ -6,8 +6,9 @@ const { queryState, refetchMock } = vi.hoisted(() => ({
   queryState: {
     data: {
       url: "https://signed.example.com/photo.jpeg",
-      expiresAt: new Date("2026-10-09T14:05:00.000Z"),
+      urlTtlSeconds: 60,
     },
+    dataUpdatedAt: new Date("2026-10-09T14:04:00.000Z").getTime(),
     isError: false,
     isFetching: false,
   },
@@ -45,14 +46,25 @@ describe("useResolvedExternalMedia", () => {
     vi.useRealTimers();
   });
 
-  it("refreshes a cached signed URL when it expires before the next open", async () => {
+  it("resolves as soon as it is enabled, for views without a peek", () => {
     const { result } = renderHook(() =>
       useResolvedExternalMedia(descriptor, { enabled: true }),
     );
 
     expect(result.current.status).toBe("ready");
+    expect(result.current.url).toBe(queryState.data.url);
+  });
+
+  it("refreshes a cached signed URL when it expires before the next open", async () => {
+    const { result, rerender } = renderHook(() =>
+      useResolvedExternalMedia(descriptor, { enabled: true }),
+    );
+    await act(result.current.refreshIfNeeded);
+    expect(refetchMock).not.toHaveBeenCalled();
 
     vi.setSystemTime(new Date("2026-10-09T14:06:00.000Z"));
+    rerender();
+    expect(result.current.url).toBeUndefined();
     await act(result.current.refreshIfNeeded);
 
     expect(refetchMock).toHaveBeenCalledOnce();

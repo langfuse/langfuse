@@ -131,6 +131,29 @@ service:
         - commons.UnauthorizedError
         - commons.MethodNotAllowedError
 
+    # Project endpoints
+    transferProject:
+      docs: |
+        Transfer a project to another organization. The project keeps its data and its project-scoped API keys. Its project memberships and project-level user roles are removed, so members of the target organization get access through their organization role, and organization-scoped API keys of the source organization lose access.
+
+        Transferring a project to the organization it already belongs to is a no-op.
+      method: POST
+      path: /projects/{projectId}/transfer
+      path-parameters:
+        projectId: string
+      request:
+        name: TransferProjectRequest
+        body:
+          properties:
+            targetOrganizationId:
+              type: string
+              docs: ID of the organization to move the project into
+      response: TransferProjectResponse
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+
 types:
   Organizations:
     docs: List of organizations
@@ -163,6 +186,14 @@ types:
     docs: Response for successful organization deletion
     properties:
       success: boolean
+
+  TransferProjectResponse:
+    docs: Response for a project transfer
+    properties:
+      projectId: string
+      organizationId:
+        type: string
+        docs: ID of the organization the project belongs to after the transfer
 
   ApiKeyList:
     docs: List of API keys for an organization

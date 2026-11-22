@@ -12,7 +12,7 @@ vi.mock("crypto", async (importOriginal) => ({
 const createTestEnv = (overrides: Partial<SharedEnv> = {}): SharedEnv =>
   ({
     LANGFUSE_REQUIRE_FIPS: "true",
-    LANGFUSE_EE_LICENSE_KEY: "langfuse_ee_test",
+    LANGFUSE_EE_LICENSE_KEY: "lf_gov_test",
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
     ...overrides,
   }) as SharedEnv;
@@ -36,7 +36,7 @@ describe("assertFipsMode", () => {
     ).not.toThrow();
   });
 
-  it("passes with an enterprise license and an active FIPS provider", () => {
+  it("passes with a government license and an active FIPS provider", () => {
     expect(() => assertFipsMode(createTestEnv())).not.toThrow();
   });
 
@@ -54,10 +54,11 @@ describe("assertFipsMode", () => {
   it.each([
     ["no license key", undefined],
     ["a pro license key", "langfuse_pro_test"],
+    ["an enterprise license key", "langfuse_ee_test"],
   ])("refuses to start with %s, even on a FIPS host", (_label, licenseKey) => {
     expect(() =>
       assertFipsMode(createTestEnv({ LANGFUSE_EE_LICENSE_KEY: licenseKey })),
-    ).toThrow(/enterprise license/);
+    ).toThrow(/government license/);
   });
 
   it("refuses to start with a license when the FIPS provider is inactive", () => {

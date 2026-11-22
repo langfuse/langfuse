@@ -15,7 +15,9 @@ const { discoverLocalSkills, byName, createVersion } = vi.hoisted(() => ({
 }));
 
 vi.mock("../utils/local-import", () => ({ discoverLocalSkills }));
-vi.mock("@/src/features/notifications", () => ({ showSuccessToast: vi.fn() }));
+vi.mock("@/src/features/notifications/showSuccessToast", () => ({
+  showSuccessToast: vi.fn(),
+}));
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));

@@ -1,46 +1,60 @@
-import { useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { z } from "zod/v4";
+import { type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 
 import { EmailTag } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/components/EmailTag";
-import {
-  appendEmails,
-  splitEmailText,
-} from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/fns/emailText";
+import { appendEmails } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/fns/emailText";
+import { takeAddresses } from "@/src/features/ai-gateway/components/TeamInviteFields/components/EmailTagInput/fns/takeAddresses";
+import { getInviteeKind } from "@/src/features/ai-gateway/fns/getInviteeKind";
+import type { TeamInviteMembers } from "@/src/features/ai-gateway/types/teamInviteMembers";
 
 export type EmailTagInputProps = {
   id: string;
   value: string[];
   onChange: (emails: string[]) => void;
+  /** Text not turned into a chip yet; without an `@` it is a member search. */
+  draft: string;
+  onDraftChange: (draft: string) => void;
+  /** Called on Enter while the draft is a search, to pick the top match. A search is never turned into chips. */
+  onPickTopSuggestion?: () => void;
+  members: TeamInviteMembers;
   "aria-describedby"?: string;
+  /** Chips shown before the addresses. */
+  children?: ReactNode;
 };
 
 /**
- * Turns typed or pasted addresses into removable chips on comma, space, Enter, or
- * blur. Borderless: the surrounding field draws the frame.
+ * Turns typed or pasted addresses into removable chips once a comma, space,
+ * Enter, or blur ends them. Text without an `@` stays a search, and Enter picks
+ * the top suggestion. Borderless: the surrounding field draws the frame.
  */
 export function EmailTagInput({
   id,
   value,
   onChange,
+  draft,
+  onDraftChange,
+  onPickTopSuggestion,
+  members,
   "aria-describedby": ariaDescribedBy,
+  children,
 }: EmailTagInputProps) {
-  const [draft, setDraft] = useState("");
-
-  function commit(text: string) {
-    setDraft("");
-    if (text.trim().length > 0) onChange(appendEmails(value, text));
+  /** Turns the addresses in `text` into chips; returns whether there were any. */
+  function commitAddresses(text: string, { isTyping = false } = {}) {
+    const { addresses, rest } = takeAddresses(text, { isTyping });
+    if (addresses.length > 0)
+      onChange(appendEmails(value, addresses.join(" ")));
+    onDraftChange(rest);
+    return addresses.length > 0;
   }
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    const text = event.target.value;
-    if (splitEmailText(text).length > 1) commit(text);
-    else setDraft(text);
+    commitAddresses(event.target.value, { isTyping: true });
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
-      commit(draft);
+      const hasCommitted = commitAddresses(draft);
+      if (!hasCommitted && draft.trim().length > 0) onPickTopSuggestion?.();
       return;
     }
     if (event.key === "Backspace" && draft.length === 0 && value.length > 0) {
@@ -48,8 +62,9 @@ export function EmailTagInput({
     }
   }
 
+  // Text without an `@` stays a search when the input loses focus.
   function handleBlur() {
-    commit(draft);
+    commitAddresses(draft);
   }
 
   function handleRemove(email: string) {
@@ -58,11 +73,13 @@ export function EmailTagInput({
 
   return (
     <div className="ph-no-capture flex min-h-6 min-w-0 flex-wrap items-center gap-1.5 text-sm">
+      {children}
       {value.map((email) => (
         <EmailTag
           key={email}
           email={email}
-          invalid={!z.email().safeParse(email).success}
+          kind={getInviteeKind(email, members)}
+          memberName={members.get(email)?.name}
           onRemove={handleRemove}
         />
       ))}
@@ -72,7 +89,9 @@ export function EmailTagInput({
         inputMode="email"
         autoComplete="off"
         data-1p-ignore
-        placeholder={value.length === 0 ? "jsdoe@example.com" : undefined}
+        placeholder={
+          value.length === 0 && !children ? "jsdoe@example.com" : undefined
+        }
         aria-label="Email addresses"
         aria-describedby={ariaDescribedBy}
         className="placeholder:text-muted-foreground h-6 min-w-24 flex-1 border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0"

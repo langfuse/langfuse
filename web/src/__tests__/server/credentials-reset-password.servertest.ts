@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createHash, randomInt, randomUUID } from "crypto";
 import type { Session } from "next-auth";
@@ -11,6 +10,7 @@ import {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const OLD_PASSWORD = "Oldpass1!";
 const NEW_PASSWORD = "Newpass1!";
@@ -202,22 +202,15 @@ async function createPasswordUser({
       emailVerified,
     },
   });
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: user.id,
       email: user.email,
       name: user.name,
-      canCreateOrganizations: true,
-      organizations: [],
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      admin: false,
     },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:enterprise",
-    },
-  };
+    environment: { selfHostedInstancePlan: "cloud:enterprise" },
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
 
   return {

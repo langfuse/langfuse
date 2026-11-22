@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
 import { Link2, Plus, Unlink } from "@langfuse/icons";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
@@ -16,11 +15,10 @@ import {
   SheetTitle,
 } from "@/src/components/ui/sheet";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ActivationConfirmationDialog } from "@/src/features/evals/v2/components/Rules/ActivationConfirmationDialog/ActivationConfirmationDialog";
+import { ActivationConfirmationController } from "@/src/features/evals/v2/components/Rules/ActivationConfirmationController/ActivationConfirmationController";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
-import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
@@ -82,7 +80,25 @@ export function EvaluatorRuleRelationships({
   );
 }
 
-function EvaluatorRuleRelationshipsSheet({
+function EvaluatorRuleRelationshipsSheet(
+  props: Omit<
+    ComponentProps<typeof EvaluatorRuleRelationshipsSheetContent>,
+    "activationConfirmation"
+  >,
+) {
+  return (
+    <ActivationConfirmationController projectId={props.projectId}>
+      {(activationConfirmation) => (
+        <EvaluatorRuleRelationshipsSheetContent
+          {...props}
+          activationConfirmation={activationConfirmation}
+        />
+      )}
+    </ActivationConfirmationController>
+  );
+}
+
+function EvaluatorRuleRelationshipsSheetContent({
   projectId,
   evaluatorId,
   evaluatorName,
@@ -91,6 +107,7 @@ function EvaluatorRuleRelationshipsSheet({
   source,
   open,
   onOpenChange,
+  activationConfirmation,
 }: {
   projectId: string;
   evaluatorId: string;
@@ -100,6 +117,9 @@ function EvaluatorRuleRelationshipsSheet({
   source: "evaluator_detail" | "evaluator_overview";
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  activationConfirmation: Parameters<
+    ComponentProps<typeof ActivationConfirmationController>["children"]
+  >[0];
 }) {
   const router = useRouter();
   const preparedEvaluatorMapping = prepareModernRuleVariableMapping(
@@ -113,8 +133,7 @@ function EvaluatorRuleRelationshipsSheet({
   const [ruleSearchQuery, setRuleSearchQuery] = useState("");
   const debouncedRuleSearch = useDebounce(setRuleSearchQuery, 300, false);
   const [createOpen, setCreateOpen] = useState(false);
-  const activationConfirmation = useActivationConfirmation({ projectId });
-  const isEstimating = activationConfirmation.estimate.status === "estimating";
+  const isEstimating = activationConfirmation.isEstimating;
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evaluationRule:CUD",
@@ -218,7 +237,7 @@ function EvaluatorRuleRelationshipsSheet({
                         {evaluationRule.name}
                       </button>
                       <Badge
-                        color={evaluationRule.enabled ? "green" : "filled"}
+                        color={evaluationRule.enabled ? "success" : "filled"}
                         text={evaluationRule.enabled ? "Active" : "Inactive"}
                       />
                       {requiresLegacyMigrationAction({
@@ -376,14 +395,6 @@ function EvaluatorRuleRelationshipsSheet({
           successNotification="toast"
         />
       ) : null}
-      <ActivationConfirmationDialog
-        confirmation={activationConfirmation.confirmation}
-        estimate={activationConfirmation.estimate}
-        onOpenChange={activationConfirmation.setOpen}
-        onConfirm={() =>
-          activationConfirmation.confirmActivation().catch(() => undefined)
-        }
-      />
     </>
   );
 }
