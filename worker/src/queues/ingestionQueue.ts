@@ -175,29 +175,12 @@ export const ingestionQueueProcessorBuilder = (
 
       let totalS3DownloadSizeBytes = 0;
 
-      if (shouldSkipS3List) {
-        // Direct file download - skip S3 list operation
-        const filePath = `${s3Prefix}${job.data.payload.data.fileKey}.json`;
-        eventFiles = [{ file: filePath, createdAt: new Date() }];
-
-        const file = await s3Client.download(filePath);
-        const fileSize = file.length;
-
-        recordHistogram("langfuse.ingestion.s3_file_size_bytes", fileSize, {
-          skippedS3List: "true",
-        });
-        totalS3DownloadSizeBytes += fileSize;
-
-        const parsedFile = JSON.parse(file);
-        events.push(...(Array.isArray(parsedFile) ? parsedFile : [parsedFile]));
-      } else {
-        eventFiles = await s3Client.listFiles(s3Prefix);
+      const listAndDownloadEntityEvents = async () => {
+        const files = await s3Client.listFiles(s3Prefix);
         // Listings are ordered by key (client-supplied event ids), not by
         // upload time. Sort so arrival order is upload order; score merges
         // rely on that for same-timestamp re-sends.
-        eventFiles.sort(
-          (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
-        );
+        files.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
         // Process files in batches
         // If a user has 5k events, this will likely take 100 seconds.
@@ -214,14 +197,36 @@ export const ingestionQueueProcessorBuilder = (
           return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
         };
 
+        const downloaded: IngestionEventType[] = [];
         const S3_CONCURRENT_READS = env.LANGFUSE_S3_CONCURRENT_READS;
-        const batches = chunk(eventFiles, S3_CONCURRENT_READS);
-        for (const batch of batches) {
+        for (const batch of chunk(files, S3_CONCURRENT_READS)) {
           const batchEvents = await Promise.all(
             batch.map(downloadAndParseFile),
           );
-          events.push(...batchEvents.flat());
+          downloaded.push(...batchEvents.flat());
         }
+        return { files, events: downloaded };
+      };
+
+      if (shouldSkipS3List) {
+        // Direct file download - skip S3 list operation
+        const filePath = `${s3Prefix}${job.data.payload.data.fileKey}.json`;
+        eventFiles = [{ file: filePath, createdAt: new Date() }];
+
+        const file = await s3Client.download(filePath);
+        const fileSize = file.length;
+
+        recordHistogram("langfuse.ingestion.s3_file_size_bytes", fileSize, {
+          skippedS3List: "true",
+        });
+        totalS3DownloadSizeBytes += fileSize;
+
+        const parsedFile = JSON.parse(file);
+        events.push(...(Array.isArray(parsedFile) ? parsedFile : [parsedFile]));
+      } else {
+        const listed = await listAndDownloadEntityEvents();
+        eventFiles = listed.files;
+        events.push(...listed.events);
       }
 
       recordDistribution(
@@ -339,6 +344,15 @@ export const ingestionQueueProcessorBuilder = (
         events,
         forwardToEventsTable,
         attribution,
+        loadAllEntityEvents: shouldSkipS3List
+          ? async () => {
+              const listed = await listAndDownloadEntityEvents();
+              return {
+                events: listed.events,
+                firstEventCreatedAt: listed.files[0]?.createdAt,
+              };
+            }
+          : undefined,
       });
     } catch (e) {
       // Check if this is a SlowDown error and mark the project for secondary queue

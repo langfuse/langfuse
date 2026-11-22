@@ -112,6 +112,15 @@ type MergeAndWriteParams = {
   events: IngestionEventType[];
   forwardToEventsTable: boolean;
   attribution: IngestionAttribution;
+  /**
+   * Lists and downloads every stored event of the entity. Set when `events`
+   * holds only the newest event file, so that an observation update can be
+   * merged with the full history when ClickHouse has no row for it yet.
+   */
+  loadAllEntityEvents?: () => Promise<{
+    events: IngestionEventType[];
+    firstEventCreatedAt?: Date;
+  }>;
 };
 
 type PricingTierMatchAttributeValues = {
@@ -193,6 +202,7 @@ export class IngestionService {
       events,
       forwardToEventsTable,
       attribution,
+      loadAllEntityEvents,
     } = params;
 
     logger.debug(
@@ -217,6 +227,7 @@ export class IngestionService {
           observationEventList: events as ObservationEvent[],
           writeToStagingTables: forwardToEventsTable,
           attribution,
+          loadAllEntityEvents,
         });
       case "score": {
         return await this.processScoreEventList({
@@ -931,7 +942,8 @@ export class IngestionService {
     observationEventList: ObservationEvent[];
     writeToStagingTables: boolean;
     attribution: IngestionAttribution;
-  }) {
+    loadAllEntityEvents?: MergeAndWriteParams["loadAllEntityEvents"];
+  }): Promise<void> {
     const {
       projectId,
       entityId,
@@ -939,6 +951,7 @@ export class IngestionService {
       observationEventList,
       writeToStagingTables,
       attribution,
+      loadAllEntityEvents,
     } = params;
     if (observationEventList.length === 0) return;
 
@@ -977,6 +990,30 @@ export class IngestionService {
         store: "clickhouse",
         object: "observation",
       });
+    } else if (
+      loadAllEntityEvents &&
+      observationEventList.every((event) => event.type.endsWith("-update")) &&
+      !(await ClickhouseReadSkipCache.getInstance(
+        this.prisma,
+      ).shouldSkipClickHouseRead(projectId))
+    ) {
+      // Only the update's own event file was downloaded, and ClickHouse has no
+      // row to merge it into: the create is not visible yet, e.g. because the
+      // replica that answered is behind, or the update arrived first. Merging
+      // the update alone would write a row without the create's fields, and
+      // its newer event_ts would win over the create's row. Merge every
+      // stored event of the observation instead, as the S3-list path does.
+      recordIncrement("langfuse.ingestion.skip_s3_list_update_fallback", 1);
+      const allEvents = await loadAllEntityEvents();
+      if (allEvents.events.length > 0) {
+        return await this.processObservationEventList({
+          ...params,
+          createdAtTimestamp:
+            allEvents.firstEventCreatedAt ?? createdAtTimestamp,
+          observationEventList: allEvents.events as ObservationEvent[],
+          loadAllEntityEvents: undefined,
+        });
+      }
     }
 
     const observationRecords = this.mapObservationEventsToRecords({

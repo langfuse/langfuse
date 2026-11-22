@@ -279,6 +279,64 @@ describe("Ingestion end-to-end tests", () => {
     });
   });
 
+  it("merges a single-file observation update with all stored events when ClickHouse has no row for it", async () => {
+    // A lagging replica, or an update that arrives first, leaves ClickHouse
+    // without the create's row when the update is processed.
+    const traceId = randomUUID();
+    const generationId = randomUUID();
+    const startTime = new Date().toISOString();
+    const create: ObservationEvent = {
+      id: randomUUID(),
+      type: "generation-create",
+      timestamp: startTime,
+      body: {
+        id: generationId,
+        traceId,
+        name: "generation-from-create",
+        startTime,
+        model: "gpt-4o",
+        input: "input-from-create",
+        environment,
+      },
+    };
+    const update: ObservationEvent = {
+      id: randomUUID(),
+      type: "generation-update",
+      timestamp: new Date(Date.parse(startTime) + 1000).toISOString(),
+      body: {
+        id: generationId,
+        traceId,
+        output: "output-from-update",
+        endTime: new Date(Date.parse(startTime) + 1000).toISOString(),
+        environment,
+      },
+    };
+
+    await ingestionService.mergeAndWrite({
+      projectId,
+      entityId: generationId,
+      createdAtTimestamp: new Date(),
+      eventType: "observation",
+      events: [update],
+      forwardToEventsTable: false,
+      attribution: testIngestionAttribution,
+      loadAllEntityEvents: async () => ({
+        events: [create, update],
+        firstEventCreatedAt: new Date(startTime),
+      }),
+    });
+    await clickhouseWriter.flushAll(true);
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId,
+    );
+    expect(generation.name).toBe("generation-from-create");
+    expect(generation.provided_model_name).toBe("gpt-4o");
+    expect(generation.input).toBe("input-from-create");
+    expect(generation.output).toBe("output-from-update");
+  });
+
   [
     {
       usage: {
