@@ -32,10 +32,6 @@ it("opens personal previews through Internal view or a Topics grant on self-host
   expect(canOpenPersonalFeaturePreviews(input)).toBe(false);
 
   session.user.email = "member@example.com";
-  session.user.featureFlags.langfuseTopics = true;
-  expect(canOpenPersonalFeaturePreviews(input)).toBe(true);
-
-  session.user.featureFlags.langfuseTopics = false;
   expect(canOpenPersonalFeaturePreviews(input)).toBe(false);
 
   session.user.v4BetaEnabled = true;

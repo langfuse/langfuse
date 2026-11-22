@@ -12,14 +12,12 @@ vi.mock("next-auth/react", () => ({
 
 const mockSession = ({
   aiGateway,
-  langfuseTopics = false,
   email,
   enableExperimentalFeatures = false,
   internalFeatures,
   unifiedTraceSessionView = false,
 }: {
   aiGateway: boolean;
-  langfuseTopics?: boolean;
   email?: string;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
@@ -32,14 +30,13 @@ const mockSession = ({
         email,
         featureFlags: testFeatureFlags({
           aiGateway: false,
-          langfuseTopics,
           unifiedTraceSessionView,
           [INTERNAL_FEATURE_FLAG]: internalFeatures,
         }),
         organizations: [
           {
             id: "org-1",
-            featureFlags: testFeatureFlags({ aiGateway, langfuseTopics }),
+            featureFlags: testFeatureFlags({ aiGateway }),
             projects: [],
           },
         ],
@@ -129,12 +126,12 @@ describe("useIsFeatureEnabled", () => {
     const { result } = renderHook(() => ({
       internal: useInternalFeaturesEnabled(),
       aiGateway: useIsFeatureEnabled("aiGateway"),
-      langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
+      unifiedTraceSessionView: useIsFeatureEnabled("unifiedTraceSessionView"),
     }));
     expect(result.current).toEqual({
       internal: expected,
       aiGateway: false,
-      langfuseTopics: false,
+      unifiedTraceSessionView: false,
     });
   });
 
@@ -146,12 +143,18 @@ describe("useIsFeatureEnabled", () => {
     });
     const { result, rerender } = renderHook(() => ({
       aiGateway: useIsFeatureEnabled("aiGateway", { organizationId: "org-1" }),
-      langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
+      unifiedTraceSessionView: useIsFeatureEnabled("unifiedTraceSessionView"),
     }));
-    expect(result.current).toEqual({ aiGateway: false, langfuseTopics: false });
+    expect(result.current).toEqual({
+      aiGateway: false,
+      unifiedTraceSessionView: false,
+    });
 
-    mockSession({ aiGateway: true, langfuseTopics: true });
+    mockSession({ aiGateway: true, unifiedTraceSessionView: true });
     rerender();
-    expect(result.current).toEqual({ aiGateway: true, langfuseTopics: true });
+    expect(result.current).toEqual({
+      aiGateway: true,
+      unifiedTraceSessionView: true,
+    });
   });
 });

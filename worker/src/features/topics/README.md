@@ -13,7 +13,7 @@ Topics turns v4 traces into facet summaries, embeddings and topic assignments. T
 
 ## Enablement and models
 
-Topics requires `LANGFUSE_TOPICS_ENABLED=true`, on Langfuse Cloud and self-hosted alike. Read access, configuration and processing also require the project in `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`. Keep web and worker configuration aligned. An empty allowlist disables Topics access for all projects. Trace and project deletion clean Topics data independently of these gates.
+Topics requires `LANGFUSE_TOPICS_ENABLED=true`, on Langfuse Cloud and self-hosted alike; it then applies to every project. Keep web and worker configuration aligned. Processing runs only for projects that turn automatic processing on with all three models configured. Trace and project deletion clean Topics data independently of these gates.
 
 Use the normal migrated Postgres, ClickHouse and Redis stack and build shared and `@langfuse/native` before starting the worker. Summarizing, for automatic intake and for setup backfills and snapshots alike, runs through the [trace dispatcher and the events-dispatch consumer](../traceDispatch/README.md), so `LANGFUSE_EVENTS_DISPATCH_ENABLED` and one worker with `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` are required.
 

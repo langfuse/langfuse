@@ -46,7 +46,6 @@ describe("unstable Topics public API access", () => {
   let other: Awaited<ReturnType<typeof topicsProject>>;
   const original = {
     enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-    projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
     region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
 
@@ -56,16 +55,10 @@ describe("unstable Topics public API access", () => {
     // The Topics gate reads shared env in this process.
     (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
-      owner.projectId,
-      other.projectId,
-    ];
   });
 
   afterAll(() => {
     (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
-      original.projectIds;
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
   });
 
@@ -154,7 +147,7 @@ describe("unstable Topics public API access", () => {
     expect(JSON.stringify(topics.body)).not.toContain(owner.topicId);
   });
 
-  it("returns not found once a project leaves the Topics allowlist", async () => {
+  it("returns not found when the deployment turns Topics off", async () => {
     const auth = createBasicAuthHeader(other.publicKey, other.secretKey);
     const routes = [
       [facetsHandler, {}],
@@ -166,18 +159,15 @@ describe("unstable Topics public API access", () => {
       [summariesHandler, {}],
       [assignmentsHandler, {}],
     ] as const;
-    // Positive control: its own ids resolve while the project is allowed.
+    // Positive control: its own ids resolve while Topics is on.
     for (const [handler, query] of routes)
       expect((await get(handler, auth, query)).status).toBe(200);
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [owner.projectId];
+    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "false";
     try {
       for (const [handler, query] of routes)
         expect((await get(handler, auth, query)).status).toBe(404);
     } finally {
-      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
-        owner.projectId,
-        other.projectId,
-      ];
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
     }
   });
 

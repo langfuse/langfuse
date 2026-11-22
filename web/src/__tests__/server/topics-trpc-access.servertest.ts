@@ -26,7 +26,6 @@ vi.mock("@langfuse/shared/src/server/topics/text", () => ({
   generateTopicText,
 }));
 
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -35,10 +34,7 @@ type Role = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
 
 function caller(userId: string, memberships: [string, string, Role][]) {
   const session = createSession({
-    user: {
-      id: userId,
-      featureFlags: testFeatureFlags({ langfuseTopics: true }),
-    },
+    user: { id: userId },
     organizations: memberships.map(([orgId, projectId, role]) => ({
       id: orgId,
       role,
@@ -156,7 +152,6 @@ async function topicsProject(userId: string) {
 describe("Topics tRPC access", () => {
   const original = {
     enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-    projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
     region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
   let userId: string;
@@ -173,16 +168,10 @@ describe("Topics tRPC access", () => {
     b = await topicsProject(userId);
     (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
-      a.projectId,
-      b.projectId,
-    ];
   });
 
   afterAll(() => {
     (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
-      original.projectIds;
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
   });
 

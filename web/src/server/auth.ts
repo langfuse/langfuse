@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { type GetServerSidePropsContext } from "next";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
+import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import {
   getServerSession,
   type NextAuthOptions,
@@ -17,7 +17,7 @@ import {
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server/parseFlags";
+} from "@/src/features/feature-flags/utils";
 import {
   isGatewayDeployedOnInstance,
   isGatewayEnabledForOrganization,
@@ -993,6 +993,7 @@ export async function getAuthOptions(
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
               inAppAgentEnabled: isInAppAgentInstanceEnabled(),
+              topicsEnabled: isTopicsEnabled(),
               aiFeaturesTracingConfigured: isLangfuseAITracingConfigured(),
               aiGatewayDeployed: isGatewayDeployedOnInstance(),
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
@@ -1087,9 +1088,6 @@ export async function getAuthOptions(
                                 name: project.name,
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
-                                topicsEnabled: isTopicsProjectEnabled(
-                                  project.id,
-                                ),
                                 scoreEditsDisabled: shouldSkipScoresDedup(
                                   project.id,
                                 ),

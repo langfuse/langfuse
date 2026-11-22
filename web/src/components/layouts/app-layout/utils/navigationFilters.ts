@@ -185,12 +185,7 @@ const filters = {
     return route.show({
       organization: organization ?? undefined,
       projectId: ctx.routerProjectId,
-      canViewTopics: canViewTopics(
-        ctx.session,
-        organization?.projects.find(
-          (project) => project.id === ctx.routerProjectId,
-        ),
-      ),
+      canViewTopics: canViewTopics(ctx.session, ctx.routerProjectId),
       visibleGatewayPages: gatewayPages,
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,

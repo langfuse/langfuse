@@ -198,8 +198,21 @@ export async function getEnabledTopicsModels(
   projectIds: string[],
 ): Promise<Map<string, TopicsModels>> {
   if (!projectIds.length) return new Map();
+  return findEnabledTopicsModels({ projectId: { in: projectIds } });
+}
+
+/** Every project with automatic processing on, for deployment-wide schedulers. */
+export async function getAllEnabledTopicsModels(): Promise<
+  Map<string, TopicsModels>
+> {
+  return findEnabledTopicsModels({});
+}
+
+async function findEnabledTopicsModels(
+  where: Prisma.TopicConfigWhereInput,
+): Promise<Map<string, TopicsModels>> {
   const rows = await prisma.topicConfig.findMany({
-    where: { projectId: { in: projectIds }, enabled: true },
+    where: { ...where, enabled: true },
     include: withStoredProviders,
   });
   return new Map(

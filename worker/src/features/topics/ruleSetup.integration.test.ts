@@ -30,7 +30,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   enqueueTopicRuleRefit: vi.fn(),
   getEnabledTopicsModels: vi.fn(),
-  isTopicsProjectEnabled: () => true,
+  isTopicsEnabled: () => true,
 }));
 vi.mock("../traceDispatch/traceRuleRecording", () => ({
   seedTraceDispatch: vi.fn(),

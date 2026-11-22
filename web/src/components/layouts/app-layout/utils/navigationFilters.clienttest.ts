@@ -8,7 +8,7 @@ import { applyNavigationFilters } from "./navigationFilters";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 
 it.each([
-  { flag: "langfuseTopics", enableExperimentalFeatures: true },
+  { flag: "unifiedTraceSessionView", enableExperimentalFeatures: true },
   { flag: "sessionViewV2", enableExperimentalFeatures: false },
 ] as const)(
   "keeps $flag hidden without opt-in",
@@ -83,18 +83,14 @@ it.each([
   { topicsEnabled: true, visible: true },
   { topicsEnabled: false, visible: false },
 ])(
-  "shows the Topics entry only when the gate passes for the current project (allowlisted: $topicsEnabled)",
+  "shows the Topics entry only when the deployment enables Topics ($topicsEnabled)",
   ({ topicsEnabled, visible }) => {
     const route = ROUTES.find((route) => route.title === "Topics")!;
     const session = createSession({
-      user: { featureFlags: testFeatureFlags({ langfuseTopics: true }) },
       organizations: [
-        {
-          id: "org-1",
-          role: "VIEWER",
-          projects: [{ id: "project-1", topicsEnabled }],
-        },
+        { id: "org-1", role: "VIEWER", projects: [{ id: "project-1" }] },
       ],
+      environment: { topicsEnabled },
     });
     const organization = session.user.organizations[0]!;
     const context: NavigationFilterContext = {

@@ -16,7 +16,6 @@ import {
 
 const mocks = vi.hoisted(() => ({
   env: {},
-  topicsEnabled: vi.fn(),
   topicsActive: vi.fn(),
   createObservationDeps: vi.fn(),
   record: vi.fn(),
@@ -28,7 +27,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordIncrement: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
-  isTopicsProjectEnabled: mocks.topicsEnabled,
   isTopicsProcessingActive: mocks.topicsActive,
   getTopicsProcessingSampling: async (projectId: string) =>
     (await mocks.topicsActive(projectId)) ? 1 : 0,
@@ -73,7 +71,6 @@ const facetRule: EvalRules["traceTranscriptRules"][number] = {
 describe("scheduleEvals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.topicsEnabled.mockReturnValue(true);
     mocks.topicsActive.mockResolvedValue(true);
     mocks.record.mockResolvedValue(undefined);
   });

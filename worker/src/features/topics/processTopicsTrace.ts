@@ -8,7 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   getEnabledTopicsModels,
-  isTopicsProjectEnabled,
+  isTopicsEnabled,
   readTopicExecutionSummary,
   isValidTopicSummary,
   listTopicFacets,
@@ -250,7 +250,7 @@ async function processEvent(
   deps: TopicsTraceDeps,
 ): Promise<TopicsTraceOutcome> {
   const { projectId, traceId } = event;
-  if (!isTopicsProjectEnabled(projectId)) return { outcome: "disabled" };
+  if (!isTopicsEnabled()) return { outcome: "disabled" };
   const settings = await projectSettings(projectId);
   const models = settings.models;
   if (!models) return { outcome: "disabled" };

@@ -158,7 +158,6 @@ describe("in-app agent background runs", () => {
   const createCaller = async (
     userId = `user-${randomUUID()}`,
     plan: Plan = "cloud:hobby",
-    flags: Parameters<typeof testFeatureFlags>[0] = {},
   ) => {
     const setup = await createOrgProjectAndApiKey();
 
@@ -175,7 +174,7 @@ describe("in-app agent background runs", () => {
       user: {
         id: userId,
         name: "Agent User",
-        featureFlags: testFeatureFlags({ templateFlag: false, ...flags }),
+        featureFlags: testFeatureFlags({ templateFlag: false }),
       },
       organizations: [
         {
@@ -756,20 +755,9 @@ describe("in-app agent background runs", () => {
     });
   });
 
-  it("stores Topics availability from the user's preview and keeps it across approvals", async () => {
-    const withoutPreview = await createCaller();
-    const withPreview = await createCaller(undefined, "cloud:hobby", {
-      langfuseTopics: true,
-    });
-    const original = {
-      enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-      projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
-    };
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
-      withoutPreview.projectId,
-      withPreview.projectId,
-    ];
+  it("stores Topics availability from the deployment switch and keeps it across approvals", async () => {
+    const withTopics = await createCaller();
+    const original = sharedEnv.LANGFUSE_TOPICS_ENABLED;
     const start = async ({
       caller,
       projectId,
@@ -790,12 +778,14 @@ describe("in-app agent background runs", () => {
     };
 
     try {
-      const denied = await start(withoutPreview);
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "false";
+      const denied = await start(withTopics);
       expect(denied.run.request).not.toHaveProperty("topicsAvailable");
 
-      // Positive control: the same flow with the preview stores the flag.
-      const { projectId, caller } = withPreview;
-      const { conversationId, run } = await start(withPreview);
+      // Positive control: the same flow with Topics on stores the flag.
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
+      const { projectId, caller } = withTopics;
+      const { conversationId, run } = await start(withTopics);
       expect(run.request).toMatchObject({ topicsAvailable: true });
 
       // Park the router-created run like the worker does, then approve.
@@ -841,9 +831,7 @@ describe("in-app agent background runs", () => {
         topicsAvailable: true,
       });
     } finally {
-      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
-        original.projectIds;
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original;
     }
   });
 

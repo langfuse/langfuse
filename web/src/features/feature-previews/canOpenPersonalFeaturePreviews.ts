@@ -12,7 +12,6 @@ export function canOpenPersonalFeaturePreviews({
   return (
     isLangfuseCloud ||
     session?.user?.v4BetaEnabled === true ||
-    isInternalViewEnabled(session) ||
-    session?.user?.featureFlags.langfuseTopics === true
+    isInternalViewEnabled(session)
   );
 }
