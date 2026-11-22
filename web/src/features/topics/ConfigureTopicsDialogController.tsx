@@ -111,7 +111,7 @@ function ConfigureTopicsSettings({
     embeddingDimensions: String(stored.embeddingDimensions),
     clustering: stored.clustering,
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
-    embeddingLocked: false,
+    embeddingLock: stored.embeddingLock,
     automaticProcessing: stored.enabled ?? false,
   };
   const paused = stored.blockMessage

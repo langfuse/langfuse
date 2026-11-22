@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -35,7 +36,11 @@ export type ConfigureTopicsDraft = {
   embeddingDimensions: string;
   clustering: JudgeModel | null;
   idleSeconds: string;
-  embeddingLocked: boolean;
+  /**
+   * The embedding model and dimensions the project's summaries were embedded
+   * with; the server rejects any other. Null while no summary is embedded.
+   */
+  embeddingLock: { model: string; dimensions: number } | null;
   /**
    * Automatic processing of new traces is on, so Save tests every model.
    * Otherwise Save tests only the models that changed.
@@ -139,9 +144,22 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
           (slot === "embedding" && dimensions !== draft.embeddingDimensions)),
     )
     .every((slot) => !slotChecks || slotChecks[slot]?.status === "ok");
+  const lock = draft.embeddingLock;
+  // Without a stored connection the picker stays open, so the locked model can
+  // be chosen on another connection.
+  const embeddingPickerLocked = lock !== null && draft.embedding !== null;
+  const embeddingChanged =
+    embedding !== null &&
+    (!sameModel(embedding, draft.embedding) ||
+      dimensions !== draft.embeddingDimensions);
+  const leavesLockedSpace =
+    lock !== null &&
+    embedding !== null &&
+    (embedding.model !== lock.model || Number(dimensions) !== lock.dimensions);
   const canSave =
     canWrite &&
     !saving &&
+    !leavesLockedSpace &&
     (draft.automaticProcessing ? modelsPass : changedSlotsPass);
   const commitSlot = (
     slot: "summary" | "embedding" | "clustering",
@@ -235,7 +253,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             <ModelSlot
               name="embedding"
               model={embedding}
-              locked={draft.embeddingLocked}
+              locked={embeddingPickerLocked}
               disabled={!canWrite}
               check={slotChecks?.embedding}
               dimensions={dimensions}
@@ -250,6 +268,13 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 commitSlot("embedding", model);
               }}
             />
+            {lock ? (
+              <EmbeddingLockedWarning
+                lock={lock}
+                needsConnection={!embeddingPickerLocked}
+              />
+            ) : null}
+            {!lock && embeddingChanged ? <EmbeddingChangeWarning /> : null}
             <ModelSlot
               name="clustering"
               model={clustering}
@@ -410,6 +435,47 @@ function SlotStatus({
   if (check?.status === "error" && check.message)
     return <p className="text-destructive text-xs">{check.message}</p>;
   return <p className="text-muted-foreground text-xs">{recommendation}</p>;
+}
+
+const EMBEDDING_SPACE_CONSEQUENCE =
+  "Each embedding model, and each dimension count, produces vectors in its own embedding space. Summaries from different spaces cannot be clustered or compared, and Langfuse does not re-embed existing summaries.";
+
+function EmbeddingLockedWarning({
+  lock,
+  needsConnection,
+}: {
+  lock: { model: string; dimensions: number };
+  needsConnection: boolean;
+}) {
+  return (
+    <Banner variant="warning" title="The embedding model is locked">
+      <p>
+        Summaries in this project are already embedded with{" "}
+        <span className="font-mono">{lock.model}</span> at {lock.dimensions}{" "}
+        dimensions. {EMBEDDING_SPACE_CONSEQUENCE}
+      </p>
+      {needsConnection ? (
+        <p className="mt-1">
+          Choose <span className="font-mono">{lock.model}</span> on another
+          connection to keep Topics running.
+        </p>
+      ) : null}
+    </Banner>
+  );
+}
+
+function EmbeddingChangeWarning() {
+  return (
+    <Banner
+      variant="warning"
+      title="You cannot change the embedding model later"
+    >
+      <p>
+        The embedding model and dimensions are locked once the first summaries
+        are embedded. {EMBEDDING_SPACE_CONSEQUENCE}
+      </p>
+    </Banner>
+  );
 }
 
 function PausedNotice({

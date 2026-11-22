@@ -22,7 +22,7 @@ const emptyDraft = {
   embeddingDimensions: "1024",
   clustering: null,
   idleSeconds: "600",
-  embeddingLocked: false,
+  embeddingLock: null,
   automaticProcessing: false,
 } satisfies ConfigureTopicsDraft;
 
@@ -32,7 +32,7 @@ const filledDraft = {
   embeddingDimensions: "1024",
   clustering: { provider: "Amazon Bedrock", model: "us.openai.gpt-5.6-terra" },
   idleSeconds: "600",
-  embeddingLocked: true,
+  embeddingLock: { model: "us.cohere.embed-v4:0", dimensions: 1024 },
   automaticProcessing: true,
 } satisfies ConfigureTopicsDraft;
 
@@ -68,6 +68,25 @@ export const Configured = meta.story({
   args: {
     draft: filledDraft,
     notice: "none",
+  },
+});
+
+export const WarnsBeforeEmbeddingChange = meta.story({
+  name: "(Test) Changing the embedding model warns that it becomes permanent",
+  args: {
+    draft: { ...filledDraft, embeddingLock: null },
+    notice: "none",
+  },
+  play: async () => {
+    const body = within(document.body);
+    const title = "You cannot change the embedding model later";
+    await expect(body.queryByText(title)).not.toBeInTheDocument();
+    const dimensions = body.getByRole("spinbutton", {
+      name: "Embedding dimensions",
+    });
+    await userEvent.clear(dimensions);
+    await userEvent.type(dimensions, "512");
+    await expect(body.getByText(title)).toBeVisible();
   },
 });
 

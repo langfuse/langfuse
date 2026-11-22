@@ -427,6 +427,23 @@ export async function readTopicsModelSettings(projectId: string) {
   };
 }
 
+/**
+ * The embedding model and dimensions that saving can no longer change, because
+ * complete summaries were embedded with them; null while they can still change.
+ * Mirrors the check in `prepareTopicsModelSettings`.
+ */
+export async function readTopicsEmbeddingLock(
+  projectId: string,
+): Promise<{ model: string; dimensions: number } | null> {
+  const row = await prisma.topicConfig.findUnique({
+    where: { projectId },
+    select: { embeddingModel: true, embeddingDimensions: true },
+  });
+  if (!row?.embeddingModel || !(await hasTopicEmbeddings(projectId)))
+    return null;
+  return { model: row.embeddingModel, dimensions: row.embeddingDimensions };
+}
+
 /** Resolves each slot's provider to the project's effective connection, or throws. */
 async function resolveModelSettings(
   projectId: string,
