@@ -6,7 +6,10 @@ import {
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
-import { type SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
+import {
+  AzureMultiTenantIdSchema,
+  type SsoProviderSchema,
+} from "@/src/ee/features/multi-tenant-sso/types";
 import {
   getDiscoveryUrl,
   resolveOneLoginIssuer,
@@ -199,11 +202,10 @@ function validateDiscoveryIssuer(
 ): void {
   // Azure multi-tenant endpoints report the literal `{tenantid}` placeholder
   // as issuer — the tenant is bound at sign-in.
-  const azureMultiTenantIds = ["common", "organizations", "consumers"];
   const expectedIssuer =
     payload.authProvider === "azure-ad" &&
     payload.authConfig &&
-    azureMultiTenantIds.includes(payload.authConfig.tenantId)
+    AzureMultiTenantIdSchema.safeParse(payload.authConfig.tenantId).success
       ? stripTrailingSlash(issuer).replace(
           `/${payload.authConfig.tenantId}/`,
           "/{tenantid}/",
