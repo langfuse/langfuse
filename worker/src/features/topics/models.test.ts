@@ -3,9 +3,6 @@ import { Decimal } from "decimal.js";
 import { encrypt } from "@langfuse/shared/encryption";
 
 const state = vi.hoisted(() => ({
-  env: {
-    LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: ["project"],
-  },
   call: vi.fn(),
   findModel: vi.fn(),
   embed: vi.fn(),
@@ -27,7 +24,6 @@ vi.mock("tiktoken", async (importOriginal) => {
       state.encoding ?? actual.get_encoding(...args),
   };
 });
-vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
@@ -71,6 +67,7 @@ import {
 } from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
+import { env } from "../../env";
 import { recordTopicModelCall } from "./metrics";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
@@ -124,9 +121,6 @@ const evidence = {
 };
 
 beforeEach(() => {
-  state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [
-    "project",
-  ];
   state.call.mockReset();
   state.findModel.mockReset().mockResolvedValue({
     model: null,
@@ -198,7 +192,7 @@ describe("Topics naming boundary", () => {
       typeof import("@langfuse/shared/topics/server")
     >("@langfuse/shared/topics/server");
     state.call.mockImplementation(generateTopicText);
-    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [];
+    state.traceSink.mockReturnValue(undefined);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -244,7 +238,7 @@ describe("Topics naming boundary", () => {
       typeof import("@langfuse/shared/topics/server")
     >("@langfuse/shared/topics/server");
     state.call.mockImplementation(generateTopicText);
-    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [];
+    state.traceSink.mockReturnValue(undefined);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -1090,14 +1084,18 @@ describe("Topics naming boundary", () => {
     },
   );
 
-  it.each(["unconfigured destination", "empty allowlist", "unlisted source"])(
-    "keeps inference untraced and skips the consent lookup with %s",
-    async (reason) => {
-      if (reason === "unconfigured destination")
+  it.for(["in HIPAA", "without a destination"])(
+    "keeps inference untraced and skips the consent lookup %s",
+    async (scenario, { onTestFinished }) => {
+      if (scenario === "in HIPAA") {
+        const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "HIPAA";
+        onTestFinished(() => {
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+        });
+      } else {
         state.traceSink.mockReturnValue(undefined);
-      else
-        state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL =
-          reason === "empty allowlist" ? [] : ["ai-features", "project-other"];
+      }
       state.call.mockResolvedValue({
         output: keyed({ summary: "A billing request.", status: "applicable" }),
         usage: {},
@@ -1109,11 +1107,9 @@ describe("Topics naming boundary", () => {
         "A billing request.",
         topicProcessingConfigSchema.parse({}),
       );
-      expect(state.project).not.toHaveBeenCalled();
       expect(state.call).toHaveBeenCalledOnce();
       expect(state.call.mock.calls[0][0].trace).toBeUndefined();
-      if (reason !== "unconfigured destination")
-        expect(state.traceSink).not.toHaveBeenCalled();
+      expect(state.project).not.toHaveBeenCalled();
     },
   );
 

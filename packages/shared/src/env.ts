@@ -72,15 +72,6 @@ const EnvSchema = z.object({
         .map((id) => id.trim())
         .filter(Boolean),
     ),
-  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: z
-    .string()
-    .default("")
-    .transform((value) =>
-      value
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean),
-    ),
   // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
   // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
   VERCEL_URL: z.string().optional(),

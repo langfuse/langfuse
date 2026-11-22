@@ -2,7 +2,6 @@ import { get_encoding } from "tiktoken";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "@langfuse/shared/src/env";
 import {
   calculateModelUsageCosts,
   findModel,
@@ -27,6 +26,7 @@ import {
   type TopicFacetVersion,
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
+import { env } from "../../env";
 import { createEventLoopYielder } from "./event-loop";
 import { recordTopicModelCall, recordTopicTokenUsage } from "./metrics";
 import {
@@ -226,12 +226,8 @@ async function topicTraceSink(
   projectId: string,
   metadata?: Record<string, unknown>,
 ) {
-  if (
-    !env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL?.includes(
-      projectId,
-    )
-  )
-    return undefined;
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA") return undefined;
+
   const trace = getLangfuseAITraceSinkParams({
     feature: "topics",
     projectId,
