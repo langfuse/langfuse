@@ -8,12 +8,18 @@ import {
   tickTopicRuleSetup,
 } from "../features/topics/ruleSetup";
 import { tickTopicSnapshotSetup } from "../features/topics/snapshotSetup";
+import { runTopicCostEstimate } from "../features/topics/costEstimate";
 
-/** The job is only the clock; the rule's setup record or the snapshot's execution holds the state. */
+/** The job is only the clock; the rule's setup record, the snapshot's execution, or the estimate record holds the state. */
 export const topicsSetupQueueProcessor: Processor<
   TQueueJobTypes[QueueName.TopicsSetup]
 > = async (job, token) => {
   const { payload } = job.data;
+  // Cost estimates run once; they never reschedule.
+  if ("estimateKey" in payload) {
+    await runTopicCostEstimate(payload.projectId, payload.estimateKey);
+    return;
+  }
   const active =
     "executionId" in payload
       ? await tickTopicSnapshotSetup(payload.projectId, payload.executionId)

@@ -1,0 +1,82 @@
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  claimTopicCostEstimate,
+  createTopicFacet,
+  readTopicCostEstimate,
+} from "@langfuse/shared/topics/server";
+import { runTopicCostEstimate } from "./costEstimate";
+
+const DAY_MS = 86_400_000;
+
+describe("Topics cost estimate", () => {
+  const orgId = randomUUID();
+  const projectId = randomUUID();
+
+  beforeAll(async () => {
+    await prisma.organization.create({
+      data: {
+        id: orgId,
+        name: "Topics cost estimate test",
+        projects: { create: [{ id: projectId, name: "Topics cost estimate" }] },
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.organization.deleteMany({ where: { id: orgId } });
+  });
+
+  it("measures each sampled trace over its whole time span and skips traces without content", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Intent",
+      description: "",
+      prompt: "Describe the request.",
+    });
+    const now = Date.now();
+    const event = (traceId: string, at: number, input: string) =>
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        start_time: new Date(at),
+        event_ts: new Date(at),
+        input,
+        output: "",
+      });
+    const longTrace = `${projectId}-long`;
+    await createEventsCh([
+      // One trace whose two events lie two days apart; both must be measured.
+      event(longTrace, now - 3 * DAY_MS, "a".repeat(8_000)),
+      event(longTrace, now - DAY_MS, "b".repeat(8_000)),
+      event(`${projectId}-short`, now - 2 * DAY_MS, "Hello"),
+      event(`${projectId}-empty`, now - 2 * DAY_MS, ""),
+      // Still active within the idle wait, so not finished.
+      event(`${projectId}-active`, now - 60_000, "Hello"),
+    ]);
+
+    const { estimate } = await claimTopicCostEstimate({
+      projectId,
+      filter: [],
+      facets: [{ facetId: facet.id, version: 1 }],
+      summaryModel: "gpt-5.6-luna",
+      embeddingModel: "text-embedding-3-small",
+    });
+    await runTopicCostEstimate(projectId, estimate.key);
+
+    const done = await readTopicCostEstimate(projectId, estimate.key);
+    expect(done).toMatchObject({
+      status: "done",
+      finishedTraces7d: 3,
+      sampled: 3,
+      processed: 3,
+      summarizable: 2,
+      skipped: { tooLarge: 0, noContent: 1 },
+    });
+    // 16,000 transcript characters of the long trace at 4 characters per token.
+    expect(done!.tokens.inputTokens).toBeGreaterThan(4_000);
+    expect(done!.tokens.outputTokens).toBe(2 * 60);
+  });
+});

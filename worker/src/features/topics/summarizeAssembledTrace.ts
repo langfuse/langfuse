@@ -55,6 +55,15 @@ type TraceFacet = {
   builtIn: boolean;
 };
 
+/** Facets as the summary request lists them; pass built-in facets first. */
+export function keyTopicTraceFacets(facets: TraceFacet[]) {
+  return facets.map(({ name, version, builtIn }, index) => ({
+    key: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
+    facet: version,
+    builtIn,
+  }));
+}
+
 type TraceFacetResult =
   | { output: FacetOutput }
   | { error: TopicsProviderUnavailable };
@@ -296,11 +305,7 @@ async function summarizeTraceFacets(params: {
   metrics.summaryInputCharacters("text", text.length);
   metrics.summaryInputCharacters("json", projection.text.length);
   // The caller lists built-in facets first, so the cached prompt prefix stays stable.
-  const keyed = facets.map(({ name, version, builtIn }, index) => ({
-    key: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
-    facet: version,
-    builtIn,
-  }));
+  const keyed = keyTopicTraceFacets(facets);
   const errors = new Map<string, TopicsProviderUnavailable>();
   let generated:
     | Awaited<ReturnType<typeof summarizeTopicTraceFacets>>
