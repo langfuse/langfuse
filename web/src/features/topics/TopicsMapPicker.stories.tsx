@@ -379,6 +379,26 @@ export const TestRefreshPreviewedMap = meta.story({
   },
 });
 
+export const TestPhoneShowsSelectedMapCost = meta.story({
+  name: "(Test) Phone footer keeps the selected map’s cost while browsing",
+  globals: { viewport: { value: "phone", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        phone: { name: "Phone", styles: { width: "390px", height: "844px" } },
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const picker = await openPicker(canvasElement);
+    await userEvent.hover(
+      picker.getByRole("button", { name: /^Support agent/ }),
+    );
+    await expect(picker.getByText("~$0.32")).toBeVisible();
+    await expect(picker.queryByText("~$0.14")).not.toBeInTheDocument();
+  },
+});
+
 export const TestRefreshCooldown = meta.story({
   name: "(Test) Refresh waits out its cooldown",
   args: {
