@@ -28,7 +28,7 @@ export const saveDashboardBlockSchema = dashboardBlockTargetSchema
   .extend({
     id: z.uuid(),
     expectedRevision: z.number().int().nonnegative(),
-    beforePlacementId: z.string().min(1).max(255).nullable().optional(),
+    beforePlacementId: z.string().nullable().optional(),
   })
   .and(dashboardBlockContentSchema);
 
@@ -111,7 +111,8 @@ function anchoredBlock<T extends { beforePlacementId: string | null }>(
   return {
     ...block,
     beforePlacementId:
-      block.beforePlacementId && placements.has(block.beforePlacementId)
+      block.beforePlacementId !== null &&
+      placements.has(block.beforePlacementId)
         ? block.beforePlacementId
         : null,
   };

@@ -106,16 +106,18 @@ describe("project dashboard blocks", () => {
     const target = { projectId, dashboardId: dashboard.id };
     const placement = {
       type: "widget" as const,
-      id: "placement-a",
+      id: "",
       widgetId: "widget-a",
       x: 0,
       y: 0,
       x_size: 4,
       y_size: 3,
     };
+    const secondPlacement = { ...placement, id: "部門".repeat(150), y: 3 };
+    const definition = { widgets: [placement, secondPlacement] };
     await owner.dashboard.updateDashboardDefinition({
       ...target,
-      definition: { widgets: [placement] },
+      definition,
     });
 
     const create = {
@@ -129,9 +131,9 @@ describe("project dashboard blocks", () => {
     await expect(
       owner.dashboardBlocks.capabilities({ projectId }),
     ).resolves.toEqual({ markdown: false, multiQuery: false });
-    await expect(owner.dashboardBlocks.save(create)).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
+    await expect(
+      owner.dashboardBlocks.save({ ...create, beforePlacementId: null }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     allowlists.markdown.push(projectId);
     const block = await owner.dashboardBlocks.save(create);
     expect(block).toMatchObject({
@@ -151,9 +153,11 @@ describe("project dashboard blocks", () => {
     const second = await owner.dashboardBlocks.save({
       ...create,
       id: randomUUID(),
+      beforePlacementId: secondPlacement.id,
     });
+    expect(second.beforePlacementId).toBe(secondPlacement.id);
     const legacy = await owner.dashboard.getDashboard(target);
-    expect(legacy.definition).toEqual({ widgets: [placement] });
+    expect(legacy.definition).toEqual(definition);
     await expect(
       prisma.dashboard.findUniqueOrThrow({
         where: { id: dashboard.id },

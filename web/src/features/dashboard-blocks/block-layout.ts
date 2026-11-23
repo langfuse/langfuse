@@ -48,7 +48,7 @@ export function prepareDashboardBlockSections(
       previous.widgets.push(...row.widgets);
     } else {
       sections.push({
-        key: row.widgets[0].id,
+        key: `row:${row.widgets[0].id}`,
         blocks: anchored,
         widgets: [...row.widgets],
       });

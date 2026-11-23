@@ -18,7 +18,7 @@ describe("saved dashboard block placement", () => {
   it("keeps overlapping rows together, preserves stored geometry, and appends orphan anchors", () => {
     const widgets: DashboardPlacement[] = [
       {
-        id: "a",
+        id: "trailing-blocks",
         widgetId: "wa",
         type: "widget",
         x: 0,
@@ -69,7 +69,7 @@ describe("saved dashboard block placement", () => {
       {
         blocks: ["heading"],
         widgets: [
-          ["a", 0],
+          ["trailing-blocks", 0],
           ["b", 2],
         ],
       },
@@ -82,6 +82,9 @@ describe("saved dashboard block placement", () => {
       },
       { blocks: ["orphan"], widgets: [] },
     ]);
+    expect(new Set(sections.map((section) => section.key)).size).toBe(
+      sections.length,
+    );
     expect(widgets).toEqual(original);
   });
 
