@@ -1,4 +1,4 @@
-use std::{ops::Range, sync::Arc, time::Instant};
+use std::{collections::BTreeMap, ops::Range, sync::Arc, time::Instant};
 
 use axum::{
     Json, Router,
@@ -9,13 +9,16 @@ use axum::{
     routing::{get, post},
 };
 use http_body_util::BodyExt;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::value::RawValue;
 use tower_http::timeout::{RequestBodyDeadlineLayer, TimeoutError};
 use tracing::Instrument;
 
 use crate::{
-    capture::{GatewayRejection, MAX_OUTPUT_CAPTURE_BYTES, MAX_RESPONSE_PARSE_BYTES, RequestInput},
+    capture::{
+        GatewayRejection, MAX_INPUT_CAPTURE_BYTES, MAX_OUTPUT_CAPTURE_BYTES,
+        MAX_RESPONSE_PARSE_BYTES, RequestInput,
+    },
     correlation::{RequestCorrelation, assign_request_id},
     inference::{
         InferenceService, MemoryReservation, provider_origin, rate_limited_reason,
@@ -303,56 +306,70 @@ struct Members<'a> {
     model: Option<&'a RawValue>,
     /// Kept raw so a non-boolean value is left for the provider to reject.
     stream: Option<&'a RawValue>,
-    all: Vec<(String, &'a RawValue)>,
+    /// Every member, for capture; later members replace earlier ones of the same
+    /// name, as in the recorded input. `None` when capture does not apply.
+    all: Option<BTreeMap<String, &'a RawValue>>,
 }
 
-impl<'de> Deserialize<'de> for Members<'de> {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct MembersVisitor;
+/// Collects `Members::all` only when set, so a body with millions of members
+/// allocates nothing per member unless capture keeps them.
+struct MembersSeed {
+    collect: bool,
+}
 
-        impl<'de> serde::de::Visitor<'de> for MembersVisitor {
-            type Value = Members<'de>;
+impl<'de> serde::de::DeserializeSeed<'de> for MembersSeed {
+    type Value = Members<'de>;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a JSON object")
+    fn deserialize<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_map(self)
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for MembersSeed {
+    type Value = Members<'de>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a JSON object")
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut members = Members {
+            model: None,
+            stream: None,
+            all: self.collect.then(BTreeMap::new),
+        };
+        while let Some(key) = map.next_key::<std::borrow::Cow<'de, str>>()? {
+            let value: &'de RawValue = map.next_value()?;
+            let slot = match key.as_ref() {
+                "model" => Some(&mut members.model),
+                "stream" => Some(&mut members.stream),
+                _ => None,
+            };
+            if let Some(slot) = slot
+                && slot.replace(value).is_some()
+            {
+                return Err(serde::de::Error::custom("duplicate member"));
             }
-
-            fn visit_map<A: serde::de::MapAccess<'de>>(
-                self,
-                mut map: A,
-            ) -> Result<Self::Value, A::Error> {
-                let mut members = Members {
-                    model: None,
-                    stream: None,
-                    all: Vec::new(),
-                };
-                while let Some(key) = map.next_key::<String>()? {
-                    let value: &'de RawValue = map.next_value()?;
-                    let slot = match key.as_str() {
-                        "model" => Some(&mut members.model),
-                        "stream" => Some(&mut members.stream),
-                        _ => None,
-                    };
-                    if let Some(slot) = slot
-                        && slot.replace(value).is_some()
-                    {
-                        return Err(serde::de::Error::custom("duplicate member"));
-                    }
-                    members.all.push((key, value));
-                }
-                Ok(members)
+            if let Some(all) = &mut members.all {
+                all.insert(key.into_owned(), value);
             }
         }
-
-        deserializer.deserialize_map(MembersVisitor)
+        Ok(members)
     }
 }
 
 /// Parses the body in one pass: the model and its byte range for the upstream
 /// rewrite, the stream flag, and, when `capture` is set, the members capture records.
 fn parse_request_body(bytes: Bytes, capture: bool) -> Result<ParsedRequest, InferenceHttpError> {
-    let members = serde_json::from_slice::<Members<'_>>(&bytes)
-        .map_err(|_| InferenceHttpError::InvalidBody)?;
+    let collect = capture && bytes.len() <= MAX_INPUT_CAPTURE_BYTES;
+    let mut deserializer = serde_json::Deserializer::from_slice(&bytes);
+    let members =
+        serde::de::DeserializeSeed::deserialize(MembersSeed { collect }, &mut deserializer)
+            .and_then(|members| deserializer.end().map(|()| members))
+            .map_err(|_| InferenceHttpError::InvalidBody)?;
     let raw_model = members.model.ok_or(InferenceHttpError::InvalidBody)?.get();
     let model =
         serde_json::from_str::<String>(raw_model).map_err(|_| InferenceHttpError::InvalidBody)?;
@@ -369,8 +386,8 @@ fn parse_request_body(bytes: Bytes, capture: bool) -> Result<ParsedRequest, Infe
         .filter(|end| *end <= bytes.len())
         .ok_or(InferenceHttpError::InvalidBody)?;
     let streaming = members.stream.is_some_and(|stream| stream.get() == "true");
-    // Later members replace earlier ones of the same name, as in the recorded input.
-    let input = capture.then(|| RequestInput::from_members(members.all, bytes.len()));
+    let input =
+        capture.then(|| RequestInput::from_members(members.all.into_iter().flatten(), bytes.len()));
     Ok(ParsedRequest {
         bytes,
         model,
