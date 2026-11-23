@@ -7,6 +7,17 @@ import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 type TraceEvalsProject = { id: string; traceEvalsEnabled?: boolean };
 
+/** True when the user can read at least one project on the trace evals allowlist, so the trace evals preview is theirs to opt into. */
+export function belongsToTraceEvalsProject(
+  user: Session["user"] | undefined,
+): boolean {
+  return (
+    user?.organizations?.some((organization) =>
+      organization.projects.some((project) => project.traceEvalsEnabled),
+    ) ?? false
+  );
+}
+
 /** Visibility gate for every trace evals surface: project gate, internal view or feature preview, and evaluator:read or evaluationRule:read. */
 export function canViewTraceTranscriptsEvals(
   session: Session | null,

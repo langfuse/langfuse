@@ -7,6 +7,7 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { belongsToTraceEvalsProject } from "@/src/features/evals/transcriptEvalsAccess";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
@@ -59,15 +60,13 @@ export function ControlledFeaturePreviewModal({
     internalViewEnabled ||
     authSession.data?.user?.featureFlags.langfuseTopics === true;
 
-  const hasTraceEvalsProject =
-    authSession.data?.user?.organizations?.some((organization) =>
-      organization.projects.some((project) => project.traceEvalsEnabled),
-    ) ?? false;
+  const hasTraceEvalsProject = belongsToTraceEvalsProject(
+    authSession.data?.user,
+  );
 
-  const isTraceEvalsEnabled =
-    hasTraceEvalsProject &&
-    (internalViewEnabled ||
-      authSession.data?.user?.featureFlags.traceTranscriptEvals === true);
+  const isTraceEvalsPreviewOn =
+    internalViewEnabled ||
+    authSession.data?.user?.featureFlags.traceTranscriptEvals === true;
 
   const traceEvalsWarningReason = internalViewEnabled
     ? "Trace transcript evals are enabled by Internal view. Switching to External view hides them unless they have been enabled for you separately."
@@ -109,10 +108,10 @@ export function ControlledFeaturePreviewModal({
           },
         }
       : {}),
-    ...(isTraceEvalsEnabled
+    ...(hasTraceEvalsProject
       ? {
           traceTranscriptEvals: {
-            enabled: isTraceEvalsEnabled,
+            enabled: isTraceEvalsPreviewOn,
             disabled: internalViewEnabled,
             warningReason: traceEvalsWarningReason,
             onToggle: onToggle("traceTranscriptEvals"),
