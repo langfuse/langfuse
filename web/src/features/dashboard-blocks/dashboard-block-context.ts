@@ -15,6 +15,7 @@ export type DashboardBlocksContextValue = {
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
   capabilitiesPending: boolean;
+  blocksPending: boolean;
   capabilities: { multiQuery: boolean; markdown: boolean };
   blocks: SavedDashboardBlock[];
   widgets: DashboardPlacement[];

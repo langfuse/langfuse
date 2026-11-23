@@ -17,9 +17,22 @@ export function DashboardBlocksCanvas({
 }: {
   gridProps: ComponentProps<typeof DashboardGrid>;
 }) {
-  const { blocks, canEdit, loadError, openEditor, placementOptions, track } =
-    useDashboardBlocks();
+  const {
+    blocks,
+    blocksPending,
+    canEdit,
+    loadError,
+    openEditor,
+    placementOptions,
+    track,
+  } = useDashboardBlocks();
   const [layoutMode, setLayoutMode] = useState(false);
+  if (blocksPending)
+    return (
+      <div role="status" aria-label="Loading dashboard layout" aria-busy="true">
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
   if (blocks.length === 0)
     return (
       <>

@@ -53,6 +53,7 @@ export function DashboardBlocksProvider({
   const {
     capabilities,
     capabilitiesPending,
+    blocksPending,
     blocks,
     placementOptions,
     loadError,
@@ -112,6 +113,7 @@ export function DashboardBlocksProvider({
             dateRange,
             filterState,
             capabilitiesPending,
+            blocksPending,
             capabilities,
             blocks,
             widgets,

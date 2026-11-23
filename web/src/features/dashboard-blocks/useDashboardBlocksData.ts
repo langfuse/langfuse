@@ -98,6 +98,8 @@ export function useDashboardBlocksData({
   return {
     capabilities,
     capabilitiesPending: capabilitiesQuery.isPending,
+    blocksPending:
+      capabilitiesQuery.isLoading || (kinds.length > 0 && saved.isLoading),
     blocks: (saved.data ?? []).filter((block) => capabilities[block.kind]),
     placementOptions,
     loadError: hasDashboardBlocksLoadError({
