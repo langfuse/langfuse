@@ -20,16 +20,24 @@ const SAFE_INLINE_MEDIA_TYPES = new Set([
 ]);
 const SAFE_INLINE_MEDIA_TYPE_PREFIXES = ["audio/", "video/"];
 
+// A single `type/subtype` of HTTP tokens with optional parameters. Browsers
+// sniff the body of a type they cannot parse and use the last entry of a
+// comma-separated list, so anything else cannot be trusted.
+const HTTP_TOKEN = "[!#$%&'*+.^_`|~0-9A-Za-z-]+";
+const STRICT_MEDIA_TYPE = new RegExp(
+  `^(${HTTP_TOKEN}/${HTTP_TOKEN})(?:[ \\t]*;[^,]*)?$`,
+);
+
 /**
  * Signs a download URL for a Langfuse-managed media object. The response
  * Content-Type is pinned to the type recorded for the media, so the type the
  * object was stored with never decides how a browser renders it.
  *
  * Returns `null` when the provider cannot pin response headers and either the
- * recorded or the stored type is outside the safe-inline allowlist: any link
- * would let its holder render the object inline on the storage origin. The
- * stored type is checked because such providers do not bind it at upload; a
- * missing object also gets no link.
+ * recorded type is outside the safe-inline allowlist or the stored type is not
+ * exactly the recorded type: any link would let its holder render the object
+ * inline on the storage origin. The stored type is checked because such
+ * providers do not bind it at upload; a missing object also gets no link.
  */
 export async function getMediaDownloadUrl(params: {
   storageService: StorageService;
@@ -43,15 +51,10 @@ export async function getMediaDownloadUrl(params: {
     if (!isSafeInline) return null;
     const storedContentType =
       await storageService.getObjectContentType(bucketPath);
-    // Browsers render the last type of a comma-separated list, so only a
-    // single stored type can be trusted.
-    if (
-      !storedContentType ||
-      storedContentType.includes(",") ||
-      !isSafeInlineMediaType(storedContentType)
-    ) {
-      return null;
-    }
+    const storedEssence = storedContentType
+      ? STRICT_MEDIA_TYPE.exec(storedContentType)?.[1].toLowerCase()
+      : undefined;
+    if (storedEssence !== mediaTypeEssence(contentType)) return null;
   }
   return storageService.getSignedUrl(
     bucketPath,
@@ -61,8 +64,12 @@ export async function getMediaDownloadUrl(params: {
   );
 }
 
+function mediaTypeEssence(contentType: string) {
+  return contentType.split(";")[0].trim().toLowerCase();
+}
+
 function isSafeInlineMediaType(contentType: string) {
-  const mimeType = contentType.split(";")[0].trim().toLowerCase();
+  const mimeType = mediaTypeEssence(contentType);
   return (
     SAFE_INLINE_MEDIA_TYPES.has(mimeType) ||
     SAFE_INLINE_MEDIA_TYPE_PREFIXES.some((prefix) =>

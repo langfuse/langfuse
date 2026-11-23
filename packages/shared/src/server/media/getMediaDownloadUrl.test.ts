@@ -121,6 +121,13 @@ describe("getMediaDownloadUrl on a provider that cannot pin response headers", (
     await expect(
       downloadUrl("image/png", "image/png; a=b, text/html"),
     ).resolves.toBeNull();
+    for (const storedType of ["video/", "video/x y", "video/mp4/html"]) {
+      await expect(downloadUrl("video/mp4", storedType)).resolves.toBeNull();
+    }
+    await expect(
+      downloadUrl("image/png", "\u00a0image/png"),
+    ).resolves.toBeNull();
+    await expect(downloadUrl("image/png", "image/jpeg")).resolves.toBeNull();
   });
 
   it("returns no link when the stored object is missing", async () => {
@@ -141,5 +148,8 @@ describe("getMediaDownloadUrl on a provider that cannot pin response headers", (
     await expect(downloadUrl("image/png", "image/png")).resolves.toBe(
       "https://storage.example.com/par",
     );
+    await expect(
+      downloadUrl("text/plain", "Text/Plain; charset=utf-8"),
+    ).resolves.toBe("https://storage.example.com/par");
   });
 });
