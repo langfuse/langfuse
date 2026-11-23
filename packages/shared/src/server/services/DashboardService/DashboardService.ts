@@ -1,5 +1,6 @@
 import { prisma, Prisma } from "../../../db";
 import { isPrismaRecordNotFoundError } from "../../prismaErrors";
+import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import {
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -88,6 +89,18 @@ const validateDashboardWidgetQuery = (
   }
 };
 
+/**
+ * First free clone name: "ABC (Clone)", then "ABC (Clone 2)", "ABC (Clone 3)", …
+ */
+function nextCloneName(sourceName: string, existingNames: string[]): string {
+  const taken = new Set(existingNames);
+  const base = `${sourceName} (Clone)`;
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${sourceName} (Clone ${n})`)) n++;
+  return `${sourceName} (Clone ${n})`;
+}
+
 export class DashboardService {
   /**
    * Retrieves a list of dashboards for a given project.
@@ -171,6 +184,72 @@ export class DashboardService {
       ...newDashboard,
       owner: newDashboard.projectId ? "PROJECT" : "LANGFUSE",
     });
+  }
+
+  public static async cloneDashboard({
+    projectId,
+    dashboardId,
+    userId,
+    definition,
+    setAsHome,
+  }: {
+    projectId: string;
+    dashboardId: string;
+    userId: string;
+    definition?: z.infer<typeof DashboardDefinitionSchema>;
+    setAsHome?: boolean;
+  }): Promise<DashboardDomain> {
+    return prisma.$transaction(
+      async (tx) => {
+        const source = await tx.dashboard.findFirst({
+          where: { id: dashboardId, OR: [{ projectId }, { projectId: null }] },
+          select: {
+            name: true,
+            description: true,
+            definition: true,
+          },
+        });
+        if (!source)
+          throw new LangfuseNotFoundError("Source dashboard not found");
+        const names = await tx.dashboard.findMany({
+          where: {
+            projectId,
+            name: { startsWith: `${escapeSqlLikePattern(source.name)} (Clone` },
+          },
+          select: { name: true },
+        });
+        const clone = await tx.dashboard.create({
+          data: {
+            name: nextCloneName(
+              source.name,
+              names.map(({ name }) => name),
+            ),
+            description: source.description,
+            projectId,
+            createdBy: userId,
+            updatedBy: userId,
+            definition:
+              definition ?? DashboardDefinitionSchema.parse(source.definition),
+          },
+        });
+        // Keep dormant and newer configurations opaque when cloning within their project.
+        await tx.$executeRaw`
+          INSERT INTO dashboard_blocks (dashboard_id, id, kind, config, before_placement_id, created_at)
+          SELECT ${clone.id}, block.id, block.kind, block.config, block.before_placement_id, block.created_at
+          FROM dashboard_blocks AS block
+          JOIN dashboards AS source ON source.id = block.dashboard_id
+          WHERE block.dashboard_id = ${dashboardId} AND source.project_id = ${projectId}
+        `;
+        if (setAsHome) {
+          await tx.project.update({
+            where: { id: projectId },
+            data: { homeDashboardId: clone.id },
+          });
+        }
+        return DashboardDomainSchema.parse({ ...clone, owner: "PROJECT" });
+      },
+      { isolationLevel: "RepeatableRead" },
+    );
   }
 
   /**

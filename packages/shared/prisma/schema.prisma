@@ -2006,9 +2006,29 @@ model Dashboard {
   definition Json @map("definition")
   filters    Json @default("[]") @map("filters")
 
-  homeDashboardProjects Project[] @relation("ProjectHomeDashboard")
+  homeDashboardProjects Project[]        @relation("ProjectHomeDashboard")
+  blocks                DashboardBlock[]
 
   @@map("dashboards")
+}
+
+enum DashboardBlockKind {
+  multiQuery
+  markdown
+}
+
+model DashboardBlock {
+  dashboardId       String             @map("dashboard_id")
+  dashboard         Dashboard          @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  id                String             @db.Uuid
+  kind              DashboardBlockKind
+  config            Json
+  beforePlacementId String?            @map("before_placement_id")
+  revision          Int                @default(1)
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  @@id([dashboardId, id])
+  @@map("dashboard_blocks")
 }
 
 enum DashboardWidgetViews {

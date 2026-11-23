@@ -20,7 +20,6 @@ import {
   getObservationUsageByTypeByTime,
   DashboardService,
   DashboardDefinitionSchema,
-  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
@@ -108,18 +107,6 @@ const UpdateDashboardFiltersInput = z.object({
   dashboardId: z.string(),
   filters: singleFilterList,
 });
-
-/**
- * First free clone name: "ABC (Clone)", then "ABC (Clone 2)", "ABC (Clone 3)", …
- */
-function nextCloneName(sourceName: string, existingNames: string[]): string {
-  const taken = new Set(existingNames);
-  const base = `${sourceName} (Clone)`;
-  if (!taken.has(base)) return base;
-  let n = 2;
-  while (taken.has(`${sourceName} (Clone ${n})`)) n++;
-  return `${sourceName} (Clone ${n})`;
-}
 
 // Map camelCase legacy column names (used by scoreHistogram component)
 // to view-native field names before passing through the general mapper.
@@ -613,49 +600,10 @@ export const dashboardRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      // Get the source dashboard
-      const sourceDashboard = await DashboardService.getDashboard(
-        input.dashboardId,
-        input.projectId,
-      );
-
-      if (!sourceDashboard) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Source dashboard not found",
-        });
-      }
-
-      // Create a new dashboard with the same data but a numbered clone name
-      const existingClones = await ctx.prisma.dashboard.findMany({
-        where: {
-          projectId: input.projectId,
-          name: {
-            startsWith: `${escapeSqlLikePattern(sourceDashboard.name)} (Clone`,
-          },
-        },
-        select: { name: true },
+      return DashboardService.cloneDashboard({
+        ...input,
+        userId: ctx.session.user.id,
       });
-
-      const clonedDashboard = await DashboardService.createDashboard(
-        input.projectId,
-        nextCloneName(
-          sourceDashboard.name,
-          existingClones.map((d) => d.name),
-        ),
-        sourceDashboard.description,
-        ctx.session.user.id,
-        input.definition ?? sourceDashboard.definition,
-      );
-
-      if (input.setAsHome) {
-        await ctx.prisma.project.update({
-          where: { id: input.projectId },
-          data: { homeDashboardId: clonedDashboard.id },
-        });
-      }
-
-      return clonedDashboard;
     }),
 
   getHomeDashboard: protectedProjectProcedure

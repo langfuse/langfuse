@@ -63,6 +63,8 @@ export * from "./features/entitlements/entitlements";
 export * from "./features/entitlements/stripeProducts";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
+export * from "./domain/dashboard-multi-query";
+export * from "./domain/dashboard-block";
 export * from "./domain/webhooks";
 export * from "./domain/storage-role-auth";
 export * from "./domain/dataset-run-items";
