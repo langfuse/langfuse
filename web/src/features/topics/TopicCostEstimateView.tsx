@@ -1,5 +1,6 @@
 import {
   TOPICS_COST_ESTIMATE_SAMPLE_SIZE,
+  TOPICS_COST_ESTIMATE_MAX_FACETS,
   type TopicCostEstimate,
   type TopicCostEstimatePrices,
 } from "@langfuse/shared/topics";
@@ -8,6 +9,22 @@ import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { usdFormatter } from "@/src/utils/numbers";
 
 type Estimate = TopicCostEstimate & { prices: TopicCostEstimatePrices };
+
+export type TopicEstimateVolume =
+  | {
+      /** Sampling scales daily volume without measuring the traces again. */
+      samplingPercent: number;
+      dailyTraces: number | null;
+      backfillTraces: number | null;
+      newTraces?: never;
+    }
+  | {
+      /** Only the traces selected for new summaries in this snapshot. */
+      newTraces: number;
+      samplingPercent?: never;
+      dailyTraces?: never;
+      backfillTraces?: never;
+    };
 
 // Two significant digits below a cent, so a per-trace cost never reads as $0.00.
 const approxUsd = (usd: number) =>
@@ -27,48 +44,48 @@ const approxCount = (count: number) =>
     maximumFractionDigits: 1,
   }).format(Math.round(count))}`;
 
+export type TopicEstimateControls = {
+  estimate: Estimate | null;
+  facetCount: number;
+  starting: boolean;
+  error: string | null;
+  onStart: () => void;
+};
+
 /** The cost estimate card: start button, cost per trace and what it adds up to. */
 export function TopicCostEstimateView({
   estimate,
   samplingPercent,
   dailyTraces,
   backfillTraces,
-  canAddModelPrice,
+  newTraces,
   onAddModelPrice,
   starting,
-  disabled,
+  facetCount,
   error,
   onStart,
-}: {
-  estimate: Estimate | null;
-  /** Applied on read, so changing it never needs a new estimate. */
-  samplingPercent: number;
-  /** Finished matching traces a day, before sampling. */
-  dailyTraces: number | null;
-  backfillTraces: number | null;
-  /** False without permission to edit model definitions; the button is then disabled. */
-  canAddModelPrice: boolean;
-  onAddModelPrice: () => void;
-  starting: boolean;
-  disabled: boolean;
-  error: string | null;
-  onStart: () => void;
-}) {
+}: TopicEstimateVolume &
+  TopicEstimateControls & { onAddModelPrice?: () => void }) {
+  if (facetCount > TOPICS_COST_ESTIMATE_MAX_FACETS)
+    return (
+      <p className="text-muted-foreground text-sm">
+        Cost estimates support up to {TOPICS_COST_ESTIMATE_MAX_FACETS} selected
+        questions.
+      </p>
+    );
   const running = estimate?.status === "running";
   const done = estimate?.status === "done";
   const measured = done && estimate.sampled > 0;
   const perTraceUsd = measured ? estimate.prices.perTraceUsd : null;
   const sampledDailyTraces =
-    dailyTraces !== null ? dailyTraces * (samplingPercent / 100) : null;
-  const unpriced =
-    measured && perTraceUsd === null
-      ? [
-          estimate.prices.summaryPriced ? null : estimate.inputs.summaryModel,
-          estimate.prices.embeddingPriced
-            ? null
-            : estimate.inputs.embeddingModel,
-        ].filter((model): model is string => Boolean(model))
-      : [];
+    dailyTraces != null ? dailyTraces * (samplingPercent / 100) : null;
+  const unpriced: string[] = [];
+  if (measured && perTraceUsd === null) {
+    if (!estimate.prices.summaryPriced && estimate.inputs.summaryModel)
+      unpriced.push(estimate.inputs.summaryModel);
+    if (!estimate.prices.embeddingPriced && estimate.inputs.embeddingModel)
+      unpriced.push(estimate.inputs.embeddingModel);
+  }
   const tokensPerTrace =
     measured && unpriced.length > 0
       ? {
@@ -77,14 +94,18 @@ export function TopicCostEstimateView({
         }
       : null;
 
-  const addPriceHint = canAddModelPrice
+  const addPriceHint = onAddModelPrice
     ? ""
     : " You don't have permission to add one.";
 
   return (
     <div className="flex flex-col gap-2 rounded-md border px-3.5 py-3">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium">Cost estimate</span>
+        <span className="text-sm font-medium">
+          {newTraces === undefined
+            ? "Cost estimate"
+            : "Summary and embedding cost"}
+        </span>
         {running ? (
           <span className="text-muted-foreground flex items-center gap-2 text-xs">
             <Spinner size="sm" />
@@ -97,7 +118,7 @@ export function TopicCostEstimateView({
             size="sm"
             loading={starting}
             // The same inputs give the same estimate, so a measured one is not run again.
-            disabled={disabled || measured}
+            disabled={facetCount === 0 || measured}
             onClick={onStart}
           />
         )}
@@ -110,7 +131,17 @@ export function TopicCostEstimateView({
         </span>
       ) : null}
 
-      {perTraceUsd !== null ? (
+      {perTraceUsd !== null && newTraces !== undefined && (
+        <div className="text-sm">
+          <span className="text-lg font-medium tabular-nums">
+            {approxUsd(perTraceUsd * newTraces)}
+          </span>{" "}
+          for up to {newTraces.toLocaleString("en-US")} new{" "}
+          {newTraces === 1 ? "trace" : "traces"}
+        </div>
+      )}
+
+      {perTraceUsd !== null && newTraces === undefined && (
         <>
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <span>
@@ -128,7 +159,7 @@ export function TopicCostEstimateView({
               </span>
             </span>
           </div>
-          {sampledDailyTraces !== null ? (
+          {sampledDailyTraces !== null && (
             <span className="text-sm">
               {approxUsd(perTraceUsd * sampledDailyTraces)} per day at{" "}
               {samplingPercent}% sampling
@@ -140,9 +171,9 @@ export function TopicCostEstimateView({
                   : ""}
               </span>
             </span>
-          ) : null}
+          )}
         </>
-      ) : null}
+      )}
 
       {tokensPerTrace ? (
         <div className="flex flex-col gap-1 text-sm">
@@ -158,7 +189,7 @@ export function TopicCostEstimateView({
               text="Add model price"
               variant="outline"
               size="sm"
-              disabled={!canAddModelPrice}
+              disabled={!onAddModelPrice}
               onClick={onAddModelPrice}
             />
           </span>
@@ -172,9 +203,17 @@ export function TopicCostEstimateView({
         </span>
       ) : null}
 
-      {done && estimate.sampled > 0 ? (
+      {done && estimate.sampled > 0 && (
         <span className="text-muted-foreground text-xs">
-          {`Estimated from ${estimate.sampled} recent traces. Actual cost depends on your provider.`}
+          {newTraces === undefined
+            ? `Estimated from ${estimate.sampled} recent traces. Actual cost depends on your provider.`
+            : `Based on ${estimate.sampled} matching traces from the last 7 days.`}
+        </span>
+      )}
+
+      {newTraces !== undefined ? (
+        <span className="text-muted-foreground text-xs">
+          Topic naming may incur an additional charge.
         </span>
       ) : null}
 

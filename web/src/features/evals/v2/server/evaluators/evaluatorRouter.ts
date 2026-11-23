@@ -24,6 +24,7 @@ import {
   UpdateEvaluatorSchema,
 } from "./evaluatorTypes";
 import { EvaluatorService } from "./evaluatorService";
+import { throwIfTraceTranscriptEvalsUnavailable } from "@/src/features/evals/server/traceTranscriptEvalsAccess";
 import { ruleRouter } from "../rules/ruleRouter";
 import { getActivationCostEstimates } from "./activationCostService";
 
@@ -31,7 +32,8 @@ const TestEvaluatorSchema = z.object({
   projectId: z.string(),
   evaluatorId: z.string(),
   definition: EvaluatorDefinitionInputSchema,
-  observationId: z.string(),
+  /** Absent when the test evaluates the trace transcript instead of one observation. */
+  observationId: z.string().optional(),
   traceId: z.string(),
   startTime: z.coerce.date(),
 });
@@ -285,6 +287,20 @@ export const evaluatorRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluator:CUD",
       });
+      if (input.observationId === undefined) {
+        throwIfTraceTranscriptEvalsUnavailable(
+          ctx.session,
+          ctx.session.projectId,
+        );
+        return serviceForContext(ctx).testEvaluatorOnTrace({
+          orgId: ctx.session.orgId,
+          projectId: ctx.session.projectId,
+          evaluatorId: input.evaluatorId,
+          definition: input.definition,
+          traceId: input.traceId,
+          timestamp: input.startTime,
+        });
+      }
       return serviceForContext(ctx).testEvaluator({
         orgId: ctx.session.orgId,
         projectId: ctx.session.projectId,

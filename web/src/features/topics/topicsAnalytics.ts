@@ -55,8 +55,8 @@ type TopicsEventProperties = {
     questionCount: number;
     filterCount: number;
   };
-  /** Estimate cost, in the setup Review step or the New map dialog. */
-  "topics:cost_estimate_started": { source: "setup" | "new_map" };
+  /** The dialog where the user requested a processing estimate. */
+  "topics:cost_estimate_started": { source: "setup" | "new_map" | "snapshot" };
   /** Once per page mount and map, when the map has topics. */
   "topics:map_viewed": {
     mapKind: TopicsMapKind;

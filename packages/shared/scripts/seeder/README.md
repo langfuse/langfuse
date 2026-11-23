@@ -163,6 +163,8 @@ pnpm run seed -- topics-map
 
 `topics-map` skips the models: it writes summaries, two rules (an unfiltered one and a long-named rule whose tag filter matches its 48 traces, both named `Seed: …` so existing rules are never overwritten) and completed Intent and Issues maps with 2D coordinates, so the treemap, list and map views render right away. Topic sizes range from 34 traces down to 2, and the map includes long topic names, outliers and four traces awaiting a map. The project still needs Topics enabled (`LANGFUSE_TOPICS_ENABLED`, `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` and the Topics feature flag for the user).
 
+The CLI prints links to two published snapshots with synthetic prices. **Seed: checkout snapshot** totals $0.50 ($0.42 for processing and $0.08 for naming). **Seed: partially priced snapshot** shows $0.28 with incomplete processing prices. On a fresh fixture, the map picker shows **$0.16** for **Seed: all traces** and **$0.06** for the enterprise map. Both share a $0.12 summary. The first map also owns a $0.10 topic name. Each snapshot owns its $0.08 renamed billing topic and reuses the other names. Replaying the same fixture replaces its five synthetic cost summaries and reuses its original topic versions. For the pre-run forecast, add discovery traces with `pnpm run seed -- topics` and select **New snapshot → Estimate cost**.
+
 ## The contract (additive-only)
 
 Scenario names, flag names, JSON summary keys, and exit-code semantics are a

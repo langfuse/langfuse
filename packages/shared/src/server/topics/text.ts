@@ -63,12 +63,9 @@ const RAW_FINISH_REASONS = new Set([
  * which Converse does not accept for them, so cached prompts on those models
  * use InvokeModel at the same regional endpoint and model ID.
  */
-export async function generateTopicText<T>(params: TopicTextParams<T>): Promise<
-  TopicTextResult & {
-    usageDetails: Record<string, number>;
-    providedCostDetails: Record<string, number>;
-  }
-> {
+export async function generateTopicText<T>(
+  params: TopicTextParams<T>,
+): Promise<TopicTextResult & TopicTextUsageDetails> {
   const startTimeISO = new Date().toISOString();
   let result: TopicTextResult | undefined;
   let responseMetadata: TopicTextResponseMetadata | undefined;
@@ -85,11 +82,7 @@ export async function generateTopicText<T>(params: TopicTextParams<T>): Promise<
       isBedrockGPT(params.model) && params.system.some((part) => part.cache)
         ? await invokeWithCache(params, recordResponse)
         : await generateWithConnection(params, recordResponse);
-    return {
-      ...result,
-      usageDetails: topicTraceUsage(result.usage) ?? {},
-      providedCostDetails: result.providedCostDetails ?? {},
-    };
+    return { ...result, ...textUsageDetails(result) };
   } catch (error) {
     failure = error;
     // Responses refusal blocks can fail SDK validation before onEnd runs.
@@ -106,13 +99,22 @@ export async function generateTopicText<T>(params: TopicTextParams<T>): Promise<
     if (responseMetadata && error !== null && typeof error === "object") {
       responseMetadataByError.set(error, responseMetadata);
     }
-    if (NoObjectGeneratedError.isInstance(error)) {
+    if (!result && NoObjectGeneratedError.isInstance(error)) {
       result = { output: error.text, usage: topicUsage(error.usage) };
     }
+    if (result && params.onFailedResponseUsage)
+      await params.onFailedResponseUsage(textUsageDetails(result));
     throw error;
   } finally {
     await writeTopicTrace(params, startTimeISO, result, failure);
   }
+}
+
+function textUsageDetails(result: TopicTextResult): TopicTextUsageDetails {
+  return {
+    usageDetails: topicTraceUsage(result.usage) ?? {},
+    providedCostDetails: result.providedCostDetails ?? {},
+  };
 }
 
 /** Bounded response diagnostics for the existing Topics failure log; no content. */
@@ -268,6 +270,13 @@ async function generateWithConnection<T>(
     metadata: TopicTextResponseMetadata,
   ) => void,
 ): Promise<TopicTextResult> {
+  const isOpenRouter =
+    params.model.adapter === LLMAdapter.OpenAI &&
+    isOpenRouterEndpoint(params.model.connection.baseURL);
+  const suppliedCosts = (body: unknown): Record<string, number> => {
+    const total = isOpenRouter ? openRouterCost(body) : undefined;
+    return total === undefined ? {} : { total };
+  };
   const result = await generateLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
@@ -308,6 +317,7 @@ async function generateWithConnection<T>(
         {
           output: text,
           usage: topicUsage(finalStep.usage, finalStep.response.body),
+          providedCostDetails: suppliedCosts(finalStep.response.body),
         },
         responseAttributes(finalStep, text.length, params.maxOutputTokens),
       );
@@ -315,15 +325,10 @@ async function generateWithConnection<T>(
   });
   const body = result.finalStep.response.body;
   const usage = topicUsage(result.usage, body);
-  const cost =
-    params.model.adapter === LLMAdapter.OpenAI &&
-    isOpenRouterEndpoint(params.model.connection.baseURL)
-      ? openRouterCost(body)
-      : undefined;
   return {
     output: result.output,
     usage,
-    providedCostDetails: cost === undefined ? {} : { total: cost },
+    providedCostDetails: suppliedCosts(body),
   };
 }
 
@@ -628,6 +633,11 @@ export type TopicPromptPart = { text: string; cache?: boolean };
 
 type TopicTextResponseMetadata = Record<string, string | number>;
 
+export type TopicTextUsageDetails = {
+  usageDetails: Record<string, number>;
+  providedCostDetails: Record<string, number>;
+};
+
 type TopicTextResult = {
   output: unknown;
   providedCostDetails?: Record<string, number>;
@@ -649,4 +659,6 @@ type TopicTextParams<T> = {
   maxOutputTokens: number;
   timeoutMs?: number;
   trace?: TraceSinkParams;
+  /** A provider may report usage before its response fails structured-output validation. */
+  onFailedResponseUsage?: (usage: TopicTextUsageDetails) => Promise<void>;
 };

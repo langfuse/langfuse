@@ -360,7 +360,9 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    show: ({ organization }) =>
+      organization?.plan === "cloud:hobby" ||
+      organization?.plan === "cloud:enterprise-trial",
   },
   {
     title: "Upgrade plan",
@@ -369,7 +371,9 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    show: ({ organization }) =>
+      organization?.plan === "cloud:hobby" ||
+      organization?.plan === "cloud:enterprise-trial",
   },
   {
     title: "Settings",
