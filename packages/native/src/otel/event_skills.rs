@@ -180,7 +180,7 @@ fn parse_skill_payload<'a>(
 ) -> Option<ParsedJson<'a>> {
     let value = value?;
     match value {
-        Value::String(text) => (text.len() <= max_bytes).then(|| parse_cache.owned_or_self(value)),
+        Value::String(text) => (text.len() <= max_bytes).then(|| parse_cache.shared_or_self(value)),
         Value::Array(_) | Value::Object(_) => Some(ParsedJson::Borrowed(value)),
         _ => None,
     }
@@ -192,7 +192,7 @@ fn parse_skill_tool_arguments<'a>(
 ) -> Option<ParsedJson<'a>> {
     match value {
         Value::String(text) if text.len() <= MAX_SKILL_TOOL_ARGS_JSON_BYTES => {
-            Some(parse_cache.owned_or_self(value))
+            Some(parse_cache.shared_or_self(value))
         }
         Value::String(_) => None,
         Value::Object(_) => Some(ParsedJson::Borrowed(value)),

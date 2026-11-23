@@ -17,13 +17,16 @@
 //! input/output and usage. Shared helpers apply JavaScript coercions and convert
 //! nanosecond timestamps to milliseconds.
 //!
-//! `JsonParseCache` parses JSON inside attribute strings on demand and keeps the
-//! results for one event. `ParsedJson` borrows an existing value or owns a parsed
-//! tree, so recursive tool extraction can hold it while parsing nested strings.
+//! `JsonParseCache` parses JSON inside attribute strings on demand. It remembers the
+//! parse of a span attribute by the attribute's position, so extractors that read
+//! the same attribute share one parse. `ParsedJson` borrows an existing value or
+//! shares a parsed tree through `Rc`, so recursive tool extraction can hold it
+//! while parsing nested strings.
 
 use chrono::{DateTime, Utc};
 use num_bigint::BigUint;
 use num_traits::{Num, ToPrimitive};
+use std::rc::Rc;
 
 use super::value::{JsString, JsonObject, Number, Object, Value};
 
@@ -566,15 +569,47 @@ fn number_from_integer_like_f64(value: f64) -> Option<Number> {
 /// Parse stringified JSON only when an event extractor actually needs it.
 ///
 /// The queue graph is already normalized at its boundary, so non-string values can be borrowed
-/// directly. Each parsed string is kept until the event is built, so extractors can borrow the
-/// result. A string is parsed each time it is requested: extractors rarely ask for the same
-/// string twice, and finding an earlier result costs as much as parsing a payload again.
+/// directly. Several extractors read the same span attribute, so the parse of an attribute value
+/// is remembered by the attribute's position and shared between them. Any other string is parsed
+/// each time it is requested and kept until the event is built, so extractors can borrow the
+/// result. Input beyond the nesting limit is told apart from malformed JSON so tool
+/// normalization can preserve its original string representation.
 #[derive(Default)]
 pub struct JsonParseCache {
-    parsed: Vec<Value>,
+    /// The span's attributes. Shared ownership keeps them alive and unchanged while this cache
+    /// exists, so a value's position among them identifies its text.
+    attributes: Option<Rc<JsonObject>>,
+    /// Parses of attribute values, by position in `attributes`.
+    by_position: Vec<Option<CachedParse>>,
+    /// Parses of other strings.
+    others: Vec<Value>,
+}
+
+enum CachedParse {
+    Parsed(Rc<Value>),
+    DepthLimited,
+    Invalid,
+}
+
+impl CachedParse {
+    fn of(text: &JsString) -> Self {
+        match super::value::parse_js_string(text) {
+            Ok(value) => Self::Parsed(Rc::new(value)),
+            Err(error) if is_depth_limit_error(&error) => Self::DepthLimited,
+            Err(_) => Self::Invalid,
+        }
+    }
 }
 
 impl JsonParseCache {
+    /// Remember parses of the values in `attributes`, the attributes of the span being built.
+    pub fn for_attributes(attributes: Rc<JsonObject>) -> Self {
+        Self {
+            attributes: Some(attributes),
+            ..Self::default()
+        }
+    }
+
     pub fn parse<'a>(&'a mut self, value: Option<&'a Value>) -> Option<&'a Value> {
         let value = value?;
         let Value::String(text) = value else {
@@ -583,8 +618,45 @@ impl JsonParseCache {
         if !looks_like_json(text.as_str()) {
             return None;
         }
-        self.parsed.push(super::value::parse_js_string(text).ok()?);
-        self.parsed.last()
+        let Some(position) = self.attribute_position(value) else {
+            self.others.push(super::value::parse_js_string(text).ok()?);
+            return self.others.last();
+        };
+        match self.attribute_parse(position, text) {
+            CachedParse::Parsed(value) => Some(value),
+            CachedParse::DepthLimited | CachedParse::Invalid => None,
+        }
+    }
+
+    /// The position of `value` among the span's attributes, if it is one of them.
+    fn attribute_position(&self, value: &Value) -> Option<usize> {
+        let attributes = self.attributes.as_deref()?;
+        let address = |value: &Value| std::ptr::from_ref(value) as usize;
+        let (_, first) = attributes.get_index(0)?;
+        let offset = address(value).checked_sub(address(first))?;
+        let position = match attributes.get_index(1) {
+            // The map stores its entries one after another, so one stride separates their values.
+            Some((_, second)) => {
+                let stride = address(second).checked_sub(address(first))?;
+                offset.checked_div(stride)?
+            }
+            None => 0,
+        };
+        // Accept only the attribute itself, whatever the arithmetic produced.
+        let (_, candidate) = attributes.get_index(position)?;
+        std::ptr::eq(candidate, value).then_some(position)
+    }
+
+    /// The parse of the attribute at `position`, whose text is parsed on first use.
+    fn attribute_parse(&mut self, position: usize, text: &JsString) -> &CachedParse {
+        if self.by_position.len() <= position {
+            let attributes = self
+                .attributes
+                .as_ref()
+                .map_or(0, |attributes| attributes.len());
+            self.by_position.resize_with(attributes, || None);
+        }
+        self.by_position[position].get_or_insert_with(|| CachedParse::of(text))
     }
 
     pub fn parse_or_self<'a>(&'a mut self, value: Option<&'a Value>) -> Option<&'a Value> {
@@ -592,20 +664,27 @@ impl JsonParseCache {
         self.parse(Some(value)).or(Some(value))
     }
 
-    /// Hand the parsed tree to the caller, so recursive tool inspection can hold it while
-    /// parsing nested strings. Input beyond the nesting limit is reported apart from malformed
-    /// JSON so tool normalization can preserve its original string representation.
-    pub fn owned_or_self<'a>(&self, value: &'a Value) -> ParsedJson<'a> {
+    /// Keep a parsed subtree alive while recursive tool inspection uses the cache again.
+    /// Sharing avoids cloning the whole input just to inspect a few nested definitions.
+    pub fn shared_or_self<'a>(&mut self, value: &'a Value) -> ParsedJson<'a> {
         let Value::String(text) = value else {
             return ParsedJson::Borrowed(value);
         };
         if !looks_like_json(text.as_str()) {
             return ParsedJson::Borrowed(value);
         }
-        match super::value::parse_js_string(text) {
-            Ok(parsed) => ParsedJson::Owned(parsed),
-            Err(error) if is_depth_limit_error(&error) => ParsedJson::DepthLimited(value),
-            Err(_) => ParsedJson::Borrowed(value),
+        let unshared;
+        let parse = match self.attribute_position(value) {
+            Some(position) => self.attribute_parse(position, text),
+            None => {
+                unshared = CachedParse::of(text);
+                &unshared
+            }
+        };
+        match parse {
+            CachedParse::Parsed(parsed) => ParsedJson::Shared(Rc::clone(parsed)),
+            CachedParse::DepthLimited => ParsedJson::DepthLimited(value),
+            CachedParse::Invalid => ParsedJson::Borrowed(value),
         }
     }
 }
@@ -613,7 +692,7 @@ impl JsonParseCache {
 pub enum ParsedJson<'a> {
     Borrowed(&'a Value),
     DepthLimited(&'a Value),
-    Owned(Value),
+    Shared(Rc<Value>),
 }
 
 impl std::ops::Deref for ParsedJson<'_> {
@@ -622,7 +701,7 @@ impl std::ops::Deref for ParsedJson<'_> {
     fn deref(&self) -> &Value {
         match self {
             Self::Borrowed(value) | Self::DepthLimited(value) => value,
-            Self::Owned(value) => value,
+            Self::Shared(value) => value,
         }
     }
 }
@@ -631,7 +710,7 @@ impl ParsedJson<'_> {
     pub fn into_owned(self) -> Value {
         match self {
             Self::Borrowed(value) | Self::DepthLimited(value) => value.clone(),
-            Self::Owned(value) => value,
+            Self::Shared(value) => Rc::unwrap_or_clone(value),
         }
     }
 }
@@ -741,7 +820,7 @@ mod tests {
         for text in ["text-", "false alarm", "nothing", "true false"] {
             assert!(cache.parse(Some(&json!(text))).is_none());
         }
-        assert!(cache.parsed.is_empty());
+        assert!(cache.others.is_empty());
         for (text, expected) in [
             ("true", json!(true)),
             (" \tfalse\r\n", json!(false)),
@@ -756,7 +835,34 @@ mod tests {
         let value = Value::String(r#"{"broken":}"#.into());
         let mut cache = JsonParseCache::default();
         assert!(cache.parse(Some(&value)).is_none());
-        assert!(cache.parsed.is_empty());
+        assert!(cache.others.is_empty());
+    }
+
+    #[test]
+    fn parses_a_span_attribute_once_and_any_other_string_each_time() {
+        let attributes = Rc::new(JsonObject::from_iter([
+            ("plain".into(), json!("text")),
+            ("payload".into(), json!(r#"{"a":[1]}"#)),
+            ("broken".into(), json!(r#"{"a":}"#)),
+        ]));
+        let mut cache = JsonParseCache::for_attributes(Rc::clone(&attributes));
+        let payload = attributes.get("payload");
+
+        let first = std::ptr::from_ref(cache.parse(payload).unwrap());
+        assert_eq!(std::ptr::from_ref(cache.parse(payload).unwrap()), first);
+        let ParsedJson::Shared(shared) = cache.shared_or_self(payload.unwrap()) else {
+            panic!("the attribute parses as JSON");
+        };
+        assert_eq!(std::ptr::from_ref(shared.as_ref()), first);
+        assert!(cache.parse(attributes.get("broken")).is_none());
+        assert!(cache.parse(attributes.get("plain")).is_none());
+
+        // An equal string that is not the attribute itself gets its own parse.
+        let copy = payload.unwrap().clone();
+        let copied = std::ptr::from_ref(cache.parse(Some(&copy)).unwrap());
+        assert_ne!(copied, first);
+        assert_eq!(cache.others.len(), 1);
+        assert_eq!(cache.by_position.iter().flatten().count(), 2);
     }
 
     #[test]

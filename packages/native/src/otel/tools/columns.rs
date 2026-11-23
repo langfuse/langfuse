@@ -35,7 +35,7 @@ impl<'a> ToolColumns<'a> {
     }
 
     pub(super) fn input(&mut self, value: &Value) {
-        let parsed = self.cache.owned_or_self(value);
+        let parsed = self.cache.shared_or_self(value);
         if let Some(tools) = parsed.get("tools") {
             self.definitions(tools);
         }
@@ -66,7 +66,7 @@ impl<'a> ToolColumns<'a> {
     }
 
     fn definition(&mut self, value: &Value) {
-        let parsed = self.cache.owned_or_self(value);
+        let parsed = self.cache.shared_or_self(value);
         let Some(data) = definition_data(&parsed) else {
             return;
         };
@@ -104,7 +104,7 @@ impl<'a> ToolColumns<'a> {
     }
 
     pub(super) fn output(&mut self, value: &Value) {
-        let parsed = self.cache.owned_or_self(value);
+        let parsed = self.cache.shared_or_self(value);
         if let Some(values) = parsed.as_array() {
             for value in values {
                 self.output_item(value, false);
@@ -160,7 +160,7 @@ impl<'a> ToolColumns<'a> {
 
     fn call_array(&mut self, object: &JsonObject, keys: &[&str]) {
         for value in keys.iter().filter_map(|key| object.get(*key)) {
-            let parsed = self.cache.owned_or_self(value);
+            let parsed = self.cache.shared_or_self(value);
             if let Some(calls) = parsed.as_array() {
                 for call in calls {
                     self.call(call, false);
