@@ -11,6 +11,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import * as ruleRepository from "@/src/features/evals/v2/server/rules/ruleRepository";
 import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { filtersMatch } from "@/src/features/evals/v2/server/rules/ruleFilterMatching";
+import { countActiveEvaluationRules } from "@/src/features/evals/v2/server/rules/ruleErrors";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 
 const orgIds: string[] = [];
@@ -565,6 +566,48 @@ describe("evaluation rule v2 repository", () => {
           select: { status: true },
         }),
       ).resolves.toEqual({ status: "INACTIVE" });
+    });
+  });
+
+  describe("countActiveEvaluationRules", () => {
+    it("counts an active trace transcript rule but excludes a facet rule", async () => {
+      const judge = await createEvaluator();
+      await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: `trace-rule-${randomUUID()}`,
+          targetObject: TopicsTargetObject,
+          status: "ACTIVE",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          assignments: { create: { projectId, evaluatorId: judge.id } },
+        },
+      });
+
+      const facet = await createEvaluator();
+      await prisma.evaluator.update({
+        where: { id: facet.id },
+        data: { type: EvalTemplateType.FACET, isBuiltIn: true },
+      });
+      await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: `topics-rule-${randomUUID()}`,
+          targetObject: TopicsTargetObject,
+          status: "ACTIVE",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          assignments: { create: { projectId, evaluatorId: facet.id } },
+        },
+      });
+
+      await expect(
+        countActiveEvaluationRules({ prisma, projectId }),
+      ).resolves.toBe(1);
     });
   });
 
