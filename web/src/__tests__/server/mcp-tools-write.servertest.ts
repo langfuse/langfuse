@@ -543,11 +543,13 @@ describe("MCP Write Tools", () => {
         executionTraceId: "execution-trace-id",
         estimatedCostUsd: null,
         durationMs: 25,
-        variables: [{ var: "input", value: "sample input" }],
       };
       const testEvaluatorSpy = vi
         .spyOn(EvaluatorService.prototype, "testEvaluator")
-        .mockResolvedValue(unifiedResult);
+        .mockResolvedValue({
+          ...unifiedResult,
+          variables: [{ var: "input", value: "sample input" }],
+        });
 
       try {
         verifyToolAnnotations(testEvaluatorTool, { expensiveHint: true });
