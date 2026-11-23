@@ -111,18 +111,23 @@ describe("Topics cost estimate", () => {
         },
       },
     });
-    const { estimate } = await claimTopicCostEstimate({
-      projectId,
-      filter: [],
-      facets: [{ facetId: "intent", version: 1 }],
-      summaryModel: "total-priced-model",
-      embeddingModel: null,
-    });
-
+    // Pricing only reads the record, so none is claimed and no lock is left behind.
     const prices = await priceTopicCostEstimate(projectId, {
-      ...estimate,
+      key: "key",
+      runId: "run",
+      status: "done",
+      startedAt: 0,
+      finishedAt: 0,
+      error: null,
+      inputs: {
+        filter: [],
+        facets: [{ facetId: "intent", version: 1 }],
+        summaryModel: "total-priced-model",
+        embeddingModel: null,
+      },
       sampled: 1,
       summarizable: 1,
+      skipped: { tooLarge: 0, noContent: 0 },
       tokens: { inputTokens: 1_000, outputTokens: 100, embeddingTokens: 0 },
     });
 
