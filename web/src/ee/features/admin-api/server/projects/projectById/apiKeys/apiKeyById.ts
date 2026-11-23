@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  tombstoneDeletedApiKeys,
+  invalidateCachedApiKeys,
   logger,
   withTransaction,
 } from "@langfuse/shared/src/server";
@@ -60,7 +60,7 @@ export async function handleDeleteApiKey(
     return res.status(404).json({ message: "API key not found" });
   }
 
-  await tombstoneDeletedApiKeys([deleted], `key ${deleted.id}`);
+  await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
 
   logger.info(
     `Deleted API key ${apiKeyId} for project ${projectId} via public API`,

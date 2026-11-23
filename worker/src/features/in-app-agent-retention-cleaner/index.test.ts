@@ -34,7 +34,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   recordGauge: mocks.gauge,
   traceException: vi.fn(),
   getCurrentSpan: vi.fn(),
-  tombstoneDeletedApiKeys: vi.fn(),
+  invalidateCachedApiKeys: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server/ee/licenseCheck", () => ({
   isEnterpriseLicenseAvailable: mocks.licensed,

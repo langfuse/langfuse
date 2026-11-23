@@ -3,7 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAIAwsProfile,
   getLangfuseAITraceSinkParams,
-  tombstoneDeletedApiKeys,
+  invalidateCachedApiKeys,
   logger,
   recordIncrement,
   redis,
@@ -104,7 +104,7 @@ async function deleteInAppAgentMcpApiKey(params: {
     isInAppAgentKey: true,
   });
   if (deleted) {
-    await tombstoneDeletedApiKeys([deleted], `key ${deleted.id}`, redis);
+    await invalidateCachedApiKeys([deleted], `key ${deleted.id}`, redis);
   }
 }
 

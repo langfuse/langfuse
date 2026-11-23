@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
-  tombstoneDeletedApiKeys,
+  invalidateCachedApiKeys,
   withTransaction,
 } from "@langfuse/shared/src/server";
 import {
@@ -25,10 +25,7 @@ import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider/registry";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
-import {
-  invalidateGatewayResolveCacheForApiKey,
-  tombstoneGatewayResolveCacheForApiKey,
-} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
@@ -239,9 +236,9 @@ export class GatewayApiKeyService {
       throw new LangfuseNotFoundError("Gateway API key not found");
     }
 
-    await tombstoneDeletedApiKeys([deleted], `key ${deleted.id}`, this.redis);
+    await invalidateCachedApiKeys([deleted], `key ${deleted.id}`, this.redis);
     if (deleted.fastHashedSecretKey) {
-      await tombstoneGatewayResolveCacheForApiKey(deleted.fastHashedSecretKey);
+      await invalidateGatewayResolveCacheForApiKey(deleted.fastHashedSecretKey);
     }
   }
 }

@@ -6,7 +6,7 @@ import {
 } from "@/src/server/api/trpc";
 import * as z from "zod";
 import {
-  tombstoneDeletedApiKeys,
+  invalidateCachedApiKeys,
   withTransaction,
 } from "@langfuse/shared/src/server";
 import {
@@ -196,7 +196,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("API key not found");
       }
 
-      await tombstoneDeletedApiKeys([deleted], `key ${deleted.id}`);
+      await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
       return true;
     }),
 });

@@ -5,6 +5,9 @@ export const createApiKeyCacheKey = (hash: string) =>
 
 export const API_KEY_CACHE_PATTERN = createApiKeyCacheKey("*");
 
+/** apiKeyCacheInvalidated marks a credential cache entry that was just invalidated */
+export const apiKeyCacheInvalidated = "api-key-invalidated";
+
 /** AUTHZ_CONTEXT_CACHE_KEY_PREFIX namespaces the policy-core context cache, disjoint from the legacy `api-key:` cache so both coexist in shadow mode. */
 export const AUTHZ_CONTEXT_CACHE_KEY_PREFIX = "authz:context:";
 

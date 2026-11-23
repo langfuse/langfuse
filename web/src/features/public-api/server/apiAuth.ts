@@ -11,10 +11,10 @@ import {
   instrumentAsync,
   addUserToSpan,
   invalidateCachedApiKeys as invalidateCachedApiKeysShared,
-  tombstoneDeletedApiKeys as tombstoneDeletedApiKeysShared,
   invalidateCachedOrgApiKeys as invalidateCachedOrgApiKeysShared,
   invalidateCachedProjectApiKeys as invalidateCachedProjectApiKeysShared,
   createApiKeyCacheKey,
+  apiKeyCacheInvalidated,
   API_KEY_NON_EXISTENT,
   getOrganizationPlanServerSide,
 } from "@langfuse/shared/src/server";
@@ -50,14 +50,6 @@ export class ApiAuthService {
     identifier: string,
   ) {
     await invalidateCachedApiKeysShared(apiKeys, identifier, this.redis);
-  }
-
-  /** tombstoneDeletedApiKeys marks the cached credentials of committed key deletions as non-existent */
-  async tombstoneDeletedApiKeys(
-    apiKeys: Parameters<typeof tombstoneDeletedApiKeysShared>[0],
-    identifier: string,
-  ) {
-    await tombstoneDeletedApiKeysShared(apiKeys, identifier, this.redis);
   }
 
   async invalidateCachedOrgApiKeys(orgId: string) {
@@ -386,7 +378,7 @@ export class ApiAuthService {
     }
 
     try {
-      // NX so a stale write cannot replace a deleted key's tombstone
+      // NX so a stale write cannot replace an invalidated marker
       await this.redis.set(
         createApiKeyCacheKey(hash),
         JSON.stringify(newApiKey),
@@ -416,7 +408,11 @@ export class ApiAuthService {
         return null;
       }
 
-      const parsedApiKey = CachedApiKey.safeParse(JSON.parse(redisApiKey));
+      const cached: unknown = JSON.parse(redisApiKey);
+      if (cached === apiKeyCacheInvalidated) {
+        return null;
+      }
+      const parsedApiKey = CachedApiKey.safeParse(cached);
 
       if (parsedApiKey.success) {
         return parsedApiKey.data;

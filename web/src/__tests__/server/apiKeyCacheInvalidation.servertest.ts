@@ -3,6 +3,7 @@ import { LLMAdapter, type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKey,
+  apiKeyCacheInvalidated,
   createApiKeyCacheKey,
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createAuthzContextCacheKey,
@@ -66,7 +67,6 @@ import { handleDeleteOrganization } from "@/src/ee/features/admin-api/server/org
 import {
   createRedisTestClient,
   ensureRedisReady,
-  getRedisKeysByPattern,
   setRedisValue,
   type RedisTestClient,
 } from "@/src/__tests__/server/redis-test-utils";
@@ -156,8 +156,10 @@ async function orgMembershipIdOf(orgId: string, userId: string) {
 async function survivingKeys(keys: string[]) {
   const present: string[] = [];
   for (const key of keys) {
-    const [hit] = await getRedisKeysByPattern(redis, key);
-    if (hit) present.push(hit);
+    const value = await redis.get(key);
+    if (value !== null && value !== JSON.stringify(apiKeyCacheInvalidated)) {
+      present.push(key);
+    }
   }
   return present;
 }

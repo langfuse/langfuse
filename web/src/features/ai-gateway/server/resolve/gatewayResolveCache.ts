@@ -1,4 +1,5 @@
 import {
+  apiKeyCacheInvalidated,
   logger,
   recordIncrement,
   redis as defaultRedis,
@@ -21,6 +22,9 @@ import {
 } from "@/src/features/ai-gateway/server/provider/registry";
 
 const CACHE_PREFIX = "ai-gateway:resolve";
+
+/** invalidatedEntryTtlSeconds outlasts any in-flight resolve that read a key before it was invalidated */
+const invalidatedEntryTtlSeconds = 30;
 
 /**
  * Marker for a secret key that no gateway API key matches. Cached like a hit so
@@ -110,7 +114,12 @@ export class GatewayResolveCache {
         return null;
       }
 
-      const parsed = CachedResolveEntry.safeParse(JSON.parse(cached));
+      const entry: unknown = JSON.parse(cached);
+      if (entry === apiKeyCacheInvalidated) {
+        recordIncrement("langfuse.gateway.resolve.cache_miss", 1);
+        return null;
+      }
+      const parsed = CachedResolveEntry.safeParse(entry);
       if (!parsed.success) {
         // A shape change between deployments must not serve stale garbage.
         await this.redis!.del(
@@ -150,7 +159,7 @@ export class GatewayResolveCache {
     );
     if (expirationTimestamp <= now) return;
     try {
-      // NX so a stale write cannot replace a deleted key's tombstone
+      // NX so a stale write cannot replace an invalidated marker
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
         await this.redis!.set(
           key,
@@ -203,34 +212,20 @@ export class GatewayResolveCache {
     }
   }
 
-  /** tombstoneApiKey marks a deleted gateway API key as non-existent in every API format */
-  async tombstoneApiKey(fastHashedSecretKey: string) {
-    if (!this.enabled) return;
-
-    try {
-      await Promise.all(
-        gatewayApiFormats.map((apiFormat) =>
-          this.redis!.set(
-            contextCacheKey(fastHashedSecretKey, apiFormat),
-            JSON.stringify(GATEWAY_RESOLVE_KEY_NON_EXISTENT),
-            "EX",
-            env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS,
-          ),
-        ),
-      );
-    } catch (error) {
-      logger.error("Error tombstoning gateway resolve cache", error);
-    }
-  }
-
-  /** Drops the cached contexts for a single gateway API key, e.g. on revoke. */
+  /** invalidateApiKey replaces a gateway API key's cached contexts with a short-lived marker that reads as a miss and cache writes cannot overwrite */
   async invalidateApiKey(fastHashedSecretKey: string) {
     if (!this.enabled) return;
 
     try {
+      const marker = JSON.stringify(apiKeyCacheInvalidated);
       await Promise.all(
         gatewayApiFormats.map((apiFormat) =>
-          this.redis!.del(contextCacheKey(fastHashedSecretKey, apiFormat)),
+          this.redis!.set(
+            contextCacheKey(fastHashedSecretKey, apiFormat),
+            marker,
+            "EX",
+            invalidatedEntryTtlSeconds,
+          ),
         ),
       );
     } catch (error) {
@@ -246,11 +241,6 @@ export const invalidateGatewayResolveCacheForOrganization = (
 export const invalidateGatewayResolveCacheForApiKey = (
   fastHashedSecretKey: string,
 ) => new GatewayResolveCache().invalidateApiKey(fastHashedSecretKey);
-
-/** tombstoneGatewayResolveCacheForApiKey marks a deleted gateway API key as non-existent in the resolve cache */
-export const tombstoneGatewayResolveCacheForApiKey = (
-  fastHashedSecretKey: string,
-) => new GatewayResolveCache().tombstoneApiKey(fastHashedSecretKey);
 
 /** evictUserGatewayResolveCache drops the cached resolve contexts of the user's keys in orgId after a committed role change */
 export async function evictUserGatewayResolveCache(

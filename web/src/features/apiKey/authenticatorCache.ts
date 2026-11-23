@@ -55,7 +55,7 @@ export class AuthenticatorCache {
       return false;
     }
     try {
-      // NX so a stale write cannot replace a deleted key's tombstone
+      // NX so a stale write cannot replace an invalidated marker
       const written = await redis.set(
         key,
         JSON.stringify({ context: result.context }),

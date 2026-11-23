@@ -7,16 +7,16 @@ import type { Cluster, Redis } from "ioredis";
 import { type ApiKey, type Prisma } from "../../db";
 import {
   API_KEY_CACHE_PATTERN,
+  apiKeyCacheInvalidated,
   AUTHZ_CONTEXT_CACHE_PATTERN,
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createApiKeyCacheKey,
   createAuthzContextCacheKey,
 } from "./apiKeyCache";
 import { createShaHash } from "./apiKeys";
-import { API_KEY_NON_EXISTENT } from "./types";
 
-/** deletedApiKeyTombstoneTtlSeconds outlasts any in-flight request that read a key before its delete committed */
-const deletedApiKeyTombstoneTtlSeconds = 300;
+/** invalidatedApiKeyMarkerTtlSeconds outlasts any in-flight request that read a key before it was invalidated */
+const invalidatedApiKeyMarkerTtlSeconds = 30;
 
 /** cacheKeysForRows includes legacy and versioned credential entries. */
 function cacheKeysForRows(apiKeys: CachedApiKeyIdentity[]): string[] {
@@ -38,38 +38,25 @@ function cacheKeysForRows(apiKeys: CachedApiKeyIdentity[]): string[] {
   return keys;
 }
 
-/** invalidateCachedApiKeys removes every cached credential presentation. */
+/** invalidateCachedApiKeys replaces every cached credential presentation with a short-lived marker that readers treat as a miss and cache writers cannot overwrite */
 export async function invalidateCachedApiKeys(
   apiKeys: CachedApiKeyIdentity[],
   identifier: string,
   redisClient: Redis | Cluster | null = redis,
 ) {
-  const keysToDelete = cacheKeysForRows(apiKeys);
-  if (keysToDelete.length === 0) {
+  const keysToInvalidate = cacheKeysForRows(apiKeys);
+  if (keysToInvalidate.length === 0) {
     logger.info("No valid keys to invalidate");
     return;
   }
+  if (!redisClient) return;
 
-  if (redisClient) {
-    logger.info(`Invalidating API keys in redis for ${identifier}`);
-    await safeMultiDel(redisClient, keysToDelete);
-  }
-}
-
-/** tombstoneDeletedApiKeys replaces the cached credentials of committed deletions with a non-existent marker */
-export async function tombstoneDeletedApiKeys(
-  apiKeys: CachedApiKeyIdentity[],
-  identifier: string,
-  redisClient: Redis | Cluster | null = redis,
-): Promise<void> {
-  const keysToTombstone = cacheKeysForRows(apiKeys);
-  if (keysToTombstone.length === 0 || !redisClient) return;
-  logger.info(`Tombstoning deleted API keys in redis for ${identifier}`);
-  const tombstone = JSON.stringify(API_KEY_NON_EXISTENT);
+  logger.info(`Invalidating API keys in redis for ${identifier}`);
+  const marker = JSON.stringify(apiKeyCacheInvalidated);
   // each key may sit in a different cluster slot, so the writes stay separate
   await Promise.all(
-    keysToTombstone.map((key) =>
-      redisClient.set(key, tombstone, "EX", deletedApiKeyTombstoneTtlSeconds),
+    keysToInvalidate.map((key) =>
+      redisClient.set(key, marker, "EX", invalidatedApiKeyMarkerTtlSeconds),
     ),
   );
 }
