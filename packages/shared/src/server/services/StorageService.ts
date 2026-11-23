@@ -1354,7 +1354,9 @@ class GoogleCloudStorageService implements StorageService {
         });
         // V4 signing reads the signer email from GoogleAuth.getCredentials(),
         // which only knows it for JSON credentials, not a wrapped authClient.
-        this.storage.authClient.jsonContent = { client_email: authClient.email };
+        this.storage.authClient.jsonContent = {
+          client_email: authClient.email,
+        };
       } catch (err) {
         logger.error("Failed to parse Google Cloud Storage credentials", err);
         throw new Error("Failed to initialize Google Cloud Storage");
