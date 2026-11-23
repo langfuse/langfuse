@@ -64,6 +64,36 @@ export const WithLink = meta.story({
   },
 });
 
+export const LinkActions = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => (
+    <div className="grid w-[600px] gap-4">
+      <Banner
+        title="In-app link"
+        actions={[{ text: "Open billing settings", href: "#" }]}
+      >
+        Stays in the same tab, so it has no icon.
+      </Banner>
+      <Banner
+        title="In-app link in a new tab"
+        actions={[{ text: "Open LLM connections", href: "#", newTab: true }]}
+      >
+        Keeps a dialog or form open behind it. Banner adds the icon.
+      </Banner>
+      <Banner
+        title="External link"
+        actions={[{ text: "Read the docs", href: "https://langfuse.com/docs" }]}
+      >
+        Always opens a new tab. Banner adds the icon.
+      </Banner>
+    </div>
+  ),
+});
+
 export const Dismissible = meta.story({
   args: {
     variant: "success",

@@ -255,6 +255,7 @@ function ConfigureTopicsSettings({
           "noopener,noreferrer",
         );
       }}
+      llmConnectionsHref={`/project/${projectId}/settings/llm-connections`}
       onSave={onSave}
       automaticProcessingOff={
         ruleCount > 0 && stored.enabled === false && canWrite

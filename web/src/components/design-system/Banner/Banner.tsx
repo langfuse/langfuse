@@ -65,12 +65,19 @@ const icons: Record<BannerVariant, IconComponent> = {
   error: CircleAlert,
 };
 
+/** Banner adds the external link icon to links that open a new tab. Never pass it as `icon`. */
 export type BannerAction = {
   text: string;
   icon?: IconComponent;
 } & (
-  | { onClick: () => void; disabled?: boolean; href?: never }
-  | { href: string; onClick?: never; disabled?: never }
+  | { onClick: () => void; disabled?: boolean; href?: never; newTab?: never }
+  | {
+      href: string;
+      /** Opens an in-app link in a new tab. External URLs always do. */
+      newTab?: boolean;
+      onClick?: never;
+      disabled?: never;
+    }
 );
 
 type BannerProps = {
@@ -109,9 +116,14 @@ function BannerActionItem({ action }: { action: BannerAction }) {
 
   if (!isExternal) {
     return (
-      <Link className={actionClassName} href={action.href}>
+      <Link
+        className={actionClassName}
+        href={action.href}
+        {...(action.newTab ? { target: "_blank", rel: "noopener" } : {})}
+      >
         {icon}
         {action.text}
+        {action.newTab ? <NewTabIcon /> : null}
       </Link>
     );
   }
@@ -129,14 +141,20 @@ function BannerActionItem({ action }: { action: BannerAction }) {
     >
       {icon}
       {action.text}
-      {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
-      <ExternalLink
-        size="sm"
-        color="inherit"
-        aria-hidden="true"
-        __rawClassName="-translate-y-px"
-      />
+      <NewTabIcon />
     </a>
+  );
+}
+
+// The glyph reaches the bottom of its box, so centered it dips below the text baseline.
+function NewTabIcon() {
+  return (
+    <ExternalLink
+      size="sm"
+      color="inherit"
+      aria-hidden="true"
+      __rawClassName="-translate-y-px"
+    />
   );
 }
 

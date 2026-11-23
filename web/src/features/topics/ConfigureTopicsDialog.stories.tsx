@@ -53,6 +53,7 @@ const meta = preview.meta({
     providerGroups,
     closeDialog: fn(),
     onConfigureProviders: fn(),
+    llmConnectionsHref: "/project/project-1/settings/llm-connections",
     onSave: fn(),
   },
 });
