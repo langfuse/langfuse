@@ -100,12 +100,15 @@ const startTimeBound = (
       ]
     : [];
 
-/** `environment` as an `any of` condition; a string is split at commas. */
+/**
+ * `environment` as an `any of` condition; a string is split at commas. An
+ * empty list filters nothing.
+ */
 const environmentCondition = (
   value: string | string[] | undefined,
 ): FilterStateCondition[] => {
   const values = typeof value === "string" ? value.split(",") : value;
-  if (!Array.isArray(values)) return [];
+  if (!Array.isArray(values) || values.length === 0) return [];
   return [
     {
       column: "environment",
@@ -121,7 +124,7 @@ const environmentCondition = (
  * `traceId`, `name`, `level`, `type`, `parentObservationId`,
  * `isRootObservation`, `fromStartTime` (`startTime >=`), `toStartTime`
  * (`startTime <`), `version`, `environment` (`any of`; a string is split at
- * commas). Params of another runtime type are skipped.
+ * commas, an empty list is no condition). Absent params are skipped.
  */
 const simpleConditions = (
   params: PublicApiObservationsFilterParams,

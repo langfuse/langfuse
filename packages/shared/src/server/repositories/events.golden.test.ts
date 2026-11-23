@@ -638,8 +638,7 @@ describeWithClickhouse("golden: observations public API filters family", () => {
     expect(await captureV2List({ parentObservationId: "" })).toMatchSnapshot();
   });
 
-  // Oddity: an empty environment list renders `IN ([])` and matches nothing.
-  // Clients rely on that empty page, so the read must keep it.
+  // An empty environment list adds no environment condition.
   it("getObservationsV2FromEventsTableForPublicApi simple=environment empty", async () => {
     expect(await captureV2List({ environment: [] })).toMatchSnapshot();
   });
