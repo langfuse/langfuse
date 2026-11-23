@@ -13,7 +13,6 @@ import {
   recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
-import { topicDeleteClickhouseSettings } from "@langfuse/shared/topics/server";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { env } from "../../env";
 import { getRetentionCutoffDate } from "../utils/utilities";
@@ -32,6 +31,7 @@ export const BATCH_DATA_RETENTION_TABLES = [
   "events_core",
   "topic_facet_summaries",
   "topic_assignments",
+  "topic_assignments_by_trace",
 ] as const;
 
 export type BatchDataRetentionTable =
@@ -51,6 +51,7 @@ export const TIMESTAMP_COLUMN_MAP: Record<BatchDataRetentionTable, string> = {
   events_core: "start_time",
   topic_facet_summaries: "unit_start_time",
   topic_assignments: "unit_start_time",
+  topic_assignments_by_trace: "unit_start_time",
 };
 
 interface ProjectRetention {
@@ -765,7 +766,6 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         request_timeout:
           env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS,
       },
-      clickhouseSettings: topicDeleteClickhouseSettings(this.tableName),
     });
   }
 }

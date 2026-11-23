@@ -926,6 +926,7 @@ describe("DataRetentionProcessingJob", () => {
       trace_id: traceId,
       environment: "default",
       unit_start_time: toClickhouseDateTime(unitStartTime),
+      created_at: toClickhouseDateTime(now),
     }));
     await Promise.all([
       clickhouseClient().insert({
@@ -935,7 +936,6 @@ describe("DataRetentionProcessingJob", () => {
           ...source,
           processing_state: "complete",
           summary: "A trace summary.",
-          processed_at: toClickhouseDateTime(now),
         })),
       }),
       clickhouseClient().insert({
@@ -943,9 +943,9 @@ describe("DataRetentionProcessingJob", () => {
         format: "JSONEachRow",
         values: sources.map((source) => ({
           ...source,
+          clustering_run_id: "run",
           summary_processed_at: toClickhouseDateTime(now),
           origin: "online",
-          assigned_at: toClickhouseDateTime(now),
         })),
       }),
     ]);
@@ -954,7 +954,11 @@ describe("DataRetentionProcessingJob", () => {
       data: { payload: { projectId, retention: 7 } },
     } as Job);
 
-    for (const table of ["topic_facet_summaries", "topic_assignments"]) {
+    for (const table of [
+      "topic_facet_summaries",
+      "topic_assignments",
+      "topic_assignments_by_trace",
+    ]) {
       const rows = await queryClickhouse<{ trace_id: string }>({
         query: `SELECT trace_id FROM ${table}
           WHERE project_id = {projectId: String}
