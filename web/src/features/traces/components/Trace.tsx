@@ -54,7 +54,7 @@ import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 import { SessionEventsWorkspace } from "@/src/features/sessions/SessionPages";
 import { useSessionTraceData } from "../hooks/useSessionTraceData";
 import { type TraceDataTrace, type TraceScope } from "../types/traceScope";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 import { SessionTracePeek } from "./SessionTracePeek/SessionTracePeek";
 import { useIsSessionTracePeek } from "./SessionTracePeek/SessionTracePeekNavigationProvider";
 
