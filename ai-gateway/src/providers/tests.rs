@@ -83,6 +83,18 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
     assert_eq!(upstream.calls(), 0);
 }
 
+#[test]
+fn tcp_keepalive_retries_cover_stall_timeout_within_kernel_bounds() {
+    assert_eq!(tcp_keepalive_retries(Duration::from_secs(120)), 6);
+    assert_eq!(tcp_keepalive_retries(Duration::from_secs(125)), 7);
+    assert_eq!(tcp_keepalive_retries(Duration::from_secs(1)), 1);
+    assert_eq!(tcp_keepalive_retries(Duration::from_millis(30)), 1);
+    assert_eq!(
+        tcp_keepalive_retries(Duration::from_secs(u64::from(u32::MAX))),
+        MAX_TCP_KEEPALIVE_RETRIES
+    );
+}
+
 fn provider_with_policy(origin: String, policy: OutboundPolicy) -> ProviderTransport {
     let mut provider = ProviderTransport::with_limits(ProviderLimits::default(), policy).unwrap();
     provider.origin_override = Some(origin);
