@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 import {
   DEFAULT_TOPIC_RULE_NAME,
@@ -9,9 +9,10 @@ import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
+import { type TopicsSetupStep } from "./topicsAnalytics";
+import { useTopicsCapture } from "./useTopicsCapture";
 import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import { TopicCostEstimate } from "./TopicCostEstimate";
 import {
@@ -32,6 +33,37 @@ import {
   type TopicSetupQuestion,
 } from "./topic-setup-flow";
 
+const SETUP_STEP_NUMBER = {
+  questions: 1,
+  traces: 2,
+  review: 3,
+} as const satisfies Record<TopicsSetupStep, number>;
+
+const SETUP_ERROR_STAGE = {
+  questions: "model_check",
+  traces: "save",
+  review: "start",
+} as const satisfies Record<TopicsSetupStep, string>;
+
+type SetupAttempt = {
+  setupAttemptId: string;
+  openedAt: number;
+  step: TopicsSetupStep;
+  hadError: boolean;
+  completedSteps: Set<TopicsSetupStep>;
+};
+
+/** The open attempt's analytics state, which outlives a session remount. */
+type SetupTracking = {
+  attemptId: () => string | null;
+  durationMs: () => number;
+  stepChanged: (step: TopicsSetupStep) => void;
+  errored: () => void;
+  /** True the first time a step completes in this attempt. */
+  firstCompletion: (step: TopicsSetupStep) => boolean;
+  finished: () => void;
+};
+
 export function TopicSetupFlowController({
   canWrite,
   children,
@@ -49,21 +81,68 @@ export function TopicSetupFlowController({
   }) => Promise<unknown>;
   children: (control: { openSetup: () => void }) => ReactNode;
 }) {
+  const capture = useTopicsCapture();
   // Opens only from Start analyzing, never on its own, so the landing shows first.
   const [open, setOpen] = useState(false);
+  // Read and written only in handlers; the dialog never renders from it.
+  const attempt = useRef<SetupAttempt | null>(null);
   function openSetup() {
+    if (settings) {
+      attempt.current = {
+        setupAttemptId: crypto.randomUUID(),
+        openedAt: Date.now(),
+        step: "questions",
+        hadError: false,
+        completedSteps: new Set(),
+      };
+      capture("topics:setup_flow_opened", {
+        setupAttemptId: attempt.current.setupAttemptId,
+        hasConnection: settings.connections.length > 0,
+        isFirstSetup: !settings.rule,
+      });
+    }
     setOpen(true);
   }
-  function closeSetup() {
+  function dismissSetup() {
+    const current = attempt.current;
+    if (current)
+      capture("topics:setup_flow_aborted", {
+        setupAttemptId: current.setupAttemptId,
+        lastStep: current.step,
+        stepNumber: SETUP_STEP_NUMBER[current.step],
+        durationMs: Date.now() - current.openedAt,
+        hadError: current.hadError,
+      });
+    attempt.current = null;
     setOpen(false);
   }
+  const tracking: SetupTracking = {
+    attemptId: () => attempt.current?.setupAttemptId ?? null,
+    durationMs: () =>
+      attempt.current ? Date.now() - attempt.current.openedAt : 0,
+    stepChanged: (step) => {
+      if (attempt.current) attempt.current.step = step;
+    },
+    errored: () => {
+      if (attempt.current) attempt.current.hadError = true;
+    },
+    firstCompletion: (step) => {
+      if (!attempt.current || attempt.current.completedSteps.has(step))
+        return false;
+      attempt.current.completedSteps.add(step);
+      return true;
+    },
+    finished: () => {
+      attempt.current = null;
+    },
+  };
   return (
     <>
       {children({ openSetup })}
       {open && settings ? (
         <DialogController<null>
           initialState={() => null}
-          onDismiss={closeSetup}
+          onDismiss={dismissSetup}
           renderDialog={({ closeDialog }) => (
             <TopicSetupSession
               // Rebuilds the draft with recommended models once the first connection arrives.
@@ -73,6 +152,7 @@ export function TopicSetupFlowController({
               settings={settings}
               onSaveSampling={onSaveSampling}
               closeDialog={closeDialog}
+              tracking={tracking}
             />
           )}
         >
@@ -89,6 +169,7 @@ function TopicSetupSession({
   onSaveSampling,
   projectId,
   settings,
+  tracking,
 }: {
   projectId: string;
   canWrite: boolean;
@@ -99,8 +180,9 @@ function TopicSetupSession({
     ruleId?: string;
   }) => Promise<unknown>;
   closeDialog: () => void;
+  tracking: SetupTracking;
 }) {
-  const capture = usePostHogClientCapture();
+  const capture = useTopicsCapture();
   const utils = api.useUtils();
   const canAddConnection = useHasProjectAccess({
     projectId,
@@ -159,9 +241,17 @@ function TopicSetupSession({
   const mapName = topicSetupMapName(draft);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  useEffect(() => {
-    capture("topics:setup_opened", { source: "start_analyzing" });
-  }, [capture]);
+  function goToStep(step: TopicsSetupStep) {
+    tracking.stepChanged(step);
+    setDraft((current) => ({ ...current, step }));
+  }
+  const filterUsage = {
+    filterCount: draft.filter.length,
+    hasFilter: draft.filter.length > 0,
+  };
+  const questionCount = draft.questions.filter(
+    (question) => question.enabled,
+  ).length;
   const changeFilter = (filter: FilterState) =>
     setDraft((current) => ({ ...current, filter }));
   const traceFilter = useTopicTraceFilter({
@@ -219,13 +309,28 @@ function TopicSetupSession({
     });
     const messages = Object.values(errors).filter(Boolean);
     if (messages.length > 0) throw new Error(messages.join(" "));
-    capture("topics:setup_step_saved", {
-      step: "questions",
-      questionCount: draft.questions.filter((question) => question.enabled)
-        .length,
-      followsRecommendation: followsTopicRecommendations(draft),
-      waitMinutes: draft.waitMinutes,
-    });
+  }
+
+  function captureStepCompleted(step: "questions" | "traces") {
+    const setupAttemptId = tracking.attemptId();
+    if (!setupAttemptId || !tracking.firstCompletion(step)) return;
+    if (step === "questions")
+      capture("topics:setup_flow_step_completed", {
+        setupAttemptId,
+        step,
+        stepNumber: 1,
+        questionCount,
+        followsRecommendation: followsTopicRecommendations(draft),
+        waitMinutes: draft.waitMinutes,
+      });
+    else
+      capture("topics:setup_flow_step_completed", {
+        setupAttemptId,
+        step,
+        stepNumber: 2,
+        samplePercent: draft.samplePercent,
+        ...filterUsage,
+      });
   }
 
   /** Stores the models, the rule (facets and filter) and the idle time together. */
@@ -281,7 +386,22 @@ function TopicSetupSession({
     await renameSavedRule(savedRule);
     await persistSampling(true);
     await startRuleSetup.mutateAsync({ projectId, ruleId: savedRule.id });
-    capture("topics:setup_started", { samplePercent: draft.samplePercent });
+    const setupAttemptId = tracking.attemptId();
+    if (setupAttemptId)
+      capture("topics:setup_flow_finished", {
+        setupAttemptId,
+        samplePercent: draft.samplePercent,
+        questionCount,
+        hasCostEstimate:
+          utils.topics.costEstimate.getData({
+            projectId,
+            filter: draft.filter,
+            facetIds: savedRule.facetIds,
+          })?.status === "done",
+        durationMs: tracking.durationMs(),
+        ...filterUsage,
+      });
+    tracking.finished();
     closeDialog();
   }
 
@@ -292,20 +412,26 @@ function TopicSetupSession({
     try {
       if (draft.step === "questions") {
         await checkModels();
-        setDraft((current) => ({ ...current, step: "traces" }));
+        captureStepCompleted("questions");
+        goToStep("traces");
         return;
       }
       if (draft.step === "traces") {
         await persistSampling(false, await saveSetup());
-        capture("topics:setup_step_saved", {
-          step: "traces",
-          samplePercent: draft.samplePercent,
-        });
-        setDraft((current) => ({ ...current, step: "review" }));
+        captureStepCompleted("traces");
+        goToStep("review");
         return;
       }
       await startAnalyzing();
     } catch (cause) {
+      tracking.errored();
+      const setupAttemptId = tracking.attemptId();
+      if (setupAttemptId)
+        capture("topics:setup_flow_error", {
+          setupAttemptId,
+          step: draft.step,
+          stage: SETUP_ERROR_STAGE[draft.step],
+        });
       setError(
         cause instanceof Error ? cause.message : "Could not save Topics.",
       );
@@ -370,6 +496,12 @@ function TopicSetupSession({
       onEmbeddingChange={(model) => updateModel(setDraft, "embedding", model)}
       onClusteringChange={(model) => updateModel(setDraft, "clustering", model)}
       onConfigureProviders={() => {
+        const setupAttemptId = tracking.attemptId();
+        if (setupAttemptId)
+          capture("topics:setup_flow_connection_redirect", {
+            setupAttemptId,
+            canAddConnection,
+          });
         window.open(connectionSettingsUrl, "_blank", "noopener,noreferrer");
       }}
       connectionSettingsUrl={connectionSettingsUrl}
@@ -384,13 +516,8 @@ function TopicSetupSession({
       }
       name={mapName}
       onNameChange={(name) => setDraft((current) => ({ ...current, name }))}
-      onEdit={(step) => setDraft((current) => ({ ...current, step }))}
-      onBack={() =>
-        setDraft((current) => ({
-          ...current,
-          step: current.step === "review" ? "traces" : "questions",
-        }))
-      }
+      onEdit={goToStep}
+      onBack={() => goToStep(draft.step === "review" ? "traces" : "questions")}
       onNext={() => {
         handleNext().catch(() => undefined);
       }}

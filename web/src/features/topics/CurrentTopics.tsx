@@ -24,7 +24,10 @@ import { splitTopicTraceFilters } from "./topic-trace-filters";
 import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
+  UNASSIGNED_TOPIC_ID,
 } from "./prepare-topic-display";
+import { type TopicsMapView } from "./topicsAnalytics";
+import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
 import {
   FacetTraceSource,
   useFacetTopicTraces,
@@ -41,10 +44,22 @@ export function CurrentTopics({
   traceFilters,
   showUnassigned,
   mapActions,
+  mapCount,
 }: CurrentTopicsProps) {
   const selectedFacet = result.data?.facets.find(
     (facet) => facet.facetId === selectedFacetId,
   );
+  const facets = result.data?.facets ?? [];
+  const mapStats = {
+    topicCount: facets.reduce(
+      (sum, facet) =>
+        sum +
+        facet.topics.filter((topic) => topic.id !== UNASSIGNED_TOPIC_ID).length,
+      0,
+    ),
+    facetCount: facets.length,
+    mapCount,
+  };
   const empty =
     !result.isLoading && !result.error && result.data?.facets.length === 0;
   return (
@@ -75,6 +90,7 @@ export function CurrentTopics({
           traceFilters={traceFilters}
           showUnassigned={showUnassigned}
           mapActions={mapActions}
+          mapStats={mapStats}
         />
       )}
     </section>
@@ -90,9 +106,20 @@ function CurrentFacet({
   traceFilters,
   showUnassigned,
   mapActions,
+  mapStats,
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
   const mobileVisualization = useMobileTopicsVisualization();
+  const mapView = topicsMapView(isHandheld, view, mobileVisualization.view);
+  const capture = useTopicsCapture();
+  const mapKind = scope.analysisId ? "analysis" : "rule";
+  const mapKey = `${mapKind}:${scope.analysisId ?? scope.ruleId ?? "default"}`;
+  useTopicsViewCapture(mapStats.topicCount > 0 ? mapKey : null, () => {
+    const viewed = { mapKind, view: mapView, ...mapStats } as const;
+    capture("topics:map_viewed", viewed);
+    if (markFirstMapView(projectId, mapKey))
+      capture("topics:first_map_viewed", viewed);
+  });
   // Only the Map view needs the run's projection.
   const mapQuery = useCurrentTopicMap(
     projectId,
@@ -121,10 +148,18 @@ function CurrentFacet({
   const mapResult = { data: mapData, error: mapQuery.error };
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
-    isV4: false,
+    isV4: true,
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
-  const peekView = { itemType: "TRACE" as const, ...peekNavigation };
+  const openTrace: typeof peekNavigation.openPeek = (...args) => {
+    capture("topics:trace_opened", { view: mapView });
+    peekNavigation.openPeek(...args);
+  };
+  const peekView = {
+    itemType: "TRACE" as const,
+    ...peekNavigation,
+    openPeek: openTrace,
+  };
   return (
     <FacetTraceSource.Provider value={traceSource}>
       {renderView()}
@@ -140,7 +175,7 @@ function CurrentFacet({
           onViewChange={mobileVisualization.onViewChange}
           mapResult={mapResult}
           traceFilters={traceFilters}
-          onOpenTrace={peekNavigation.openPeek}
+          onOpenTrace={openTrace}
           showUnassigned={showUnassigned}
           mapActions={mapActions}
         />
@@ -157,7 +192,7 @@ function CurrentFacet({
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
-          onOpenTrace={peekNavigation.openPeek}
+          onOpenTrace={openTrace}
         />
       );
     return (
@@ -289,6 +324,8 @@ type CurrentTopicsProps = {
   showUnassigned: boolean;
   /** Offered on phones under an empty topic list. */
   mapActions: TopicsActions;
+  /** Maps and snapshots in the project, for analytics. */
+  mapCount: number;
 };
 
 type CurrentFacetProps = {
@@ -301,6 +338,8 @@ type CurrentFacetProps = {
   showUnassigned: boolean;
   /** Offered on phones under an empty topic list. */
   mapActions: TopicsActions;
+  /** The whole map's counts; this facet is only the selected one. */
+  mapStats: { topicCount: number; facetCount: number; mapCount: number };
 };
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
@@ -319,6 +358,27 @@ function useMobileTraceSelection(projectId: string, facetId: string) {
     (nextTraceId: string | null) =>
       setSelection({ facetId, traceId: nextTraceId }),
   ] as const;
+}
+
+function topicsMapView(
+  isHandheld: boolean,
+  view: TopicsResultsView,
+  mobileView: MobileTopicsVisualization,
+): TopicsMapView {
+  if (!isHandheld) return view;
+  return mobileView === "map" ? "mobile_map" : "mobile_treemap";
+}
+
+/** True the first time this browser shows the map; storage failures count as seen. */
+function markFirstMapView(projectId: string, mapKey: string) {
+  const key = `topicsFirstMapViewed:${projectId}:${mapKey}`;
+  try {
+    if (window.localStorage.getItem(key)) return false;
+    window.localStorage.setItem(key, "1");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function useCurrentTopicMap(projectId: string, runId: string | undefined) {

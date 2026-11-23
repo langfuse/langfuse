@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
 import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
+import type { TopicsEventMap } from "@/src/features/topics/topicsAnalytics";
 import type {
   ToastInteractionEventProperties,
   ToastShownEventProperties,
@@ -235,7 +236,6 @@ const events = {
     "gallery_creation_source_select",
     "empty_state_template_select",
     "empty_state_browse_library",
-    "empty_state_detect_topics",
     "alert_create_clicked",
   ],
   evaluation_rules: [
@@ -447,16 +447,28 @@ const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
+  // Typed in features/topics/topicsAnalytics.ts. Metadata only, and every
+  // event carries projectId and orgId.
   topics: [
+    "page_viewed",
+    "landing_viewed",
+    "setup_flow_opened",
+    "setup_flow_step_completed",
+    "setup_flow_aborted",
+    "setup_flow_error",
+    "setup_flow_connection_redirect",
+    "setup_flow_finished",
+    "map_viewed",
+    "first_map_viewed",
+    "map_created",
+    "snapshot_started",
+    "map_selected",
+    "facet_selected",
+    "topic_selected",
+    "trace_opened",
     "results_view_select",
-    "setup_opened",
-    "setup_step_saved",
-    "setup_started",
-    // Cost estimate in the setup Review step or the New map dialog. Props: source.
     "cost_estimate_started",
-    // Tracing pulse chart topic stripe. Props: isV4, isSelected, topicCount; never topic names.
     "stripe_toggle",
-    // Topics page "Give feedback", opening the support form as Feedback. No props.
     "feedback_open",
   ],
   in_app_agent: [
@@ -584,6 +596,7 @@ type EventName = {
 type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
   AiGatewayEventMap &
+  TopicsEventMap &
   ToastEventMap;
 
 type EventProperties = TypedEventMap & {

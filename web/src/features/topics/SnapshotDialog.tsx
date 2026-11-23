@@ -8,6 +8,7 @@ import { api } from "@/src/utils/api";
 import { dayWindow, latestFacetRefs } from "./topic-maps";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
+import { useTopicsCapture } from "./useTopicsCapture";
 import {
   SNAPSHOT_DEFAULT_SUMMARIZE,
   SnapshotDialogView,
@@ -63,6 +64,7 @@ export function SnapshotDialog({
   const range = dayWindow(windowDays, now);
   const facetRefs = latestFacetRefs(facets, facetIds);
   const utils = api.useUtils();
+  const capture = useTopicsCapture();
 
   const traceFilter = useTopicTraceFilter({
     projectId,
@@ -112,6 +114,13 @@ export function SnapshotDialog({
             },
           }
         : {}),
+    });
+    capture("topics:snapshot_started", {
+      filterCount: values.filter.length,
+      hasFilter: values.filter.length > 0,
+      facetCount: facetRefs.length,
+      windowDays: values.windowDays,
+      summarizeCount: extra,
     });
     closeDialog();
     onStarted(result.id);
