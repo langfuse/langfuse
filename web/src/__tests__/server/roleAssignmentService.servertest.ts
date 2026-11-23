@@ -24,8 +24,14 @@ import {
   ProjectId,
   SystemRoleId,
   UserId,
+  type Action,
   type RoleId,
 } from "@langfuse/shared/rbac";
+import { authorize } from "@/src/features/rbac/authorize";
+import {
+  getPoliciesForApiKey,
+  getPoliciesForUser,
+} from "@/src/features/auth/policy/contextResolver";
 
 /** testTags marks user assignments that no membership owns, so tests can write them without one. */
 const testTags = ["source:test"];
@@ -868,5 +874,286 @@ describe("getRoleAssignmentsForPrincipal api key backfill", () => {
     expect(
       await prisma.roleAssignment.count({ where: { principalId: apiKeyId } }),
     ).toBe(1);
+  });
+});
+
+describe("getPoliciesForUser group roles", () => {
+  type OrgRole = "ADMIN" | "MEMBER" | "VIEWER" | "NONE";
+  type GroupRole = {
+    ownerId: OrganizationId | ProjectId;
+    role: OrgRole;
+    expiresAt?: Date;
+  };
+
+  /** createMember creates a user in the org with a direct org `role`. */
+  const createMember = async (orgId: string, role: OrgRole) => {
+    const user = await prisma.user.create({ data: { name: v4() } });
+    const membership = await createOrgMembership(prisma, {
+      orgId,
+      userId: user.id,
+      role,
+    });
+    return { userId: user.id, orgMembershipId: membership.id };
+  };
+
+  /** createGroupOf creates a group in the org holding `roles`, with the member in it. */
+  const createGroupOf = async (
+    orgId: string,
+    orgMembershipId: string,
+    roles: GroupRole[],
+  ) => {
+    const group = await prisma.group.create({
+      data: { orgId, displayName: v4() },
+    });
+    await prisma.groupMembership.create({
+      data: { groupId: group.id, orgMembershipId },
+    });
+    for (const { ownerId, role, expiresAt } of roles) {
+      await assignRole(prisma, {
+        tenantId: OrganizationId(orgId),
+        ownerId,
+        principalId: GroupId(group.id),
+        roleId: SystemRoleId(role),
+        tags: [],
+        expiresAt,
+      });
+    }
+    return group;
+  };
+
+  /** accessOf loads the user's policies and returns a check of one action on one resource of the org. */
+  const accessOf = async (userId: string, orgId: string) => {
+    const policies = [await getPoliciesForUser(prisma, userId)];
+    return (action: Action, resource: OrganizationId | ProjectId) =>
+      authorize({ policies }, OrganizationId(orgId), action, resource).success;
+  };
+
+  /** memberOfGroup creates a user in the org with `role`, inside a new group holding `groupRole` on `ownerId`. */
+  const memberOfGroup = async (
+    orgId: string,
+    role: "MEMBER" | "NONE",
+    ownerId: OrganizationId | ProjectId,
+    groupRole: "VIEWER" | "ADMIN",
+  ) => {
+    const { userId, orgMembershipId } = await createMember(orgId, role);
+    await createGroupOf(orgId, orgMembershipId, [{ ownerId, role: groupRole }]);
+    return accessOf(userId, orgId);
+  };
+
+  it("grants a NONE member the group's org-wide role", async () => {
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
+    const can = await memberOfGroup(
+      orgId,
+      "NONE",
+      OrganizationId(orgId),
+      "VIEWER",
+    );
+    expect(can("project:read", ProjectId(projectId))).toBe(true);
+  });
+
+  it("adds a group's project role without shadowing the user's org role", async () => {
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
+    const can = await memberOfGroup(
+      orgId,
+      "MEMBER",
+      ProjectId(projectId),
+      "VIEWER",
+    );
+    expect(can("alerts:CUD", ProjectId(projectId))).toBe(true);
+  });
+
+  it("keeps a group's org role on a project where the same group has a lower role", async () => {
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
+    const user = await prisma.user.create({ data: { name: v4() } });
+    const membership = await createOrgMembership(prisma, {
+      orgId,
+      userId: user.id,
+      role: "NONE",
+    });
+    const group = await prisma.group.create({
+      data: { orgId, displayName: v4() },
+    });
+    await prisma.groupMembership.create({
+      data: { groupId: group.id, orgMembershipId: membership.id },
+    });
+    for (const [ownerId, role] of [
+      [OrganizationId(orgId), "ADMIN"],
+      [ProjectId(projectId), "VIEWER"],
+    ] as const) {
+      await assignRole(prisma, {
+        tenantId: OrganizationId(orgId),
+        ownerId,
+        principalId: GroupId(group.id),
+        roleId: SystemRoleId(role),
+        tags: [],
+      });
+    }
+    const policies = [await getPoliciesForUser(prisma, user.id)];
+    expect(
+      authorize(
+        { policies },
+        OrganizationId(orgId),
+        "apiKeys:CUD",
+        ProjectId(projectId),
+      ).success,
+    ).toBe(true);
+  });
+
+  it("grants an org-level action from a group's org role", async () => {
+    const { orgId } = await createOrgProjectAndApiKey();
+    const { userId, orgMembershipId } = await createMember(orgId, "VIEWER");
+    expect(
+      (await accessOf(userId, orgId))(
+        "organizationMembers:CUD",
+        OrganizationId(orgId),
+      ),
+    ).toBe(false);
+
+    await createGroupOf(orgId, orgMembershipId, [
+      { ownerId: OrganizationId(orgId), role: "ADMIN" },
+    ]);
+    expect(
+      (await accessOf(userId, orgId))(
+        "organizationMembers:CUD",
+        OrganizationId(orgId),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps a direct project downgrade for a user without groups", async () => {
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
+    const other = await prisma.project.create({ data: { name: v4(), orgId } });
+    const { userId, orgMembershipId } = await createMember(orgId, "MEMBER");
+    await createProjectMembership(prisma, {
+      orgId,
+      orgMembershipId,
+      projectId,
+      userId,
+      role: "VIEWER",
+    });
+    const can = await accessOf(userId, orgId);
+    expect(can("project:read", ProjectId(projectId))).toBe(true);
+    expect(can("datasets:CUD", ProjectId(projectId))).toBe(false);
+    expect(can("datasets:CUD", ProjectId(other.id))).toBe(true);
+  });
+
+  it("adds a group's org role on top of a direct project downgrade", async () => {
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
+    const { userId, orgMembershipId } = await createMember(orgId, "MEMBER");
+    await createProjectMembership(prisma, {
+      orgId,
+      orgMembershipId,
+      projectId,
+      userId,
+      role: "VIEWER",
+    });
+    await createGroupOf(orgId, orgMembershipId, [
+      { ownerId: OrganizationId(orgId), role: "ADMIN" },
+    ]);
+    const can = await accessOf(userId, orgId);
+    expect(can("apiKeys:CUD", ProjectId(projectId))).toBe(true);
+  });
+
+  it("adds a group's project role on top of a direct NONE on that project", async () => {
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
+    const { userId, orgMembershipId } = await createMember(orgId, "MEMBER");
+    await createProjectMembership(prisma, {
+      orgId,
+      orgMembershipId,
+      projectId,
+      userId,
+      role: "NONE",
+    });
+    expect(
+      (await accessOf(userId, orgId))("project:read", ProjectId(projectId)),
+    ).toBe(false);
+
+    await createGroupOf(orgId, orgMembershipId, [
+      { ownerId: ProjectId(projectId), role: "VIEWER" },
+    ]);
+    const can = await accessOf(userId, orgId);
+    expect(can("project:read", ProjectId(projectId))).toBe(true);
+    expect(can("datasets:CUD", ProjectId(projectId))).toBe(false);
+  });
+
+  it("unions two groups' roles on one project and grants nothing on another", async () => {
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
+    const other = await prisma.project.create({ data: { name: v4(), orgId } });
+    const { userId, orgMembershipId } = await createMember(orgId, "NONE");
+    await createGroupOf(orgId, orgMembershipId, [
+      { ownerId: ProjectId(projectId), role: "VIEWER" },
+    ]);
+    await createGroupOf(orgId, orgMembershipId, [
+      { ownerId: ProjectId(projectId), role: "ADMIN" },
+    ]);
+    const can = await accessOf(userId, orgId);
+    expect(can("apiKeys:CUD", ProjectId(projectId))).toBe(true);
+    expect(can("project:read", ProjectId(other.id))).toBe(false);
+  });
+
+  it("ignores a group of another organization", async () => {
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
+    const { orgId: otherOrgId } = await createOrgProjectAndApiKey();
+    const { userId } = await createMember(orgId, "NONE");
+    const otherMembership = await createOrgMembership(prisma, {
+      orgId: otherOrgId,
+      userId,
+      role: "NONE",
+    });
+    await createGroupOf(otherOrgId, otherMembership.id, [
+      { ownerId: OrganizationId(otherOrgId), role: "ADMIN" },
+    ]);
+    const can = await accessOf(userId, orgId);
+    expect(can("project:read", ProjectId(projectId))).toBe(false);
+    expect(can("organizationMembers:read", OrganizationId(orgId))).toBe(false);
+  });
+
+  it("drops a group's role once the user leaves the group", async () => {
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
+    const { userId, orgMembershipId } = await createMember(orgId, "NONE");
+    const group = await createGroupOf(orgId, orgMembershipId, [
+      { ownerId: OrganizationId(orgId), role: "ADMIN" },
+    ]);
+    expect(
+      (await accessOf(userId, orgId))("project:read", ProjectId(projectId)),
+    ).toBe(true);
+
+    await prisma.groupMembership.deleteMany({ where: { groupId: group.id } });
+    expect(
+      (await accessOf(userId, orgId))("project:read", ProjectId(projectId)),
+    ).toBe(false);
+  });
+
+  it("lets a user-bound key use a group's role only within the key's own role", async () => {
+    const { orgId } = await createOrgProjectAndApiKey();
+    const { userId, orgMembershipId } = await createMember(orgId, "NONE");
+    const key = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: UserId(userId),
+      role: SystemRoleId("AI_GATEWAY"),
+      createdBy: UserId(userId),
+    });
+    const keyAccess = async () => {
+      const policies = await getPoliciesForApiKey(prisma, {
+        apiKeyId: key.id,
+        userId,
+        scope: "USER",
+      });
+      return (action: Action) =>
+        authorize(
+          { policies },
+          OrganizationId(orgId),
+          action,
+          OrganizationId(orgId),
+        ).success;
+    };
+    expect((await keyAccess())("gateway:invoke")).toBe(false);
+
+    await createGroupOf(orgId, orgMembershipId, [
+      { ownerId: OrganizationId(orgId), role: "ADMIN" },
+    ]);
+    const can = await keyAccess();
+    expect(can("gateway:invoke")).toBe(true);
+    expect(can("organizationMembers:CUD")).toBe(false);
   });
 });

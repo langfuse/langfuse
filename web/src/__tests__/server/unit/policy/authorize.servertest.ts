@@ -2,14 +2,21 @@ import { describe, expect, it } from "vitest";
 
 import { ForbiddenError } from "@langfuse/shared";
 import {
+  ApiKeyId,
+  GroupId,
   OrganizationId,
   ProjectId,
   SystemRoleId,
+  UserId,
+  hasOrganizationKind,
+  hasProjectKind,
+  systemRoleAccessRights,
+  type PrincipalId,
   type ResourceId,
   type TenantId,
 } from "@langfuse/shared/rbac";
 
-import { authorize } from "@/src/features/rbac/authorize";
+import { authorize, rolesFor } from "@/src/features/rbac/authorize";
 import { type Policy } from "@/src/features/rbac/types";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 
@@ -268,5 +275,159 @@ describe("authorize — every policy set must allow", () => {
       [policy({ actions: ["traces:read"] })],
     ]);
     expect(authorize(c, TENANT, "prompts:read", PRJ).success).toBe(false);
+  });
+});
+
+describe("authorize — group roles add to the principal's own roles", () => {
+  const USER = UserId("user_1");
+  const GROUP = GroupId("group_1");
+  const OTHER_GROUP = GroupId("group_2");
+
+  /** roleOn binds a fixed system role to principal on an org or a project, as loading a role assignment does: an org role also covers every project. */
+  const roleOn = (
+    principalId: PrincipalId,
+    role: keyof typeof systemRoleAccessRights,
+    owner: ResourceId,
+    tenantId: TenantId = TENANT,
+  ): Policy[] => {
+    const roleId = SystemRoleId(role);
+    const resources = hasProjectKind(owner) ? [owner] : [owner, WILDCARD];
+    return systemRoleAccessRights[role].policies.flatMap((definition) => {
+      const ofKind = resources.filter(
+        definition.resourceKind === "organization"
+          ? hasOrganizationKind
+          : hasProjectKind,
+      );
+      if (ofKind.length === 0) return [];
+      return [
+        {
+          id: `${roleId}:${definition.resourceKind}`,
+          principalId,
+          roleId,
+          tenantId,
+          effect: definition.effect,
+          actions: definition.actions,
+          resources: ofKind,
+        },
+      ];
+    });
+  };
+
+  it("a direct project role still replaces the direct org role", () => {
+    const c = ctx([
+      ...roleOn(USER, "MEMBER", ORG),
+      ...roleOn(USER, "VIEWER", PRJ),
+    ]);
+    expect(authorize(c, TENANT, "project:read", PRJ).success).toBe(true);
+    expect(authorize(c, TENANT, "datasets:CUD", PRJ).success).toBe(false);
+    expect(authorize(c, TENANT, "datasets:CUD", OTHER_PRJ).success).toBe(true);
+  });
+
+  it("a direct project NONE removes the direct org role on that project", () => {
+    const c = ctx([
+      ...roleOn(USER, "MEMBER", ORG),
+      ...roleOn(USER, "NONE", PRJ),
+    ]);
+    expect(authorize(c, TENANT, "project:read", PRJ).success).toBe(false);
+    expect(authorize(c, TENANT, "project:read", OTHER_PRJ).success).toBe(true);
+  });
+
+  it("a group's org role applies despite a direct project role", () => {
+    const c = ctx([
+      ...roleOn(USER, "MEMBER", ORG),
+      ...roleOn(USER, "VIEWER", PRJ),
+      ...roleOn(GROUP, "ADMIN", ORG),
+    ]);
+    expect(authorize(c, TENANT, "apiKeys:CUD", PRJ).success).toBe(true);
+  });
+
+  it("a group's project role does not replace the direct org role", () => {
+    const c = ctx([
+      ...roleOn(USER, "MEMBER", ORG),
+      ...roleOn(GROUP, "VIEWER", PRJ),
+    ]);
+    expect(authorize(c, TENANT, "datasets:CUD", PRJ).success).toBe(true);
+  });
+
+  it("a group's project NONE does not lower the direct org role", () => {
+    const c = ctx([
+      ...roleOn(USER, "MEMBER", ORG),
+      ...roleOn(GROUP, "NONE", PRJ),
+    ]);
+    expect(authorize(c, TENANT, "datasets:CUD", PRJ).success).toBe(true);
+  });
+
+  it("a group's project role does not replace the same group's org role", () => {
+    const c = ctx([
+      ...roleOn(USER, "NONE", ORG),
+      ...roleOn(GROUP, "ADMIN", ORG),
+      ...roleOn(GROUP, "VIEWER", PRJ),
+    ]);
+    expect(authorize(c, TENANT, "apiKeys:CUD", PRJ).success).toBe(true);
+  });
+
+  it("two groups' roles on one project add up and cover no other project", () => {
+    const c = ctx([
+      ...roleOn(USER, "NONE", ORG),
+      ...roleOn(GROUP, "VIEWER", PRJ),
+      ...roleOn(OTHER_GROUP, "ADMIN", PRJ),
+    ]);
+    expect(authorize(c, TENANT, "project:read", PRJ).success).toBe(true);
+    expect(authorize(c, TENANT, "apiKeys:CUD", PRJ).success).toBe(true);
+    expect(authorize(c, TENANT, "project:read", OTHER_PRJ).success).toBe(false);
+  });
+
+  it("a group's org role grants an org action the direct org role lacks", () => {
+    const direct = roleOn(USER, "VIEWER", ORG);
+    expect(
+      authorize(ctx(direct), TENANT, "organizationMembers:CUD", ORG).success,
+    ).toBe(false);
+
+    const c = ctx([...direct, ...roleOn(GROUP, "ADMIN", ORG)]);
+    expect(authorize(c, TENANT, "organizationMembers:CUD", ORG).success).toBe(
+      true,
+    );
+  });
+
+  it("a group's role in another tenant grants nothing", () => {
+    const c = ctx([
+      ...roleOn(USER, "NONE", ORG),
+      ...roleOn(GROUP, "ADMIN", OTHER_ORG, OTHER_TENANT),
+    ]);
+    expect(authorize(c, TENANT, "project:read", PRJ).success).toBe(false);
+    expect(authorize(c, TENANT, "organizationMembers:read", ORG).success).toBe(
+      false,
+    );
+  });
+
+  it("a group's role widens the user's set of a user-bound key, not the key's own set", () => {
+    const keySet = roleOn(ApiKeyId("key_1"), "AI_GATEWAY", ORG);
+    const withoutGroup = ctxOfSets([roleOn(USER, "NONE", ORG), keySet]);
+    expect(authorize(withoutGroup, TENANT, "gateway:invoke", ORG).success).toBe(
+      false,
+    );
+
+    const withGroup = ctxOfSets([
+      [...roleOn(USER, "NONE", ORG), ...roleOn(GROUP, "ADMIN", ORG)],
+      keySet,
+    ]);
+    expect(authorize(withGroup, TENANT, "gateway:invoke", ORG).success).toBe(
+      true,
+    );
+    expect(
+      authorize(withGroup, TENANT, "organizationMembers:CUD", ORG).success,
+    ).toBe(false);
+  });
+
+  it("rolesFor lists the direct project role and the group's role, not the replaced direct org role", () => {
+    const c = ctx([
+      ...roleOn(USER, "MEMBER", ORG),
+      ...roleOn(USER, "VIEWER", PRJ),
+      ...roleOn(GROUP, "ADMIN", ORG),
+    ]);
+    expect(rolesFor(c, TENANT, PRJ)).toEqual([
+      SystemRoleId("VIEWER"),
+      SystemRoleId("ADMIN"),
+    ]);
   });
 });
