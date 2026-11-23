@@ -49,7 +49,7 @@ export const StripeCustomerPortalButton = ({
     try {
       setLoading(true);
       const { data, error } = await portalQuery.refetch();
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- tRPC refetch error is forwarded to the boundary
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- rethrown here and handled by the local catch + showToast below
       if (error) throw error;
       if (data) {
         window.location.href = data;

@@ -39,7 +39,7 @@ async function verifyApiKeyAuth(
   ).verifyAuthHeaderAndReturnScope(authHeader, { allowInAppAgentKey });
 
   if (!regularAuth.validKey) {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy public-API auth shape consumed by withMiddlewares
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw { status: 401, message: regularAuth.error };
   }
 
@@ -48,7 +48,7 @@ async function verifyApiKeyAuth(
       regularAuth.scope.accessLevel,
     )
   ) {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy public-API auth shape consumed by withMiddlewares
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw {
       status: 403,
       message: "Access denied - insufficient permissions for this endpoint",
@@ -56,7 +56,7 @@ async function verifyApiKeyAuth(
   }
 
   if (!regularAuth.scope.projectId) {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy public-API auth shape consumed by withMiddlewares
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw {
       status: 403,
       message:
@@ -101,7 +101,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
 
   // Verify this is a self-hosted instance (not Langfuse Cloud)
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy public-API auth shape consumed by withMiddlewares
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw {
       status: 403,
       message: "Admin API key auth is not available on Langfuse Cloud",
@@ -111,7 +111,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   // Verify ADMIN_API_KEY is configured
   const adminApiKey = env.ADMIN_API_KEY;
   if (!adminApiKey) {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy public-API auth shape consumed by withMiddlewares
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw {
       status: 500,
       message: "Admin API key is not configured on this instance",
@@ -138,13 +138,13 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
 
     if (!isEqual) throw Error();
   } catch {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy public-API auth shape consumed by withMiddlewares
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw { status: 401, message: "Invalid admin API key" };
   }
 
   // Verify project ID header is present
   if (!projectIdHeader || typeof projectIdHeader !== "string") {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy public-API auth shape consumed by withMiddlewares
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw {
       status: 400,
       message:
@@ -159,7 +159,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   });
 
   if (!project) {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy public-API auth shape consumed by withMiddlewares
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw { status: 404, message: "Project not found" };
   }
 
