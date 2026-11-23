@@ -368,28 +368,29 @@ describe("groups CRUD from the UI", () => {
   });
 });
 
+/** callerWithRoles signs in a user with `orgRole` on the org and `projectRole` on its project. */
+const callerWithRoles = (
+  orgId: string,
+  projectId: string,
+  orgRole: Role,
+  projectRole?: Role,
+) => {
+  const session = createSession({
+    organizations: [
+      {
+        id: orgId,
+        role: orgRole,
+        plan: "cloud:enterprise",
+        projects: [{ id: projectId, role: projectRole }],
+      },
+    ],
+  });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  return appRouter.createCaller({ ...ctx, prisma });
+};
+
 describe("groups.projectList", () => {
   /** projectCaller signs in a user who has `orgRole` on the org and `projectRole` on its project. */
-  const projectCaller = (
-    orgId: string,
-    projectId: string,
-    orgRole: Role,
-    projectRole?: Role,
-  ) => {
-    const session = createSession({
-      organizations: [
-        {
-          id: orgId,
-          role: orgRole,
-          plan: "cloud:enterprise",
-          projects: [{ id: projectId, role: projectRole }],
-        },
-      ],
-    });
-    const ctx = createInnerTRPCContext({ session, headers: {} });
-    return appRouter.createCaller({ ...ctx, prisma });
-  };
-
   /** groupWithRole creates a group holding `role` on `ownerId`, or no role. */
   const groupWithRole = async (
     orgId: string,
@@ -448,7 +449,7 @@ describe("groups.projectList", () => {
 
   it("shows a project-only member just the groups with access to the project", async () => {
     const { org, project } = await setup();
-    const caller = projectCaller(org.id, project.id, Role.NONE, Role.MEMBER);
+    const caller = callerWithRoles(org.id, project.id, Role.NONE, Role.MEMBER);
 
     const groups = await caller.groups.projectList({ projectId: project.id });
     expect(groups.map((g) => g.displayName)).toEqual([
@@ -459,15 +460,15 @@ describe("groups.projectList", () => {
 
   it("shows an org member with no access to the project every group of the org", async () => {
     const { org, project, names } = await setup();
-    const caller = projectCaller(org.id, project.id, Role.MEMBER, Role.NONE);
+    const caller = callerWithRoles(org.id, project.id, Role.MEMBER, Role.NONE);
 
     const groups = await caller.groups.projectList({ projectId: project.id });
     expect(groups.map((g) => g.displayName)).toEqual(names.toSorted());
   });
 
-  it("refuses a caller who can read neither the org's nor the project's members", async () => {
+  it("refuses a caller who can read neither the org's nor the project's groups", async () => {
     const { org, project } = await setup();
-    const caller = projectCaller(org.id, project.id, Role.NONE, Role.VIEWER);
+    const caller = callerWithRoles(org.id, project.id, Role.NONE, Role.VIEWER);
 
     await expect(
       caller.groups.projectList({ projectId: project.id }),
@@ -476,9 +477,64 @@ describe("groups.projectList", () => {
 
   it("shows an org member every group of the org", async () => {
     const { org, project, names } = await setup();
-    const caller = projectCaller(org.id, project.id, Role.MEMBER);
+    const caller = callerWithRoles(org.id, project.id, Role.MEMBER);
 
     const groups = await caller.groups.projectList({ projectId: project.id });
     expect(groups.map((g) => g.displayName)).toEqual(names.toSorted());
+  });
+});
+
+describe("groups scopes", () => {
+  it("lets a MEMBER read the org's groups but not change them", async () => {
+    const { org, project, group } = await prepare();
+    const caller = callerWithRoles(org.id, project.id, Role.MEMBER);
+
+    expect(
+      (await caller.groups.list({ orgId: org.id })).map((g) => g.id),
+    ).toEqual([group.id]);
+    await expect(
+      caller.groups.create({ orgId: org.id, displayName: "new" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller.groups.setOrgRole({
+        orgId: org.id,
+        groupId: group.id,
+        role: Role.VIEWER,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("hides the org's groups from a VIEWER", async () => {
+    const { org, project } = await prepare();
+    const caller = callerWithRoles(org.id, project.id, Role.VIEWER);
+
+    await expect(caller.groups.list({ orgId: org.id })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+
+  it("lets a project ADMIN set a group's project role and a project MEMBER only read it", async () => {
+    const { org, project, group } = await prepare();
+    const admin = callerWithRoles(org.id, project.id, Role.NONE, Role.ADMIN);
+    const member = callerWithRoles(org.id, project.id, Role.NONE, Role.MEMBER);
+
+    await admin.groups.setProjectRole({
+      projectId: project.id,
+      groupId: group.id,
+      role: Role.VIEWER,
+    });
+    expect(
+      (await member.groups.projectList({ projectId: project.id })).map((g) => [
+        g.id,
+        g.projectRole,
+      ]),
+    ).toEqual([[group.id, Role.VIEWER]]);
+    await expect(
+      member.groups.setProjectRole({
+        projectId: project.id,
+        groupId: group.id,
+        role: Role.MEMBER,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
