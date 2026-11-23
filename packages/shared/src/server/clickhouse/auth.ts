@@ -17,7 +17,8 @@ import { logger } from "../logger";
  * - CLICKHOUSE_JWT_TOKEN_FILE: a file kept current by the platform, such as a
  *   Kubernetes projected service account token or a Vault agent sidecar.
  * - CLICKHOUSE_JWT_TOKEN_URL: an OAuth 2.0 token endpoint, called with the
- *   client credentials grant.
+ *   client credentials grant. The client secret is a fixed value or, when the
+ *   platform rotates it, a file read for every token request.
  *
  * Tokens are read synchronously so that `clickhouseClient()` stays
  * synchronous. Sources that need network access fetch the first token in
@@ -180,7 +181,10 @@ const TokenResponseSchema = z.object({
 export type ClientCredentialsConfig = {
   tokenUrl: string;
   clientId: string;
-  clientSecret: string;
+  /** Exactly one of the two is set. */
+  clientSecret?: string;
+  /** Read for every token request, so a secret the platform rotates is picked up. */
+  clientSecretFile?: string;
   authMethod: "client_secret_basic" | "client_secret_post";
   scope?: string;
   audience?: string;
@@ -272,6 +276,25 @@ export class ClientCredentialsTokenSource implements ClickhouseTokenSource {
     this.renewalTimer.unref();
   }
 
+  private readClientSecret(): string {
+    const path = this.config.clientSecretFile;
+    if (path === undefined) return this.config.clientSecret ?? "";
+
+    let secret = "";
+    let problem = "the file is empty";
+    try {
+      secret = readFileSync(path, "utf8").trim();
+    } catch (error) {
+      problem = error instanceof Error ? error.message : String(error);
+    }
+    if (!secret) {
+      throw new ClickhouseAuthError(
+        `Cannot read ClickHouse client secret file ${path}: ${problem}`,
+      );
+    }
+    return secret;
+  }
+
   private async requestToken(): Promise<string> {
     const body = new URLSearchParams({ grant_type: "client_credentials" });
     if (this.config.scope) body.set("scope", this.config.scope);
@@ -281,13 +304,14 @@ export class ClientCredentialsTokenSource implements ClickhouseTokenSource {
       "content-type": "application/x-www-form-urlencoded",
       accept: "application/json",
     };
+    const clientSecret = this.readClientSecret();
     if (this.config.authMethod === "client_secret_basic") {
       // RFC 6749, section 2.3.1: form-encode both parts before joining.
-      const credentials = `${encodeURIComponent(this.config.clientId)}:${encodeURIComponent(this.config.clientSecret)}`;
+      const credentials = `${encodeURIComponent(this.config.clientId)}:${encodeURIComponent(clientSecret)}`;
       headers.authorization = `Basic ${Buffer.from(credentials).toString("base64")}`;
     } else {
       body.set("client_id", this.config.clientId);
-      body.set("client_secret", this.config.clientSecret);
+      body.set("client_secret", clientSecret);
     }
 
     const response = await fetch(this.config.tokenUrl, {
@@ -335,7 +359,8 @@ const createTokenSource = (): ClickhouseTokenSource => {
     return new ClientCredentialsTokenSource({
       tokenUrl: env.CLICKHOUSE_JWT_TOKEN_URL,
       clientId: env.CLICKHOUSE_JWT_CLIENT_ID ?? "",
-      clientSecret: env.CLICKHOUSE_JWT_CLIENT_SECRET ?? "",
+      clientSecret: env.CLICKHOUSE_JWT_CLIENT_SECRET,
+      clientSecretFile: env.CLICKHOUSE_JWT_CLIENT_SECRET_FILE,
       authMethod: env.CLICKHOUSE_JWT_CLIENT_AUTH_METHOD,
       scope: env.CLICKHOUSE_JWT_SCOPE,
       audience: env.CLICKHOUSE_JWT_AUDIENCE,

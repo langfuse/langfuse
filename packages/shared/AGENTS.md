@@ -60,7 +60,8 @@
 - Canonical ClickHouse migration templates (rendered for clustered and unclustered installs): `clickhouse/migrations/canonical/*`. `events_full.event_bytes` defaults to `byteSize` of customer payload, identifiers and descriptions (migration 0056), excluding internal bookkeeping and copied experiment metadata. Keep this estimate stable across small schema additions; include new large customer payload fields via a new migration. Core and billing projections preserve the untruncated payload estimate. Inserts may omit it; reads require it.
 - ClickHouse authentication: `src/server/clickhouse/auth.ts`. `password` mode
   sends user and password; `jwt` mode sends a bearer token from a static value,
-  a file, or an OAuth 2.0 client credentials grant. Web and worker call
+  a file, or an OAuth 2.0 client credentials grant, whose client secret is a
+  value or a file read for every token request. Web and worker call
   `initializeClickhouseAuth` at startup before the first query; web does so in
   `instrumentation.ts`, on every replica. The token source is kept once per
   process on `globalThis`, because the web server loads this module separately

@@ -54,17 +54,21 @@ func newTokenSource(getenv func(string) string, httpClient *http.Client) (tokenS
 	}
 
 	source := &clientCredentials{
-		tokenURL:     getenv("CLICKHOUSE_JWT_TOKEN_URL"),
-		clientID:     getenv("CLICKHOUSE_JWT_CLIENT_ID"),
-		clientSecret: getenv("CLICKHOUSE_JWT_CLIENT_SECRET"),
-		authMethod:   getenv("CLICKHOUSE_JWT_CLIENT_AUTH_METHOD"),
-		scope:        getenv("CLICKHOUSE_JWT_SCOPE"),
-		audience:     getenv("CLICKHOUSE_JWT_AUDIENCE"),
-		httpClient:   httpClient,
-		now:          time.Now,
+		tokenURL:         getenv("CLICKHOUSE_JWT_TOKEN_URL"),
+		clientID:         getenv("CLICKHOUSE_JWT_CLIENT_ID"),
+		clientSecret:     getenv("CLICKHOUSE_JWT_CLIENT_SECRET"),
+		clientSecretFile: getenv("CLICKHOUSE_JWT_CLIENT_SECRET_FILE"),
+		authMethod:       getenv("CLICKHOUSE_JWT_CLIENT_AUTH_METHOD"),
+		scope:            getenv("CLICKHOUSE_JWT_SCOPE"),
+		audience:         getenv("CLICKHOUSE_JWT_AUDIENCE"),
+		httpClient:       httpClient,
+		now:              time.Now,
 	}
-	if source.clientID == "" || source.clientSecret == "" {
-		return nil, errors.New("CLICKHOUSE_JWT_CLIENT_ID and CLICKHOUSE_JWT_CLIENT_SECRET are required when CLICKHOUSE_JWT_TOKEN_URL is set")
+	if source.clientID == "" {
+		return nil, errors.New("CLICKHOUSE_JWT_CLIENT_ID is required when CLICKHOUSE_JWT_TOKEN_URL is set")
+	}
+	if (source.clientSecret == "") == (source.clientSecretFile == "") {
+		return nil, errors.New("CLICKHOUSE_JWT_TOKEN_URL needs exactly one of CLICKHOUSE_JWT_CLIENT_SECRET or CLICKHOUSE_JWT_CLIENT_SECRET_FILE")
 	}
 	// The request carries the client secret and the response the token.
 	if !isSecureTokenURL(source.tokenURL) {
@@ -115,9 +119,12 @@ func fileTokenSource(path string) tokenSource {
 // clientCredentials obtains tokens with the OAuth 2.0 client credentials grant
 // (RFC 6749, section 4.4) and reuses each one until shortly before it expires.
 type clientCredentials struct {
-	tokenURL, clientID, clientSecret, authMethod, scope, audience string
-	httpClient                                                    *http.Client
-	now                                                           func() time.Time
+	tokenURL, clientID, authMethod, scope, audience string
+	// Exactly one of the two is set. The file is read for every token request,
+	// so a secret the platform rotates is picked up.
+	clientSecret, clientSecretFile string
+	httpClient                     *http.Client
+	now                            func() time.Time
 
 	mu      sync.Mutex
 	cached  string
@@ -140,7 +147,26 @@ func (c *clientCredentials) token(ctx context.Context) (string, error) {
 	return token, nil
 }
 
+func (c *clientCredentials) secret() (string, error) {
+	if c.clientSecretFile == "" {
+		return c.clientSecret, nil
+	}
+	content, err := os.ReadFile(c.clientSecretFile)
+	if err != nil {
+		return "", fmt.Errorf("cannot read ClickHouse client secret file: %w", err)
+	}
+	secret := strings.TrimSpace(string(content))
+	if secret == "" {
+		return "", fmt.Errorf("ClickHouse client secret file %s is empty", c.clientSecretFile)
+	}
+	return secret, nil
+}
+
 func (c *clientCredentials) request(ctx context.Context) (string, time.Duration, error) {
+	clientSecret, err := c.secret()
+	if err != nil {
+		return "", 0, err
+	}
 	form := url.Values{"grant_type": {"client_credentials"}}
 	if c.scope != "" {
 		form.Set("scope", c.scope)
@@ -150,7 +176,7 @@ func (c *clientCredentials) request(ctx context.Context) (string, time.Duration,
 	}
 	if c.authMethod == "client_secret_post" {
 		form.Set("client_id", c.clientID)
-		form.Set("client_secret", c.clientSecret)
+		form.Set("client_secret", clientSecret)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, tokenRequestTimeout)
@@ -163,7 +189,7 @@ func (c *clientCredentials) request(ctx context.Context) (string, time.Duration,
 	request.Header.Set("Accept", "application/json")
 	if c.authMethod == "client_secret_basic" {
 		// RFC 6749, section 2.3.1: form-encode both parts before joining.
-		request.SetBasicAuth(formEncode(c.clientID), formEncode(c.clientSecret))
+		request.SetBasicAuth(formEncode(c.clientID), formEncode(clientSecret))
 	}
 
 	client := *c.httpClient

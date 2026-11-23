@@ -93,6 +93,36 @@ describe("ClientCredentialsTokenSource", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     source.close();
   });
+
+  it("reads the client secret file again for every token request", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "clickhouse-client-secret-"));
+    const path = join(dir, "client-secret");
+    writeFileSync(path, "secret-a\n");
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse("token-a", 3600))
+      .mockResolvedValueOnce(tokenResponse("token-b", 3600));
+    const source = new ClientCredentialsTokenSource({
+      tokenUrl: "https://idp.example.com/oauth2/token",
+      clientId: "langfuse",
+      clientSecretFile: path,
+      authMethod: "client_secret_post",
+    });
+    const sentSecret = (request: number) =>
+      new URLSearchParams(String(fetchMock.mock.calls[request][1]?.body)).get(
+        "client_secret",
+      );
+
+    await source.initialize();
+    expect(sentSecret(0)).toBe("secret-a");
+
+    // The platform replaces the secret while the first token is still valid.
+    writeFileSync(path, "secret-b\n");
+    await vi.advanceTimersByTimeAsync(55 * 60_000);
+
+    expect(sentSecret(1)).toBe("secret-b");
+    source.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
 });
 
 describe("getClickhouseAuth", () => {

@@ -187,7 +187,10 @@ const EnvSchema = z.object({
   // use https unless it is on localhost.
   CLICKHOUSE_JWT_TOKEN_URL: z.url().optional(),
   CLICKHOUSE_JWT_CLIENT_ID: z.string().optional(),
+  // Exactly one of the two. The file is read for every token request, for a
+  // secret that the platform rotates.
   CLICKHOUSE_JWT_CLIENT_SECRET: z.string().optional(),
+  CLICKHOUSE_JWT_CLIENT_SECRET_FILE: z.string().optional(),
   CLICKHOUSE_JWT_CLIENT_AUTH_METHOD: z
     .enum(["client_secret_basic", "client_secret_post"])
     .default("client_secret_basic"),
@@ -983,17 +986,24 @@ const validateClickhouseAuth = (
         message: "CLICKHOUSE_JWT_TOKEN_URL must use https, except on localhost",
       });
     }
-    for (const key of [
-      "CLICKHOUSE_JWT_CLIENT_ID",
-      "CLICKHOUSE_JWT_CLIENT_SECRET",
-    ] as const) {
-      if (values[key] === undefined) {
-        ctx.addIssue({
-          code: "custom",
-          path: [key],
-          message: `${key} is required when CLICKHOUSE_JWT_TOKEN_URL is set`,
-        });
-      }
+    if (values.CLICKHOUSE_JWT_CLIENT_ID === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLICKHOUSE_JWT_CLIENT_ID"],
+        message:
+          "CLICKHOUSE_JWT_CLIENT_ID is required when CLICKHOUSE_JWT_TOKEN_URL is set",
+      });
+    }
+    if (
+      (values.CLICKHOUSE_JWT_CLIENT_SECRET === undefined) ===
+      (values.CLICKHOUSE_JWT_CLIENT_SECRET_FILE === undefined)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CLICKHOUSE_JWT_CLIENT_SECRET"],
+        message:
+          "CLICKHOUSE_JWT_TOKEN_URL needs exactly one of CLICKHOUSE_JWT_CLIENT_SECRET or CLICKHOUSE_JWT_CLIENT_SECRET_FILE",
+      });
     }
   }
 };

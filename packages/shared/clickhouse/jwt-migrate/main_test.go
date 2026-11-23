@@ -99,6 +99,44 @@ func TestClientCredentialsFailures(t *testing.T) {
 	}
 }
 
+func TestClientSecretFileIsReadOnEveryRequest(t *testing.T) {
+	var sent []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sent = append(sent, r.PostFormValue("client_secret"))
+		_, _ = w.Write([]byte(`{"access_token":"token","expires_in":600}`))
+	}))
+	defer server.Close()
+
+	path := filepath.Join(t.TempDir(), "client-secret")
+	now := time.Unix(1_700_000_000, 0)
+	source := &clientCredentials{
+		tokenURL: server.URL, clientID: "langfuse", clientSecretFile: path,
+		authMethod: "client_secret_post",
+		httpClient: server.Client(), now: func() time.Time { return now },
+	}
+
+	for _, secret := range []string{"secret-a", "secret-b"} {
+		if err := os.WriteFile(path, []byte(secret+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := source.token(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		// Past the lifetime of the token, so the next call requests a new one.
+		now = now.Add(time.Hour)
+	}
+	if got := strings.Join(sent, ","); got != "secret-a,secret-b" {
+		t.Errorf("client secrets sent = %q, want secret-a,secret-b", got)
+	}
+
+	if err := os.WriteFile(path, []byte(" \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := source.token(context.Background()); err == nil {
+		t.Error("an empty client secret file returned no error")
+	}
+}
+
 func TestFileTokenIsReadOnEveryCall(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "token")
 	source, err := newTokenSource(environment(map[string]string{"CLICKHOUSE_JWT_TOKEN_FILE": path}), nil)
@@ -167,6 +205,7 @@ func TestConnectionOptions(t *testing.T) {
 		"no token source":      {with(map[string]string{"CLICKHOUSE_JWT_TOKEN": ""}), "found none"},
 		"two token sources":    {with(map[string]string{"CLICKHOUSE_JWT_TOKEN_FILE": "/run/token"}), "found CLICKHOUSE_JWT_TOKEN, CLICKHOUSE_JWT_TOKEN_FILE"},
 		"token URL, no client": {with(map[string]string{"CLICKHOUSE_JWT_TOKEN": "", "CLICKHOUSE_JWT_TOKEN_URL": "https://idp.example.com/token"}), "CLICKHOUSE_JWT_CLIENT_ID"},
+		"two client secrets":   {with(map[string]string{"CLICKHOUSE_JWT_TOKEN": "", "CLICKHOUSE_JWT_TOKEN_URL": "https://idp.example.com/token", "CLICKHOUSE_JWT_CLIENT_ID": "langfuse", "CLICKHOUSE_JWT_CLIENT_SECRET": "s3cret", "CLICKHOUSE_JWT_CLIENT_SECRET_FILE": "/run/secret"}), "exactly one of CLICKHOUSE_JWT_CLIENT_SECRET"},
 		"plain HTTP token URL": {with(map[string]string{"CLICKHOUSE_JWT_TOKEN": "", "CLICKHOUSE_JWT_TOKEN_URL": "http://idp.example.com/token", "CLICKHOUSE_JWT_CLIENT_ID": "langfuse", "CLICKHOUSE_JWT_CLIENT_SECRET": "s3cret"}), "must use https"},
 	} {
 		t.Run(name, func(t *testing.T) {
