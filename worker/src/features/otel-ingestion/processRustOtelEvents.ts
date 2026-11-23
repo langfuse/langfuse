@@ -1,3 +1,4 @@
+import { backOff } from "exponential-backoff";
 import type {
   EarlyOtelBatch,
   FinalizedOtelBatch,
@@ -35,7 +36,7 @@ import { env, v4WritesToLegacyTables } from "../../env";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { TableName } from "../../services/ClickhouseWriter/types";
 import { fetchEvalRules, type EvalRules } from "../evaluation/fetchEvalRules";
-import { serializeOtelLookups } from "./serializeOtelLookups";
+import { encodeOtelLookups, type OtelLookupResult } from "./encodeOtelLookups";
 import {
   createEvalSchedulerDeps,
   scheduleEvals,
@@ -135,7 +136,7 @@ async function waitForServiceWork<T extends readonly Promise<unknown>[]>(
 async function completeOrFinalizeBatch(
   processing: RustOtelBatch,
   mediaResults: OtelMediaResolution[],
-  lookups: object[],
+  lookups: OtelLookupResult[],
   { evalConfigs, sampledTraceIds }: EvalRuleResolution,
   projectId: string,
 ): Promise<FinalizedOtelBatch> {
@@ -150,7 +151,7 @@ async function completeOrFinalizeBatch(
     sampledTraceIds.length > 0 ? sampledTraceIds : undefined;
   const completion = await processing.complete(
     mediaResults,
-    serializeOtelLookups(lookups),
+    encodeOtelLookups(lookups),
     overflowLimitBytes,
     includeEvaluationRows,
     traceActivityIds,
@@ -404,57 +405,79 @@ async function uploadRequestedMedia(
   return mediaResults;
 }
 
+/** How often one lookup request is tried before its rows are given up. */
+const LOOKUP_ATTEMPTS = 3;
+/**
+ * The longest wait before the second attempt; the longest wait before each
+ * later one is twice that. Every wait is a random part of its limit.
+ */
+const LOOKUP_RETRY_DELAY_MS = 100;
+
 async function resolveLookups(
   lookupRequests: OtelLookupRequest[],
   { projectId, fileKey }: OtelProcessingContext,
-): Promise<object[]> {
+): Promise<OtelLookupResult[]> {
   const prompts = new PromptService(prisma, redis);
   const skills = new SkillCacheService(prisma, redis);
-  const lookups: object[] = [];
+  const lookups: OtelLookupResult[] = [];
   // Resolve up to 64 lookup requests at a time; event payloads stay in Rust.
   for (let offset = 0; offset < lookupRequests.length; offset += 64) {
     lookups.push(
       ...(await Promise.all(
         lookupRequests.slice(offset, offset + 64).map(async (request) => {
           try {
-            const [matched, prompt, skillReferences] = await Promise.all([
-              request.modelName
-                ? findModel({ projectId, model: request.modelName })
-                : { model: null, pricingTiers: [] },
-              request.promptName && request.promptVersion
-                ? prompts.getPrompt({
+            // Every row that shares this request depends on its result, so a
+            // failed lookup is tried again, after a wait, before those rows
+            // are given up.
+            return await backOff(
+              async () => {
+                const [matched, prompt, skillReferences] = await Promise.all([
+                  request.modelName
+                    ? findModel({ projectId, model: request.modelName })
+                    : { model: null, pricingTiers: [] },
+                  request.promptName && request.promptVersion
+                    ? prompts.getPrompt({
+                        projectId,
+                        promptName: request.promptName,
+                        version: request.promptVersion,
+                        label: undefined,
+                      })
+                    : null,
+                  resolveSkillReferences({
                     projectId,
-                    promptName: request.promptName,
-                    version: request.promptVersion,
-                    label: undefined,
-                  })
-                : null,
-              resolveSkillReferences({
-                projectId,
-                type: request.eventType,
-                service: skills,
-                available: request.skillsAvailable,
-                loaded: request.skillsResourceLoaded,
-              }),
-            ]);
-            const model = matched.model;
-            return {
-              promptId: prompt?.id,
-              model: model
-                ? {
-                    id: model.id,
-                  }
-                : null,
-              pricingTiers: matched.pricingTiers.map((tier) => ({
-                ...tier,
-                prices: tier.prices.map((price) => ({
-                  usageType: price.usageType,
-                  price: price.price.toString(),
-                })),
-              })),
-              skillsAvailable: skillReferences.skills_available,
-              skillsResourceLoaded: skillReferences.skills_resource_loaded,
-            };
+                    type: request.eventType,
+                    service: skills,
+                    available: request.skillsAvailable,
+                    loaded: request.skillsResourceLoaded,
+                  }),
+                ]);
+                const model = matched.model;
+                return {
+                  promptId: prompt?.id,
+                  model: model
+                    ? {
+                        id: model.id,
+                      }
+                    : null,
+                  pricingTiers: matched.pricingTiers.map((tier) => ({
+                    ...tier,
+                    prices: tier.prices.map((price) => ({
+                      usageType: price.usageType,
+                      price: price.price.toString(),
+                    })),
+                  })),
+                  skillsAvailable: skillReferences.skills_available,
+                  skillsResourceLoaded: skillReferences.skills_resource_loaded,
+                };
+              },
+              {
+                numOfAttempts: LOOKUP_ATTEMPTS,
+                startingDelay: LOOKUP_RETRY_DELAY_MS,
+                timeMultiple: 2,
+                // Batches that failed together do not all retry together.
+                jitter: "full",
+              },
+            );
           } catch (error) {
             traceException(error);
             logger.error(

@@ -8,7 +8,8 @@
 //!
 //! `media` collects media requests and applies upload results. `rows` collects
 //! lookup requests, builds storage rows, and requests uploads for oversized
-//! fields. This file defines the N-API methods and batch states.
+//! fields. `lookups` reads the lookup results Node hands back. This file defines
+//! the N-API methods and batch states.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -24,6 +25,7 @@ use crate::otel_input::{EarlyOtelBatch, ExtractedBatch};
 use crate::otel_media::ExtractedMedia;
 use crate::PreparedEvent;
 
+mod lookups;
 mod media;
 mod rows;
 
@@ -64,6 +66,7 @@ struct Pipeline {
     source: Arc<ExtractedBatch>,
     memory: Arc<NativeMemory>,
     rows: BatchRows,
+    lookups: rows::LookupPlan,
     context: StorageContext,
     media_requests: Vec<u32>,
     late_media: Vec<ExtractedMedia>,
@@ -81,6 +84,7 @@ impl Pipeline {
             source,
             memory,
             rows: BatchRows::Prepared(events),
+            lookups: rows::LookupPlan::default(),
             context,
             media_requests: Vec::new(),
             late_media: Vec::new(),
@@ -131,6 +135,7 @@ impl Pipeline {
             source: _, // The source batch has its own tracker.
             memory: _,
             rows,
+            lookups,
             context,
             media_requests,
             late_media,
@@ -158,6 +163,7 @@ impl Pipeline {
             + late_source_bytes;
         std::mem::size_of::<Self>()
             + row_bytes
+            + retained_size(&lookups.request_of)
             + retained_size(media_requests)
             + late_media_bytes
             + retained_size(overflow_requests)
@@ -204,6 +210,19 @@ pub struct OtelSkillResourceLoaded {
     pub skill_version: Option<u32>,
 }
 
+/// Lookup results in the flat form written by the worker's `encodeOtelLookups`.
+#[napi(object, object_to_js = false)]
+pub struct EncodedOtelLookups {
+    /// Every text field in a fixed order, each followed by a line feed.
+    pub text: String,
+    /// The length of each text field in UTF-16 code units.
+    pub lengths: Uint32Array,
+    /// Counts, flags and numeric fields in the order they are read.
+    pub numbers: Float64Array,
+}
+
+/// One lookup the worker resolves. Events that would make the same request share it;
+/// `span_id` names the first of them.
 #[napi(object)]
 pub struct OtelLookupRequest {
     pub span_id: String,
@@ -278,7 +297,8 @@ impl EarlyOtelBatch {
             let trace_ids = unique_trace_ids(&events);
             let mut pipeline = Pipeline::new(source, events, storage_context, pipeline_memory);
             let media_requests = media::collect_media_requests(&mut pipeline)?;
-            let lookup_requests = rows::collect_lookup_requests(&pipeline);
+            let (lookup_requests, lookups) = rows::collect_lookup_requests(&pipeline);
+            pipeline.lookups = lookups;
             pipeline.refresh_memory();
             let batch = RustOtelBatch {
                 state: Arc::new(Mutex::new(Some(pipeline))),
@@ -351,27 +371,29 @@ impl RustOtelBatch {
         })
     }
 
-    /// Apply media and lookup results; return final handles or oversized-field upload requests.
+    /// Apply media results and one lookup result per lookup request; return final handles or
+    /// oversized-field upload requests.
     #[napi(
-        ts_args_type = "mediaResults: OtelMediaResolution[], lookupsJson: string, overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]",
+        ts_args_type = "mediaResults: OtelMediaResolution[], lookups: EncodedOtelLookups, overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]",
         ts_return_type = "Promise<OtelCompletion>"
     )]
     pub fn complete(
         &self,
         media_results: Vec<OtelMediaResolution>,
-        lookups_json: String,
+        lookups: EncodedOtelLookups,
         overflow_limit_bytes: Option<f64>,
         include_evaluation_rows: bool,
         trace_activity_ids: Option<Vec<String>>,
     ) -> AsyncTask<OwnedTask<OtelCompletion>> {
+        // Typed arrays belong to JavaScript, so their contents are copied before the task starts.
+        let lookups = lookups::EncodedLookups {
+            text: lookups.text,
+            lengths: lookups.lengths.to_vec(),
+            numbers: lookups.numbers.to_vec(),
+        };
         self.run(move |state| {
-            let lookups = rows::parse_lookups(&lookups_json)?;
-            validate_completion(
-                state,
-                &media_results,
-                lookups.indexes.len(),
-                overflow_limit_bytes,
-            )?;
+            let lookups = lookups::decode(&lookups)?;
+            validate_completion(state, &media_results, lookups.len(), overflow_limit_bytes)?;
             media::resolve_media_inner(state, media_results)?;
             rows::enrich_inner(state, &lookups)?;
             rows::finalize_or_request_overflow(
@@ -442,13 +464,16 @@ fn validate_completion(
         state.media_requests.len(),
         "incomplete OTEL media results",
     )?;
-    if lookup_count
+    if lookup_count != state.lookups.requests {
+        return Err(failure("incomplete OTEL lookup results"));
+    }
+    if state.lookups.request_of.len()
         != events
             .iter()
             .filter(|event| rows::needs_lookup(event))
             .count()
     {
-        return Err(failure("incomplete OTEL lookup results"));
+        return Err(failure("OTEL lookup requests changed after processing"));
     }
     if overflow_limit_bytes
         .is_some_and(|limit| !limit.is_finite() || limit <= 0.0 || limit.fract() != 0.0)
