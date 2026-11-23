@@ -517,6 +517,37 @@ export const env = createEnv({
 
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+    // Coupon codes that start a self-serve enterprise trial on
+    // /organization/<orgId>/enterprise-trial (Langfuse Cloud only), as a JSON
+    // object from code to trial length in days, e.g.
+    // {"CODE-FOR-SHORT-TRIALS":14,"CODE-FOR-LONG-TRIALS":60}. Unset disables
+    // redemption. Attempts share the per-org coupon rate limit; use random
+    // codes all the same, since one code works for any number of orgs.
+    LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES: z
+      .string()
+      .optional()
+      .transform((value, ctx) => {
+        if (value == null || value.trim() === "") return [];
+        try {
+          const coupons = z
+            .record(
+              z.string().regex(/^\S{16,}$/),
+              z.number().int().min(1).max(365),
+            )
+            .parse(JSON.parse(value));
+          return Object.entries(coupons).map(([code, durationDays]) => ({
+            code,
+            durationDays,
+          }));
+        } catch {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES must be a JSON object mapping coupon codes of at least 16 characters without spaces to trial lengths of 1 to 365 days",
+          });
+          return z.NEVER;
+        }
+      }),
     // ClickHouse Billing (CHB) integration. First-time upgrades on/after this
     // UTC date route to CHB; unset = feature off. Date-only (YYYY-MM-DD) so the
     // cutline is a single unambiguous instant of UTC midnight, which is what
@@ -1310,6 +1341,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
+    LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES:
+      process.env.LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES,
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
     LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS:
