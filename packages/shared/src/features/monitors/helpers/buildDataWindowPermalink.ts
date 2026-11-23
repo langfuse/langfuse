@@ -26,11 +26,13 @@ const booleanStringOptionOperator = {
   "<>": "none of",
 } as const;
 
-/** buildDataWindowPermalink links an alert to the data table scoped to its evaluation window, or undefined when NEXTAUTH_URL is unset */
+/** buildDataWindowPermalink links an alert to the data table scoped to its evaluation window, or undefined when NEXTAUTH_URL is unset or the view has no data table */
 export function buildDataWindowPermalink(
   params: DataWindowLinkParams,
 ): string | undefined {
   if (params.view === "observations") return linkToObservationsTable(params);
+  // Billable units come from the billing ledger, which no table lists.
+  if (params.view === "billable-units") return undefined;
   return linkToScoresTable({ ...params, view: params.view });
 }
 
@@ -148,7 +150,10 @@ type DataWindowLinkParams = Pick<
 >;
 
 /** ScoresMonitorView is a monitor view backed by the scores table */
-type ScoresMonitorView = Exclude<MonitorView, "observations">;
+type ScoresMonitorView = Exclude<
+  MonitorView,
+  "observations" | "billable-units"
+>;
 
 /** BooleanFilter is a filter on a boolean column */
 type BooleanFilter = Extract<FilterCondition, { type: "boolean" }>;

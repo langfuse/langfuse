@@ -173,6 +173,23 @@ export function validateQuery(
     };
   }
 
+  // The query builder lets every view filter on `metadata`, which the
+  // billing ledger does not have.
+  if (query.view === "billable-units") {
+    const declaration = getViewDeclaration(query.view, version);
+    const unsupported = query.filters.find(
+      (filter) =>
+        !(filter.column in declaration.dimensions) &&
+        filter.column !== declaration.timeDimension,
+    );
+    if (unsupported) {
+      return {
+        valid: false,
+        reason: `Billable units can't be filtered by '${unsupported.column}'. Supported filters: ${Object.keys(declaration.dimensions).join(", ")}`,
+      };
+    }
+  }
+
   if (query.entityDimension && version !== "v2") {
     return {
       valid: false,

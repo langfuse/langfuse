@@ -41,7 +41,7 @@ service:
         This endpoint creates the widget only; place it on a dashboard via
         `POST /dashboards/{dashboardId}/placements`.
 
-        Supported views are `observations`, `scores-numeric`, `scores-boolean`, and `scores-categorical`.
+        Supported views are `observations`, `scores-numeric`, `scores-boolean`, `scores-categorical`, and `billable-units`.
         The legacy `traces` view is not supported by this unstable API.
         Widgets are created as v2 internally.
 
@@ -169,6 +169,8 @@ types:
         value: scores-boolean
       - name: ScoresCategorical
         value: scores-categorical
+      - name: BillableUnits
+        value: billable-units
 
   DashboardWidgetViewWithLegacy:
     docs: |
@@ -182,6 +184,8 @@ types:
         value: scores-boolean
       - name: ScoresCategorical
         value: scores-categorical
+      - name: BillableUnits
+        value: billable-units
       - traces
 
   DashboardWidgetChartType:

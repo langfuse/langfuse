@@ -475,6 +475,17 @@ export const dashboardRouter = createTRPCRouter({
           message: "v2 queries are not available on this deployment",
         });
       }
+      // The billing ledger is filled from the events tables, which a legacy
+      // deployment never writes, so it would always show zero.
+      if (
+        input.query.view === "billable-units" &&
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+      ) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Billable units are not available on this deployment",
+        });
+      }
       try {
         const validation = validateQuery(input.query, input.version);
         if (!validation.valid) {

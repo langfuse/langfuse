@@ -180,6 +180,8 @@ export const viewToPrisma = (view: MonitorView): PrismaMonitorView => {
       return PrismaMonitorView.SCORES_BOOLEAN;
     case "scores-categorical":
       return PrismaMonitorView.SCORES_CATEGORICAL;
+    case "billable-units":
+      return PrismaMonitorView.BILLABLE_UNITS;
   }
 };
 
@@ -194,6 +196,8 @@ export const viewFromPrisma = (view: PrismaMonitorView): MonitorView => {
       return "scores-boolean";
     case PrismaMonitorView.SCORES_CATEGORICAL:
       return "scores-categorical";
+    case PrismaMonitorView.BILLABLE_UNITS:
+      return "billable-units";
   }
 };
 

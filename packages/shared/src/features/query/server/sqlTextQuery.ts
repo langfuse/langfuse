@@ -1142,10 +1142,13 @@ export async function buildSqlText(
   // A join can match several rows per score, so scores views with relation
   // tables need the per-id inner GROUP BY to count each score once.
   const isScoresView = baseTableName(view) === "scores";
+  // The ledger has no per-unit id column for the two-level inner GROUP BY;
+  // its measure already counts distinct units in one level.
+  const isBillableUnitsView = baseTableName(view) === "billable_events";
   const canOptimize =
     (isScoresView
       ? relationTables.size === 0
-      : enableSingleLevelOptimization) &&
+      : isBillableUnitsView || enableSingleLevelOptimization) &&
     canUseSingleLevelQuery(appliedDimensions, appliedMetrics);
 
   // Build GROUP BY clause (used by both single-level and two-level queries)

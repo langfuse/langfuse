@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "crypto";
+import { executeQuery } from "@langfuse/shared/query/server";
 import {
   type BillableEventType,
   clickhouseClient,
@@ -613,5 +614,44 @@ describe("getBillableUnitCountsForAllProjectsInRange", () => {
       { project: "A", eventType: "trace", count: 1 },
       { project: "B", eventType: "observation", count: 1 },
     ]);
+  });
+});
+
+describe("billable-units dashboard view", () => {
+  const T0 = new Date("2026-01-07T00:00:00.000Z");
+  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
+
+  it("counts each unit once per bucket, also on the v1 read path", async () => {
+    const projectId = randomUUID();
+    await insertBillableEvents(projectId, [
+      { eventType: "trace", eventId: "id-1", at: at(-SECOND) },
+      { eventType: "trace", eventId: "id-1", at: at(MINUTE) },
+      { eventType: "trace", eventId: "id-1", at: at(40 * MINUTE) },
+      // The same id as another unit type is a separate unit.
+      { eventType: "score", eventId: "id-1", at: at(10 * MINUTE) },
+      { eventType: "observation", eventId: "id-2", at: at(5 * MINUTE) },
+      { eventType: "observation", eventId: "id-3", at: at(5 * MINUTE) },
+    ]);
+
+    const rows = await executeQuery(
+      projectId,
+      {
+        view: "billable-units",
+        dimensions: [{ field: "unitType" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: T0.toISOString(),
+        toTimestamp: at(HOUR).toISOString(),
+        orderBy: null,
+      },
+      "v1",
+    );
+
+    expect(
+      Object.fromEntries(
+        rows.map((row) => [row.unitType, Number(row.count_count)]),
+      ),
+    ).toEqual({ trace: 1, score: 1, observation: 2 });
   });
 });

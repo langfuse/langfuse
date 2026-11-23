@@ -82,6 +82,13 @@ const viewFilterDefinitions: Record<
   ViewName,
   readonly DashboardViewFieldDefinition[]
 > = {
+  // The billing ledger only carries the environment of each unit.
+  "billable-units": [
+    defineField(
+      "environment",
+      sourceSpec("Environment", { uiTableId: "environment" }),
+    ),
+  ],
   traces: [
     defineField("name", sourceSpec("Trace Name", { uiTableId: "traceName" })),
     // observationName intentionally omitted: traces:observations is 1:n and traceView has no

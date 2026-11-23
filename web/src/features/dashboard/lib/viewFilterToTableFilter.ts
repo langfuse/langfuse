@@ -69,6 +69,8 @@ const V3_SCORE_VIEW_DIMENSION_TO_TABLE_COL: TableColumnMap = {
 };
 
 const VIEW_DIMENSION_TO_TABLE_COL_V3: Record<ViewName, TableColumnMap> = {
+  // No data table lists billing ledger rows.
+  "billable-units": {},
   // traces view -> traces table
   traces: {
     name: "traceName",
@@ -118,6 +120,7 @@ const V4_SCORE_VIEW_DIMENSION_TO_TABLE_COL: TableColumnMap = {
 // V4 routes are backed by EventsTable. Define only their differences from the
 // legacy table mappings so compatibility decisions remain explicit.
 const VIEW_DIMENSION_TO_TABLE_COL_V4: Record<ViewName, TableColumnMap> = {
+  "billable-units": {},
   traces: {
     ...VIEW_DIMENSION_TO_TABLE_COL_V3.traces,
     id: "traceId",

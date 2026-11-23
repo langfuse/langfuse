@@ -2088,6 +2088,7 @@ enum DashboardWidgetViews {
   SCORES_NUMERIC
   SCORES_CATEGORICAL
   SCORES_BOOLEAN
+  BILLABLE_UNITS
 }
 
 enum DashboardWidgetChartType {
@@ -2357,6 +2358,7 @@ enum MonitorView {
   SCORES_NUMERIC
   SCORES_CATEGORICAL
   SCORES_BOOLEAN
+  BILLABLE_UNITS
 }
 
 enum MonitorSeverity {

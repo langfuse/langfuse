@@ -1260,6 +1260,63 @@ export const scoresListableCountView: ViewDeclarationType =
 export const scoresListableCountViewV2: ViewDeclarationType =
   scoresListableCountViewBase("v2");
 
+/**
+ * Billable units from the append-only `billable_events` ledger, bucketed by
+ * ingestion time. Deleting data or retention never lowers them. A unit counts
+ * once per time bucket it appears in, estimated with `uniq` over
+ * (event type, event id), so a trace whose spans arrive in several buckets
+ * counts in each. Billing instead deduplicates each window against the 24
+ * hours before it. The ledger is not backfilled, so it holds no usage from
+ * before it started filling, and it stays empty in legacy v4 write mode.
+ * The same declaration serves v1 and v2, since the ledger does not change
+ * with the read path.
+ */
+export const billableUnitsView: ViewDeclarationType = {
+  name: "billable_units",
+  description:
+    "Billable units (traces, observations, scores and topic facet summaries) by ingestion time, from the append-only billing ledger. Deleting data does not lower them.",
+  dimensions: {
+    unitType: {
+      sql: "billable_units.event_type",
+      alias: "unitType",
+      type: "string",
+      description:
+        "Kind of billable unit: trace, observation, score or topic_facet_summary.",
+    },
+    environment: {
+      sql: "billable_units.environment",
+      alias: "environment",
+      type: "string",
+      description: "The environment the unit was ingested into.",
+    },
+  },
+  measures: {
+    count: {
+      sql: "@@AGG1@@(billable_units.event_type, billable_units.event_id)",
+      aggs: { agg1: "uniq" },
+      alias: "count",
+      type: "string",
+      description:
+        "Distinct billable units, counted once per time bucket they appear in.",
+      unit: "units",
+      defaultAggregation: "count",
+      // A unit gets a ledger row every time it is ingested, so `count` would
+      // count rows. Both aggregations count distinct units instead.
+      aggregationOverrides: {
+        count: {
+          sql: "(billable_units.event_type, billable_units.event_id)",
+          type: "string",
+          queryAggregation: "uniq",
+        },
+      },
+    },
+  },
+  tableRelations: {},
+  segments: [],
+  timeDimension: "ingested_at",
+  baseCte: "billable_events billable_units",
+};
+
 // Events-Observations View - queries from events table instead of observations table
 export const eventsObservationsView: ViewDeclarationType = {
   name: "events_observations",
@@ -1753,6 +1810,7 @@ export const viewDeclarations: VersionedViewDeclarations = {
     "scores-numeric": scoresNumericView,
     "scores-boolean": scoresBooleanView,
     "scores-categorical": scoresCategoricalView,
+    "billable-units": billableUnitsView,
   },
   v2: {
     traces: eventsTracesView,
@@ -1760,6 +1818,7 @@ export const viewDeclarations: VersionedViewDeclarations = {
     "scores-numeric": scoresNumericViewV2,
     "scores-boolean": scoresBooleanViewV2,
     "scores-categorical": scoresCategoricalViewV2,
+    "billable-units": billableUnitsView,
   },
 } as const;
 

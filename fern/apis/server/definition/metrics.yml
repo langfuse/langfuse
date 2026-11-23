@@ -13,7 +13,7 @@ service:
         Together with OpenTelemetry ingestion and Observations API v2, this is the only real-time read path. Other public API endpoints can delay data by about 10 minutes.
 
         ## V2 Differences
-        - Supports `observations`, `scores-numeric`, `scores-boolean`, and `scores-categorical` views only (traces view not supported)
+        - Supports `observations`, `scores-numeric`, `scores-boolean`, `scores-categorical`, and `billable-units` views only (traces view not supported)
         - Direct access to tags and release fields on observations
         - Semantic-root filtering and grouping through the v2-only `isRootObservation` dimension
         - Backwards-compatible: traceName, traceRelease, traceVersion dimensions are still available on observations view
@@ -105,6 +105,22 @@ service:
         **Measures:**
         - `count` - Total number of scores
 
+        ### billable-units
+        Query billable units (traces, observations, scores and topic facet summaries) from the billing ledger.
+        Units are counted by ingestion time (`ingested_at`), and deleting data or data retention does not lower them.
+        Each unit counts once per time bucket it appears in, so long-running traces that receive data in several buckets count in each.
+        Invoices instead count a unit once unless it was already ingested in the previous 24 hours, so totals can differ slightly from invoiced usage.
+        The ledger is not backfilled: there is no usage before it started recording.
+
+        **Dimensions:**
+        - `unitType` - Kind of unit: `trace`, `observation`, `score` or `topic_facet_summary`
+        - `environment` - Environment the unit was ingested into
+
+        **Measures:**
+        - `count` - Distinct billable units. `count` and `uniq` aggregations return the same value.
+
+        Filters are limited to `unitType`, `environment` and `ingested_at`.
+
         ## High Cardinality Dimensions
         The following dimensions cannot be used as grouping dimensions in v2 metrics API as they can cause performance issues.
         Use them in filters instead.
@@ -140,7 +156,7 @@ service:
               JSON string containing the query parameters with the following structure:
               ```json
               {
-                "view": string,           // Required. One of "observations", "scores-numeric", "scores-boolean", "scores-categorical"
+                "view": string,           // Required. One of "observations", "scores-numeric", "scores-boolean", "scores-categorical", "billable-units"
                 "dimensions": [           // Optional. Default: []
                   {
                     "field": string       // Field to group by (see available dimensions above)

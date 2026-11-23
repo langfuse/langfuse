@@ -35,8 +35,8 @@ const MetricsQueryObject = z
     // page: z.number().min(1).default(1),
     // limit: z.number().min(1).max(100).default(10),
 
-    // QueryType structure
-    view: views,
+    // QueryType structure. Billable units are a v2-only view.
+    view: views.exclude(["billable-units"]),
     dimensions: z.array(dimension).optional().default([]),
     metrics: z.array(metric),
     filters: singleFilterList.optional().default([]),

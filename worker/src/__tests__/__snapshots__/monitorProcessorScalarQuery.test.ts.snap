@@ -2,6 +2,8 @@
 
 exports[`monitor scalar query — empty project > verifies which parameters return zero and which return null 1`] = `
 {
+  "billable-units/count/count": 0,
+  "billable-units/count/uniq": 0,
   "observations/costByType/avg": null,
   "observations/costByType/count": null,
   "observations/costByType/max": null,

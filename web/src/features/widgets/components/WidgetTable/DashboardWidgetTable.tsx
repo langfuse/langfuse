@@ -46,6 +46,7 @@ const viewBadgeVariants = {
   SCORES_NUMERIC: "green",
   SCORES_BOOLEAN: "violet",
   SCORES_CATEGORICAL: "pink",
+  BILLABLE_UNITS: "amber",
 } as const;
 
 const chartTypeBadgeVariants = {

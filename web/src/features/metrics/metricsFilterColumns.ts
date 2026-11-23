@@ -40,6 +40,14 @@ type MetricsFilterColumnSpec = {
   customSelect?: boolean;
 };
 
+/** billableUnitTypeOptions are the unit types the billing ledger records. */
+const billableUnitTypeOptions: SingleValueOption[] = [
+  { value: "trace" },
+  { value: "observation" },
+  { value: "score" },
+  { value: "topic_facet_summary" },
+];
+
 const getMetricsFilterColumnSpecs = ({
   selectedView,
   viewVersion,
@@ -393,6 +401,22 @@ const getMetricsFilterColumnSpecs = ({
         internal: "internalValue",
       },
     });
+  }
+
+  // The billing ledger only has the environment and the unit type.
+  if (selectedView === "billable-units") {
+    return [
+      ...filterColumns.filter(({ column }) => column.id === "environment"),
+      {
+        column: {
+          name: "Unit type",
+          id: "unitType",
+          type: "stringOptions",
+          options: billableUnitTypeOptions,
+          internal: "internalValue",
+        },
+      },
+    ];
   }
 
   return filterColumns;

@@ -332,7 +332,8 @@ export function DashboardWidget({
   // double-mapped or dropped.
   const tableView = useMemo(() => {
     const view = widget.data?.view;
-    if (!view) return undefined;
+    // No data table lists billing ledger rows.
+    if (!view || view === "billable-units") return undefined;
     const mergedFilters = mergeWidgetAndDashboardFilters({
       view: view as z.infer<typeof views>,
       widgetFilters: widget.data?.filters ?? [],
