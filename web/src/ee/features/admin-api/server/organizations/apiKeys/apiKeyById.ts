@@ -1,11 +1,8 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  invalidateCachedApiKeys,
-  logger,
-  withTransaction,
-} from "@langfuse/shared/src/server";
+import { logger, withTransaction } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { evictDeletedApiKeys } from "@/src/features/apiKey/evictDeletedApiKeys";
 import { z } from "zod";
 import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
@@ -56,7 +53,7 @@ export async function handleDeleteApiKey(
     return res.status(404).json({ error: "API key not found" });
   }
 
-  await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
+  await evictDeletedApiKeys([deleted], `key ${deleted.id}`);
 
   logger.info(
     `Deleted API key ${apiKeyId} for organization ${organizationId} via admin API`,
