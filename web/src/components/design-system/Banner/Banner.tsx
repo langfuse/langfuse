@@ -65,7 +65,7 @@ const icons: Record<BannerVariant, IconComponent> = {
   error: CircleAlert,
 };
 
-/** Banner adds the external link icon to links that open a new tab. Never pass it as `icon`. */
+/** Banner adds the external link icon to links that open a new tab, and ignores it as `icon`. */
 export type BannerAction = {
   text: string;
   icon?: IconComponent;
@@ -92,7 +92,8 @@ type BannerProps = {
 };
 
 function BannerActionItem({ action }: { action: BannerAction }) {
-  const Icon = action.icon;
+  // The external link icon is Banner's own: it marks links that open a new tab.
+  const Icon = action.icon === ExternalLink ? undefined : action.icon;
   const icon = Icon ? (
     <Icon size="base" color="inherit" aria-hidden="true" />
   ) : null;
