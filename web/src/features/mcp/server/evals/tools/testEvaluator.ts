@@ -89,7 +89,7 @@ export const [testEvaluatorTool, handleTestEvaluator] = defineTool({
         ...(input.evaluatorId ? { "mcp.evaluator_id": input.evaluatorId } : {}),
         "mcp.observation_id": input.observationId,
       },
-      fn: async () => {
+      fn: () => {
         const definition = input.evaluatorId
           ? undefined
           : toEvaluatorServiceInput(
@@ -99,18 +99,15 @@ export const [testEvaluatorTool, handleTestEvaluator] = defineTool({
               }),
             ).definition;
 
-        // The resolved variable values repeat the observation the caller passed in.
-        const { variables: _variables, ...result } =
-          await createMcpEvaluatorService(context).testEvaluator({
-            orgId: context.orgId,
-            projectId: context.projectId,
-            evaluatorId: input.evaluatorId,
-            definition,
-            observationId: input.observationId,
-            traceId: input.traceId,
-            startTime: input.startTime,
-          });
-        return result;
+        return createMcpEvaluatorService(context).testEvaluator({
+          orgId: context.orgId,
+          projectId: context.projectId,
+          evaluatorId: input.evaluatorId,
+          definition,
+          observationId: input.observationId,
+          traceId: input.traceId,
+          startTime: input.startTime,
+        });
       },
     }),
   expensiveHint: true,

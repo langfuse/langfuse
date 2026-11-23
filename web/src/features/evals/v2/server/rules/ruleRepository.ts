@@ -147,7 +147,6 @@ function ruleWhere(params: {
             ? JobConfigState.ACTIVE
             : JobConfigState.INACTIVE,
         }),
-    // A requested target narrows the visible rules; it never widens them.
     AND: [
       ...(params.targetObjects === undefined
         ? []

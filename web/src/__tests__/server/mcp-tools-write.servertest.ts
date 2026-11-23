@@ -546,10 +546,7 @@ describe("MCP Write Tools", () => {
       };
       const testEvaluatorSpy = vi
         .spyOn(EvaluatorService.prototype, "testEvaluator")
-        .mockResolvedValue({
-          ...unifiedResult,
-          variables: [{ var: "input", value: "sample input" }],
-        });
+        .mockResolvedValue(unifiedResult);
 
       try {
         verifyToolAnnotations(testEvaluatorTool, { expensiveHint: true });

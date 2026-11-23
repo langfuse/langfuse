@@ -212,8 +212,7 @@ export const ruleRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
-      // Target is immutable, so trace transcript access is gated on the stored
-      // target by the service's visibility (`requireRule`), not on any input.
+      // Trace transcript access is enforced on the stored rule via requireRule's visibility.
       return serviceForContext(ctx).update({
         ...input,
         projectId: ctx.session.projectId,

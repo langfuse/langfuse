@@ -84,10 +84,7 @@ export const CreateRuleSchema = RuleMetadataSchema.extend({
   evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
 });
 
-/**
- * Keep the assignment shape identical to CreateRuleSchema; trace-specific checks
- * (non-empty, each mapping `threads`) live in assertTraceTranscriptAssignments.
- */
+/** Assignment shape matches CreateRuleSchema; trace mapping checks live in assertTraceTranscriptAssignments. */
 export const CreateTraceTranscriptRuleSchema = RuleMetadataSchema.extend({
   projectId: z.string(),
   targetObject: z.literal(TopicsTargetObject),

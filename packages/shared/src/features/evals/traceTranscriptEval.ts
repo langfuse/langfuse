@@ -49,10 +49,7 @@ function messageForMapping(message: MappingMessage) {
   };
 }
 
-/**
- * The thread shape variable paths are picked and resolved against: one
- * `messages` list per thread, history first, without provenance or turn data.
- */
+/** The shape variable paths resolve against: one `messages` list per thread, history first, no provenance. */
 export function projectTranscriptThreadsForMapping(threads: unknown) {
   if (!Array.isArray(threads)) return threads;
   return (threads as StoredThread[]).map((thread) => ({

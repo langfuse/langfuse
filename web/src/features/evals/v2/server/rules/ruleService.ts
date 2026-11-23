@@ -314,6 +314,10 @@ export class RuleService {
   ) {
     const filter = this.validateRuleFilters(TopicsTargetObject, input.filter);
     this.assertUniqueAssignments(input.evaluatorAssignments);
+    assertEnabledRuleHasAssignments({
+      enabled: input.enabled,
+      assignmentCount: input.evaluatorAssignments.length,
+    });
     const rule = await this.prisma.$transaction(async (prisma) => {
       await assertActiveRuleLimitNotExceeded({
         prisma,
@@ -899,11 +903,6 @@ export class RuleService {
     projectId: string;
     assignments: CreateTraceTranscriptRuleInput["evaluatorAssignments"];
   }) {
-    if (params.assignments.length === 0) {
-      throw new InvalidRequestError(
-        "Trace evaluations need at least one evaluator assignment.",
-      );
-    }
     const evaluators = await evaluatorRepository.findEvaluatorsByIds({
       prisma: params.prisma,
       projectId: params.projectId,
@@ -1023,21 +1022,15 @@ function requiredEvaluatorVariables(
 
 function toRuleResponse(rule: StoredRule) {
   const { status, assignments, filter, sampling, ...rest } = rule;
-  // Only EVENT and EXPERIMENT rules unify onto EVENT; other targets keep their
-  // stored target, since isExperimentItemRootSpan is a valid trace filter column.
+  // trace_transcript must skip normalization: isExperimentItemRootSpan is a valid
+  // trace filter column that would otherwise mislabel the rule as EVENT.
   const normalized =
-    rest.targetObject === EvalTargetObject.EVENT ||
-    rest.targetObject === EvalTargetObject.EXPERIMENT
-      ? normalizeEvaluationRuleTarget({
+    rest.targetObject === TopicsTargetObject
+      ? { targetObject: TopicsTargetObject, filter: filter as FilterState }
+      : normalizeEvaluationRuleTarget({
           targetObject: rest.targetObject as EvalTargetObject,
           filter: filter as FilterState,
-        })
-      : {
-          targetObject: rest.targetObject as
-            | EvalTargetObject
-            | typeof TopicsTargetObject,
-          filter: filter as FilterState,
-        };
+        });
   return {
     ...rest,
     targetObject: normalized.targetObject,

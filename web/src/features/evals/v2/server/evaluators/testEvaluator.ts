@@ -78,13 +78,10 @@ export async function testEvaluator(params: {
     ...executionData,
   });
 
-  return { ...result, durationMs: Date.now() - startedAt, variables };
+  return { ...result, durationMs: Date.now() - startedAt };
 }
 
-/**
- * Runs the evaluator on a trace transcript the way a trace transcript rule
- * would: every variable reads the `threads` of the assembled transcript.
- */
+/** Mirrors a trace transcript rule: every variable reads the assembled transcript's `threads`. */
 export async function testEvaluatorOnTrace(params: {
   orgId: string;
   projectId: string;
