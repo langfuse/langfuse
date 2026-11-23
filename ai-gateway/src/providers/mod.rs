@@ -117,6 +117,7 @@ pub struct ProviderTransport {
     telemetry: Option<crate::telemetry::Telemetry>,
     origin_override: Option<String>,
     policy: Arc<OutboundPolicy>,
+    cpu: crate::cpu::CpuWork,
 }
 
 impl ProviderTransport {
@@ -145,11 +146,19 @@ impl ProviderTransport {
             telemetry: None,
             origin_override: None,
             policy,
+            cpu: crate::cpu::CpuWork::new(),
         })
     }
 
     pub(crate) fn with_telemetry(mut self, telemetry: crate::telemetry::Telemetry) -> Self {
         self.telemetry = Some(telemetry);
+        self
+    }
+
+    /// Shares the request path's CPU permits, so body rewrites and parses draw
+    /// from one cap.
+    pub(crate) fn with_cpu(mut self, cpu: crate::cpu::CpuWork) -> Self {
+        self.cpu = cpu;
         self
     }
 
@@ -198,6 +207,33 @@ impl ProviderTransport {
         .await
     }
 
+    /// The body sent upstream: the caller's body with the provider model, and for a
+    /// streamed Chat Completions call also opted into usage. Only a streamed call can
+    /// opt in, so a non-streamed one skips that parse.
+    async fn upstream_body(
+        &self,
+        route: Route,
+        body: Bytes,
+        model_range: Range<usize>,
+        streaming: bool,
+        provider_model: &str,
+    ) -> Result<Bytes, ProviderError> {
+        if matches!(route, Route::OpenAiChatCompletions) && streaming {
+            let (original, model) = (body.clone(), provider_model.to_owned());
+            let rewritten = self
+                .cpu
+                .run(body.len(), move || {
+                    chat_completions::request_stream_usage(&original, &model)
+                })
+                .await
+                .flatten();
+            if let Some(rewritten) = rewritten {
+                return Ok(rewritten);
+            }
+        }
+        rewrite_model(body, model_range, provider_model)
+    }
+
     pub(crate) async fn forward_route(
         &self,
         mut permit: RequestPermit,
@@ -232,18 +268,9 @@ impl ProviderTransport {
             ExecutionCapture::unobserved()
         };
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
-        let body = match route {
-            Route::OpenAiChatCompletions => {
-                match chat_completions::request_stream_usage(&body, provider_model) {
-                    Some(rewritten) => {
-                        drop(body);
-                        rewritten
-                    }
-                    None => rewrite_model(body, model_range, provider_model)?,
-                }
-            }
-            _ => rewrite_model(body, model_range, provider_model)?,
-        };
+        let body = self
+            .upstream_body(route, body, model_range, streaming, provider_model)
+            .await?;
         capture.charge_on_finish(permit.spend_limits.take(), parse_growth);
         capture.set_provider_model(provider_model);
         correlation.record_upstream(UpstreamTarget::for_connection(

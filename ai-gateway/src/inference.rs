@@ -162,6 +162,7 @@ impl InferenceService {
             crate::telemetry::Telemetry::new(&control_plane, config.telemetry_buffer_bytes)?;
         crate::observability::record_memory_budget(config.request_limits.memory_budget_bytes);
         let control_plane = Arc::new(ControlPlaneClient::new(control_plane)?);
+        let cpu = CpuWork::new();
         Ok(Self {
             control_plane: Arc::clone(&control_plane),
             provider: ProviderTransport::new(
@@ -169,7 +170,8 @@ impl InferenceService {
                 config.outbound_policy.clone(),
             )
             .map_err(|_| ResolutionError::Configuration)?
-            .with_telemetry(telemetry.clone()),
+            .with_telemetry(telemetry.clone())
+            .with_cpu(cpu.clone()),
             request_limits: config.request_limits,
             memory_budget: Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes)),
             telemetry: Some(telemetry),
@@ -177,7 +179,7 @@ impl InferenceService {
                 config.spend_counters.clone(),
                 control_plane,
             ),
-            cpu: CpuWork::new(),
+            cpu,
         })
     }
 
