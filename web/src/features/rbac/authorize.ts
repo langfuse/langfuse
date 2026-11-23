@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
+  hasGroupKind,
   hasProjectKind,
   type Action,
   type Effect,
@@ -66,17 +67,41 @@ function hasAccess(
   return access.length > 0 && !access.some(byEffect("DENY"));
 }
 
-/** matchesResource selects the tenant's policies for resource, preferring exact matches over wildcards. */
+/** matchesResource selects the tenant's policies for resource: the principal's own plus its groups'. */
 function matchesResource(
   policies: Policy[],
   tenant: TenantId,
   resource: ResourceId,
 ): Policy[] {
-  const owning = policies.filter(byTenant(tenant));
-  const exact = owning.filter(byResource(resource));
-  if (exact.length > 0) return exact;
-  const wildcard = hasProjectKind(resource) ? wildcardProjectId : wildcardOrgId;
-  return owning.filter((p) => p.resources.includes(wildcard));
+  const tenantPolicies = policies.filter(byTenant(tenant));
+  return [
+    ...directlyAssignedPolicies(tenantPolicies, resource),
+    ...groupAssignedPolicies(tenantPolicies, resource),
+  ];
+}
+
+/** directlyAssignedPolicies selects the principal's own policies for resource, an exact match overriding the wildcard ones. */
+function directlyAssignedPolicies(
+  policies: Policy[],
+  resource: ResourceId,
+): Policy[] {
+  const direct = policies.filter((p) => !isGroupPolicy(p));
+  const exactPolicies = direct.filter(namesResource(resource));
+  const wildcardPolicies = direct.filter(namesWildcardOf(resource));
+
+  const hasExactPolicy = exactPolicies.length > 0;
+  if (hasExactPolicy) return exactPolicies;
+  return wildcardPolicies;
+}
+
+/** groupAssignedPolicies selects every group policy for resource, exact and wildcard, so groups only add access. */
+function groupAssignedPolicies(
+  policies: Policy[],
+  resource: ResourceId,
+): Policy[] {
+  return policies
+    .filter(isGroupPolicy)
+    .filter(namesResourceOrWildcard(resource));
 }
 
 /** deniedError is the 403 naming the missing permission. */
@@ -93,8 +118,23 @@ const hasWildcard = (resource: ResourceId): boolean =>
 const byTenant = (tenant: TenantId) => (p: Policy) =>
   p.tenantId === tenant || p.tenantId === wildcardOrgId;
 
-const byResource = (resource: ResourceId) => (p: Policy) =>
+/** namesResource matches a policy that lists resource itself. */
+const namesResource = (resource: ResourceId) => (p: Policy) =>
   p.resources.includes(resource);
+
+/** namesWildcardOf matches a policy that lists the wildcard of resource's kind, `project/*` or `organization/*`. */
+const namesWildcardOf = (resource: ResourceId) => (p: Policy) =>
+  p.resources.includes(
+    hasProjectKind(resource) ? wildcardProjectId : wildcardOrgId,
+  );
+
+/** namesResourceOrWildcard matches a policy that lists resource or its wildcard. */
+const namesResourceOrWildcard = (resource: ResourceId) => (p: Policy) =>
+  namesResource(resource)(p) || namesWildcardOf(resource)(p);
+
+/** isGroupPolicy matches a policy granted through a group. */
+const isGroupPolicy = (p: Policy) =>
+  !!p.principalId && hasGroupKind(p.principalId);
 
 const byAction = (action: Action) => (p: Policy) =>
   (p.actions as readonly string[]).includes(action);

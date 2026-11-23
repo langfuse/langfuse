@@ -8,7 +8,6 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
-import { groupRoleGrants } from "@langfuse/shared/rbac";
 import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
@@ -936,17 +935,6 @@ export async function getAuthOptions(
                           project: true,
                         },
                       },
-                      groupMemberships: {
-                        select: {
-                          group: {
-                            select: {
-                              roleAssignments: {
-                                select: { projectId: true, systemRole: true },
-                              },
-                            },
-                          },
-                        },
-                      },
                     },
                   },
                 },
@@ -1056,15 +1044,6 @@ export async function getAuthOptions(
                         const parsedCloudConfig = CloudConfigSchema.safeParse(
                           orgMembership.organization.cloudConfig,
                         );
-                        // Support-access memberships have no groups.
-                        const groupRoles =
-                          "groupMemberships" in orgMembership
-                            ? groupRoleGrants(
-                                orgMembership.groupMemberships.map(
-                                  ({ group }) => group,
-                                ),
-                              )
-                            : [];
                         return {
                           id: orgMembership.organization.id,
                           name: orgMembership.organization.name,
