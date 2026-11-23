@@ -4,6 +4,8 @@
 //! Stages share the source's parse cache and metadata diagnostics. The returned event
 //! owns its data after that per-span parsing state is dropped.
 
+use std::rc::Rc;
+
 use super::super::attributes::{
     attributes_to_map, is_js_truthy, parse_id, resolve_timestamps, retain_evaluation_value,
     value_as_string, AttributeSource, EventAttributes, JsonParseCache,
@@ -247,7 +249,8 @@ impl<'a> EventAssembly<'a> {
 /// Source data and per-span parsing state shared by the assembly stages.
 struct EventSource<'a> {
     span: Span,
-    attributes: JsonObject,
+    /// Shared with `cache`, which remembers parses by attribute position.
+    attributes: Rc<JsonObject>,
     scope_name: &'a str,
     cache: JsonParseCache,
     diagnostics: MetadataDiagnostics<'a>,
@@ -262,12 +265,14 @@ impl<'a> EventSource<'a> {
         scope_version: Option<&str>,
         config: &'a EventBuildConfig,
     ) -> Self {
-        let attributes = object_attributes(span.attributes.take().map(|value| value.into_value()));
+        let attributes = Rc::new(object_attributes(
+            span.attributes.take().map(|value| value.into_value()),
+        ));
         Self {
             span,
+            cache: JsonParseCache::for_attributes(Rc::clone(&attributes)),
             attributes,
             scope_name,
-            cache: JsonParseCache::default(),
             diagnostics: MetadataDiagnostics::new(
                 &config.project_id,
                 &config.ingestion_sdk_name,

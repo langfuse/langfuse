@@ -55,28 +55,61 @@ pub(super) fn collect_lookup_requests(state: &Pipeline) -> Vec<OtelLookupRequest
         .collect()
 }
 
-pub(super) fn enrich_inner(
-    state: &mut Pipeline,
-    lookups: Vec<serde_json::Value>,
-) -> NativeResult<()> {
+/// Lookup results for the events that need one, in event order.
+pub(super) struct Lookups {
+    /// Each distinct result once; the events of a batch mostly share a few.
+    results: Vec<Value>,
+    /// Position in `results` of every lookup.
+    pub(super) indexes: Vec<usize>,
+}
+
+/// Read `{"results": [...], "indexes": [...]}`. The worker sends JSON text so that the main
+/// thread serializes once instead of converting every nested value before the task starts.
+pub(super) fn parse_lookups(lookups_json: &str) -> NativeResult<Lookups> {
+    let invalid = || failure("invalid OTEL lookup results");
+    let Value::Object(mut document) =
+        crate::otel::value::parse(lookups_json).map_err(|_| invalid())?
+    else {
+        return Err(invalid());
+    };
+    let (Some(Value::Array(results)), Some(Value::Array(indexes))) = (
+        document.swap_remove("results"),
+        document.swap_remove("indexes"),
+    ) else {
+        return Err(invalid());
+    };
+    let indexes = indexes
+        .iter()
+        .map(|index| {
+            index
+                .as_u64()
+                .and_then(|index| usize::try_from(index).ok())
+                .filter(|index| *index < results.len())
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(invalid)?;
+    Ok(Lookups { results, indexes })
+}
+
+pub(super) fn enrich_inner(state: &mut Pipeline, lookups: &Lookups) -> NativeResult<()> {
     let BatchRows::Prepared(events) = std::mem::replace(&mut state.rows, BatchRows::Finalized)
     else {
         return Err(failure("OTEL batch already enriched"));
     };
-    let mut lookups = lookups.into_iter().map(Value::from);
+    let mut indexes = lookups.indexes.iter();
     let mut rows = Vec::with_capacity(events.len());
     let mut regexes = otel_enrichment::PricingRegexCache::default();
     for mut event in events {
         let lookup = if needs_lookup(&event) {
-            lookups.next().expect("validated lookup count")
+            &lookups.results[*indexes.next().expect("validated lookup count")]
         } else {
-            Value::Null
+            &Value::Null
         };
         if lookup.get("error").is_some() {
             rows.push(None);
             continue;
         }
-        let enrichment = otel_enrichment::enrich(&event, &lookup, &mut regexes);
+        let enrichment = otel_enrichment::enrich(&event, lookup, &mut regexes);
         let start_time_iso = event.start_time.clone();
         let evaluation_fields = event.evaluation_fields.take();
         let mut row = event.into_storage(enrichment, &state.context);

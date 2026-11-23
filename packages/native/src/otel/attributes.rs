@@ -17,15 +17,15 @@
 //! input/output and usage. Shared helpers apply JavaScript coercions and convert
 //! nanosecond timestamps to milliseconds.
 //!
-//! `JsonParseCache` parses JSON inside attribute strings on demand, caching both
-//! successes and failures for one event. `ParsedJson` borrows an existing value or
-//! shares a cached tree through `Rc`, allowing recursive tool extraction to reuse
-//! the cache without copying that tree.
+//! `JsonParseCache` parses JSON inside attribute strings on demand. It remembers the
+//! parse of a span attribute by the attribute's position, so extractors that read
+//! the same attribute share one parse. `ParsedJson` borrows an existing value or
+//! shares a parsed tree through `Rc`, so recursive tool extraction can hold it
+//! while parsing nested strings.
 
 use chrono::{DateTime, Utc};
 use num_bigint::BigUint;
 use num_traits::{Num, ToPrimitive};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::value::{JsString, JsonObject, Number, Object, Value};
@@ -146,6 +146,23 @@ pub fn any_value_to_json(value: Value) -> Value {
         return Value::Null;
     }
 
+    // An AnyValue normally holds one field. Read the common scalar kinds by position instead of
+    // hashing each candidate name in turn; every other shape takes the general path below.
+    if let (1, Some((name, value))) = (object.len(), object.get_index(0)) {
+        match name.as_bytes() {
+            b"stringValue" | b"boolValue" => {
+                return object.pop().expect("one field").1;
+            }
+            b"doubleValue" => return parse_double(value),
+            b"intValue" => {
+                if let Some(integer) = parse_int(value) {
+                    return integer;
+                }
+            }
+            _ => {}
+        }
+    }
+
     if let Some(value) = object.shift_remove("stringValue") {
         return value;
     }
@@ -234,15 +251,30 @@ pub(super) fn is_key_value_list(values: &[Value]) -> bool {
 }
 
 fn key_value_array_to_map(values: Vec<Value>) -> JsonObject {
-    let mut result = JsonObject::new();
+    let mut result = JsonObject::with_capacity(values.len());
     for entry in values {
         let Value::Object(mut entry) = entry else {
             continue;
         };
-        let Some(Value::String(key)) = entry.shift_remove("key") else {
+        // Nearly every entry is exactly `{"key": ..., "value": ...}`; take both fields by
+        // position instead of hashing their names.
+        let is_key_then_value = entry.len() == 2
+            && entry
+                .get_index(0)
+                .is_some_and(|(name, _)| name.as_bytes() == b"key")
+            && entry
+                .get_index(1)
+                .is_some_and(|(name, _)| name.as_bytes() == b"value");
+        let (key, value) = if is_key_then_value {
+            let value = entry.pop().map(|(_, value)| value);
+            (entry.pop().map(|(_, key)| key), value)
+        } else {
+            (entry.shift_remove("key"), entry.shift_remove("value"))
+        };
+        let Some(Value::String(key)) = key else {
             continue;
         };
-        let Some(value) = entry.shift_remove("value") else {
+        let Some(value) = value else {
             continue;
         };
         if value.is_null() || matches!(&value, Value::Object(object) if object.is_empty()) {
@@ -534,15 +566,25 @@ fn number_from_integer_like_f64(value: f64) -> Option<Number> {
     Number::from_f64(value)
 }
 
-/// Memoize stringified JSON only when an event extractor actually needs to parse it.
+/// Parse stringified JSON only when an event extractor actually needs it.
 ///
 /// The queue graph is already normalized at its boundary, so non-string values can be borrowed
-/// directly. Parsed strings are normalized once and borrowed by all provider extractors that use
-/// the same source. The cache distinguishes inputs beyond the nesting limit from malformed JSON
-/// so tool normalization can preserve their original string representation.
+/// directly. Several extractors read the same span attribute, so the parse of an attribute value
+/// is remembered by the attribute's position and shared between them. Any other string is parsed
+/// each time it is requested and kept until the event is built, so extractors can borrow the
+/// result. Input beyond the nesting limit is told apart from malformed JSON so tool
+/// normalization can preserve its original string representation.
 #[derive(Default)]
 pub struct JsonParseCache {
-    parsed_strings: HashMap<JsString, CachedParse>,
+    /// The span's attributes. Shared ownership keeps them alive and unchanged while this cache
+    /// exists, so a value's position among them identifies its text.
+    attributes: Option<Rc<JsonObject>>,
+    /// Parses of attribute values, by position in `attributes`.
+    by_position: Vec<Option<CachedParse>>,
+    /// Parses of strings that are not span attributes. Nothing looks them up: they are held
+    /// until the event is built so `parse` can lend them out instead of giving each caller
+    /// its own copy.
+    others: Vec<Value>,
 }
 
 enum CachedParse {
@@ -551,7 +593,25 @@ enum CachedParse {
     Invalid,
 }
 
+impl CachedParse {
+    fn of(text: &JsString) -> Self {
+        match super::value::parse_js_string(text) {
+            Ok(value) => Self::Parsed(Rc::new(value)),
+            Err(error) if is_depth_limit_error(&error) => Self::DepthLimited,
+            Err(_) => Self::Invalid,
+        }
+    }
+}
+
 impl JsonParseCache {
+    /// Remember parses of the values in `attributes`, the attributes of the span being built.
+    pub fn for_attributes(attributes: Rc<JsonObject>) -> Self {
+        Self {
+            attributes: Some(attributes),
+            ..Self::default()
+        }
+    }
+
     pub fn parse<'a>(&'a mut self, value: Option<&'a Value>) -> Option<&'a Value> {
         let value = value?;
         let Value::String(text) = value else {
@@ -560,18 +620,45 @@ impl JsonParseCache {
         if !looks_like_json(text.as_str()) {
             return None;
         }
-        if !self.parsed_strings.contains_key(text) {
-            let parsed = match super::value::parse_js_string(text) {
-                Ok(value) => CachedParse::Parsed(Rc::new(value)),
-                Err(error) if is_depth_limit_error(&error) => CachedParse::DepthLimited,
-                Err(_) => CachedParse::Invalid,
-            };
-            self.parsed_strings.insert(text.clone(), parsed);
+        let Some(position) = self.attribute_position(value) else {
+            self.others.push(super::value::parse_js_string(text).ok()?);
+            return self.others.last();
+        };
+        match self.attribute_parse(position, text) {
+            CachedParse::Parsed(value) => Some(value),
+            CachedParse::DepthLimited | CachedParse::Invalid => None,
         }
-        match self.parsed_strings.get(text) {
-            Some(CachedParse::Parsed(value)) => Some(value),
-            Some(CachedParse::DepthLimited | CachedParse::Invalid) | None => None,
+    }
+
+    /// The position of `value` among the span's attributes, if it is one of them.
+    fn attribute_position(&self, value: &Value) -> Option<usize> {
+        let attributes = self.attributes.as_deref()?;
+        let address = |value: &Value| std::ptr::from_ref(value) as usize;
+        let (_, first) = attributes.get_index(0)?;
+        let offset = address(value).checked_sub(address(first))?;
+        let position = match attributes.get_index(1) {
+            // The map stores its entries one after another, so one stride separates their values.
+            Some((_, second)) => {
+                let stride = address(second).checked_sub(address(first))?;
+                offset.checked_div(stride)?
+            }
+            None => 0,
+        };
+        // Accept only the attribute itself, whatever the arithmetic produced.
+        let (_, candidate) = attributes.get_index(position)?;
+        std::ptr::eq(candidate, value).then_some(position)
+    }
+
+    /// The parse of the attribute at `position`, whose text is parsed on first use.
+    fn attribute_parse(&mut self, position: usize, text: &JsString) -> &CachedParse {
+        if self.by_position.len() <= position {
+            let attributes = self
+                .attributes
+                .as_ref()
+                .map_or(0, |attributes| attributes.len());
+            self.by_position.resize_with(attributes, || None);
         }
+        self.by_position[position].get_or_insert_with(|| CachedParse::of(text))
     }
 
     pub fn parse_or_self<'a>(&'a mut self, value: Option<&'a Value>) -> Option<&'a Value> {
@@ -585,11 +672,21 @@ impl JsonParseCache {
         let Value::String(text) = value else {
             return ParsedJson::Borrowed(value);
         };
-        self.parse(Some(value));
-        match self.parsed_strings.get(text) {
-            Some(CachedParse::Parsed(parsed)) => ParsedJson::Shared(Rc::clone(parsed)),
-            Some(CachedParse::DepthLimited) => ParsedJson::DepthLimited(value),
-            Some(CachedParse::Invalid) | None => ParsedJson::Borrowed(value),
+        if !looks_like_json(text.as_str()) {
+            return ParsedJson::Borrowed(value);
+        }
+        let unshared;
+        let parse = match self.attribute_position(value) {
+            Some(position) => self.attribute_parse(position, text),
+            None => {
+                unshared = CachedParse::of(text);
+                &unshared
+            }
+        };
+        match parse {
+            CachedParse::Parsed(parsed) => ParsedJson::Shared(Rc::clone(parsed)),
+            CachedParse::DepthLimited => ParsedJson::DepthLimited(value),
+            CachedParse::Invalid => ParsedJson::Borrowed(value),
         }
     }
 }
@@ -725,7 +822,7 @@ mod tests {
         for text in ["text-", "false alarm", "nothing", "true false"] {
             assert!(cache.parse(Some(&json!(text))).is_none());
         }
-        assert!(cache.parsed_strings.is_empty());
+        assert!(cache.others.is_empty());
         for (text, expected) in [
             ("true", json!(true)),
             (" \tfalse\r\n", json!(false)),
@@ -736,13 +833,38 @@ mod tests {
     }
 
     #[test]
-    fn caches_malformed_embedded_json_as_a_missing_value() {
+    fn treats_malformed_embedded_json_as_a_missing_value() {
         let value = Value::String(r#"{"broken":}"#.into());
         let mut cache = JsonParseCache::default();
         assert!(cache.parse(Some(&value)).is_none());
-        assert_eq!(cache.parsed_strings.len(), 1);
-        assert!(cache.parse(Some(&value)).is_none());
-        assert_eq!(cache.parsed_strings.len(), 1);
+        assert!(cache.others.is_empty());
+    }
+
+    #[test]
+    fn parses_a_span_attribute_once_and_any_other_string_each_time() {
+        let attributes = Rc::new(JsonObject::from_iter([
+            ("plain".into(), json!("text")),
+            ("payload".into(), json!(r#"{"a":[1]}"#)),
+            ("broken".into(), json!(r#"{"a":}"#)),
+        ]));
+        let mut cache = JsonParseCache::for_attributes(Rc::clone(&attributes));
+        let payload = attributes.get("payload");
+
+        let first = std::ptr::from_ref(cache.parse(payload).unwrap());
+        assert_eq!(std::ptr::from_ref(cache.parse(payload).unwrap()), first);
+        let ParsedJson::Shared(shared) = cache.shared_or_self(payload.unwrap()) else {
+            panic!("the attribute parses as JSON");
+        };
+        assert_eq!(std::ptr::from_ref(shared.as_ref()), first);
+        assert!(cache.parse(attributes.get("broken")).is_none());
+        assert!(cache.parse(attributes.get("plain")).is_none());
+
+        // An equal string that is not the attribute itself gets its own parse.
+        let copy = payload.unwrap().clone();
+        let copied = std::ptr::from_ref(cache.parse(Some(&copy)).unwrap());
+        assert_ne!(copied, first);
+        assert_eq!(cache.others.len(), 1);
+        assert_eq!(cache.by_position.iter().flatten().count(), 2);
     }
 
     #[test]
