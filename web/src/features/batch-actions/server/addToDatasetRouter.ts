@@ -71,7 +71,7 @@ export const addToDatasetRouter = createTRPCRouter({
           limit: 1,
           offset: 0,
         };
-        const observationCount = await (async () => {
+        const observationCount = await (() => {
           if (commentFilterResult.hasNoMatches) {
             return 0;
           }
