@@ -14,7 +14,7 @@ import {
 type BannerVariant = "neutral" | "info" | "success" | "warning" | "error";
 
 const bannerVariants = cva(
-  "text-foreground flex w-full gap-2 rounded-lg px-3 pt-3 pb-4 text-sm",
+  "text-foreground flex w-full gap-2 rounded-lg px-3 pt-2.5 pb-3 text-sm",
   {
     variants: {
       variant: {
