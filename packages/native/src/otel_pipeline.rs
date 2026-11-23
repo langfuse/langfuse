@@ -264,9 +264,11 @@ pub struct FinalizedOtelEvent {
 #[napi(object, object_from_js = false)]
 pub struct FinalizedOtelBatch {
     pub events: Vec<FinalizedOtelEvent>,
-    /// JSON array with one object per event, holding the columns evaluation rule filters read.
-    /// The full rows stay in the batch for `takeEvaluationRow`.
-    pub evaluation_filter_rows: Option<String>,
+    /// The columns evaluation rule filters read, as JSON arrays that together hold one object
+    /// per event, in event order. A large batch spans several texts because a single one could
+    /// exceed the longest string JavaScript can hold. The full rows stay in the batch for
+    /// `takeEvaluationRow`.
+    pub evaluation_filter_rows: Option<Vec<String>>,
 }
 
 /// Evaluation snapshots outlive the pipeline so Node copies only the rows a rule selects.

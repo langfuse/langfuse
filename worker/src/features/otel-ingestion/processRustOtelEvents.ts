@@ -268,13 +268,14 @@ async function writeRecordsAndScheduleEvals(
   const schedulerDeps = needsScheduler
     ? createEvalSchedulerDeps(projectId, evalConfigs)
     : null;
-  // Filter columns carry no input or output, so this parse stays small. Rust
-  // keeps the full rows until a rule selects one.
-  const filterRows: Parameters<
+  // Filter columns carry no input or output. Rust keeps the full rows until a
+  // rule selects one.
+  type FilterRow = Parameters<
     typeof convertEventRecordToObservationEvalFilterFields
-  >[0][] =
+  >[0];
+  const filterRows =
     schedulerDeps && evaluationFilterRows
-      ? JSON.parse(evaluationFilterRows)
+      ? evaluationFilterRows.flatMap((text): FilterRow[] => JSON.parse(text))
       : [];
   const writer = ClickhouseWriter.getNativeInstance();
   recordIngestionCounts(records);

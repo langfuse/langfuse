@@ -116,10 +116,12 @@ export declare function extractOtelMedia(bytes: Buffer): Promise<EarlyOtelBatch 
 export interface FinalizedOtelBatch {
   events: Array<FinalizedOtelEvent>
   /**
-   * JSON array with one object per event, holding the columns evaluation rule filters read.
-   * The full rows stay in the batch for `takeEvaluationRow`.
+   * The columns evaluation rule filters read, as JSON arrays that together hold one object
+   * per event, in event order. A large batch spans several texts because a single one could
+   * exceed the longest string JavaScript can hold. The full rows stay in the batch for
+   * `takeEvaluationRow`.
    */
-  evaluationFilterRows?: string
+  evaluationFilterRows?: Array<string>
 }
 
 export interface FinalizedOtelEvent {

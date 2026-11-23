@@ -110,7 +110,9 @@ describe("Native OTEL batch NAPI boundary", () => {
       );
       const filterRows: Parameters<
         typeof convertEventRecordToObservationEvalFilterFields
-      >[0][] = JSON.parse(finalized!.evaluationFilterRows!);
+      >[0][] = finalized!.evaluationFilterRows!.flatMap((text) =>
+        JSON.parse(text),
+      );
       expect(filterRows[1]).not.toHaveProperty("input");
 
       const observations = takeEvaluationRows(processing, finalized!).map(
