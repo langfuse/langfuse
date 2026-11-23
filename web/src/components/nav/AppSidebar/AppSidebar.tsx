@@ -230,6 +230,7 @@ export const AppSidebar = Object.assign(AppSidebarRoot, {
 /** Plans whose badge has a shorter form for when the full one would truncate the org name. */
 const SHORT_PLAN_LABELS: Partial<Record<Plan, string>> = {
   "cloud:enterprise": "ENT",
+  "cloud:enterprise-trial": "ENT TRIAL",
 };
 
 /**

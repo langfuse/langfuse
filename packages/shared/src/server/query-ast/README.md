@@ -26,6 +26,7 @@ changing how it emits SQL.
   dialect's expressivity.
 - `passHarness.ts` — test-only: applies one compiler pass alone, for the pass suites ([Testing a pass](#testing-a-pass)).
 - `catalog.golden.test.ts` — catalog SQL baselines.
+- `DECISIONS.md` — the compiler's standing design rules, one record each, with the code and test that enforce it.
 
 The golden-SQL harness lives in `../repositories/goldenHarness.ts` (it captures
 SQL at the `repositories/clickhouse.ts` exec seam in test mode, then normalizes

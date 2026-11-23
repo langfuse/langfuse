@@ -313,8 +313,8 @@ function SnapshotSummary({
         Counting summarized traces…
       </div>
     );
-  const grouped = preview.summarizedCount + extra;
-  if (grouped < preview.smallSampleMinimumTraceCount)
+  const clustered = preview.summarizedCount + extra;
+  if (clustered < preview.smallSampleMinimumTraceCount)
     return (
       <div className="bg-light-yellow text-dark-yellow rounded-md px-4 py-2.5 text-sm">
         {preview.summarizedCount === 0
@@ -331,8 +331,8 @@ function SnapshotSummary({
       <span className="flex items-center gap-2">
         <Layers size="base" aria-hidden="true" />
         {extra > 0
-          ? `~${count(grouped)} traces will be grouped (${count(preview.summarizedCount)} summarized + up to ${count(extra)} new)`
-          : `${count(grouped)} summarized traces will be grouped`}
+          ? `~${count(clustered)} traces will be clustered (${count(preview.summarizedCount)} summarized + up to ${count(extra)} new)`
+          : `${count(clustered)} summarized traces will be clustered`}
       </span>
       {extra > 0 ? (
         <span className="flex items-center gap-2">

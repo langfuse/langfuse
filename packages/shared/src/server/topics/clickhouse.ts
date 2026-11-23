@@ -725,12 +725,18 @@ export async function getSampledTopicClusteringSummaries(
   return { summaries, timeRange: window };
 }
 
-export async function hasTopicEmbeddings(projectId: string): Promise<boolean> {
+/** Whether any complete summary of the project was embedded in this embedding space. */
+export async function hasTopicEmbeddings(
+  projectId: string,
+  embeddingConfig: { embeddingModel: string; embeddingDimensions: number },
+): Promise<boolean> {
   const rows = await queryClickhouse<{ found: number }>({
     query: `SELECT 1 AS found FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND processing_state = 'complete'
+        AND embedding_model = {embeddingModel:String}
+        AND embedding.size0 = {embeddingDimensions:UInt32}
       LIMIT 1`,
-    params: { projectId },
+    params: { projectId, ...embeddingConfig },
     tags: { route: "topics-has-embeddings", projectId },
   });
   return rows.length > 0;

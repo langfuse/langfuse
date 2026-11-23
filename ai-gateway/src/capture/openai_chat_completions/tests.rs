@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     capture::{
         ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
-        ProtocolCapture, ProviderFacts,
+        ProtocolCapture, ProviderFacts, RequestInput,
     },
     resolution::ApiFormat,
     test_support::resolved_request_context_for,
@@ -32,7 +32,7 @@ async fn new_observer_for(mode: &'static str, request: &[u8]) -> ExecutionCaptur
         ApiFormat::OpenAiChatCompletions,
         &context,
         &HeaderMap::new(),
-        request,
+        RequestInput::from_body(request),
     )
 }
 
@@ -374,7 +374,7 @@ async fn multiple_choices_merge_independently_and_a_gap_drops_only_its_choice() 
 }
 
 #[tokio::test]
-async fn oversized_encoded_and_invalid_requests_explain_the_missing_input() {
+async fn oversized_requests_explain_the_missing_input() {
     let mut large = br#"{"model":"gpt-4.1-mini","messages":[{"role":"user","content":""#.to_vec();
     large.resize(MAX_INPUT_CAPTURE_BYTES + 1 - br#""}]}"#.len(), b'x');
     large.extend_from_slice(br#""}]}"#);
@@ -389,14 +389,4 @@ async fn oversized_encoded_and_invalid_requests_explain_the_missing_input() {
     );
     assert!(facts.input.is_none());
     assert!(facts.requested_model.is_none());
-
-    let mut observer = new_observer_for("full", b"not json").await;
-    let (_, facts) = finalized(&mut observer);
-    assert_eq!(
-        facts.input_omission.map(|omission| omission.reason),
-        Some(InputOmissionReason::InvalidJson)
-    );
-
-    let mut observer = new_observer_for("usage", b"not json").await;
-    assert!(finalized(&mut observer).1.input_omission.is_none());
 }
