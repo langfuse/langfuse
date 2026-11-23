@@ -85,22 +85,17 @@ export const CreateRuleSchema = RuleMetadataSchema.extend({
 });
 
 /**
- * Trace transcript rules evaluate a whole trace. Every assignment carries its
- * own `threads` mapping because evaluator defaults map observation columns.
+ * Trace transcript rules evaluate a whole trace. Assignments use the shared
+ * modern shape; the service (assertTraceTranscriptAssignments) enforces the
+ * trace-specific rule that each one maps the `threads` column, because the
+ * evaluator defaults map observation columns that do not apply here. At least
+ * one assignment is required — nothing downstream rejects an empty trace rule.
  */
 export const CreateTraceTranscriptRuleSchema = RuleMetadataSchema.extend({
   projectId: z.string(),
   targetObject: z.literal(TopicsTargetObject),
   enabled: z.boolean(),
-  evaluatorAssignments: z
-    .array(
-      z.object({
-        evaluatorId: z.string().min(1),
-        variableMapping: observationVariableMappingList.min(1),
-      }),
-    )
-    .min(1)
-    .max(100),
+  evaluatorAssignments: z.array(RuleAssignmentInputSchema).min(1).max(100),
 });
 
 export const UpdateRuleSchema = RuleIdSchema.extend({

@@ -568,10 +568,7 @@ export class RuleService {
       await this.assertTraceTranscriptAssignments({
         prisma: params.prisma,
         projectId: params.projectId,
-        assignments: params.evaluatorMappings.map((assignment) => ({
-          evaluatorId: assignment.evaluatorId,
-          variableMapping: assignment.variableMapping ?? [],
-        })),
+        assignments: params.evaluatorMappings,
       });
       return params.evaluatorMappings;
     }
@@ -938,17 +935,17 @@ export class RuleService {
       if (!latestVersion) {
         throw new LangfuseNotFoundError("Evaluator version not found");
       }
-      const extracted = extractTranscriptEvalVariables(
-        null,
-        assignment.variableMapping,
-      );
+      // Assignments now share the modern (nullable) mapping shape, so a missing
+      // mapping is normalized to empty and rejected here rather than crashing.
+      const variableMapping = assignment.variableMapping ?? [];
+      const extracted = extractTranscriptEvalVariables(null, variableMapping);
       if (!extracted.ok) throw new InvalidRequestError(extracted.error);
       assertCompleteEvaluatorVariableMapping({
         promptVariables: requiredEvaluatorVariables(
           evaluator.type,
           latestVersion,
         ),
-        variableMapping: assignment.variableMapping,
+        variableMapping,
       });
     }
     return params.assignments;
