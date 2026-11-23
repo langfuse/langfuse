@@ -1,5 +1,5 @@
 import { Banner } from "@/src/components/design-system/Banner/Banner";
-import { Button } from "@/src/components/ui/button";
+import { env } from "@/src/env.mjs";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
@@ -13,8 +13,6 @@ import {
   getEvaluatorBlockMetadata,
   getEvaluatorBlockResolutionPath,
 } from "@langfuse/shared";
-import { ExternalLinkIcon, RefreshCcw } from "@langfuse/icons";
-import Link from "next/link";
 import { Fragment } from "react";
 
 type EvaluatorPausedCalloutProps = {
@@ -96,9 +94,40 @@ export function EvaluatorPausedCallout({
 
   return (
     <div id={calloutId}>
-      <Banner variant="warning" title="Evaluator paused">
+      <Banner
+        variant="warning"
+        title="Evaluator paused"
+        actions={[
+          {
+            text: resolutionActionLabel,
+            onClick: () => {
+              window.open(
+                `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${resolutionPath}`,
+                "_blank",
+                "noopener,noreferrer",
+              );
+            },
+          },
+          ...(allowReactivation
+            ? [
+                {
+                  text: "Reactivate",
+                  disabled: reactivateEvaluator.isPending,
+                  onClick: () =>
+                    reactivateEvaluator.mutate({
+                      projectId,
+                      evalConfigId: evalConfig.id,
+                      config: {
+                        status: JobConfigState.ACTIVE,
+                      },
+                    }),
+                },
+              ]
+            : []),
+        ]}
+      >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-bold">{blockMetadata.shortLabel}</span>
+          <span>{blockMetadata.shortLabel}</span>
           {blockedAtLabel ? (
             <Fragment>
               <span className="bg-border h-1 w-1 rounded-full" />
@@ -110,44 +139,6 @@ export function EvaluatorPausedCallout({
         </div>
 
         <p className="mt-2 max-w-3xl">{blockMessage}</p>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button asChild variant="outline" size="sm" className="h-8 px-3">
-            <Link
-              href={resolutionPath}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ExternalLinkIcon
-                size="base"
-                color="default"
-                __rawClassName="mr-1.5"
-              />
-              {resolutionActionLabel}
-            </Link>
-          </Button>
-
-          {allowReactivation ? (
-            <Button
-              size="sm"
-              variant="outline"
-              loading={reactivateEvaluator.isPending}
-              onClick={() =>
-                reactivateEvaluator.mutate({
-                  projectId,
-                  evalConfigId: evalConfig.id,
-                  config: {
-                    status: JobConfigState.ACTIVE,
-                  },
-                })
-              }
-              className="h-8 px-3"
-            >
-              <RefreshCcw size="base" color="default" __rawClassName="mr-1.5" />
-              Reactivate
-            </Button>
-          ) : null}
-        </div>
       </Banner>
     </div>
   );
