@@ -13,6 +13,7 @@ use crate::{
     config::{GatewayConfig, RequestLimits},
     correlation::RequestCorrelation,
     cpu::CpuWork,
+    guardrails::Finding,
     http::ParsedRequest,
     observability::ErrorOrigin,
     providers::{ProviderError, ProviderTransport, RequestBody, RequestPermit, Route},
@@ -47,6 +48,7 @@ pub(crate) fn resolution_origin(error: &ResolutionError) -> (ErrorOrigin, &'stat
         R::SpendLimitExceeded(_) => (ErrorOrigin::Client, "spend_limit_exceeded"),
         R::SpendLimitUnavailable => (ErrorOrigin::Gateway, "spend_limit_unavailable"),
         R::SpendLimitUnpricedModel => (ErrorOrigin::Client, "spend_limit_unpriced_model"),
+        R::GuardrailBlocked(_) => (ErrorOrigin::Client, "guardrail_blocked"),
         R::Unavailable => (ErrorOrigin::ControlPlane, "unavailable"),
         R::Timeout => (ErrorOrigin::ControlPlane, "timeout"),
         R::Transport => (ErrorOrigin::ControlPlane, "transport"),
@@ -316,7 +318,7 @@ impl InferenceService {
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), ResolutionError> {
         let api_format = route.api_format();
-        let request_bytes = request.body_bytes();
+        let request_bytes = request.body().len();
         let span = tracing::info_span!(
             "resolution",
             otel.kind = "internal",
@@ -361,50 +363,101 @@ impl InferenceService {
             }
             let context = resolved?;
             correlation.record_resolution(&context);
-            if !route.captures_generation() {
-                return Ok((self.provider.admit(None), context));
-            }
-            let spend_limits = match self
-                .spend_limits
-                .check(&context, gateway_key, correlation.id())
-                .await
-            {
-                Ok(spend_limits) => spend_limits,
-                Err(error) => {
-                    let (origin, reason) = resolution_origin(&error);
-                    span.record("gateway.outcome", reason);
-                    if origin.is_ours() {
-                        span.record("otel.status_code", "ERROR");
-                        span.record("error.type", reason);
+            let spend_limits = if route.captures_generation() {
+                match self
+                    .spend_limits
+                    .check(&context, gateway_key, correlation.id())
+                    .await
+                {
+                    Ok(spend_limits) => spend_limits,
+                    Err(error) => {
+                        self.refuse(&context, headers, request, correlation, &error, &[]);
+                        return Err(error);
                     }
-                    if let Some(input) = request.input.take() {
-                        self.record_rejection(
-                            api_format,
-                            &context,
-                            headers,
-                            input,
-                            correlation,
-                            crate::http::resolution_rejection(&error),
-                        );
-                    }
-                    return Err(error);
                 }
+            } else {
+                None
             };
-            Ok((self.provider.admit(spend_limits), context))
+            let guardrails = self.check_guardrails(api_format, &context, request).await?;
+            if let Some(blocking) = guardrails.blocking() {
+                let error = ResolutionError::GuardrailBlocked(
+                    format!("Request blocked by guardrail \"{}\"", blocking.name).into(),
+                );
+                let findings = guardrails.into_findings();
+                self.refuse(&context, headers, request, correlation, &error, &findings);
+                return Err(error);
+            }
+            let mut permit = self.provider.admit(spend_limits);
+            permit.guardrails = guardrails.into_findings();
+            Ok((permit, context))
         }
         .instrument(span)
+        .await
+    }
+
+    /// Records a refusal on the resolution span and, for a generation, as a
+    /// rejected generation carrying the guardrails it matched.
+    fn refuse(
+        &self,
+        context: &ResolvedRequestContext,
+        headers: &HeaderMap,
+        request: &mut ParsedRequest,
+        correlation: &mut RequestCorrelation,
+        error: &ResolutionError,
+        guardrails: &[Finding],
+    ) {
+        let span = tracing::Span::current();
+        let (origin, reason) = resolution_origin(error);
+        span.record("gateway.outcome", reason);
+        if origin.is_ours() {
+            span.record("otel.status_code", "ERROR");
+            span.record("error.type", reason);
+        }
+        if let Some(input) = request.input.take() {
+            self.record_rejection(
+                context,
+                headers,
+                input,
+                correlation,
+                crate::http::resolution_rejection(error),
+                guardrails,
+            );
+        }
+    }
+
+    /// Scans the request's last turn with the guardrails resolved for its key, off
+    /// the async worker when the conversation is large.
+    async fn check_guardrails(
+        &self,
+        api_format: ApiFormat,
+        context: &ResolvedRequestContext,
+        request: &ParsedRequest,
+    ) -> Result<crate::guardrails::Outcome, ResolutionError> {
+        if context.guardrails().is_empty() {
+            return Ok(crate::guardrails::Outcome::default());
+        }
+        let guardrails = context.guardrails().to_vec();
+        let body = request.body().clone();
+        let scanned = request.scanned.clone();
+        self.run_cpu(scanned.len(), move || {
+            crate::guardrails::check(&guardrails, api_format, &body, &scanned)
+        })
+        .instrument(tracing::info_span!(
+            "request.guardrails",
+            otel.kind = "internal"
+        ))
         .await
     }
 
     /// Records the refused request as a generation, like one the provider answered.
     fn record_rejection(
         &self,
-        api_format: ApiFormat,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
         input: RequestInput,
         correlation: &mut RequestCorrelation,
         rejection: GatewayRejection,
+        guardrails: &[Finding],
     ) {
         let Some(telemetry) = &self.telemetry else {
             return;
@@ -412,9 +465,11 @@ impl InferenceService {
         if context.ingestion_mode() == IngestionMode::None {
             return;
         }
+        let api_format = context.connection().api_format();
         let mut capture = ExecutionCapture::for_request(api_format, context, headers, input);
         capture.deliver_to(telemetry.clone(), context, headers, correlation);
         capture.set_provider_model(context.connection().provider_model());
+        capture.record_guardrails(guardrails);
         capture.reject(rejection);
     }
 

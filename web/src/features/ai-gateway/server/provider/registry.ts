@@ -13,6 +13,7 @@ import {
   getVertexAccessToken,
   vertexOpenAICompatibleBaseUrl,
 } from "@/src/features/ai-gateway/server/provider/vertex";
+import { gatewayGuardrailPresets } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 export const gatewayApiFormats = [
   "openai.responses",
@@ -80,6 +81,21 @@ export const GatewayResolveSpendLimitsSchema = z.array(
     .strict(),
 );
 
+/** Also the cached shape: every guardrail assigned to the key, its user or its organization. */
+export const GatewayResolveGuardrailsSchema = z.array(
+  z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      action: z.enum(["block", "log"]),
+      presets: z.array(z.enum(gatewayGuardrailPresets)),
+    })
+    .strict(),
+);
+export type GatewayResolveGuardrails = z.infer<
+  typeof GatewayResolveGuardrailsSchema
+>;
+
 export const GatewayResolveResponseSchema = z
   .object({
     version: z.literal(1),
@@ -132,6 +148,9 @@ export const GatewayResolveResponseSchema = z
       .nullable(),
     // Empty in "none" mode, where spend is not recorded.
     spend_limits: GatewayResolveSpendLimitsSchema,
+    // Checked by the gateway in every ingestion mode. A gateway without
+    // guardrail support ignores this field, so deploy the gateway first.
+    guardrails: GatewayResolveGuardrailsSchema,
     // Prices of the model the request is priced with; null without spend
     // limits or when no model in the ingestion project matches.
     pricing: z

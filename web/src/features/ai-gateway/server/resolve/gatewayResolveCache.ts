@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import {
   GatewayMetadataSchema,
   GatewayProviderConfigSchema,
+  GatewayResolveGuardrailsSchema,
   GatewayResolveSpendLimitsSchema,
   gatewayApiFormats,
   gatewayProviders,
@@ -47,6 +48,11 @@ export const CachedResolveContext = z.object({
    * instead of letting the key spend without its limits.
    */
   spendLimits: GatewayResolveSpendLimitsSchema,
+  /**
+   * Required, so entries cached before guardrails existed are refetched
+   * instead of letting the key skip its guardrails.
+   */
+  guardrails: GatewayResolveGuardrailsSchema,
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
   plan: z.custom<Plan>((value) => plans.includes(value as Plan)),

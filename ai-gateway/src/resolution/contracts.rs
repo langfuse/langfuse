@@ -455,6 +455,9 @@ struct ResolutionResponse {
     /// model has no prices.
     #[serde(default)]
     pricing: Option<ModelPricing>,
+    /// Checked in every ingestion mode; absent from Web versions without guardrails.
+    #[serde(default)]
+    guardrails: Vec<crate::guardrails::Guardrail>,
 }
 
 fn default_alert_thresholds() -> Vec<u8> {
@@ -517,6 +520,9 @@ impl ResolvedRequestContext {
     }
     pub(crate) fn pricing(&self) -> Option<&ModelPricing> {
         self.0.pricing.as_ref()
+    }
+    pub(crate) fn guardrails(&self) -> &[crate::guardrails::Guardrail] {
+        &self.0.guardrails
     }
     /// The project and grant telemetry is delivered with. Resolution guarantees both
     /// in every mode but [`IngestionMode::None`], which never delivers.
