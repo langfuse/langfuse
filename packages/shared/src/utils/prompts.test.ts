@@ -35,6 +35,15 @@ describe("compileTemplateString unicode variables", () => {
     },
   );
 
+  it("extracts whitespace-padded variables that it also interpolates", () => {
+    const template = "Hello {{ name }}, {{name}} and {{\ttopic  }}";
+
+    expect(extractVariables(template)).toEqual(["name", "topic"]);
+    expect(compileTemplateString(template, { name: "Ada", topic: "x" })).toBe(
+      "Hello Ada, Ada and x",
+    );
+  });
+
   it("preserves unicode placeholders missing from the context", () => {
     expect(compileTemplateString("{{réponse}}", {})).toBe("{{réponse}}");
   });

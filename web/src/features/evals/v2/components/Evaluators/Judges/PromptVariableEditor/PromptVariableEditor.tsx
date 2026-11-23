@@ -70,15 +70,16 @@ function createVariableHighlighter(
   const decorator = new MatchDecorator({
     regexp: new RegExp(MUSTACHE_REGEX.source, MUSTACHE_REGEX.flags),
     decorate: (add, from, to, match) => {
-      const hasValidName = isValidVariableName(match[1]);
-      const mappingLabel = hasValidName ? getMappingLabel(match[1]) : undefined;
+      const variable = match[1].trim();
+      const hasValidName = isValidVariableName(variable);
+      const mappingLabel = hasValidName ? getMappingLabel(variable) : undefined;
       const status = !hasValidName
         ? {
             status: "invalid" as const,
             message:
               "Variable must start with a letter and can only contain letters and underscores",
           }
-        : (getStatus(match[1]) ??
+        : (getStatus(variable) ??
           (mappingLabel
             ? { status: "valid" as const }
             : validateVariableMappings

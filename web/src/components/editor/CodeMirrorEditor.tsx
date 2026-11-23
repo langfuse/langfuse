@@ -66,7 +66,7 @@ const promptLanguage = StreamLanguage.define({
       stream.skipTo("}}") || stream.skipToEnd();
       const content = stream.string.slice(start, stream.pos);
       stream.match("}}");
-      return isValidVariableName(content) ? "variable" : "error";
+      return isValidVariableName(content.trim()) ? "variable" : "error";
     }
     stream.next();
     return null;
@@ -98,8 +98,8 @@ export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
 
   // Check variable format
   for (const match of content.matchAll(MUSTACHE_REGEX)) {
-    const variable = match[1];
-    if (!variable || variable.trim() === "") {
+    const variable = match[1]?.trim();
+    if (!variable) {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,
