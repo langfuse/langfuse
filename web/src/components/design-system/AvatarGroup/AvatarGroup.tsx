@@ -33,12 +33,12 @@ function AvatarGroup({ avatars, max }: AvatarGroupProps) {
         </span>
       ))}
       {overflow > 0 && (
-        // Sits a pixel right of centre: the avatar it overlaps crowds its
-        // left edge, so a centred count reads as pushed left.
+        // Sits a pixel left of centre: the plus sign is lighter than the
+        // digits, so a centred count reads as pushed right.
         <span
           className={cn(
             stackedItemClass,
-            "bg-muted text-muted-foreground h-6 min-w-6 items-center justify-center pr-0.75 pl-1.25 text-xs tabular-nums",
+            "bg-muted text-muted-foreground h-6 min-w-6 items-center justify-center pr-1.25 pl-0.75 text-xs tabular-nums",
           )}
         >
           +{overflow}
