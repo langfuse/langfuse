@@ -446,14 +446,6 @@ function TopicsWorkspaceContent({
   );
   const { selectedFacetId } = traceFilters;
   const capture = useTopicsCapture();
-  function selectFacet(
-    facetId: string,
-    surface: "tabs" | "mobile_controls",
-    facetCount: number,
-  ) {
-    capture("topics:facet_selected", { surface, facetCount });
-    traceFilters.selectFacet(facetId);
-  }
   const openExecution = (id: string) => {
     router.push(
       {
@@ -575,9 +567,7 @@ function TopicsWorkspaceContent({
                 <TopicsFacetTabs
                   facets={shownFacets}
                   selectedFacet={headerFacetId}
-                  onSelectFacet={(facetId) =>
-                    selectFacet(facetId, "tabs", shownFacets.length)
-                  }
+                  onSelectFacet={traceFilters.selectFacet}
                 />
               </span>
             )}
@@ -722,13 +712,7 @@ function TopicsWorkspaceContent({
                       <TopicsMobileControls
                         facets={shownFacets}
                         selectedFacet={headerFacetId}
-                        onSelectFacet={(facetId) =>
-                          selectFacet(
-                            facetId,
-                            "mobile_controls",
-                            shownFacets.length,
-                          )
-                        }
+                        onSelectFacet={traceFilters.selectFacet}
                       />
                     )}
                   </div>

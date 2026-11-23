@@ -77,10 +77,6 @@ type TopicsEventProperties = {
     summarizeCount: number;
   };
   "topics:map_selected": { mapKind: TopicsMapKind; mapCount: number };
-  "topics:facet_selected": {
-    surface: "tabs" | "mobile_controls";
-    facetCount: number;
-  };
   "topics:topic_selected": {
     view: TopicsMapView;
     surface: "tile" | "row" | "map";

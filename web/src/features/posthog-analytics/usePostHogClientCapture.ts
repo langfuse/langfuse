@@ -459,7 +459,6 @@ const events = {
     "map_created",
     "snapshot_started",
     "map_selected",
-    "facet_selected",
     "topic_selected",
     "results_view_select",
     "cost_estimate_started",

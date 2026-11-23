@@ -33,7 +33,12 @@ export function useTopicsCapture() {
         orgId,
         isV4: true,
       } as TopicsEventMap[E];
-      capture(event, payload);
+      // Analytics must never fail the action it reports on.
+      try {
+        capture(event, payload);
+      } catch {
+        return;
+      }
     },
     [capture, projectId, orgId],
   );
