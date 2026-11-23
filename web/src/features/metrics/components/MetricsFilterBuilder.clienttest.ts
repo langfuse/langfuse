@@ -224,6 +224,16 @@ describe("applyEditorChange", () => {
         [edited],
       ),
     ).toEqual([edited, numericMetadata]);
+
+    // A stale builder copy of the hidden row is not stored a second time.
+    expect(
+      applyEditorChange(
+        "observations",
+        v1Columns,
+        [modelFilter("providedModelName"), numericMetadata],
+        [edited, { ...numericMetadata, value: 300 }],
+      ),
+    ).toEqual([edited, numericMetadata]);
   });
 });
 

@@ -62,8 +62,20 @@ export function MetricsFilterBuilder({
   return (
     <div className="space-y-2">
       {unsupportedColumns.length > 0 && (
-        <Banner variant="warning" title="Unsupported filters">
-          {`These filter columns are not supported for ${startCase(view)} and were dropped: ${unsupportedColumns}. Switch back to a compatible view to restore them.`}
+        <Banner
+          variant="warning"
+          title="Unsupported filters"
+          actions={[
+            {
+              text: "Remove hidden filters",
+              onClick: () =>
+                onChange(editorFiltersToViewFilters(view, renderable)),
+            },
+          ]}
+        >
+          {`These filters are not supported for ${startCase(view)} and are hidden: `}
+          <span className="ph-no-capture">{unsupportedColumns}</span>
+          {". Switch back to a compatible view to edit them, or remove them."}
         </Banner>
       )}
       <InlineFilterBuilder
@@ -257,6 +269,8 @@ const hiddenEditorFilters = (
  * applyEditorChange turns the builder's edited rows into the new form value.
  * The builder only sees rendered rows, so the hidden ones are re-appended:
  * an edit keeps them and switching back to a compatible view restores them.
+ * Rows the builder emits that the view cannot render are stale copies from
+ * before a view switch; the form value stays their only source.
  */
 const applyEditorChange = (
   view: z.infer<typeof views>,
@@ -265,7 +279,7 @@ const applyEditorChange = (
   next: FilterState,
 ): FilterState =>
   editorFiltersToViewFilters(view, [
-    ...next,
+    ...next.filter((filter) => resolvesToColumn(filter, columns)),
     ...hiddenEditorFilters(view, filters, columns),
   ]);
 
