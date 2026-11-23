@@ -40,7 +40,7 @@ import {
 } from "../../features/evaluation/observationEval/__tests__/fixtures";
 import { prepareOtelBatch } from "../../features/otel-ingestion/prepareOtelBatch";
 import { processRustOtelEvents } from "../../features/otel-ingestion/processRustOtelEvents";
-import { serializeOtelLookups } from "../../features/otel-ingestion/serializeOtelLookups";
+import { encodeOtelLookups } from "../../features/otel-ingestion/encodeOtelLookups";
 import {
   batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
@@ -284,7 +284,7 @@ describe("native Rust trace activity", () => {
 
       expect(processing.complete).toHaveBeenCalledWith(
         [],
-        serializeOtelLookups([]),
+        encodeOtelLookups([]),
         undefined,
         false,
         traceIds,

@@ -33,14 +33,14 @@ pub struct EnrichmentResult {
 }
 
 /// Skill catalog entries before the worker resolves project-local IDs.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SkillAvailableInput {
     pub name: String,
     pub version: Option<u32>,
 }
 
 /// A tool call that loaded a skill resource before project-local resolution.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SkillResourceInput {
     pub skill_name: String,
     pub file_path: String,

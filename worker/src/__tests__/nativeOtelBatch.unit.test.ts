@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { prepareOtelJson, validateOtelJson } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
-import { serializeOtelLookups } from "../features/otel-ingestion/serializeOtelLookups";
+import { encodeOtelLookups } from "../features/otel-ingestion/encodeOtelLookups";
 
 const nativeContext = {
   projectId: "native-boundary",
@@ -38,7 +38,7 @@ describe("Native OTEL batch NAPI boundary", () => {
         expect(mediaRequests).toEqual([]);
         const { finalized } = await processing.complete(
           [],
-          serializeOtelLookups([]),
+          encodeOtelLookups([]),
           undefined,
           true,
         );
@@ -91,7 +91,7 @@ describe("Native OTEL batch NAPI boundary", () => {
     try {
       const { finalized } = await processing.complete(
         [],
-        serializeOtelLookups([]),
+        encodeOtelLookups([]),
         undefined,
         true,
       );
@@ -138,7 +138,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       try {
         const completion = await processing.complete(
           [],
-          serializeOtelLookups([]),
+          encodeOtelLookups([]),
           limit,
           true,
         );
@@ -285,7 +285,7 @@ describe("Native OTEL batch NAPI boundary", () => {
               await expect(
                 processing.complete(
                   [],
-                  serializeOtelLookups(results.slice(0, -1)),
+                  encodeOtelLookups(results.slice(0, -1)),
                   undefined,
                   true,
                 ),
@@ -293,7 +293,7 @@ describe("Native OTEL batch NAPI boundary", () => {
             }
             const { finalized } = await processing.complete(
               [],
-              serializeOtelLookups(results),
+              encodeOtelLookups(results),
               undefined,
               true,
               ["a".repeat(32)],
@@ -350,7 +350,7 @@ describe("Native OTEL batch NAPI boundary", () => {
             await expect(
               processing.complete(
                 [],
-                serializeOtelLookups(results),
+                encodeOtelLookups(results),
                 undefined,
                 true,
               ),
@@ -425,7 +425,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       try {
         const { overflowRequests } = await processing.complete(
           [],
-          serializeOtelLookups([]),
+          encodeOtelLookups([]),
           256,
           false,
           [traceId],
@@ -489,13 +489,16 @@ describe("Native OTEL batch NAPI boundary", () => {
     } = await batch.process(nativeContext);
     try {
       expect(mediaRequests).toEqual([]);
-      expect(lookupRequests).toHaveLength(spans.length);
+      // The three spans name one model, so they share a single lookup request.
+      expect(lookupRequests).toHaveLength(1);
+      // Text outside ASCII has different lengths in UTF-16 and UTF-8.
+      const tierName = "usage-tier ü😀";
       const lookup = {
         model: { id: "storage-boundary-model-id" },
         pricingTiers: [
           {
             id: "usage-tier",
-            name: "usage-tier",
+            name: tierName,
             isDefault: false,
             priority: 0,
             conditions: [
@@ -515,7 +518,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       };
       const { finalized } = await processing.complete(
         [],
-        serializeOtelLookups(lookupRequests.map(() => lookup)),
+        encodeOtelLookups(lookupRequests.map(() => lookup)),
         undefined,
         true,
       );
@@ -529,7 +532,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       );
       expect(rows.get(spans[0].spanId)).toMatchObject({
         usage_details: { input: 7, total: 7 },
-        usage_pricing_tier_name: "usage-tier",
+        usage_pricing_tier_name: tierName,
         cost_details: {
           input: expect.closeTo(7e-18, 30),
           total: expect.closeTo(7e-18, 30),
@@ -540,7 +543,7 @@ describe("Native OTEL batch NAPI boundary", () => {
         total: 7,
       });
       expect(rows.get(spans[1].spanId)).toMatchObject({
-        usage_pricing_tier_name: "usage-tier",
+        usage_pricing_tier_name: tierName,
         cost_details: {
           input: expect.any(Number),
           output: expect.any(Number),
@@ -553,7 +556,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       });
       expect(rows.get(spans[2].spanId)).toMatchObject({
         usage_details: { input: 3, total: 3 },
-        usage_pricing_tier_name: "usage-tier",
+        usage_pricing_tier_name: tierName,
       });
     } finally {
       await processing.dispose();

@@ -10,7 +10,7 @@ import {
 } from "../../../packages/shared/src/server/media/MediaPayloadProcessor.fixtures";
 import { getMediaId } from "../../../packages/shared/src/server/media/mediaService";
 import { processOtelMedia } from "../../../packages/shared/src/server/otel/OtelMediaProcessor";
-import { serializeOtelLookups } from "../features/otel-ingestion/serializeOtelLookups";
+import { encodeOtelLookups } from "../features/otel-ingestion/encodeOtelLookups";
 
 vi.mock("../../../packages/shared/src/server/instrumentation", () => ({
   recordDistribution: vi.fn(),
@@ -288,7 +288,7 @@ async function expectNativeMediaLifecycleParity(
     });
     const { finalized } = await processing.complete(
       mediaResults,
-      serializeOtelLookups(prepared.lookupRequests.map(() => ({}))),
+      encodeOtelLookups(prepared.lookupRequests.map(() => ({}))),
       undefined,
       true,
     );
