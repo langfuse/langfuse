@@ -61,7 +61,7 @@ pub(super) fn stream_usage_edit(
         // Appended before the closing brace; the object has a `model`, so never empty.
         StreamOptions::Absent => {
             let close = body.iter().rposition(|byte| !byte.is_ascii_whitespace())?;
-            (body[close] == b'}').then_some(())?;
+            (body.get(close) == Some(&b'}')).then_some(())?;
             (close..close, None)
         }
     };
