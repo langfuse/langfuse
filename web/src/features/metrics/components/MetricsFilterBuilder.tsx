@@ -55,9 +55,7 @@ export function MetricsFilterBuilder({
   );
   const unsupportedColumns = Array.from(
     new Set(
-      editorFilters
-        .filter((filter) => !resolvesToColumn(filter, columns))
-        .map(unsupportedFilterLabel),
+      hiddenEditorFilters(view, filters, columns).map(unsupportedFilterLabel),
     ),
   ).join(", ");
 
@@ -72,7 +70,7 @@ export function MetricsFilterBuilder({
         columns={columns}
         filterState={renderable}
         onChange={(next: FilterState) =>
-          onChange(editorFiltersToViewFilters(view, next))
+          onChange(applyEditorChange(view, columns, filters, next))
         }
         columnsWithCustomSelect={columnsWithCustomSelect}
         stringObjectValueOptions={stringObjectValueOptions}
@@ -245,6 +243,32 @@ const resolvesToColumn = (
       ),
   );
 
+/** hiddenEditorFilters lists the editor rows no column of the view can render. */
+const hiddenEditorFilters = (
+  view: z.infer<typeof views>,
+  filters: FilterState,
+  columns: ColumnDefinition[],
+): FilterState =>
+  viewFiltersToEditorFilters(view, filters).filter(
+    (filter) => !resolvesToColumn(filter, columns),
+  );
+
+/**
+ * applyEditorChange turns the builder's edited rows into the new form value.
+ * The builder only sees rendered rows, so the hidden ones are re-appended:
+ * an edit keeps them and switching back to a compatible view restores them.
+ */
+const applyEditorChange = (
+  view: z.infer<typeof views>,
+  columns: ColumnDefinition[],
+  filters: FilterState,
+  next: FilterState,
+): FilterState =>
+  editorFiltersToViewFilters(view, [
+    ...next,
+    ...hiddenEditorFilters(view, filters, columns),
+  ]);
+
 /**
  * unsupportedFilterLabel names a hidden row in the banner. A numeric key/value
  * row names its key: the column's text rows may still render.
@@ -266,4 +290,5 @@ export const __test = {
   viewFiltersToEditorFilters,
   editorFiltersToViewFilters,
   resolvesToColumn,
+  applyEditorChange,
 };

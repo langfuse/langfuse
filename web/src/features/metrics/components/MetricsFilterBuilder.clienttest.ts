@@ -17,6 +17,7 @@ const {
   viewFiltersToEditorFilters,
   editorFiltersToViewFilters,
   resolvesToColumn,
+  applyEditorChange,
 } = __test;
 
 const modelFilter = (column: string): FilterState[number] => ({
@@ -188,6 +189,41 @@ describe("resolvesToColumn", () => {
     ]) {
       expect(resolves(column, "observations")).toBe(true);
     }
+  });
+});
+
+describe("applyEditorChange", () => {
+  it("editing a rendered row keeps a hidden numeric metadata row", () => {
+    const numericMetadata: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "latency_ms",
+      operator: ">",
+      value: 200,
+    };
+    const v1Columns = getMetricsFilterColumns({
+      ...buildV2FilterColumnsParams({
+        view: "observations",
+        filterOptions: undefined,
+        datasets: undefined,
+      }),
+      viewVersion: "v1",
+    });
+    const edited: FilterState[number] = {
+      column: "providedModelName",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["gpt-4o"],
+    };
+
+    expect(
+      applyEditorChange(
+        "observations",
+        v1Columns,
+        [modelFilter("providedModelName"), numericMetadata],
+        [edited],
+      ),
+    ).toEqual([edited, numericMetadata]);
   });
 });
 
