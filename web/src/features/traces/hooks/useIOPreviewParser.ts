@@ -13,6 +13,21 @@ export function hasRenderableChatMessages(result: ChatMLParserResult): boolean {
   );
 }
 
+/** Leave the final JSON boundary for the normalized parser to decode. */
+function unwrapOutputEnvelope(output: string): string {
+  let value = output;
+  for (let depth = 0; depth < 25 && value.length <= 300_000; depth++) {
+    try {
+      const decoded: unknown = JSON.parse(value);
+      if (typeof decoded !== "string") break;
+      value = decoded;
+    } catch {
+      break;
+    }
+  }
+  return value;
+}
+
 /**
  * Parses observation I/O into the contract rendered by the Formatted view.
  *
@@ -62,9 +77,18 @@ export function useIOPreviewParser(
   return useMemo<ChatMLParserResult>(() => {
     if (preParsedResult) return preParsedResult;
 
+    // Decode only string wrappers around the message envelope, leaving
+    // JSON strings inside text parts intact for the Formatted view.
+    let outputForNormalization = parsedOutput;
+    if (typeof output === "string" && output.length <= 300_000) {
+      outputForNormalization = unwrapOutputEnvelope(output);
+    } else if (Array.isArray(output)) {
+      outputForNormalization = output;
+    }
+
     const span = {
       input: parsedInput,
-      output: parsedOutput,
+      output: outputForNormalization,
       metadata: parsedMetadata,
     };
     try {
@@ -73,5 +97,5 @@ export function useIOPreviewParser(
       reportError(error, { area: "io-preview-parser" });
       return toIOPreview({ messages: [], toolDefinitions: [], span });
     }
-  }, [preParsedResult, parsedInput, parsedOutput, parsedMetadata]);
+  }, [preParsedResult, parsedInput, parsedOutput, parsedMetadata, output]);
 }
