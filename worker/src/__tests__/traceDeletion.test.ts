@@ -261,8 +261,8 @@ describe("trace deletion", () => {
         format: "JSONEachRow",
         values: rows.map((row) => ({
           ...row,
-          topic_id: "topic",
-          topic_version_id: "topic-version",
+          topic_stable_id: "topic",
+          topic_id: "topic-version",
           coordinates: [0.1, 0.2],
         })),
       }),
@@ -270,7 +270,11 @@ describe("trace deletion", () => {
 
     await processClickhouseTraceDelete(projectId, [traceId]);
 
-    for (const table of ["topic_facet_summaries", "topic_assignments"]) {
+    for (const table of [
+      "topic_facet_summaries",
+      "topic_assignments",
+      "topic_assignments_by_trace",
+    ]) {
       const remaining = await queryClickhouse<{
         project_id: string;
         trace_id: string;

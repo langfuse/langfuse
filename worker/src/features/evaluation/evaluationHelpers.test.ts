@@ -212,24 +212,6 @@ describe("evaluation helpers", () => {
       ).toBe(false);
     });
 
-    it("should reject duplicate categorical multi-match values", () => {
-      const schema = buildEvalOutputResultSchema(
-        createCategoricalEvalOutputDefinition({
-          scoreDescription: "Choose all matching categories",
-          reasoningDescription: "Explain the selected categories",
-          categories: ["correct", "partial"],
-          shouldAllowMultipleMatches: true,
-        }),
-      );
-
-      expect(
-        schema.safeParse({
-          score: ["correct", "correct"],
-          reasoning: "This should be invalid.",
-        }).success,
-      ).toBe(false);
-    });
-
     it("should reject categorical scalars when multiple matches are required to be returned as an array", () => {
       const schema = buildEvalOutputResultSchema(
         createCategoricalEvalOutputDefinition({

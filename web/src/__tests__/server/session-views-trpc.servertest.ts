@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { onTestFinished } from "vitest";
-import { projectRoleAccessRights } from "@langfuse/shared";
 import { type Session } from "next-auth";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
@@ -13,6 +12,7 @@ import {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import { type Action } from "@langfuse/shared/rbac";
 
 const prepare = async () => {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -41,6 +41,7 @@ const prepare = async () => {
   const callerFor = (
     userId: string,
     role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER",
+    deniedActions: Action[] = [],
   ) => {
     const session: Session = createSession({
       user: { id: userId, name: "Session view test user" },
@@ -57,7 +58,10 @@ const prepare = async () => {
       environment: { selfHostedInstancePlan: "cloud:hobby" },
     });
     return appRouter.createCaller({
-      ...createInnerTRPCContext({ session, headers: {} }),
+      ...createInnerTRPCContext({
+        session: withoutActions(session, deniedActions),
+        headers: {},
+      }),
       prisma,
     });
   };
@@ -156,18 +160,11 @@ describe("session views", () => {
   });
   it("requires project write permission for promotion through either mutation", async () => {
     const { owner, callerFor, input } = await prepare();
-    const caller = callerFor(owner.id, "MEMBER");
-    const { view } = await caller.sessionViews.create({
+    const { view } = await callerFor(owner.id, "MEMBER").sessionViews.create({
       ...input,
       ownership: "PRIVATE",
     });
-    const original = projectRoleAccessRights.MEMBER;
-    onTestFinished(() => {
-      projectRoleAccessRights.MEMBER = original;
-    });
-    projectRoleAccessRights.MEMBER = original.filter(
-      (scope) => scope !== "SessionViews:CUD",
-    );
+    const caller = callerFor(owner.id, "MEMBER", ["SessionViews:CUD"]);
     await expect(
       caller.sessionViews.update({ ...input, id: view.id }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -185,14 +182,10 @@ describe("session views", () => {
     const { view } = await callerFor(owner.id, "ADMIN").sessionViews.create(
       input,
     );
-    const original = projectRoleAccessRights.MEMBER;
-    onTestFinished(() => {
-      projectRoleAccessRights.MEMBER = original;
-    });
-    projectRoleAccessRights.MEMBER = original.filter(
-      (scope) => scope !== "SessionViews:CUD" && scope !== "SessionViews:read",
-    );
-    const member = callerFor(other.id, "MEMBER");
+    const member = callerFor(other.id, "MEMBER", [
+      "SessionViews:CUD",
+      "SessionViews:read",
+    ]);
     expect(await member.sessionViews.list({ projectId: project.id })).toEqual(
       [],
     );
@@ -218,21 +211,20 @@ describe("session views", () => {
         sessionViewId: view.id,
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    projectRoleAccessRights.MEMBER = original.filter(
-      (scope) =>
-        scope !== "annotationQueues:CUD" &&
-        scope !== "TableViewPresets:CUD" &&
-        scope !== "TableViewPresets:read",
-    );
+    const projectWriter = callerFor(other.id, "MEMBER", [
+      "annotationQueues:CUD",
+      "TableViewPresets:CUD",
+      "TableViewPresets:read",
+    ]);
     await expect(
-      member.sessionViews.update({
+      projectWriter.sessionViews.update({
         ...input,
         id: view.id,
         name: "Project writer",
       }),
     ).resolves.toMatchObject({ view: { name: "Project writer" } });
     await expect(
-      member.sessionViews.create({
+      projectWriter.sessionViews.create({
         ...input,
         ownership: "PRIVATE",
         name: "Denied private",
@@ -1086,3 +1078,18 @@ describe("session views", () => {
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });
+
+/** withoutActions drops the denied actions from every policy the session binds. */
+function withoutActions(session: Session, deniedActions: Action[]): Session {
+  return {
+    ...session,
+    policies: session.policies.map((policies) =>
+      policies.map((policy) => ({
+        ...policy,
+        actions: policy.actions.filter(
+          (action) => !deniedActions.includes(action),
+        ),
+      })),
+    ),
+  };
+}

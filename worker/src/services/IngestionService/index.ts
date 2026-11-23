@@ -64,7 +64,10 @@ import {
   convertRecordValuesToString,
   overwriteObject,
 } from "./utils";
-import { resolveAiGatewayAttribution } from "./aiGatewayAttribution";
+import {
+  isAiGatewayCalculatedCost,
+  resolveAiGatewayAttribution,
+} from "./aiGatewayAttribution";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
@@ -395,7 +398,12 @@ export class IngestionService {
       provided_usage_details: eventData.providedUsageDetails ?? {},
       usage_details:
         generationUsage?.usage_details ?? eventData.usageDetails ?? {},
-      provided_cost_details: eventData.providedCostDetails ?? {},
+      provided_cost_details: isAiGatewayCalculatedCost({
+        ingestionApiKey: eventData.ingestionApiKey,
+        metadata,
+      })
+        ? {}
+        : (eventData.providedCostDetails ?? {}),
       cost_details:
         generationUsage?.cost_details ?? eventData.costDetails ?? {},
 

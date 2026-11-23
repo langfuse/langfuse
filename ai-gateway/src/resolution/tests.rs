@@ -246,7 +246,7 @@ async fn reports_reached_spend_limits_to_the_control_plane() {
             to_bytes(request.into_body(), 1024).await.unwrap(),
             concat!(
                 r#"{"limits":[{"countingStartedAt":1700000000123,"limitId":"limit-1","windowStart":1767225600000},"#,
-                r#"{"countingStartedAt":1700000000456,"limitId":"limit-2","windowStart":1767225600000}]}"#
+                r#"{"countingStartedAt":1700000000456,"limitId":"limit-2","thresholdPercent":85,"windowStart":1767225600000}]}"#
             )
         );
         response(json!({}))
@@ -261,11 +261,13 @@ async fn reports_reached_spend_limits_to_the_control_plane() {
                     limit_id: "limit-1",
                     counting_started_at: 1_700_000_000_123,
                     window_start: 1_767_225_600_000,
+                    threshold_percent: None,
                 },
                 ReachedSpendLimit {
                     limit_id: "limit-2",
                     counting_started_at: 1_700_000_000_456,
                     window_start: 1_767_225_600_000,
+                    threshold_percent: Some(85),
                 },
             ],
             REQUEST_ID,

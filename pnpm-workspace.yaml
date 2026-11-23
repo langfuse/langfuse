@@ -229,6 +229,10 @@ overrides:
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^10.
   "next-auth>nodemailer": "^10.4.1"
+  # CVE-2026-121707: Schema.TemplateLiteral ReDoS, fixed in 3.22.1.
+  # @prisma/config pins effect to exactly 3.21.0 (3.20.0 at its latest 7.x
+  # release), so only an override moves it within the same major.
+  "@prisma/config>effect": 3.22.1
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.

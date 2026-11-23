@@ -21,6 +21,8 @@ import { getTrpcToastOperation } from "@/src/utils/trpcToastOperation";
  * `members.create` uses BAD_REQUEST only when the address is already an
  * organization or project member, or a pending invite for that email
  * already exists. The invite form shows the sentence on the email field.
+ * `prompts.exportAll` uses BAD_REQUEST only when the project has more than
+ * 10,000 prompt versions. The export dialog shows that sentence inline.
  */
 export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "datasets.triggerRemoteExperiment",
@@ -29,6 +31,7 @@ export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "aiGateway.createConnection",
   "aiGateway.updateConnection",
   "members.create",
+  "prompts.exportAll",
 ] as const;
 
 const FAILED_FETCH_MESSAGE = /^failed to fetch(?: \([^)]+\))?$/i;

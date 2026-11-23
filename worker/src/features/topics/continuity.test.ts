@@ -8,7 +8,7 @@ const topic = (id: string, centroid = [1, 0]): TopicDefinition => ({
   projectId: "project",
   createdByRunId: "run",
   createdAt: "2026-01-01T00:00:00.000Z",
-  tags: [],
+  labels: [],
   name: id,
   description: id,
   centroid,

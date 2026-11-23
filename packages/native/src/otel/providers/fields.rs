@@ -750,10 +750,14 @@ mod tests {
                 if provider == "openai" && metadata.get("serviceTier").is_none() {
                     continue;
                 }
-                let attributes = json!({
+                let mut attributes = json!({
                     "ai.response.providerMetadata": json!({provider: metadata}).to_string(),
                     "gen_ai.request.service_tier": "standard",
                 });
+                attributes
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("gen_ai.system".into(), Value::parse(r#""\ud800""#).unwrap());
                 let params = extract_model_parameters(
                     attributes.as_object().unwrap(),
                     "ai",
@@ -761,6 +765,7 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(params["service_tier"], json!("flex"), "{attributes:?}");
+                assert_eq!(params["system"].to_json_string(), r#""\ud800""#);
             }
         }
     }

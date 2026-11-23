@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Form } from "@/src/components/design-system/Form/Form";
 
 import { CouponCodeSchema } from "../utils/coupons";
@@ -50,14 +50,11 @@ export function CouponRedemptionForm({
 
   if (redemption.isSubmitted) {
     return (
-      <Alert variant="info">
-        <Alert.Title>Coupon submitted</Alert.Title>
-        <Alert.Description>
-          <span className="ph-no-capture">
-            {`We received your coupon for ${orgName}. We'll email you at ${submitterEmail} once it has been reviewed.`}
-          </span>
-        </Alert.Description>
-      </Alert>
+      <Banner variant="info" title="Coupon submitted">
+        <span className="ph-no-capture">
+          {`We received your coupon for ${orgName}. We'll email you at ${submitterEmail} once it has been reviewed.`}
+        </span>
+      </Banner>
     );
   }
 

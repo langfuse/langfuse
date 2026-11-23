@@ -36,6 +36,7 @@ export const notificationQueueProcessor = async (
         await handleGatewayInvitationNotification(payload);
         break;
       case "AI_GATEWAY_SPEND_LIMIT_REACHED":
+      case "AI_GATEWAY_SPEND_LIMIT_ALERT":
         await handleGatewaySpendLimitNotification(payload);
         break;
       // Future notification types can be added here

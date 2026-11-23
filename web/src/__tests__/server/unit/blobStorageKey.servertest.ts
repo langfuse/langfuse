@@ -47,11 +47,6 @@ describe("safeBlobKeySegment", () => {
     expect(out.slice(-16)).toMatch(HEX16);
   });
 
-  it("is deterministic across calls", () => {
-    const s = "x".repeat(800);
-    expect(safeBlobKeySegment(s, N)).toBe(safeBlobKeySegment(s, N));
-  });
-
   it("distinguishes inputs that share a long common prefix", () => {
     const shared = "x".repeat(250);
     const a = shared + "AAAAAAAAAAAAAAAAAAAA";

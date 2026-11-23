@@ -18,6 +18,7 @@ import {
 import type {
   TopicAssignment,
   TopicDefinition,
+  TopicRule,
   TopicSummary,
 } from "../../../src/topics";
 import type { FilterState } from "../../../src/types";
@@ -295,7 +296,7 @@ export const topicsMapScenario: ScenarioDefinition = {
     const intent = facet("Intent");
     const issues = facet("Issues");
     const existingRules = await listTopicRules(ctx.projectId);
-    const rules = [];
+    const rules: TopicRule[] = [];
     for (const [index, name] of RULE_NAMES.entries())
       rules.push(
         await saveTopicRule({
@@ -329,7 +330,16 @@ export const topicsMapScenario: ScenarioDefinition = {
           ...source(index),
           facetId: facetRef.id,
           facetVersion: facetRef.version,
-          triggerType: "manual",
+          triggerType: "rule",
+          // The second rule's filter matches the first SECOND_RULE_TRACES traces.
+          ruleIds: rules
+            .filter(
+              (rule, r) =>
+                rule.facetIds.includes(facetRef.id) &&
+                (r === 0 || index < SECOND_RULE_TRACES),
+            )
+            .map((rule) => rule.id),
+          executionId: null,
           state: complete ? "complete" : "not_applicable",
           summary: complete ? summaryText(topic, requests[index]!) : "",
           embedding: complete
@@ -337,6 +347,7 @@ export const topicsMapScenario: ScenarioDefinition = {
             : [],
           transcriptId: traceIds[index]!,
           transcriptVersion: "seed",
+          transcriptBytes: 0,
           summaryModel: "seed-summary",
           embeddingModel: "seed-embedding",
           providedUsageDetails: {},
@@ -424,7 +435,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         topicId: `${map.runId}-topic-${k}`,
         createdByRunId: map.runId,
         createdAt: processedAt,
-        tags: [],
+        labels: [],
         name: topic.name,
         description: topic.description,
         centroid: unit(k),
@@ -443,6 +454,7 @@ export const topicsMapScenario: ScenarioDefinition = {
             facetVersion: map.facet.version,
             summaryProcessedAt: map.summaries[index]!.processedAt,
             runId: map.runId,
+            ruleId: map.rule.id,
             topicId: definition?.topicId ?? null,
             topicVersionId: definition?.topicVersionId ?? null,
             distance: definition ? 0.05 + rng.next() * 0.2 : null,

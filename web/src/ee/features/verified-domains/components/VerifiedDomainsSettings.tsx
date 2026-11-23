@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedVerifiedDomainsSettingsTable } from "./VerifiedDomainsSettingsTable/ConnectedVerifiedDomainsSettingsTable";
 import {
@@ -26,7 +26,6 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle } from "@langfuse/icons";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -70,13 +69,10 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
     return (
       <div>
         {heading}
-        <Alert icon={AlertCircle}>
-          <Alert.Title>Not available</Alert.Title>
-          <Alert.Description>
-            Verified Domains and Enterprise SSO are not available on your plan.
-            Please upgrade to access this feature.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Not available">
+          Verified Domains and Enterprise SSO are not available on your plan.
+          Please upgrade to access this feature.
+        </Banner>
       </div>
     );
   }
@@ -85,13 +81,10 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
     return (
       <div>
         {heading}
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            You do not have permission to manage verified domains for this
-            organization.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          You do not have permission to manage verified domains for this
+          organization.
+        </Banner>
       </div>
     );
   }
