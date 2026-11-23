@@ -1,5 +1,5 @@
 import { Html, Head, Main, NextScript } from "next/document";
-import { plexMono } from "@/src/styles/fonts";
+import { fontVariables } from "@/src/styles/fonts";
 
 export default function Document() {
   return (
@@ -8,8 +8,16 @@ export default function Document() {
     // language — WCAG 2.1 SC 3.1.1.
     // next-themes mutates class/style on <html> before hydration; suppress the
     // expected mismatch one level deep (React 19 logs it and can re-render).
-    <Html lang="en" suppressHydrationWarning className={plexMono.variable}>
-      <Head />
+    <Html lang="en" suppressHydrationWarning className={fontVariables}>
+      <Head>
+        {/* Applies the stored font preview before first paint, so a reload
+            does not flash the system font. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var f=JSON.parse(localStorage.getItem("fontPreview"));if(f)document.documentElement.dataset.fontPreview=f}catch(e){}`,
+          }}
+        />
+      </Head>
       <body>
         <Main />
         <NextScript />

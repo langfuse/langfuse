@@ -179,7 +179,7 @@ function WeightRoleRow({ token }: { token: TokenDeclaration }) {
       <span
         className="text-foreground block truncate text-xl"
         title="The quick brown fox jumps over the lazy dog"
-        style={{ fontWeight: Number(token.value) }}
+        style={{ fontWeight: Number(resolveStatic(token.value)) }}
       >
         The quick brown fox jumps over the lazy dog
       </span>
