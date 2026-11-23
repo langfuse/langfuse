@@ -1,6 +1,6 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { GroupSource, Prisma, prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import { escapeSqlLikePattern, logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
@@ -195,7 +195,12 @@ export function parseGroupFilter(filter: unknown): Prisma.GroupWhereInput {
   }
   const value = match[2].replace(/\\(.)/g, "$1");
   return match[1].toLowerCase() === "displayname"
-    ? { displayName: { equals: value, mode: "insensitive" } }
+    ? {
+        displayName: {
+          equals: escapeSqlLikePattern(value),
+          mode: "insensitive",
+        },
+      }
     : { externalId: value };
 }
 
