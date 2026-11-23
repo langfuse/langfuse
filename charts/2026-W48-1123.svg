@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1180" viewBox="0 0 900 1180" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif">
+  <rect width="900" height="1180" fill="#ffffff"/>
+  <style>.t{font-size:13px;font-weight:600;fill:#1f2430}.ax{font-size:11px;fill:#5b6472}.lg{font-size:11px;fill:#1f2430}.lgv{font-size:10px;fill:#8a94a3}.g{stroke:#e6e9ef;stroke-width:1}</style>
+  <text x="58" y="22.0" class="t">Chart 1 — daily medians, merge_group runs (s). 11-23 omitted: run executed 05:31Z.</text>
+  <line x1="58.0" y1="272.0" x2="704.0" y2="272.0" class="g"/>
+  <text x="50.0" y="276.0" class="ax" text-anchor="end">0</text>
+  <line x1="58.0" y1="213.0" x2="704.0" y2="213.0" class="g"/>
+  <text x="50.0" y="217.0" class="ax" text-anchor="end">100</text>
+  <line x1="58.0" y1="154.0" x2="704.0" y2="154.0" class="g"/>
+  <text x="50.0" y="158.0" class="ax" text-anchor="end">200</text>
+  <line x1="58.0" y1="95.0" x2="704.0" y2="95.0" class="g"/>
+  <text x="50.0" y="99.0" class="ax" text-anchor="end">300</text>
+  <line x1="58.0" y1="36.0" x2="704.0" y2="36.0" class="g"/>
+  <text x="50.0" y="40.0" class="ax" text-anchor="end">400</text>
+  <text x="58.0" y="288.0" class="ax" text-anchor="middle">11-17</text>
+  <text x="187.2" y="288.0" class="ax" text-anchor="middle">11-18</text>
+  <text x="316.4" y="288.0" class="ax" text-anchor="middle">11-19</text>
+  <text x="445.6" y="288.0" class="ax" text-anchor="middle">11-20</text>
+  <text x="574.8" y="288.0" class="ax" text-anchor="middle">11-21*</text>
+  <text x="704.0" y="288.0" class="ax" text-anchor="middle">11-22*</text>
+  <polyline points="58.0,71.4 187.2,102.7 316.4,105.0 445.6,103.3 574.8,107.4 704.0,113.9" fill="none" stroke="#3987e5" stroke-width="2.5"/>
+  <circle cx="58.0" cy="71.4" r="3.5" fill="#3987e5"/>
+  <circle cx="187.2" cy="102.7" r="3.5" fill="#3987e5"/>
+  <circle cx="316.4" cy="105.0" r="3.5" fill="#3987e5"/>
+  <circle cx="445.6" cy="103.3" r="3.5" fill="#3987e5"/>
+  <circle cx="574.8" cy="107.4" r="3.5" fill="#3987e5"/>
+  <circle cx="704.0" cy="113.9" r="3.5" fill="#3987e5"/>
+  <rect x="718.0" y="32.0" width="10" height="10" fill="#3987e5"/>
+  <text x="733.0" y="40.0" class="lg">perceived</text>
+  <text x="733.0" y="52.0" class="lgv">last 268s</text>
+  <polyline points="58.0,95.6 187.2,132.2 316.4,105.0 445.6,116.2 574.8,110.9 704.0,133.9" fill="none" stroke="#de5a20" stroke-width="2.5"/>
+  <circle cx="58.0" cy="95.6" r="3.5" fill="#de5a20"/>
+  <circle cx="187.2" cy="132.2" r="3.5" fill="#de5a20"/>
+  <circle cx="316.4" cy="105.0" r="3.5" fill="#de5a20"/>
+  <circle cx="445.6" cy="116.2" r="3.5" fill="#de5a20"/>
+  <circle cx="574.8" cy="110.9" r="3.5" fill="#de5a20"/>
+  <circle cx="704.0" cy="133.9" r="3.5" fill="#de5a20"/>
+  <rect x="718.0" y="52.0" width="10" height="10" fill="#de5a20"/>
+  <text x="733.0" y="60.0" class="lg">gated</text>
+  <text x="733.0" y="72.0" class="lgv">last 234s</text>
+  <polyline points="58.0,74.3 187.2,105.6 316.4,108.6 445.6,109.8 574.8,111.5 704.0,116.8" fill="none" stroke="#8875e0" stroke-width="2.5"/>
+  <circle cx="58.0" cy="74.3" r="3.5" fill="#8875e0"/>
+  <circle cx="187.2" cy="105.6" r="3.5" fill="#8875e0"/>
+  <circle cx="316.4" cy="108.6" r="3.5" fill="#8875e0"/>
+  <circle cx="445.6" cy="109.8" r="3.5" fill="#8875e0"/>
+  <circle cx="574.8" cy="111.5" r="3.5" fill="#8875e0"/>
+  <circle cx="704.0" cy="116.8" r="3.5" fill="#8875e0"/>
+  <rect x="718.0" y="72.0" width="10" height="10" fill="#8875e0"/>
+  <text x="733.0" y="80.0" class="lg">execution</text>
+  <text x="733.0" y="92.0" class="lgv">last 263s</text>
+  <text x="58.0" y="304.0" class="ax">* 11-21 n=3, 11-22 n=1 — thin weekend days, excluded from the weekly aggregate.</text>
+  <text x="58" y="320.0" class="t">Chart 2 — daily segment medians (s): web/worker test steps and the e2e job.</text>
+  <line x1="58.0" y1="570.0" x2="704.0" y2="570.0" class="g"/>
+  <text x="50.0" y="574.0" class="ax" text-anchor="end">0</text>
+  <line x1="58.0" y1="511.0" x2="704.0" y2="511.0" class="g"/>
+  <text x="50.0" y="515.0" class="ax" text-anchor="end">50</text>
+  <line x1="58.0" y1="452.0" x2="704.0" y2="452.0" class="g"/>
+  <text x="50.0" y="456.0" class="ax" text-anchor="end">100</text>
+  <line x1="58.0" y1="393.0" x2="704.0" y2="393.0" class="g"/>
+  <text x="50.0" y="397.0" class="ax" text-anchor="end">150</text>
+  <line x1="58.0" y1="334.0" x2="704.0" y2="334.0" class="g"/>
+  <text x="50.0" y="338.0" class="ax" text-anchor="end">200</text>
+  <text x="58.0" y="586.0" class="ax" text-anchor="middle">11-17</text>
+  <text x="187.2" y="586.0" class="ax" text-anchor="middle">11-18</text>
+  <text x="316.4" y="586.0" class="ax" text-anchor="middle">11-19</text>
+  <text x="445.6" y="586.0" class="ax" text-anchor="middle">11-20</text>
+  <text x="574.8" y="586.0" class="ax" text-anchor="middle">11-21*</text>
+  <text x="704.0" y="586.0" class="ax" text-anchor="middle">11-22*</text>
+  <polyline points="58.0,439.0 187.2,463.8 316.4,446.1 445.6,460.3 574.8,469.7 704.0,468.5" fill="none" stroke="#3987e5" stroke-width="2.5"/>
+  <circle cx="58.0" cy="439.0" r="3.5" fill="#3987e5"/>
+  <circle cx="187.2" cy="463.8" r="3.5" fill="#3987e5"/>
+  <circle cx="316.4" cy="446.1" r="3.5" fill="#3987e5"/>
+  <circle cx="445.6" cy="460.3" r="3.5" fill="#3987e5"/>
+  <circle cx="574.8" cy="469.7" r="3.5" fill="#3987e5"/>
+  <circle cx="704.0" cy="468.5" r="3.5" fill="#3987e5"/>
+  <rect x="718.0" y="330.0" width="10" height="10" fill="#3987e5"/>
+  <text x="733.0" y="338.0" class="lg">webRunTests</text>
+  <text x="733.0" y="350.0" class="lgv">last 86s</text>
+  <polyline points="58.0,456.7 187.2,498.0 316.4,501.6 445.6,502.7 574.8,433.1 704.0,434.3" fill="none" stroke="#de5a20" stroke-width="2.5"/>
+  <circle cx="58.0" cy="456.7" r="3.5" fill="#de5a20"/>
+  <circle cx="187.2" cy="498.0" r="3.5" fill="#de5a20"/>
+  <circle cx="316.4" cy="501.6" r="3.5" fill="#de5a20"/>
+  <circle cx="445.6" cy="502.7" r="3.5" fill="#de5a20"/>
+  <circle cx="574.8" cy="433.1" r="3.5" fill="#de5a20"/>
+  <circle cx="704.0" cy="434.3" r="3.5" fill="#de5a20"/>
+  <rect x="718.0" y="350.0" width="10" height="10" fill="#de5a20"/>
+  <text x="733.0" y="358.0" class="lg">workerRunTests</text>
+  <text x="733.0" y="370.0" class="lgv">last 115s</text>
+  <polyline points="58.0,382.4 187.2,376.5 316.4,385.9 445.6,415.4 574.8,410.7 704.0,450.8" fill="none" stroke="#8875e0" stroke-width="2.5"/>
+  <circle cx="58.0" cy="382.4" r="3.5" fill="#8875e0"/>
+  <circle cx="187.2" cy="376.5" r="3.5" fill="#8875e0"/>
+  <circle cx="316.4" cy="385.9" r="3.5" fill="#8875e0"/>
+  <circle cx="445.6" cy="415.4" r="3.5" fill="#8875e0"/>
+  <circle cx="574.8" cy="410.7" r="3.5" fill="#8875e0"/>
+  <circle cx="704.0" cy="450.8" r="3.5" fill="#8875e0"/>
+  <rect x="718.0" y="370.0" width="10" height="10" fill="#8875e0"/>
+  <text x="733.0" y="378.0" class="lg">e2e-tests job</text>
+  <text x="733.0" y="390.0" class="lgv">last 101s</text>
+  <text x="58.0" y="602.0" class="ax">workerRunTests doubles from 11-20 15:51Z onward (#20180). e2e job falls after #20349.</text>
+  <text x="58" y="618.0" class="t">Chart 1 (weekly x-axis) — weekly aggregate = median of dense daily medians (s).</text>
+  <line x1="58.0" y1="868.0" x2="704.0" y2="868.0" class="g"/>
+  <text x="50.0" y="872.0" class="ax" text-anchor="end">0</text>
+  <line x1="58.0" y1="809.0" x2="704.0" y2="809.0" class="g"/>
+  <text x="50.0" y="813.0" class="ax" text-anchor="end">100</text>
+  <line x1="58.0" y1="750.0" x2="704.0" y2="750.0" class="g"/>
+  <text x="50.0" y="754.0" class="ax" text-anchor="end">200</text>
+  <line x1="58.0" y1="691.0" x2="704.0" y2="691.0" class="g"/>
+  <text x="50.0" y="695.0" class="ax" text-anchor="end">300</text>
+  <line x1="58.0" y1="632.0" x2="704.0" y2="632.0" class="g"/>
+  <text x="50.0" y="636.0" class="ax" text-anchor="end">400</text>
+  <text x="58.0" y="884.0" class="ax" text-anchor="middle">W42</text>
+  <text x="165.7" y="884.0" class="ax" text-anchor="middle">W43</text>
+  <text x="273.3" y="884.0" class="ax" text-anchor="middle">W44</text>
+  <text x="381.0" y="884.0" class="ax" text-anchor="middle">W45</text>
+  <text x="488.7" y="884.0" class="ax" text-anchor="middle">W46</text>
+  <text x="596.3" y="884.0" class="ax" text-anchor="middle">W47</text>
+  <text x="704.0" y="884.0" class="ax" text-anchor="middle">W48</text>
+  <polyline points="58.0,719.6 165.7,696.3 273.3,648.2" fill="none" stroke="#3987e5" stroke-width="2.5"/>
+  <polyline points="596.3,706.9 704.0,699.0" fill="none" stroke="#3987e5" stroke-width="2.5"/>
+  <line x1="273.3" y1="648.2" x2="596.3" y2="706.9" stroke="#3987e5" stroke-width="1.6" stroke-dasharray="4 4"/>
+  <circle cx="58.0" cy="719.6" r="3.5" fill="#3987e5"/>
+  <circle cx="165.7" cy="696.3" r="3.5" fill="#3987e5"/>
+  <circle cx="273.3" cy="648.2" r="3.5" fill="#3987e5"/>
+  <circle cx="596.3" cy="706.9" r="3.5" fill="#3987e5"/>
+  <circle cx="704.0" cy="699.0" r="3.5" fill="#3987e5"/>
+  <rect x="718.0" y="628.0" width="10" height="10" fill="#3987e5"/>
+  <text x="733.0" y="636.0" class="lg">perceived</text>
+  <text x="733.0" y="648.0" class="lgv">last 286.5s</text>
+  <polyline points="58.0,734.5 165.7,709.0 273.3,672.7" fill="none" stroke="#de5a20" stroke-width="2.5"/>
+  <polyline points="596.3,717.0 704.0,706.6" fill="none" stroke="#de5a20" stroke-width="2.5"/>
+  <line x1="273.3" y1="672.7" x2="596.3" y2="717.0" stroke="#de5a20" stroke-width="1.6" stroke-dasharray="4 4"/>
+  <circle cx="58.0" cy="734.5" r="3.5" fill="#de5a20"/>
+  <circle cx="165.7" cy="709.0" r="3.5" fill="#de5a20"/>
+  <circle cx="273.3" cy="672.7" r="3.5" fill="#de5a20"/>
+  <circle cx="596.3" cy="717.0" r="3.5" fill="#de5a20"/>
+  <circle cx="704.0" cy="706.6" r="3.5" fill="#de5a20"/>
+  <rect x="718.0" y="648.0" width="10" height="10" fill="#de5a20"/>
+  <text x="733.0" y="656.0" class="lg">gated</text>
+  <text x="733.0" y="668.0" class="lgv">last 273.5s</text>
+  <polyline points="58.0,724.7 165.7,699.1 273.3,654.1" fill="none" stroke="#8875e0" stroke-width="2.5"/>
+  <polyline points="596.3,710.2 704.0,703.1" fill="none" stroke="#8875e0" stroke-width="2.5"/>
+  <line x1="273.3" y1="654.1" x2="596.3" y2="710.2" stroke="#8875e0" stroke-width="1.6" stroke-dasharray="4 4"/>
+  <circle cx="58.0" cy="724.7" r="3.5" fill="#8875e0"/>
+  <circle cx="165.7" cy="699.1" r="3.5" fill="#8875e0"/>
+  <circle cx="273.3" cy="654.1" r="3.5" fill="#8875e0"/>
+  <circle cx="596.3" cy="710.2" r="3.5" fill="#8875e0"/>
+  <circle cx="704.0" cy="703.1" r="3.5" fill="#8875e0"/>
+  <rect x="718.0" y="668.0" width="10" height="10" fill="#8875e0"/>
+  <text x="733.0" y="676.0" class="lg">execution</text>
+  <text x="733.0" y="688.0" class="lgv">last 279.5s</text>
+  <text x="58.0" y="900.0" class="ax">W45/W46 never analysed — dashed bridge, not interpolated data.</text>
+  <text x="58" y="916.0" class="t">Chart 2 (weekly x-axis) — segment medians (s).</text>
+  <line x1="58.0" y1="1148.0" x2="704.0" y2="1148.0" class="g"/>
+  <text x="50.0" y="1152.0" class="ax" text-anchor="end">0</text>
+  <line x1="58.0" y1="1104.4" x2="704.0" y2="1104.4" class="g"/>
+  <text x="50.0" y="1108.4" class="ax" text-anchor="end">50</text>
+  <line x1="58.0" y1="1060.8" x2="704.0" y2="1060.8" class="g"/>
+  <text x="50.0" y="1064.8" class="ax" text-anchor="end">100</text>
+  <line x1="58.0" y1="1017.2" x2="704.0" y2="1017.2" class="g"/>
+  <text x="50.0" y="1021.2" class="ax" text-anchor="end">150</text>
+  <line x1="58.0" y1="973.6" x2="704.0" y2="973.6" class="g"/>
+  <text x="50.0" y="977.6" class="ax" text-anchor="end">200</text>
+  <line x1="58.0" y1="930.0" x2="704.0" y2="930.0" class="g"/>
+  <text x="50.0" y="934.0" class="ax" text-anchor="end">250</text>
+  <text x="58.0" y="1164.0" class="ax" text-anchor="middle">W42</text>
+  <text x="165.7" y="1164.0" class="ax" text-anchor="middle">W43</text>
+  <text x="273.3" y="1164.0" class="ax" text-anchor="middle">W44</text>
+  <text x="381.0" y="1164.0" class="ax" text-anchor="middle">W45</text>
+  <text x="488.7" y="1164.0" class="ax" text-anchor="middle">W46</text>
+  <text x="596.3" y="1164.0" class="ax" text-anchor="middle">W47</text>
+  <text x="704.0" y="1164.0" class="ax" text-anchor="middle">W48</text>
+  <polyline points="165.7,1065.6 273.3,1061.2" fill="none" stroke="#3987e5" stroke-width="2.5"/>
+  <polyline points="596.3,1067.3 704.0,1061.7" fill="none" stroke="#3987e5" stroke-width="2.5"/>
+  <line x1="273.3" y1="1061.2" x2="596.3" y2="1067.3" stroke="#3987e5" stroke-width="1.6" stroke-dasharray="4 4"/>
+  <circle cx="165.7" cy="1065.6" r="3.5" fill="#3987e5"/>
+  <circle cx="273.3" cy="1061.2" r="3.5" fill="#3987e5"/>
+  <circle cx="596.3" cy="1067.3" r="3.5" fill="#3987e5"/>
+  <circle cx="704.0" cy="1061.7" r="3.5" fill="#3987e5"/>
+  <rect x="718.0" y="926.0" width="10" height="10" fill="#3987e5"/>
+  <text x="733.0" y="934.0" class="lg">webRunTests</text>
+  <text x="733.0" y="946.0" class="lgv">last 99s</text>
+  <polyline points="165.7,1053.6 273.3,1052.1" fill="none" stroke="#de5a20" stroke-width="2.5"/>
+  <polyline points="596.3,1057.5 704.0,1096.1" fill="none" stroke="#de5a20" stroke-width="2.5"/>
+  <line x1="273.3" y1="1052.1" x2="596.3" y2="1057.5" stroke="#de5a20" stroke-width="1.6" stroke-dasharray="4 4"/>
+  <circle cx="165.7" cy="1053.6" r="3.5" fill="#de5a20"/>
+  <circle cx="273.3" cy="1052.1" r="3.5" fill="#de5a20"/>
+  <circle cx="596.3" cy="1057.5" r="3.5" fill="#de5a20"/>
+  <circle cx="704.0" cy="1096.1" r="3.5" fill="#de5a20"/>
+  <rect x="718.0" y="946.0" width="10" height="10" fill="#de5a20"/>
+  <text x="733.0" y="954.0" class="lg">workerRunTests</text>
+  <text x="733.0" y="966.0" class="lgv">last 59.5s</text>
+  <polyline points="165.7,1006.3 273.3,965.8" fill="none" stroke="#8875e0" stroke-width="2.5"/>
+  <polyline points="596.3,983.2 704.0,1010.7" fill="none" stroke="#8875e0" stroke-width="2.5"/>
+  <line x1="273.3" y1="965.8" x2="596.3" y2="983.2" stroke="#8875e0" stroke-width="1.6" stroke-dasharray="4 4"/>
+  <circle cx="165.7" cy="1006.3" r="3.5" fill="#8875e0"/>
+  <circle cx="273.3" cy="965.8" r="3.5" fill="#8875e0"/>
+  <circle cx="596.3" cy="983.2" r="3.5" fill="#8875e0"/>
+  <circle cx="704.0" cy="1010.7" r="3.5" fill="#8875e0"/>
+  <rect x="718.0" y="966.0" width="10" height="10" fill="#8875e0"/>
+  <text x="733.0" y="974.0" class="lg">e2e-tests job</text>
+  <text x="733.0" y="986.0" class="lgv">last 157.5s</text>
+  <text x="58.0" y="1180.0" class="ax">W48 workerRunTests is the dense-day median (11-17..11-20); post-#20180 it sits at ~116s.</text>
+</svg>

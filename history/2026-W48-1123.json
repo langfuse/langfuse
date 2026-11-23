@@ -1,0 +1,223 @@
+{
+  "window": { "from": "2026-11-17", "to": "2026-11-23" },
+  "isoWeekNote": "2026-11-23 is a MONDAY; the trailing-7-day window is Tue 11-17 .. Mon 11-23, the same Tue..Mon convention as 2026-W43-1019, 2026-W44-1026 and 2026-W47-1116. Named by the ISO week of the end Monday. Overlaps the W47 comparator by zero days (W47 ended Mon 11-16); 11-16 itself belongs to W47.",
+  "generatedAt": "2026-11-23",
+  "dataQuality": {
+    "denseDays": ["2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20"],
+    "denseDaySampleSize": "7 evenly-spaced runs per dense day; 3 on Sat 11-21, 1 on Sun 11-22, 0 on Mon 11-23 before the run started",
+    "thinDays": ["2026-11-21 (Sat, 3 merge_group runs)", "2026-11-22 (Sun, 1 run)", "2026-11-23 (Mon, 0 runs before 05:31Z)"],
+    "weekendNote": "SIXTH consecutive weekend collapse, but this time Saturday was not empty: Sat 11-21 had 3 runs and Sun 11-22 had 1. Both are far below the Tue-Fri range of 47-79. Still never aggregate them.",
+    "partialDayNote": "The run executed 2026-11-23T05:31Z and no merge_group run had started that day, so 11-23 contributes nothing. 11-21 and 11-22 are plotted but excluded from the weekly aggregate.",
+    "coverage": "21 API pages swept, 2100 deduped runs covering 11-16T15:32Z..11-23T05:24Z. 32 successful merge_group runs measured in detail out of 226.",
+    "checkout": "HEAD a399726481, HEAD..origin/main = 0."
+  },
+  "weeklyAggregate": {
+    "perceived": 286.5,
+    "gated": 273.5,
+    "execution": 279.5,
+    "runnerWait": 6,
+    "webBuildStep": 60,
+    "webRunTestsStep": 99,
+    "workerBuildStep": 42,
+    "workerRunTestsStep": 59.5,
+    "e2eTestsJob": 157.5,
+    "e2eBuildStep": 44.5,
+    "e2eRunStep": 50.5,
+    "e2eCacheRestoreStep": 3.5,
+    "fipsMaxJob": 275,
+    "executionMinusE2e": 122,
+    "unit": "seconds; median of the 4 dense daily medians (11-17, 11-18, 11-19, 11-20)"
+  },
+  "dailyMedians": {
+    "2026-11-17": { "n": 7, "perceived": 340, "gated": 299, "execution": 335, "runnerWait": 6, "webBuild": 60, "webRunTests": 111, "workerBuild": 42, "workerRunTests": 96, "e2eJob": 159, "e2eBuild": 44, "e2eRun": 52, "e2eCacheRestore": 3, "fipsMax": 282 },
+    "2026-11-18": { "n": 7, "perceived": 287, "gated": 237, "execution": 282, "runnerWait": 6, "webBuild": 51, "webRunTests": 90, "workerBuild": 42, "workerRunTests": 61, "e2eJob": 164, "e2eBuild": 46, "e2eRun": 57, "e2eCacheRestore": 4, "fipsMax": 287 },
+    "2026-11-19": { "n": 7, "perceived": 283, "gated": 283, "execution": 277, "runnerWait": 6, "webBuild": 60, "webRunTests": 105, "workerBuild": 39, "workerRunTests": 58, "e2eJob": 156, "e2eBuild": 45, "e2eRun": 49, "e2eCacheRestore": 4, "fipsMax": 263 },
+    "2026-11-20": { "n": 7, "perceived": 286, "gated": 264, "execution": 275, "runnerWait": 6, "webBuild": 60, "webRunTests": 93, "workerBuild": 49, "workerRunTests": 57, "e2eJob": 131, "e2eBuild": 26, "e2eRun": 48, "e2eCacheRestore": 3, "fipsMax": 268 },
+    "2026-11-21": { "n": 3, "thin": true, "perceived": 279, "gated": 273, "execution": 272, "webRunTests": 85, "workerRunTests": 116, "e2eJob": 135 },
+    "2026-11-22": { "n": 1, "thin": true, "perceived": 268, "gated": 234, "execution": 263, "webRunTests": 86, "workerRunTests": 115, "e2eJob": 101 }
+  },
+  "perRunArrays": {
+    "note": "Stored per W47's lesson so a second pass can repool without re-paging.",
+    "workerRunTestsByDay": {
+      "2026-11-17": [61, 63, 68, 72, 73, 81, 96, 98, 99, 104, 124],
+      "2026-11-18": [55, 57, 57, 58, 60, 61, 61, 67, 72, 83],
+      "2026-11-19": [54, 55, 55, 56, 58, 59, 60, 60, 68, 68, 72, 73, 75, 81],
+      "2026-11-20": [55, 56, 56, 56, 56, 56, 57, 57, 57, 57, 57, 58, 62, 62, 63, 63, 64, 119, 120, 121, 123, 129, 131, 132],
+      "2026-11-21": [116, 116, 117],
+      "2026-11-22": [115]
+    },
+    "webRunTestsByDay": {
+      "2026-11-17": [92, 92, 94, 107, 109, 111, 116, 119, 122, 127, 134],
+      "2026-11-18": [84, 86, 86, 88, 90, 97, 99, 102, 102, 110],
+      "2026-11-19": [86, 88, 89, 90, 95, 99, 100, 105, 107, 109, 110, 115, 119],
+      "2026-11-20": [86, 87, 88, 89, 89, 89, 90, 90, 90, 91, 91, 91, 93, 94, 96, 97, 99, 101, 105, 105, 107, 114, 118, 119],
+      "2026-11-21": [85, 85, 86],
+      "2026-11-22": [86]
+    }
+  },
+  "pooledPercentiles": { "n": 28, "perceivedP50": 299, "perceivedP75": 345, "perceivedP90": 405, "gatedP50": 279, "gatedP90": 330 },
+  "vsPreviousWindow": {
+    "comparator": "2026-W47-1116",
+    "perceived": "273 -> 286.5 (+4.9%)",
+    "gated": "256 -> 273.5 (+6.8%)",
+    "execution": "267.5 -> 279.5 (+4.5%)",
+    "e2eTestsJob": "189 -> 157.5 (-16.7%)",
+    "e2eBuildStep": "68.5 -> 44.5 (-35.0%)",
+    "workerRunTestsStep": "103.8 -> 59.5 (-42.7%) on dense days, but ~116 after 11-20T15:51Z",
+    "webRunTestsStep": "92.5 -> 99 (+7.0%)",
+    "executionMinusE2e": "78.5 -> 122 (+55.4%)",
+    "failureRate": "2.3% (4/177) -> 12.7% (33/259)",
+    "reading": "Two large wins landed (e2e build cache, worker runners) and two large losses landed on top of them (a coverage expansion that doubled worker test time, and the ai-gateway e2e job becoming the gating pole). Net gated is 17.5s worse."
+  },
+  "sustainedShiftScan": {
+    "triggered": true,
+    "metric": "workerRunTests step",
+    "shift": "57-62s before 2026-11-20T14:20Z, 115-132s from 2026-11-20T15:51Z onward; sustained across 11-20 (second half), 11-21 and 11-22 = 3 consecutive days, +103%",
+    "cause": "d5ab4baca9 (#20180, 'chore(native): strengthen OTEL property coverage', 2026-11-20 14:46Z) added ~1726 lines to worker/src/__tests__/otelReplay.properties.test.ts and ~1716 to otelReplay.integration.test.ts.",
+    "evidence": "Vitest shard totals, same job name, before vs after: Tests 3142 -> 3179 (+37, +1.2%); Duration 56.97s -> 115.41/116.25/117.23s (+104%). otelReplay.properties.test.ts summed test duration 36.47s/2 tests -> 111.63-113.46s/5 tests. otelReplay.integration.test.ts 7.90s/34 -> 34.21-38.56s/59. The two files account for essentially the whole delta (shard 'tests' total 188.77s -> 299.42s).",
+    "verdict": "NEW COVERAGE, not a slowdown in existing code - per-test cost rose only because the three new property tests are individually ~22s each. Classify as a deliberate cost, not a regression to revert.",
+    "criticalPathConsequence": "otelReplay.properties.test.ts is now 111.6s of SERIAL in-file time against a shard wall clock of 115.4s, i.e. the single file now sets the worker shard's wall clock. Before #20180 the shard was 52-57s with the file at 25-36s and not on the critical path."
+  },
+  "criticalPath": {
+    "gatingPoleChanged": true,
+    "finding": "test-ai-gateway-e2e replaced e2e-tests as the gating pole. Among 32 sampled successful merge_group runs it ran in 16 (it is conditional on the llm-connections-filter) and was the LAST gating job to finish in 14 of those 16 (88%). e2e-tests was the pole in 1 of 32.",
+    "cost": "gated median 285s on runs where test-ai-gateway-e2e ran vs 255s where it did not (n=16 each) = +30s.",
+    "jobMedians_seconds": { "tests-fips (worker)": 271, "test-ai-gateway-e2e": 265, "tests-fips (web)": 234, "tests-web (mode, shadow=true)": 210, "tests-web (mode-redis-cluster)": 208, "tests-web (mode-azure)": 201, "tests-worker (mode)": 189, "tests-worker (mode-azure)": 166, "e2e-server-tests": 165, "tests-worker (mode-redis-cluster)": 163, "e2e-tests": 155, "build-storybook": 145, "tests-web-client": 139, "test-docker-build (web)": 123, "tests-storybook": 121, "tests-ai-gateway": 113, "typecheck and native checks": 72, "tests-shared": 70, "lint": 39 },
+    "aiGatewayStepMedians_seconds": { "Install dependencies": 7, "Start dev containers": 11, "Migrate and seed": 16, "Install pinned Rust toolchains": 6, "Build": 109, "Run AI Gateway end-to-end tests": 97 },
+    "securityConstraintOnTheObviousFix": "pipeline.yml:1709-1710 states the job is deliberately kept cache-cold ('Keep this secret-bearing job cache-cold to avoid exposing provider credentials to potentially poisoned shared package-manager state'), and pnpm/setup and setup-node both pass cache: false. So the W47 Next.js-cache fix CANNOT simply be copied here. Any proposal must be a job-scoped cache written only by this job, and that is a security tradeoff for a human to decide, not a performance call.",
+    "correlationsWithGated": { "execution": 0.95, "runnerWait": 0.95, "fipsMax": 0.91, "e2eJob": 0.86, "workerBuild": 0.53, "webRunTests": 0.4, "webBuild": 0.4, "e2eBuild": 0.19, "workerRunTests": 0.01, "e2eRun": -0.7 },
+    "fipsStillNonGating": "tests-fips (worker) is last-to-finish overall in 20 of 32 sampled runs and is still the longest job at 271s, but it does not set gated."
+  },
+  "runVolumes": { "mergeGroupTotal": 259, "success": 226, "failed": 33, "cancelled": 0, "byDay": { "2026-11-17": 60, "2026-11-18": 47, "2026-11-19": 69, "2026-11-20": 79, "2026-11-21": 3, "2026-11-22": 1 } },
+  "failureRate": {
+    "overall": "33/259 = 12.7%",
+    "blocking": "31/259 = 12.0% (2 failures were tests-fips (web) only, which does not gate)",
+    "byDay": { "2026-11-17": "4/60", "2026-11-18": "3/47", "2026-11-19": "7/69", "2026-11-20": "19/79", "2026-11-21": "0/3", "2026-11-22": "0/1" },
+    "classification": { "test": 21, "product-check (typecheck)": 5, "infrastructure": 5, "external-provider": 2, "ambiguous": 0, "timed-out": 0 },
+    "coverage": "ALL 33 attributed to a failing job and step. 20 of the 25 allowed log tails were spent; 13 runs went un-inspected at log level because they were members of an already-diagnosed same-minute cascade."
+  },
+  "failuresByJob_runsAffected": { "typecheck and native checks": 7, "tests-worker": 6, "tests-storybook": 6, "tests-shared": 6, "tests-fips": 6, "tests-web": 5, "test-ai-gateway-e2e": 2, "test-worker-llm-connections": 1, "e2e-tests": 1, "e2e-server-tests": 1, "test-docker-build": 1 },
+  "failuresByStep_runsAffected": { "tests-worker >> run tests": 9, "tests-web >> run tests": 8, "typecheck and native checks >> typecheck": 7, "tests-storybook >> run Storybook tests": 5, "tests-shared >> run SQL-equivalence tests": 5, "tests-fips >> Run web tests under forced FIPS": 4, "tests-web >> Wait for dev containers": 3, "test-ai-gateway-e2e >> Run AI Gateway end-to-end tests": 2, "tests-fips >> Run worker tests under forced FIPS": 2, "tests-shared >> Install ClickHouse binary": 1, "test-worker-llm-connections >> run llm connection tests": 1, "tests-worker >> Run pnpm/setup": 1, "e2e-tests >> Wait for dev containers": 1, "e2e-server-tests >> Build": 1, "test-docker-build >> Login to Iron Bank": 1, "tests-storybook >> Install playwright": 1 },
+  "cascades": [
+    {
+      "name": "SQL-equivalence golden snapshots",
+      "window": "2026-11-20 09:13-09:25Z",
+      "runsEjected": 5,
+      "step": "tests-shared >> run SQL-equivalence tests",
+      "duration": "8-13s each",
+      "detail": "Two snapshot mismatches in queryBuilder.v2-scores.golden.test.ts, identical in all five runs. Deterministic, not flake. Same class as the W47 experiments.golden.test.ts ejection: golden drift is now a recurring merge-queue ejection source since the step became blocking via #19970."
+    },
+    {
+      "name": "Session policies typecheck break",
+      "window": "2026-11-20 16:35-16:38Z",
+      "runsEjected": 5,
+      "step": "typecheck and native checks >> typecheck",
+      "duration": "15-22s each",
+      "detail": "V4SidebarToggle.stories.tsx(23,7): error TS2741: Property 'policies' is missing but required in type 'Session'. A semantic merge conflict: a Session type change and a stories file that constructs a Session met only in the queue."
+    },
+    {
+      "name": "servertest role-field typecheck break",
+      "window": "2026-11-20 09:54-09:55Z",
+      "runsEjected": 2,
+      "step": "typecheck and native checks >> typecheck (plus co-failing tests-web and tests-fips (web) in the same batches)",
+      "detail": "TS2353 'role' does not exist in type ... at org-model-definitions.servertest.ts(90,15) and organization-delete.servertest.ts(53,13). Another semantic merge conflict amplified by batching."
+    }
+  ],
+  "infrastructureFailures": {
+    "2026-11-19T20:58": "Run 44613972921 - tests-web x3 and e2e-tests all failed 'Wait for dev containers' at the 300s timeout. Single-run event.",
+    "2026-11-19T12:23": "Run 44523380657 - tests-shared 'Install ClickHouse binary for SQL-equivalence tests' failed after 312s; the same run's test-worker-llm-connections also failed on provider errors.",
+    "2026-11-19T16:03": "tests-worker failed in 'Run pnpm/setup@703c526' after 48s.",
+    "2026-11-19T22:53": "test-docker-build failed 'Login to Iron Bank' after 16s.",
+    "2026-11-20T09:19": "tests-storybook failed 'Install playwright' after 5s.",
+    "note": "Five of the five infrastructure failures fall on 11-19 and 11-20, four of them inside a six-hour band on 11-19 evening. W47 had ZERO infrastructure failures."
+  },
+  "externalProviderFailures": {
+    "test-worker-llm-connections": "7 GoogleAIStudio tests failed with AI_APICallError: 'This model is currently experiencing high demand'. Provider-side, not repo code.",
+    "test-ai-gateway-e2e": "OpenAI e2e assertions returned {\"success\":false,\"error\":\"timeout\"} on 2 runs (11-17 14:22 and 14:56)."
+  },
+  "flakyTests": {
+    "confirmed": [
+      {
+        "test": "worker/src/__tests__/traceBatchDeleteBatchAction.test.ts > trace delete batch action worker processor > deletes only selected legacy traces from a persisted batch action",
+        "evidence": "Failed in job 133885827655 (11-17). Passes at 2.8-3.6s in all three sampled successful tests-worker runs in the same week. Meets the memory standard: found PASSING, not merely retried.",
+        "status": "NEW this week"
+      },
+      {
+        "test": "web/src/components/design-system/DropdownMenu/DropdownMenu.stories.tsx",
+        "evidence": "File-level flakiness: two DIFFERENT story tests failed on different days ('Header action keyboard navigation' 11-19, 'Checkbox and submenu' 11-20) while ~20 other stories in the same file stayed green. No single test name recurs.",
+        "status": "NEW this week"
+      }
+    ],
+    "reclassified": [
+      {
+        "test": "worker/src/__tests__/otelReplay.properties.test.ts > OTEL replay adversarial properties > keeps provider fallback and serialized-value parity",
+        "wasCalled": "flake",
+        "actually": "A REAL product defect found by a random-seeded property test, and ALREADY FIXED on main.",
+        "detail": "Run 44767428122 (11-20 15:51Z), job 136395700562. fast-check reported 'Property failed after 144 tests', seed 86789631, shrunk 54 times to a span with spanName: null under scope @flue/opentelemetry. Stack: isCodexShellTool -> isSkillLoadTool -> extractSkillsFromObservation -> OtelIngestionProcessor.createObservationEvent, TypeError: Cannot read properties of null (reading 'startsWith'). The describe block sets retry: 0 and each test draws a fresh randomInt(2**31) seed, so the test is non-deterministic BY DESIGN; a failure means a counterexample was found, not that CI was flaky.",
+        "fix": "d02b4bd2dd (#19968, Valery Meleshkin, 2026-11-20 15:55:29Z) added 'if (typeof toolName !== \"string\") return false;' to isSkillLoadTool in packages/shared/src/features/skills/toolArguments.ts, four minutes after the failure was logged. Verified present at HEAD a399726481.",
+        "lesson": "A seeded property test that fails once and passes later is NOT a flake. Read the counterexample and the seed out of the log before classifying."
+      }
+    ],
+    "singleOccurrenceTestFailures": [
+      "web organization-delete.servertest.ts > rejects with PRECONDITION_FAILED when only soft-deleted projects remain",
+      "web clickhouse-resource-errors.servertest.ts > rejects an oversized analytics result through the buffered adapter",
+      "web evaluation-rule-v2-trpc.servertest.ts > filters the rule table to rules that require an upgrade",
+      "worker src/queues/__tests__/otelDirectEventWrite.test.ts > native Rust trace activity > records accepted sampled rows without projecting eval observations"
+    ],
+    "unattributed": "tests-fips (web) on 11-20 12:26Z and 11-20 14:20Z - the 500-line tail did not reach the vitest summary and the budget was spent. Both are NON-GATING-only failures, so neither blocked a merge. e2e-server-tests >> Build on 11-19 22:32 (4s) also stayed unattributed; a 54 KB tail contained no matching error line.",
+    "priorWatchlist": {
+      "correctionScoreBilling.test.ts (W47 CONFIRMED)": "No recurrence. Absent from every failure and from all 7 sampled successful runs' reporter blocks. ABSENCE IS NOT A FIX - the ReplacingMergeTree mechanism and the production billing-count question are unchanged. Keep open.",
+      "executeInAppAgentRun.test.ts (W47 probable)": "No recurrence. Appears only as a file name in slowest-file lists. Keep on watch.",
+      "dataRetentionProcessing.test.ts / nativeOtelMedia.unit.test.ts (W44)": "No recurrence. Still low priority.",
+      "web/src/__e2e__/app-shell-overflow.spec.ts": "STILL UNKNOWN - Playwright spec, invisible to vitest reporter sampling."
+    },
+    "retriedBlocks": "ZERO 'Retried tests (N):' blocks in all 7 sampled successful runs, and zero [flaky] tags. Consistent with the standing note that this signal on passing runs is nearly worthless."
+  },
+  "vitestAnalysis": {
+    "sample": "7 successful runs (merge_group) across 11-17, 11-18, 11-19, 11-20, 11-21, 11-22: 3x tests-web (node24, pg15, mode, otel-worker-shadow=true), 3x tests-worker (node24, pg15, mode), 1x tests-storybook. Plus 2 extra post-#20180 worker runs fetched to measure the shift.",
+    "shardContent": {
+      "web": "Test Files 380-381, Tests 7616-7623 unchanged from W47 in shape; Duration 77.9-91.0s.",
+      "worker_pre_20180": "Test Files 233-235, Tests 3109-3142, Duration 52.49-56.97s (transform 7.5s, import 227-235s, tests 162-189s).",
+      "worker_post_20180": "Test Files 235, Tests 3179, Duration 115.41-117.23s (transform 7.7s, import 225-227s, tests 289-299s).",
+      "storybook": "Test Files 403, Tests 2225, Duration 86.79s - setup 40.28s (46% of wall clock), import 57.66s, tests 201.27s."
+    },
+    "slowestWebTests_medianMs": {
+      "event-repository.servertest.ts > streams complete trace batches with full payloads and exact per-trace time bounds": 2980,
+      "clickhouse-insert-strings.servertest.ts > inserts rows from an object-mode stream when an array insert cannot be serialized": 2100,
+      "rate-limit.servertest.ts > RateLimitService > should admit requests again once the window has actually expired": 2010,
+      "unit/teardown.servertest.ts > closes clients created through the built shared server export": 1640,
+      "unstable-topics-public-api-access.servertest.ts > does not expose a project's rules, summaries or assignments to another project's key": 1050
+    },
+    "slowestWebFiles_medianMs": { "event-repository.servertest.ts": 24310, "score-comparison-analytics.servertest.ts": 16010, "queryBuilder.servertest.ts": 14760, "dataset-service.servertest.ts": 14120, "ingestion-api.servertest.ts": 13680, "traces-api.servertest.ts": 12460, "scores-api-v3.servertest.ts": 10620 },
+    "slowestWorkerFiles_postChange_medianMs": { "otelReplay.properties.test.ts": 112210, "otelReplay.integration.test.ts": 36190, "evalService.test.ts": 12830, "batchExport.test.ts": 11940, "IngestionService.integration.test.ts": 12310, "traceBatchDeleteBatchAction.test.ts": 8440, "blobStorageIntegrationProcessing.test.ts": 7770, "bufferedStreamUploader.test.ts": 6490 },
+    "slowestStorybookFiles_ms": { "SessionConversationalView.stories.tsx": 17150, "TimelineDense.stories.tsx": 9870, "InAppAgentWindow.stories.tsx": 8200, "TopicTreemapView.stories.tsx": 8120, "DataTable.stories.tsx": 4450 },
+    "optimizationCandidate": {
+      "test": "web/src/__tests__/server/rate-limit.servertest.ts:597 'should admit requests again once the window has actually expired'",
+      "evidence": "2010ms in all three sampled web runs - 2001-2020ms, i.e. a literal wall-clock wait, not variable work. Line 628-630 does `await new Promise(resolve => setTimeout(resolve, (durationInSec + 1) * 1000))` with durationInSec = 1.",
+      "verdict": "NOT PROPOSED. The comment at 626-627 states the sleep exists so the test exercises real Redis TTL expiry rather than key deletion, the extra +1s is the safety margin against TTL rounding, and there is no Redis in this sandbox to measure a shorter margin against. Shortening it trades 1s of CI for flake risk - exactly the trade the standing rules forbid proposing blind."
+    }
+  },
+  "ciCommitsInWindow": {
+    "ca5d33eb70 (#20349, Tobias Wochinger, 2026-11-17 10:40)": "Applied W47's PRIMARY recommendation. Replaced the e2e Next.js cache with a restore-only actions/cache/restore keyed ${os}-nextjs-e2e-${hash(pnpm-lock)}-${github.sha} plus two restore-keys fallbacks; warm-caches.yml's nextjs-e2e job is now the only writer. MEASURED EFFECT: e2eBuild 68.5 -> 44.5s (-35%), e2e-tests job 189 -> 157.5s (-16.7%), cache restore >=2s on 32/32 sampled runs (W47: <=2s on 6 of 8), and the 10-15s 'Post Cache' save is gone from every run. The W47 rule '<=2s restore means Build 86-110s' no longer holds: two 2s restores on 11-20 produced 25s and 34s builds.",
+    "364223f2fb (#20265, 2026-11-17 13:14)": "'perf(ci): pilot larger worker test runners' - explains workerRunTests 96s (11-17) -> 61/58/57s (11-18..11-20).",
+    "d5ab4baca9 (#20180, Valery Meleshkin, 2026-11-20 14:46)": "'chore(native): strengthen OTEL property coverage' - the worker-test doubling, see sustainedShiftScan.",
+    "d02b4bd2dd (#19968, Valery Meleshkin, 2026-11-20 15:55)": "Fixed the null toolName defect that #20180's new property test had found four minutes earlier.",
+    "82bf9dad30 (#20250, prettier -> oxfmt)": "No prettier-check job exists in the sampled job set; formatting appears to run inside `lint`, median 39s. Nothing further to track."
+  },
+  "followUpsAnswered": [
+    "W47 PRIMARY (e2e Next.js build cache) - DELIVERED by ca5d33eb70/#20349 on 11-17, in the restore-only shape the report suggested. Second consecutive week a report-only recommendation was picked up by a human.",
+    "W47 'storybook setup is 36-46s, ~40% of wall time, never investigated' - CONFIRMED persisting: 40.28s of an 86.79s shard Duration (46%). Still the best unexplored lead in the test suites.",
+    "W47 'web import cost ~1.8x test time' - still true (import 57.7s vs tests 201.3s on storybook; web import remains the dominant shard cost).",
+    "W47 'watch whether golden drift becomes a recurring ejection source' - YES. queryBuilder.v2-scores.golden.test.ts ejected five runs on 11-20 in 8-13s each. Second week running.",
+    "W47 'check prettier-check job timing' - no such job exists; closed.",
+    "W47 'persist per-run arrays' - done, see perRunArrays."
+  ],
+  "openFollowUps": [
+    "PRIMARY, report-only: test-ai-gateway-e2e is the new gating pole (last gating job in 14 of the 16 sampled runs where it ran; +30s on gated median). Its Build step is 109s with no Next.js cache, but pipeline.yml:1709-1710 deliberately keeps the job cache-cold because it holds provider credentials. Only a job-scoped cache would preserve that isolation, and that is a security call for a human.",
+    "otelReplay.properties.test.ts is now 111.6s serial in a 115.4s worker shard - the file IS the shard wall clock. numRuns reduction, describe.concurrent and the old 2-test split are on the DEAD list, but the situation materially changed (2 tests/25s -> 5 tests/112s), so a FILE-LEVEL split into separate test files (separate vitest workers, separate module registries, unlike describe.concurrent) is worth one fresh look by someone who can run the suite. Unverifiable here: no node_modules, no ClickHouse.",
+    "Merge-queue failure rate 12.7% is the second-worst on record. 12 of 33 failures are three broken-commit cascades, all semantic merge conflicts that only appear once the queue batches PRs. A queue batch size of 1 for typecheck-sensitive changes, or running typecheck on the merge preview earlier, would have caught all three.",
+    "Storybook shard setup 40.28s / 46% of wall clock - still never investigated.",
+    "correctionScoreBilling.test.ts (W47) - no recurrence, mechanism unchanged, still needs a product answer on whether repeated saves of one score id are billable.",
+    "web/src/__e2e__/app-shell-overflow.spec.ts - still invisible to vitest sampling; needs an e2e-tests job log."
+  ]
+}
