@@ -1,8 +1,9 @@
 import {
   onlineManager,
-  QueryClient,
-  QueryClientProvider,
+  type QueryClient,
+  useQueryClient,
 } from "@tanstack/react-query";
+import { getQueryKey } from "@trpc/react-query";
 import { api } from "@/src/utils/api";
 import { useDashboardBlocksData } from "./useDashboardBlocksData";
 import { render, screen } from "@testing-library/react";
@@ -73,6 +74,7 @@ const initial: DashboardBlocksContextValue = {
   placementOptions: [],
   loadError: false,
   openEditor: vi.fn(),
+  openPositionEditor: vi.fn(),
   track: vi.fn(),
 };
 const gridProps: ComponentProps<typeof DashboardGrid> = {
@@ -95,7 +97,7 @@ function Canvas({ state }: { state: DashboardBlocksContextValue }) {
   );
 }
 
-it.each(["loaded blocks", "read failure", "flag off"] as const)(
+it.each(["loaded blocks", "read failure", "no saved blocks"] as const)(
   "waits for the initial layout read before mounting classic widgets: %s",
   (outcome) => {
     lifecycle.mounts = 0;
@@ -116,8 +118,8 @@ it.each(["loaded blocks", "read failure", "flag off"] as const)(
       blocks: outcome === "loaded blocks" ? [block] : [],
       loadError: outcome === "read failure",
       capabilities: {
-        markdown: outcome !== "flag off",
-        multiQuery: outcome !== "flag off",
+        markdown: outcome !== "no saved blocks",
+        multiQuery: outcome !== "no saved blocks",
       },
     };
     view.rerender(<Canvas state={ready} />);
@@ -142,24 +144,28 @@ it.each(["loaded blocks", "read failure", "flag off"] as const)(
 it("keeps classic charts available when the first block read is paused offline", () => {
   const wasOnline = onlineManager.isOnline();
   onlineManager.setOnline(false);
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { networkMode: "online", retry: false } },
-  });
+  let queryClient: QueryClient | undefined;
   function DataCanvas() {
+    queryClient = useQueryClient();
+    queryClient.setQueryDefaults(
+      getQueryKey(
+        api.dashboardBlocks.getAll,
+        { projectId: "offline-project", dashboardId: "offline-dashboard" },
+        "query",
+      ),
+      { networkMode: "online" },
+    );
     const data = useDashboardBlocksData({
       projectId: "offline-project",
       dashboardId: "offline-dashboard",
       canEdit: false,
       readPath: "v4",
       widgets,
+      hasDashboardBlocks: true,
     });
     return <Canvas state={{ ...initial, ...data }} />;
   }
-  const Page = api.withTRPC(() => (
-    <QueryClientProvider client={queryClient}>
-      <DataCanvas />
-    </QueryClientProvider>
-  ));
+  const Page = api.withTRPC(() => <DataCanvas />);
   const view = render(<Page />);
   try {
     expect(screen.getByTestId("classic-grid")).toHaveTextContent("classic");
@@ -168,7 +174,7 @@ it("keeps classic charts available when the first block read is paused offline",
     ).not.toBeInTheDocument();
   } finally {
     view.unmount();
-    queryClient.clear();
+    queryClient?.clear();
     onlineManager.setOnline(wasOnline);
   }
 });

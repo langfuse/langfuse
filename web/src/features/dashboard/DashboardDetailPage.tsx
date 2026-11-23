@@ -234,7 +234,8 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
             projectId: variables.projectId,
             dashboardId: variables.dashboardId,
           },
-          updatedDashboard,
+          (current) =>
+            current ? { ...current, ...updatedDashboard } : current,
         );
       },
       onError: (error) => {
@@ -1290,6 +1291,10 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                   dateRange={absoluteTimeRange}
                   filterState={gridFilterState}
                   widgets={dashboardDefinition?.widgets ?? []}
+                  hasDashboardBlocks={dashboard.data?.hasDashboardBlocks}
+                  dashboardReady={
+                    !dashboard.isPending && Boolean(dashboard.data)
+                  }
                 >
                   <Page
                     withPadding

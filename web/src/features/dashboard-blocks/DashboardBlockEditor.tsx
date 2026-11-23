@@ -93,7 +93,7 @@ export function DashboardBlockEditor({
             : { version: 1, title: "", content: "" }
         }
         beforePlacementId={beforePlacementId}
-        placementOptions={placementOptions}
+        placementOptions={request.block ? [] : placementOptions}
         pending={mutation.isPending}
         error={error}
         onPlacementChange={updatePlacement}
@@ -110,7 +110,7 @@ export function DashboardBlockEditor({
       requireExplicitClose={mutation.isPending}
     >
       <Dialog.Body>
-        {placementOptions.length > 1 && (
+        {!request.block && placementOptions.length > 1 && (
           <DashboardBlockPlacement
             value={beforePlacementId}
             options={placementOptions}

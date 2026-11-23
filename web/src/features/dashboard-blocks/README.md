@@ -1,6 +1,6 @@
 # Saved dashboard blocks
 
-In a pilot project, open a dashboard and choose **Add widget → New multi-query chart** to compare independently filtered populations. Use **Add series** for the second population, name each one, and choose a chart type in the live preview. Save the chart to this dashboard. Choose **Add widget → Markdown** to place an explanation above a chart row. Existing widgets and Home cards remain available in the same menu.
+With the employee authoring preview enabled and permission to edit the dashboard, choose **Add widget → New multi-query chart** to compare independently filtered populations. Use **Add series** for the second population, name each one, and choose a chart type in the live preview. Save the chart to this dashboard. Choose **Add widget → Markdown** to place an explanation above a chart row. Everyone with access to the dashboard can read the saved chart or note. The employee preview controls who can author them.
 
 ![A Markdown note explains the two independently filtered metadata counts above a row of classic charts.](./docs/project-dashboard.png)
 
@@ -8,30 +8,33 @@ In a pilot project, open a dashboard and choose **Add widget → New multi-query
 
 ## Implementation
 
-`useDashboardBlocksData` owns capabilities, saved server state, and placement labels; it polls capabilities only while a pilot kind is enabled. `DashboardBlocksProvider` owns editor opening. The save/remove hooks in `useDashboardBlockMutations` own cache invalidation. `DashboardBlockEditor` owns revision-aware save inputs. `DashboardBlockCard` renders Markdown or the multi-query chart and owns removal confirmation. Markdown uses the existing safe Markdown renderer and design-system form fields backed by React Hook Form.
+`useDashboardBlocksData` loads saved blocks independently of the employee’s authoring permissions and supplies placement labels. `DashboardBlocksProvider` owns editor opening. The save/remove hooks in `useDashboardBlockMutations` own cache invalidation. `DashboardBlockEditor` owns revision-aware save inputs. `DashboardBlockCard` renders Markdown or the multi-query chart and owns removal confirmation. Markdown uses the existing safe Markdown renderer and design-system form fields backed by React Hook Form.
 
-`DashboardBlocksAddControl` is the context-free Add widget view; `DashboardBlocksAddMenu` connects dashboard state. Its initial-capability race and independent-kind paths, plus arbitrary placement IDs in `DashboardBlockPlacement`, have focused Storybook browser regressions.
+`DashboardBlocksAddControl` is the context-free Add widget view; `DashboardBlocksAddMenu` connects dashboard state. It preserves the classic Add widget flow for users outside the preview. `DashboardBlockPlacement` supports existing string placement IDs.
 
-`DashboardBlocksCanvas` interleaves blocks before the anchored chart row. `block-layout.ts` groups overlapping rows without changing saved geometry. Layout editing renders one original `DashboardGrid`, preserving cross-row drag and resize. Missing anchors fall back after the grid. With no enabled saved blocks, the original grid interaction is unchanged.
+`DashboardBlocksCanvas` interleaves blocks before the anchored chart row. `block-layout.ts` groups overlapping rows without changing saved geometry. Layout editing renders one original `DashboardGrid`, preserving cross-row drag and resize. Missing anchors fall back after the grid. Dashboards without saved blocks use the original grid.
 
-The `multi-query/` subtree owns its query editor, execution, preparation, and chart presentation. Flags are independent and server-authoritative. Editor content is masked in session replay. Instrumentation records structural interactions and counts.
+The `multi-query/` subtree owns its query editor, execution, preparation, and chart presentation. The server checks the personal authoring flag and existing dashboard permissions for block mutations. Editor content is masked in session replay. Instrumentation records structural interactions and counts.
 
-## Pilot and rollback
+## Employee rollout and migration
 
-Apply the additive PostgreSQL migration before rolling out web servers. No backfill or ClickHouse migration is required. Keep both pilots disabled until every web replica can clone saved blocks. Enable each capability by setting its web environment variable to an exact, comma-separated list of project IDs, then rolling the web processes. An unset or empty list disables that capability everywhere.
+Deploy the PostgreSQL migration `20261123160000_add_dashboard_blocks` first. It adds the `DashboardBlockKind` enum and an empty `dashboard_blocks` table. The primary key is `(dashboard_id, id)`. Each row stores its kind, versioned JSON configuration, optional placement anchor, edit revision and creation time. The dashboard foreign key cascades on deletion. Existing dashboards, widgets, Home cards and their saved grid JSON require no updates. There is no backfill or ClickHouse migration.
 
-| Variable                                             | Enables                                  |
-| ---------------------------------------------------- | ---------------------------------------- |
-| `LANGFUSE_DASHBOARD_MULTI_QUERY_ENABLED_PROJECT_IDS` | Create, edit and read multi-query charts |
-| `LANGFUSE_DASHBOARD_MARKDOWN_ENABLED_PROJECT_IDS`    | Create, edit and read Markdown blocks    |
+Once every web replica supports the new table and clone path, a verified employee can enable **Dashboard block authoring** (`dashboardBlockAuthoring`) in their account’s **Feature preview** menu. Eligibility uses a confirmed company mailbox or a trusted employee SSO sign-in. An older SSO session may need a fresh sign-in to establish that evidence. The preview defaults off. It applies to that employee across dashboards where they already have edit permission. Opting out closes authoring access while preserving the rows and their visibility. Organization defaults and deployment-wide experimental settings cannot grant block authoring.
 
-To pause a pilot, remove the project from the relevant list and roll the web processes. Updated servers immediately reject writes for the disabled kind. An open foreground dashboard in an active pilot rechecks its capabilities every 30 seconds. Other projects check on mount and window focus. Re-enabling the same project restores the saved blocks, positions and revisions. A rolling deployment can briefly serve clients from replicas with different settings. Leave the additive table in place when rolling back the application.
+| Person opening a project dashboard                         | Can see saved charts and Markdown | Can add, edit, move or remove blocks |
+| ---------------------------------------------------------- | --------------------------------- | ------------------------------------ |
+| Employee opted in, with dashboard edit permission          | Yes                               | Yes                                  |
+| Employee opted out, or another authorized dashboard reader | Yes                               | No                                   |
+| Person without dashboard read permission                   | No                                | No                                   |
 
-Existing widget and preset placements keep their original JSON representation. Blocks have independent revision checks and refer to an existing placement ID or the end of the dashboard. When an anchor disappears, its block displays at the end. Saving the existing grid with an older server preserves the blocks. Upgraded servers clone same-project blocks together with the parent, including dormant blocks. Older servers and the classic JSON export represent only the original grid. Parent deletion includes its blocks through a foreign key.
+![An unflagged project member sees the saved observation count, the Markdown note, and a classic Home card.](./docs/reader-without-preview.png)
 
-Multi-query schedules up to five ordinary analytics queries per chart. A query can share its filters across several measures. Each independently filtered population can require a separate scan. For example, counting observations with `metadata.abc` and with `metadata.bbc` requests two counts, and observations with both keys contribute to both. Presentation edits reuse compatible query results. Discarding a draft leaves the saved chart untouched. The v4 streaming path supports aborts. A previously submitted v3 request can finish on the server after the editor closes.
+The existing dashboard read includes a presence hint so an ordinary classic dashboard can load without a separate block-list request. A new client pointed at a pre-feature server falls back to the classic dashboard. Older application versions continue to read and save the original grid. Rolling the application back hides blocks on those binaries but preserves their rows for a later upgrade. Leave the additive migration in place.
 
-Before widening either pilot, exercise one project with each flag combination, including both disabled. Check an old widget and its layout, discard an unsaved edit, toggle off a saved block, reload, and restore the pilot. Compare the two source counts in a real chart to two independently filtered requests over the same window.
+A block refers to an existing chart placement or the end of the dashboard. If its anchor disappears, it displays at the end. Upgraded same-project clones include stored blocks and revisions are checked on updates. A clone created by a pre-feature server contains only the classic grid. The classic JSON export and existing public dashboard definition also represent the original grid.
+
+Multi-query schedules up to five ordinary analytics queries per chart. For example, an observation containing both `metadata.abc` and `metadata.bbc` contributes to both independently filtered counts. Compatible presentation changes reuse existing results. Abandoned v4 streams can be aborted. On the legacy transport an already submitted request retains its concurrency slot until it settles.
 
 ## Evolving a definition
 

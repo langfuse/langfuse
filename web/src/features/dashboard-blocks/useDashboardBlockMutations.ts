@@ -2,6 +2,15 @@ import { api } from "@/src/utils/api";
 
 type MutationContext = { projectId: string; dashboardId: string };
 
+function invalidateDashboardBlockViews(
+  utils: ReturnType<typeof api.useUtils>,
+  context: MutationContext,
+) {
+  utils.dashboardBlocks.getAll.invalidate(context);
+  utils.dashboard.getDashboard.invalidate(context);
+  utils.dashboard.getHomeDashboard.invalidate({ projectId: context.projectId });
+}
+
 export function useSaveDashboardBlock({
   projectId,
   dashboardId,
@@ -10,12 +19,13 @@ export function useSaveDashboardBlock({
   const utils = api.useUtils();
   return api.dashboardBlocks.save.useMutation({
     onSuccess: () => {
-      utils.dashboardBlocks.getAll.invalidate({ projectId, dashboardId });
+      invalidateDashboardBlockViews(utils, { projectId, dashboardId });
       onSaved();
     },
     onError: (error) => {
-      if (error.data?.code === "CONFLICT")
-        utils.dashboardBlocks.getAll.invalidate({ projectId, dashboardId });
+      if (error.data?.code === "CONFLICT") {
+        invalidateDashboardBlockViews(utils, { projectId, dashboardId });
+      }
     },
   });
 }
@@ -28,12 +38,13 @@ export function useRemoveDashboardBlock({
   const utils = api.useUtils();
   return api.dashboardBlocks.remove.useMutation({
     onSuccess: () => {
-      utils.dashboardBlocks.getAll.invalidate({ projectId, dashboardId });
+      invalidateDashboardBlockViews(utils, { projectId, dashboardId });
       onRemoved();
     },
     onError: (error) => {
-      if (error.data?.code === "CONFLICT")
-        utils.dashboardBlocks.getAll.invalidate({ projectId, dashboardId });
+      if (error.data?.code === "CONFLICT") {
+        invalidateDashboardBlockViews(utils, { projectId, dashboardId });
+      }
     },
   });
 }

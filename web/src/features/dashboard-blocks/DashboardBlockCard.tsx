@@ -1,6 +1,6 @@
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { Pencil, Trash2 } from "@langfuse/icons";
+import { Grid2X2, Pencil, Trash2 } from "@langfuse/icons";
 import { type SavedDashboardBlock } from "@langfuse/shared";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
@@ -20,12 +20,16 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
     projectId,
     dashboardId,
     canEdit,
+    capabilities,
     readPath,
     dateRange,
     filterState,
     openEditor,
+    openPositionEditor,
+    placementOptions,
     track,
   } = useDashboardBlocks();
+  const editable = canEdit && capabilities[block.kind];
   const remove = useRemoveDashboardBlock({
     projectId,
     dashboardId,
@@ -37,26 +41,39 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
       text="This removes the block from this dashboard. Existing charts and their data are unchanged."
       confirmLabel="Remove"
       variant="destructive"
-      disabled={!canEdit}
+      disabled={!editable}
       loading={remove.isPending}
       error={
         remove.error
           ? "The block could not be removed. It may have changed elsewhere; refresh and try again."
           : undefined
       }
-      onConfirm={() =>
-        remove
+      onConfirm={() => {
+        if (!editable) return;
+        return remove
           .mutateAsync({
             projectId,
             dashboardId,
             id: block.id,
             expectedRevision: block.revision,
           })
-          .then(() => undefined)
-      }
+          .then(() => undefined);
+      }}
     >
       {({ openDialog }) => {
-        const actions: DataCardActions | undefined = canEdit
+        const positionActions: NonNullable<DataCardActions["menu"]> =
+          placementOptions.length > 1
+            ? [
+                {
+                  id: "position",
+                  type: "item",
+                  title: "Edit position",
+                  icon: Grid2X2,
+                  onClick: () => openPositionEditor(block),
+                },
+              ]
+            : [];
+        const actions: DataCardActions | undefined = editable
           ? {
               menu: [
                 {
@@ -66,6 +83,7 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
                   icon: Pencil,
                   onClick: () => openEditor({ kind: block.kind, block }),
                 },
+                ...positionActions,
                 {
                   id: "remove",
                   type: "item",

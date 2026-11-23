@@ -461,11 +461,31 @@ describe("dashboard widget minVersion", () => {
       expect(res.homeDashboardId).toBe(dashboard.id);
       expect(res.dashboard?.id).toBe(dashboard.id);
       expect(res.dashboard?.owner).toBe("PROJECT");
+      expect(res.dashboard?.hasDashboardBlocks).toBe(false);
+
+      await prisma.dashboardBlock.create({
+        data: {
+          dashboardId: dashboard.id,
+          id: uuidv4(),
+          kind: "markdown",
+          config: { version: 1, title: "Notes", content: "Read by everyone" },
+        },
+      });
+      const detail = await caller.dashboard.getDashboard({
+        projectId,
+        dashboardId: dashboard.id,
+      });
+      expect(detail.hasDashboardBlocks).toBe(true);
+      const homeWithNote = await caller.dashboard.getHomeDashboard({
+        projectId,
+      });
+      expect(homeWithNote.dashboard?.hasDashboardBlocks).toBe(true);
 
       await caller.dashboard.setHomeDashboard({ projectId, dashboardId: null });
       const cleared = await caller.dashboard.getHomeDashboard({ projectId });
       expect(cleared.homeDashboardId).toBeNull();
       expect(cleared.dashboard?.id).toBe(LANGFUSE_HOME_DASHBOARD_ID);
+      expect(cleared.dashboard?.hasDashboardBlocks).toBe(false);
     });
 
     it("rejects pointing at a nonexistent dashboard", async () => {

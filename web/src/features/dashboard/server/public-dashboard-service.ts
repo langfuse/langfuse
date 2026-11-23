@@ -92,7 +92,7 @@ const toApiDashboard = (dashboard: DashboardDomain) =>
 async function getProjectDashboardOrThrow(
   projectId: string,
   dashboardId: string,
-) {
+): Promise<DashboardDomain> {
   const dashboard = await DashboardService.getDashboard(dashboardId, projectId);
   if (!dashboard || dashboard.projectId !== projectId) {
     throw new LangfuseNotFoundError(`Dashboard ${dashboardId} not found`);

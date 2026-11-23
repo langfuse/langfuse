@@ -22,6 +22,7 @@ export type DashboardBlocksContextValue = {
   placementOptions: { value: string | null; label: string }[];
   loadError: boolean;
   openEditor: (request: BlockEditorRequest) => void;
+  openPositionEditor: (block: SavedDashboardBlock) => void;
   track: (
     action:
       | "preview"

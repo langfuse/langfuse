@@ -7,11 +7,13 @@ export function DashboardBlockPlacement({
   value,
   options,
   disabled,
+  defaultExpanded = false,
   onChange,
 }: {
   value: string | null;
   options: { value: string | null; label: string }[];
   disabled: boolean;
+  defaultExpanded?: boolean;
   onChange: (value: string | null) => void;
 }) {
   const id = useId();
@@ -26,7 +28,11 @@ export function DashboardBlockPlacement({
     : null;
   return (
     <div className="ph-no-capture">
-      <Accordion type="single" collapsible>
+      <Accordion
+        type="single"
+        collapsible
+        defaultValue={defaultExpanded ? "position" : undefined}
+      >
         <Accordion.Item value="position">
           <Accordion.Trigger size="sm">
             <span className="text-muted-foreground text-left font-normal">

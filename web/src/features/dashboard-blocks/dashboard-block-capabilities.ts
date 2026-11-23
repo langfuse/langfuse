@@ -27,15 +27,31 @@ export async function readDashboardBlockCapabilities({
   }
 }
 
-function isAuthoritativeCapabilityFailure(error: unknown) {
-  if (!(error instanceof TRPCClientError)) return false;
-  if (["UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND"].includes(error.data?.code))
-    return true;
+function dashboardBlockErrorStatus(error: unknown): number | undefined {
+  if (!(error instanceof TRPCClientError)) return undefined;
+  switch (error.data?.code) {
+    case "UNAUTHORIZED":
+      return 401;
+    case "FORBIDDEN":
+      return 403;
+    case "NOT_FOUND":
+      return 404;
+  }
   const response = error.meta?.response;
-  const status =
+  return (
     error.data?.httpStatus ??
     readAnnotatedResponseStatus(error.cause) ??
-    (response instanceof Response ? response.status : undefined);
+    (response instanceof Response ? response.status : undefined)
+  );
+}
+
+export function isDashboardBlockReadDenied(error: unknown) {
+  const status = dashboardBlockErrorStatus(error);
+  return status === 401 || status === 403 || status === 404;
+}
+
+function isAuthoritativeCapabilityFailure(error: unknown) {
+  const status = dashboardBlockErrorStatus(error);
   return (
     typeof status === "number" &&
     status >= 400 &&

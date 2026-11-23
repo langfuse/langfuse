@@ -342,22 +342,27 @@ export class DashboardService {
   public static async getDashboard(
     dashboardId: string,
     projectId: string,
-  ): Promise<DashboardDomain | null> {
+  ): Promise<(DashboardDomain & { hasDashboardBlocks: boolean }) | null> {
     const dashboard = await prisma.dashboard.findFirst({
       where: {
         id: dashboardId,
         OR: [{ projectId }, { projectId: null }],
       },
+      include: { blocks: { select: { id: true }, take: 1 } },
     });
 
     if (!dashboard) {
       return null;
     }
 
-    return DashboardDomainSchema.parse({
-      ...dashboard,
-      owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
-    });
+    return {
+      ...DashboardDomainSchema.parse({
+        ...dashboard,
+        owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
+      }),
+      hasDashboardBlocks:
+        dashboard.projectId !== null && dashboard.blocks.length > 0,
+    };
   }
 
   /**

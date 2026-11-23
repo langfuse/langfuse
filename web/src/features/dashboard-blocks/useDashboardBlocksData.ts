@@ -1,13 +1,14 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
-import { readDashboardBlockCapabilities } from "./dashboard-block-capabilities";
-import { type HomeDashboardPresetId } from "@langfuse/shared";
+import { isDashboardBlockReadDenied } from "./dashboard-block-capabilities";
+import { useDashboardBlockCapabilities } from "./useDashboardBlockCapabilities";
+import { HOME_DASHBOARD_PRESET_IDS } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { getHomePresetMetadata } from "@/src/features/dashboard/components/home-preset-registry";
 import { type DashboardBlocksContextValue } from "./dashboard-block-context";
-import { hasDashboardBlocksLoadError } from "./dashboard-block-errors";
 
 export function useDashboardBlocksData({
   projectId,
@@ -15,73 +16,71 @@ export function useDashboardBlocksData({
   canEdit,
   readPath,
   widgets,
+  hasDashboardBlocks,
+  dashboardReady = true,
+  authoringEnabled = false,
 }: {
   projectId: string;
   dashboardId: string;
   canEdit: boolean;
   readPath: ResolvedReadPath;
   widgets: DashboardPlacement[];
+  hasDashboardBlocks?: boolean;
+  dashboardReady?: boolean;
+  authoringEnabled?: boolean;
 }) {
+  const canAuthor =
+    dashboardReady &&
+    typeof hasDashboardBlocks === "boolean" &&
+    authoringEnabled &&
+    canEdit;
+  const capabilitiesQuery = useDashboardBlockCapabilities(projectId, canAuthor);
+  const capabilities = canAuthor
+    ? (capabilitiesQuery.data ?? { multiQuery: false, markdown: false })
+    : { multiQuery: false, markdown: false };
+  const readsEnabled = dashboardReady && hasDashboardBlocks === true;
   const utils = api.useUtils();
   const queryClient = useQueryClient();
-  const queryKey = getQueryKey(
-    api.dashboardBlocks.capabilities,
-    { projectId },
-    "query",
-  );
-  const capabilitiesQuery = useQuery({
+  const input = { projectId, dashboardId };
+  const queryKey = getQueryKey(api.dashboardBlocks.getAll, input, "query");
+  const saved = useQuery({
     queryKey,
-    queryFn: ({ signal }) =>
-      readDashboardBlockCapabilities({
-        queryClient,
-        queryKey,
-        read: () =>
-          utils.client.dashboardBlocks.capabilities.query(
-            { projectId },
-            { signal },
-          ),
-      }),
-    staleTime: 15_000,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: "always",
-    refetchInterval: (query) => {
-      const active = query.state.data?.multiQuery || query.state.data?.markdown;
-      return active ? 30_000 : false;
+    queryFn: async ({ signal }) => {
+      try {
+        return await utils.client.dashboardBlocks.getAll.query(input, {
+          signal,
+        });
+      } catch (error) {
+        // A later transient failure must not restore rows after read access was denied.
+        if (isDashboardBlockReadDenied(error))
+          queryClient.setQueryData(queryKey, []);
+        throw error;
+      }
     },
-    refetchIntervalInBackground: false,
+    enabled: readsEnabled && Boolean(projectId) && Boolean(dashboardId),
+    staleTime: 0,
+    refetchOnMount: true,
     retry: false,
-    meta: {
-      silentHttpCodes: [404],
-      toastOperation: "dashboard.query",
-    },
+    meta: { silentHttpCodes: [404] },
   });
-  const capabilities = capabilitiesQuery.data ?? {
-    multiQuery: false,
-    markdown: false,
-  };
-  const kinds: ("multiQuery" | "markdown")[] = [];
-  if (capabilities.multiQuery) kinds.push("multiQuery");
-  if (capabilities.markdown) kinds.push("markdown");
-  const saved = api.dashboardBlocks.getAll.useQuery(
-    { projectId, dashboardId, kinds },
-    {
-      enabled: kinds.length > 0,
-      staleTime: 0,
-      refetchOnMount: true,
-      retry: false,
-      meta: { silentHttpCodes: [404] },
-    },
-  );
   const widgetNames = api.dashboardWidgets.all.useQuery(
     { projectId, orderBy: { column: "updatedAt", order: "DESC" } },
     {
-      enabled:
-        canEdit &&
-        widgets.some((widget) => widget.type === "widget") &&
-        kinds.length > 0,
+      enabled: canAuthor && widgets.some((widget) => widget.type === "widget"),
       staleTime: 60_000,
     },
   );
+  const scope = JSON.stringify([projectId, dashboardId]);
+  const loading = readsEnabled && saved.isLoading;
+  const canSettleInitialRead = dashboardReady && !loading;
+  const [bootstrap, setBootstrap] = useState({
+    scope,
+    settled: canSettleInitialRead,
+  });
+  if (bootstrap.scope !== scope)
+    setBootstrap({ scope, settled: canSettleInitialRead });
+  else if (!bootstrap.settled && canSettleInitialRead)
+    setBootstrap({ scope, settled: true });
   const names = new Map(
     widgetNames.data?.widgets.map((widget) => [widget.id, widget.name]),
   );
@@ -97,15 +96,11 @@ export function useDashboardBlocksData({
   ];
   return {
     capabilities,
-    capabilitiesPending: capabilitiesQuery.isPending,
-    blocksPending:
-      capabilitiesQuery.isLoading || (kinds.length > 0 && saved.isLoading),
-    blocks: (saved.data ?? []).filter((block) => capabilities[block.kind]),
+    capabilitiesPending: canAuthor && capabilitiesQuery.isPending,
+    blocksPending: loading && (bootstrap.scope !== scope || !bootstrap.settled),
+    blocks: readsEnabled ? (saved.data ?? []) : [],
     placementOptions,
-    loadError: hasDashboardBlocksLoadError({
-      capabilitiesError: capabilitiesQuery.error,
-      savedFailed: saved.isError,
-    }),
+    loadError: readsEnabled && saved.isError,
   };
 }
 
@@ -115,10 +110,13 @@ function placementName(
   version: "v1" | "v2",
   names: ReadonlyMap<string, string>,
 ) {
-  if (widget.type === "preset")
-    return getHomePresetMetadata(
-      widget.presetId as HomeDashboardPresetId,
-      version,
-    ).name;
+  if (widget.type === "preset") {
+    const preset = HOME_DASHBOARD_PRESET_IDS.find(
+      (id) => id === widget.presetId,
+    );
+    return preset
+      ? getHomePresetMetadata(preset, version).name
+      : widget.presetId;
+  }
   return names.get(widget.widgetId) ?? `chart ${index + 1}`;
 }

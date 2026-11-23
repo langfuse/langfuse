@@ -21,8 +21,9 @@ export function DashboardBlocksCanvas({
     blocks,
     blocksPending,
     canEdit,
+    capabilities,
     loadError,
-    openEditor,
+    openPositionEditor,
     placementOptions,
     track,
   } = useDashboardBlocks();
@@ -91,16 +92,15 @@ export function DashboardBlocksCanvas({
                       )?.label ?? "After all chart rows"}
                     </p>
                   </div>
-                  <Button
-                    text="Edit position"
-                    icon={Pencil}
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      track("placement", block.kind);
-                      openEditor({ kind: block.kind, block });
-                    }}
-                  />
+                  {capabilities[block.kind] && placementOptions.length > 1 && (
+                    <Button
+                      text="Edit position"
+                      icon={Pencil}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openPositionEditor(block)}
+                    />
+                  )}
                 </div>
               ))}
             </div>
