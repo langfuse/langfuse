@@ -126,10 +126,10 @@ impl ProviderTransport {
 
     fn with_limits(limits: ProviderLimits, policy: OutboundPolicy) -> Result<Self, ProviderError> {
         let policy = Arc::new(policy);
-        let client = provider_client_builder(limits.execution.stall_timeout)
+        let client = provider_client_builder(limits.execution.max_execution_time)
             .build()
             .map_err(|_| ProviderError::Configuration)?;
-        let custom_base_url_client = provider_client_builder(limits.execution.stall_timeout)
+        let custom_base_url_client = provider_client_builder(limits.execution.max_execution_time)
             .dns_resolver(outbound::PolicyResolver(Arc::clone(&policy)))
             .build()
             .map_err(|_| ProviderError::Configuration)?;
@@ -456,7 +456,7 @@ const PROVIDER_TCP_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
 // Linux rejects `TCP_KEEPCNT` outside `1..=MAX_TCP_KEEPCNT` (127).
 const MAX_TCP_KEEPALIVE_RETRIES: u32 = 127;
 
-fn provider_client_builder(stall_timeout: Duration) -> reqwest::ClientBuilder {
+fn provider_client_builder(max_execution_time: Duration) -> reqwest::ClientBuilder {
     let builder = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .retry(reqwest::retry::never())
@@ -467,22 +467,23 @@ fn provider_client_builder(stall_timeout: Duration) -> reqwest::ClientBuilder {
         .no_zstd()
         // No client read timeout: it would also cut a non-streaming call while the
         // provider generates before sending headers. The relay bounds stalls instead.
-        // Match TCP keepalive and `TCP_USER_TIMEOUT` to `stall_timeout` so reqwest's
-        // 30 s default does not abort a silent upstream connection early.
+        // Match TCP keepalive and `TCP_USER_TIMEOUT` to `max_execution_time` (the
+        // longest wait the relay allows for non-streaming headers) so reqwest's 30 s
+        // default does not abort a silent upstream connection early.
         .connect_timeout(Duration::from_secs(5))
         .tcp_keepalive(PROVIDER_TCP_KEEPALIVE_IDLE)
         .tcp_keepalive_interval(PROVIDER_TCP_KEEPALIVE_INTERVAL)
-        .tcp_keepalive_retries(tcp_keepalive_retries(stall_timeout))
+        .tcp_keepalive_retries(tcp_keepalive_retries(max_execution_time))
         .pool_max_idle_per_host(16)
         // reqwest's http2 feature is for Web-bound clients (resolver, telemetry); provider calls stay on HTTP/1.1.
         .http1_only();
     #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
-    let builder = builder.tcp_user_timeout(stall_timeout);
+    let builder = builder.tcp_user_timeout(max_execution_time);
     builder
 }
 
-fn tcp_keepalive_retries(stall_timeout: Duration) -> u32 {
-    let probe_window = stall_timeout
+fn tcp_keepalive_retries(timeout: Duration) -> u32 {
+    let probe_window = timeout
         .saturating_sub(PROVIDER_TCP_KEEPALIVE_IDLE)
         .as_secs();
     let retries = probe_window.div_ceil(PROVIDER_TCP_KEEPALIVE_INTERVAL.as_secs());

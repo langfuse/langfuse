@@ -84,9 +84,10 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
 }
 
 #[test]
-fn tcp_keepalive_retries_cover_stall_timeout_within_kernel_bounds() {
-    assert_eq!(tcp_keepalive_retries(Duration::from_secs(120)), 6);
-    assert_eq!(tcp_keepalive_retries(Duration::from_secs(125)), 7);
+fn tcp_keepalive_retries_cover_timeout_within_kernel_bounds() {
+    assert_eq!(tcp_keepalive_retries(Duration::from_secs(600)), 38);
+    assert_eq!(tcp_keepalive_retries(Duration::from_secs(605)), 39);
+    assert_eq!(tcp_keepalive_retries(Duration::from_secs(60)), 2);
     assert_eq!(tcp_keepalive_retries(Duration::from_secs(1)), 1);
     assert_eq!(tcp_keepalive_retries(Duration::from_millis(30)), 1);
     assert_eq!(
