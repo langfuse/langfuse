@@ -21,7 +21,7 @@ pub(crate) enum StreamOptions {
 
 impl StreamOptions {
     #[cfg(test)]
-    pub(crate) fn of(body: &[u8]) -> Self {
+    pub(crate) fn from_body(body: &[u8]) -> Self {
         // `Option<&RawValue>` alone would read `null` as absent.
         fn present<'de, D: Deserializer<'de>>(
             deserializer: D,
@@ -142,7 +142,7 @@ mod tests {
 
     fn rewrite(body: &str) -> Option<String> {
         let (range, replacement) =
-            stream_usage_edit(body.as_bytes(), &StreamOptions::of(body.as_bytes()))?;
+            stream_usage_edit(body.as_bytes(), &StreamOptions::from_body(body.as_bytes()))?;
         let mut rewritten = body.as_bytes().to_vec();
         rewritten.splice(range, replacement);
         Some(String::from_utf8(rewritten).unwrap())

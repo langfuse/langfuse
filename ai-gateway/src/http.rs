@@ -242,15 +242,20 @@ async fn relay(
         .observation()
         .record_request_bytes(request_bytes);
     let capture = route.captures_generation();
-    let mut request_body = inference
-        .run_cpu(request_bytes, move || parse_request_body(bytes, capture))
+    // The reservation travels with the body, so a caller that disconnects mid-parse
+    // cannot free budget while the parse still holds the body.
+    let (parsed, reservation) = inference
+        .run_cpu(request_bytes, move || {
+            (parse_request_body(bytes, capture), reservation)
+        })
         .instrument(tracing::info_span!(
             "request.parse",
             otel.kind = "internal",
             http.request.body.size = byte_count(request_bytes)
         ))
         .await
-        .map_err(InferenceHttpError::Resolution)??;
+        .map_err(InferenceHttpError::Resolution)?;
+    let mut request_body = parsed?;
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,

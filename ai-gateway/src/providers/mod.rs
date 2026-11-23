@@ -183,7 +183,7 @@ impl ProviderTransport {
     ) -> Result<Response<Body>, ProviderError> {
         let model_range = model_range(&body)?;
         let input = Some(crate::capture::RequestInput::from_body(&body));
-        let stream_options = StreamOptions::of(&body);
+        let stream_options = StreamOptions::from_body(&body);
         self.forward_route(
             permit,
             context,
