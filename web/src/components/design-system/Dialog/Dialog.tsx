@@ -58,7 +58,6 @@ type DialogProps = {
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
   title: string;
-  description?: React.ReactNode;
 } & (
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
@@ -79,7 +78,6 @@ function DialogRoot({
   size,
   text,
   title,
-  description,
 }: DialogProps) {
   const container = useLayerContainer("modal");
   const [popoverContainer, setPopoverContainer] =
@@ -110,7 +108,7 @@ function DialogRoot({
         onClick={(event) => event.stopPropagation()}
       />
       <DialogPrimitive.Content
-        {...(description === undefined && { "aria-describedby": undefined })}
+        aria-describedby={undefined}
         className={cn(
           motionStyles.content,
           dialogContentVariants({ size }),
@@ -187,11 +185,6 @@ function DialogRoot({
                 </DialogPrimitive.Close>
               )}
             </div>
-            {description !== undefined && (
-              <DialogPrimitive.Description className="text-sm leading-relaxed">
-                {description}
-              </DialogPrimitive.Description>
-            )}
           </header>
           <PopoverLayerProvider container={popoverContainer}>
             {text !== undefined ? <DialogBody>{text}</DialogBody> : children}

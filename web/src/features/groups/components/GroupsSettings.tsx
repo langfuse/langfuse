@@ -19,7 +19,7 @@ import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import Header from "@/src/components/layouts/header";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import {
@@ -279,7 +279,7 @@ function GroupsSettingsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="organization groups"
       columns={columns}
       data={data}
@@ -512,7 +512,7 @@ function GroupMembersDialog({
           {group && canEdit && !isScimManaged(group) && (
             <AddGroupMembers orgId={orgId} group={group} />
           )}
-          <SettingsTable
+          <TableCard
             tableName="group members"
             columns={memberColumns}
             // Members of SCIM groups are managed in the identity provider.

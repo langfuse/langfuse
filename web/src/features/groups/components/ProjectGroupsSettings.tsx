@@ -4,7 +4,7 @@ import { projectRoleAccessRights, type Role } from "@langfuse/shared";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import Header from "@/src/components/layouts/header";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -247,7 +247,7 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
           </Banner>
         </div>
       )}
-      <SettingsTable
+      <TableCard
         tableName="project groups"
         columns={columns}
         data={data}

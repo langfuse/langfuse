@@ -314,7 +314,6 @@ function RoleDialog({
   return (
     <Dialog
       title={roleKind}
-      description={`${displayName} ${scopeLabel}`}
       size="default"
       closeLabel="Cancel"
       actions={[
@@ -331,6 +330,9 @@ function RoleDialog({
     >
       <Dialog.Body spacing="compact">
         <div className="flex flex-col gap-3 text-sm">
+          <p>
+            {displayName} {scopeLabel}
+          </p>
           {explain && (
             <EffectiveRoleCard
               caption="combined permissions of direct and group roles"

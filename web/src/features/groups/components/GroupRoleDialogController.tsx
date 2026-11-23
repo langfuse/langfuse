@@ -99,7 +99,8 @@ const Em = ({ children }: { children: React.ReactNode }) => (
   <span className="text-foreground font-bold">{children}</span>
 );
 
-function groupRoleAnswer({
+/** GroupRoleSummary states in one sentence the role the group gives its members at this level. */
+function GroupRoleSummary({
   level,
   groupName,
   members,
@@ -116,9 +117,9 @@ function groupRoleAnswer({
     level === "project" ? "on this project" : "in this organization";
   if (role === "NONE")
     return (
-      <>
+      <p>
         <Em>{groupName}</Em> gives its {members} no role {scope}.
-      </>
+      </p>
     );
   const lead = (
     <>
@@ -130,16 +131,16 @@ function groupRoleAnswer({
   );
   if (level === "organization")
     return (
-      <>
+      <p>
         {lead} in this organization
         {role === "AI_GATEWAY" ? "" : " and every project"}.
-      </>
+      </p>
     );
   return (
-    <>
+    <p>
       {lead} on this project,{" "}
       {setHere ? "set here" : "inherited from its organization role"}.
-    </>
+    </p>
   );
 }
 
@@ -166,13 +167,6 @@ function GroupRoleDialog({
   return (
     <Dialog
       title={roleKind}
-      description={groupRoleAnswer({
-        level,
-        groupName,
-        members: memberCountLabel(memberCount),
-        role: resolved.role,
-        setHere: onProject && resolved.role !== levelOrgRole,
-      })}
       closeLabel="Cancel"
       actions={[
         {
@@ -188,6 +182,13 @@ function GroupRoleDialog({
     >
       <Dialog.Body spacing="compact">
         <div className="flex flex-col gap-3 text-sm">
+          <GroupRoleSummary
+            level={level}
+            groupName={groupName}
+            members={memberCountLabel(memberCount)}
+            role={resolved.role}
+            setHere={onProject && resolved.role !== levelOrgRole}
+          />
           {onProject && resolved.role !== "NONE" && (
             <EffectiveRoleCard
               caption="combined permissions of inherited and project roles"
