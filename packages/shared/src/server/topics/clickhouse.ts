@@ -1450,3 +1450,46 @@ export async function deleteTopicDataByProjectId(
   );
   return deleted.some(Boolean);
 }
+
+/**
+ * Deletes summaries and assignments whose source started before the cutoff.
+ * Topic definitions are reused across runs, so they do not expire by age.
+ */
+export async function deleteTopicResultsOlderThan(
+  projectId: string,
+  beforeDate: Date,
+): Promise<boolean> {
+  const params = {
+    projectId,
+    cutoff: convertDateToClickhouseDateTime(beforeDate),
+  };
+  const deleted = await Promise.all(
+    (
+      [
+        "topic_facet_summaries",
+        "topic_assignments",
+        "topic_assignments_by_trace",
+      ] as const
+    ).map(async (table) => {
+      const where =
+        "project_id = {projectId: String} AND unit_start_time < {cutoff: DateTime64(3)}";
+      const tags = { route: "topics-retention", projectId };
+      const rows = await queryClickhouse<{ 1: number }>({
+        query: `SELECT 1 FROM ${table} WHERE ${where} LIMIT 1`,
+        params,
+        tags,
+      });
+      if (rows.length === 0) return false;
+      await commandClickhouse({
+        query: `DELETE FROM ${table} WHERE ${where}`,
+        params,
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags,
+      });
+      return true;
+    }),
+  );
+  return deleted.some(Boolean);
+}

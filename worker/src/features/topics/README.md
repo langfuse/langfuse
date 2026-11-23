@@ -93,7 +93,7 @@ Processing estimates sum retained summaries' `cost_details['total']` by project 
 
 Queue metrics expose backlog. Global snapshots can be emitted by several workers: use max for counts and age, not sums across reporters.
 
-Trace deletion removes summaries and assignments, including map coordinates; project deletion also removes topic definitions. Deletion does not cancel in-flight jobs, which can write afterward. Stored transcripts have their own bucket-expiry contract; see the trace dispatch README.
+Trace deletion removes summaries and assignments, including map coordinates; project deletion also removes topic definitions. Project retention expires summaries and assignments by `unit_start_time`; topic definitions and runs do not expire by age, because runs reuse older definition versions. Deletion does not cancel in-flight jobs, which can write afterward. Stored transcripts have their own bucket-expiry contract; see the trace dispatch README.
 
 ## Verification
 
