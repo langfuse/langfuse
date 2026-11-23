@@ -3,6 +3,3 @@
 
 *storybook.log
 storybook-static
-
-# MCP App views from scripts/build-mcp-apps.mjs
-.mcp-apps/

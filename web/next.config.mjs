@@ -113,7 +113,13 @@ const nextConfig = {
     ignoreBuildErrors: process.env.NEXT_IGNORE_BUILD_ERRORS === "true",
   },
   // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
-  allowedDevOrigins: ["127.0.0.1"],
+  // MCP App hosts load the widget page's dev assets from their sandbox
+  // origins (src/features/mcp/server/apps/resources.ts).
+  allowedDevOrigins: [
+    "127.0.0.1",
+    "*.claudemcpcontent.com",
+    "**.oaiusercontent.com",
+  ],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
   transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
@@ -337,6 +343,22 @@ const nextConfig = {
           {
             key: "Access-Control-Allow-Methods",
             value: "GET",
+          },
+        ],
+      },
+      // Build output is public and content-hashed. MCP App hosts render the
+      // widget page in sandboxed iframes on their own (often opaque) origins,
+      // which load these scripts, styles and fonts cross-origin.
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Access-Control-Allow-Origin",
+            value: "*",
+          },
+          {
+            key: "Access-Control-Allow-Methods",
+            value: "GET, HEAD",
           },
         ],
       },

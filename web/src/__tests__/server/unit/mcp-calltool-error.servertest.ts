@@ -7,7 +7,10 @@ import {
   ProtocolErrorCode,
 } from "@modelcontextprotocol/client";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { ClickHouseResourceError } from "@langfuse/shared/src/server";
+import {
+  ClickHouseResourceError,
+  getProductBaseUrl,
+} from "@langfuse/shared/src/server";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
@@ -142,17 +145,42 @@ describe("MCP Apps", () => {
       });
       expect(result.content).toEqual([{ type: "text", text: "summary" }]);
       expect(result._meta).toEqual({ widget: { title: "Cost" } });
+      // The resource is the widget page's HTML, fetched from the app itself.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(
+              '<!doctype html><html><head><script src="/_next/static/chunks/app.js"></script></head></html>',
+            ),
+        ),
+      );
       const read = await client.request(
         { method: "resources/read", params: { uri: WIDGET_APP_RESOURCE_URI } },
         z.object({
           contents: z.array(
-            z.object({ mimeType: z.string(), text: z.string() }),
+            z.object({
+              mimeType: z.string(),
+              text: z.string(),
+              _meta: z.object({
+                ui: z.object({
+                  csp: z.object({ resourceDomains: z.array(z.string()) }),
+                }),
+              }),
+            }),
           ),
         }),
       );
+      // The page's root-relative assets must load from Langfuse, not from
+      // the host's sandbox origin.
+      const origin = getProductBaseUrl().origin;
       expect(read.contents[0]?.mimeType).toBe(MCP_APP_MIME_TYPE);
-      expect(read.contents[0]?.text).toMatch(/^<!doctype html>/i);
+      expect(read.contents[0]?.text).toContain(
+        `<script src="${origin}/_next/static/chunks/app.js">`,
+      );
+      expect(read.contents[0]?._meta.ui.csp.resourceDomains).toEqual([origin]);
     } finally {
+      vi.unstubAllGlobals();
       await client.close();
       await server.close();
     }

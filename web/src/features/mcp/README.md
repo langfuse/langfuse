@@ -126,7 +126,13 @@ How a call flows:
 2. The tool definition points at `ui://langfuse/widget.html` (`ui` option of `defineTool`). The host reads that resource (`server/apps/resources.ts`) and loads it into a sandboxed iframe.
 3. The view (`views/widget/WidgetApp.tsx`) connects to the host with the `@modelcontextprotocol/ext-apps` SDK, receives the tool result and renders the dashboard's `WidgetChartCard`.
 
-Hosts' iframes cannot load scripts or styles from Langfuse, so the resource is self-contained: `scripts/build-mcp-apps.mjs` builds each view into one HTML file with its script bundle and Tailwind CSS inlined (`web/.mcp-apps/widget.html`), and the server returns it as is. Run `pnpm --filter web run build:mcp-apps` after changing a view in development; `pnpm --filter web run build` runs it as its last step and ships the output next to the standalone server. Hosts may cache the resource per conversation, so check view changes in a new one.
+The view is an ordinary Next.js page, `/mcp-apps/widget` (`src/app/mcp-apps`), built and deployed with the app. The server fetches that page's HTML from itself and returns it as the resource, with a `<base>` pointing at Langfuse. The host's sandboxed iframe then loads the page's scripts and styles from Langfuse:
+
+- `_meta.ui.csp` declares Langfuse (and `NEXT_PUBLIC_ASSET_PREFIX`, when set) as `resourceDomains` and `baseUriDomains`; hosts block every other origin.
+- `/_next/static/*` responses carry `Access-Control-Allow-Origin: *` (`next.config.mjs`), since the iframe's origin is the host's, not Langfuse's. With an asset prefix, the host behind it must send the same header.
+- Hosts only reach public HTTPS servers. To try it locally, serve the dev server over HTTPS on a public hostname (for example a tunnel) and set `NEXTAUTH_URL` to it. `allowedDevOrigins` lets the hosts' sandbox origins load dev assets.
+
+Hosts may cache the resource per conversation, so check view changes in a new one.
 
 ---
 

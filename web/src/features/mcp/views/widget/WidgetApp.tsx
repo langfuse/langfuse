@@ -20,7 +20,7 @@ const resultText = (result: ToolResult) =>
   result.content?.find((block) => block.type === "text")?.text;
 
 /**
- * The `renderWidget` MCP App view, inlined into `ui://langfuse/widget.html`.
+ * The `renderWidget` MCP App view, the page behind `ui://langfuse/widget.html`.
  * It renders the dashboard's `WidgetChartCard` from the widget definition
  * and rows in the tool result's `_meta.widget`.
  */
