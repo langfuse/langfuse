@@ -15,7 +15,10 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { TagShell } from "@/src/components/design-system/Tag/Tag";
 import { memberCountLabel } from "@/src/features/groups/components/GroupMemberStack";
-import { GROUP_SOURCE_DISPLAY } from "@/src/features/groups/groupSource";
+import {
+  isScimManaged,
+  SCIM_SYNCED_LABEL,
+} from "@/src/features/groups/groupSource";
 import { EffectiveRoleCard } from "@/src/features/rbac/components/EffectiveRoleCard";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
@@ -254,11 +257,9 @@ type EffectiveRoleSourceProps = {
   editor: DirectRoleEditor;
 };
 
-/** A group that gives a role: its chip links to the group and its card says where the group is managed, what access it sets and who is in it. */
+/** A group that gives a role: its chip links to the group and its card says whether the group is synced, what access it sets and who is in it. */
 function GroupChip({ group }: { group: GroupReason }) {
   const onProject = group.level === "project";
-  const source = GROUP_SOURCE_DISPLAY[group.source];
-  const SourceIcon = source.icon;
   const hiddenMembers = group.memberCount - group.memberPreview.length;
   return (
     <HoverCard
@@ -272,18 +273,15 @@ function GroupChip({ group }: { group: GroupReason }) {
               <Users size="sm" aria-hidden="true" __rawClassName="mt-0.5" />
               <span className="min-w-0 break-words">{group.label}</span>
             </p>
-            <p className="text-muted-foreground flex items-center gap-1.5">
-              <SourceIcon size="sm" aria-hidden="true" />
-              {source.summary}
-            </p>
+            {isScimManaged(group) && (
+              <p className="text-muted-foreground">{SCIM_SYNCED_LABEL}</p>
+            )}
           </div>
           <p className="flex items-center justify-between gap-2 border-t pt-2">
             <span className="text-muted-foreground">
               {onProject ? "Access on this project" : "Access level"}
             </span>
-            <span className="font-medium">
-              <RoleWithIcon role={group.role} />
-            </span>
+            <span className="font-medium">{roleName(group.role)}</span>
           </p>
           <div className="flex flex-col gap-1.5 border-t pt-2">
             <p className="text-muted-foreground">
@@ -329,7 +327,7 @@ function GroupChip({ group }: { group: GroupReason }) {
         <TagShell asChild>
           <Link
             href={group.href}
-            className="hover:bg-accent hover:text-foreground focus-visible:ring-ring underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-hidden"
+            className="hover:bg-primary/10 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-hidden"
             {...getTriggerProps()}
           >
             <Users size="sm" color="tertiary" aria-hidden="true" />
