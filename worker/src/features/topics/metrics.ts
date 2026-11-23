@@ -28,6 +28,7 @@ export type TopicResult =
   | "assigned"
   | "outlier"
   | "name_conflict"
+  | "name_kept"
   | "duplicate_name";
 type TopicErrorReason =
   | TopicsProviderUnavailable["reason"]
@@ -69,6 +70,18 @@ export function recordTopicModelCall(
   else if (httpStatus >= 400 && httpStatus < 500) status = "4xx";
   else if (httpStatus >= 500 && httpStatus < 600) status = "5xx";
   recordIncrement("langfuse.topics.llm_calls", 1, { stage, adapter, status });
+}
+
+/** One cost estimate from the user's click to its end, queue wait included; the count per outcome is the success rate. */
+export function recordTopicCostEstimate(
+  outcome: "done" | "failed" | "superseded",
+  startedAt: number,
+): void {
+  recordDistribution(
+    "langfuse.topics.cost_estimate_duration_ms",
+    Date.now() - startedAt,
+    { outcome, unit: "milliseconds" },
+  );
 }
 
 /** One instance per execution attempt prevents nested catches counting an error twice. */

@@ -4,7 +4,6 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
@@ -34,7 +33,11 @@ export type ConfigureTopicsDraft = {
   embeddingDimensions: string;
   clustering: JudgeModel | null;
   idleSeconds: string;
-  embeddingLocked: boolean;
+  /**
+   * Summaries were embedded with the saved embedding model and dimensions, so
+   * the server rejects any other.
+   */
+  hasEmbeddings: boolean;
   /**
    * Automatic processing of new traces is on, so Save tests every model.
    * Otherwise Save tests only the models that changed.
@@ -80,7 +83,6 @@ const SLOT_COPY = {
   },
   embedding: {
     label: "Embeddings",
-    lockedHint: "Locked after the first summaries are embedded.",
     recommendation:
       "Choose an embedding model your connection offers, such as text-embedding-3-small.",
   },
@@ -138,9 +140,18 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
           (slot === "embedding" && dimensions !== draft.embeddingDimensions)),
     )
     .every((slot) => !slotChecks || slotChecks[slot]?.status === "ok");
+  // The lock covers the model and dimensions, not the connection, so the same
+  // model can still move to another connection.
+  const lockedEmbedding = draft.hasEmbeddings ? draft.embedding : null;
+  const leavesLockedEmbedding =
+    lockedEmbedding !== null &&
+    embedding !== null &&
+    (embedding.model !== lockedEmbedding.model ||
+      Number(dimensions) !== Number(draft.embeddingDimensions));
   const canSave =
     canWrite &&
     !saving &&
+    !leavesLockedEmbedding &&
     (draft.automaticProcessing ? modelsPass : changedSlotsPass);
   const commitSlot = (
     slot: "summary" | "embedding" | "clustering",
@@ -220,7 +231,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             <ModelSlot
               name="summary"
               model={summary}
-              locked={false}
               disabled={!canWrite}
               check={slotChecks?.summary}
               connectionMissing={paused !== null}
@@ -234,7 +244,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
             <ModelSlot
               name="embedding"
               model={embedding}
-              locked={draft.embeddingLocked}
               disabled={!canWrite}
               check={slotChecks?.embedding}
               dimensions={dimensions}
@@ -248,11 +257,17 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 setEmbedding(model);
                 commitSlot("embedding", model);
               }}
-            />
+            >
+              {lockedEmbedding && leavesLockedEmbedding ? (
+                <EmbeddingLockedWarning
+                  model={lockedEmbedding.model}
+                  dimensions={draft.embeddingDimensions}
+                />
+              ) : null}
+            </ModelSlot>
             <ModelSlot
               name="clustering"
               model={clustering}
-              locked={false}
               disabled={!canWrite}
               check={slotChecks?.clustering}
               providerGroups={providerGroups}
@@ -295,10 +310,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
 
 function ModelSlot({
   check,
+  children,
   connectionMissing = false,
   dimensions,
   disabled = false,
-  locked,
   model,
   name,
   onConfigureProviders,
@@ -307,10 +322,11 @@ function ModelSlot({
   providerGroups,
 }: {
   check?: TopicSlotCheck;
+  /** Shown under the fields, as wide as them. */
+  children?: ReactNode;
   connectionMissing?: boolean;
   dimensions?: string;
   disabled?: boolean;
-  locked: boolean;
   model: JudgeModel | null;
   name: keyof typeof SLOT_COPY;
   onConfigureProviders: () => void;
@@ -320,52 +336,21 @@ function ModelSlot({
 }) {
   const [open, setOpen] = useState(false);
   const copy = SLOT_COPY[name];
-  const inactive = locked || disabled;
-  const controls = (
-    <>
-      <div
-        className={`min-w-0 flex-1 [&_button]:w-full ${inactive ? "[&_button]:pointer-events-none" : ""}`}
-      >
-        <JudgeModelPicker
-          purpose="decision"
-          open={open && !inactive}
-          onOpenChange={setOpen}
-          providerGroups={providerGroups}
-          selectedModel={model}
-          onSelect={onSelect}
-          onConfigureProviders={onConfigureProviders}
-        >
-          <PopoverTrigger asChild>
-            <JudgeModelPickerTrigger
-              mode={model ? "custom" : "default"}
-              selectedModel={model}
-              disabled={inactive}
-              modelAvailability={connectionMissing ? "missing" : "available"}
-            />
-          </PopoverTrigger>
-        </JudgeModelPicker>
+  const dimensionsInput =
+    dimensions !== undefined ? (
+      <div className={`w-20 shrink-0 ${disabled ? "pointer-events-none" : ""}`}>
+        <Input
+          aria-label="Embedding dimensions"
+          type="number"
+          inputMode="numeric"
+          min={TOPICS_MIN_EMBEDDING_DIMENSIONS}
+          max={TOPICS_MAX_EMBEDDING_DIMENSIONS}
+          value={dimensions}
+          disabled={disabled}
+          onChange={(event) => onDimensionsChange?.(event.target.value)}
+        />
       </div>
-      {dimensions !== undefined ? (
-        <div
-          className={`w-20 shrink-0 ${inactive ? "pointer-events-none" : ""}`}
-        >
-          <Input
-            aria-label="Embedding dimensions"
-            type="number"
-            inputMode="numeric"
-            min={TOPICS_MIN_EMBEDDING_DIMENSIONS}
-            max={TOPICS_MAX_EMBEDDING_DIMENSIONS}
-            value={dimensions}
-            disabled={inactive}
-            onChange={(event) => onDimensionsChange?.(event.target.value)}
-          />
-        </div>
-      ) : null}
-    </>
-  );
-  const fields = (
-    <div className="flex min-w-0 flex-1 items-center gap-2">{controls}</div>
-  );
+    ) : null;
 
   return (
     <div className="flex flex-col items-start gap-2 sm:flex-row">
@@ -373,24 +358,35 @@ function ModelSlot({
         {copy.label}
       </p>
       <div className="flex w-full min-w-0 flex-1 flex-col gap-1">
-        {locked ? (
-          <Tooltip
-            label={name === "embedding" ? SLOT_COPY.embedding.lockedHint : ""}
-            placement="bottom"
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div
+            className={`min-w-0 flex-1 [&_button]:w-full ${disabled ? "[&_button]:pointer-events-none" : ""}`}
           >
-            {({ getTriggerProps }) => (
-              <div
-                {...getTriggerProps()}
-                className="flex min-w-0 flex-1 items-center gap-2"
-              >
-                {controls}
-              </div>
-            )}
-          </Tooltip>
-        ) : (
-          fields
-        )}
+            <JudgeModelPicker
+              purpose="decision"
+              open={open && !disabled}
+              onOpenChange={setOpen}
+              providerGroups={providerGroups}
+              selectedModel={model}
+              onSelect={onSelect}
+              onConfigureProviders={onConfigureProviders}
+            >
+              <PopoverTrigger asChild>
+                <JudgeModelPickerTrigger
+                  mode={model ? "custom" : "default"}
+                  selectedModel={model}
+                  disabled={disabled}
+                  modelAvailability={
+                    connectionMissing ? "missing" : "available"
+                  }
+                />
+              </PopoverTrigger>
+            </JudgeModelPicker>
+          </div>
+          {dimensionsInput}
+        </div>
         <SlotStatus check={check} recommendation={copy.recommendation} />
+        {children}
       </div>
     </div>
   );
@@ -409,6 +405,25 @@ function SlotStatus({
   if (check?.status === "error" && check.message)
     return <p className="text-destructive text-xs">{check.message}</p>;
   return <p className="text-muted-foreground text-xs">{recommendation}</p>;
+}
+
+function EmbeddingLockedWarning({
+  dimensions,
+  model,
+}: {
+  dimensions: string;
+  model: string;
+}) {
+  return (
+    <Banner variant="warning">
+      <p>
+        This can&apos;t change once summaries are embedded: vectors from another
+        model or size can&apos;t be grouped with the existing ones. Keep{" "}
+        <span className="font-mono">{model}</span> at {dimensions} dimensions;
+        you can still pick it on another connection.
+      </p>
+    </Banner>
+  );
 }
 
 function PausedNotice({

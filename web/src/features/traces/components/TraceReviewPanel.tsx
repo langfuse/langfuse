@@ -52,20 +52,33 @@ function CloseReviewPanelButton() {
 function TraceCommentsPanel({ projectId }: { projectId: string }) {
   const store = useTraceReviewPanel();
   const { query } = useRouter();
-  const { trace: anchorTrace, observations, sessionTraces } = useTraceData();
+  const { trace: anchorTrace, sessionId, observations, scope } = useTraceData();
+  const sessionTraces = scope.type === "session" ? scope.traces : undefined;
   const { selectedNodeId } = useSelection();
+  const observation = getSelectedObservation(
+    observations,
+    selectedNodeId,
+    anchorTrace?.id ?? "",
+  );
   const trace =
     sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
+    sessionTraces?.find((entry) => entry.id === observation?.traceId) ??
     anchorTrace;
   const session = useStore(store, (state) => state.comments);
   const active = query.comments === "open" && query.annotation !== "open";
-  const target = selectTraceCommentsTarget({
-    session,
-    active,
-    trace,
-    observations,
-    selectedNodeId,
-  });
+  const target = trace
+    ? selectTraceCommentsTarget({
+        session,
+        active,
+        trace,
+        observations,
+        selectedNodeId,
+      })
+    : (session?.target ?? {
+        type: "comments" as const,
+        objectId: sessionId ?? "",
+        objectType: "SESSION" as const,
+      });
   return (
     <CommentsPanel projectId={projectId} target={target} active={active} />
   );
@@ -130,18 +143,20 @@ function TraceAnnotationPanel() {
     trace: anchorTrace,
     observations,
     serverScores,
-    sessionTraces,
+    scope,
   } = useTraceData();
+  const sessionTraces = scope.type === "session" ? scope.traces : undefined;
   const { selectedNodeId } = useSelection();
-  const trace =
-    sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
-    anchorTrace;
   const { isV4 } = useReadPath();
   const observation = getSelectedObservation(
     observations,
     selectedNodeId,
-    trace.id,
+    anchorTrace?.id ?? "",
   );
+  const trace =
+    sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
+    sessionTraces?.find((entry) => entry.id === observation?.traceId) ??
+    anchorTrace;
   const active = useRouter().query.annotation === "open";
   const explicitTarget = useRef({
     annotation,
@@ -161,6 +176,13 @@ function TraceAnnotationPanel() {
         data={annotation.data}
         active={active}
       />
+    );
+  }
+  if (!trace) {
+    return (
+      <div className="p-4 text-sm" hidden={!active}>
+        Select a trace or observation to annotate.
+      </div>
     );
   }
   if (

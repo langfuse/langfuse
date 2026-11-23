@@ -229,7 +229,6 @@ async function selectAndSeed(
       idleMs: await resolveTraceIdleMs(projectId),
       now,
       days,
-      sampling: rule.sampling,
       limit: shortfall,
       seed: rule.id,
       matching,
@@ -376,7 +375,7 @@ async function startFit(
       config: {
         embeddingModel: embeddingConfig.embeddingModel,
         dimensions: embeddingConfig.embeddingDimensions,
-        // The fit loads the newest of the rule's summaries in this window.
+        // The fit loads a stable sample of the rule's summaries in this window.
         timeRange: {
           from: fitFrom(setup, now).toISOString(),
           to: now.toISOString(),

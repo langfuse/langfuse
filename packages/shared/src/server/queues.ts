@@ -358,6 +358,42 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
       )
       .min(1),
   }),
+  /** Spend budget warning (85%/95%) or organization-scope alert email; separate type so an older worker never renders a warning as an exceeded rejection. */
+  z.object({
+    type: z.literal("AI_GATEWAY_SPEND_LIMIT_ALERT"),
+    orgId: z.string(),
+    orgName: z.string(),
+    to: z.string(),
+    receiverName: z.string().optional(),
+    audience: z.enum(["keyOwner", "orgOwner"]),
+    scope: z.discriminatedUnion("type", [
+      z.object({
+        type: z.literal("API_KEY"),
+        apiKeyId: z.string(),
+        name: z.string(),
+        displaySecretKey: z.string(),
+      }),
+      z.object({
+        type: z.literal("USER"),
+        userId: z.string(),
+        name: z.string(),
+        email: z.string(),
+      }),
+      z.object({
+        type: z.literal("ORGANIZATION"),
+      }),
+    ]),
+    limits: z
+      .array(
+        z.object({
+          interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
+          limitUsd: z.number(),
+          thresholdPercent: z.number().int().min(1).max(100),
+          resetsAt: z.string().optional(),
+        }),
+      )
+      .min(1),
+  }),
   // Future notification types can be added here
 ]);
 
@@ -622,10 +658,11 @@ export type TQueueJobTypes = {
     timestamp: Date;
     id: string;
     name: QueueJobs.TopicsSetup;
-    // A rule's setup, or a snapshot's summarizing before it groups.
+    // A rule's setup, a snapshot's summarizing before it groups, or a one-shot cost estimate.
     payload:
       | { projectId: string; ruleId: string }
-      | { projectId: string; executionId: string };
+      | { projectId: string; executionId: string }
+      | { projectId: string; estimateKey: string };
   };
   [QueueName.TraceUpsert]: {
     timestamp: Date;

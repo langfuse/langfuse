@@ -223,6 +223,7 @@ describe("AI Gateway organization rate limits", () => {
             interval: "monthly",
             limit_usd: 10,
             counting_started_at: 0,
+            alert_thresholds: [100],
           },
         ],
       }),

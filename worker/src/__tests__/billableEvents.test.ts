@@ -9,6 +9,7 @@ import {
   createTraceScore,
   deleteEventsByTraceIds,
   deleteScoresByTraceIds,
+  getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
@@ -495,5 +496,55 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
     await expect(
       getBillableUnitCountsByProjectInWindow({ windowFrom: T0, windowTo: T0 }),
     ).rejects.toThrow("must end after it starts");
+  });
+});
+
+describe("getBillableUnitCountsByProjectAndBucket", () => {
+  const T0 = new Date("2026-01-05T00:00:00.000Z");
+  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
+
+  it("counts each unit once in every bucket it appears in", async () => {
+    const projectId = randomUUID();
+    await insertBillableEvents(projectId, [
+      { eventType: "trace", eventId: "before-range", at: at(-2 * HOUR) },
+      { eventType: "trace", eventId: "twice-in-hour", at: at(10 * MINUTE) },
+      { eventType: "trace", eventId: "twice-in-hour", at: at(50 * MINUTE) },
+      { eventType: "trace", eventId: "across-hours", at: at(50 * MINUTE) },
+      { eventType: "trace", eventId: "across-hours", at: at(70 * MINUTE) },
+      { eventType: "trace", eventId: "next-day", at: at(70 * MINUTE) },
+      { eventType: "trace", eventId: "next-day", at: at(26 * HOUR) },
+      { eventType: "observation", eventId: "obs", at: at(5 * MINUTE) },
+    ]);
+    const bucketed = (granularity: "hour" | "day") =>
+      getBillableUnitCountsByProjectAndBucket({
+        projectIds: [projectId],
+        from: T0,
+        to: at(27 * HOUR),
+        granularity,
+      }).then((rows) =>
+        rows
+          .map((row) => ({
+            bucket: row.bucket.toISOString(),
+            eventType: row.eventType,
+            count: row.count,
+          }))
+          .sort(
+            (a, b) =>
+              a.bucket.localeCompare(b.bucket) ||
+              a.eventType.localeCompare(b.eventType),
+          ),
+      );
+
+    expect(await bucketed("hour")).toEqual([
+      { bucket: at(0).toISOString(), eventType: "observation", count: 1 },
+      { bucket: at(0).toISOString(), eventType: "trace", count: 2 },
+      { bucket: at(HOUR).toISOString(), eventType: "trace", count: 2 },
+      { bucket: at(26 * HOUR).toISOString(), eventType: "trace", count: 1 },
+    ]);
+    expect(await bucketed("day")).toEqual([
+      { bucket: at(0).toISOString(), eventType: "observation", count: 1 },
+      { bucket: at(0).toISOString(), eventType: "trace", count: 3 },
+      { bucket: at(24 * HOUR).toISOString(), eventType: "trace", count: 1 },
+    ]);
   });
 });

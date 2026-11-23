@@ -10,14 +10,10 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { PromptDetail } from "@/src/features/prompts/components/PromptDetail";
 import PromptMetrics from "@/src/features/prompts/PromptMetricsPage";
 import { useQueryParams, StringParam } from "use-query-params";
-import { useState } from "react";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
+import { ExportPromptsDialogController } from "@/src/features/prompts/components/ExportPromptsDialogController";
 import { ImportPromptsButtonDialogController } from "@/src/features/prompts/components/ImportPromptsButtonDialogController";
 import { Button } from "@/src/components/ui/button";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { showToast } from "@/src/features/notifications/showToast";
-import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function PromptsPage() {
   const router = useRouter();
@@ -54,36 +50,6 @@ export default function PromptsPage() {
     scope: "prompts:read",
   });
   const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
-  const utils = api.useUtils();
-  const [isExporting, setIsExporting] = useState(false);
-  const capture = usePostHogClientCapture();
-
-  const handleExport = async (mode: "latest" | "all") => {
-    setIsExporting(true);
-    try {
-      const data = await utils.prompts.exportAll.fetch({
-        projectId,
-        includeAllVersions: mode === "all",
-      });
-      const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `langfuse-prompts-${mode}-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      capture("prompts:bulk_export", { mode });
-    } catch (error) {
-      showToast({
-        type: "ERROR",
-        title: "Failed to export prompts. Please try again.",
-        analytics: classifyTrpcToastError(error, "prompt.export"),
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  };
 
   // Check if the project has any prompts
   const { data: hasAnyPrompt, isLoading } = api.prompts.hasAny.useQuery(
@@ -132,30 +98,13 @@ export default function PromptsPage() {
         actionButtonsRight: (
           <>
             {projectId && <AutomationButton projectId={projectId} />}
-            {hasReadAccess && (
-              <DropdownMenu
-                disabled={isExporting}
-                placement="bottom-end"
-                items={[
-                  {
-                    type: "item",
-                    id: "latest",
-                    title: "Latest version per prompt",
-                    onClick: () => handleExport("latest"),
-                  },
-                  {
-                    type: "item",
-                    id: "all",
-                    title: "All versions",
-                    onClick: () => handleExport("all"),
-                  },
-                ]}
-              >
-                {({ getTriggerProps }) => (
+            {hasReadAccess && projectId && (
+              <ExportPromptsDialogController projectId={projectId}>
+                {({ isExporting, openDialog }) => (
                   <Button
                     variant="outline"
                     disabled={isExporting}
-                    {...getTriggerProps()}
+                    onClick={openDialog}
                   >
                     <UploadIcon
                       size="base"
@@ -165,7 +114,7 @@ export default function PromptsPage() {
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
                 )}
-              </DropdownMenu>
+              </ExportPromptsDialogController>
             )}
             {projectId && (
               <ImportPromptsButtonDialogController projectId={projectId}>

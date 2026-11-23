@@ -2,7 +2,7 @@
 import type { FilterState } from "@langfuse/shared";
 import type { ReactNode } from "react";
 
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Tooltip,
@@ -142,12 +142,14 @@ export function RuleFilterPills({
   }));
 
   return (
-    <SingleLineOverflowList
+    <OverflowList
       items={items}
       additionalOverflowCount={0}
       getKey={(item) => item.key}
-      renderItem={(item) => (
-        <InlineFilterState filterState={[item.condition]} className="m-0" />
+      renderItem={(item, { getItemProps }) => (
+        <span {...getItemProps()}>
+          <InlineFilterState filterState={[item.condition]} className="m-0" />
+        </span>
       )}
       renderOverflow={({ overflowItemCount }) => (
         <Tooltip>

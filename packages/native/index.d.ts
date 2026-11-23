@@ -32,12 +32,6 @@ export declare class EarlyOtelBatch {
 
 /** A snapshot of one finalized event row, retained until its JS handle and any encoder tasks drop it. */
 export declare class PreparedEvent {
-  /**
-   * Read a storage-ready row into owned Rust fields. JSON-valued String columns such as
-   * `model_parameters` must already be serialized by TypeScript. ClickHouse computes
-   * `event_bytes` after insertion. This constructor never serializes the JS row.
-   */
-  constructor(row: object)
   get ids(): PreparedEventIds
   static columns(): Array<PreparedEventColumn>
 }
@@ -46,8 +40,11 @@ export declare class RustOtelBatch {
   /** Release the native batch and its retained event and media allocations. */
   dispose(): Promise<void>
   mediaBody(index: number): Promise<Buffer>
-  /** Apply media and lookup results; return final handles or oversized-field upload requests. */
-  complete(mediaResults: OtelMediaResolution[], lookups: object[], overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]): Promise<OtelCompletion>
+  /**
+   * Apply media results and one lookup result per lookup request; return final handles or
+   * oversized-field upload requests.
+   */
+  complete(mediaResults: OtelMediaResolution[], lookups: EncodedOtelLookups, overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]): Promise<OtelCompletion>
   overflowBody(index: number): Promise<Buffer>
   /** Apply oversized-field upload results and return immutable handles to the ClickHouse writer. */
   finalize(overflow: Array<OtelMediaResolution>, includeEvaluationRows: boolean, traceActivityIds?: Array<string> | undefined | null): Promise<FinalizedOtelBatch>
@@ -81,6 +78,21 @@ export declare function clusterTopicEmbeddings(embeddings: Array<Array<number>>,
  * async task only clones its Arc and never reads or copies row fields.
  */
 export declare function encodeClickhouseEvents(rows: PreparedEvent[], maxRowsPerBlock: number): Promise<NativeEventBlock[]>
+
+/**
+ * Lookup results in the flat form written by the worker's `encodeOtelLookups`.
+ *
+ * `lengths` and `numbers` are typed arrays because a typed array is handed to Rust as a
+ * whole, while a plain array is read one element at a time on Node's main thread.
+ */
+export interface EncodedOtelLookups {
+  /** Every text field in a fixed order, each followed by a line feed. */
+  text: string
+  /** The length of each text field in UTF-16 code units. */
+  lengths: Uint32Array
+  /** Counts, flags and numeric fields in the order they are read. */
+  numbers: Float64Array
+}
 
 export interface ExtractedOtelMedia {
   index: number
@@ -156,6 +168,10 @@ export interface OtelCompletion {
   overflowRequests: Array<OtelOverflowRequest>
 }
 
+/**
+ * One lookup the worker resolves. Events that would make the same request share it;
+ * `span_id` names the first of them.
+ */
 export interface OtelLookupRequest {
   spanId: string
   eventType: string

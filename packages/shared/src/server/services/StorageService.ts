@@ -78,6 +78,22 @@ function createGoogleCloudStorageAuthClient(googleCloudCredentials: string) {
   });
 }
 
+/**
+ * Response headers must be ISO-8859-1, and object keys may hold any Unicode
+ * or a `"`. Such keys get an ASCII fallback plus an RFC 6266 `filename*`.
+ */
+function attachmentContentDisposition(fileName: string) {
+  const asciiFileName = fileName.replace(/[^\x20-\x7e]|["\\]/g, "_");
+  if (asciiFileName === fileName) {
+    return `attachment; filename="${fileName}"`;
+  }
+  const encodedFileName = encodeURIComponent(fileName).replace(
+    /['()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${asciiFileName}"; filename*=UTF-8''${encodedFileName}`;
+}
+
 export interface S3SseConfig {
   serverSideEncryption?: string;
   sseKmsKeyId?: string;
@@ -373,10 +389,15 @@ export interface StorageService {
     continuationToken?: string;
   }): Promise<StorageFilePage>;
 
+  /**
+   * `responseContentType` overrides the stored Content-Type for this URL only.
+   * Providers that cannot override it serve the object as an attachment instead.
+   */
   getSignedUrl(
     fileName: string,
     ttlSeconds: number,
     asAttachment?: boolean,
+    responseContentType?: string,
   ): Promise<string>;
 
   getObjectContentLength(path: string): Promise<number | undefined>;
@@ -803,6 +824,7 @@ class AzureBlobStorageService implements StorageService {
     fileName: string,
     ttlSeconds: number,
     asAttachment?: boolean,
+    responseContentType?: string,
   ): Promise<string> {
     try {
       await this.createContainerIfNotExists();
@@ -812,8 +834,9 @@ class AzureBlobStorageService implements StorageService {
         permissions: BlobSASPermissions.parse("r"),
         expiresOn: new Date(Date.now() + ttlSeconds * 1000),
         contentDisposition: asAttachment
-          ? `attachment; filename="${fileName}"`
+          ? attachmentContentDisposition(fileName)
           : undefined,
+        contentType: responseContentType,
       });
 
       // Replace internal endpoint with external endpoint if configured
@@ -1224,6 +1247,7 @@ class S3StorageService implements StorageService {
     fileName: string,
     ttlSeconds: number,
     asAttachment = true,
+    responseContentType?: string,
   ): Promise<string> {
     try {
       return getSignedUrl(
@@ -1232,8 +1256,9 @@ class S3StorageService implements StorageService {
           Bucket: this.bucketName,
           Key: fileName,
           ResponseContentDisposition: asAttachment
-            ? `attachment; filename="${fileName}"`
+            ? attachmentContentDisposition(fileName)
             : undefined,
+          ResponseContentType: responseContentType,
         }),
         { expiresIn: ttlSeconds },
       );
@@ -1345,12 +1370,18 @@ class GoogleCloudStorageService implements StorageService {
   constructor(params: { bucketName: string; googleCloudCredentials?: string }) {
     if (params.googleCloudCredentials) {
       try {
+        const authClient = createGoogleCloudStorageAuthClient(
+          params.googleCloudCredentials,
+        );
         this.storage = new Storage({
           universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
-          authClient: createGoogleCloudStorageAuthClient(
-            params.googleCloudCredentials,
-          ),
+          authClient,
         });
+        // V4 signing reads the signer email from GoogleAuth.getCredentials(),
+        // which only knows it for JSON credentials, not a wrapped authClient.
+        this.storage.authClient.jsonContent = {
+          client_email: authClient.email,
+        };
       } catch (err) {
         logger.error("Failed to parse Google Cloud Storage credentials", err);
         throw new Error("Failed to initialize Google Cloud Storage");
@@ -1527,9 +1558,16 @@ class GoogleCloudStorageService implements StorageService {
     fileName: string,
     ttlSeconds: number,
     asAttachment = false,
+    responseContentType?: string,
   ): Promise<string> {
     return backOff(
-      () => this.getSignedUrlNonRetrying(fileName, ttlSeconds, asAttachment),
+      () =>
+        this.getSignedUrlNonRetrying(
+          fileName,
+          ttlSeconds,
+          asAttachment,
+          responseContentType,
+        ),
       { numOfAttempts: 3 },
     );
   }
@@ -1538,6 +1576,7 @@ class GoogleCloudStorageService implements StorageService {
     fileName: string,
     ttlSeconds: number,
     asAttachment = false,
+    responseContentType?: string,
   ): Promise<string> {
     try {
       const file = this.bucket.file(fileName);
@@ -1549,7 +1588,10 @@ class GoogleCloudStorageService implements StorageService {
       };
 
       if (asAttachment) {
-        options.responseDisposition = `attachment; filename="${fileName}"`;
+        options.responseDisposition = attachmentContentDisposition(fileName);
+      }
+      if (responseContentType) {
+        options.responseType = responseContentType;
       }
 
       const [url] = await file.getSignedUrl(options);
@@ -2099,6 +2141,7 @@ class OCIObjectStorageService implements StorageService {
     fileName: string,
     ttlSeconds: number,
     asAttachment = true,
+    responseContentType?: string,
   ): Promise<string> {
     try {
       const { client, namespaceName } = await this.getClientAndNamespace();
@@ -2125,7 +2168,9 @@ class OCIObjectStorageService implements StorageService {
       }
       const baseUrl = new URL(base);
       const parUrl = new URL(accessUri, baseUrl);
-      if (asAttachment) {
+      // PARs cannot override the Content-Type, so a requested override falls
+      // back to a download rather than serving an unverified stored type inline.
+      if (asAttachment || responseContentType) {
         parUrl.searchParams.set("download", "1");
       }
       const url = parUrl.toString();

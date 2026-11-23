@@ -1,7 +1,6 @@
 import {
   EvalTemplateTypeEnum,
   experimentTargetEvalVariableColumns,
-  observationVariableMappingList,
   type FilterState,
   type ModelConfig,
   type EvalTemplateSourceCodeLanguage,
@@ -10,6 +9,7 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import { inferDefaultMapping } from "@/src/features/evals/utils/evaluator-form-utils";
+import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
@@ -53,21 +53,21 @@ function buildInitialVariableFields(
     return {};
   }
 
-  const parsed = observationVariableMappingList.safeParse(
+  const { defaultVariableMapping } = prepareModernRuleVariableMapping(
     definition.variableMapping,
+    definition.type,
   );
   return Object.fromEntries(
     definition.vars.map((variable) => {
-      const stored = parsed.success
-        ? parsed.data.find((mapping) => mapping.templateVariable === variable)
-        : undefined;
+      const stored = defaultVariableMapping.find(
+        (mapping) => mapping.templateVariable === variable,
+      );
       return [
         variable,
         {
-          selectedColumnId:
-            stored?.selectedColumnId ??
-            inferDefaultMapping(variable).selectedColumnId ??
-            null,
+          selectedColumnId: stored
+            ? stored.selectedColumnId || null
+            : (inferDefaultMapping(variable).selectedColumnId ?? null),
           jsonSelector: stored?.jsonSelector ?? null,
         },
       ];

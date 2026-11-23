@@ -74,6 +74,8 @@ export const GatewayResolveSpendLimitsSchema = z.array(
       limit_usd: z.number(),
       // Unix milliseconds; part of the gateway's usage counter key.
       counting_started_at: z.number().int().nonnegative(),
+      // Usage percentages that trigger email alerts, in ascending order.
+      alert_thresholds: z.array(z.number().int().min(1).max(100)),
     })
     .strict(),
 );
