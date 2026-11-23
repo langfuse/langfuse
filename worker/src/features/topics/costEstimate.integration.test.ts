@@ -6,6 +6,7 @@ import {
   claimTopicCostEstimate,
   createTopicFacet,
   markTopicCostEstimateStarted,
+  priceTopicCostEstimate,
   readTopicCostEstimate,
 } from "@langfuse/shared/topics/server";
 import { runTopicCostEstimate } from "./costEstimate";
@@ -83,5 +84,55 @@ describe("Topics cost estimate", () => {
     // 16,000 transcript characters of the long trace at 4 characters per token.
     expect(done!.tokens.inputTokens).toBeGreaterThan(4_000);
     expect(done!.tokens.outputTokens).toBe(2 * 70);
+  });
+
+  it("prices a summary model whose price is set on total tokens only", async () => {
+    const modelId = randomUUID();
+    await prisma.model.create({
+      data: {
+        id: modelId,
+        scope: "PROJECT",
+        projectId,
+        modelName: "total-priced-model",
+        matchPattern: "total-priced-model",
+        unit: "TOKENS",
+        pricingTiers: {
+          create: {
+            name: "Standard",
+            isDefault: true,
+            conditions: [],
+            priority: 0,
+            prices: {
+              createMany: {
+                data: [{ modelId, usageType: "total", price: "0.000002" }],
+              },
+            },
+          },
+        },
+      },
+    });
+    // Pricing only reads the record, so none is claimed and no lock is left behind.
+    const prices = await priceTopicCostEstimate(projectId, {
+      key: "key",
+      runId: "run",
+      status: "done",
+      startedAt: 0,
+      finishedAt: 0,
+      error: null,
+      inputs: {
+        filter: [],
+        facets: [{ facetId: "intent", version: 1 }],
+        summaryModel: "total-priced-model",
+        embeddingModel: null,
+      },
+      sampled: 1,
+      summarizable: 1,
+      skipped: { tooLarge: 0, noContent: 0 },
+      tokens: { inputTokens: 1_000, outputTokens: 100, embeddingTokens: 0 },
+    });
+
+    // 1,100 total tokens at $0.000002 each.
+    expect(prices.summaryPriced).toBe(true);
+    expect(prices.perTraceUsd).toBeCloseTo(0.0022);
   });
 });
