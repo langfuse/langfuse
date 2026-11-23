@@ -515,6 +515,7 @@ impl InferenceHttpError {
                 "provider",
                 match error {
                     ProviderError::Timeout => "timeout",
+                    ProviderError::ConnectionTimeout => "connection_timeout",
                     ProviderError::Transport => "transport",
                     ProviderError::Configuration => "configuration",
                 },
@@ -604,7 +605,8 @@ impl InferenceHttpError {
                 "server_error",
                 "gateway_unavailable",
             ),
-            Self::Resolution(R::Timeout) | Self::Provider(ProviderError::Timeout) => (
+            Self::Resolution(R::Timeout)
+            | Self::Provider(ProviderError::Timeout | ProviderError::ConnectionTimeout) => (
                 StatusCode::GATEWAY_TIMEOUT,
                 "Upstream deadline exceeded",
                 "server_error",

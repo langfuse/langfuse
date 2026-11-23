@@ -126,10 +126,11 @@ impl ProviderTransport {
 
     fn with_limits(limits: ProviderLimits, policy: OutboundPolicy) -> Result<Self, ProviderError> {
         let policy = Arc::new(policy);
-        let client = provider_client_builder()
+        let stall_timeout = limits.execution.stall_timeout;
+        let client = provider_client_builder(stall_timeout)
             .build()
             .map_err(|_| ProviderError::Configuration)?;
-        let custom_base_url_client = provider_client_builder()
+        let custom_base_url_client = provider_client_builder(stall_timeout)
             .dns_resolver(outbound::PolicyResolver(Arc::clone(&policy)))
             .build()
             .map_err(|_| ProviderError::Configuration)?;
@@ -265,21 +266,13 @@ impl ProviderTransport {
         let response = tokio::time::timeout_at(headers_deadline, upstream.send())
             .await
             .map_err(|_| ProviderError::Timeout)
-            .and_then(|result| {
-                result.map_err(|error| {
-                    if error.is_timeout() {
-                        ProviderError::Timeout
-                    } else {
-                        ProviderError::Transport
-                    }
-                })
-            });
+            .and_then(|result| result.map_err(|error| transport::client_error(error.is_timeout())));
         let observation = correlation.observation();
         observation.record_wait(Wait::ProviderHeaders, started.elapsed());
         let response = match response {
             Ok(response) => response,
             Err(error) => {
-                capture.finish(if matches!(error, ProviderError::Timeout) {
+                capture.finish(if error.is_timeout() {
                     RelayOutcome::Timeout
                 } else {
                     RelayOutcome::TransportError
@@ -451,8 +444,21 @@ pub(crate) fn model_range(body: &[u8]) -> Result<Range<usize>, ProviderError> {
     Ok(start..end)
 }
 
-fn provider_client_builder() -> reqwest::ClientBuilder {
-    Client::builder()
+const TCP_KEEPALIVE_IDLE: Duration = Duration::from_secs(15);
+const TCP_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
+
+/// Keepalive probes that cover `stall_timeout` of silence after the idle period.
+fn tcp_keepalive_retries(stall_timeout: Duration) -> u32 {
+    let probes = stall_timeout
+        .saturating_sub(TCP_KEEPALIVE_IDLE)
+        .as_secs()
+        .div_ceil(TCP_KEEPALIVE_INTERVAL.as_secs())
+        .max(1);
+    u32::try_from(probes).unwrap_or(u32::MAX)
+}
+
+fn provider_client_builder(stall_timeout: Duration) -> reqwest::ClientBuilder {
+    let builder = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .retry(reqwest::retry::never())
         .no_proxy()
@@ -463,9 +469,18 @@ fn provider_client_builder() -> reqwest::ClientBuilder {
         // No client read timeout: it would also cut a non-streaming call while the
         // provider generates before sending headers. The relay bounds stalls instead.
         .connect_timeout(Duration::from_secs(5))
+        // A peer that stops acknowledging (data or keepalive probes) for the stall
+        // timeout is dead. reqwest's defaults would close it after 30 seconds, while
+        // a non-streamed generation is legitimately quiet for much longer.
+        .tcp_keepalive(TCP_KEEPALIVE_IDLE)
+        .tcp_keepalive_interval(TCP_KEEPALIVE_INTERVAL)
+        .tcp_keepalive_retries(tcp_keepalive_retries(stall_timeout))
         .pool_max_idle_per_host(16)
         // reqwest's http2 feature is for Web-bound clients (resolver, telemetry); provider calls stay on HTTP/1.1.
-        .http1_only()
+        .http1_only();
+    #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+    let builder = builder.tcp_user_timeout(stall_timeout);
+    builder
 }
 
 /// The connection's extra headers plus its credential. Resolution already rejected

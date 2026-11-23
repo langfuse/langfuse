@@ -31,8 +31,27 @@ pub enum ProviderError {
     Configuration,
     #[error("provider deadline exceeded")]
     Timeout,
+    /// The socket timed out: connecting, or the peer stopped acknowledging.
+    #[error("provider connection timed out")]
+    ConnectionTimeout,
     #[error("provider transport failed")]
     Transport,
+}
+
+impl ProviderError {
+    pub(crate) fn is_timeout(self) -> bool {
+        matches!(self, Self::Timeout | Self::ConnectionTimeout)
+    }
+}
+
+/// The provider client sets no request or read timeout, so its timeouts are
+/// socket-level.
+pub(crate) fn client_error(timed_out: bool) -> ProviderError {
+    if timed_out {
+        ProviderError::ConnectionTimeout
+    } else {
+        ProviderError::Transport
+    }
 }
 
 // An allowlist prevents gateway credentials, tenant routing overrides and cookies
@@ -154,15 +173,9 @@ pub(crate) fn relay<T: Send + 'static>(
     capture: ExecutionCapture,
 ) -> Body {
     relay_stream(
-        upstream.bytes_stream().map(|chunk| {
-            chunk.map_err(|error| {
-                if error.is_timeout() {
-                    ProviderError::Timeout
-                } else {
-                    ProviderError::Transport
-                }
-            })
-        }),
+        upstream
+            .bytes_stream()
+            .map(|chunk| chunk.map_err(|error| client_error(error.is_timeout()))),
         Some(provider),
         deadline,
         stall_timeout,
@@ -262,10 +275,9 @@ where
         match tokio::time::timeout_at(deadline, pump).await {
             Ok(Ok(())) => {}
             result => {
-                let outcome = if matches!(result, Err(_) | Ok(Err(ProviderError::Timeout))) {
-                    RelayOutcome::Timeout
-                } else {
-                    RelayOutcome::TransportError
+                let outcome = match result {
+                    Ok(Err(error)) if !error.is_timeout() => RelayOutcome::TransportError,
+                    _ => RelayOutcome::Timeout,
                 };
                 pump_resources.release(outcome);
             }
