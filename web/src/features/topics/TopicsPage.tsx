@@ -13,7 +13,7 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekV
 import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import Page from "@/src/components/layouts/Page";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 import {
   Sheet,
   SheetContent,

@@ -285,6 +285,15 @@ type ListInput = {
   scan?: { batchSize: number; maxBatches: number };
   /** Runs whose assignments count; defaults to each facet's published run. */
   publishedRunIds?: string[];
+  /**
+   * Trace IDs a batch may keep, as a subquery over the batch's traces and source times;
+   * null keeps none. Applied after candidates, so selective filters can return short pages.
+   */
+  traceFilter?: (batch: {
+    from: Date;
+    to: Date;
+    traceIds: string[];
+  }) => Promise<{ query: string; params: Record<string, unknown> } | null>;
 };
 
 const MAX_CANDIDATE_BATCHES = 10;
@@ -296,6 +305,21 @@ const READ_OPTIONS = {
   clickhouseSettings: {
     read_in_order_use_buffering: 0,
     cancel_http_readonly_queries_on_client_close: 1,
+  },
+} as const;
+const TRACE_FILTER_TIMEOUT_SECONDS = 10;
+// A trace filter scans events, so its resolve reads stay off the primary with bounded CPU.
+const TRACE_FILTER_READ_OPTIONS = {
+  preferredClickhouseService: "EventsReadOnly",
+  // The client must outlast the server limit for the timeout to be reported as one.
+  clickhouseConfigs: {
+    request_timeout: (TRACE_FILTER_TIMEOUT_SECONDS + 15) * 1000,
+  },
+  clickhouseSettings: {
+    ...READ_OPTIONS.clickhouseSettings,
+    max_threads: 2,
+    max_execution_time: TRACE_FILTER_TIMEOUT_SECONDS,
+    timeout_overflow_mode: "throw",
   },
 } as const;
 
@@ -479,6 +503,11 @@ async function listCurrentRows<T extends CandidateRow>(
     const summaryConditions = input.conditions.flatMap(
       (condition) => summaryConditionSql(condition, params) ?? [],
     );
+    const traceFilter = await input.traceFilter?.({
+      from: new Date(Math.min(...times)),
+      to: new Date(Math.max(...times) + 1),
+      traceIds: [...new Set(found.map((row) => row.trace_id))],
+    });
     const traceIds = params.add("Array(String)", [
       ...new Set(found.map((row) => row.trace_id)),
     ]);
@@ -494,6 +523,10 @@ async function listCurrentRows<T extends CandidateRow>(
       !input.includeAssignment
         ? "summaries"
         : "current";
+    // On the resolved rows, so the summary reads keep their trace ID projection.
+    if (traceFilter === null) assignmentConditions.push("0 = 1");
+    else if (traceFilter)
+      assignmentConditions.push(`trace_id IN (${traceFilter.query})`);
     const candidateTuples = `arrayZip(${params.add(
       "Array(String)",
       found.map((row) => row.facet_id),
@@ -514,11 +547,12 @@ async function listCurrentRows<T extends CandidateRow>(
     const inCandidates = `has(${candidateTuples}, (facet_id, trace_id, unit_start_time${perRun ? ", clustering_run_id" : ""}))`;
     const orderSql = `ORDER BY unit_start_time ${direction}, trace_id ${direction}, facet_id ${direction}${perRun ? `, clustering_run_id ${direction}` : ""}`;
     const resolved = await queryClickhouse<T>({
-      ...READ_OPTIONS,
+      ...(traceFilter ? TRACE_FILTER_READ_OPTIONS : READ_OPTIONS),
       query: `WITH ${currentResultsSql(summaryConditions, [`trace_id IN ${traceIds}`])}
         ${resolveRowsSql({ input, params, source, perRun, inCandidates, assignmentConditions })}
         ${orderSql}`,
       params: {
+        ...traceFilter?.params,
         ...baseParams,
         ...params.values,
         ...input.extraParams,
@@ -771,4 +805,39 @@ export async function getTopicResultCounts(input: {
         .sort((a, b) => b.count - a.count),
     };
   });
+}
+
+/**
+ * Facet summaries written in `[start, end)`, by `created_at`, without
+ * `insufficient_input` rows, as billing counts them. Rows
+ * are not deduplicated (no `FINAL`), so a source re-summarized before a merge
+ * counts once per write. `created_at` is outside the sort key, so this scans
+ * the table; it runs only from the self-hosted telemetry job.
+ */
+export async function getTopicFacetSummaryCountsByProjectInCreationInterval({
+  start,
+  end,
+}: {
+  start: Date;
+  end: Date;
+}): Promise<{ projectId: string; count: number }[]> {
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
+    query: `
+      SELECT project_id, count() AS count
+      FROM topic_facet_summaries
+      WHERE created_at >= {start: DateTime64(3)}
+        AND created_at < {end: DateTime64(3)}
+        AND processing_state != 'insufficient_input'
+      GROUP BY project_id
+    `,
+    params: {
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+    },
+    clickhouseConfigs: { request_timeout: 300_000 },
+  });
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
+  }));
 }

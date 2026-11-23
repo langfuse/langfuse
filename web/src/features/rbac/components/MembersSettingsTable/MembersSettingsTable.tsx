@@ -7,9 +7,9 @@ import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -87,7 +87,7 @@ type MembersSettingsTableProps = Pick<
     value: Role[];
     onChange: (roles: Role[]) => void;
   };
-  toolbarActions: SettingsTableProps<MembersSettingsTableRow>["toolbarActions"];
+  toolbarActions: TableCardProps<MembersSettingsTableRow>["toolbarActions"];
   pagination: PaginationBarProps;
 };
 
@@ -340,7 +340,7 @@ export function MembersSettingsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName={project ? "project members" : "organization members"}
       columns={columns}
       actions={actions}

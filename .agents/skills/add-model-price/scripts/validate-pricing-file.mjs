@@ -179,7 +179,13 @@ function validateUsageKeyCoverage(model) {
         model,
         tier,
         "Anthropic output",
-        ["output", "output_tokens"],
+        [
+          "output",
+          "output_tokens",
+          "output_reasoning_tokens",
+          "output_reasoning",
+          "reasoning_tokens",
+        ],
         true,
       );
       requireAliasFamily(
