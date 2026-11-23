@@ -22,6 +22,7 @@ import { V4_PREVIEW_DESCRIPTION } from "@/src/features/events/lib/v4PreviewLabel
 const storyApi = createTRPCReact<AppRouter>();
 const session: Session = {
   expires: "2999-01-01T00:00:00.000Z",
+  policies: [],
   environment: {
     enableExperimentalFeatures: false,
     selfHostedInstancePlan: null,
