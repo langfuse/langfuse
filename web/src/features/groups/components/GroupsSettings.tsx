@@ -33,13 +33,20 @@ import {
   isScimManaged,
   SCIM_LOCK_LABEL,
 } from "@/src/features/groups/groupSource";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
 import { resolveEffectiveRoles } from "@langfuse/shared/rbac";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { useAddGroupMembers } from "@/src/features/groups/hooks/useAddGroupMembers";
+import { useCreateGroup } from "@/src/features/groups/hooks/useCreateGroup";
+import { useDeleteGroup } from "@/src/features/groups/hooks/useDeleteGroup";
+import { useGroupOrgMembers } from "@/src/features/groups/hooks/useGroupOrgMembers";
+import { useOrgGroups } from "@/src/features/groups/hooks/useOrgGroups";
+import { useRemoveGroupMember } from "@/src/features/groups/hooks/useRemoveGroupMember";
+import { useRenameGroup } from "@/src/features/groups/hooks/useRenameGroup";
+import { useSetGroupOrgRole } from "@/src/features/groups/hooks/useSetGroupOrgRole";
+import { type RouterOutputs } from "@/src/utils/api";
 
 type Group = RouterOutputs["groups"]["list"][number];
 type GroupMember = Group["members"][number];
@@ -173,7 +180,7 @@ function groupColumns(
 }
 
 function GroupsTable({ orgId, canEdit }: { orgId: string; canEdit: boolean }) {
-  const groups = api.groups.list.useQuery({ orgId });
+  const groups = useOrgGroups(orgId);
   const [search, setSearch] = useState("");
 
   const data = useMemo<TableProps<GroupRow>["data"]>(() => {
@@ -326,24 +333,10 @@ function GroupOrgRoleSelect({
   group: Group;
   canEdit: boolean;
 }) {
-  const utils = api.useUtils();
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
     organizationId: orgId,
   });
-  const setOrgRole = api.groups.setOrgRole.useMutation({
-    onSuccess: ({ role }) => {
-      utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
-      showSuccessToast({
-        operation: "group_roles.update",
-        title: "Group role saved",
-        description: role
-          ? `${group.displayName} is now ${roleName(role)} in this organization`
-          : `${group.displayName} no longer has an organization role`,
-        duration: 2000,
-      });
-    },
-  });
+  const setOrgRole = useSetGroupOrgRole(group.displayName);
   return (
     <GroupRoleDialogController
       level="organization"
@@ -452,12 +445,9 @@ function GroupMembersDialog({
   canEdit: boolean;
 }) {
   // Read from the list query so the dialog reflects adds and removals.
-  const groups = api.groups.list.useQuery({ orgId });
+  const groups = useOrgGroups(orgId);
   const group = groups.data?.find((g) => g.id === groupId);
-  const utils = api.useUtils();
-  const removeMember = api.groups.removeMember.useMutation({
-    onSuccess: () => utils.groups.invalidate(),
-  });
+  const removeMember = useRemoveGroupMember();
 
   const actions = useCallback<
     NonNullable<TableProps<GroupMemberRow>["actions"]>
@@ -533,21 +523,9 @@ function GroupMembersDialog({
 }
 
 function AddGroupMembers({ orgId, group }: { orgId: string; group: Group }) {
-  const utils = api.useUtils();
   const [selected, setSelected] = useState<string[]>([]);
-  const orgMembers = api.groups.orgMembers.useQuery({ orgId });
-  const addMembers = api.groups.addMembers.useMutation({
-    onSuccess: () => {
-      setSelected([]);
-      utils.groups.invalidate();
-      showSuccessToast({
-        operation: "group_members.update",
-        title: "Members added",
-        description: `Updated members of ${group.displayName}`,
-        duration: 2000,
-      });
-    },
-  });
+  const orgMembers = useGroupOrgMembers(orgId);
+  const addMembers = useAddGroupMembers(group.displayName);
 
   const memberIds = new Set(group.members.map((m) => m.userId));
   const options = (orgMembers.data ?? [])
@@ -581,7 +559,10 @@ function AddGroupMembers({ orgId, group }: { orgId: string; group: Group }) {
           disabled={selected.length === 0}
           loading={addMembers.isPending}
           onClick={() =>
-            addMembers.mutate({ orgId, groupId: group.id, userIds: selected })
+            addMembers.mutate(
+              { orgId, groupId: group.id, userIds: selected },
+              { onSuccess: () => setSelected([]) },
+            )
           }
         />
       </div>
@@ -656,10 +637,7 @@ function CreateGroupDialogController({
   orgId: string;
   children: (open: () => void) => React.ReactNode;
 }) {
-  const utils = api.useUtils();
-  const create = api.groups.create.useMutation({
-    onSuccess: () => utils.groups.invalidate(),
-  });
+  const create = useCreateGroup();
   return (
     <DialogController
       onDismiss={() => create.reset()}
@@ -673,17 +651,7 @@ function CreateGroupDialogController({
           onSubmit={(displayName) =>
             create.mutate(
               { orgId, displayName },
-              {
-                onSuccess: (group) => {
-                  closeDialog();
-                  showSuccessToast({
-                    operation: "group.create",
-                    title: "Group created",
-                    description: `${group.displayName} created. Add members and set its role next.`,
-                    duration: 3000,
-                  });
-                },
-              },
+              { onSuccess: () => closeDialog() },
             )
           }
         />
@@ -701,10 +669,7 @@ function RenameGroupDialogController({
   orgId: string;
   children: (open: OpenWith<Group>) => React.ReactNode;
 }) {
-  const utils = api.useUtils();
-  const rename = api.groups.rename.useMutation({
-    onSuccess: () => utils.groups.invalidate(),
-  });
+  const rename = useRenameGroup();
   return (
     <DialogController<Group>
       onDismiss={() => rename.reset()}
@@ -737,10 +702,7 @@ function DeleteGroupDialogController({
   orgId: string;
   children: (open: OpenWith<Group>) => React.ReactNode;
 }) {
-  const utils = api.useUtils();
-  const remove = api.groups.delete.useMutation({
-    onSuccess: () => utils.groups.invalidate(),
-  });
+  const remove = useDeleteGroup();
   return (
     <ConfirmationDialogController<Group>
       title={(group) => `Delete ${group.displayName}?`}

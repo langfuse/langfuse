@@ -15,14 +15,14 @@ import {
 } from "@/src/features/groups/components/GroupRoleDialogController";
 import { groupTableColumns } from "@/src/features/groups/components/groupTableColumns";
 import { GROUP_SOURCE_DISPLAY } from "@/src/features/groups/groupSource";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
-import { roleName } from "@/src/features/rbac/components/roleDisplay";
 import {
   hasProjectAccess,
   useHasProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { useProjectGroups } from "@/src/features/groups/hooks/useProjectGroups";
+import { useSetGroupProjectRole } from "@/src/features/groups/hooks/useSetGroupProjectRole";
+import { type RouterOutputs } from "@/src/utils/api";
 
 type ProjectGroup = RouterOutputs["groups"]["projectList"][number];
 type GroupRole = "ADMIN" | "MEMBER" | "VIEWER";
@@ -134,30 +134,14 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
     hasProjectRoles,
     canEditProjectMembers,
   });
-  const utils = api.useUtils();
   const [search, setSearch] = useState("");
 
-  const groups = api.groups.projectList.useQuery(
-    { projectId },
-    { enabled: hasAdminApi && canRead },
+  const groups = useProjectGroups(projectId, hasAdminApi && canRead);
+  const setRole = useSetGroupProjectRole(
+    (groupId) =>
+      groups.data?.find((group) => group.id === groupId)?.displayName ??
+      "Group",
   );
-  const setRole = api.groups.setProjectRole.useMutation({
-    onSuccess: (_, input) => {
-      utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
-      const name =
-        groups.data?.find((group) => group.id === input.groupId)?.displayName ??
-        "Group";
-      showSuccessToast({
-        operation: "group_project_role.update",
-        title: "Group role saved",
-        description: input.role
-          ? `${name} is now ${roleName(input.role)} on this project`
-          : `${name} no longer has a role on this project`,
-        duration: 2000,
-      });
-    },
-  });
   const pendingGroupId = setRole.isPending
     ? (setRole.variables?.groupId ?? null)
     : null;
