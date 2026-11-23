@@ -245,6 +245,7 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
       - name: Check the wasm32 build reports the native compiled sizes
         run: node --test js/parity.test.mjs
 
