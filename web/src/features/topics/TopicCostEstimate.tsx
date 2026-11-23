@@ -12,7 +12,7 @@ type TopicCostEstimateProps = {
   samplingPercent: number;
   /** Finished matching traces a day, before sampling. */
   dailyTraces: number | null;
-  /** Traces the first backfill would summarize, after sampling and its limit. */
+  /** Traces the first backfill would summarize, up to its limit. */
   backfillTraces: number | null;
   source: "setup" | "new_map";
 };

@@ -68,8 +68,9 @@ export function NewMapDialogView({
               </span>
               <span className="flex items-center gap-2">
                 <Sparkles size="base" aria-hidden="true" />
-                Summarizes only the missing ones, at this sampling rate, for{" "}
-                {facetIds.length} selected{" "}
+                Summarizes only the missing ones for {
+                  facetIds.length
+                } selected{" "}
                 {facetIds.length === 1 ? "facet" : "facets"}
               </span>
               <span className="flex items-center gap-2">
