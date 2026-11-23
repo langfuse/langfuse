@@ -7,7 +7,7 @@
     "node": "24"
   },
   "scripts": {
-    "build": "pnpm run build:mcp-apps && INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build && pnpm run build:otel-worker",
+    "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build && pnpm run build:otel-worker && pnpm run build:mcp-apps",
     "build:test": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build --experimental-build-mode compile",
     "build:otel-worker": "DOCKER_BUILD=1 dotenv -e ../.env -- node scripts/build-otel-ingestion-worker.mjs",
     "build:json-parser-worker": "node scripts/build-json-parser-worker.mjs",

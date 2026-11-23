@@ -113,7 +113,7 @@ describe("MCP tool results", () => {
 });
 
 describe("MCP Apps", () => {
-  it("announces the UI resource, serves it with inlined styles, and passes result _meta through", async () => {
+  it("announces the UI resource, serves it, and passes result _meta through", async () => {
     const schema = z.object({});
     const [definition, handler] = defineTool({
       name: "app-tool",
@@ -125,14 +125,6 @@ describe("MCP Apps", () => {
       handler: async () =>
         appToolResult({ text: "summary", meta: { widget: { title: "Cost" } } }),
     });
-    // The shell inlines the stylesheets linked from the styles page.
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (url) =>
-        String(url).endsWith(".css")
-          ? new Response(".chart{color:red}")
-          : new Response('<link rel="stylesheet" href="/_next/app.css"/>'),
-      );
     vi.mocked(toolRegistry.getEnabledTool).mockImplementation(async (name) =>
       name === definition.name ? { definition, handler } : undefined,
     );
@@ -159,9 +151,8 @@ describe("MCP Apps", () => {
         }),
       );
       expect(read.contents[0]?.mimeType).toBe(MCP_APP_MIME_TYPE);
-      expect(read.contents[0]?.text).toContain("<style>.chart{color:red}");
+      expect(read.contents[0]?.text).toMatch(/^<!doctype html>/i);
     } finally {
-      fetchSpy.mockRestore();
       await client.close();
       await server.close();
     }

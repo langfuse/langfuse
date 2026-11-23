@@ -126,7 +126,7 @@ How a call flows:
 2. The tool definition points at `ui://langfuse/widget.html` (`ui` option of `defineTool`). The host reads that resource (`server/apps/resources.ts`) and loads it into a sandboxed iframe.
 3. The view (`views/widget/WidgetApp.tsx`) connects to the host with the `@modelcontextprotocol/ext-apps` SDK, receives the tool result and renders the dashboard's `WidgetChartCard`.
 
-Hosts' iframes cannot load scripts or styles from Langfuse, so the resource is self-contained: it inlines the view's script bundle (`scripts/build-mcp-apps.mjs`) and the CSS Next.js compiles for `/mcp-apps/widget`, which the server fetches from itself. In development the bundle is rebuilt on every resource read, so view changes show up without a build step; `pnpm --filter web run build` prebuilds it for production. Hosts may cache the resource per conversation, so check view changes in a new one.
+Hosts' iframes cannot load scripts or styles from Langfuse, so the resource is self-contained: `scripts/build-mcp-apps.mjs` builds each view into one HTML file with its script bundle and Tailwind CSS inlined (`web/.mcp-apps/widget.html`), and the server returns it as is. Run `pnpm --filter web run build:mcp-apps` after changing a view in development; `pnpm --filter web run build` runs it as its last step and ships the output next to the standalone server. Hosts may cache the resource per conversation, so check view changes in a new one.
 
 ---
 

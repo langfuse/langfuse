@@ -253,7 +253,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`. Vitest starts the built `ai-gateway` binary (`pnpm --filter ai-gateway build`, or `LANGFUSE_AI_GATEWAY_BIN`) and sends the client traffic through it. Each provider suite in `src/__e2e__/ai-gateway/` is skipped locally without its credentials; run one with `pnpm --filter web run test:e2e:ai-gateway src/__e2e__/ai-gateway/<provider>.gatewaye2e.ts`.
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
-- MCP App view bundles (run by `build`; development rebuilds them on demand): `pnpm --filter web run build:mcp-apps`
+- MCP App views, script and CSS (last step of `build`; rerun after changing a view in development): `pnpm --filter web run build:mcp-apps`
 - Structure-RFC violation counts: `pnpm --filter web run structure:stats`
 - Move files/folders with every importer rewritten:
   `pnpm --filter web run structure:move <from...> <to-dir>` — never hand-edit
