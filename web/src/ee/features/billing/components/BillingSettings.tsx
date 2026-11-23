@@ -90,18 +90,15 @@ export const BillingSettings = () => {
       <div className="space-y-6">
         {organization?.plan === "cloud:enterprise-trial" &&
           organization.cloudConfig?.enterpriseTrial && (
-            <Alert variant="info">
-              <Alert.Title>Enterprise trial</Alert.Title>
-              <Alert.Description>
-                {`Your enterprise trial ends on ${new Date(
-                  organization.cloudConfig.enterpriseTrial.endsAt,
-                ).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}. Upgrade to a paid plan to keep Enterprise features and ingest without the trial limit.`}
-              </Alert.Description>
-            </Alert>
+            <Banner variant="info" title="Enterprise trial">
+              {`Your enterprise trial ends on ${new Date(
+                organization.cloudConfig.enterpriseTrial.endsAt,
+              ).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}. Upgrade to a paid plan to keep Enterprise features and ingest without the trial limit.`}
+            </Banner>
           )}
         {usage.data !== null && (
           <BillingUsageChart

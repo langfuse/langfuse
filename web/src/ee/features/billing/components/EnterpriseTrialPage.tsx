@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { ENTERPRISE_TRIAL_UNIT_LIMIT, planLabels } from "@langfuse/shared";
 
 import ContainerPage from "@/src/components/layouts/ContainerPage";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -38,12 +38,9 @@ export function EnterpriseTrialPage() {
     <ContainerPage headerProps={{ title: "Enterprise trial" }}>
       <div className="max-w-xl">
         {!isCloudBillingAvailable && (
-          <Alert>
-            <Alert.Title>Not available</Alert.Title>
-            <Alert.Description>
-              Enterprise trials are only available on Langfuse Cloud.
-            </Alert.Description>
-          </Alert>
+          <Banner title="Not available">
+            Enterprise trials are only available on Langfuse Cloud.
+          </Banner>
         )}
         {isCloudBillingAvailable && organization && (
           <EnterpriseTrialContent organization={organization} />
@@ -65,12 +62,9 @@ function EnterpriseTrialContent({
 
   if (!hasAccess) {
     return (
-      <Alert>
-        <Alert.Title>Access denied</Alert.Title>
-        <Alert.Description>
-          Only organization owners can start an enterprise trial.
-        </Alert.Description>
-      </Alert>
+      <Banner title="Access denied">
+        Only organization owners can start an enterprise trial.
+      </Banner>
     );
   }
 
@@ -78,12 +72,9 @@ function EnterpriseTrialContent({
   if (organization.plan === "cloud:enterprise-trial" && trialEndsAt) {
     return (
       <div className="flex flex-col items-start gap-4">
-        <Alert variant="info">
-          <Alert.Title>Your enterprise trial is active</Alert.Title>
-          <Alert.Description>
-            {`All Enterprise features are available until ${formatDate(trialEndsAt)}. After that, the organization returns to the Hobby plan. Ingestion pauses at ${numberFormatter(ENTERPRISE_TRIAL_UNIT_LIMIT, 0)} units per billing period.`}
-          </Alert.Description>
-        </Alert>
+        <Banner variant="info" title="Your enterprise trial is active">
+          {`All Enterprise features are available until ${formatDate(trialEndsAt)}. After that, the organization returns to the Hobby plan. Ingestion pauses at ${numberFormatter(ENTERPRISE_TRIAL_UNIT_LIMIT, 0)} units per billing period.`}
+        </Banner>
         <Button
           text="View usage and billing"
           variant="secondary"
@@ -94,22 +85,16 @@ function EnterpriseTrialContent({
   }
   if (organization.plan !== "cloud:hobby") {
     return (
-      <Alert>
-        <Alert.Title>Already on a paid plan</Alert.Title>
-        <Alert.Description>
-          {`This organization is on the ${planLabels[organization.plan]} plan. Enterprise trials are only available to organizations on the Hobby plan; reach out to your Langfuse contact to try Enterprise features.`}
-        </Alert.Description>
-      </Alert>
+      <Banner title="Already on a paid plan">
+        {`This organization is on the ${planLabels[organization.plan]} plan. Enterprise trials are only available to organizations on the Hobby plan; reach out to your Langfuse contact to try Enterprise features.`}
+      </Banner>
     );
   }
   if (trialEndsAt) {
     return (
-      <Alert>
-        <Alert.Title>Trial already used</Alert.Title>
-        <Alert.Description>
-          {`This organization's enterprise trial ended on ${formatDate(trialEndsAt)}. Upgrade to a paid plan in the billing settings to keep using Enterprise features.`}
-        </Alert.Description>
-      </Alert>
+      <Banner title="Trial already used">
+        {`This organization's enterprise trial ended on ${formatDate(trialEndsAt)}. Upgrade to a paid plan in the billing settings to keep using Enterprise features.`}
+      </Banner>
     );
   }
 
