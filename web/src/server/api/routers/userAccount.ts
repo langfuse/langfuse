@@ -25,6 +25,7 @@ import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/session
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { evictDeletedApiKeys } from "@/src/features/apiKey/evictDeletedApiKeys";
+import { findGatewayKeyMetadata } from "@/src/features/ai-gateway/server/apiKey/findGatewayKeyMetadata";
 
 // Deleting a user fires a foreign-key action on every table that references
 // users, and many of those columns are unindexed, so the delete scans those
@@ -233,6 +234,7 @@ export const userAccountRouter = createTRPCRouter({
           select: { orgId: true },
         });
 
+        const gatewayMetadata = await findGatewayKeyMetadata(tx, { userId });
         const revokedKeys = await deleteApiKeys(tx, { userId });
         for (const apiKey of revokedKeys) {
           if (!apiKey.orgId) continue;
@@ -243,7 +245,7 @@ export const userAccountRouter = createTRPCRouter({
               resourceType: "apiKey",
               resourceId: apiKey.id,
               action: "delete",
-              before: apiKey,
+              before: { metadata: gatewayMetadata.get(apiKey.id), apiKey },
               after: { reason: "user_unbound", userId },
             },
             tx,

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { evictUserGatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { evictDeletedApiKeys } from "@/src/features/apiKey/evictDeletedApiKeys";
+import { findGatewayKeyMetadata } from "@/src/features/ai-gateway/server/apiKey/findGatewayKeyMetadata";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
@@ -188,6 +189,10 @@ export async function handleDeleteMembership(
       },
       tx,
     );
+    const gatewayMetadata = await findGatewayKeyMetadata(tx, {
+      orgId,
+      userId: before.userId,
+    });
     const revokedKeys = await deleteApiKeys(tx, {
       orgId,
       userId: before.userId,
@@ -200,7 +205,7 @@ export async function handleDeleteMembership(
           resourceType: "apiKey",
           resourceId: apiKey.id,
           action: "delete",
-          before: apiKey,
+          before: { metadata: gatewayMetadata.get(apiKey.id), apiKey },
           after: { reason: "user_unbound", userId: before.userId },
         },
         tx,
