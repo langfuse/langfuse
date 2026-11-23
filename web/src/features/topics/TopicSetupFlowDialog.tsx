@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clock,
   Copy,
+  Info,
   Lock,
   RefreshCw,
 } from "@langfuse/icons";
@@ -19,6 +20,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import {
@@ -46,9 +48,17 @@ const STEP_NUMBERS: Record<TopicSetupStep, string> = {
 
 const MODEL_ROWS = [
   { slot: "summary", label: "Summaries" },
-  { slot: "embedding", label: "Embeddings" },
+  {
+    slot: "embedding",
+    label: "Embeddings",
+    hint: "Embeddings turn each summary into a vector, so similar summaries group into topics. You can change the model later, but summaries already embedded are not re-embedded, so topic maps then start over from new summaries.",
+  },
   { slot: "clustering", label: "Grouping" },
-] as const;
+] as const satisfies ReadonlyArray<{
+  slot: string;
+  label: string;
+  hint?: string;
+}>;
 
 export type TopicSetupPastCount =
   | { status: "loading" }
@@ -251,6 +261,7 @@ export function TopicSetupFlowDialog({
                         <ModelRow
                           key={row.slot}
                           label={row.label}
+                          hint={"hint" in row ? row.hint : undefined}
                           model={model}
                           recommended={
                             model
@@ -480,6 +491,7 @@ function nextStepDisabled({
 
 function ModelRow({
   disabled,
+  hint,
   label,
   model,
   onConfigureProviders,
@@ -488,6 +500,7 @@ function ModelRow({
   recommended,
 }: {
   disabled: boolean;
+  hint?: string;
   label: string;
   model: JudgeModel | null;
   onConfigureProviders: () => void;
@@ -498,7 +511,22 @@ function ModelRow({
   const [open, setOpen] = useState(false);
   return (
     <div className="grid gap-1 px-3 py-2 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center sm:gap-2 sm:py-1.5 sm:pr-1.5">
-      <span className="text-sm">{label}</span>
+      <span className="flex items-center gap-1.5 text-sm">
+        {label}
+        {hint ? (
+          <Tooltip label={hint}>
+            {({ getTriggerProps }) => (
+              <button
+                type="button"
+                {...getTriggerProps()}
+                aria-label={`About ${label}`}
+              >
+                <Info aria-hidden size="sm" color="muted" />
+              </button>
+            )}
+          </Tooltip>
+        ) : null}
+      </span>
       <JudgeModelPicker
         purpose="decision"
         open={open && !disabled}
