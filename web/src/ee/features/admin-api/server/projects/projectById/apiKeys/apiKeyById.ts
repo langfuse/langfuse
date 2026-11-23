@@ -1,12 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  invalidateCachedApiKeys,
-  logger,
-  withTransaction,
-} from "@langfuse/shared/src/server";
-import { deleteApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { logger } from "@langfuse/shared/src/server";
+import { deleteApiKey } from "@/src/features/apiKey/apiKeyService";
 import { z } from "zod";
 
 export const validateQueryParams = (
@@ -32,35 +27,21 @@ export async function handleDeleteApiKey(
   orgId: string,
   authenticatingApiKeyId: string,
 ) {
-  const deleted = await withTransaction(prisma, async (tx) => {
-    const apiKey = await deleteApiKey(tx, {
-      id: apiKeyId,
+  const deleted = await deleteApiKey(prisma, {
+    id: apiKeyId,
+    projectId,
+    isInAppAgentKey: false,
+    actor: {
+      orgId,
       projectId,
-      isInAppAgentKey: false,
-    });
-    if (apiKey) {
-      await auditLog(
-        {
-          resourceType: "apiKey",
-          resourceId: apiKey.id,
-          action: "delete",
-          before: apiKey,
-          orgId: orgId,
-          projectId: projectId,
-          orgRole: "ADMIN",
-          apiKeyId: authenticatingApiKeyId,
-        },
-        tx,
-      );
-    }
-    return apiKey;
+      orgRole: "ADMIN",
+      apiKeyId: authenticatingApiKeyId,
+    },
   });
 
   if (!deleted) {
     return res.status(404).json({ message: "API key not found" });
   }
-
-  await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
 
   logger.info(
     `Deleted API key ${apiKeyId} for project ${projectId} via public API`,

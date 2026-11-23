@@ -5,14 +5,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
-import {
-  invalidateCachedApiKeys,
-  withTransaction,
-} from "@langfuse/shared/src/server";
-import {
-  createApiKey,
-  deleteApiKey,
-} from "@langfuse/shared/src/server/auth/apiKeys";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
 import {
   OrganizationId,
@@ -21,6 +14,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
+import { deleteApiKey } from "@/src/features/apiKey/apiKeyService";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -171,32 +165,16 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "apiKeys:CUD",
       });
-      const deleted = await withTransaction(ctx.prisma, async (tx) => {
-        const deletedApiKey = await deleteApiKey(tx, {
-          id: input.id,
-          projectId: input.projectId,
-          isInAppAgentKey: false,
-        });
-        if (deletedApiKey) {
-          await auditLog(
-            {
-              session: ctx.session,
-              resourceType: "apiKey",
-              resourceId: deletedApiKey.id,
-              action: "delete",
-              before: deletedApiKey,
-            },
-            tx,
-          );
-        }
-        return deletedApiKey;
+      const deleted = await deleteApiKey(ctx.prisma, {
+        id: input.id,
+        projectId: input.projectId,
+        isInAppAgentKey: false,
+        actor: { session: ctx.session },
       });
 
       if (!deleted) {
         throw new LangfuseNotFoundError("API key not found");
       }
-
-      await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
       return true;
     }),
 });

@@ -7,14 +7,9 @@ import {
 } from "@/src/server/api/trpc";
 import * as z from "zod";
 import { TRPCError } from "@trpc/server";
-import {
-  invalidateCachedApiKeys,
-  withTransaction,
-} from "@langfuse/shared/src/server";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   createApiKey,
-  deleteApiKey,
   orgBoundApiKeyScopes,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
@@ -22,6 +17,7 @@ import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKe
 import { excludeGatewayApiKeys } from "@/src/features/ai-gateway/server/apiKey/excludeGatewayApiKeys";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GATEWAY_ROLE } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
+import { deleteApiKey } from "@/src/features/apiKey/apiKeyService";
 
 // Gateway traffic from keys without a bound user reports the key name as its user ID.
 const GATEWAY_KEY_NAME_REQUIRED = "Gateway keys need a name";
@@ -212,38 +208,15 @@ export const organizationApiKeysRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
       });
-      const deleted = await withTransaction(ctx.prisma, async (tx) => {
-        const deletedApiKey = await deleteApiKey(tx, {
-          id: input.id,
-          orgId: input.orgId,
-          isInAppAgentKey: false,
-        });
-        if (deletedApiKey) {
-          await auditLog(
-            {
-              session: ctx.session,
-              resourceType: "apiKey",
-              resourceId: deletedApiKey.id,
-              action: "delete",
-              before: deletedApiKey,
-            },
-            tx,
-          );
-        }
-        return deletedApiKey;
+      const deleted = await deleteApiKey(ctx.prisma, {
+        id: input.id,
+        orgId: input.orgId,
+        isInAppAgentKey: false,
+        actor: { session: ctx.session },
       });
 
       if (!deleted) {
         throw new LangfuseNotFoundError("API key not found");
-      }
-
-      await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
-      // Any organization key whose role grants gateway:invoke may sit in the
-      // gateway resolve cache, which would otherwise keep it usable until the TTL.
-      if (deleted.fastHashedSecretKey) {
-        await invalidateGatewayResolveCacheForApiKey(
-          deleted.fastHashedSecretKey,
-        );
       }
       return true;
     }),
