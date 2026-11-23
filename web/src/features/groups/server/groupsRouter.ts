@@ -1,5 +1,4 @@
 import * as z from "zod";
-import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import {
   GroupSource,
@@ -9,6 +8,8 @@ import {
 } from "@langfuse/shared/src/db";
 import { type OrganizationScope, groupRoleGrants } from "@langfuse/shared/rbac";
 import {
+  ForbiddenError,
+  LangfuseNotFoundError,
   hasProjectAccessByRole,
   projectRoleAccessRights,
   type ProjectScope,
@@ -83,7 +84,7 @@ function throwIfNoProjectGroupAccess(
 
 function throwIfGroupNotFound<T>(group: T | null): asserts group is T {
   if (!group) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Group not found" });
+    throw new LangfuseNotFoundError("Group not found");
   }
 }
 
@@ -106,11 +107,9 @@ async function findEditableGroupOrThrow(
   });
   throwIfGroupNotFound(group);
   if (group.source === GroupSource.SCIM) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message:
-        "This group is synced from your identity provider. Change its name and members, or delete it, there.",
-    });
+    throw new ForbiddenError(
+      "This group is synced from your identity provider. Change its name and members, or delete it, there.",
+    );
   }
   return group;
 }
@@ -125,10 +124,9 @@ function throwIfRoleNotCovered(
     hasProjectAccess({ session, projectId, scope }),
   );
   if (!covered) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "You cannot grant/edit a role higher than your own",
-    });
+    throw new ForbiddenError(
+      "You cannot grant/edit a role higher than your own",
+    );
   }
 }
 
@@ -468,11 +466,9 @@ export const groupsRouter = createTRPCRouter({
           orgId: input.orgId,
         })
       ) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Organization does not have the required entitlement to set project roles",
-        });
+        throw new ForbiddenError(
+          "Organization does not have the required entitlement to set project roles",
+        );
       }
 
       const group = await ctx.prisma.group.findFirst({
@@ -568,10 +564,7 @@ export const groupsRouter = createTRPCRouter({
       });
 
       if (!orgAccess && !projectAccess) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You do not have the required access rights",
-        });
+        throw new ForbiddenError("You do not have the required access rights");
       }
       throwIfNoEntitlement({
         entitlement: "admin-api",

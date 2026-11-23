@@ -1,9 +1,7 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { Role } from "@langfuse/shared";
-import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import { createOrgMembership } from "@langfuse/shared/memberships";
 import { assignRole } from "@langfuse/shared/rbac/server";
@@ -32,28 +30,17 @@ async function prepare() {
     data: { orgId: org.id, displayName: "engineering", source: "MANUAL" },
   });
 
-  const session = {
-    expires: "1",
-    user: {
-      id: uuidv4(),
-      email: "owner@example.com",
-      name: "Owner",
-      canCreateOrganizations: true,
-      admin: false,
-      featureFlags: testFeatureFlags(),
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: Role.OWNER,
-          plan: "cloud:enterprise",
-          metadata: {},
-          projects: [],
-        },
-      ],
-    },
-    environment: {},
-  } as unknown as Session;
+  const session = createSession({
+    user: { id: uuidv4(), email: "owner@example.com", name: "Owner" },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: Role.OWNER,
+        plan: "cloud:enterprise",
+      },
+    ],
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
