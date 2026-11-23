@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { type ComponentProps, type ReactNode, useId } from "react";
 import {
   Controller,
   useWatch,
@@ -7,12 +7,12 @@ import {
   type FieldPathByValue,
   type FieldValues,
 } from "react-hook-form";
+import { Info } from "@langfuse/icons";
 
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-import { Form } from "@/src/components/design-system/Form/Form";
-import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
   type GatewaySpendBudgetAlertThreshold,
@@ -23,7 +23,6 @@ import {
 } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import type { GatewaySpendBudgetFormValue } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
-import { PresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/PresetOption/PresetOption";
 
 const requestsBySubject = {
   key: "requests with this key",
@@ -36,6 +35,10 @@ const alertRecipientsBySubject = {
   user: "the user and organization owners",
   organization: "organization owners",
 } as const;
+
+type TooltipTriggerPropsGetter = Parameters<
+  ComponentProps<typeof CustomTooltip>["children"]
+>[0]["getTriggerProps"];
 
 type GatewaySpendBudgetFormValues = {
   spendBudget: GatewaySpendBudgetFormValue;
@@ -66,24 +69,20 @@ export function GatewaySpendBudgetField<
       }
     >
       {({ getTriggerProps }) => (
-        <FormField label="Spend budget" registerLabelTooltip={getTriggerProps}>
-          {(group) => (
-            <div
-              id={group.id}
-              role="group"
-              aria-label="Spend budget"
-              className="pt-1"
-            >
-              <SpendBudgetSections budget={budget} subject={subject} />
-            </div>
-          )}
-        </FormField>
+        <div role="group" aria-label="Spend budget">
+          <SpendBudgetSections
+            budget={budget}
+            subject={subject}
+            label="Spend budget"
+            registerLabelTooltip={getTriggerProps}
+          />
+        </div>
       )}
     </CustomTooltip>
   );
 }
 
-/** The budget's amount, reset, and alert inputs without a group heading, for forms that are only about the budget. */
+/** The budget's amount, reset, and alert inputs for forms that are only about the budget. */
 function GatewaySpendBudgetInputs<T extends GatewaySpendBudgetFormValues>({
   control,
   subject,
@@ -91,7 +90,9 @@ function GatewaySpendBudgetInputs<T extends GatewaySpendBudgetFormValues>({
 }: GatewaySpendBudgetFieldProps<T>) {
   const budget = useSpendBudget(control, subject, disabledReason);
 
-  return <SpendBudgetSections budget={budget} subject={subject} />;
+  return (
+    <SpendBudgetSections budget={budget} subject={subject} label="Budget" />
+  );
 }
 
 GatewaySpendBudgetField.Inputs = GatewaySpendBudgetInputs;
@@ -138,8 +139,8 @@ function GatewaySpendBudgetRow<T extends FieldValues>({
         control={control}
         name={`${name}.interval`}
         render={({ field }) => (
-          <IntervalPresets
-            label={`${label} budget resets`}
+          <IntervalTabs
+            ariaLabel={`${label} budget resets`}
             value={field.value}
             disabled={disabled}
             onSelect={field.onChange}
@@ -155,16 +156,21 @@ GatewaySpendBudgetField.Row = GatewaySpendBudgetRow;
 function SpendBudgetSections({
   budget,
   subject,
+  label,
+  registerLabelTooltip,
 }: {
   budget: SpendBudget;
   subject: keyof typeof alertRecipientsBySubject;
+  label: string;
+  registerLabelTooltip?: TooltipTriggerPropsGetter;
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <SpendBudgetControls budget={budget} />
-        <p className="text-muted-foreground text-sm">{budget.description}</p>
-      </div>
+      <SpendBudgetControls
+        budget={budget}
+        label={label}
+        registerLabelTooltip={registerLabelTooltip}
+      />
       <AlertThresholdField
         control={budget.control}
         subject={subject}
@@ -174,39 +180,71 @@ function SpendBudgetSections({
   );
 }
 
-function SpendBudgetControls({ budget }: { budget: SpendBudget }) {
-  const { control, disabled } = budget;
+function SpendBudgetControls({
+  budget,
+  label,
+  registerLabelTooltip,
+}: {
+  budget: SpendBudget;
+  label: string;
+  registerLabelTooltip?: TooltipTriggerPropsGetter;
+}) {
+  const { control, description, disabled } = budget;
+  const amountId = useId();
+  const descriptionId = useId();
+  const errorId = useId();
 
   return (
-    <div className="flex flex-wrap items-start gap-4">
-      <div className="w-36">
-        <Form.Field
-          control={control}
-          name="spendBudget.limitUsd"
-          label="Amount (USD)"
-        >
-          {(field) => (
-            <AmountInput
-              id={field.id}
-              field={field}
-              hasError={!!field.error}
-              disabled={disabled}
-            />
-          )}
-        </Form.Field>
-      </div>
-      <Form.Field control={control} name="spendBudget.interval" label="Resets">
-        {(field) => (
-          <IntervalPresets
-            id={field.id}
-            label="Resets"
-            value={field.value}
-            disabled={disabled}
-            onSelect={field.onChange}
-          />
-        )}
-      </Form.Field>
-    </div>
+    <Controller
+      control={control}
+      name="spendBudget.limitUsd"
+      render={({ field: amountField, fieldState }) => {
+        const errorMessage = fieldState.error?.message;
+        const describedBy = [errorMessage ? errorId : undefined, descriptionId]
+          .filter(Boolean)
+          .join(" ");
+
+        return (
+          <BudgetFieldSection
+            label={label}
+            htmlFor={amountId}
+            description={description}
+            descriptionId={descriptionId}
+            errorMessage={errorMessage}
+            errorId={errorId}
+            registerLabelTooltip={registerLabelTooltip}
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="w-36 shrink-0">
+                <AmountInput
+                  id={amountId}
+                  ariaDescribedBy={describedBy}
+                  field={amountField}
+                  hasError={!!fieldState.error}
+                  disabled={disabled}
+                />
+              </div>
+              <div className="min-w-[min(100%,22rem)] flex-1">
+                <Controller
+                  control={control}
+                  name="spendBudget.interval"
+                  render={({ field: intervalField }) => (
+                    <IntervalTabs
+                      ariaLabel="Resets"
+                      ariaDescribedBy={descriptionId}
+                      value={intervalField.value}
+                      disabled={disabled}
+                      layout="full"
+                      onSelect={intervalField.onChange}
+                    />
+                  )}
+                />
+              </div>
+            </div>
+          </BudgetFieldSection>
+        );
+      }}
+    />
   );
 }
 
@@ -219,23 +257,85 @@ function AlertThresholdField({
   subject: keyof typeof alertRecipientsBySubject;
   disabled: boolean;
 }) {
+  const groupId = useId();
+  const descriptionId = useId();
+
   return (
-    <Form.Field
+    <Controller
       control={control}
       name="spendBudget.alertThresholds"
-      label="Email alerts"
-      description={`Emails ${alertRecipientsBySubject[subject]} when usage reaches a selected threshold.`}
-    >
-      {(field) => (
-        <AlertThresholdCheckboxes
-          id={field.id}
-          ariaDescribedBy={field.inputDescribedById}
-          selected={field.value}
-          disabled={disabled}
-          onChange={field.onChange}
-        />
+      render={({ field }) => (
+        <BudgetFieldSection
+          label="Email alerts"
+          description={`Emails ${alertRecipientsBySubject[subject]} when usage reaches a selected threshold.`}
+          descriptionId={descriptionId}
+        >
+          <AlertThresholdCheckboxes
+            id={groupId}
+            ariaDescribedBy={descriptionId}
+            selected={field.value}
+            disabled={disabled}
+            onChange={field.onChange}
+          />
+        </BudgetFieldSection>
       )}
-    </Form.Field>
+    />
+  );
+}
+
+function BudgetFieldSection({
+  label,
+  htmlFor,
+  description,
+  descriptionId,
+  errorMessage,
+  errorId,
+  registerLabelTooltip,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  description: string;
+  descriptionId: string;
+  errorMessage?: string;
+  errorId?: string;
+  registerLabelTooltip?: TooltipTriggerPropsGetter;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5">
+          {htmlFor ? (
+            <label htmlFor={htmlFor} className="text-sm leading-none font-bold">
+              {label}
+            </label>
+          ) : (
+            <span className="text-sm leading-none font-bold">{label}</span>
+          )}
+          {registerLabelTooltip ? (
+            <button
+              type="button"
+              {...registerLabelTooltip()}
+              aria-label={`About ${label}`}
+            >
+              <Info aria-hidden size="base" color="muted" />
+            </button>
+          ) : null}
+        </div>
+        <p id={descriptionId} className="text-muted-foreground text-sm">
+          {description}
+        </p>
+      </div>
+      <div className="flex flex-col gap-1">
+        {children}
+        {errorMessage && errorId ? (
+          <p id={errorId} className="text-destructive text-sm">
+            {errorMessage}
+          </p>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -324,11 +424,13 @@ function AlertThresholdCheckbox({
 
 function AmountInput({
   id,
+  ariaDescribedBy,
   field,
   hasError,
   disabled,
 }: {
   id: string;
+  ariaDescribedBy?: string;
   field: Pick<
     ControllerRenderProps<Record<string, string>, string>,
     "name" | "value" | "onChange" | "onBlur" | "ref"
@@ -349,44 +451,57 @@ function AmountInput({
       ref={field.ref}
       disabled={disabled}
       error={hasError}
+      aria-describedby={ariaDescribedBy}
       aria-invalid={hasError}
     />
   );
 }
 
-function IntervalPresets({
-  id,
-  label,
+function IntervalTabs({
+  ariaLabel,
+  ariaDescribedBy,
   value,
   disabled,
+  layout = "default",
   onSelect,
 }: {
-  id?: string;
-  label: string;
+  ariaLabel: string;
+  ariaDescribedBy?: string;
   value: GatewaySpendBudgetInterval;
   disabled: boolean;
+  layout?: "default" | "full";
   onSelect: (value: GatewaySpendBudgetInterval) => void;
 }) {
-  const radioName = useId();
+  const handleValueChange = (next: string) => {
+    const match = gatewaySpendBudgetIntervalOptions.find(
+      (option) => option.value === next,
+    );
+    if (match) onSelect(match.value);
+  };
+
   return (
-    <div
-      id={id}
-      role="radiogroup"
-      aria-label={label}
-      aria-disabled={disabled || undefined}
-      className="flex flex-wrap gap-2"
-    >
-      {gatewaySpendBudgetIntervalOptions.map((option) => (
-        <PresetOption
-          key={option.value}
-          name={radioName}
-          value={option.value}
-          label={option.label}
-          checked={value === option.value}
-          disabled={disabled}
-          onSelect={onSelect}
-        />
-      ))}
+    <div aria-describedby={ariaDescribedBy}>
+      <Tabs
+        activationMode="manual"
+        value={value}
+        onValueChange={handleValueChange}
+      >
+        <Tabs.List
+          variant="inset"
+          size="md"
+          layout={layout}
+          aria-label={ariaLabel}
+        >
+          {gatewaySpendBudgetIntervalOptions.map((option) => (
+            <Tabs.Trigger
+              key={option.value}
+              value={option.value}
+              label={option.label}
+              disabled={disabled}
+            />
+          ))}
+        </Tabs.List>
+      </Tabs>
     </div>
   );
 }

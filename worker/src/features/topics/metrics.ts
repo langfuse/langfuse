@@ -28,6 +28,7 @@ export type TopicResult =
   | "assigned"
   | "outlier"
   | "name_conflict"
+  | "name_kept"
   | "duplicate_name";
 type TopicErrorReason =
   | TopicsProviderUnavailable["reason"]

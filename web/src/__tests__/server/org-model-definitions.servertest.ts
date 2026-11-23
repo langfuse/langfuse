@@ -1,4 +1,4 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -28,7 +28,6 @@ import {
   findModel,
   getObservationsTableWithModelData,
 } from "@langfuse/shared/src/server";
-import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -68,40 +67,25 @@ const createModel = async (
 };
 
 const createCaller = (orgId: string, projectId: string) => {
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: `user-${v4()}`,
-      name: "Org models test user",
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: orgId,
-          name: orgId,
-          role: "OWNER",
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: projectId,
-              hasTraces: true,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {} as any,
-  };
+  const session = createSession({
+    user: { id: `user-${v4()}`, name: "Org models test user" },
+    organizations: [
+      {
+        id: orgId,
+        name: orgId,
+        role: "OWNER",
+        plan: "cloud:team",
+        projects: [
+          {
+            id: projectId,
+            role: "ADMIN",
+            name: projectId,
+            hasTraces: true,
+          },
+        ],
+      },
+    ],
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
 };
