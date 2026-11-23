@@ -37,7 +37,7 @@ import {
   readTopicMapAssignments,
   selectTopicMapMatches,
   readTopicsModelSettings,
-  readTopicsEmbeddingLock,
+  hasCurrentTopicEmbeddings,
   checkTopicsModelSettings,
   saveTopicsSetup,
   setTopicsAutomaticProcessing,
@@ -536,8 +536,8 @@ export const topicsRouter = createTRPCRouter({
   modelSettings: topicsProcedure.query(({ input }) =>
     readTopicsModelSettings(input.projectId),
   ),
-  embeddingLock: topicsProcedure.query(({ input }) =>
-    readTopicsEmbeddingLock(input.projectId),
+  hasCurrentEmbeddings: topicsProcedure.query(({ input }) =>
+    hasCurrentTopicEmbeddings(input.projectId),
   ),
   tracingReadinessSettings: topicsProcedure.query(({ input }) =>
     getTracingReadinessSettings(input.projectId),

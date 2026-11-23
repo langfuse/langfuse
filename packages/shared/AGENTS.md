@@ -84,7 +84,7 @@
 - `@langfuse/shared/topics/server`: persistence, model setup, queues and execution progress in `src/server/topics`. Before changing processing, storage or costs, read the [Topics worker guide](../../worker/src/features/topics/README.md).
   - Save models, the first Topics rule and trace idle time through `setup.ts`; refresh readiness and processing caches only after the transaction commits. A project has up to five rules (`slices.ts`); analyses are one-off clustering runs over a tracing filter and never change a rule's map.
   - Model saves preserve automatic-processing state. Use `setTopicsAutomaticProcessing` to toggle it or change rule sampling.
-  - Keep the embedding model and dimensions fixed once embeddings exist.
+  - Changing the embedding model or dimensions starts a new embedding space: existing summaries are not re-embedded, and every fit, map and assignment filters on the current model and dimensions.
   - Invalidate `processing-gate.ts` after committed config, rule or facet changes; `invalidateProjectEvalConfigCaches` includes this invalidation.
 
 - `src/server/transcript`: order minimal `TranscriptObservation` inputs with

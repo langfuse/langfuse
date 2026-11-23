@@ -428,20 +428,22 @@ export async function readTopicsModelSettings(projectId: string) {
 }
 
 /**
- * The embedding model and dimensions that saving can no longer change, because
- * complete summaries were embedded with them; null while they can still change.
- * Mirrors the check in `prepareTopicsModelSettings`.
+ * Whether summaries were embedded with the stored embedding model and
+ * dimensions. Changing either then starts a new embedding space: those
+ * summaries are not re-embedded and no longer reach fits or assignment.
  */
-export async function readTopicsEmbeddingLock(
+export async function hasCurrentTopicEmbeddings(
   projectId: string,
-): Promise<{ model: string; dimensions: number } | null> {
+): Promise<boolean> {
   const row = await prisma.topicConfig.findUnique({
     where: { projectId },
     select: { embeddingModel: true, embeddingDimensions: true },
   });
-  if (!row?.embeddingModel || !(await hasTopicEmbeddings(projectId)))
-    return null;
-  return { model: row.embeddingModel, dimensions: row.embeddingDimensions };
+  if (!row?.embeddingModel) return false;
+  return hasTopicEmbeddings(projectId, {
+    embeddingModel: row.embeddingModel,
+    embeddingDimensions: row.embeddingDimensions,
+  });
 }
 
 /** Resolves each slot's provider to the project's effective connection, or throws. */
@@ -509,14 +511,6 @@ export async function prepareTopicsModelSettings(
     );
 
   const slots = resolveSavedSlots(resolved, current);
-  const embeddingChanged =
-    current?.embeddingModel &&
-    (slots.embedding.model !== current.embeddingModel ||
-      slots.embeddingDimensions !== current.embeddingDimensions);
-  if (embeddingChanged && (await hasTopicEmbeddings(projectId)))
-    throw new InvalidRequestError(
-      "The embedding model and dimensions cannot change after summaries were embedded; existing vectors could no longer be clustered together.",
-    );
 
   // Only changed models are tested: the dialog tests each pick, turning
   // processing on tests all three, and a broken stored connection pauses Topics.

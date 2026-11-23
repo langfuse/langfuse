@@ -22,7 +22,7 @@ const emptyDraft = {
   embeddingDimensions: "1024",
   clustering: null,
   idleSeconds: "600",
-  embeddingLock: null,
+  hasEmbeddings: false,
   automaticProcessing: false,
 } satisfies ConfigureTopicsDraft;
 
@@ -32,7 +32,7 @@ const filledDraft = {
   embeddingDimensions: "1024",
   clustering: { provider: "Amazon Bedrock", model: "us.openai.gpt-5.6-terra" },
   idleSeconds: "600",
-  embeddingLock: { model: "us.cohere.embed-v4:0", dimensions: 1024 },
+  hasEmbeddings: true,
   automaticProcessing: true,
 } satisfies ConfigureTopicsDraft;
 
@@ -71,45 +71,26 @@ export const Configured = meta.story({
   },
 });
 
-export const WarnsBeforeEmbeddingChange = meta.story({
-  name: "(Test) Changing the embedding model warns that it becomes permanent",
+export const WarnsBeforeLeavingEmbeddings = meta.story({
+  name: "(Test) Changing an embedding model with embedded summaries warns but saves",
   args: {
-    draft: { ...filledDraft, embeddingLock: null },
+    draft: filledDraft,
     notice: "none",
   },
-  play: async () => {
+  play: async ({ args }) => {
     const body = within(document.body);
-    const title = /This model locks once the first summaries are embedded/;
-    await expect(body.queryByText(title)).not.toBeInTheDocument();
+    const warning = /are not re-embedded/;
+    await expect(body.queryByText(warning)).not.toBeInTheDocument();
     const dimensions = body.getByRole("spinbutton", {
       name: "Embedding dimensions",
     });
     await userEvent.clear(dimensions);
     await userEvent.type(dimensions, "512");
-    await expect(body.getByText(title)).toBeVisible();
-  },
-});
-
-export const LockedEmbeddingMovesConnections = meta.story({
-  name: "(Test) A locked embedding model can only move to another connection",
-  args: {
-    draft: filledDraft,
-    notice: "none",
-  },
-  play: async () => {
-    const body = within(document.body);
-    await expect(
-      body.getByRole("spinbutton", { name: "Embedding dimensions" }),
-    ).toBeDisabled();
-    await userEvent.click(
-      body.getByRole("button", { name: /us\.cohere\.embed-v4:0/ }),
+    await expect(body.getByText(warning)).toBeVisible();
+    await userEvent.click(body.getByRole("button", { name: "Save" }));
+    await expect(args.onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ embeddingDimensions: "512" }),
     );
-    await expect(
-      body.getAllByRole("option", { name: "us.cohere.embed-v4:0" }),
-    ).toHaveLength(providerGroups.length);
-    await expect(
-      body.queryByRole("option", { name: "text-embedding-3-small" }),
-    ).not.toBeInTheDocument();
   },
 });
 

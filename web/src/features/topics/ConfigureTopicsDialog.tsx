@@ -6,7 +6,6 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Button as LegacyButton } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
@@ -37,10 +36,10 @@ export type ConfigureTopicsDraft = {
   clustering: JudgeModel | null;
   idleSeconds: string;
   /**
-   * The embedding model and dimensions the project's summaries were embedded
-   * with; the server rejects any other. Null while no summary is embedded.
+   * Summaries were embedded with the saved embedding model and dimensions, so
+   * changing either leaves them behind in the old embedding space.
    */
-  embeddingLock: { model: string; dimensions: number } | null;
+  hasEmbeddings: boolean;
   /**
    * Automatic processing of new traces is on, so Save tests every model.
    * Otherwise Save tests only the models that changed.
@@ -86,7 +85,6 @@ const SLOT_COPY = {
   },
   embedding: {
     label: "Embeddings",
-    lockedHint: "Locked after the first summaries are embedded.",
     recommendation:
       "Choose an embedding model your connection offers, such as text-embedding-3-small.",
   },
@@ -144,27 +142,15 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
           (slot === "embedding" && dimensions !== draft.embeddingDimensions)),
     )
     .every((slot) => !slotChecks || slotChecks[slot]?.status === "ok");
-  const lock = draft.embeddingLock;
-  // The server locks the model and dimensions, not the connection, so a locked
-  // model can still move to another connection.
-  const embeddingGroups = lock
-    ? embeddingProviderGroups.map<[string, string[]]>(([provider]) => [
-        provider,
-        [lock.model],
-      ])
-    : embeddingProviderGroups;
-  const embeddingChanged =
+  // Another connection serving the same model keeps the embedding space.
+  const leavesEmbeddings =
+    draft.hasEmbeddings &&
     embedding !== null &&
-    (!sameModel(embedding, draft.embedding) ||
-      dimensions !== draft.embeddingDimensions);
-  const leavesLockedSpace =
-    lock !== null &&
-    embedding !== null &&
-    (embedding.model !== lock.model || Number(dimensions) !== lock.dimensions);
+    (embedding.model !== draft.embedding?.model ||
+      Number(dimensions) !== Number(draft.embeddingDimensions));
   const canSave =
     canWrite &&
     !saving &&
-    !leavesLockedSpace &&
     (draft.automaticProcessing ? modelsPass : changedSlotsPass);
   const commitSlot = (
     slot: "summary" | "embedding" | "clustering",
@@ -260,20 +246,18 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               disabled={!canWrite}
               check={slotChecks?.embedding}
               dimensions={dimensions}
-              dimensionsLocked={lock !== null}
               onDimensionsChange={(value) => {
                 setDimensions(value);
                 if (embedding) commitSlot("embedding", embedding, value);
               }}
-              providerGroups={embeddingGroups}
+              providerGroups={embeddingProviderGroups}
               onConfigureProviders={onConfigureProviders}
               onSelect={(model) => {
                 setEmbedding(model);
                 commitSlot("embedding", model);
               }}
             >
-              {lock ? <EmbeddingLockedWarning /> : null}
-              {!lock && embeddingChanged ? <EmbeddingChangeWarning /> : null}
+              {leavesEmbeddings ? <EmbeddingChangeWarning /> : null}
             </ModelSlot>
             <ModelSlot
               name="clustering"
@@ -323,7 +307,6 @@ function ModelSlot({
   children,
   connectionMissing = false,
   dimensions,
-  dimensionsLocked = false,
   disabled = false,
   model,
   name,
@@ -337,7 +320,6 @@ function ModelSlot({
   children?: ReactNode;
   connectionMissing?: boolean;
   dimensions?: string;
-  dimensionsLocked?: boolean;
   disabled?: boolean;
   model: JudgeModel | null;
   name: keyof typeof SLOT_COPY;
@@ -348,12 +330,9 @@ function ModelSlot({
 }) {
   const [open, setOpen] = useState(false);
   const copy = SLOT_COPY[name];
-  const dimensionsInactive = disabled || dimensionsLocked;
   const dimensionsInput =
     dimensions !== undefined ? (
-      <div
-        className={`w-20 shrink-0 ${dimensionsInactive ? "pointer-events-none" : ""}`}
-      >
+      <div className={`w-20 shrink-0 ${disabled ? "pointer-events-none" : ""}`}>
         <Input
           aria-label="Embedding dimensions"
           type="number"
@@ -361,7 +340,7 @@ function ModelSlot({
           min={TOPICS_MIN_EMBEDDING_DIMENSIONS}
           max={TOPICS_MAX_EMBEDDING_DIMENSIONS}
           value={dimensions}
-          disabled={dimensionsInactive}
+          disabled={disabled}
           onChange={(event) => onDimensionsChange?.(event.target.value)}
         />
       </div>
@@ -398,15 +377,7 @@ function ModelSlot({
               </PopoverTrigger>
             </JudgeModelPicker>
           </div>
-          {dimensionsLocked && dimensionsInput ? (
-            <Tooltip label={SLOT_COPY.embedding.lockedHint} placement="bottom">
-              {({ getTriggerProps }) => (
-                <div {...getTriggerProps()}>{dimensionsInput}</div>
-              )}
-            </Tooltip>
-          ) : (
-            dimensionsInput
-          )}
+          {dimensionsInput}
         </div>
         <SlotStatus check={check} recommendation={copy.recommendation} />
         {children}
@@ -430,18 +401,14 @@ function SlotStatus({
   return <p className="text-muted-foreground text-xs">{recommendation}</p>;
 }
 
-function EmbeddingLockedWarning() {
-  return (
-    <Banner variant="warning">
-      <p>Locked because summaries are already embedded with this model.</p>
-    </Banner>
-  );
-}
-
 function EmbeddingChangeWarning() {
   return (
     <Banner variant="warning">
-      <p>This model locks once the first summaries are embedded.</p>
+      <p>
+        Existing summaries keep their current embeddings and are not
+        re-embedded. Topic maps then start over from new summaries at the next
+        update.
+      </p>
     </Banner>
   );
 }

@@ -218,22 +218,23 @@ describe("prepareTopicsModelSettings", () => {
     ["model", { embedding: slot("openai", "text-embedding-3-large") }],
     ["dimensions", { embeddingDimensions: 512 as const }],
   ])(
-    "locks the embedding %s once summaries are embedded",
+    "saves a new embedding %s after summaries are embedded",
     async (_, change) => {
       mocks.current.mockResolvedValue({
         embeddingModel: "text-embedding-3-small",
         embeddingDimensions: 1024,
       });
       mocks.hasEmbeddings.mockResolvedValue(true);
-      await expect(
-        saveTopicsModelSettings("project", { ...settings, ...change }),
-      ).rejects.toThrow("cannot change after summaries were embedded");
-      // Other slots stay editable; the embedding connection may change too.
-      await saveTopicsModelSettings("project", {
-        ...settings,
-        summary: slot("openai", "gpt-6-luna-mini"),
-      });
-      expect(mocks.upsert).toHaveBeenCalledOnce();
+      await saveTopicsModelSettings("project", { ...settings, ...change });
+      const next = { ...settings, ...change };
+      expect(mocks.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            embeddingModel: next.embedding.model,
+            embeddingDimensions: next.embeddingDimensions,
+          }),
+        }),
+      );
     },
   );
 });
