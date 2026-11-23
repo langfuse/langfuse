@@ -57,7 +57,7 @@ export const busy = (status: string) =>
 export const estimatedTopicCostLabel = "Estimated cost:";
 
 export const estimatedTopicCostDescription =
-  "The estimated cost is a lower bound. As summaries can fail, are reused and can be replaced, the actual cost might be higher. Calls split their cost across the summaries they produce. Each summary’s share goes to its snapshot run or is split equally among its live maps. Please confirm with your model provider.";
+  "Missing prices or failed calls can make this estimate too low. Duplicate records can make it too high. Summary and embedding calls split their cost across results. Each result belongs to its snapshot or is shared equally by the live maps that requested it. Later reuse is free. Naming costs belong to the run that created the topic version. Please confirm with your model provider.";
 
 export function createsSummaries(input: RunCostInput) {
   return input.operation === "process" || Boolean(input.analysis?.summarize);
@@ -69,13 +69,9 @@ export function formatTopicCost(cost: number | null | undefined) {
   return `~${costFormatter(cost)}`;
 }
 
-export function formatTopicRunCost(
-  input: RunCostInput,
-  costs: TopicRunCost | null | undefined,
-) {
+export function formatTopicRunCost(costs: TopicRunCost | null | undefined) {
   if (costs == null) return formatTopicCost(costs);
-  const summaries = createsSummaries(input) ? costs.summaries : null;
-  const naming = costs.naming;
+  const { summaries, naming } = costs;
   if (summaries === null && naming === null) return formatTopicCost(null);
   return formatTopicCost((summaries ?? 0) + (naming ?? 0));
 }

@@ -42,7 +42,11 @@ import {
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
 import { prisma } from "@langfuse/shared/src/db";
-import { nameTopicGroup, prepareTopicNamingGroup } from "./models";
+import {
+  nameTopicGroup,
+  prepareTopicNamingGroup,
+  type NamingConflict,
+} from "./models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -604,10 +608,7 @@ async function clusterFacet(
   }
 }
 
-type NamedTopics = Map<
-  string,
-  { name: string; description: string; summaries: string[] }
->;
+type NamedTopics = Map<string, NamingConflict>;
 
 /** Groups are named independently, so a name taken in the run gets one conflict-aware retry. */
 async function nameGroupAvoidingConflicts(
@@ -618,24 +619,14 @@ async function nameGroupAvoidingConflicts(
   metadata: Record<string, unknown> & { run_id: string },
   onCost: (costDetails: Record<string, number>) => void,
 ) {
-  let { output: label } = await nameTopicGroup(
-    models,
-    group,
-    metadata,
-    undefined,
-    onCost,
-  );
+  const nameGroup = (conflict?: NamingConflict) =>
+    nameTopicGroup(models, group, metadata, conflict, onCost);
+  let { output: label } = await nameGroup();
   const conflict = named.get(label.name.toLowerCase());
   if (conflict) {
     metrics.result("naming", "name_conflict");
     // The first name is valid, so a failed rename keeps it.
-    label = await nameTopicGroup(
-      models,
-      group,
-      metadata,
-      conflict,
-      onCost,
-    ).then(
+    label = await nameGroup(conflict).then(
       ({ output }) => output,
       (error: unknown) => {
         metrics.error("naming", error);

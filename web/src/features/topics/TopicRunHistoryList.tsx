@@ -141,7 +141,7 @@ function ActiveRun({
       <div className="flex items-center justify-between gap-2.5 text-xs">
         <span className="text-muted-foreground">{estimatedTopicCostLabel}</span>
         <span className="font-mono">
-          {formatTopicRunCost(run.input, run.costBreakdown)}
+          {formatTopicRunCost(run.costBreakdown)}
         </span>
       </div>
     </div>
@@ -172,7 +172,7 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
             `${formatCount(traceCount(run))} traces · `}
           {estimatedTopicCostLabel}{" "}
           <span className="whitespace-nowrap">
-            {formatTopicRunCost(run.input, run.costBreakdown)}
+            {formatTopicRunCost(run.costBreakdown)}
           </span>
         </span>
         {problem && (

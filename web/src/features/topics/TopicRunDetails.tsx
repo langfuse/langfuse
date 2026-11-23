@@ -321,7 +321,7 @@ export function TopicRunDetails({
         <dl className="grid grid-cols-[1fr_auto] gap-x-2.5 gap-y-1 text-xs">
           <dt className="font-medium">{estimatedTopicCostLabel}</dt>
           <dd className="text-right font-mono font-medium">
-            {formatTopicRunCost(execution.input, costs)}
+            {formatTopicRunCost(costs)}
           </dd>
           <dt className="text-muted-foreground">Summaries and embeddings</dt>
           <dd className="text-right font-mono">{summaryCost}</dd>

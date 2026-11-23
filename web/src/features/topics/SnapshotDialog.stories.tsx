@@ -99,6 +99,10 @@ function SnapshotStory({
       }
     : { status: "loading" };
   const extra = snapshotSummarizeCount(summarize, shown);
+  const canGroup =
+    facetIds.length > 0 &&
+    shown !== null &&
+    shown.summarizedCount + extra >= shown.smallSampleMinimumTraceCount;
   return (
     <SnapshotDialogView
       name={name}
@@ -126,24 +130,21 @@ function SnapshotStory({
       preview={shown}
       summarize={summarize}
       onSummarizeChange={setSummarize}
-      renderCostEstimate={(newTraces) => (
-        <TopicCostEstimateView
-          estimate={costEstimateFixture({}, perTraceUsd)}
-          newTraces={newTraces}
-          canAddModelPrice
-          onAddModelPrice={fn()}
-          starting={false}
-          disabled={false}
-          error={null}
-          onStart={fn()}
-        />
-      )}
-      canStart={
-        name.trim().length > 0 &&
-        Boolean(shown) &&
-        facetIds.length > 0 &&
-        shown!.summarizedCount + extra >= shown!.smallSampleMinimumTraceCount
+      costEstimate={
+        canGroup && (
+          <TopicCostEstimateView
+            estimate={costEstimateFixture({}, perTraceUsd)}
+            newTraces={extra}
+            canAddModelPrice
+            onAddModelPrice={fn()}
+            starting={false}
+            disabled={false}
+            error={null}
+            onStart={fn()}
+          />
+        )
       }
+      canStart={canGroup && name.trim().length > 0}
       starting={false}
       errors={errors}
       onStart={fn()}

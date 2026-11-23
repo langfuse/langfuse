@@ -91,7 +91,7 @@ export function SnapshotDialogView({
   preview,
   summarize,
   onSummarizeChange,
-  renderCostEstimate,
+  costEstimate,
   canStart,
   starting,
   errors,
@@ -142,12 +142,9 @@ export function SnapshotDialogView({
               extra={extra}
               facetCount={facetIds.length}
             />
-            {preview &&
-              renderCostEstimate &&
-              preview.summarizedCount + extra >=
-                preview.smallSampleMinimumTraceCount &&
+            {costEstimate &&
               (extra > 0 ? (
-                renderCostEstimate(extra)
+                costEstimate
               ) : (
                 <p className="text-muted-foreground text-sm">
                   $0 for new summaries and embeddings. Topic naming may incur a
@@ -371,7 +368,7 @@ type SnapshotDialogViewProps = {
   summarize: SnapshotSummarize;
   onSummarizeChange: (summarize: SnapshotSummarize) => void;
   /** Present once the counts match the selection. Reuse-only snapshots need no estimate lookup. */
-  renderCostEstimate?: (newTraces: number) => ReactNode;
+  costEstimate: ReactNode;
   canStart: boolean;
   starting: boolean;
   errors: string[];

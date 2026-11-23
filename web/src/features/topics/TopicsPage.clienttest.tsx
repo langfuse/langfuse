@@ -10,7 +10,11 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
-import { type TopicFacet } from "@langfuse/shared/topics";
+import {
+  TOPICS_COST_ESTIMATE_MAX_FACETS,
+  type TopicFacet,
+} from "@langfuse/shared/topics";
+import { TopicCostEstimate } from "./TopicCostEstimate";
 import { type TopicRunCost } from "./topic-run-labels";
 import { type RouterOutputs } from "@/src/utils/api";
 
@@ -472,6 +476,24 @@ function withSummaries() {
   ];
   state.rules = [{ facetIds: ["intent", "outcome"] }];
 }
+
+it("explains the forecast limit without requesting an estimate for an oversized selection", () => {
+  const facetIds = Array.from(
+    { length: TOPICS_COST_ESTIMATE_MAX_FACETS + 1 },
+    (_, i) => `facet-${i}`,
+  );
+  render(
+    <TopicCostEstimate
+      projectId="project"
+      source="snapshot"
+      filter={[]}
+      facetIds={facetIds}
+      newTraces={10}
+    />,
+  );
+  expect(screen.getByText(/cost estimates support up to/i)).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Estimate cost" })).toBeNull();
+});
 
 it("shows the selected map’s cost while browsing other maps on a phone", async () => {
   withSummaries();

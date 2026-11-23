@@ -1,4 +1,5 @@
 import type { FilterState } from "@langfuse/shared";
+import { TOPICS_COST_ESTIMATE_MAX_FACETS } from "@langfuse/shared/topics";
 import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -16,7 +17,18 @@ type TopicCostEstimateProps = TopicEstimateVolume & {
 };
 
 /** Starts a background cost estimate and follows it until its result. */
-export function TopicCostEstimate({
+export function TopicCostEstimate(props: TopicCostEstimateProps) {
+  if (props.facetIds.length > TOPICS_COST_ESTIMATE_MAX_FACETS)
+    return (
+      <p className="text-muted-foreground text-sm">
+        Cost estimates support up to {TOPICS_COST_ESTIMATE_MAX_FACETS} selected
+        questions.
+      </p>
+    );
+  return <TopicCostEstimateQuery {...props} />;
+}
+
+function TopicCostEstimateQuery({
   projectId,
   filter,
   facetIds,

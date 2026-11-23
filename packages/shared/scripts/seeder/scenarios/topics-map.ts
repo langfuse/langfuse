@@ -1,5 +1,6 @@
 import { prisma } from "../../../src/db";
 import {
+  commandClickhouse,
   createTrace,
   createObservation,
   createTracesCh,
@@ -24,7 +25,10 @@ import type {
 } from "../../../src/topics";
 import { TOPICS_MIN_EMBEDDING_DIMENSIONS } from "../../../src/topics";
 import { prepareTopicsCostEstimate } from "./topics-cost-estimate";
-import { seedTopicCostSnapshots } from "./topics-cost-snapshots";
+import {
+  saveSeedCostRun,
+  seedTopicCostSnapshots,
+} from "./topics-cost-snapshots";
 import type { FilterState } from "../../../src/types";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { jitter, Rng, utcDayStartMs } from "./rng";
@@ -405,8 +409,23 @@ export const topicsMapScenario: ScenarioDefinition = {
     // Each cost snapshot owns two Intent summaries. Both live maps share the next one.
     const snapshotSummaries = withCosts ? intentSummaries.slice(0, 4) : [];
     const liveSummaries = intentSummaries.slice(snapshotSummaries.length);
-    if (withCosts)
+    if (withCosts) {
       liveSummaries[0]!.costDetails = { summary_input: 0.12, total: 0.12 };
+      // A replay replaces these five synthetic summaries, including earlier cohort dates.
+      await commandClickhouse({
+        query: `DELETE FROM topic_facet_summaries
+          WHERE project_id = {projectId:String} AND facet_id = {facetId:String}
+            AND facet_version = {version:UInt32} AND trace_id IN {traceIds:Array(String)}
+            AND transcript_version = 'seed' AND summary_model = 'seed-summary'
+          SETTINGS lightweight_deletes_sync = 2`,
+        params: {
+          projectId: ctx.projectId,
+          facetId: intent.id,
+          version: intent.version,
+          traceIds: traceIds.slice(0, snapshotSummaries.length + 1),
+        },
+      });
+    }
     await writeTopicSummaries([...liveSummaries, ...issueSummaries]);
 
     // Run ids are unique across projects, so the default prefix alone would collide.
@@ -520,7 +539,8 @@ export const topicsMapScenario: ScenarioDefinition = {
         ];
       });
       ctx.log(`publishing ${map.runId} (${assignments.length} traces)`);
-      const published = await saveTopicRun({
+      const saveRun = withCosts ? saveSeedCostRun : saveTopicRun;
+      const published = await saveRun({
         id: map.runId,
         projectId: ctx.projectId,
         facetId: map.facet.id,

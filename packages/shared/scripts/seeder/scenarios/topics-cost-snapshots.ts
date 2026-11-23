@@ -1,6 +1,7 @@
 import { prisma } from "../../../src/db";
 import {
   createTopicExecution,
+  getTopicDefinitions,
   getTopicExecutionNamingCosts,
   getTopicExecutionCosts,
   writeTopicSummaries,
@@ -15,6 +16,27 @@ import type {
   TopicSummary,
 } from "../../../src/topics";
 import { SeedError, type ScenarioContext } from "./types";
+
+/** Reuse the original creation times of immutable seed topic versions on replay. */
+export async function saveSeedCostRun(run: TopicRun) {
+  const existing = await getTopicDefinitions(
+    run.projectId,
+    run.topics.map((topic) => topic.topicVersionId),
+    { from: new Date(0), to: new Date(Date.now() + 1) },
+  );
+  for (const topic of run.topics) {
+    const prior = existing.find(
+      (row) => row.topicVersionId === topic.topicVersionId,
+    );
+    if (
+      prior &&
+      prior.centroid.length === topic.centroid.length &&
+      prior.costDetails?.total === topic.costDetails?.total
+    )
+      topic.createdAt = prior.createdAt;
+  }
+  return saveTopicRun(run);
+}
 
 /** Snapshots reuse the seeded Intent map so their costs and map contents can be inspected together. */
 export async function seedTopicCostSnapshots(
@@ -92,7 +114,7 @@ export async function seedTopicCostSnapshots(
       name: "Billing and payment questions",
       costDetails: { naming_input: 0.08, total: 0.08 },
     };
-    await saveTopicRun({
+    await saveSeedCostRun({
       ...sourceRun,
       id: runId,
       ruleId: null,

@@ -512,8 +512,6 @@ describe("Topics eval-backed configuration", () => {
       costDetails: { total: 0.1 + 0.2 },
     };
     await saveTopicRun({ ...rename, topics: [renamed], status: "completed" });
-    // A duplicate delivery of the same immutable version contributes once, even before a merge.
-    await writeTopicDefinitions([renamed]);
     await saveTopicRun({
       ...free,
       status: "completed",
@@ -982,7 +980,7 @@ describe("Topics definition persistence", () => {
     ]);
   });
 
-  it("attributes only the latest retained facet cost to its snapshot or distinct live maps", async () => {
+  it("sums stored facet costs for their snapshot or distinct live maps", async () => {
     const priced: TopicSummary = {
       ...summary,
       facetId: randomUUID(),
@@ -1004,20 +1002,37 @@ describe("Topics definition persistence", () => {
     };
     await writeTopicSummaries([
       priced,
+      { ...priced, facetVersion: 2, executionId: "edited-facet" },
       { ...priced, projectId: otherProjectId },
       { ...priced, traceId: "other-run", executionId: "other" },
       { ...priced, facetId: randomUUID() },
       live,
+      // Trace and session IDs can share a hash while remaining independent sources.
+      {
+        ...live,
+        traceId: null,
+        sessionId: live.traceId,
+        ruleIds: ["free-map"],
+        costDetails: { total: 0 },
+      },
       { ...live, projectId: otherProjectId, costDetails: { total: 10 } },
-      // The same source moved across partitions. Its older execution no longer owns it.
+      // These source times land in different partitions, so both owners retain their rows.
       {
         ...live,
         executionId: "priced",
         processedAt: "2026-08-01T00:00:00.000Z",
         unitStartTime: "2026-07-01T00:00:00.000Z",
       },
-      // A newer facet version replaces the old rule, even when still unpriced.
+      // Editing the facet causes a separate model call; both versions retain their owner.
       { ...live, traceId: "new-version", ruleIds: ["map-c"] },
+      {
+        ...live,
+        traceId: "new-version",
+        facetVersion: 2,
+        ruleIds: ["previous-map"],
+        unitStartTime: "2026-07-01T00:00:00.000Z",
+        processedAt: "2026-08-01T00:00:00.000Z",
+      },
       {
         ...live,
         traceId: "new-version",
@@ -1044,14 +1059,27 @@ describe("Topics definition persistence", () => {
         executionId: "zero",
       },
     ]);
-    const requested = ["priced", "unpriced", "zero", "missing"];
+    const requested = ["priced", "edited-facet", "unpriced", "zero", "missing"];
     expect(await getTopicExecutionCosts(projectId, requested)).toEqual({
-      priced: 0.47,
+      priced: 0.59,
+      "edited-facet": 0.2,
       zero: 0,
     });
     expect(
-      await getTopicRuleProcessingCosts(projectId, ["map-a", "map-b", "map-c"]),
-    ).toEqual({ "map-a": 0.06, "map-b": 0.06 });
+      await getTopicRuleProcessingCosts(projectId, [
+        "map-a",
+        "map-b",
+        "map-c",
+        "free-map",
+        "previous-map",
+      ]),
+    ).toEqual({
+      "map-a": 0.06,
+      "map-b": 0.06,
+      "map-c": 0.12,
+      "free-map": 0,
+      "previous-map": 0.12,
+    });
   });
 
   it("round-trips Float64 geometry and normalized source references through ClickHouse", async () => {

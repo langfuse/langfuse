@@ -287,6 +287,7 @@ describe("summarizeAssembledTrace", () => {
         outcome_3: { summary: "Export completed.", status: "applicable" },
       },
       ...usage,
+      costDetails: { ...usage.costDetails, total: 0.000006 },
     });
     await summarize({
       projectId: "project-a",
@@ -321,6 +322,14 @@ describe("summarizeAssembledTrace", () => {
     expect(
       summaries.reduce((sum, row) => sum + row.costDetails.summary_output, 0),
     ).toBeCloseTo(0.00001, 12);
+    expect(summaries.map((row) => row.costDetails.embedding_input)).toEqual([
+      0.00000024,
+      undefined,
+      0.00000024,
+    ]);
+    expect(summaries.map((row) => row.costDetails.total)).toEqual([
+      0.00000224, 0.000002, 0.00000224,
+    ]);
     // Each row's total stays the sum of its own shares.
     for (const { usageDetails } of summaries) {
       const { total, ...parts } = usageDetails;
@@ -390,7 +399,7 @@ describe("summarizeAssembledTrace", () => {
     const written = summaries;
     expect(written).toHaveLength(1);
     expect(written[0]).toMatchObject({ facetId: "facet-2", state: "complete" });
-    // The shared call's usage moves to the first row that is written.
+    // The provider produced only one valid summary for this call.
     expect(written[0].usageDetails.summary_input).toBe(20);
     expect(written[0]).not.toHaveProperty("output");
     expect(recordDistribution).toHaveBeenCalledWith(
@@ -512,7 +521,7 @@ describe("summarizeAssembledTrace", () => {
       expect.objectContaining({
         facetId: "facet-2",
         state: "not_applicable",
-        usageDetails: usage.usageDetails,
+        usageDetails: { summary_input: 10, summary_output: 4, total: 14 },
       }),
     ]);
     expect(
@@ -579,7 +588,15 @@ describe("summarizeAssembledTrace", () => {
       }),
     ).rejects.toBe(error);
     expect(summaries).toEqual([
-      expect.objectContaining({ facetId: "facet-3", state: "not_applicable" }),
+      expect.objectContaining({
+        facetId: "facet-3",
+        state: "not_applicable",
+        costDetails: {
+          summary_input: 0.000002,
+          summary_output: 0.000005,
+          total: 0.000007,
+        },
+      }),
     ]);
     expect(state.summarize.mock.calls[0][4]).toMatchObject({
       source_trace_id: "trace-1",

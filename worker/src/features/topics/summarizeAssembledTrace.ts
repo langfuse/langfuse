@@ -90,6 +90,7 @@ type AssembledTraceInput = {
 };
 
 export type TopicsFailedStage = "summary" | "embedding";
+
 type AssembledTraceResult = {
   outcome: "disabled" | "unchanged" | "summarized";
   rows: TopicSummary[];
@@ -205,7 +206,6 @@ async function summarizeEnabledTrace(
   let failure: unknown;
   let failedStage: TopicsFailedStage | undefined;
   if (summarized) {
-    const usage = summarized.usage;
     const accepted = summarized.results.flatMap((result, index) => {
       if ("error" in result) {
         if (failure === undefined) {
@@ -237,34 +237,39 @@ async function summarizeEnabledTrace(
         failedStage = "embedding";
       }
     }
-    // One call summarizes and one embeds every facet of the trace; each row carries an equal share.
-    const traceUsage = embedded ? mergeTopicModelUsage(usage, embedded) : usage;
+    const summaryShares = splitTopicModelUsage(
+      summarized.usage,
+      accepted.length,
+    );
+    const embeddingShares = embedded
+      ? splitTopicModelUsage(embedded, applicable.length)
+      : [];
     const generated: TopicSummary[] = [];
     let embeddingIndex = 0;
-    for (const { base, output } of accepted) {
+    for (const [index, { base, output }] of accepted.entries()) {
       if (output.status !== "applicable")
         generated.push({
           ...base,
-          state:
-            output.status === "not_applicable"
-              ? "not_applicable"
-              : "insufficient_input",
+          ...summaryShares[index],
+          state: output.status,
         });
       else if (embedded)
         generated.push({
           ...base,
+          ...mergeTopicModelUsage(
+            summaryShares[index],
+            embeddingShares[embeddingIndex],
+          ),
           state: "complete",
           summary: output.summary.trim(),
           embedding: embedded.embeddings[embeddingIndex++],
         });
     }
-    const shares = splitTopicModelUsage(traceUsage, generated.length);
-    // The transcript's bytes split like its usage; the remainder goes to the first rows.
+    // Split transcript bytes across retained rows, giving the remainder to the first rows.
     const bytes = Math.floor(summarized.transcriptBytes / generated.length);
     const extra = summarized.transcriptBytes - bytes * generated.length;
     rows = generated.map((row, index) => ({
       ...row,
-      ...shares[index],
       transcriptBytes: bytes + (index < extra ? 1 : 0),
     }));
   }

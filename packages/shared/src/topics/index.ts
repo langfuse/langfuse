@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { Decimal } from "decimal.js";
 import { singleFilterList } from "../interfaces/filters";
 import { TopicsTargetObject } from "../features/evals/types";
 import { validateEvaluatorFiltersForTarget } from "../features/evals/validateEvaluatorFilters";
@@ -400,22 +399,6 @@ export interface TopicDefinition {
     "facetId" | "facetVersion" | "traceId" | "sessionId"
   >[];
   metadata: Record<string, unknown>;
-}
-
-/** Keep prices representable by ClickHouse Decimal(18,12) at its stored precision. */
-export function normalizeTopicDefinitionCosts(
-  details: TopicDefinition["costDetails"],
-): Record<string, number> {
-  return Object.fromEntries(
-    Object.entries(details ?? {})
-      .filter(
-        ([, cost]) => Number.isFinite(cost) && cost >= 0 && cost < 1_000_000,
-      )
-      .map(([key, cost]) => [
-        key,
-        new Decimal(cost).toDecimalPlaces(12).toNumber(),
-      ]),
-  );
 }
 
 /** Compares finite classifier geometry with a bounded Float64 roundoff tolerance. */

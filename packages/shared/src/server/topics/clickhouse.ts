@@ -18,11 +18,7 @@ import type {
   TopicSummary,
   TopicTimeRange,
 } from "../../topics";
-import {
-  normalizeTopicDefinitionCosts,
-  topicSourceSchema,
-  topicTimeRangeSchema,
-} from "../../topics";
+import { topicSourceSchema, topicTimeRangeSchema } from "../../topics";
 import { Decimal } from "decimal.js";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
@@ -223,6 +219,22 @@ export async function getTopicNames(
       })),
     );
   return names;
+}
+
+/** Keep prices representable by ClickHouse Decimal(18,12) at its stored precision. */
+export function normalizeTopicDefinitionCosts(
+  details: TopicDefinition["costDetails"],
+): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(details ?? {})
+      .filter(
+        ([, cost]) => Number.isFinite(cost) && cost >= 0 && cost < 1_000_000,
+      )
+      .map(([key, cost]) => [
+        key,
+        new Decimal(cost).toDecimalPlaces(12).toNumber(),
+      ]),
+  );
 }
 
 /** RowBinary column order matches the explicit definition INSERT below. */
@@ -809,103 +821,80 @@ export async function hasStoredTopicSummaries(
   return hasSummaries;
 }
 
-/** Attribute each facet/source's newest retained result once, including before background merges. */
-async function readRetainedTopicCosts(
+/** Estimates sum the stored rows. A retried insert can count twice until ClickHouse merges it. */
+async function readTopicCosts(
   projectId: string,
-  kind: "snapshot" | "rule",
   ids: string[],
+  route: string,
+  query: string,
 ): Promise<Record<string, number>> {
-  if (ids.length === 0) return {};
-  const owners =
-    kind === "snapshot"
-      ? "[execution_id]"
-      : "if(empty(execution_id), arrayDistinct(rule_ids), [])";
-  // Snapshots have a bounded source list. A live map can cover the entire project.
-  const snapshotSources =
-    kind === "snapshot"
-      ? `AND (unit_type, unit_hash) IN (
-          SELECT unit_type, unit_hash FROM topic_facet_summaries
-          WHERE project_id = {projectId:String} AND execution_id IN {ids:Array(String)}
-        )`
-      : "";
-  // Inspect newer rows regardless of their owner: reprocessing can move a source or clear its price.
-  const rows = await queryClickhouse<{ id: string; cost: string }>({
-    query: `SELECT arrayJoin(latest.1) AS id, sum(latest.2 / greatest(length(latest.1), 1)) AS cost
-      FROM (
-        SELECT argMax(tuple(${owners}, if(mapContains(cost_details, 'total'), total_cost, NULL)),
-                      tuple(facet_version, created_at, _block_number, _block_offset)) AS latest
-        FROM topic_facet_summaries
-        PREWHERE project_id = {projectId:String} ${snapshotSources}
-        GROUP BY ${summarySourceKeySql}
-      )
-      WHERE id IN {ids:Array(String)} AND latest.2 IS NOT NULL
-      GROUP BY id`,
-    params: { projectId, ids },
-    preferredClickhouseService: "EventsReadOnly",
-    clickhouseSettings: {
-      max_threads: 2,
-      max_execution_time: 30,
-      max_bytes_before_external_group_by: String(256 * 1024 * 1024),
-    },
-    tags: {
-      route:
-        kind === "snapshot"
-          ? "topics-execution-costs"
-          : "topics-rule-processing-cost",
-      projectId,
-    },
-  }).catch((error: unknown) => {
+  const costs: Record<string, number> = {};
+  try {
+    for (const batch of chunk([...new Set(ids)], LOOKUP_BATCH_SIZE)) {
+      const rows = await queryClickhouse<{ id: string; cost: string }>({
+        query,
+        params: { projectId, ids: batch },
+        preferredClickhouseService: "EventsReadOnly",
+        clickhouseSettings: { max_threads: 2, max_execution_time: 30 },
+        tags: { route, projectId },
+      });
+      for (const row of rows) costs[row.id] = Number(row.cost);
+    }
+  } catch (error) {
     traceException(error);
-    logger.warn("Failed to estimate retained Topics costs", {
-      projectId,
-      kind,
-      error,
-    });
-    return [];
-  });
-  return Object.fromEntries(rows.map(({ id, cost }) => [id, Number(cost)]));
+    logger.warn("Failed to estimate Topics costs", { projectId, route, error });
+  }
+  return costs;
 }
 
 export function getTopicExecutionCosts(
   projectId: string,
   executionIds: string[],
 ) {
-  return readRetainedTopicCosts(projectId, "snapshot", executionIds);
+  return readTopicCosts(
+    projectId,
+    executionIds,
+    "topics-execution-costs",
+    `
+    SELECT execution_id AS id, sum(total_cost) AS cost
+    FROM topic_facet_summaries
+    WHERE project_id = {projectId:String} AND execution_id IN {ids:Array(String)}
+      AND mapContains(cost_details, 'total')
+    GROUP BY execution_id`,
+  );
 }
 
 export function getTopicRuleProcessingCosts(
   projectId: string,
   ruleIds: string[],
 ) {
-  return readRetainedTopicCosts(projectId, "rule", ruleIds);
+  return readTopicCosts(
+    projectId,
+    ruleIds,
+    "topics-rule-processing-cost",
+    `
+    WITH arrayDistinct(rule_ids) AS owners
+    SELECT arrayJoin(owners) AS id, sum(total_cost / greatest(length(owners), 1)) AS cost
+    FROM topic_facet_summaries
+    PREWHERE project_id = {projectId:String} AND empty(execution_id) AND hasAny(rule_ids, {ids:Array(String)})
+    WHERE id IN {ids:Array(String)} AND mapContains(cost_details, 'total')
+    GROUP BY id`,
+  );
 }
 
-/** Reusing a definition adds no naming cost. Its version belongs to the run that created it. */
-export async function getTopicRunNamingCosts(
-  projectId: string,
-  runIds: string[],
-): Promise<Record<string, number>> {
-  const costs: Record<string, number> = {};
-  for (const ids of chunk([...new Set(runIds)], LOOKUP_BATCH_SIZE)) {
-    const rows = await queryClickhouse<{ runId: string; cost: string }>({
-      query: `SELECT runId, sum(price.2) AS cost FROM (
-          SELECT created_by_run_id AS runId,
-            argMax(tuple(mapContains(cost_details, 'total'), cost_details['total']),
-                   tuple(created_at, _block_number, _block_offset)) AS price
-          FROM topics
-          PREWHERE project_id = {projectId:String} AND created_by_run_id IN {ids:Array(String)}
-          GROUP BY runId, id
-        )
-        WHERE price.1
-        GROUP BY runId`,
-      params: { projectId, ids },
-      preferredClickhouseService: "EventsReadOnly",
-      clickhouseSettings: { max_threads: 2, max_execution_time: 30 },
-      tags: { route: "topics-run-naming-costs", projectId },
-    });
-    for (const row of rows) costs[row.runId] = Number(row.cost);
-  }
-  return costs;
+/** Reusing a topic version leaves its naming cost with the run that created it. */
+export function getTopicRunNamingCosts(projectId: string, runIds: string[]) {
+  return readTopicCosts(
+    projectId,
+    runIds,
+    "topics-run-naming-costs",
+    `
+    SELECT created_by_run_id AS id, sum(cost_details['total']) AS cost
+    FROM topics
+    WHERE project_id = {projectId:String} AND created_by_run_id IN {ids:Array(String)}
+      AND mapContains(cost_details, 'total')
+    GROUP BY created_by_run_id`,
+  );
 }
 
 // Bounds the preview count; a 14-day cohort takes about 10 s on the largest tenants.

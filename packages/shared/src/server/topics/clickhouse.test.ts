@@ -5,7 +5,6 @@ import type {
   TopicDefinition,
   TopicSummary,
 } from "../../topics";
-import { normalizeTopicDefinitionCosts } from "../../topics";
 import {
   readTopicAssignments,
   readTopicMapAssignments,
@@ -17,6 +16,7 @@ import {
   getTopicExecutionCosts,
   getTopicClusteringSummaries,
   writeTopicSummaries,
+  normalizeTopicDefinitionCosts,
   getTopicDefinitions,
   writeTopicDefinitions,
   hasStoredTopicSummaries,

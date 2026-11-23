@@ -112,10 +112,7 @@ function TopicAnalysisStrip({
   controls?: ReactNode;
   options?: ReactNode;
 }) {
-  const cost = formatTopicRunCost(
-    { operation: "update", analysis },
-    costBreakdown,
-  );
+  const cost = formatTopicRunCost(costBreakdown);
   return (
     <Strip
       status={topicAnalysisStatus(analysis)}

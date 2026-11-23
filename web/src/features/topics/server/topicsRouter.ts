@@ -5,6 +5,7 @@ import {
   getTracingReadinessSettings,
 } from "@langfuse/shared/src/server";
 import {
+  TOPICS_COST_ESTIMATE_MAX_FACETS,
   TOPICS_MAX_RULES,
   topicIdSchema,
   topicFacetRefSchema,
@@ -165,7 +166,7 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
 
 const costEstimateInput = projectInput.extend({
   filter: topicRuleConfigSchema.shape.filter,
-  facetIds: z.array(topicIdSchema).min(1).max(50),
+  facetIds: z.array(topicIdSchema).min(1).max(TOPICS_COST_ESTIMATE_MAX_FACETS),
 });
 
 /** The facets' current versions and the project's stored Topics models; null without a summary model. */

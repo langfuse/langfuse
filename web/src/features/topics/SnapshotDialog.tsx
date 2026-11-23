@@ -126,13 +126,12 @@ export function SnapshotDialog({
     onStarted(result.id);
   }
 
-  const selectionReady =
-    traceFilter.ready && !filterError && facetRefs.length > 0 && !previewStale;
-  const canStart =
-    name.trim().length > 0 &&
-    selectionReady &&
+  const canGroup =
+    traceFilter.ready &&
+    !filterError &&
+    facetRefs.length > 0 &&
+    !previewStale &&
     preview !== null &&
-    !counts.isFetching &&
     preview.summarizedCount + extra >= preview.smallSampleMinimumTraceCount;
 
   return (
@@ -162,20 +161,20 @@ export function SnapshotDialog({
       preview={preview}
       summarize={summarize}
       onSummarizeChange={(next) => form.setValue("summarize", next)}
-      renderCostEstimate={
-        selectionReady && !counts.isPlaceholderData && !counts.error
-          ? (newTraces) => (
-              <TopicCostEstimate
-                projectId={projectId}
-                filter={previewInput.filter}
-                facetIds={facetRefs.map(({ facetId }) => facetId)}
-                newTraces={newTraces}
-                source="snapshot"
-              />
-            )
-          : undefined
+      costEstimate={
+        canGroup &&
+        !counts.isPlaceholderData &&
+        !counts.error && (
+          <TopicCostEstimate
+            projectId={projectId}
+            filter={previewInput.filter}
+            facetIds={facetRefs.map(({ facetId }) => facetId)}
+            newTraces={extra}
+            source="snapshot"
+          />
+        )
       }
-      canStart={canStart}
+      canStart={canGroup && name.trim().length > 0 && !counts.isFetching}
       starting={start.isPending}
       errors={[
         filterError && filter.length ? filterError : null,

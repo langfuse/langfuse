@@ -3,6 +3,7 @@ import type { TopicFacetRef } from "./index";
 
 /** Finished traces the cost estimate loads and measures. */
 export const TOPICS_COST_ESTIMATE_SAMPLE_SIZE = 50;
+export const TOPICS_COST_ESTIMATE_MAX_FACETS = 50;
 
 /** Token totals over the sampled traces Topics would summarize; skipped traces add nothing. */
 export type TopicCostEstimateTokens = {

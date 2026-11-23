@@ -416,7 +416,7 @@ const namingSchema = z.object({
   evidenceSummaryIds: z.array(z.string()).min(1).max(3),
 });
 type NamingSummary = { id: string; summary: string };
-type NamingConflict = {
+export type NamingConflict = {
   name: string;
   description: string;
   summaries: string[];
@@ -767,14 +767,6 @@ export async function embedTopicSummaries(
     () => generateTopicEmbeddings({ model, summaries, dimensions }),
   );
   recordTopicTokenUsage("embedding", { input: result.tokens });
-  const usageDetails: Record<string, number> = {};
-  if (Number.isSafeInteger(result.tokens) && result.tokens >= 0) {
-    usageDetails.input = usageDetails.total = result.tokens;
-  } else {
-    logger.warn("Topics embedding response omitted token usage", {
-      model: model.model,
-    });
-  }
   // ClickHouse stores Float32; calibration and future classification must use those same vectors.
   const embeddings = result.embeddings.map((vector) =>
     Array.from(new Float32Array(vector)),
@@ -792,6 +784,14 @@ export async function embedTopicSummaries(
       "Topics embedding provider returned an invalid vector.",
       "invalid_output",
     );
+  const usageDetails: Record<string, number> = {};
+  if (Number.isSafeInteger(result.tokens) && result.tokens >= 0) {
+    usageDetails.input = usageDetails.total = result.tokens;
+  } else {
+    logger.warn("Topics embedding response omitted token usage", {
+      model: model.model,
+    });
+  }
   return {
     embeddings,
     ...(await priceTopicUsage("embedding", model, projectId, usageDetails)),
