@@ -14,10 +14,18 @@ import { isEventsDispatchEnabled } from "../features/eventsDispatch/config";
 export const eventsDispatchQueueProcessor: Processor<
   TQueueJobTypes[QueueName.EventsDispatch]
 > = async (job) => {
+  // The dispatcher already acknowledged these traces, so nothing retries them.
+  const lost = (reason: string) =>
+    recordIncrement(
+      "langfuse.events_dispatch.trace_outcomes",
+      job.data.payload?.traces?.length ?? 0,
+      { outcome: "lost", reason },
+    );
   const discard = (reason: string) => {
     // BullMQ reads these options after the processor returns, then removes atomically.
     job.opts.removeOnComplete = true;
     recordIncrement("langfuse.events_dispatch.discarded_jobs", 1, { reason });
+    lost(`job_${reason}`);
     return { discarded: reason };
   };
   if (!isEventsDispatchEnabled()) return discard("disabled");
@@ -37,7 +45,13 @@ export const eventsDispatchQueueProcessor: Processor<
         "langfuse.events_dispatch.job_trace_id",
         span.spanContext().traceId,
       );
-      return processEventsDispatchJob(event);
+      try {
+        return await processEventsDispatchJob(event);
+      } catch (error) {
+        if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1))
+          lost("job_failed");
+        throw error;
+      }
     },
   );
 };
