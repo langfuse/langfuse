@@ -36,6 +36,8 @@ function dashboardBlockErrorStatus(error: unknown): number | undefined {
       return 403;
     case "NOT_FOUND":
       return 404;
+    default:
+      break;
   }
   const response = error.meta?.response;
   return (

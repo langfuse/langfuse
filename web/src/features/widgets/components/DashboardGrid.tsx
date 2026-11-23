@@ -13,7 +13,7 @@ import {
 import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { useDashboardChartSync } from "@/src/features/dashboard/hooks/DashboardChartSyncProvider";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
@@ -112,11 +112,7 @@ export function DashboardGrid({
   /** Duplicate a preset card next to it (editable dashboards only). */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
 }) {
-  const [activeChartKey, setActiveChartKey] = useState<string>();
-  const chartSync: ChartProps["sync"] = {
-    activeKey: activeChartKey,
-    onActiveKeyChange: setActiveChartKey,
-  };
+  const chartSync = useDashboardChartSync();
   const { containerRef, width } = useDebouncedContainerWidth(200);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>(
     {},

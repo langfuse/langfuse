@@ -1,3 +1,4 @@
+import { DashboardChartSyncProvider } from "@/src/features/dashboard/hooks/DashboardChartSyncProvider";
 import dynamic from "next/dynamic";
 import { type ComponentProps, useState } from "react";
 import { Grid2X2, Check, Pencil } from "@langfuse/icons";
@@ -13,6 +14,18 @@ const DashboardBlockCard = dynamic(
 );
 
 export function DashboardBlocksCanvas({
+  gridProps,
+}: {
+  gridProps: ComponentProps<typeof DashboardGrid>;
+}) {
+  return (
+    <DashboardChartSyncProvider>
+      <DashboardBlocksCanvasContent gridProps={gridProps} />
+    </DashboardChartSyncProvider>
+  );
+}
+
+function DashboardBlocksCanvasContent({
   gridProps,
 }: {
   gridProps: ComponentProps<typeof DashboardGrid>;
