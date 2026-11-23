@@ -1,3 +1,6 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getQueryKey } from "@trpc/react-query";
+import { readDashboardBlockCapabilities } from "./dashboard-block-capabilities";
 import { type HomeDashboardPresetId } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
@@ -19,24 +22,43 @@ export function useDashboardBlocksData({
   readPath: ResolvedReadPath;
   widgets: DashboardPlacement[];
 }) {
-  const capabilitiesQuery = api.dashboardBlocks.capabilities.useQuery(
+  const utils = api.useUtils();
+  const queryClient = useQueryClient();
+  const queryKey = getQueryKey(
+    api.dashboardBlocks.capabilities,
     { projectId },
-    {
-      staleTime: 15_000,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: "always",
-      refetchInterval: (query) => {
-        const active =
-          query.state.data?.multiQuery || query.state.data?.markdown;
-        return active ? 30_000 : false;
-      },
-      refetchIntervalInBackground: false,
-      retry: false,
-      meta: { silentHttpCodes: [404] },
-    },
+    "query",
   );
-  const capabilities = (!capabilitiesQuery.isError &&
-    capabilitiesQuery.data) || { multiQuery: false, markdown: false };
+  const capabilitiesQuery = useQuery({
+    queryKey,
+    queryFn: ({ signal }) =>
+      readDashboardBlockCapabilities({
+        queryClient,
+        queryKey,
+        read: () =>
+          utils.client.dashboardBlocks.capabilities.query(
+            { projectId },
+            { signal },
+          ),
+      }),
+    staleTime: 15_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchInterval: (query) => {
+      const active = query.state.data?.multiQuery || query.state.data?.markdown;
+      return active ? 30_000 : false;
+    },
+    refetchIntervalInBackground: false,
+    retry: false,
+    meta: {
+      silentHttpCodes: [404],
+      toastOperation: "dashboard.query",
+    },
+  });
+  const capabilities = capabilitiesQuery.data ?? {
+    multiQuery: false,
+    markdown: false,
+  };
   const kinds: ("multiQuery" | "markdown")[] = [];
   if (capabilities.multiQuery) kinds.push("multiQuery");
   if (capabilities.markdown) kinds.push("markdown");
