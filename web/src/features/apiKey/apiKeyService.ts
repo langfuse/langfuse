@@ -1,4 +1,4 @@
-import { type Prisma, type PrismaClient } from "@langfuse/shared/src/db";
+import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   invalidateCachedApiKeys,
   withTransaction,
@@ -16,42 +16,29 @@ export async function deleteApiKey(
   prisma: PrismaClient,
   { actor, ...key }: DeleteApiKeyParams,
 ): Promise<DeletedApiKey | null> {
-  const deleted = await withTransaction(prisma, (tx) =>
-    deleteAndAudit(tx, key, actor),
-  );
+  const deleted = await withTransaction(prisma, async (tx) => {
+    const apiKey = await deleteApiKeyRow(tx, key);
+    if (!apiKey) return null;
+    await auditLog(
+      {
+        ...actor,
+        resourceType: "apiKey",
+        resourceId: apiKey.id,
+        action: "delete",
+        before: apiKey,
+      },
+      tx,
+    );
+    return apiKey;
+  });
   if (!deleted) return null;
-  await evictCachedApiKey(deleted);
-  return deleted;
-}
 
-/** deleteAndAudit deletes the api key and records its delete audit log in tx */
-async function deleteAndAudit(
-  tx: Prisma.TransactionClient,
-  key: ApiKeyFilter,
-  actor: AuditLogActor,
-): Promise<DeletedApiKey | null> {
-  const deleted = await deleteApiKeyRow(tx, key);
-  if (!deleted) return null;
-  await auditLog(
-    {
-      ...actor,
-      resourceType: "apiKey",
-      resourceId: deleted.id,
-      action: "delete",
-      before: deleted,
-    },
-    tx,
-  );
-  return deleted;
-}
-
-/** evictCachedApiKey drops the deleted key from the credential and gateway resolve caches */
-async function evictCachedApiKey(apiKey: DeletedApiKey): Promise<void> {
-  await invalidateCachedApiKeys([apiKey], `key ${apiKey.id}`);
+  await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
   // an organization key whose role grants gateway:invoke may be in the resolve cache
-  if (apiKey.fastHashedSecretKey) {
-    await invalidateGatewayResolveCacheForApiKey(apiKey.fastHashedSecretKey);
+  if (deleted.fastHashedSecretKey) {
+    await invalidateGatewayResolveCacheForApiKey(deleted.fastHashedSecretKey);
   }
+  return deleted;
 }
 
 /** ApiKeyFilter names the api key and the project or organization it must belong to */
