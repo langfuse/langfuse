@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { prepareOtelJson, validateOtelJson } from "@langfuse/native";
-import { convertEventRecordToObservationForEval } from "@langfuse/shared";
+import {
+  convertEventRecordToObservationEvalFilterFields,
+  convertEventRecordToObservationForEval,
+  observationEvalFilterFieldsSchema,
+} from "@langfuse/shared";
 import { encodeOtelLookups } from "../features/otel-ingestion/encodeOtelLookups";
+import { takeEvaluationRows } from "./helpers/nativeCodecFixtures";
 
 const nativeContext = {
   projectId: "native-boundary",
@@ -42,11 +47,96 @@ describe("Native OTEL batch NAPI boundary", () => {
           undefined,
           true,
         );
-        expect(finalized?.evaluationRows).toMatchObject([{ input }]);
+        expect(takeEvaluationRows(processing, finalized!)).toMatchObject([
+          { input },
+        ]);
       } finally {
         await processing.dispose();
       }
     } finally {
+      await batch.dispose();
+    }
+  });
+
+  it("returns evaluation filter columns that match the full rows, which are read once", async () => {
+    const attributes = {
+      "langfuse.observation.type": "generation",
+      "langfuse.observation.input": "full input",
+      "langfuse.observation.level": "WARNING",
+      "langfuse.observation.status_message": "slow",
+      "langfuse.observation.model.name": "model",
+      "langfuse.observation.prompt.name": "prompt",
+      "langfuse.observation.prompt.version": "3",
+      "langfuse.observation.metadata.tenant": "acme",
+      "langfuse.environment": "staging",
+      "langfuse.version": "v1",
+      "langfuse.release": "r1",
+      "langfuse.trace.name": "trace",
+      "langfuse.trace.tags": '["a","b"]',
+      "user.id": "user",
+      "session.id": "session",
+      "langfuse.experiment.id": "experiment",
+      "langfuse.experiment.name": "experiment-name",
+      "langfuse.experiment.dataset.id": "dataset",
+      "langfuse.experiment.item.root_observation_id": spanId(1),
+    };
+    const spans = [
+      { traceId: "a".repeat(32), spanId: spanId(0), name: "plain" },
+      {
+        traceId: "a".repeat(32),
+        spanId: spanId(1),
+        parentSpanId: spanId(0),
+        name: "filtered",
+        attributes: Object.entries(attributes).map(([key, stringValue]) => ({
+          key,
+          value: { stringValue },
+        })),
+      },
+    ];
+    const batch = await prepareOtelJson(
+      Buffer.from(JSON.stringify([{ scopeSpans: [{ spans }] }])),
+      false,
+    );
+    const { batch: processing, lookupRequests } =
+      await batch.process(nativeContext);
+    try {
+      const { finalized } = await processing.complete(
+        [],
+        encodeOtelLookups(
+          lookupRequests.map(() => ({ promptId: "prompt-id" })),
+        ),
+        undefined,
+        true,
+      );
+      const filterRows: Parameters<
+        typeof convertEventRecordToObservationEvalFilterFields
+      >[0][] = JSON.parse(finalized!.evaluationFilterRows!);
+      expect(filterRows[1]).not.toHaveProperty("input");
+
+      const observations = takeEvaluationRows(processing, finalized!).map(
+        (row) =>
+          convertEventRecordToObservationForEval(
+            row as Parameters<typeof convertEventRecordToObservationForEval>[0],
+          ),
+      );
+      expect(observations[1]).toMatchObject({
+        input: "full input",
+        type: "GENERATION",
+        tags: ["a", "b"],
+        prompt_name: "prompt",
+        metadata: { tenant: "acme" },
+        experiment_item_root_span_id: spanId(1),
+      });
+      expect(
+        filterRows.map(convertEventRecordToObservationEvalFilterFields),
+      ).toEqual(
+        observations.map((observation) =>
+          observationEvalFilterFieldsSchema.parse(observation),
+        ),
+      );
+      expect(() => processing.takeEvaluationRow(1)).toThrow("unavailable");
+    } finally {
+      await processing.dispose();
       await batch.dispose();
     }
   });
@@ -95,7 +185,10 @@ describe("Native OTEL batch NAPI boundary", () => {
         undefined,
         true,
       );
-      const rows = finalized!.evaluationRows as Record<string, unknown>[];
+      const rows = takeEvaluationRows(processing, finalized!) as Record<
+        string,
+        unknown
+      >[];
 
       for (const [, column] of experimentFields) {
         expect(rows[0]).not.toHaveProperty(column);
@@ -149,7 +242,7 @@ describe("Native OTEL batch NAPI boundary", () => {
             true,
           ));
         expect(finalized.events).toHaveLength(2);
-        const rows = finalized.evaluationRows as Parameters<
+        const rows = takeEvaluationRows(processing, finalized) as Parameters<
           typeof convertEventRecordToObservationForEval
         >[0][];
         expect(rows.map((row) => row.input)).toEqual([
@@ -300,7 +393,7 @@ describe("Native OTEL batch NAPI boundary", () => {
             );
             expect(finalized).toBeDefined();
             const rows = new Map(
-              finalized!.evaluationRows.map((row) => {
+              takeEvaluationRows(processing, finalized!).map((row) => {
                 const value = row as Record<string, unknown>;
                 return [value.span_id, value];
               }),
@@ -525,7 +618,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       expect(finalized).toBeDefined();
       expect(finalized!.events).toHaveLength(spans.length);
       const rows = new Map(
-        finalized!.evaluationRows.map((row) => {
+        takeEvaluationRows(processing, finalized!).map((row) => {
           const value = row as Record<string, unknown>;
           return [value.span_id as string, value];
         }),

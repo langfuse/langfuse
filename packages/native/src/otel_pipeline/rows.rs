@@ -6,11 +6,12 @@
 //! plus requested evaluation snapshots.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use base64::Engine;
 use sha2::{Digest, Sha256};
 
+use crate::native_memory::retained_size;
 use crate::native_task::NativeResult;
 use crate::otel::types::{SkillAvailableInput, SkillResourceInput};
 use crate::otel::{value::Value, OwnedEvent};
@@ -18,8 +19,8 @@ use crate::otel_enrichment;
 use crate::PreparedEvent;
 
 use super::{
-    failure, BatchRows, EnrichedStorageRow, FinalizedOtelBatch, FinalizedOtelEvent, OtelCompletion,
-    OtelLookupRequest, OtelOverflowRequest, Pipeline,
+    failure, BatchRows, EnrichedStorageRow, EvaluationRows, FinalizedOtelBatch, FinalizedOtelEvent,
+    OtelCompletion, OtelLookupRequest, OtelOverflowRequest, Pipeline,
 };
 
 /// Everything the worker reads from a lookup request to resolve it. Events whose keys are
@@ -143,7 +144,7 @@ pub(super) fn enrich_inner(state: &mut Pipeline, lookups: &[Value]) -> NativeRes
 pub(super) fn finalize_or_request_overflow(
     state: &mut Pipeline,
     overflow_limit_bytes: Option<f64>,
-    include_evaluation_rows: bool,
+    evaluation_store: Option<&Mutex<EvaluationRows>>,
     trace_activity_ids: Option<Vec<String>>,
 ) -> NativeResult<OtelCompletion> {
     let overflow_requests = overflow_limit_bytes
@@ -154,7 +155,7 @@ pub(super) fn finalize_or_request_overflow(
         Some(finalize_inner(
             state,
             Vec::new(),
-            include_evaluation_rows,
+            evaluation_store,
             trace_activity_ids,
         )?)
     } else {
@@ -221,7 +222,7 @@ pub(super) fn overflow_text<'a>(
 pub(super) fn finalize_inner(
     state: &mut Pipeline,
     overflow: Vec<super::OtelMediaResolution>,
-    include_evaluation_rows: bool,
+    evaluation_store: Option<&Mutex<EvaluationRows>>,
     trace_activity_ids: Option<Vec<String>>,
 ) -> NativeResult<FinalizedOtelBatch> {
     super::validate_results(
@@ -230,11 +231,13 @@ pub(super) fn finalize_inner(
         "incomplete overflow results",
     )?;
     let rows = state.rows.ready()?;
-    let evaluation_rows = if include_evaluation_rows {
-        evaluation_rows(rows)?
-    } else {
-        Vec::new()
-    };
+    let evaluation_rows = evaluation_store
+        .map(|_| evaluation_rows(rows))
+        .transpose()?;
+    let evaluation_filter_rows = evaluation_rows
+        .as_deref()
+        .map(evaluation_filter_rows)
+        .transpose()?;
     let BatchRows::Ready(mut rows) = std::mem::replace(&mut state.rows, BatchRows::Finalized)
     else {
         unreachable!("ready rows checked")
@@ -286,12 +289,68 @@ pub(super) fn finalize_inner(
         events
             .iter()
             .map(|event| event.event.row.retained_bytes())
+            .chain(evaluation_rows.iter().flatten().map(retained_size))
             .sum(),
     );
+    if let (Some(store), Some(rows)) = (evaluation_store, evaluation_rows) {
+        *store
+            .lock()
+            .map_err(|_| failure("OTEL processing lock poisoned"))? = EvaluationRows {
+            rows,
+            memory: Some(state.memory.clone()),
+        };
+    }
     Ok(FinalizedOtelBatch {
         events,
-        evaluation_rows,
+        evaluation_filter_rows,
     })
+}
+
+/// Columns that evaluation rule filters and job identifiers read.
+const EVALUATION_FILTER_COLUMNS: [&str; 26] = [
+    "project_id",
+    "trace_id",
+    "span_id",
+    "parent_span_id",
+    "type",
+    "name",
+    "environment",
+    "level",
+    "status_message",
+    "version",
+    "release",
+    "trace_name",
+    "user_id",
+    "session_id",
+    "is_app_root",
+    "tags",
+    "provided_model_name",
+    "prompt_name",
+    "prompt_version",
+    "tool_call_names",
+    "experiment_id",
+    "experiment_name",
+    "experiment_dataset_id",
+    "experiment_item_root_span_id",
+    "metadata_names",
+    "metadata_values",
+];
+
+struct EvaluationFilterRow<'a>(&'a serde_json::Value);
+
+impl serde::Serialize for EvaluationFilterRow<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_map(
+            EVALUATION_FILTER_COLUMNS
+                .iter()
+                .filter_map(|column| Some((column, self.0.get(column)?))),
+        )
+    }
+}
+
+fn evaluation_filter_rows(rows: &[serde_json::Value]) -> NativeResult<String> {
+    serde_json::to_string(&rows.iter().map(EvaluationFilterRow).collect::<Vec<_>>())
+        .map_err(failure)
 }
 
 fn evaluation_rows(rows: &[Option<EnrichedStorageRow>]) -> NativeResult<Vec<serde_json::Value>> {

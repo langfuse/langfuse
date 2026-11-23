@@ -1,10 +1,19 @@
 import {
   PreparedEvent,
   prepareOtelJson,
+  type FinalizedOtelBatch,
   type OtelLookupRequest,
   type RustOtelBatch,
 } from "@langfuse/native";
 import { encodeOtelLookups } from "../../features/otel-ingestion/encodeOtelLookups";
+
+/** Copy every evaluation row out of Rust; each row can be taken once. */
+export function takeEvaluationRows(
+  batch: RustOtelBatch,
+  finalized: FinalizedOtelBatch,
+): object[] {
+  return finalized.events.map((_, index) => batch.takeEvaluationRow(index));
+}
 
 export function constructPreparedEventFromJs() {
   // @ts-expect-error Rust creates the handle when it finalizes an event.
@@ -61,7 +70,10 @@ export async function prepareCodecRows(
       true,
     );
     if (!finalized) throw new Error("Unexpected codec fixture overflow");
-    return finalized;
+    return {
+      events: finalized.events,
+      evaluationRows: takeEvaluationRows(batch, finalized),
+    };
   } finally {
     await batch?.dispose();
     await source.dispose();

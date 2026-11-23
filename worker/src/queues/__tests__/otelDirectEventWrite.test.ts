@@ -252,7 +252,7 @@ describe("native Rust trace activity", () => {
     );
     const processing = {
       complete: vi.fn().mockResolvedValue({
-        finalized: { events: records, evaluationRows: [] },
+        finalized: { events: records },
         overflowRequests: [],
       }),
       dispose: vi.fn().mockResolvedValue(undefined),
@@ -367,10 +367,7 @@ describe("native Rust trace activity", () => {
       byteLength: 2048,
       sha256Hash: `hash-${index}`,
     }));
-    const finalize = vi.fn().mockResolvedValue({
-      events: [],
-      evaluationRows: [],
-    });
+    const finalize = vi.fn().mockResolvedValue({ events: [] });
     const processing = {
       complete: vi.fn().mockResolvedValue({
         finalized: undefined,

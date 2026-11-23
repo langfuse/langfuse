@@ -39,6 +39,8 @@ export declare class PreparedEvent {
 export declare class RustOtelBatch {
   /** Release the native batch and its retained event and media allocations. */
   dispose(): Promise<void>
+  /** Move one evaluation snapshot to JavaScript. Each row can be taken once, before disposal. */
+  takeEvaluationRow(index: number): object
   mediaBody(index: number): Promise<Buffer>
   /**
    * Apply media results and one lookup result per lookup request; return final handles or
@@ -113,8 +115,11 @@ export declare function extractOtelMedia(bytes: Buffer): Promise<EarlyOtelBatch 
 
 export interface FinalizedOtelBatch {
   events: Array<FinalizedOtelEvent>
-  /** Evaluation snapshots preserve full fields before oversized-field replacements. */
-  evaluationRows: object[]
+  /**
+   * JSON array with one object per event, holding the columns evaluation rule filters read.
+   * The full rows stay in the batch for `takeEvaluationRow`.
+   */
+  evaluationFilterRows?: string
 }
 
 export interface FinalizedOtelEvent {

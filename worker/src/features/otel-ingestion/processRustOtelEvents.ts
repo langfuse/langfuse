@@ -9,6 +9,7 @@ import type {
   RustOtelBatch,
 } from "@langfuse/native";
 import {
+  convertEventRecordToObservationEvalFilterFields,
   convertEventRecordToObservationForEval,
   isMediaContentType,
   MediaAssociationOrigin,
@@ -86,7 +87,7 @@ export async function processRustOtelEvents(params: {
       rules,
       projectId,
     );
-    await writeRecordsAndScheduleEvals(finalized, rules, context);
+    await writeRecordsAndScheduleEvals(processing, finalized, rules, context);
     return prepared.mediaRequests.length > 0 ? "present" : "absent";
   } finally {
     await processing.dispose();
@@ -253,7 +254,8 @@ function recordIngestionCounts(records: FinalizedEvent[]): void {
 }
 
 async function writeRecordsAndScheduleEvals(
-  { events: records, evaluationRows }: FinalizedOtelBatch,
+  processing: RustOtelBatch,
+  { events: records, evaluationFilterRows }: FinalizedOtelBatch,
   {
     traceDispatchSamplingRate,
     sampledTraceIds,
@@ -266,6 +268,14 @@ async function writeRecordsAndScheduleEvals(
   const schedulerDeps = needsScheduler
     ? createEvalSchedulerDeps(projectId, evalConfigs)
     : null;
+  // Filter columns carry no input or output, so this parse stays small. Rust
+  // keeps the full rows until a rule selects one.
+  const filterRows: Parameters<
+    typeof convertEventRecordToObservationEvalFilterFields
+  >[0][] =
+    schedulerDeps && evaluationFilterRows
+      ? JSON.parse(evaluationFilterRows)
+      : [];
   const writer = ClickhouseWriter.getNativeInstance();
   recordIngestionCounts(records);
   await Promise.all(
@@ -281,12 +291,15 @@ async function writeRecordsAndScheduleEvals(
         : undefined;
       const matchedRuleIds = schedulerDeps
         ? await scheduleEvals({
-            parseObservation: () => {
-              const observation = convertEventRecordToObservationForEval(
-                evaluationRows[index] as EventRecordInsertType,
-              );
-              return { observation, loadSnapshot: () => observation };
-            },
+            parseObservation: () => ({
+              observation: convertEventRecordToObservationEvalFilterFields(
+                filterRows[index],
+              ),
+              loadSnapshot: () =>
+                convertEventRecordToObservationForEval(
+                  processing.takeEvaluationRow(index) as EventRecordInsertType,
+                ),
+            }),
             environment: record.environment,
             traceActivity,
             rules: evalConfigs,

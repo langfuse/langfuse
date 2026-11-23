@@ -174,6 +174,7 @@ impl Pipeline {
 #[napi]
 pub struct RustOtelBatch {
     state: Arc<Mutex<Option<Pipeline>>>,
+    evaluation_rows: Arc<Mutex<EvaluationRows>>,
 }
 
 #[napi(object)]
@@ -263,9 +264,25 @@ pub struct FinalizedOtelEvent {
 #[napi(object, object_from_js = false)]
 pub struct FinalizedOtelBatch {
     pub events: Vec<FinalizedOtelEvent>,
-    /// Evaluation snapshots preserve full fields before oversized-field replacements.
-    #[napi(ts_type = "object[]")]
-    pub evaluation_rows: Vec<serde_json::Value>,
+    /// JSON array with one object per event, holding the columns evaluation rule filters read.
+    /// The full rows stay in the batch for `takeEvaluationRow`.
+    pub evaluation_filter_rows: Option<String>,
+}
+
+/// Evaluation snapshots outlive the pipeline so Node copies only the rows a rule selects.
+/// They preserve full fields before oversized-field replacements.
+#[derive(Default)]
+struct EvaluationRows {
+    rows: Vec<serde_json::Value>,
+    memory: Option<Arc<NativeMemory>>,
+}
+
+impl Drop for EvaluationRows {
+    fn drop(&mut self) {
+        if let Some(memory) = &self.memory {
+            memory.release(self.rows.iter().map(retained_size).sum());
+        }
+    }
 }
 
 #[napi(object, object_from_js = false)]
@@ -305,6 +322,7 @@ impl EarlyOtelBatch {
             pipeline.refresh_memory();
             let batch = RustOtelBatch {
                 state: Arc::new(Mutex::new(Some(pipeline))),
+                evaluation_rows: Arc::default(),
             };
             Ok(PreparedOtelBatch {
                 batch,
@@ -351,17 +369,47 @@ impl RustOtelBatch {
         &self,
         env: &'env Env,
     ) -> napi::Result<Either<AsyncTask<OwnedTask<()>>, PromiseRaw<'env, ()>>> {
-        if self.state.try_lock().is_ok_and(|state| state.is_none()) {
+        if self.state.try_lock().is_ok_and(|state| state.is_none())
+            && self
+                .evaluation_rows
+                .try_lock()
+                .is_ok_and(|evaluation| evaluation.rows.is_empty())
+        {
             return PromiseRaw::resolve(env, ()).map(Either::B);
         }
         let state = Arc::clone(&self.state);
+        let evaluation_rows = Arc::clone(&self.evaluation_rows);
         Ok(Either::A(AsyncTask::new(OwnedTask::new(move || {
             state
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take();
+            drop(std::mem::take(
+                &mut *evaluation_rows
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+            ));
             Ok(())
         }))))
+    }
+
+    /// Move one evaluation snapshot to JavaScript. Each row can be taken once, before disposal.
+    #[napi(ts_return_type = "object")]
+    pub fn take_evaluation_row(&self, env: Env, index: u32) -> napi::Result<serde_json::Value> {
+        let mut evaluation = self
+            .evaluation_rows
+            .lock()
+            .map_err(|_| to_js_error(env, failure("OTEL processing lock poisoned")))?;
+        let row = evaluation
+            .rows
+            .get_mut(index as usize)
+            .map(std::mem::take)
+            .filter(|row| !row.is_null())
+            .ok_or_else(|| to_js_error(env, failure("evaluation row is unavailable")))?;
+        if let Some(memory) = &evaluation.memory {
+            memory.release(retained_size(&row));
+        }
+        Ok(row)
     }
 
     #[napi(ts_return_type = "Promise<Buffer>")]
@@ -395,6 +443,7 @@ impl RustOtelBatch {
             lengths: lookups.lengths.to_vec(),
             numbers: lookups.numbers.to_vec(),
         };
+        let evaluation_rows = Arc::clone(&self.evaluation_rows);
         self.run(move |state| {
             let lookups = lookups::decode(&lookups)?;
             validate_completion(state, &media_results, lookups.len(), overflow_limit_bytes)?;
@@ -403,7 +452,7 @@ impl RustOtelBatch {
             rows::finalize_or_request_overflow(
                 state,
                 overflow_limit_bytes,
-                include_evaluation_rows,
+                include_evaluation_rows.then_some(&evaluation_rows),
                 trace_activity_ids,
             )
         })
@@ -430,8 +479,14 @@ impl RustOtelBatch {
         include_evaluation_rows: bool,
         trace_activity_ids: Option<Vec<String>>,
     ) -> AsyncTask<OwnedTask<FinalizedOtelBatch>> {
+        let evaluation_rows = Arc::clone(&self.evaluation_rows);
         self.run(move |state| {
-            rows::finalize_inner(state, overflow, include_evaluation_rows, trace_activity_ids)
+            rows::finalize_inner(
+                state,
+                overflow,
+                include_evaluation_rows.then_some(&evaluation_rows),
+                trace_activity_ids,
+            )
         })
     }
 }

@@ -293,9 +293,9 @@ async function expectNativeMediaLifecycleParity(
       true,
     );
     expect(finalized).toBeDefined();
-    expect((finalized!.evaluationRows[0] as { input: unknown }).input).toBe(
-      tsPayload.input,
-    );
+    expect(processing.takeEvaluationRow(0)).toMatchObject({
+      input: tsPayload.input,
+    });
   } finally {
     await processing?.dispose();
     await early.dispose();
