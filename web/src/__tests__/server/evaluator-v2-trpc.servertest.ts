@@ -664,9 +664,12 @@ describe("evalsV2 tRPC", () => {
         sampling: 1,
         timeScope: ["NEW"],
       }),
-    ).rejects.toThrow(
-      'Variable "expected_output" maps to unknown column "expected_output"',
-    );
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(
+        'Variable "expected_output" maps to unknown column "expected_output"',
+      ),
+    });
   });
 });
 

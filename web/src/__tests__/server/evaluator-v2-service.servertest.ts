@@ -978,7 +978,12 @@ describe("EvaluatorService", () => {
         },
         null,
       ),
-    ).rejects.toThrow('Variable "output" maps to unknown column "threads"');
+    ).rejects.toMatchObject({
+      httpCode: 400,
+      message: expect.stringContaining(
+        'Variable "output" maps to unknown column "threads"',
+      ),
+    });
     await expect(
       prisma.evaluatorVersion.count({ where: { evaluatorId: created.id } }),
     ).resolves.toBe(1);
