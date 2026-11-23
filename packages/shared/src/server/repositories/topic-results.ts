@@ -806,3 +806,38 @@ export async function getTopicResultCounts(input: {
     };
   });
 }
+
+/**
+ * Facet summaries written in `[start, end)`, by `created_at`, without
+ * `insufficient_input` rows, as billing counts them. Rows
+ * are not deduplicated (no `FINAL`), so a source re-summarized before a merge
+ * counts once per write. `created_at` is outside the sort key, so this scans
+ * the table; it runs only from the self-hosted telemetry job.
+ */
+export async function getTopicFacetSummaryCountsByProjectInCreationInterval({
+  start,
+  end,
+}: {
+  start: Date;
+  end: Date;
+}): Promise<{ projectId: string; count: number }[]> {
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
+    query: `
+      SELECT project_id, count() AS count
+      FROM topic_facet_summaries
+      WHERE created_at >= {start: DateTime64(3)}
+        AND created_at < {end: DateTime64(3)}
+        AND processing_state != 'insufficient_input'
+      GROUP BY project_id
+    `,
+    params: {
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+    },
+    clickhouseConfigs: { request_timeout: 300_000 },
+  });
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
+  }));
+}
