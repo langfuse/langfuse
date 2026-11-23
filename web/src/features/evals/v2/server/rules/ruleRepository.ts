@@ -496,10 +496,16 @@ export function setRuleStatus(params: {
   const status = params.enabled
     ? JobConfigState.ACTIVE
     : JobConfigState.INACTIVE;
+  // The zero-assignment cleanup must reach trace transcript rules whatever the
+  // caller's visibility, so it drops the trace transcript filter. A rule with
+  // no assignments can never carry a FACET evaluator, so the FACET guard holds.
+  const visibility = params.unassignedOnly
+    ? { includeTraceTranscriptRules: true }
+    : params.visibility;
   return params.prisma.evaluationRule.updateMany({
     where: {
       projectId: params.projectId,
-      ...visibleRuleWhere(params.visibility),
+      ...visibleRuleWhere(visibility),
       ...(params.ruleIds === undefined ? {} : { id: { in: params.ruleIds } }),
       ...(params.unassignedOnly ? { assignments: { none: {} } } : {}),
       ...(params.sampling === undefined ? { status: { not: status } } : {}),

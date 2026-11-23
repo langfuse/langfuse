@@ -2,12 +2,14 @@ import { randomUUID } from "node:crypto";
 import {
   EvalTargetObject,
   EvalTemplateType,
+  TopicsTargetObject,
   type FilterState,
 } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import * as ruleRepository from "@/src/features/evals/v2/server/rules/ruleRepository";
+import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { filtersMatch } from "@/src/features/evals/v2/server/rules/ruleFilterMatching";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 
@@ -529,6 +531,40 @@ describe("evaluation rule v2 repository", () => {
       await expect(
         prisma.evaluationRule.findUnique({ where: { id: rule.id } }),
       ).resolves.toMatchObject({ status: "ACTIVE" });
+    });
+
+    it("disables a trace transcript rule left unassigned by an evaluator delete", async () => {
+      const evaluator = await createEvaluator();
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: `trace-rule-${randomUUID()}`,
+          targetObject: TopicsTargetObject,
+          status: "ACTIVE",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          assignments: { create: { projectId, evaluatorId: evaluator.id } },
+        },
+      });
+
+      // deleteEvaluator runs the zero-assignment cleanup without opting into
+      // trace transcript visibility, which must still disable the rule.
+      await expect(
+        evaluatorRepository.deleteEvaluator({
+          prisma,
+          projectId,
+          evaluatorId: evaluator.id,
+        }),
+      ).resolves.toBe(true);
+
+      await expect(
+        prisma.evaluationRule.findUnique({
+          where: { id: rule.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "INACTIVE" });
     });
   });
 
