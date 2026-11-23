@@ -23,7 +23,11 @@ import { env } from "../../env";
 import { logger } from "../logger";
 import type { OutboundUrlConnectionValidationOptions } from "../outbound-url/connection";
 import { resolveMediaStorageEndpoints } from "../s3";
-import { StorageServiceFactory, storageKeys } from "./StorageService";
+import {
+  GCS_DELETE_CONCURRENCY,
+  StorageServiceFactory,
+  storageKeys,
+} from "./StorageService";
 
 // Capture the options handed to lib-storage's Upload so the non-buffered
 // fallback's part size can be asserted without real network I/O.
@@ -1160,6 +1164,97 @@ describe("S3StorageService request handler socket pool", () => {
       expect(socket.connecting).toBe(true);
       socket.emit("timeout");
       await expect(downloads).resolves.toEqual(["first", "second"]);
+    });
+  });
+});
+
+/**
+ * Regression tests for Google Cloud Storage bulk deletes.
+ *
+ * GCS has no batch-delete API, so `deleteFiles` issues one request per path. Callers size
+ * their batches for S3's `DeleteObjects` (`S3_DELETE_OBJECTS_CHUNK_SIZE` = 900 keys in a
+ * single request), so an unbounded `Promise.all` here turned one logical batch into 900
+ * simultaneous HTTPS requests - enough to exhaust the socket pool shared with every other
+ * client in the process. These tests pin the concurrency bound and the retry parity that
+ * the S3 and Azure implementations already had.
+ */
+describe("GoogleCloudStorageService.deleteFiles", () => {
+  // The constructor performs no network I/O without credentials, so a real service with a
+  // stubbed `bucket` exercises the delete pipeline without a live GCS backend.
+  const makeService = (del: (path: string) => Promise<void>) => {
+    const service = StorageServiceFactory.getInstance({
+      credentials: storageKeys(undefined, undefined),
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    (
+      service as unknown as { bucket: { file: (name: string) => unknown } }
+    ).bucket = {
+      file: (name: string) => ({ delete: () => del(name) }),
+    };
+
+    return service;
+  };
+
+  it("keeps at most GCS_DELETE_CONCURRENCY deletes in flight", async () => {
+    const paths = Array.from(
+      { length: 500 },
+      (_, i) => `events/project/trace/file-${i}.json`,
+    );
+    const deleted: string[] = [];
+    let inFlight = 0;
+    let peakInFlight = 0;
+
+    const service = makeService(async (path) => {
+      inFlight++;
+      peakInFlight = Math.max(peakInFlight, inFlight);
+      await new Promise((resolve) => setImmediate(resolve));
+      deleted.push(path);
+      inFlight--;
+    });
+
+    await service.deleteFiles(paths);
+
+    expect(deleted).toHaveLength(paths.length);
+    expect(new Set(deleted)).toEqual(new Set(paths));
+    expect(peakInFlight).toBeLessThanOrEqual(GCS_DELETE_CONCURRENCY);
+    // Guards against the opposite regression: the bound must not serialise the deletes.
+    expect(peakInFlight).toBeGreaterThan(1);
+  });
+
+  it("retries a transient failure", async () => {
+    let failures = 0;
+
+    const service = makeService(async (path) => {
+      if (path === "b.json" && failures === 0) {
+        failures++;
+        throw Object.assign(new Error("socket hang up"), {
+          code: "ECONNRESET",
+        });
+      }
+    });
+
+    await expect(
+      service.deleteFiles(["a.json", "b.json"]),
+    ).resolves.toBeUndefined();
+    expect(failures).toBe(1);
+  });
+
+  it("propagates a persistent failure instead of masking it", async () => {
+    const cause = new Error("permission denied");
+    const service = makeService(async () => {
+      throw cause;
+    });
+
+    await expect(service.deleteFiles(["a.json"])).rejects.toMatchObject({
+      message: "Failed to delete files from Google Cloud Storage",
+      cause,
     });
   });
 });

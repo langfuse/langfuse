@@ -397,6 +397,12 @@ export interface StorageService {
 // exactly one request instead of duplicating the number.
 export const S3_DELETE_OBJECTS_CHUNK_SIZE = 900;
 
+// Concurrent delete requests GoogleCloudStorageService keeps in flight. GCS has no
+// batch-delete API, so each path is its own request: without a bound, a caller's chunk sized
+// for S3_DELETE_OBJECTS_CHUNK_SIZE becomes that many simultaneous requests and exhausts the
+// process-wide socket pool, starving unrelated clients (Redis, ClickHouse) in the same process.
+export const GCS_DELETE_CONCURRENCY = 50;
+
 /**
  * Access keys, or (S3 only) a credentials provider for IAM role auth. Omitted
  * means the deployment's default credentials, e.g. the AWS default chain.
@@ -1626,15 +1632,28 @@ class GoogleCloudStorageService implements StorageService {
 
   public async deleteFiles(paths: string[]): Promise<void> {
     try {
-      await Promise.all(
-        paths.map(async (path) => {
-          const file = this.bucket.file(path);
-          await file.delete({ ignoreNotFound: true });
-        }),
-      );
+      // Retrying the whole set is safe: `ignoreNotFound` makes each delete idempotent, so
+      // paths that succeeded on an earlier attempt are no-ops on the next one.
+      await backOff(() => this.deleteFilesNonRetrying(paths), {
+        numOfAttempts: 3,
+      });
     } catch (err) {
       logger.error(`Failed to delete files from Google Cloud Storage`, err);
       handleStorageError(err, "delete files from Google Cloud Storage");
+    }
+  }
+
+  async deleteFilesNonRetrying(paths: string[]): Promise<void> {
+    // `Readable.map` is lazy, so the iteration is what actually runs the deletes; draining it
+    // here keeps at most GCS_DELETE_CONCURRENCY in flight and surfaces the first rejection
+    // instead of leaving it unhandled.
+    const deletions = Readable.from(paths).map(
+      (path: string) => this.bucket.file(path).delete({ ignoreNotFound: true }),
+      { concurrency: GCS_DELETE_CONCURRENCY },
+    );
+
+    for await (const _ of deletions) {
+      // The map callback performs the delete; nothing to collect.
     }
   }
 }
