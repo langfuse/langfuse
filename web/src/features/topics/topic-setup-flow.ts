@@ -3,7 +3,10 @@ import {
   supportedModels,
   type FilterState,
 } from "@langfuse/shared";
-import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
+import {
+  DEFAULT_TOPIC_FACETS,
+  DEFAULT_TOPIC_RULE_NAME,
+} from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
 export const TOPIC_SETUP_QUESTIONS = [
@@ -47,7 +50,32 @@ export type TopicSetupDraft = {
   samplePercent: number;
   /** Observation filter of the first rule; empty means every trace. */
   filter: FilterState;
+  /** Name typed for the map; null follows `defaultTopicMapName` of the filter. */
+  name: string | null;
 };
+
+const TOPIC_MAP_NAME_MAX_LENGTH = 100;
+
+/** The trace names an exact trace-name filter selects, else the default map name. */
+export function defaultTopicMapName(filter: FilterState) {
+  const names = filter.flatMap((item) => {
+    if (item.column !== "traceName") return [];
+    if (item.type === "string" && item.operator === "=") return [item.value];
+    if (item.type === "stringOptions" && item.operator === "any of")
+      return item.value;
+    return [];
+  });
+  const name = names
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(", ")
+    .slice(0, TOPIC_MAP_NAME_MAX_LENGTH);
+  return name || DEFAULT_TOPIC_RULE_NAME;
+}
+
+export function topicSetupMapName(draft: TopicSetupDraft) {
+  return draft.name ?? defaultTopicMapName(draft.filter);
+}
 
 // Best family first; within a family the highest version wins (6.1 over 6).
 const RECOMMENDED_MODELS: Record<
@@ -194,6 +222,8 @@ export function initialTopicSetupDraft(input: {
   enabledFacetIds: ReadonlySet<string> | null;
   /** The first rule's stored filter, when the project has one. */
   filter?: FilterState;
+  /** The first rule's stored name, when the project has one. */
+  name?: string;
   traceIdleMs: number | null;
 }): TopicSetupDraft {
   const summaryGroups = topicProviderGroups(
@@ -241,6 +271,8 @@ export function initialTopicSetupDraft(input: {
     advancedOpen: false,
     samplePercent: 100,
     filter: input.filter ?? [],
+    name:
+      input.name && input.name !== DEFAULT_TOPIC_RULE_NAME ? input.name : null,
   };
 }
 

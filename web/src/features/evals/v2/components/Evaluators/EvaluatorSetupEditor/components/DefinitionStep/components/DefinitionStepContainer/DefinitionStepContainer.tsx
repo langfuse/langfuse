@@ -120,9 +120,7 @@ export function DefinitionStepContainer({
               onConfigureProviders={onConfigureProviders}
             />
           }
-          questionsEditor={
-            <DecisionModelQuestionsEditor projectId={projectId} store={store} />
-          }
+          questionsEditor={<DecisionModelQuestionsEditor store={store} />}
         />
       );
   }
