@@ -16,6 +16,12 @@ use super::failure;
 /// Written first by `encodeOtelLookups`. Both sides change together.
 const FORMAT_VERSION: f64 = 1.0;
 
+/// The flat form held in memory Rust owns, which is what `decode` reads.
+///
+/// Node hands the lengths and numbers over as typed arrays (`EncodedOtelLookups` in
+/// `otel_pipeline.rs`). Their memory stays with JavaScript, which can still write to it,
+/// and `decode` runs in a task off Node's main thread. `RustOtelBatch::complete` therefore
+/// copies both arrays into this struct before the task starts.
 pub(super) struct EncodedLookups {
     pub(super) text: String,
     pub(super) lengths: Vec<u32>,

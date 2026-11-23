@@ -79,7 +79,12 @@ export declare function clusterTopicEmbeddings(embeddings: Array<Array<number>>,
  */
 export declare function encodeClickhouseEvents(rows: PreparedEvent[], maxRowsPerBlock: number): Promise<NativeEventBlock[]>
 
-/** Lookup results in the flat form written by the worker's `encodeOtelLookups`. */
+/**
+ * Lookup results in the flat form written by the worker's `encodeOtelLookups`.
+ *
+ * `lengths` and `numbers` are typed arrays because a typed array is handed to Rust as a
+ * whole, while a plain array is read one element at a time on Node's main thread.
+ */
 export interface EncodedOtelLookups {
   /** Every text field in a fixed order, each followed by a line feed. */
   text: string

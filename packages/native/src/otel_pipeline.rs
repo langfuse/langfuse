@@ -211,6 +211,9 @@ pub struct OtelSkillResourceLoaded {
 }
 
 /// Lookup results in the flat form written by the worker's `encodeOtelLookups`.
+///
+/// `lengths` and `numbers` are typed arrays because a typed array is handed to Rust as a
+/// whole, while a plain array is read one element at a time on Node's main thread.
 #[napi(object, object_to_js = false)]
 pub struct EncodedOtelLookups {
     /// Every text field in a fixed order, each followed by a line feed.
@@ -385,7 +388,8 @@ impl RustOtelBatch {
         include_evaluation_rows: bool,
         trace_activity_ids: Option<Vec<String>>,
     ) -> AsyncTask<OwnedTask<OtelCompletion>> {
-        // Typed arrays belong to JavaScript, so their contents are copied before the task starts.
+        // The typed arrays in `lookups` remain JavaScript's memory, which it can write to while
+        // the task runs off the main thread. The task therefore gets its own copy of them.
         let lookups = lookups::EncodedLookups {
             text: lookups.text,
             lengths: lookups.lengths.to_vec(),
