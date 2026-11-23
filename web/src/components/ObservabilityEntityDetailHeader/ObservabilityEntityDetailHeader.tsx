@@ -28,7 +28,7 @@ import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -778,7 +778,7 @@ function EntityMetrics({ metrics }: { metrics: readonly HeaderMetric[] }) {
     ...values.filter((metric) => metric.overflowOnly),
   ];
   return (
-    <SingleLineOverflowList
+    <OverflowList
       spacing="comfortable"
       items={inlineMetrics}
       additionalOverflowCount={remainingMetrics.length}
@@ -788,8 +788,8 @@ function EntityMetrics({ metrics }: { metrics: readonly HeaderMetric[] }) {
         metric.type === "correction" ||
         (metric.type === "value" && metric.color === "filled")
       }
-      renderItem={(metric) => (
-        <span data-entity-metric="true" className="inline-flex min-w-0">
+      renderItem={(metric, { getItemProps }) => (
+        <span {...getItemProps()} data-entity-metric="true">
           <MetricChip metric={metric} />
         </span>
       )}
