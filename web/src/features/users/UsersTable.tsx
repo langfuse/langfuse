@@ -425,7 +425,7 @@ export function UsersTable({
       headerTooltip: {
         description: "The earliest trace recorded for this user.",
       },
-      size: 150,
+      size: 160,
       mapValue: (value) =>
         userMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
     }),
@@ -435,7 +435,7 @@ export function UsersTable({
       headerTooltip: {
         description: "The latest trace recorded for this user.",
       },
-      size: 150,
+      size: 160,
       mapValue: (value) =>
         userMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
     }),

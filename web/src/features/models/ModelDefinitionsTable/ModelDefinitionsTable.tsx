@@ -146,7 +146,7 @@ export function ModelDefinitionsTable({
         description: modelConfigDescriptions.lastUsed,
       },
       enableHiding: true,
-      size: 120,
+      size: 130,
       getValue: (_, { row }) => {
         if (!lastUsed) return { type: "loading" };
         return lastUsed[row.original.modelId];
