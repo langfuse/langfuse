@@ -78,6 +78,22 @@ function createGoogleCloudStorageAuthClient(googleCloudCredentials: string) {
   });
 }
 
+/**
+ * Response headers must be ISO-8859-1, and object keys may hold any Unicode
+ * or a `"`. Such keys get an ASCII fallback plus an RFC 6266 `filename*`.
+ */
+function attachmentContentDisposition(fileName: string) {
+  const asciiFileName = fileName.replace(/[^\x20-\x7e]|["\\]/g, "_");
+  if (asciiFileName === fileName) {
+    return `attachment; filename="${fileName}"`;
+  }
+  const encodedFileName = encodeURIComponent(fileName).replace(
+    /['()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${asciiFileName}"; filename*=UTF-8''${encodedFileName}`;
+}
+
 export interface S3SseConfig {
   serverSideEncryption?: string;
   sseKmsKeyId?: string;
@@ -818,7 +834,7 @@ class AzureBlobStorageService implements StorageService {
         permissions: BlobSASPermissions.parse("r"),
         expiresOn: new Date(Date.now() + ttlSeconds * 1000),
         contentDisposition: asAttachment
-          ? `attachment; filename="${fileName}"`
+          ? attachmentContentDisposition(fileName)
           : undefined,
         contentType: responseContentType,
       });
@@ -1240,7 +1256,7 @@ class S3StorageService implements StorageService {
           Bucket: this.bucketName,
           Key: fileName,
           ResponseContentDisposition: asAttachment
-            ? `attachment; filename="${fileName}"`
+            ? attachmentContentDisposition(fileName)
             : undefined,
           ResponseContentType: responseContentType,
         }),
@@ -1566,7 +1582,7 @@ class GoogleCloudStorageService implements StorageService {
       };
 
       if (asAttachment) {
-        options.responseDisposition = `attachment; filename="${fileName}"`;
+        options.responseDisposition = attachmentContentDisposition(fileName);
       }
       if (responseContentType) {
         options.responseType = responseContentType;

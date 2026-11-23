@@ -1,45 +1,86 @@
 import { describe, expect, it } from "vitest";
 
-import { StorageServiceFactory, storageKeys } from "../services/StorageService";
+import { env } from "../../env";
+import {
+  type StorageService,
+  StorageServiceFactory,
+  storageKeys,
+} from "../services/StorageService";
 import { getMediaDownloadUrl } from "./getMediaDownloadUrl";
 
-const storageService = StorageServiceFactory.getInstance({
-  credentials: storageKeys("test-access-key", "test-secret-key"),
+// Azure would otherwise create the container before signing offline.
+env.LANGFUSE_AZURE_SKIP_CONTAINER_CHECK = "true";
+
+const baseParams = {
   bucketName: "media-bucket",
-  endpoint: "http://localhost:9090",
   region: "us-east-1",
   forcePathStyle: true,
-  useAzureBlob: false,
-  useGoogleCloudStorage: false,
-  useOCIObjectStorage: false,
   awsSse: undefined,
   awsSseKmsKeyId: undefined,
-});
+};
 
-const signedQuery = async (bucketPath: string, contentType: string) =>
-  new URL(
-    await getMediaDownloadUrl({
-      storageService,
-      bucketPath,
-      contentType,
-      ttlSeconds: 60,
+const providers: Array<{
+  name: string;
+  storageService: StorageService;
+  dispositionParam: string;
+  contentTypeParam: string;
+}> = [
+  {
+    name: "S3",
+    storageService: StorageServiceFactory.getInstance({
+      ...baseParams,
+      credentials: storageKeys("test-access-key", "test-secret-key"),
+      endpoint: "http://localhost:9090",
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
     }),
-  ).searchParams;
+    dispositionParam: "response-content-disposition",
+    contentTypeParam: "response-content-type",
+  },
+  {
+    name: "Azure",
+    storageService: StorageServiceFactory.getInstance({
+      ...baseParams,
+      credentials: storageKeys(
+        "devstoreaccount1",
+        Buffer.from("test-account-key").toString("base64"),
+      ),
+      endpoint: "http://localhost:10000/devstoreaccount1",
+      useAzureBlob: true,
+    }),
+    dispositionParam: "rscd",
+    contentTypeParam: "rsct",
+  },
+];
 
-describe("getMediaDownloadUrl", () => {
-  it("signs active content as a download with the recorded type", async () => {
-    const query = await signedQuery("project/media.html", "text/html");
+describe.each(providers)(
+  "getMediaDownloadUrl on $name",
+  ({ storageService, dispositionParam, contentTypeParam }) => {
+    const signedQuery = async (bucketPath: string, contentType: string) =>
+      new URL(
+        await getMediaDownloadUrl({
+          storageService,
+          bucketPath,
+          contentType,
+          ttlSeconds: 60,
+        }),
+      ).searchParams;
 
-    expect(query.get("response-content-disposition")).toBe(
-      'attachment; filename="project/media.html"',
-    );
-    expect(query.get("response-content-type")).toBe("text/html");
-  });
+    it("signs active content as a download with the recorded type", async () => {
+      const query = await signedQuery("project/media.html", "text/html");
 
-  it("keeps images inline with the recorded type", async () => {
-    const query = await signedQuery("project/media.png", "image/png");
+      expect(query.get(dispositionParam)).toBe(
+        'attachment; filename="project/media.html"',
+      );
+      expect(query.get(contentTypeParam)).toBe("text/html");
+    });
 
-    expect(query.get("response-content-disposition")).toBeNull();
-    expect(query.get("response-content-type")).toBe("image/png");
-  });
-});
+    it("keeps images inline with the recorded type", async () => {
+      const query = await signedQuery("project/media.png", "image/png");
+
+      expect(query.get(dispositionParam)).toBeNull();
+      expect(query.get(contentTypeParam)).toBe("image/png");
+    });
+  },
+);
