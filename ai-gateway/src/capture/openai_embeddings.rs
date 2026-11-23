@@ -285,7 +285,7 @@ fn dimensions(item: &[u8]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::capture::{RequestInput, parse_request};
+    use crate::capture::{RawRequest, RequestInput};
     use axum::http::{HeaderValue, header};
 
     fn scan(chunks: &[&[u8]]) -> Option<(Map<String, Value>, Option<Value>)> {
@@ -342,7 +342,7 @@ mod tests {
             HeaderValue::from_static("application/json"),
         );
         let mut capture = OpenAiEmbeddingsCapture::new(
-            parse_request(
+            RawRequest::from_input(
                 &headers,
                 RequestInput::from_body(br#"{"model":"amazon/titan-embed-text-v2","input":"hi"}"#),
             ),

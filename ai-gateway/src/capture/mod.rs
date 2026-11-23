@@ -64,7 +64,7 @@ impl ProtocolCapture {
         input: RequestInput,
         mode: IngestionMode,
     ) -> Self {
-        let request = parse_request(headers, input);
+        let request = RawRequest::from_input(headers, input);
         match api_format {
             ApiFormat::OpenAiResponses => {
                 Self::OpenAiResponses(OpenAiResponsesCapture::new(request, mode))
@@ -507,21 +507,24 @@ impl RequestInput {
     }
 }
 
-fn parse_request(headers: &HeaderMap, input: RequestInput) -> Result<RawRequest, InputOmission> {
-    let reason = if !identity_encoding(headers) {
-        InputOmissionReason::ContentEncoding
-    } else if let Some(members) = input.members {
-        return Ok(RawRequest {
-            members,
-            parse_budget: MAX_PROJECTED_BYTES,
-        });
-    } else {
-        InputOmissionReason::SizeLimit
-    };
-    Err(InputOmission {
-        reason,
-        body_bytes: input.body_bytes,
-    })
+impl RawRequest {
+    /// The already parsed members, or why capture cannot record the input.
+    fn from_input(headers: &HeaderMap, input: RequestInput) -> Result<Self, InputOmission> {
+        let reason = if !identity_encoding(headers) {
+            InputOmissionReason::ContentEncoding
+        } else if let Some(members) = input.members {
+            return Ok(Self {
+                members,
+                parse_budget: MAX_PROJECTED_BYTES,
+            });
+        } else {
+            InputOmissionReason::SizeLimit
+        };
+        Err(InputOmission {
+            reason,
+            body_bytes: input.body_bytes,
+        })
+    }
 }
 
 /// Only the delay-seconds form; an HTTP-date would make the value depend on clock skew.

@@ -1,7 +1,7 @@
 use super::*;
 use crate::capture::{
     ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
-    MAX_RESPONSE_PARSE_BYTES, ProtocolCapture, RelayOutcome, RequestInput, parse_request,
+    MAX_RESPONSE_PARSE_BYTES, ProtocolCapture, RawRequest, RelayOutcome, RequestInput,
     sse::SseDecoder,
 };
 use crate::config::ExecutionLimits;
@@ -235,7 +235,7 @@ async fn request_configuration_is_projected_out_of_input() {
         "metadata": {"purpose": "test"}, "prompt_cache_key": "cache-key"
     });
     let capture = OpenAiResponsesCapture::new(
-        parse_request(
+        RawRequest::from_input(
             &HeaderMap::new(),
             RequestInput::from_body(request.to_string().as_bytes()),
         ),
@@ -271,7 +271,7 @@ async fn configuration_beyond_the_parse_budget_stays_in_input() {
         "text": half, "metadata": half, "temperature": 0.5,
     });
     let capture = OpenAiResponsesCapture::new(
-        parse_request(
+        RawRequest::from_input(
             &HeaderMap::new(),
             RequestInput::from_body(request.to_string().as_bytes()),
         ),
@@ -304,7 +304,7 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
     });
     for mode in [IngestionMode::Full, IngestionMode::Usage] {
         let capture = OpenAiResponsesCapture::new(
-            parse_request(
+            RawRequest::from_input(
                 &HeaderMap::new(),
                 RequestInput::from_body(codex.to_string().as_bytes()),
             ),
@@ -330,7 +330,7 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         "client_metadata": {"team": "search"}
     });
     let capture = OpenAiResponsesCapture::new(
-        parse_request(
+        RawRequest::from_input(
             &HeaderMap::new(),
             RequestInput::from_body(unknown.to_string().as_bytes()),
         ),
