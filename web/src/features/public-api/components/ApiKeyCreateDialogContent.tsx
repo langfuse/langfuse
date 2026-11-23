@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useState } from "react";
-import { ArrowUpRight, CodeXml } from "@langfuse/icons";
+import { ArrowUpRight } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
@@ -49,7 +49,6 @@ const apiKeyRoleOverrides: Partial<Record<SystemRole, Partial<RoleDisplay>>> = {
     name: "Developer",
     description:
       "Debug traces, build datasets and run experiments from the SDK.",
-    Icon: CodeXml,
   },
 };
 
@@ -150,7 +149,6 @@ function ApiKeyCreateForm({
   };
 
   const selectedRole = apiKeyRoleDisplay(role);
-  const SelectedRoleIcon = selectedRole.Icon;
 
   return (
     <DialogContent closeOnInteractionOutside>
@@ -190,14 +188,11 @@ function ApiKeyCreateForm({
                 onValueChange={(value) => setRole(value as SystemRole)}
               >
                 <SelectTrigger className="h-auto" disableValueLineClamp>
-                  <div className="flex items-start gap-2 text-left">
-                    <SelectedRoleIcon size="base" __rawClassName="mt-1" />
-                    <div className="flex flex-col">
-                      <span className="font-bold">{selectedRole.name}</span>
-                      <span className="text-muted-foreground text-xs">
-                        {selectedRole.description}
-                      </span>
-                    </div>
+                  <div className="flex flex-col text-left">
+                    <span className="font-bold">{selectedRole.name}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {selectedRole.description}
+                    </span>
                   </div>
                 </SelectTrigger>
                 <SelectContent className="w-(--radix-select-trigger-width)">

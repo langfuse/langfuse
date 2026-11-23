@@ -27,7 +27,6 @@ export const Default = meta.story({
     role: "VIEWER",
     memberCount: 8,
     memberPreview: memberPreview(5),
-    href: "#",
   },
 });
 
@@ -39,7 +38,6 @@ export const CreatedInLangfuse = meta.story({
     role: "ADMIN",
     memberCount: 1,
     memberPreview: memberPreview(1),
-    href: "#",
   },
 });
 
@@ -51,7 +49,6 @@ export const ProjectLevel = meta.story({
     role: "MEMBER",
     memberCount: 17,
     memberPreview: memberPreview(5),
-    href: "#",
   },
 });
 
@@ -63,7 +60,6 @@ export const AiGatewayAccess = meta.story({
     role: "AI_GATEWAY",
     memberCount: 3,
     memberPreview: memberPreview(3),
-    href: "#",
   },
 });
 
@@ -81,7 +77,6 @@ export const WithLongNames = meta.story({
           ? "Maximiliane Alexandra von Hohenlohe-Schillingsfürst"
           : member.name,
     })),
-    href: "#",
   },
 });
 
@@ -96,6 +91,5 @@ export const MembersWithoutNames = meta.story({
       ...member,
       name: null,
     })),
-    href: "#",
   },
 });

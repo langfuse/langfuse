@@ -2,7 +2,7 @@ import { type Role } from "@langfuse/shared";
 import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
-import { RoleWithIcon } from "@/src/features/rbac/components/RoleWithIcon";
+import { roleName } from "@/src/features/rbac/components/roleDisplay";
 
 export function EffectiveRoleCard({
   caption,
@@ -24,9 +24,7 @@ export function EffectiveRoleCard({
             key={role}
             className="grid grid-cols-[7.5rem_minmax(0,1fr)_6.5rem] items-baseline gap-3 px-3 py-2"
           >
-            <span className="font-bold">
-              <RoleWithIcon role={role} />
-            </span>
+            <span className="font-bold">{roleName(role)}</span>
             <span className="text-muted-foreground">
               {systemRoleAccessRights[role].description}
             </span>

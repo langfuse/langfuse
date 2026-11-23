@@ -18,7 +18,6 @@ import { EffectiveRoleCard } from "@/src/features/rbac/components/EffectiveRoleC
 import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
-import { RoleWithIcon } from "@/src/features/rbac/components/RoleWithIcon";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 import { type MemberGroupRole } from "./MembersSettingsTable";
 
@@ -134,7 +133,8 @@ type GroupReason = {
   memberPreview: MemberGroupRole["memberPreview"];
   role: Role;
   levelNote?: string;
-  href: string;
+  /** Opens the group's members on the organization's Groups page; null when the viewer cannot open that page. */
+  href: string | null;
 };
 
 type HeldRole = {
@@ -151,7 +151,11 @@ function directTag(effective: EffectiveRole, onProject: boolean) {
 /** NONE grants nothing, so it never appears; on a project a set project role replaces the org role. */
 function heldRoles(
   effective: EffectiveRole,
-  { orgId, projectId }: { orgId: string; projectId?: string },
+  {
+    orgId,
+    projectId,
+    canSeeOrgGroups,
+  }: { orgId: string; projectId?: string; canSeeOrgGroups: boolean },
 ): HeldRole[] {
   const byRole = new Map<Role, HeldRole>();
   const held = (role: Role) => {
@@ -176,10 +180,9 @@ function heldRoles(
       memberPreview: grant.memberPreview,
       role: grant.role,
       levelNote: levelNote(grant, effective.grants),
-      href:
-        grant.level === "project" && projectId
-          ? `/project/${projectId}/settings/groups`
-          : `/organization/${orgId}/settings/groups`,
+      href: canSeeOrgGroups
+        ? `/organization/${orgId}/settings/groups?group=${encodeURIComponent(grant.groupId)}`
+        : null,
     });
   }
   return [...byRole.values()].toSorted((a, b) =>
@@ -248,12 +251,30 @@ type EffectiveRoleSourceProps = {
   orgId: string;
   projectId?: string;
   canSeeOrgSettings: boolean;
+  /** Whether the viewer may open the organization's Groups page. */
+  canSeeOrgGroups: boolean;
   member: { name: string | null; email: string | null };
   editor: DirectRoleEditor;
 };
 
-/** A group that gives a role: its chip links to the group and its card summarizes the group. */
+/** A group that gives a role: its chip opens the group's members and its card summarizes the group. */
 function GroupChip({ group }: { group: GroupReason }) {
+  const content = (
+    <>
+      <Users size="sm" color="tertiary" aria-hidden="true" />
+      <span
+        className="decoration-muted-foreground truncate py-0.5 underline decoration-dotted underline-offset-4"
+        title={group.label}
+      >
+        {group.label}
+      </span>
+      {group.levelNote && (
+        <span className="text-foreground-tertiary shrink-0 py-0.5">
+          ({group.levelNote})
+        </span>
+      )}
+    </>
+  );
   return (
     <HoverCard
       openDelay={150}
@@ -267,32 +288,26 @@ function GroupChip({ group }: { group: GroupReason }) {
           role={group.role}
           memberCount={group.memberCount}
           memberPreview={group.memberPreview}
-          href={group.href}
         />
       }
     >
-      {({ getTriggerProps }) => (
-        <TagShell asChild>
-          <Link
-            href={group.href}
-            className="hover:bg-primary/10 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-hidden"
-            {...getTriggerProps()}
-          >
-            <Users size="sm" color="tertiary" aria-hidden="true" />
-            <span
-              className="decoration-muted-foreground truncate py-0.5 underline decoration-dotted underline-offset-4"
-              title={group.label}
+      {({ getTriggerProps }) =>
+        group.href ? (
+          <TagShell asChild>
+            <Link
+              href={group.href}
+              className="hover:bg-primary/10 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-hidden"
+              {...getTriggerProps()}
             >
-              {group.label}
-            </span>
-            {group.levelNote && (
-              <span className="text-foreground-tertiary shrink-0 py-0.5">
-                ({group.levelNote})
-              </span>
-            )}
-          </Link>
-        </TagShell>
-      )}
+              {content}
+            </Link>
+          </TagShell>
+        ) : (
+          <TagShell tabIndex={0} {...getTriggerProps()}>
+            {content}
+          </TagShell>
+        )
+      }
     </HoverCard>
   );
 }
@@ -318,6 +333,7 @@ function RoleDialog({
   orgId,
   projectId,
   canSeeOrgSettings,
+  canSeeOrgGroups,
   member,
   editor,
   onDone,
@@ -326,7 +342,7 @@ function RoleDialog({
   const onProject = Boolean(projectId);
   const [selected, setSelected] = useState<Role>(editor.value);
   const [permissionsRole, setPermissionsRole] = useState<Role | null>(null);
-  const held = heldRoles(effective, { orgId, projectId });
+  const held = heldRoles(effective, { orgId, projectId, canSeeOrgGroups });
   const omitted = omittedNote(effective, { orgRole, projectId });
   // One direct role and no groups: the card and roles list would only repeat the picker.
   const explain =
@@ -374,9 +390,7 @@ function RoleDialog({
                     key={role}
                     className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 px-3 py-2"
                   >
-                    <span className="font-bold">
-                      <RoleWithIcon role={role} />
-                    </span>
+                    <span className="font-bold">{roleName(role)}</span>
                     <ReasonList {...reasons} />
                   </li>
                 ))}

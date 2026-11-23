@@ -82,6 +82,7 @@ type MembersSettingsTableProps = Pick<
   orgId: string;
   project?: { id: string; name: string };
   currentUserId?: string;
+  hasOrgViewAccess: boolean;
   hasOrgCudAccess: boolean;
   hasProjectCudAccess: boolean;
   canManageOrgOwnership: boolean;
@@ -196,6 +197,7 @@ export function MembersSettingsTable({
   orgId,
   project,
   currentUserId,
+  hasOrgViewAccess,
   hasOrgCudAccess,
   hasProjectCudAccess,
   canManageOrgOwnership,
@@ -260,6 +262,7 @@ export function MembersSettingsTable({
                     orgId={orgId}
                     projectId={onProject ? project?.id : undefined}
                     canSeeOrgSettings={hasOrgCudAccess}
+                    canSeeOrgGroups={hasOrgViewAccess}
                     member={{ name: member.user.name, email: member.email }}
                     editor={directRoleEditor(member, effective, {
                       project,
@@ -351,6 +354,7 @@ export function MembersSettingsTable({
       canManageOrgOwnership,
       canManageProjectOwnership,
       hasOrgCudAccess,
+      hasOrgViewAccess,
       hasProjectCudAccess,
       isAiGatewayEnabled,
       isGroupsEnabled,
