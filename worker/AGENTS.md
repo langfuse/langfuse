@@ -33,8 +33,8 @@
   Prompt experiments select observation rules only on their root span. Transcript
   recording preserves Topics' exclusion of internal environments, including prompt
   experiments. The direct internal writer retains its root-only ready callback.
-- Trace batching: `src/features/traceBatching/traceBatching.ts` and `src/features/traceBatching/traceRuleRecording.ts`. Read `src/features/traceBatching/README.md` before changing recording/Redis state, dispatch or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement. The dispatcher enqueues ready traces only to `events-dispatch-queue`.
-- Events dispatch: `src/features/eventsDispatch/`, consumed only on worker-cpu, enabled by `LANGFUSE_EVENTS_DISPATCH_ENABLED`; a failed stream must not assemble its partial final trace. It routes each trace's recorded rule IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only for routed traces, stores the transcript once and enqueues one job per consumer; consumers resolve their rule definitions themselves. The trace-transcript-eval consumer schedules LLM-as-a-judge and decision-model executions from the stored object key on `llm-as-a-judge-execution-queue`. Topics is unchanged and still receives only the project, trace, and revision. Per-trace failures return to the `{trace-dispatch:N}` maps via `RESTORE_RECORDING_SCRIPT` (backoff 5/15/45 min, then dropped); a failed read retries the whole job once. New names use events-dispatch; the Redis maps keep trace-dispatch.
+- Trace dispatch: `src/features/traceDispatch/traceDispatcher.ts` and `src/features/traceDispatch/traceRuleRecording.ts`. Read `src/features/traceDispatch/README.md` before changing recording/Redis state, dispatch or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement. The dispatcher enqueues ready traces only to `events-dispatch-queue`.
+- Events dispatch: `src/features/eventsDispatch/`, consumed only on worker-cpu, enabled by `LANGFUSE_EVENTS_DISPATCH_ENABLED`; a failed stream must not assemble its partial final trace. It routes each trace's recorded rule IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only for routed traces, stores the transcript once and enqueues one job per consumer; consumers resolve their rule definitions themselves. The trace-transcript-eval consumer schedules LLM-as-a-judge and decision-model executions from the stored object key on `llm-as-a-judge-execution-queue`. Topics is unchanged and still receives only the project, trace, and revision. Per-trace failures return to the `{trace-dispatch:N}` maps via `RESTORE_RECORDING_SCRIPT` (backoff 5/15/45 min, then dropped); a failed read retries the whole job once. `transcriptCleaner.ts` deletes stored transcripts older than three days when `LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED=true`. New names use events-dispatch; the Redis maps keep trace-dispatch.
 - Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
   `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
   after ClickHouse acknowledged the insert. It starts where audit logs are
@@ -50,11 +50,7 @@
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Live provider suites need the `LANGFUSE_LLM_CONNECTION_*` keys and run in CI's `test-worker-llm-connections` job (not on fork pull requests, which get no secrets), each behind its own path filter in `../.github/ci-paths.yml`: `test:llm-connections-only` and `test:topics-llm-providers` (Topics summary and naming requests, `src/features/topics/llm/`). `test:exclude-llm-connections` skips both.
-- Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the
-  original and early-media TypeScript paths from identical raw S3 JSON through
-  the production OTEL queue and JSON writer into isolated ClickHouse tables,
-  including retained legacy writes in dual-write mode. Setup and scope:
-  `src/features/otel-ingestion/README.md`.
+- Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the original TypeScript, early-media TypeScript, and early-media Rust paths from identical raw S3 JSON through the production OTEL queue and their production writers into isolated ClickHouse tables, including retained legacy writes in dual-write mode. Setup and scope: `src/features/otel-ingestion/README.md`.
 - Native codec checks: `pnpm --filter worker run test:native-codec` selects
   `nativeCodec` suites. Build the addon first; the command requires ClickHouse
   whenever the live parity suite is present.
@@ -89,7 +85,7 @@
    `../packages/shared/src/server/redis/*` when needed.
 3. Implement/update processor in `src/queues/*`.
 4. Register/gate worker in `src/app.ts` (env flags, concurrency, limiter).
-5. Add/adjust tests in `src/__tests__/*` or `src/queues/__tests__/*`.
+5. Whether to add a test follows root [`AGENTS.md`](../AGENTS.md). Place a warranted test in `src/__tests__/*` or `src/queues/__tests__/*`.
 
 - If a queue is sharded, also update shard-aware resolution in
   `src/queues/workerManager.ts`,
@@ -130,6 +126,8 @@
 ## Package-Specific Rules
 
 - Keep tests independent; no ordering assumptions.
+- Before enabling `isolate: false`, make every file restore its timers, environment/global stubs, spies, listeners, mutable module state, and pending work in `afterAll`. Delete only its own database rows and Redis keys; close private clients while keeping reused singletons open. Module mocks need an explicit reset contract or file isolation.
+- Verify reused workers with at least two recorded shuffle seeds and one worker (`--sequence.shuffle.files --sequence.seed=<seed> --maxWorkers=1`). Order-dependent failures must stay red; fix the leak without retries or wider timeouts.
 - Avoid editing `dist/*` directly.
 - Coordinate shared changes with `../packages/shared`.
 - Changes to `src/features/blobstorage/` (export pipeline, enrichment logic,

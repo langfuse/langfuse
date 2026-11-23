@@ -14,6 +14,7 @@ import {
 } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { TestModelMatchDialogContent } from "@/src/features/models/components/test-match/TestModelMatchDialogContent";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
+import { modelMaintainerByScope } from "@/src/features/models/modelMaintainer";
 import { type GetModelResult } from "@/src/features/models/validation";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -223,7 +224,7 @@ function convertToTableRow(model: GetModelResult): ModelTableRow {
   const prices = model.pricingTiers.find((tier) => tier.isDefault)?.prices;
   return {
     modelId: model.id,
-    maintainer: model.projectId ? "User" : "Langfuse",
+    maintainer: modelMaintainerByScope[model.scope],
     modelName: model.modelName,
     matchPattern: model.matchPattern,
     prices,

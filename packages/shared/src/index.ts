@@ -59,6 +59,8 @@ export * from "./utils/jsonSchemaValidation";
 export * from "./utils/chatml";
 export * from "./utils/math";
 export * from "./features/entitlements/plans";
+export * from "./features/entitlements/entitlements";
+export * from "./features/entitlements/stripeProducts";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
@@ -71,6 +73,7 @@ export * from "./domain/home-dashboard";
 // llm api
 export * from "./server/llm/types";
 export * from "./server/llm/promptToolConfig";
+export * from "./server/llm/llmBaseUrlRules";
 
 // evals
 export * from "./features/evals/types";
@@ -84,12 +87,14 @@ export {
 } from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
 export { traceTranscriptFilterDefinition } from "./features/evals/traceTranscriptFilters";
+export * from "./features/evals/traceTranscriptEval";
 export * from "./features/evals/evalConfigBlocking";
 export * from "./features/evals/validateEvaluatorFilters";
 export * from "./features/evals/experimentRuleNormalization";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
+export * from "./features/batchAction/traceDeletePredicate";
 export * from "./features/batchAction/addToDatasetTypes";
 export * from "./features/batchAction/applyFieldMapping";
 export { BatchTableNames } from "./interfaces/tableNames";
@@ -305,6 +310,8 @@ export { type ListableScoreDataType } from "./domain/scores";
 export { type ListableScore } from "./domain/scores";
 export { TableViewPresetTableName } from "./domain/table-view-presets";
 export {
+  SessionViewConfigSchema,
+  type SessionViewConfig,
   SessionViewInputSchema,
   SessionViewPreferencesSchema,
 } from "./domain/session-views";

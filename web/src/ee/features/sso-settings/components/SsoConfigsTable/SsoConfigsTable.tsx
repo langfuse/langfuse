@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { TrashIcon } from "@langfuse/icons";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createButtonTableColumn } from "@/src/components/design-system/table/columns/createButtonTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -84,7 +84,7 @@ export function SsoConfigsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="SSO configurations"
       columns={columns}
       actions={(row) =>

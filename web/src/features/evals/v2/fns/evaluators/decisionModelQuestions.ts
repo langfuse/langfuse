@@ -1,9 +1,8 @@
+/* eslint-disable array-callback-return */
 import {
   DECISION_MODEL_LIMITS,
   DecisionModelQuestionType,
   DecisionModelQuestionsSchema,
-  isTextAdapterDecisionModel,
-  isTextDecisionAdapter,
   type DecisionModelEntry,
   type DecisionModelQuestion,
   type DecisionModelQuestions,
@@ -123,17 +122,6 @@ export function getQuestionDraftErrors(
     if (Object.keys(own).length > 0) errors[draft.id] = own;
   }
   return errors;
-}
-
-/** OpenAI and Google questions are plain text. Field chips are only for TypeSafe. */
-export function usesPlainDecisionInstructions(params: {
-  model: string | undefined;
-  adapter: string | undefined;
-}) {
-  if (params.adapter != null && isTextDecisionAdapter(params.adapter)) {
-    return true;
-  }
-  return params.model != null && isTextAdapterDecisionModel(params.model);
 }
 
 /** Persistable questions, or null while any draft is incomplete. */

@@ -16,7 +16,7 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@langfuse/shared/src/server";
 import {
   OrganizationRepository,
   type GetOrganizationResult,
@@ -143,16 +143,23 @@ export async function getPoliciesForApiKey(
     scope,
   }: { apiKeyId: string; userId?: string | null; scope: ApiKeyScope },
 ): Promise<Policy[][]> {
-  const keyPolicies = toPolicies(
-    await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId)),
-  );
-  if (scope !== "USER") return [keyPolicies];
+  const keyRoles = getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
+  if (scope !== "USER") return [toPolicies(await keyRoles)];
   // An empty user set denies a user key whose user is gone.
-  if (!userId) return [[], keyPolicies];
-  const userPolicies = toPolicies(
-    await getRolesForPrincipal(prisma, UserId(userId)),
-  );
-  return [userPolicies, keyPolicies];
+  if (!userId) return [[], toPolicies(await keyRoles)];
+  const [userPolicies, ownRoles] = await Promise.all([
+    getPoliciesForUser(prisma, userId),
+    keyRoles,
+  ]);
+  return [userPolicies, toPolicies(ownRoles)];
+}
+
+/** getPoliciesForUser loads the policy set a user's roles bind. */
+export async function getPoliciesForUser(
+  tx: Prisma.TransactionClient,
+  userId: string,
+): Promise<Policy[]> {
+  return toPolicies(await getRolesForPrincipal(tx, UserId(userId)));
 }
 
 /**

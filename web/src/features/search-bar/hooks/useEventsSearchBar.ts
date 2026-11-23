@@ -46,7 +46,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /** How a search-bar commit was triggered — the `trigger` analytics dimension. */
-type SearchCommitTrigger = "enter" | "blur" | "pick";
+type SearchCommitTrigger = "enter" | "blur" | "pick" | "facet";
 type SearchCommitOptions = { replaceHidden?: boolean };
 export type SearchCommit = (
   trigger?: SearchCommitTrigger,
@@ -377,6 +377,7 @@ export function useEventsSearchBar({
       trigger: SearchCommitTrigger = "enter",
       options: SearchCommitOptions = {},
     ): string | null => {
+      const previousCommittedText = committedTextRef.current;
       const draftText = store.getState().draft;
       const result = planCommit(
         draftText,
@@ -419,7 +420,7 @@ export function useEventsSearchBar({
         if (options.replaceHidden) return result.filters;
         // Unchanged text must not rewrite legacy filters into a different shape
         // and make a saved view look edited.
-        if (draftText.trim() === committedTextRef.current.trim()) {
+        if (draftText.trim() === previousCommittedText.trim()) {
           return (
             pendingCommitRef.current?.next.filters ??
             appliedStateRef.current.filters
@@ -434,18 +435,24 @@ export function useEventsSearchBar({
         query: result.searchQuery,
         scopes: result.searchType,
       });
+      const changed = committed !== previousCommittedText;
       setFilterState(committedFilters);
       setSearchQuery(result.searchQuery);
       // Commit the scope alongside the query, without redundant URL writes.
       if (!sameScopes(result.searchType, searchTypeRef.current)) {
         setSearchType(result.searchType);
       }
-      if (projectId && result.canonical.length > 0) {
+      if (
+        projectId &&
+        trigger !== "facet" &&
+        (trigger !== "blur" || changed) &&
+        result.canonical.length > 0
+      ) {
         recordRecentSearch(projectId, result.canonical);
       }
       // Report query shape and length, never text. An unchanged blur is a
       // no-op; an explicit submission counts even for the same query.
-      if (trigger !== "blur" || committed !== committedTextRef.current) {
+      if (trigger !== "blur" || changed) {
         capture("filters:search_submitted", {
           tableName,
           filterCount: committedFilters.length,

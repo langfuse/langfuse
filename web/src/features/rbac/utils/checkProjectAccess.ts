@@ -1,35 +1,17 @@
-import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
-import { type Role } from "@langfuse/shared/src/db";
+import { type ProjectScope } from "@langfuse/shared";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
-import { hasOwnRole } from "./hasOwnRole";
-import { env } from "@/src/env.mjs";
-import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
+import { authorize } from "@/src/features/rbac/authorize";
 
-/** Demo LLM operations need Internal view and project permissions. */
-const demoProjectLlmScopes = new Set<ProjectScope>([
-  "playground:execute",
-  "topics:CUD",
-  "evaluator:CUD",
-  "evaluationRule:CUD",
-  "promptExperiments:CUD",
-  "evalDefaultModel:CUD",
-  "llmApiKeys:create",
-  "llmApiKeys:update",
-]);
-
-type HasProjectAccessParams = (
-  | {
-      role: Role;
-      scope: ProjectScope;
-    }
-  | {
-      session: null | Session;
-      projectId: string;
-      scope: ProjectScope;
-    }
-) & { forbiddenErrorMessage?: string };
+/** HasProjectAccessParams is a session and the projectId whose policies decide scope. */
+type HasProjectAccessParams = {
+  session: null | Session;
+  projectId: string;
+  scope: ProjectScope;
+  forbiddenErrorMessage?: string;
+};
 
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
@@ -63,23 +45,16 @@ export const useHasProjectAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
-  if (isDemoProjectLlmRestricted(p)) return false;
-
-  const projectRole: Role | undefined = hasOwnRole(p)
-    ? p.role
-    : p.session?.user?.organizations
-        .flatMap((org) => org.projects)
-        .find((project) => project.id === p.projectId)?.role;
-  if (projectRole === undefined) return false;
-
-  return projectRoleAccessRights[projectRole].includes(p.scope);
+  const { session, projectId, scope } = p;
+  const org = getOrganization(session, projectId);
+  if (!session || !org) return false;
+  return authorize(session, OrganizationId(org.id), scope, ProjectId(projectId))
+    .success;
 }
 
-function isDemoProjectLlmRestricted(p: HasProjectAccessParams): boolean {
-  return (
-    !hasOwnRole(p) &&
-    p.projectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-    demoProjectLlmScopes.has(p.scope) &&
-    !isInternalViewEnabled(p.session)
+/** getOrganization finds the session's organization that lists projectId. */
+function getOrganization(session: Session | null, projectId: string) {
+  return session?.user?.organizations.find((org) =>
+    org.projects.some((project) => project.id === projectId),
   );
 }

@@ -142,6 +142,7 @@ vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
     organization: { aiFeaturesEnabled: sessionMocks.aiFeaturesEnabled },
   }),
+  useProject: () => ({ project: null, organization: null }),
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({

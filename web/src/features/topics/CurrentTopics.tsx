@@ -7,8 +7,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { CurrentTopicsView } from "./CurrentTopicsView";
-import { TopicListView } from "./TopicListView";
+import { ScatterTopicsView } from "./scatter/ScatterTopicsView";
 import { TopicTreemapView } from "./TopicTreemapView";
 import {
   type MobileTopicsVisualization,
@@ -21,6 +20,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { type TopicsActions } from "./prepare-topics-actions";
+import { splitTopicTraceFilters } from "./topic-trace-filters";
 import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
@@ -96,7 +96,7 @@ function CurrentFacet({
   // Only the Map view needs the run's projection.
   const mapQuery = useCurrentTopicMap(
     projectId,
-    (isHandheld ? mobileVisualization.view : view) === "map"
+    ["map", "scatter"].includes(isHandheld ? mobileVisualization.view : view)
       ? resultFacet.map?.runId
       : undefined,
   );
@@ -145,30 +145,19 @@ function CurrentFacet({
           mapActions={mapActions}
         />
       );
-    if (view === "map")
+    if (view === "scatter")
       return (
-        <CurrentTopicsView
+        <ScatterTopicsView
           key={facet.facetId}
           projectId={projectId}
           facet={facet}
           mapResult={mapResult}
-          tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
-          onOpenTrace={peekNavigation.openPeek}
-          peekView={peekView}
-          useTraces={useFacetTopicTraces}
           showUnassigned={showUnassigned}
-        />
-      );
-    if (view === "list")
-      return (
-        <TopicListView
-          key={facet.facetId}
-          projectId={projectId}
-          facet={facet}
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
+          onOpenTrace={peekNavigation.openPeek}
         />
       );
     return (
@@ -178,6 +167,7 @@ function CurrentFacet({
         facet={facet}
         peekView={peekView}
         useTraces={useFacetTopicTraces}
+        showUnassigned={showUnassigned}
       />
     );
   }
@@ -207,6 +197,10 @@ function MobileTopics({
     projectId,
     facet.facetId,
   );
+  // Mobile filters by topic and assignment only; Scatter's trace filters wait until it is back.
+  const [topicFilters, scatterFilters] = splitTopicTraceFilters(
+    traceFilters.filters,
+  );
   return (
     <MobileTopicsView
       projectId={projectId}
@@ -214,9 +208,11 @@ function MobileTopics({
       view={view}
       onViewChange={onViewChange}
       mapResult={mapResult}
-      filters={traceFilters.filters}
+      filters={topicFilters}
       searchQuery={traceFilters.searchQuery}
-      onFiltersChange={traceFilters.setFilters}
+      onFiltersChange={(filters) =>
+        traceFilters.setFilters([...filters, ...scatterFilters])
+      }
       onSearchQueryChange={traceFilters.setSearchQuery}
       selectedTraceId={selectedTraceId}
       onSelectTrace={setSelectedTraceId}

@@ -29,6 +29,7 @@ export default {
     {
       files: ["**/*"],
       rules: {
+        "array-callback-return": "warn",
         "constructor-super": "warn",
         "for-direction": "warn",
         "getter-return": "warn",
@@ -125,6 +126,7 @@ export default {
         ],
         "no-void": "warn",
         "no-else-return": "warn",
+        "default-case-last": "warn",
         "no-unneeded-ternary": "warn",
         "no-nested-ternary": "warn",
         "no-use-before-define": [

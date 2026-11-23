@@ -1,9 +1,12 @@
 import { CloudConfigSchema, type ParsedOrganization } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import { logger, traceException } from "@langfuse/shared/src/server";
+import {
+  logger,
+  traceException,
+  getOrganizationPlanServerSide,
+} from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { deriveLeadSourceFromMemberships } from "./leadSource";
 import { getSfdcService, toSfdcPlan, type SfdcService } from "./sfdcService";
 
@@ -83,7 +86,7 @@ export async function syncOrgPlanChangeToSfdc(args: {
   });
 
   // Member bridges need the Account, so they wait for its 2xx. Not awaited:
-  // the Stripe webhook must not wait on per-member Mulesoft calls.
+  // a billing webhook must not wait on per-member Mulesoft calls.
   if (
     accountOk &&
     planBefore === "cloud:hobby" &&

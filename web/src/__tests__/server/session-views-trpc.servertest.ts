@@ -3,9 +3,16 @@ import { onTestFinished } from "vitest";
 import { type Session } from "next-auth";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import {
+  createOrgMembership,
+  createProjectMembership,
+  deleteOrgMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import { type Action } from "@langfuse/shared/rbac";
 
 const prepare = async () => {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -21,59 +28,45 @@ const prepare = async () => {
       where: { id: { in: [owner.id, other.id] } },
     });
   });
-  await prisma.organizationMembership.createMany({
-    data: [
-      { orgId: org.id, userId: owner.id, role: "ADMIN" },
-      { orgId: org.id, userId: other.id, role: "VIEWER" },
-    ],
+  await createOrgMembership(prisma, {
+    orgId: org.id,
+    userId: owner.id,
+    role: "ADMIN",
+  });
+  await createOrgMembership(prisma, {
+    orgId: org.id,
+    userId: other.id,
+    role: "VIEWER",
   });
   const callerFor = (
     userId: string,
     role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER",
+    deniedActions: Action[] = [],
   ) => {
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: userId,
-        canCreateOrganizations: true,
-        name: "Session view test user",
-        featureFlags: testFeatureFlags(),
-        organizations: [
-          {
-            id: org.id,
-            name: org.name,
-            role: "OWNER",
-            plan: "cloud:team",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: project.id,
-                role,
-                retentionDays: 30,
-                deletedAt: null,
-                hasTraces: false,
-                name: project.name,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-      },
-      environment: {
-        enableExperimentalFeatures: false,
-        selfHostedInstancePlan: "cloud:hobby",
-      },
-    };
+    const session: Session = createSession({
+      user: { id: userId, name: "Session view test user" },
+      organizations: [
+        {
+          id: org.id,
+          role: "OWNER",
+          name: org.name,
+          plan: "cloud:team",
+          aiTelemetryEnabled: true,
+          projects: [{ id: project.id, role, name: project.name }],
+        },
+      ],
+      environment: { selfHostedInstancePlan: "cloud:hobby" },
+    });
     return appRouter.createCaller({
-      ...createInnerTRPCContext({ session, headers: {} }),
+      ...createInnerTRPCContext({
+        session: withoutActions(session, deniedActions),
+        headers: {},
+      }),
       prisma,
     });
   };
   const input = {
+    ownership: "PROJECT" as const,
     projectId: project.id,
     name: "Generations",
     filters: [
@@ -91,6 +84,198 @@ const prepare = async () => {
 };
 
 describe("session views", () => {
+  it("allows duplicate private names and promotes private views without changing their ID", async () => {
+    const { owner, other, callerFor, input } = await prepare();
+    const creator = callerFor(owner.id, "MEMBER");
+    const { view } = await creator.sessionViews.create({
+      ...input,
+      ownership: "PRIVATE",
+    });
+    await callerFor(other.id, "MEMBER").sessionViews.create({
+      ...input,
+      ownership: "PRIVATE",
+    });
+    await expect(
+      creator.sessionViews.create({ ...input, ownership: "PRIVATE" }),
+    ).resolves.toMatchObject({ view: { name: input.name } });
+    await expect(
+      creator.sessionViews.update({ ...input, id: view.id }),
+    ).resolves.toMatchObject({ view: { id: view.id, ownership: "PROJECT" } });
+    await expect(
+      creator.sessionViews.update({
+        ...input,
+        id: view.id,
+        ownership: "PRIVATE",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+  it("requires confirmation and ownership before converting and pinning a private view", async () => {
+    const { project, owner, other, callerFor, input } = await prepare();
+    const creator = callerFor(owner.id, "ADMIN");
+    const { view } = await creator.sessionViews.create({
+      ...input,
+      ownership: "PRIVATE",
+    });
+    const pin = {
+      projectId: project.id,
+      id: view.id,
+      isPinnedByDefaultForProject: true,
+    };
+    await expect(creator.sessionViews.setDefaultPin(pin)).rejects.toMatchObject(
+      {
+        code: "BAD_REQUEST",
+      },
+    );
+    await expect(
+      callerFor(other.id, "ADMIN").sessionViews.setDefaultPin({
+        ...pin,
+        promoteToProject: true,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await creator.sessionViews.setPreferences({
+      projectId: project.id,
+      pinnedViewIds: ["messages"],
+      unpinnedViewIds: [view.id],
+    });
+    await creator.sessionViews.setDefaultPin({
+      ...pin,
+      promoteToProject: true,
+    });
+    await expect(
+      callerFor(other.id, "VIEWER").sessionViews.list({
+        projectId: project.id,
+      }),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: view.id,
+          ownership: "PROJECT",
+          isPinnedByDefaultForProject: true,
+        }),
+      ]),
+    );
+    await expect(
+      creator.sessionViews.preferences({ projectId: project.id }),
+    ).resolves.toEqual({ pinnedViewIds: ["messages"] });
+  });
+  it("requires project write permission for promotion through either mutation", async () => {
+    const { owner, callerFor, input } = await prepare();
+    const { view } = await callerFor(owner.id, "MEMBER").sessionViews.create({
+      ...input,
+      ownership: "PRIVATE",
+    });
+    const caller = callerFor(owner.id, "MEMBER", ["SessionViews:CUD"]);
+    await expect(
+      caller.sessionViews.update({ ...input, id: view.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller.sessionViews.setDefaultPin({
+        projectId: input.projectId,
+        id: view.id,
+        isPinnedByDefaultForProject: true,
+        promoteToProject: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+  it("checks project view scopes independently of queue and private view scopes", async () => {
+    const { project, owner, other, callerFor, input } = await prepare();
+    const { view } = await callerFor(owner.id, "ADMIN").sessionViews.create(
+      input,
+    );
+    const member = callerFor(other.id, "MEMBER", [
+      "SessionViews:CUD",
+      "SessionViews:read",
+    ]);
+    expect(await member.sessionViews.list({ projectId: project.id })).toEqual(
+      [],
+    );
+    await expect(
+      member.sessionViews.create({ ...input, name: "Denied" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      member.sessionViews.update({ ...input, id: view.id }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await member.sessionViews.create({
+      ...input,
+      ownership: "PRIVATE",
+      name: "Allowed private",
+    });
+    const scoreConfig = await prisma.scoreConfig.create({
+      data: { projectId: project.id, name: "Quality", dataType: "NUMERIC" },
+    });
+    await expect(
+      member.annotationQueues.create({
+        projectId: project.id,
+        name: "Denied attachment",
+        scoreConfigIds: [scoreConfig.id],
+        sessionViewId: view.id,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const projectWriter = callerFor(other.id, "MEMBER", [
+      "annotationQueues:CUD",
+      "TableViewPresets:CUD",
+      "TableViewPresets:read",
+    ]);
+    await expect(
+      projectWriter.sessionViews.update({
+        ...input,
+        id: view.id,
+        name: "Project writer",
+      }),
+    ).resolves.toMatchObject({ view: { name: "Project writer" } });
+    await expect(
+      projectWriter.sessionViews.create({
+        ...input,
+        ownership: "PRIVATE",
+        name: "Denied private",
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+  it("keeps private views invisible to other members and administrators, including pins", async () => {
+    const { project, owner, other, callerFor, input } = await prepare();
+    const creator = callerFor(owner.id, "MEMBER");
+    const { ownership: _ownership, ...privateInput } = input;
+    const { view } = await creator.sessionViews.create(privateInput);
+    expect(view).toMatchObject({ ownership: "PRIVATE" });
+    await prisma.sessionViewPinOverride.create({
+      data: {
+        projectId: project.id,
+        userId: other.id,
+        viewId: view.id,
+        position: 0,
+      },
+    });
+    await prisma.sessionView.update({
+      where: { projectId: project.id, id: view.id },
+      data: { isPinnedByDefaultForProject: true },
+    });
+    for (const role of ["MEMBER", "ADMIN", "OWNER"] as const) {
+      const outsider = callerFor(other.id, role);
+      expect(
+        await outsider.sessionViews.list({ projectId: project.id }),
+      ).toEqual([]);
+      await expect(
+        outsider.sessionViews.update({ ...privateInput, id: view.id }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(
+        outsider.sessionViews.delete({ projectId: project.id, id: view.id }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await outsider.sessionViews.setPreferences({
+        projectId: project.id,
+        pinnedViewIds: [view.id],
+      });
+      expect(
+        await outsider.sessionViews.preferences({ projectId: project.id }),
+      ).toEqual({ pinnedViewIds: ["messages"] });
+      await expect(
+        outsider.sessionViews.setDefaultPin({
+          projectId: project.id,
+          id: view.id,
+          isPinnedByDefaultForProject: true,
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+  });
   it("allows deleting a view while another user updates an existing pin", async () => {
     const { project, owner, other, callerFor, input } = await prepare();
     const admin = callerFor(owner.id, "ADMIN");
@@ -205,18 +390,21 @@ describe("session views", () => {
       const { project, org, owner, other, callerFor, input } = await prepare();
       const admin = callerFor(owner.id, "ADMIN");
       const creator = callerFor(other.id, "ADMIN");
-      const { view } = await creator.sessionViews.create(input);
-      const membership = await prisma.organizationMembership.update({
-        where: { orgId_userId: { orgId: org.id, userId: other.id } },
-        data: { role: orgRole },
+      const { view } = await creator.sessionViews.create({
+        ...input,
+        ownership: "PRIVATE",
       });
-      await prisma.projectMembership.create({
-        data: {
-          projectId: project.id,
-          userId: other.id,
-          orgMembershipId: membership.id,
-          role: "MEMBER",
-        },
+      const membership = await updateOrgMembership(prisma, {
+        orgId: org.id,
+        userId: other.id,
+        role: orgRole,
+      });
+      await createProjectMembership(prisma, {
+        orgId: org.id,
+        projectId: project.id,
+        userId: other.id,
+        orgMembershipId: membership.id,
+        role: "MEMBER",
       });
       const { view: retained } = await admin.sessionViews.create({
         ...input,
@@ -250,9 +438,14 @@ describe("session views", () => {
 
   it("deletes owned views and pins when organization membership is removed", async () => {
     const { project, org, owner, other, callerFor, input } = await prepare();
-    const { view } = await callerFor(other.id, "ADMIN").sessionViews.create(
-      input,
-    );
+    const { view } = await callerFor(other.id, "ADMIN").sessionViews.create({
+      ...input,
+      ownership: "PRIVATE",
+    });
+    const { view: projectView } = await callerFor(
+      other.id,
+      "ADMIN",
+    ).sessionViews.create(input);
     const membership = await prisma.organizationMembership.findUniqueOrThrow({
       where: { orgId_userId: { orgId: org.id, userId: other.id } },
     });
@@ -263,6 +456,9 @@ describe("session views", () => {
     expect(
       await prisma.sessionView.findUnique({ where: { id: view.id } }),
     ).toBeNull();
+    expect(
+      await prisma.sessionView.findUnique({ where: { id: projectView.id } }),
+    ).toMatchObject({ ownership: "PROJECT" });
     expect(
       await prisma.sessionViewPinOverride.count({ where: { viewId: view.id } }),
     ).toBe(0);
@@ -360,11 +556,11 @@ describe("session views", () => {
       pinnedViewIds: [],
       unpinnedViewIds: ["messages"],
     });
-    await prisma.organizationMembership.delete({
-      where: { orgId_userId: { orgId: org.id, userId: other.id } },
-    });
-    await prisma.organizationMembership.create({
-      data: { orgId: org.id, userId: other.id, role: "VIEWER" },
+    await deleteOrgMembership(prisma, { orgId: org.id, userId: other.id });
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: other.id,
+      role: "VIEWER",
     });
     await expect(
       caller.sessionViews.preferences({ projectId: project.id }),
@@ -481,7 +677,7 @@ describe("session views", () => {
     ).resolves.toEqual({ pinnedViewIds: [] });
   });
 
-  it("stores project defaults independently, preserves personal overrides, and requires admin access", async () => {
+  it("stores project defaults independently, preserves personal overrides, and requires project view write access", async () => {
     const { project, owner, other, callerFor, input } = await prepare();
     const admin = callerFor(owner.id, "ADMIN");
     const reader = callerFor(other.id, "VIEWER");
@@ -675,7 +871,7 @@ describe("session views", () => {
       admin.sessionViews.delete({ projectId: project.id, id: view.id }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
-  it("lets creators and project administrators manage views while denying other members and demoted creators", async () => {
+  it("lets project writers manage other creators' project views while denying viewers", async () => {
     const { project, owner, other, callerFor, input } = await prepare();
     const creator = callerFor(owner.id, "MEMBER");
     const otherMember = callerFor(other.id, "MEMBER");
@@ -687,7 +883,7 @@ describe("session views", () => {
     await expect(
       otherMember.sessionViews.list({ projectId: project.id }),
     ).resolves.toEqual([
-      expect.objectContaining({ id: view.id, ...input, canEdit: false }),
+      expect.objectContaining({ id: view.id, ...input, canEdit: true }),
     ]);
     await expect(
       otherMember.sessionViews.update({
@@ -695,10 +891,7 @@ describe("session views", () => {
         id: view.id,
         name: "Stolen",
       }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(
-      otherMember.sessionViews.delete({ projectId: project.id, id: view.id }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    ).resolves.toMatchObject({ view: { name: "Stolen" } });
     await creator.sessionViews.update({
       ...input,
       id: view.id,
@@ -835,13 +1028,23 @@ describe("session views", () => {
     });
   });
 
-  it("rejects duplicate names after trimming whitespace", async () => {
+  it("allows creating and renaming project views to duplicate names", async () => {
     const { owner, callerFor, input } = await prepare();
     const caller = callerFor(owner.id, "ADMIN");
-    await caller.sessionViews.create(input);
+    const { view: first } = await caller.sessionViews.create(input);
+    const { view: duplicate } = await caller.sessionViews.create({
+      ...input,
+      name: "  Generations  ",
+    });
+    expect(duplicate.name).toBe(input.name);
+    expect(duplicate.id).not.toBe(first.id);
+    const { view: renamed } = await caller.sessionViews.create({
+      ...input,
+      name: "Another view",
+    });
     await expect(
-      caller.sessionViews.create({ ...input, name: "  Generations  " }),
-    ).rejects.toMatchObject({ code: "CONFLICT" });
+      caller.sessionViews.update({ ...input, id: renamed.id }),
+    ).resolves.toMatchObject({ view: { id: renamed.id, name: input.name } });
   });
 
   it("isolates views and preferences across projects", async () => {
@@ -875,3 +1078,18 @@ describe("session views", () => {
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });
+
+/** withoutActions drops the denied actions from every policy the session binds. */
+function withoutActions(session: Session, deniedActions: Action[]): Session {
+  return {
+    ...session,
+    policies: session.policies.map((policies) =>
+      policies.map((policy) => ({
+        ...policy,
+        actions: policy.actions.filter(
+          (action) => !deniedActions.includes(action),
+        ),
+      })),
+    ),
+  };
+}

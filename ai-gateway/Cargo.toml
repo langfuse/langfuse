@@ -33,6 +33,8 @@ url = "2.5"
 uuid = { version = "1.26.1", default-features = false, features = ["v7", "std"] }
 secrecy = { version = "0.10", features = ["serde"] }
 thiserror = "2"
+redis = { version = "1.8", default-features = false, features = ["tokio-comp", "cluster-async", "tokio-rustls-comp", "tls-rustls", "connection-manager"] }
+regex = "1"
 
 [dev-dependencies]
 http-body = "1"

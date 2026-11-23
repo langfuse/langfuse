@@ -13,7 +13,7 @@ import {
   GATEWAY_ANALYTICS_DOCS_URL,
   GATEWAY_FIRST_REQUEST_DOCS_URL,
 } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
-import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
+import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
 import { ConnectedGatewayCreateFirstKeyPlaceholder } from "@/src/features/ai-gateway/components/GatewayCreateFirstKeyPlaceholder/ConnectedGatewayCreateFirstKeyPlaceholder";
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -26,14 +26,7 @@ import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/
 import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
 import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
 import { useGatewayModelConnections } from "@/src/features/ai-gateway/hooks/useGatewayModelConnections";
-
-const TIME_RANGE_PRESETS = [
-  "last1Day",
-  "last7Days",
-  "last30Days",
-  "last90Days",
-  "last1Year",
-] as const;
+import { GATEWAY_ANALYTICS_TIME_RANGE_PRESETS } from "@/src/features/ai-gateway/constants/gatewayAnalyticsTimeRangePresets";
 
 /**
  * Managers see all gateway usage; members see only their own, which the
@@ -97,7 +90,7 @@ function GatewayAnalyticsContent({
         <TimeRangePicker
           timeRange={timeRange}
           onTimeRangeChange={setTimeRange}
-          timeRangePresets={TIME_RANGE_PRESETS}
+          timeRangePresets={GATEWAY_ANALYTICS_TIME_RANGE_PRESETS}
           className="my-0 max-w-full overflow-x-auto"
           triggerClassName="px-2"
         />

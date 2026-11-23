@@ -9,6 +9,11 @@ import {
   protectedProjectProcedure,
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
+import {
+  getBedrockCrossAccountRoleArn,
+  getBedrockExternalId,
+  getBedrockIamRoleAccess,
+} from "./bedrockIamRoleAccess";
 import { LlmConnectionService } from "./llmConnectionService";
 
 export const llmApiKeyRouter = createTRPCRouter({
@@ -20,7 +25,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:create",
       });
-      const { projectId, ...connectionInput } = input;
+      const { projectId, bedrockExternalIdNonce, ...connectionInput } = input;
       await new LlmConnectionService().create({
         owner: {
           type: "project",
@@ -29,6 +34,11 @@ export const llmApiKeyRouter = createTRPCRouter({
         },
         input: connectionInput,
         actor: { session: ctx.session },
+        bedrockIamRole: getBedrockIamRoleAccess({
+          sessionUser: ctx.session.user,
+          owner: { type: "project", projectId },
+          externalIdNonce: bedrockExternalIdNonce,
+        }),
       });
     }),
   delete: protectedProjectProcedure
@@ -132,8 +142,14 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:create",
       });
-      const { projectId: _projectId, ...connectionInput } = input;
-      return new LlmConnectionService().test(connectionInput);
+      const { projectId, bedrockExternalIdNonce, ...connectionInput } = input;
+      return new LlmConnectionService().test(connectionInput, {
+        bedrockIamRole: getBedrockIamRoleAccess({
+          sessionUser: ctx.session.user,
+          owner: { type: "project", projectId },
+          externalIdNonce: bedrockExternalIdNonce,
+        }),
+      });
     }),
 
   testUpdate: protectedProjectProcedureWithoutTracing
@@ -144,7 +160,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:update",
       });
-      const { projectId, ...connectionInput } = input;
+      const { projectId, bedrockExternalIdNonce, ...connectionInput } = input;
       return new LlmConnectionService().testUpdate({
         owner: {
           type: "project",
@@ -152,6 +168,11 @@ export const llmApiKeyRouter = createTRPCRouter({
           organizationId: ctx.session.orgId,
         },
         input: connectionInput,
+        bedrockIamRole: getBedrockIamRoleAccess({
+          sessionUser: ctx.session.user,
+          owner: { type: "project", projectId },
+          externalIdNonce: bedrockExternalIdNonce,
+        }),
       });
     }),
 
@@ -163,7 +184,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:update",
       });
-      const { projectId, ...connectionInput } = input;
+      const { projectId, bedrockExternalIdNonce, ...connectionInput } = input;
       await new LlmConnectionService().update({
         owner: {
           type: "project",
@@ -172,6 +193,53 @@ export const llmApiKeyRouter = createTRPCRouter({
         },
         input: connectionInput,
         actor: { session: ctx.session },
+        bedrockIamRole: getBedrockIamRoleAccess({
+          sessionUser: ctx.session.user,
+          owner: { type: "project", projectId },
+          externalIdNonce: bedrockExternalIdNonce,
+        }),
       });
+    }),
+
+  bedrockIamRoleAuth: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:read",
+      });
+      return {
+        crossAccountRoleArn: getBedrockCrossAccountRoleArn({
+          sessionUser: ctx.session.user,
+          owner: { type: "project", projectId: input.projectId },
+        }),
+      };
+    }),
+
+  bedrockExternalId: protectedProjectProcedureWithoutTracing
+    .input(
+      z.object({
+        projectId: z.string(),
+        nonce: z.uuid(),
+        /** An edited connection keeps the external ID it was saved with. */
+        connectionId: z.string().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "llmApiKeys:create",
+      });
+      return {
+        externalId: await getBedrockExternalId({
+          prisma: ctx.prisma,
+          sessionUser: ctx.session.user,
+          owner: { type: "project", projectId: input.projectId },
+          nonce: input.nonce,
+          connectionId: input.connectionId,
+        }),
+      };
     }),
 });

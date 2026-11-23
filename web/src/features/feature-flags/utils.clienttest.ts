@@ -11,6 +11,18 @@ import {
 import { getOrganizationFeaturePreviewDefaults } from "./fns/getOrganizationFeaturePreviewDefaults";
 
 describe("parseFlags", () => {
+  it("keeps the unified preview off by default and accepts organization opt-in", () => {
+    const context = { v4BetaEnabled: true };
+    expect(parseFlags([], context).unifiedTraceSessionView).toBe(false);
+    expect(
+      parseFlagsWithOrganizationDefaults(
+        [],
+        ["unifiedTraceSessionView"],
+        context,
+      ).unifiedTraceSessionView,
+    ).toBe(true);
+  });
+
   it.each([
     { flag: "sessionViewV2" as const, expectedView: false },
     { flag: "sessionViewV2Timeline" as const, expectedView: true },

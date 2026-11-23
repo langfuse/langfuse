@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useSingleTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 
 export function useTraceMessagesNavigation() {
-  const { trace, isPlaceholderData } = useTraceData();
+  const { trace, isPlaceholderData } = useSingleTraceData();
   const { isPeekMode, isAnnotationMode } = useViewPreferences();
   const router = useRouter();
   const utils = api.useUtils();

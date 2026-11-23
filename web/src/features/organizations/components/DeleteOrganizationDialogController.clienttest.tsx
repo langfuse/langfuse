@@ -53,11 +53,24 @@ vi.mock("@/src/utils/api", () => ({
         useMutation: () => ({
           mutateAsync: mocks.mutateAsync,
           isPending: false,
+          error: null,
+          reset: () => undefined,
+        }),
+      },
+      projectsPendingDeletion: {
+        useQuery: () => ({
+          data: false,
+          isSuccess: true,
+          isError: false,
+          isFetching: false,
+          error: null,
+          refetch: async () => ({ data: false }),
         }),
       },
     },
   },
   reportNonTrpcError: vi.fn(),
+  reportTrpcErrorWithoutToast: vi.fn(),
 }));
 
 describe("DeleteOrganizationDialogController", () => {

@@ -48,9 +48,9 @@ export function ConnectedSessionListBody({
   viewLabel: string | null;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
-  onCustomizeView?: () => void;
+  onCustomizeView?: (() => void) | null;
   activeFilterCount: number;
-  onFilterObservationByName: (
+  onFilterObservationByName?: (
     name: string,
     operator: "any of" | "none of",
   ) => void;
@@ -216,6 +216,7 @@ export function ConnectedSessionListBody({
   );
   return (
     <SessionViewLayout
+      sidebarMode="fixed"
       search={search}
       isLoading={tracesState.type === "loading"}
       renderSidebar={sidebar}

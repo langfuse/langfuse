@@ -1,5 +1,9 @@
 import { z } from "zod/v4";
 import {
+  PricingTierAttributeConditionSchema,
+  PricingTierUsageConditionSchema,
+} from "@langfuse/shared";
+import {
   bedrockRuntimeOrigin,
   decodeBedrockApiKey,
   GatewayBedrockConfigSchema,
@@ -58,6 +62,24 @@ const gatewayProviderIds = [
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
+/** Also the cached shape, so resolve passes the request's limits through unchanged. */
+export const GatewayResolveSpendLimitsSchema = z.array(
+  z
+    .object({
+      id: z.string(),
+      // Resolve returns only the limits that apply to the request. A gateway
+      // older than `organization` rejects it, so deploy the gateway first.
+      scope: z.enum(["api_key", "user", "organization"]),
+      interval: z.enum(["daily", "weekly", "monthly", "total"]),
+      limit_usd: z.number(),
+      // Unix milliseconds; part of the gateway's usage counter key.
+      counting_started_at: z.number().int().nonnegative(),
+      // Usage percentages that trigger email alerts, in ascending order.
+      alert_thresholds: z.array(z.number().int().min(1).max(100)),
+    })
+    .strict(),
+);
+
 export const GatewayResolveResponseSchema = z
   .object({
     version: z.literal(1),
@@ -105,6 +127,46 @@ export const GatewayResolveResponseSchema = z
         access_token: z.string(),
         token_type: z.literal("Bearer"),
         expires_at: z.number().int().positive(),
+      })
+      .strict()
+      .nullable(),
+    // Empty in "none" mode, where spend is not recorded.
+    spend_limits: GatewayResolveSpendLimitsSchema,
+    // Prices of the model the request is priced with; null without spend
+    // limits or when no model in the ingestion project matches.
+    pricing: z
+      .object({
+        model_id: z.string(),
+        tiers: z.array(
+          z
+            .object({
+              id: z.string(),
+              name: z.string(),
+              is_default: z.boolean(),
+              priority: z.number().int(),
+              conditions: z.array(
+                z.union([
+                  z
+                    .object({
+                      usage_detail_pattern: z.string(),
+                      operator: PricingTierUsageConditionSchema.shape.operator,
+                      value: z.number(),
+                      case_sensitive: z.boolean(),
+                    })
+                    .strict(),
+                  z
+                    .object({
+                      source: PricingTierAttributeConditionSchema.shape.source,
+                      key: z.string(),
+                      values: z.array(z.string()),
+                    })
+                    .strict(),
+                ]),
+              ),
+              prices: z.record(z.string(), z.number()),
+            })
+            .strict(),
+        ),
       })
       .strict()
       .nullable(),

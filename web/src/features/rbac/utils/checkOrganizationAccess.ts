@@ -1,23 +1,15 @@
-import {
-  organizationRoleAccessRights,
-  type OrganizationScope,
-} from "@langfuse/shared/rbac";
-import { type Role } from "@langfuse/shared/src/db";
+import { OrganizationId, type OrganizationScope } from "@langfuse/shared/rbac";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
-import { hasOwnRole } from "./hasOwnRole";
+import { authorize } from "@/src/features/rbac/authorize";
 
-type HasOrganizationAccessParams =
-  | {
-      role: Role;
-      scope: OrganizationScope;
-    }
-  | {
-      session: null | Session;
-      organizationId: string;
-      scope: OrganizationScope;
-    };
+/** HasOrganizationAccessParams is a session and the organizationId whose policies decide scope. */
+type HasOrganizationAccessParams = {
+  session: null | Session;
+  organizationId: string;
+  scope: OrganizationScope;
+};
 
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
@@ -54,11 +46,7 @@ export const useHasOrganizationAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
-  const organizationRole: Role | undefined = hasOwnRole(p)
-    ? p.role
-    : p.session?.user?.organizations.find((org) => org.id === p.organizationId)
-        ?.role;
-  if (organizationRole === undefined) return false;
-
-  return organizationRoleAccessRights[organizationRole].includes(p.scope);
+  if (!p.session) return false;
+  const organization = OrganizationId(p.organizationId);
+  return authorize(p.session, organization, p.scope, organization).success;
 }

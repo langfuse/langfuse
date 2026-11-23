@@ -22,6 +22,9 @@ import {
 
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 
+/** testTags marks user assignments that no membership owns, so tests can write them without one. */
+const testTags = ["source:test"];
+
 // Decision-equivalence: resolving policies from system-role assignments must
 // yield the catalog grants bound to the same tenant and resources the key
 // covered before the resolver read from assignments.
@@ -49,7 +52,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
           ownerKind === "organization"
             ? OrganizationId(orgId)
             : ProjectId(projectId),
-        tags: [],
+        tags: testTags,
       });
 
       const roles = await getRolesForPrincipal(prisma, principalId);
@@ -91,14 +94,14 @@ describe("getRolesForPrincipal decision-equivalence", () => {
       roleId,
       tenantId: OrganizationId(organization.orgId),
       ownerId: OrganizationId(organization.orgId),
-      tags: [],
+      tags: testTags,
     });
     await assignRole(prisma, {
       principalId,
       roleId,
       tenantId: OrganizationId(project.orgId),
       ownerId: ProjectId(project.projectId),
-      tags: [],
+      tags: testTags,
     });
 
     const roles = await getRolesForPrincipal(prisma, principalId);

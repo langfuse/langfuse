@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
-  createTraceBatchInputStorage: () => ({ legacyGet: mocks.getInputs }),
+  createTraceTranscriptStorage: () => ({ get: mocks.getInputs }),
   recordIncrement: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
@@ -95,7 +95,19 @@ const event = {
   projectId: "project",
   traceId: "trace",
   revision: "revision",
+  transcriptS3Path: "stored.json",
   ruleIds: ["rule"],
+};
+
+const storedInputs = {
+  transcript: null,
+  executionIssues: [],
+  traceContext: {
+    sessionId: null,
+    traceTimestamp: "2026-10-14T00:00:00.000Z",
+    environment: "default",
+    traceName: null,
+  },
 };
 
 const scheduleRetry = vi.fn(
@@ -116,16 +128,7 @@ describe("processTopicsTrace", () => {
       facet("intent", 2),
       facet("tone", 2),
     ]);
-    mocks.getInputs.mockResolvedValue({
-      transcript: null,
-      executionIssues: [],
-      traceContext: {
-        sessionId: null,
-        traceTimestamp: "2026-10-14T00:00:00.000Z",
-        environment: "default",
-        traceName: null,
-      },
-    });
+    mocks.getInputs.mockResolvedValue(storedInputs);
   });
 
   it("summarizes each facet its rules select once and assigns it to the map of every matched rule that has one", async () => {
@@ -265,6 +268,18 @@ describe("processTopicsTrace", () => {
     );
     expect(pauseForRejectedConnection).toHaveBeenCalledOnce();
     expect(scheduleRetry).not.toHaveBeenCalled();
+  });
+
+  it("reads the transcript at the key the job carries", async () => {
+    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
+      outcome: "summarized",
+      rows: [],
+    });
+
+    await processTopicsTrace(event, { scheduleRetry });
+
+    expect(mocks.getInputs).toHaveBeenCalledWith("stored.json");
+    expect(summarizeAssembledTrace).toHaveBeenCalledOnce();
   });
 
   it("drops invalid stored input but rethrows a failed read", async () => {

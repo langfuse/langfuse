@@ -48,6 +48,8 @@ ai_gateway:
   - web/package.json
   - web/tsconfig*.json
   - web/vitest.config.mts
+  - web/vitest.server.config.mts
+  - web/vitest.shared.mts
   - web/next.config.*
   - web/src/env.mjs
   - web/src/instrumentation.ts

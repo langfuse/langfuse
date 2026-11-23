@@ -1,6 +1,8 @@
 import { expect, it } from "vitest";
+import { DEFAULT_TOPIC_RULE_NAME } from "@langfuse/shared/topics";
 import {
   canLeaveTopicQuestions,
+  defaultTopicMapName,
   followsTopicRecommendations,
   initialTopicSetupDraft,
   isRecommendedTopicModel,
@@ -138,6 +140,41 @@ it("requires one question and all three models before the first step can save", 
       clustering: model,
     }),
   ).toBe(false);
+});
+
+it("names the map after the trace names its filter selects", () => {
+  expect(defaultTopicMapName([])).toBe(DEFAULT_TOPIC_RULE_NAME);
+  expect(
+    defaultTopicMapName([
+      { column: "traceName", type: "string", operator: "=", value: "chat" },
+    ]),
+  ).toBe("chat");
+  expect(
+    defaultTopicMapName([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production"],
+      },
+      {
+        column: "traceName",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["support-agent", "billing-agent"],
+      },
+    ]),
+  ).toBe("support-agent, billing-agent");
+  expect(
+    defaultTopicMapName([
+      {
+        column: "traceName",
+        type: "string",
+        operator: "contains",
+        value: "agent",
+      },
+    ]),
+  ).toBe(DEFAULT_TOPIC_RULE_NAME);
 });
 
 it("names the connection when the project has one provider", () => {

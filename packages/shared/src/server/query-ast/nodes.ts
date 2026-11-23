@@ -4,10 +4,10 @@ import {
   OrNode,
   ParensNode,
   RawNode,
-  SelectQueryNode,
+  ReferenceNode,
   type IdentifierNode,
   type OperationNode,
-  type ReferenceNode,
+  type SelectQueryNode,
 } from "kysely";
 
 import { QueryCompileError } from "./errors";
@@ -195,11 +195,23 @@ export const WithFillNode = {
   },
 };
 
+/** A name ClickHouse reads without quotes, which the compiler writes as is. */
+export const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 // A type name with optional arguments: identifiers, integers, nested types
 // and quoted time zones (`DateTime64(3, 'UTC')`). No `{`, `}` or `:`, so the
 // type cannot close its `{p:<type>}` placeholder.
 const PLACEHOLDER_TYPE =
   /^[A-Za-z][A-Za-z0-9_]*(\((?:[A-Za-z0-9_(), ]|'[A-Za-z0-9_/+-]*')*\))?$/;
+
+/**
+ * A type a `{p:<type>}` placeholder may bind as: a value type. `Identifier`
+ * substitutes the bound string as a name, so `t.id in {p:Identifier}` bound
+ * to `scores` reads the table.
+ */
+function isPlaceholderType(type: string): boolean {
+  return PLACEHOLDER_TYPE.test(type) && !/identifier/i.test(type);
+}
 
 /** The payload of a `typedValue` bind (extensions.ts): value and placeholder type. */
 export class TypedParam {
@@ -207,9 +219,9 @@ export class TypedParam {
     readonly value: unknown,
     readonly type: string,
   ) {
-    if (!PLACEHOLDER_TYPE.test(type)) {
+    if (!isPlaceholderType(type)) {
       throw new QueryCompileError(
-        `typedValue type must be a ClickHouse type name, got ${type}.`,
+        `typedValue type must be a ClickHouse value type name, got ${type}.`,
       );
     }
   }
@@ -446,8 +458,7 @@ export function walkNodes(
 /**
  * `condition`, bracketed when AND-ing a predicate onto it would rebind it: the
  * compiler emits `and`/`or` chains without brackets, so `p and a or b` reads
- * as `(p and a) or b`. Brackets a top-level `or`, and any raw SQL, whose text
- * may hold one.
+ * as `(p and a) or b`. Brackets a top-level `or`.
  */
 export function bracketForAnd(condition: OperationNode): OperationNode {
   return needsBracketsUnderAnd(condition)
@@ -464,11 +475,20 @@ export function needsBracketsUnderAnd(node: OperationNode): boolean {
       needsBracketsUnderAnd(node.left) || needsBracketsUnderAnd(node.right)
     );
   }
-  let hasRaw = false;
-  walkNodes(node, (child) => {
-    if (RawNode.is(child)) hasRaw = true;
-    // A subquery compiles inside its own brackets.
-    return !hasRaw && !SelectQueryNode.is(child);
-  });
-  return hasRaw;
+  return false;
+}
+
+/**
+ * `sql.ref("t.col")`: raw SQL with no text of its own around one column
+ * reference. The one raw shape that compiles as an expression.
+ */
+export function isRawReference(
+  node: OperationNode,
+): node is RawNode & { parameters: readonly [ReferenceNode] } {
+  return (
+    RawNode.is(node) &&
+    node.parameters.length === 1 &&
+    ReferenceNode.is(node.parameters[0]) &&
+    node.sqlFragments.every((fragment) => fragment === "")
+  );
 }

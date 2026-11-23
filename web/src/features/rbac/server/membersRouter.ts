@@ -47,8 +47,10 @@ import {
 } from "@langfuse/shared/memberships";
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { isSsoEnforcedForEmail } from "@/src/features/auth-credentials/server/signupApiHandler";
-import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
-import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
+import {
+  assertValidOrgOwnershipChange,
+  assertValidProjectOwnershipChange,
+} from "@/src/features/rbac/server/ownershipChange";
 import { userFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
@@ -139,38 +141,14 @@ export const membersRouter = createTRPCRouter({
           message: "You do not have access to delete organization members",
         });
 
-      throwIfHigherRole({
-        ownRole: ctx.session.orgRole,
-        role: orgMembership.role,
-      });
-
-      if (orgMembership.role === Role.OWNER) {
-        // check if there are other remaining owners
-        const owners = await ctx.prisma.organizationMembership.count({
-          where: {
-            orgId: input.orgId,
-            role: Role.OWNER,
-          },
-        });
-        if (owners === 1) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message:
-              "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
-          });
-        }
-      }
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "orgMembership",
-        resourceId: orgMembership.id,
-        action: "delete",
-        before: orgMembership,
-      });
-
       const { deleted, revokedKeys } = await ctx.prisma.$transaction(
         async (tx) => {
+          await assertValidOrgOwnershipChange({
+            tx,
+            session: ctx.session,
+            orgId: input.orgId,
+            from: await lockOrgMembershipRole(tx, orgMembership.id),
+          });
           const deleted = await deleteOrgMembership(tx, {
             orgId: input.orgId,
             userId: orgMembership.userId,
@@ -183,6 +161,16 @@ export const membersRouter = createTRPCRouter({
             userId: orgMembership.userId,
             orgId: input.orgId,
           });
+          await auditLog(
+            {
+              session: ctx.session,
+              resourceType: "orgMembership",
+              resourceId: orgMembership.id,
+              action: "delete",
+              before: orgMembership,
+            },
+            tx,
+          );
           return { deleted, revokedKeys };
         },
       );
@@ -282,35 +270,16 @@ export const membersRouter = createTRPCRouter({
       });
       if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
 
-      throwIfHigherRole({
-        ownRole: ctx.session.orgRole,
-        role: input.role, // new
-      });
       requireGatewayEnabledForRole(input.orgId, input.role);
-      throwIfHigherRole({
-        ownRole: ctx.session.orgRole,
-        role: membership.role, // old
-      });
-
-      // check if this is the only remaining owner
-      const otherOwners = await ctx.prisma.organizationMembership.count({
-        where: {
-          orgId: input.orgId,
-          role: Role.OWNER,
-          id: {
-            not: membership.id,
-          },
-        },
-      });
-      if (otherOwners === 0) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
-        });
-      }
 
       const updatedMembership = await ctx.prisma.$transaction(async (tx) => {
+        await assertValidOrgOwnershipChange({
+          tx,
+          session: ctx.session,
+          orgId: input.orgId,
+          from: await lockOrgMembershipRole(tx, membership.id),
+          to: input.role,
+        });
         const updatedMembership = await updateOrgMembership(tx, {
           orgId: input.orgId,
           userId: membership.userId,
@@ -510,12 +479,6 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      // cannot edit project roles of users with higher org roles
-      throwIfHigherRole({
-        ownRole: ctx.session.orgRole,
-        role: orgMembership.role,
-      });
-
       const projectMembership = await ctx.prisma.projectMembership.findFirst({
         where: {
           projectId: input.projectId,
@@ -524,14 +487,13 @@ export const membersRouter = createTRPCRouter({
         },
       });
 
-      // check existing project role if it is higher than own role
-      if (projectMembership) {
-        await throwIfHigherProjectRole({
-          orgCtx: ctx,
-          projectId: input.projectId,
-          projectRole: projectMembership.role,
-        });
-      }
+      await assertValidProjectOwnershipChange({
+        tx: ctx.prisma,
+        session: ctx.session,
+        orgId: input.orgId,
+        from: projectMembership?.role,
+        to: input.projectRole ?? undefined,
+      });
 
       // If the project role is set to null, delete the project membership
       if (input.projectRole === null || input.projectRole === Role.NONE) {
@@ -565,13 +527,6 @@ export const membersRouter = createTRPCRouter({
           userId: input.userId,
         };
       }
-
-      // check new project role if it is higher than own role
-      await throwIfHigherProjectRole({
-        orgCtx: ctx,
-        projectId: input.projectId,
-        projectRole: input.projectRole,
-      });
 
       // Create/update
       const projectRole = input.projectRole;
@@ -652,3 +607,16 @@ export const membersRouter = createTRPCRouter({
       };
     }),
 });
+
+/** lockOrgMembershipRole locks an organization membership for the transaction and returns its current role. */
+async function lockOrgMembershipRole(
+  tx: Prisma.TransactionClient,
+  orgMembershipId: string,
+): Promise<Role | undefined> {
+  const [row] = await tx.$queryRaw<{ role: Role }[]>`
+    SELECT role FROM organization_memberships
+    WHERE id = ${orgMembershipId}
+    FOR UPDATE
+  `;
+  return row?.role;
+}

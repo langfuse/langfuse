@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   env: {
     LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: ["project"],
   },
+  workerEnv: { LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS: 500_000 },
   call: vi.fn(),
   findModel: vi.fn(),
   embed: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("tiktoken", async (importOriginal) => {
   };
 });
 vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
+vi.mock("../../env", () => ({ env: state.workerEnv }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
@@ -127,6 +129,7 @@ beforeEach(() => {
   state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [
     "project",
   ];
+  state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 500_000;
   state.call.mockReset();
   state.findModel.mockReset().mockResolvedValue({
     model: null,
@@ -581,16 +584,15 @@ describe("Topics naming boundary", () => {
     });
   });
   it("rejects an oversized shared transcript before calling the provider", async () => {
+    state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 256;
     await expect(
       summarizeOne(
         topicsModels(),
         "Trace evidence. ".repeat(1000),
-        topicProcessingConfigSchema.parse({
-          maxInputTokens: 256,
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
     ).rejects.toThrow(
-      /are \d+ tokens, above this run's 256-token input limit\. No model call was made; the transcript is never shortened per facet\./,
+      /is 16000 characters, above the 256-character input limit\. No model call was made; the transcript is never shortened per facet\./,
     );
     expect(state.call).not.toHaveBeenCalled();
   });
@@ -709,16 +711,15 @@ describe("Topics naming boundary", () => {
     ).toBe(false);
 
     state.call.mockClear();
+    state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 256;
     await expect(
       summarizeTopicTraceFacets(
         topicsModels(),
         facets,
         "Trace evidence. ".repeat(1000),
-        topicProcessingConfigSchema.parse({
-          maxInputTokens: 256,
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
-    ).rejects.toThrow(/above this run's 256-token input limit/);
+    ).rejects.toThrow(/above the 256-character input limit/);
     expect(state.call).not.toHaveBeenCalled();
   });
 
@@ -845,6 +846,27 @@ describe("Topics naming boundary", () => {
     ).toBeGreaterThan(initialCall.trace.metadata.naming_input_tokens_estimated);
     expect(
       renameCall.trace.metadata.naming_input_tokens_estimated,
+    ).toBeLessThanOrEqual(900_000);
+    const previousTopic = {
+      name: "Invoice questions",
+      description: "Questions about invoices.",
+    };
+    await namePreparedTopicGroup(
+      topicsModels(),
+      { ...prepared, previousTopic },
+      undefined,
+      conflict,
+    );
+    const contextCall = state.call.mock.calls[2][0];
+    const contextRequest = JSON.parse(contextCall.input);
+    expect(contextRequest.members).toEqual(initialRequest.members);
+    expect(contextRequest.previousTopic).toEqual(previousTopic);
+    expect(contextRequest.conflictingTopic).toEqual(
+      renameRequest.conflictingTopic,
+    );
+    expect(contextCall.system[0].text).toContain("previousTopic");
+    expect(
+      contextCall.trace.metadata.naming_input_tokens_estimated,
     ).toBeLessThanOrEqual(900_000);
 
     const omittedId = Array.from(
