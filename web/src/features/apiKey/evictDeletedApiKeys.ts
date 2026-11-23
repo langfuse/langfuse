@@ -1,8 +1,8 @@
 import { type ApiKey } from "@langfuse/shared/src/db";
-import { invalidateCachedApiKeys, logger } from "@langfuse/shared/src/server";
-import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { tombstoneDeletedApiKeys, logger } from "@langfuse/shared/src/server";
+import { tombstoneGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 
-/** evictDeletedApiKeys clears the credential and gateway resolve caches of committed deletions, logging failures instead of throwing */
+/** evictDeletedApiKeys tombstones the credential and gateway resolve cache entries of committed deletions, logging failures instead of throwing */
 export async function evictDeletedApiKeys(
   apiKeys: Pick<ApiKey, "id" | "fastHashedSecretKey" | "publicKey">[],
   identifier: string,
@@ -10,7 +10,7 @@ export async function evictDeletedApiKeys(
   if (apiKeys.length === 0) return;
   // started together so a failed credential eviction cannot skip the gateway one
   const results = await Promise.allSettled([
-    invalidateCachedApiKeys(apiKeys, identifier),
+    tombstoneDeletedApiKeys(apiKeys, identifier),
     ...apiKeys.map(evictGatewayResolveCache),
   ]);
   for (const result of results) {
@@ -22,10 +22,10 @@ export async function evictDeletedApiKeys(
   }
 }
 
-/** evictGatewayResolveCache drops the key's cached gateway resolve contexts */
+/** evictGatewayResolveCache tombstones the key's cached gateway resolve contexts */
 async function evictGatewayResolveCache(apiKey: {
   fastHashedSecretKey: string | null;
 }): Promise<void> {
   if (!apiKey.fastHashedSecretKey) return;
-  await invalidateGatewayResolveCacheForApiKey(apiKey.fastHashedSecretKey);
+  await tombstoneGatewayResolveCacheForApiKey(apiKey.fastHashedSecretKey);
 }

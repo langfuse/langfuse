@@ -55,13 +55,15 @@ export class AuthenticatorCache {
       return false;
     }
     try {
-      await redis.set(
+      // NX keeps a deleted key's tombstone in place when this request read the key before the delete committed
+      const written = await redis.set(
         key,
         JSON.stringify({ context: result.context }),
         "EX",
         ttlSeconds,
+        "NX",
       );
-      return true;
+      return written === "OK";
     } catch (error) {
       logger.error("authz context cache write failed", error);
       return false;

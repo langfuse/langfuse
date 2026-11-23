@@ -13,6 +13,10 @@ import {
   createAuthzContextCacheKey,
 } from "./apiKeyCache";
 import { createShaHash } from "./apiKeys";
+import { API_KEY_NON_EXISTENT } from "./types";
+
+/** deletedApiKeyTombstoneTtlSeconds outlasts any in-flight request that read a key before its delete committed */
+const deletedApiKeyTombstoneTtlSeconds = 300;
 
 /** cacheKeysForRows includes legacy and versioned credential entries. */
 function cacheKeysForRows(apiKeys: CachedApiKeyIdentity[]): string[] {
@@ -50,6 +54,24 @@ export async function invalidateCachedApiKeys(
     logger.info(`Invalidating API keys in redis for ${identifier}`);
     await safeMultiDel(redisClient, keysToDelete);
   }
+}
+
+/** tombstoneDeletedApiKeys replaces the cached credentials of committed deletions with a non-existent marker, so a request that read a key before the delete committed cannot cache it again */
+export async function tombstoneDeletedApiKeys(
+  apiKeys: CachedApiKeyIdentity[],
+  identifier: string,
+  redisClient: Redis | Cluster | null = redis,
+): Promise<void> {
+  const keysToTombstone = cacheKeysForRows(apiKeys);
+  if (keysToTombstone.length === 0 || !redisClient) return;
+  logger.info(`Tombstoning deleted API keys in redis for ${identifier}`);
+  const tombstone = JSON.stringify(API_KEY_NON_EXISTENT);
+  // each key may sit in a different cluster slot, so the writes stay separate
+  await Promise.all(
+    keysToTombstone.map((key) =>
+      redisClient.set(key, tombstone, "EX", deletedApiKeyTombstoneTtlSeconds),
+    ),
+  );
 }
 
 /** invalidateCachedUserApiKeys removes the cached credentials of the user's USER keys in orgId, whose policies include the user's roles. */

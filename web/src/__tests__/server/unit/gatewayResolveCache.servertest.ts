@@ -86,6 +86,7 @@ describe("GatewayResolveCache", () => {
       expect.any(String),
       "PXAT",
       new Date("2026-10-09T15:00:10.000Z").getTime(),
+      "NX",
     );
     expect(redis.expire).toHaveBeenCalledWith(expect.any(String), 600);
   });

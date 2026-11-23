@@ -52,7 +52,7 @@ export class ProjectService {
   async delete(params: DeleteProjectParams) {
     const { project, deletedApiKeys } =
       await this.softDeleteAndUnlinkGateway(params);
-    await this.apiAuthService.invalidateCachedApiKeys(
+    await this.apiAuthService.tombstoneDeletedApiKeys(
       deletedApiKeys,
       `project ${params.projectId}`,
     );

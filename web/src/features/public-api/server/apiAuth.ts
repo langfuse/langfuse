@@ -11,6 +11,7 @@ import {
   instrumentAsync,
   addUserToSpan,
   invalidateCachedApiKeys as invalidateCachedApiKeysShared,
+  tombstoneDeletedApiKeys as tombstoneDeletedApiKeysShared,
   invalidateCachedOrgApiKeys as invalidateCachedOrgApiKeysShared,
   invalidateCachedProjectApiKeys as invalidateCachedProjectApiKeysShared,
   createApiKeyCacheKey,
@@ -49,6 +50,14 @@ export class ApiAuthService {
     identifier: string,
   ) {
     await invalidateCachedApiKeysShared(apiKeys, identifier, this.redis);
+  }
+
+  /** tombstoneDeletedApiKeys marks the cached credentials of committed key deletions as non-existent */
+  async tombstoneDeletedApiKeys(
+    apiKeys: Parameters<typeof tombstoneDeletedApiKeysShared>[0],
+    identifier: string,
+  ) {
+    await tombstoneDeletedApiKeysShared(apiKeys, identifier, this.redis);
   }
 
   async invalidateCachedOrgApiKeys(orgId: string) {
@@ -377,11 +386,13 @@ export class ApiAuthService {
     }
 
     try {
+      // NX keeps a deleted key's tombstone in place when this request read the key before the delete committed
       await this.redis.set(
         createApiKeyCacheKey(hash),
         JSON.stringify(newApiKey),
         "EX",
         env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
+        "NX",
       );
     } catch (error: unknown) {
       logger.error("Error adding key to redis", error);

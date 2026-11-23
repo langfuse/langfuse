@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   invalidateAllCachedApiKeys,
-  invalidateCachedApiKeys,
+  tombstoneDeletedApiKeys,
   logger,
   redis,
 } from "@langfuse/shared/src/server";
@@ -71,7 +71,7 @@ export default async function handler(
       );
 
       const deletedApiKeys = await deleteProjectApiKeys(body.data.projectIds);
-      await invalidateCachedApiKeys(
+      await tombstoneDeletedApiKeys(
         deletedApiKeys,
         `projects ${body.data.projectIds.join(", ")}`,
       );

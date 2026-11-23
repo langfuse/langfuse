@@ -1,6 +1,6 @@
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import {
-  invalidateCachedApiKeys,
+  tombstoneDeletedApiKeys,
   logger,
   recordGauge,
   recordIncrement,
@@ -90,7 +90,7 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
                   isInAppAgentKey: true,
                 });
                 if (deleted) {
-                  await invalidateCachedApiKeys(
+                  await tombstoneDeletedApiKeys(
                     [deleted],
                     `key ${deleted.id}`,
                     redis,

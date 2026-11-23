@@ -16,7 +16,10 @@ import {
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
-import { GatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import {
+  GATEWAY_RESOLVE_KEY_NON_EXISTENT,
+  GatewayResolveCache,
+} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { gatewayApiFormats } from "@/src/features/ai-gateway/server/provider/registry";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
@@ -586,7 +589,9 @@ describe("organization API keys trpc", () => {
         id: gatewayKey.id,
       });
 
-      expect(await cache.get(cacheEntry)).toBeNull();
+      expect(await cache.get(cacheEntry)).toBe(
+        GATEWAY_RESOLVE_KEY_NON_EXISTENT,
+      );
     });
 
     it("returns NOT_FOUND for a missing API key", async () => {

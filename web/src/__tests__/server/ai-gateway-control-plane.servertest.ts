@@ -76,7 +76,10 @@ import {
   type GatewayResolveError,
   GatewayResolveService,
 } from "@/src/features/ai-gateway/server/resolve/resolveService";
-import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import {
+  GatewayResolveCache,
+  invalidateGatewayResolveCacheForApiKey,
+} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayModelsResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
@@ -4924,6 +4927,13 @@ describe("AI gateway control plane", () => {
       await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
         apiKeyId: key.id,
       });
+      const resolveCache = new GatewayResolveCache();
+      const cacheParams = {
+        fastHashedSecretKey: createShaHash(key.secretKey, env.SALT),
+        apiFormat: "openai.responses" as const,
+      };
+      const staleContext = await resolveCache.get(cacheParams);
+      expect(staleContext).toMatchObject({ apiKeyId: key.id });
       const otherOwner = await prisma.user.create({
         data: { email: `gateway-owner-${randomUUID()}@example.test` },
       });
@@ -4941,6 +4951,7 @@ describe("AI gateway control plane", () => {
         orgId: org.id,
         orgMembershipId: membership.id,
       });
+      await resolveCache.set({ ...cacheParams, context: staleContext! });
 
       await expect(authenticateKey(key.secretKey)).rejects.toMatchObject({
         status: 401,

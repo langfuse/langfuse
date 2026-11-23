@@ -15,6 +15,9 @@ import {
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import { authenticator } from "@/src/features/apiKey/authenticator";
+import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
+import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
@@ -383,6 +386,28 @@ describe("project API keys trpc", () => {
       const before = JSON.parse(audit.before!);
       expect(before.fastHashedSecretKey).toBe(fastHashedSecretKey);
       expect(before).not.toHaveProperty("hashedSecretKey");
+    });
+
+    it("keeps a deleted key rejected when a request that read it before the delete caches it afterwards", async () => {
+      const { caller, projectId, orgId } = await createProjectCaller();
+      const key = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId("user-1"),
+      });
+      const authorization = `Basic ${Buffer.from(`${key.publicKey}:${key.secretKey}`).toString("base64")}`;
+      const authenticate = () =>
+        authenticator.authenticate({ headers: { authorization } });
+      await expect(authenticate()).resolves.toMatchObject({ success: true });
+      const credential = parseAuthorizationHeader(authorization);
+      const staleContext = await new AuthenticatorCache().get(credential);
+      expect(staleContext).not.toBeNull();
+
+      await caller.projectApiKeys.delete({ projectId, id: key.id });
+      await new AuthenticatorCache().set(credential, staleContext!);
+
+      await expect(authenticate()).resolves.toMatchObject({ success: false });
     });
 
     it("does not delete in-app agent API keys", async () => {

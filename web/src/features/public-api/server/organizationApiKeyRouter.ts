@@ -8,7 +8,7 @@ import {
 import * as z from "zod";
 import { TRPCError } from "@trpc/server";
 import {
-  invalidateCachedApiKeys,
+  tombstoneDeletedApiKeys,
   withTransaction,
 } from "@langfuse/shared/src/server";
 import { LangfuseNotFoundError } from "@langfuse/shared";
@@ -20,7 +20,10 @@ import {
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 import { excludeGatewayApiKeys } from "@/src/features/ai-gateway/server/apiKey/excludeGatewayApiKeys";
-import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import {
+  invalidateGatewayResolveCacheForApiKey,
+  tombstoneGatewayResolveCacheForApiKey,
+} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import {
   GATEWAY_KEY_ROLES,
   GATEWAY_ROLE,
@@ -240,11 +243,11 @@ export const organizationApiKeysRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("API key not found");
       }
 
-      await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
+      await tombstoneDeletedApiKeys([deleted], `key ${deleted.id}`);
       // Any organization key whose role grants gateway:invoke may sit in the
       // gateway resolve cache, which would otherwise keep it usable until the TTL.
       if (deleted.fastHashedSecretKey) {
-        await invalidateGatewayResolveCacheForApiKey(
+        await tombstoneGatewayResolveCacheForApiKey(
           deleted.fastHashedSecretKey,
         );
       }

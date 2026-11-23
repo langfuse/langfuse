@@ -10,7 +10,7 @@ import {
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   InAppAgentRunQueue,
-  invalidateCachedApiKeys,
+  tombstoneDeletedApiKeys,
   logger,
   QueueJobs,
   redis,
@@ -79,7 +79,7 @@ export async function getBackgroundConversationSnapshot(params: {
         isInAppAgentKey: true,
       });
       if (deleted) {
-        await invalidateCachedApiKeys([deleted], `key ${deleted.id}`, redis);
+        await tombstoneDeletedApiKeys([deleted], `key ${deleted.id}`, redis);
       }
     },
   });

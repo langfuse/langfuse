@@ -150,12 +150,14 @@ export class GatewayResolveCache {
     );
     if (expirationTimestamp <= now) return;
     try {
+      // NX keeps a deleted key's tombstone in place when this request read the key before the delete committed
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
         await this.redis!.set(
           key,
           JSON.stringify(params.context),
           "PXAT",
           expirationTimestamp,
+          "NX",
         );
         return;
       }
@@ -169,6 +171,7 @@ export class GatewayResolveCache {
           JSON.stringify(params.context),
           "PXAT",
           expirationTimestamp,
+          "NX",
         ),
         this.redis!.sadd(index, key),
         // The index must outlive its entries, otherwise invalidation can miss a
@@ -200,6 +203,26 @@ export class GatewayResolveCache {
     }
   }
 
+  /** tombstoneApiKey marks a deleted gateway API key as non-existent in every API format, so a request that read the key before the delete committed cannot cache it again */
+  async tombstoneApiKey(fastHashedSecretKey: string) {
+    if (!this.enabled) return;
+
+    try {
+      await Promise.all(
+        gatewayApiFormats.map((apiFormat) =>
+          this.redis!.set(
+            contextCacheKey(fastHashedSecretKey, apiFormat),
+            JSON.stringify(GATEWAY_RESOLVE_KEY_NON_EXISTENT),
+            "EX",
+            env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS,
+          ),
+        ),
+      );
+    } catch (error) {
+      logger.error("Error tombstoning gateway resolve cache", error);
+    }
+  }
+
   /** Drops the cached contexts for a single gateway API key, e.g. on revoke. */
   async invalidateApiKey(fastHashedSecretKey: string) {
     if (!this.enabled) return;
@@ -223,6 +246,11 @@ export const invalidateGatewayResolveCacheForOrganization = (
 export const invalidateGatewayResolveCacheForApiKey = (
   fastHashedSecretKey: string,
 ) => new GatewayResolveCache().invalidateApiKey(fastHashedSecretKey);
+
+/** tombstoneGatewayResolveCacheForApiKey marks a deleted gateway API key as non-existent in the resolve cache */
+export const tombstoneGatewayResolveCacheForApiKey = (
+  fastHashedSecretKey: string,
+) => new GatewayResolveCache().tombstoneApiKey(fastHashedSecretKey);
 
 /** evictUserGatewayResolveCache drops the cached resolve contexts of the user's keys in orgId after a committed role change */
 export async function evictUserGatewayResolveCache(
