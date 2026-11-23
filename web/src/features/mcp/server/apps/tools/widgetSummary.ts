@@ -133,12 +133,53 @@ const summarizeBreakdown = (
   };
 };
 
-/** Summarizes widget rows by chart shape: a value, a time series or a breakdown. */
+/** Every row with all its dimension labels and metric values, as a table shows them. */
+const summarizeTable = (
+  rows: Row[],
+  dimensionFields: string[],
+  metricFields: string[],
+) => ({
+  rows: rows.slice(0, MAX_ENTRIES).map((row) => ({
+    ...Object.fromEntries(
+      dimensionFields.map((field) => [field, toLabel(row[field])]),
+    ),
+    ...Object.fromEntries(
+      metricFields.map((field) => {
+        const value = toNumber(row[field]);
+        return [field, value === null ? null : round(value)];
+      }),
+    ),
+  })),
+  ...(rows.length > MAX_ENTRIES
+    ? { rowsOmitted: rows.length - MAX_ENTRIES }
+    : {}),
+});
+
+/** A histogram's bins, which a query returns as `[lower, upper, count]` tuples. */
+const summarizeHistogram = (rows: Row[], metricField: string) => {
+  const value = rows[0]?.[metricField];
+  const bins = (Array.isArray(value) ? value : [])
+    .filter((bin): bin is unknown[] => Array.isArray(bin) && bin.length >= 3)
+    .map(([lower, upper, count]) => ({
+      from: round(Number(lower)),
+      to: round(Number(upper)),
+      count: round(Number(count)),
+    }));
+  return { bins };
+};
+
+/**
+ * Summarizes widget rows by chart shape: a value, a time series, a
+ * histogram, a table or a breakdown.
+ */
 export function summarizeWidget(params: {
   rows: Row[];
+  chartType: string;
   metricField: string;
+  metricFields: string[];
   aggregation: string;
   dimensionField: string | undefined;
+  dimensionFields: string[];
   isTimeSeries: boolean;
   kpi?: { value: number | null; previousValue: number | null };
 }) {
@@ -154,6 +195,12 @@ export function summarizeWidget(params: {
         kpi.previousValue === null ? null : round(kpi.previousValue),
       changeVsPreviousPeriod: change === null ? null : round(change),
     };
+  }
+  if (params.chartType === "HISTOGRAM") {
+    return summarizeHistogram(rows, metricField);
+  }
+  if (params.chartType === "PIVOT_TABLE") {
+    return summarizeTable(rows, params.dimensionFields, params.metricFields);
   }
   return params.isTimeSeries
     ? summarizeSeries(rows, metricField, aggregation, dimensionField)

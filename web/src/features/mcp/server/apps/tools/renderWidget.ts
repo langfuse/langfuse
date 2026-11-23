@@ -31,6 +31,7 @@ import { env } from "@/src/env.mjs";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import { sanitizePivotTableDefaultSort } from "@/src/features/widgets/utils";
 import { defineTool } from "../../../core/define-tool";
 import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
@@ -128,17 +129,25 @@ type WidgetSpec = {
   dimensions: { field: string }[];
   filters: FilterState;
   chartType: DashboardWidgetChartType;
-  chartConfig: { type: string; bins?: number; row_limit?: number };
+  chartConfig: {
+    type: string;
+    bins?: number;
+    row_limit?: number;
+    defaultSort?: { column: string; order: "ASC" | "DESC" };
+  };
   version: ViewVersion;
   url: string;
 };
 
-/** The newest query version this deployment can read, as the dashboard does. */
+/**
+ * The newest query version with current data. Only legacy-mode deployments
+ * still write the v1 tables alone; elsewhere the events-backed v2 views are
+ * current, as queryMetrics assumes.
+ */
 const newestReadableVersion = (): ViewVersion =>
-  env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy" &&
-  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
-    ? "v2"
-    : "v1";
+  env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? "v1" : "v2";
+
+const toDay = (date: Date) => date.toISOString().slice(0, 10);
 
 const metricAlias = (m: { measure: string; aggregation: string }) =>
   `${m.aggregation}_${m.measure}`;
@@ -204,8 +213,7 @@ const adHocSpec = (
     filters: input.filters ?? [],
     chartType,
     chartConfig: { type: chartType },
-    // Traces only exist as a v1 view.
-    version: view === "traces" ? "v1" : newestReadableVersion(),
+    version: newestReadableVersion(),
     url: buildDashboardsUrl({ projectId: context.projectId }),
   };
 };
@@ -241,11 +249,15 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         const requestedFrom = new Date(
           toTimestamp.getTime() - TIME_RANGES[timeRange].ms,
         );
-        const fromTimestamp =
-          clampToDataAccessDays({
-            plan: context.plan,
-            fromTimestamp: requestedFrom.toISOString(),
-          }).effectiveFromTimestamp ?? requestedFrom;
+        const access = clampToDataAccessDays({
+          plan: context.plan,
+          fromTimestamp: requestedFrom.toISOString(),
+        });
+        const fromTimestamp = access.effectiveFromTimestamp ?? requestedFrom;
+        // Name the range actually queried when the plan shortened it.
+        const timeRangeLabel = access.wasClamped
+          ? `Since ${toDay(fromTimestamp)} (plan data access limit)`
+          : TIME_RANGES[timeRange].label;
 
         const firstMetric = spec.metrics[0];
         if (!firstMetric) {
@@ -269,7 +281,17 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
           toTimestamp: toTimestamp.toISOString(),
           orderBy: buildWidgetOrderBy({
             chartType: spec.chartType,
-            sortState: null,
+            // A saved pivot's sort decides which rows survive the row limit.
+            sortState:
+              spec.chartType === "PIVOT_TABLE"
+                ? (sanitizePivotTableDefaultSort(spec.chartConfig.defaultSort, {
+                    dimensions: spec.dimensions,
+                    metrics: spec.metrics.map((m) => ({
+                      measure: m.measure,
+                      agg: m.aggregation,
+                    })),
+                  }) ?? null)
+                : null,
             needsTopN,
             firstMetric,
           }),
@@ -303,9 +325,14 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         );
 
         // A single number also gets a trend and the previous period's value,
-        // so it reads like a KPI tile rather than a bare figure.
+        // so it reads like a KPI tile rather than a bare figure. The previous
+        // period is compared only when the plan can read all of it.
         const isNumber = spec.chartType === "NUMBER" && !dimensionField;
         const periodMs = toTimestamp.getTime() - fromTimestamp.getTime();
+        const previousFrom = new Date(fromTimestamp.getTime() - periodMs);
+        const comparePrevious =
+          isNumber &&
+          (!access.accessFloor || previousFrom >= access.accessFloor);
         const [rows, trendRows, previousRows] = await Promise.all([
           run(buildQuery({})),
           isNumber
@@ -316,12 +343,10 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
                 }),
               )
             : Promise.resolve([]),
-          isNumber
+          comparePrevious
             ? run(
                 buildQuery({
-                  fromTimestamp: new Date(
-                    fromTimestamp.getTime() - periodMs,
-                  ).toISOString(),
+                  fromTimestamp: previousFrom.toISOString(),
                   toTimestamp: fromTimestamp.toISOString(),
                 }),
               )
@@ -329,7 +354,7 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         ]);
 
         const value = isNumber ? toNumber(rows[0]?.[alias]) : null;
-        const previousValue = isNumber
+        const previousValue = comparePrevious
           ? toNumber(previousRows[0]?.[alias])
           : null;
 
@@ -347,7 +372,7 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
           dimensions: spec.dimensions,
           rows,
           ...(isNumber ? { kpi: { value, previousValue, trendRows } } : {}),
-          timeRangeLabel: TIME_RANGES[timeRange].label,
+          timeRangeLabel,
         };
 
         return appToolResult({
@@ -358,12 +383,17 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
             metric: alias,
             unit,
             dimension: dimensionField ?? null,
-            timeRange: TIME_RANGES[timeRange].label,
+            timeRange: timeRangeLabel,
+            from: fromTimestamp.toISOString(),
+            to: toTimestamp.toISOString(),
             ...summarizeWidget({
               rows,
+              chartType: spec.chartType,
               metricField: alias,
+              metricFields: spec.metrics.map(metricAlias),
               aggregation: firstMetric.aggregation,
               dimensionField,
+              dimensionFields: spec.dimensions.map((d) => d.field),
               isTimeSeries,
               kpi: isNumber ? { value, previousValue } : undefined,
             }),
