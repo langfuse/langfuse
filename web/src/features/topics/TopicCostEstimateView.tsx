@@ -78,8 +78,8 @@ export function TopicCostEstimateView({
       : null;
 
   const addPriceHint = canAddModelPrice
-    ? "Add one to see a cost."
-    : "Ask a project admin to add one to see a cost.";
+    ? ""
+    : " You don't have permission to add one.";
 
   return (
     <div className="flex flex-col gap-2 rounded-md border px-3.5 py-3">
@@ -151,7 +151,7 @@ export function TopicCostEstimateView({
             {approxCount(tokensPerTrace.output)} output tokens per trace
           </span>
           <span className="text-muted-foreground">
-            No price is set for {unpriced.join(" and ")}. {addPriceHint}
+            No price is set for {unpriced.join(" and ")}.{addPriceHint}
           </span>
           <span>
             <Button
