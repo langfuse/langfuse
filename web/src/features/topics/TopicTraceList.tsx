@@ -4,6 +4,7 @@ import {
   type ComponentProps,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   type RefObject,
   type UIEvent,
@@ -42,6 +43,21 @@ const TRACE_ROW_HEIGHTS: CustomHeights = { s: "h-7", m: "h-16", l: "h-24" };
 /** More rows load from the server as the list nears its end. */
 const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
+const TRACE_ID_MIN_WIDTH = 96;
+const TOPIC_MIN_WIDTH = 120;
+/** The table pads its right edge so the last column's resize handle clears the scrollbar. */
+const TABLE_RIGHT_PADDING_PX = 8;
+
+/** Width of a classic scrollbar; 0 where scrollbars overlay the content. */
+function scrollbarWidth() {
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:absolute;visibility:hidden;width:100px;overflow-y:scroll";
+  document.body.append(probe);
+  const width = probe.offsetWidth - probe.clientWidth;
+  probe.remove();
+  return width;
+}
 
 /**
  * `truncate` compares unrounded widths: whole-pixel `scrollWidth` misses
@@ -91,10 +107,27 @@ export function TopicTraceList({
   const { rows } = traces;
   const tableRef = useRef<HTMLDivElement>(null);
   const [sizeRef, tableSize] = useElementSize<HTMLDivElement>();
-  // Default widths: 20% trace ID, 30% topic, 50% summary of the measured list.
-  // The table keeps a small right gutter, so shares come from the width without it.
-  const widthShare = (share: number) =>
-    Math.floor(Math.max(0, (tableSize?.width ?? 0) - 16) * share);
+  // Default widths: 20% trace ID, 30% topic and the rest summary of the measured
+  // list, less the table's right padding and vertical scrollbar. The summary
+  // gives up what the minimums add, so the defaults fit whenever the minimums do.
+  const columnsWidth = useMemo(
+    () =>
+      tableSize
+        ? Math.max(
+            0,
+            tableSize.width - TABLE_RIGHT_PADDING_PX - scrollbarWidth(),
+          )
+        : 0,
+    [tableSize],
+  );
+  const traceIdWidth = Math.max(
+    TRACE_ID_MIN_WIDTH,
+    Math.floor(columnsWidth * 0.2),
+  );
+  const topicWidth = topicColors
+    ? Math.max(TOPIC_MIN_WIDTH, Math.floor(columnsWidth * 0.3))
+    : 0;
+  const summaryWidth = columnsWidth - traceIdWidth - topicWidth;
   // Taller rows wrap the summary and topic, since the list is the only place to read them.
   const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     rowHeightKey,
@@ -137,8 +170,8 @@ export function TopicTraceList({
     {
       accessorKey: "traceId",
       header: () => <span className={FIRST_CELL}>Trace ID</span>,
-      size: widthShare(0.2),
-      minSize: 96,
+      size: traceIdWidth,
+      minSize: TRACE_ID_MIN_WIDTH,
       cell: ({ row }) => (
         <span
           className={cn(
@@ -156,8 +189,8 @@ export function TopicTraceList({
           {
             accessorKey: "topicName",
             header: () => <span className={CELL}>Topic</span>,
-            size: widthShare(0.3),
-            minSize: 120,
+            size: topicWidth,
+            minSize: TOPIC_MIN_WIDTH,
             cell: ({ row }) => {
               // Outliers read Unassigned, as in the topic rows and on the map.
               const name =
@@ -207,8 +240,8 @@ export function TopicTraceList({
     {
       accessorKey: "summary",
       header: () => <span className={CELL}>Summary</span>,
-      // A share, not a flexible width: the table layout would hand the spare space to the other columns.
-      size: widthShare(0.5),
+      // A fixed width, not a flexible one: the table layout would hand the spare space to the other columns.
+      size: summaryWidth,
       minSize: 180,
       cell: ({ row }) => {
         const summary = row.original.summary || "No applicable summary.";
