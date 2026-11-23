@@ -884,25 +884,21 @@ function MultiSeriesBarChart({
       </div>
       {showLegend ? (
         <ChartLegend
-          onAfterInteraction={legend.onAfterInteraction}
-          selectionActions={
+          selection={
             legend.interaction === "toggle"
               ? {
                   allSelected: hiddenIds.size === 0,
-                  onSelectAll: () =>
+                  onAllSelectedChange: (selected) => {
                     setLegendState({
                       ...effectiveState,
                       visibilityOverrides: new Map(
-                        series.map((item) => [item.id, false]),
+                        series.map((item) => [item.id, !selected]),
                       ),
-                    }),
-                  onDeselectAll: () =>
-                    setLegendState({
-                      ...effectiveState,
-                      visibilityOverrides: new Map(
-                        series.map((item) => [item.id, true]),
-                      ),
-                    }),
+                    });
+                    legend.onAfterInteraction?.(
+                      selected ? "select_all" : "clear_all",
+                    );
+                  },
                 }
               : undefined
           }
@@ -940,12 +936,13 @@ function MultiSeriesBarChart({
                       ...effectiveState,
                       visibilityOverrides: next,
                     });
-                    return;
+                  } else {
+                    setLegendState({
+                      ...effectiveState,
+                      highlightedId: focused ? undefined : item.id,
+                    });
                   }
-                  setLegendState({
-                    ...effectiveState,
-                    highlightedId: focused ? undefined : item.id,
-                  });
+                  legend.onAfterInteraction?.("toggle");
                 },
               },
             };

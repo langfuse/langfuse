@@ -9,10 +9,7 @@ import { ChartContainer } from "@/src/components/design-system/internal/charts/C
 import { CHART_TRANSITION_DURATION } from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
-import {
-  ChartLegend,
-  type ChartLegendInteraction,
-} from "@/src/components/design-system/internal/charts/ChartLegend";
+import { ChartLegend } from "@/src/components/design-system/internal/charts/ChartLegend";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 
 type LineChartValues = {
@@ -33,6 +30,8 @@ export type LineChartSeries = {
 type ConfiguredLineChartSeries = LineChartSeries & {
   emphasis?: "default" | "dimmed" | "emphasized";
 };
+
+export type ChartLegendInteraction = "toggle" | "select_all" | "clear_all";
 
 export type LineChartLegend =
   | { visibility: "hidden" }
@@ -329,13 +328,16 @@ export function SeriesChartCore(
       </div>
       {showLegend ? (
         <ChartLegend
-          onAfterInteraction={legend.onAfterInteraction}
-          selectionActions={
+          selection={
             legend.interaction === "toggle"
               ? {
                   allSelected: hiddenSeriesIds.size === 0,
-                  onSelectAll: () => setAllSeriesHidden(false),
-                  onDeselectAll: () => setAllSeriesHidden(true),
+                  onAllSelectedChange: (selected) => {
+                    setAllSeriesHidden(!selected);
+                    legend.onAfterInteraction?.(
+                      selected ? "select_all" : "clear_all",
+                    );
+                  },
                 }
               : undefined
           }
@@ -376,9 +378,10 @@ export function SeriesChartCore(
                 onClick: () => {
                   if (legend.interaction === "toggle") {
                     toggleSeries(item.id);
-                    return;
+                  } else {
+                    highlightSeries(item.id);
                   }
-                  highlightSeries(item.id);
+                  legend.onAfterInteraction?.("toggle");
                 },
               },
             };

@@ -8,8 +8,6 @@ import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import { cn } from "@/src/utils/tailwind";
 import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 
-export type ChartLegendInteraction = "toggle" | "select_all" | "clear_all";
-
 export type ChartLegendItem = {
   id: string;
   label: ReactNode;
@@ -25,13 +23,7 @@ export type ChartLegendItem = {
 
 const LEGEND_PADDING = "min-w-0 shrink-0 px-4 py-2";
 
-function LegendItem({
-  item,
-  onActivate,
-}: {
-  item: ChartLegendItem;
-  onActivate: (item: ChartLegendItem) => void;
-}) {
+function LegendItem({ item }: { item: ChartLegendItem }) {
   const plainTextLabel =
     typeof item.label === "string"
       ? item.label
@@ -72,7 +64,7 @@ function LegendItem({
   return item.action ? (
     <button
       type="button"
-      onClick={() => onActivate(item)}
+      onClick={item.action.onClick}
       className={cn(className, "cursor-pointer hover:opacity-80")}
       style={{ transitionDuration: CHART_TRANSITION_DURATION }}
       aria-pressed={item.action.pressed}
@@ -92,22 +84,14 @@ function LegendItem({
 
 export function ChartLegend({
   items,
-  selectionActions,
-  onAfterInteraction,
+  selection,
 }: {
   items: ChartLegendItem[];
-  onAfterInteraction?: (action: ChartLegendInteraction) => void;
-  selectionActions?: {
+  selection?: {
     allSelected: boolean;
-    onSelectAll: () => void;
-    onDeselectAll: () => void;
+    onAllSelectedChange: (selected: boolean) => void;
   };
 }) {
-  const activateItem = (item: ChartLegendItem) => {
-    if (!item.action) return;
-    item.action.onClick();
-    onAfterInteraction?.("toggle");
-  };
   return (
     <div className={cn(LEGEND_PADDING, "flex justify-center")}>
       <OverflowList
@@ -118,7 +102,7 @@ export function ChartLegend({
         getKey={(item) => item.id}
         renderItem={(item, { getItemProps }) => (
           <span {...getItemProps()}>
-            <LegendItem item={item} onActivate={activateItem} />
+            <LegendItem item={item} />
           </span>
         )}
         renderOverflow={({ hiddenItems }) => {
@@ -126,23 +110,16 @@ export function ChartLegend({
             <DropdownMenu
               title="Additional series"
               items={[
-                ...(selectionActions
+                ...(selection
                   ? [
                       {
                         id: "all-series",
                         type: "item" as const,
-                        title: selectionActions.allSelected
+                        title: selection.allSelected
                           ? "Deselect all"
                           : "Select all",
-                        onClick: () => {
-                          if (selectionActions.allSelected) {
-                            selectionActions.onDeselectAll();
-                            onAfterInteraction?.("clear_all");
-                          } else {
-                            selectionActions.onSelectAll();
-                            onAfterInteraction?.("select_all");
-                          }
-                        },
+                        onClick: () =>
+                          selection.onAllSelectedChange(!selection.allSelected),
                       },
                       {
                         id: "all-series-separator",
@@ -167,7 +144,7 @@ export function ChartLegend({
                   disabled: item.action
                     ? undefined
                     : { reason: "This legend item is not interactive" },
-                  onClick: () => activateItem(item),
+                  onClick: item.action?.onClick ?? (() => undefined),
                 })),
               ]}
             >
