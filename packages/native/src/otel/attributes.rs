@@ -26,9 +26,12 @@
 use chrono::{DateTime, Utc};
 use num_bigint::BigUint;
 use num_traits::{Num, ToPrimitive};
+use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer};
+use serde_json::value::RawValue;
 use std::rc::Rc;
 
-use super::value::{JsString, JsonObject, Number, Object, Value};
+use super::value::{FastValue, JsString, JsonObject, Number, Object, Value};
 
 pub(crate) use super::value::javascript_array_index;
 pub use super::value::{javascript_json_stringify, javascript_number_to_string};
@@ -283,6 +286,141 @@ fn key_value_array_to_map(values: Vec<Value>) -> JsonObject {
         result.insert(key, any_value_to_json(value));
     }
     result
+}
+
+/// Decode a KeyValue list whose entries are all `{"key": name, "value": {kind: scalar}}`
+/// straight into the attribute map, without building the two wrapper objects of each entry.
+/// The result equals `attributes_to_map` of the parsed list. Any other shape returns `None`
+/// and the caller parses the list in full.
+pub(super) fn scalar_attributes(source: &str) -> Option<JsonObject> {
+    // An entry takes at least 40 bytes of JSON, which bounds the number of entries.
+    let mut attributes = JsonObject::with_capacity((source.len() / 40).min(32));
+    let mut deserializer = serde_json::Deserializer::from_str(source);
+    ScalarEntries(&mut attributes)
+        .deserialize(&mut deserializer)
+        .ok()?;
+    deserializer.end().ok()?;
+    Some(attributes)
+}
+
+struct ScalarEntries<'a>(&'a mut JsonObject);
+
+impl<'de> DeserializeSeed<'de> for ScalarEntries<'_> {
+    type Value = ();
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<(), D::Error> {
+        deserializer.deserialize_seq(self)
+    }
+}
+
+impl<'de> Visitor<'de> for ScalarEntries<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a list of scalar OTLP attributes")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut entries: A) -> Result<(), A::Error> {
+        while let Some(ScalarEntry(name, value)) = entries.next_element()? {
+            self.0.insert(name, value);
+        }
+        Ok(())
+    }
+}
+
+struct ScalarEntry(JsString, Value);
+
+impl<'de> Deserialize<'de> for ScalarEntry {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct EntryVisitor;
+
+        impl<'de> Visitor<'de> for EntryVisitor {
+            type Value = ScalarEntry;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("an OTLP attribute with a scalar value")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut entry: A) -> Result<ScalarEntry, A::Error> {
+                expect_field(&mut entry, r#""key""#)?;
+                let Value::String(name) = entry.next_value::<FastValue>()?.0 else {
+                    return Err(other_shape());
+                };
+                // A span whose attributes are an object reads that object's `attributes`
+                // member instead, so a list holding this name must stay a list.
+                if name.as_bytes() == b"attributes" {
+                    return Err(other_shape());
+                }
+                expect_field(&mut entry, r#""value""#)?;
+                let value = entry.next_value::<ScalarAnyValue>()?.0;
+                expect_end(&mut entry)?;
+                Ok(ScalarEntry(name, value))
+            }
+        }
+
+        deserializer.deserialize_map(EntryVisitor)
+    }
+}
+
+/// An AnyValue with exactly one scalar field, already converted as `any_value_to_json` does.
+struct ScalarAnyValue(Value);
+
+impl<'de> Deserialize<'de> for ScalarAnyValue {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct AnyValueVisitor;
+
+        impl<'de> Visitor<'de> for AnyValueVisitor {
+            type Value = ScalarAnyValue;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("an OTLP AnyValue with one scalar field")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(
+                self,
+                mut wrapper: A,
+            ) -> Result<ScalarAnyValue, A::Error> {
+                let Some(kind) = wrapper.next_key::<&RawValue>()? else {
+                    return Err(other_shape());
+                };
+                let payload = wrapper.next_value::<FastValue>()?.0;
+                expect_end(&mut wrapper)?;
+                let value = match (kind.get(), payload) {
+                    (r#""stringValue""#, value @ Value::String(_))
+                    | (r#""boolValue""#, value @ Value::Bool(_)) => value,
+                    (r#""doubleValue""#, value @ (Value::Number(_) | Value::String(_))) => {
+                        parse_double(&value)
+                    }
+                    (r#""intValue""#, value @ (Value::Number(_) | Value::String(_))) => {
+                        parse_int(&value).ok_or_else(other_shape)?
+                    }
+                    _ => return Err(other_shape()),
+                };
+                Ok(ScalarAnyValue(value))
+            }
+        }
+
+        deserializer.deserialize_map(AnyValueVisitor)
+    }
+}
+
+/// Read the next field name, which must be exactly `token`, quotes included.
+fn expect_field<'de, A: MapAccess<'de>>(object: &mut A, token: &str) -> Result<(), A::Error> {
+    match object.next_key::<&RawValue>()? {
+        Some(name) if name.get() == token => Ok(()),
+        _ => Err(other_shape()),
+    }
+}
+
+fn expect_end<'de, A: MapAccess<'de>>(object: &mut A) -> Result<(), A::Error> {
+    match object.next_key::<IgnoredAny>()? {
+        None => Ok(()),
+        Some(_) => Err(other_shape()),
+    }
+}
+
+fn other_shape<E: serde::de::Error>() -> E {
+    E::custom("not a list of scalar OTLP attributes")
 }
 
 /// Parse IDs emitted by the JS SDK, protobuf decoders, and OTLP JSON replay files.
@@ -736,6 +874,66 @@ fn looks_like_json(text: &str) -> bool {
 mod tests {
     use super::*;
     use crate::otel::value::json;
+
+    proptest::proptest! {
+        #[test]
+        fn scalar_attribute_lists_decode_like_the_full_parser(
+            entries in proptest::collection::vec(
+                (
+                    proptest::sample::select(vec![
+                        r#""a""#, r#""b""#, r#""a.b""#, r#""values""#, r#""attributes""#,
+                        r#""a""#, r#""\ud800""#, "1", "null",
+                    ]),
+                    proptest::sample::select(vec![
+                        r#"{"stringValue":"x"}"#, r#"{"boolValue":true}"#, r#"{"intValue":"42"}"#,
+                        r#"{"intValue":42}"#, r#"{"intValue":1.5}"#, r#"{"intValue":"x"}"#,
+                        r#"{"intValue":"18446744073709551616"}"#, r#"{"intValue":1e400}"#,
+                        r#"{"intValue":{"high":-1,"low":-1}}"#, r#"{"doubleValue":1.5}"#,
+                        r#"{"doubleValue":"1.5"}"#, r#"{"doubleValue":"x"}"#,
+                        r#"{"doubleValue":[1]}"#, r#"{"stringValue":5}"#, r#"{"stringValue":null}"#,
+                        r#"{"stringValue":{"intValue":"1"}}"#, r#"{"stringValue":"\ud800"}"#,
+                        r#"{"boolValue":"true"}"#, r#"{"stringValue":"x","intValue":"1"}"#,
+                        r#"{"arrayValue":{"values":[{"stringValue":"x"}]}}"#,
+                        r#"{"kvlistValue":{"values":[]}}"#, r#"{"unknown":1}"#, "{}", "null",
+                        r#""plain""#,
+                    ]),
+                    0_u8..8,
+                ),
+                0..5,
+            ),
+        ) {
+            let source = format!(
+                "[{}]",
+                entries
+                    .iter()
+                    .map(|(key, value, form)| match form {
+                        0 => format!(r#"{{"value":{value},"key":{key}}}"#),
+                        1 => format!(r#"{{"key":{key},"value":{value},"extra":1}}"#),
+                        2 => format!(r#"{{"key":{key}}}"#),
+                        _ => format!(r#"{{"key":{key},"value":{value}}}"#),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+            let direct = scalar_attributes(&source);
+            let is_plain = entries.iter().all(|(key, value, form)| {
+                *form > 2
+                    && [r#""a""#, r#""b""#, r#""a.b""#, r#""values""#].contains(key)
+                    && [r#"{"stringValue":"x"}"#, r#"{"boolValue":true}"#, r#"{"intValue":"42"}"#]
+                        .contains(value)
+            });
+            proptest::prop_assert!(direct.is_some() || !is_plain, "{}", source);
+            if let Some(attributes) = direct {
+                proptest::prop_assert!(!attributes.contains_key("attributes"), "{}", source);
+                proptest::prop_assert_eq!(
+                    attributes_to_map(Value::Object(attributes)),
+                    attributes_to_map(Value::parse(&source).unwrap()),
+                    "{}",
+                    source
+                );
+            }
+        }
+    }
 
     #[test]
     fn converts_all_otlp_any_value_variants() {
