@@ -16,6 +16,7 @@ import {
   type TopicResultCondition,
   type TopicResultCursor,
   type TopicSummaryState,
+  getTopicTraceSessionIds,
 } from "@langfuse/shared/src/server";
 import {
   getCurrentTopicMapRows,
@@ -460,6 +461,7 @@ export async function listTopicTraces(input: {
   assigned?: boolean;
   traceId?: string;
   cursor?: TopicResultCursor;
+  limit?: number;
 }) {
   const conditions: TopicResultCondition[] = [];
   if (input.topicIds)
@@ -494,7 +496,7 @@ export async function listTopicTraces(input: {
     ...(run ? { publishedRunIds: [run.id] } : {}),
     conditions,
     orderBy: "timestamp.desc",
-    limit: TOPIC_TRACES_PAGE_SIZE,
+    limit: input.limit ?? TOPIC_TRACES_PAGE_SIZE,
     cursor: input.cursor,
     includeAssignment: true,
     truncateSummaries: false,
@@ -502,11 +504,20 @@ export async function listTopicTraces(input: {
   const names = new Map(
     run?.topics.map((topic) => [topic.topicVersionId, topic.name]),
   );
+  const sessions = await getTopicTraceSessionIds({
+    projectId: input.projectId,
+    traceIds: page.rows.map((row) => row.traceId),
+    from: new Date(
+      Math.min(...page.rows.map((row) => row.timestamp.getTime())),
+    ),
+  });
   return {
     rows: page.rows.map((row) => {
       const topicVersionId = row.assignment?.topicVersionId;
+      const sessionId = sessions.get(row.traceId);
       return {
         traceId: row.traceId,
+        ...(sessionId ? { sessionId } : {}),
         unitStartTime: row.timestamp.toISOString(),
         facetVersion: row.facetVersion,
         summary: row.summary,
@@ -517,4 +528,21 @@ export async function listTopicTraces(input: {
     }),
     nextCursor: page.next ?? null,
   };
+}
+
+/** Scanned for the session count; larger lists report a lower bound. */
+const SESSION_COUNT_TRACE_LIMIT = 2000;
+
+/** Distinct sessions among the listed traces, for the grouped trace list header. */
+export async function countTopicTraceSessions(
+  input: Omit<Parameters<typeof listTopicTraces>[0], "cursor" | "limit">,
+) {
+  const page = await listTopicTraces({
+    ...input,
+    limit: SESSION_COUNT_TRACE_LIMIT,
+  });
+  const sessions = new Set(
+    page.rows.flatMap((row) => (row.sessionId ? [row.sessionId] : [])),
+  );
+  return { count: sessions.size, isLowerBound: page.nextCursor !== null };
 }
