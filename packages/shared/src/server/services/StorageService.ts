@@ -1345,12 +1345,18 @@ class GoogleCloudStorageService implements StorageService {
   constructor(params: { bucketName: string; googleCloudCredentials?: string }) {
     if (params.googleCloudCredentials) {
       try {
+        const authClient = createGoogleCloudStorageAuthClient(
+          params.googleCloudCredentials,
+        );
         this.storage = new Storage({
           universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
-          authClient: createGoogleCloudStorageAuthClient(
-            params.googleCloudCredentials,
-          ),
+          authClient,
         });
+        // V4 signing reads the signer email from GoogleAuth.getCredentials(),
+        // which only knows it for JSON credentials, not a wrapped authClient.
+        this.storage.authClient.jsonContent = {
+          client_email: authClient.email,
+        };
       } catch (err) {
         logger.error("Failed to parse Google Cloud Storage credentials", err);
         throw new Error("Failed to initialize Google Cloud Storage");
