@@ -80,13 +80,6 @@ export function EvaluatorTestStrip({
     hasValidModel,
   });
   const [open, setOpen] = useState(false);
-  const [seenResult, setSeenResult] = useState(testResult);
-  const [seenPending, setSeenPending] = useState(testPending);
-  if (testResult !== seenResult || testPending !== seenPending) {
-    setSeenResult(testResult);
-    setSeenPending(testPending);
-    if (testPending || testResult != null) setOpen(true);
-  }
 
   const panelState = toTestResultPanelState({
     type,
@@ -117,14 +110,17 @@ export function EvaluatorTestStrip({
         <TestRunButton
           isPending={testPending}
           disabledReason={disabledReason}
-          onRun={onRunTest}
+          onRun={() => {
+            setOpen(true);
+            onRunTest();
+          }}
           label="Run test"
           variant="default"
           showIcon={false}
         />
       </div>
       {showResult ? (
-        <div className="grid grid-cols-3 gap-4 px-3 pt-1 pb-3">
+        <div className="ph-no-capture grid grid-cols-3 gap-4 px-3 pt-1 pb-3">
           <div className="min-w-0">
             <p className="text-muted-foreground text-xs">Variable result</p>
             {variables.length > 0 ? (

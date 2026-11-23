@@ -37,22 +37,13 @@ export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
   const saveIdleTime =
     api.evalsV2.rules.saveTracingReadinessSettings.useMutation();
   const projectSeconds = secondsLabel(settings.data?.traceIdleMs);
-  const [idleSeconds, setIdleSeconds] = useState(projectSeconds);
-  const [synced, setSynced] = useState(projectSeconds);
-  const [focused, setFocused] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  if (
-    !settings.isPending &&
-    projectSeconds !== synced &&
-    !saveIdleTime.isPending &&
-    !focused
-  ) {
-    setSynced(projectSeconds);
-    setIdleSeconds(projectSeconds);
-  }
+  const idleSeconds = draft ?? projectSeconds;
 
   const commit = async () => {
     if (idleSeconds === projectSeconds) {
+      setDraft(null);
       setNote(null);
       return;
     }
@@ -71,13 +62,11 @@ export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
         projectId,
         traceIdleMs: seconds * 1000,
       });
-      const savedSeconds = secondsLabel(saved.traceIdleMs);
       utils.evalsV2.rules.tracingReadinessSettings.setData(
         { projectId },
         saved,
       );
-      setSynced(savedSeconds);
-      setIdleSeconds(savedSeconds);
+      setDraft(null);
       await utils.evalsV2.rules.tracingReadinessSettings.invalidate({
         projectId,
       });
@@ -86,7 +75,7 @@ export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
         saved,
       );
     } catch (error) {
-      setIdleSeconds(projectSeconds);
+      setDraft(null);
       setNote(
         error instanceof TRPCClientError
           ? error.message
@@ -119,14 +108,11 @@ export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
                   value={idleSeconds}
                   disabled={saveIdleTime.isPending}
                   onChange={(event) => {
-                    setIdleSeconds(event.target.value);
+                    setDraft(event.target.value);
                     setNote(null);
                   }}
-                  onFocus={() => setFocused(true)}
                   onBlur={() => {
-                    commit()
-                      .finally(() => setFocused(false))
-                      .catch(() => undefined);
+                    commit().catch(() => undefined);
                   }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter") return;

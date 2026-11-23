@@ -5,7 +5,10 @@ import { Radio } from "@/src/components/design-system/Radio/Radio";
 import { RuleSampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/RuleSampleObservationSelector/RuleSampleObservationSelector";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
-import { RULE_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import {
+  RULE_SAMPLE_FIELD_REGISTRY,
+  TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY,
+} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { env } from "@/src/env.mjs";
 import { TraceRuleIdleTime } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/TraceRuleIdleTime/TraceRuleIdleTime";
 import { RuleSamplingSection } from "./RuleSamplingSection";
@@ -82,7 +85,11 @@ export function RuleFilterStep({
         filterState={filter}
         onFilterStateChange={actions.setFilter}
         tableName="evaluation-rule-matching-observations"
-        registry={RULE_SAMPLE_FIELD_REGISTRY}
+        registry={
+          traceTranscript
+            ? TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY
+            : RULE_SAMPLE_FIELD_REGISTRY
+        }
         selectedObservationId={selectedObservationId}
         onSelect={actions.setSelectedObservation}
         sampleScope={scope}

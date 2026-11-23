@@ -1,11 +1,11 @@
 import { useMemo } from "react";
-import { useStore } from "zustand";
+import { useStore, type StoreApi } from "zustand";
 import {
   TRACE_TRANSCRIPT_EVAL_COLUMN,
   projectTranscriptThreadsForMapping,
 } from "@langfuse/shared";
 
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { api } from "@/src/utils/api";
 
 /** The transcript of the selected sample's trace, keyed like the eval reads it. */
@@ -15,7 +15,7 @@ export function useEvaluatorTraceSample({
   enabled,
 }: {
   projectId: string;
-  store: EvaluatorSetupStore;
+  store: StoreApi<{ selectedObservation: SampleObservation | null }>;
   enabled: boolean;
 }) {
   const selectedObservation = useStore(

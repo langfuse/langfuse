@@ -8,6 +8,7 @@ import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/pr
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import {
   selectHasValidModel,
+  selectSampleScope,
   type EvaluatorSetupStore,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
@@ -37,6 +38,7 @@ export function EvaluatorSetupFooter({
   const {
     currentSnapshot,
     canSubmit,
+    observationMappingMissing,
     promptMessagesReason,
     scoreOutputReason,
     nameMissing,
@@ -45,10 +47,11 @@ export function EvaluatorSetupFooter({
     store,
     useShallow((state) => {
       const draft = applyFallbackDecisionModel(state, fallbackDecisionModel);
-      const { definition, mappings } = prepareDraftForScope(draft);
+      const { definition } = prepareDraftForScope(draft);
+      // The saved evaluator keeps observation mappings, also in trace scope.
       const hasCompleteMappings =
         state.type !== "LLM_AS_JUDGE" ||
-        mappings.every(({ fieldState }) =>
+        prepareEvaluatorDraft(draft).mappings.every(({ fieldState }) =>
           Boolean(fieldState.selectedColumnId),
         );
 
@@ -59,6 +62,8 @@ export function EvaluatorSetupFooter({
           definition: prepareEvaluatorDraft(state).definition,
         }),
         canSubmit: Boolean(definition) && hasCompleteMappings,
+        observationMappingMissing:
+          !hasCompleteMappings && selectSampleScope(state) === "trace",
         promptMessagesReason:
           state.type === "LLM_AS_JUDGE"
             ? getPromptMessagesValidationError(state.promptMessages)
@@ -85,6 +90,9 @@ export function EvaluatorSetupFooter({
     }
     if (scoreOutputReason) {
       return scoreOutputReason;
+    }
+    if (observationMappingMissing) {
+      return 'Switch "Test with" to Observation and map every variable before saving.';
     }
     if (
       codeValidation &&

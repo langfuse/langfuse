@@ -373,6 +373,14 @@ export function createEvaluatorSetupStore({
                 variable === key ? [next, fieldState] : [variable, value],
               ),
             ),
+            traceVariableFields: Object.fromEntries(
+              Object.entries(state.traceVariableFields).map(
+                ([variable, value]) => [
+                  variable === key ? next : variable,
+                  value,
+                ],
+              ),
+            ),
             questions: state.questions.map((question) => ({
               ...question,
               instructions: question.instructions.replaceAll(
@@ -392,6 +400,11 @@ export function createEvaluatorSetupStore({
             stateKeys: state.stateKeys.filter((current) => current !== key),
             variableFields: Object.fromEntries(
               Object.entries(state.variableFields).filter(
+                ([variable]) => variable !== key,
+              ),
+            ),
+            traceVariableFields: Object.fromEntries(
+              Object.entries(state.traceVariableFields).filter(
                 ([variable]) => variable !== key,
               ),
             ),

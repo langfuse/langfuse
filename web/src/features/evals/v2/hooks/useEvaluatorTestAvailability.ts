@@ -68,6 +68,9 @@ export function useEvaluatorTestAvailability({
     if (traceSample.hasNoTranscript) {
       return "This trace has no transcript to evaluate.";
     }
+    if (traceSample.error) {
+      return `Couldn't load the selected trace: ${traceSample.error}`;
+    }
     if (!traceSample.sourceObject) return "Loading the selected trace.";
     return null;
   }

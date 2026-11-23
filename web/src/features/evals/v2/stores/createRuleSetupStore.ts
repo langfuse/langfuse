@@ -1,3 +1,4 @@
+import { TRACE_TRANSCRIPT_EVAL_COLUMN } from "@langfuse/shared";
 import { createStore } from "zustand/vanilla";
 
 import type {
@@ -24,7 +25,18 @@ export function createRuleSetupStore(
       setName: (name) => set({ name }),
       setFilter: (filter) => set({ filter }),
       setSampling: (sampling) => set({ sampling }),
-      setScope: (scope) => set({ scope }),
+      setScope: (scope) =>
+        set((state) => ({
+          scope,
+          assignments: state.assignments.map((assignment) =>
+            assignment.variableMapping?.some(
+              ({ selectedColumnId }) =>
+                selectedColumnId === TRACE_TRANSCRIPT_EVAL_COLUMN,
+            )
+              ? { ...assignment, variableMapping: null }
+              : assignment,
+          ),
+        })),
       attachEvaluator: (assignment) =>
         set((state) => ({ assignments: [...state.assignments, assignment] })),
       detachEvaluator: (evaluatorId) =>
