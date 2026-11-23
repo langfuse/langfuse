@@ -54,15 +54,20 @@ export async function countActiveEvaluationRules(params: {
   return params.prisma.evaluationRule.count({
     where: {
       projectId: params.projectId,
-      targetObject: {
-        in: [
-          EvalTargetObject.EVENT,
-          EvalTargetObject.EXPERIMENT,
-          TopicsTargetObject,
-        ],
-      },
-      assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
       status: JobConfigState.ACTIVE,
+      OR: [
+        {
+          targetObject: {
+            in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+          },
+        },
+        {
+          targetObject: TopicsTargetObject,
+          assignments: {
+            none: { evaluator: { type: EvalTemplateType.FACET } },
+          },
+        },
+      ],
     },
   });
 }

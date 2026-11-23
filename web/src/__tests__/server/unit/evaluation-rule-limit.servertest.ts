@@ -26,9 +26,14 @@ describe("active evaluation rule limit", () => {
     expect(count).toHaveBeenCalledWith({
       where: {
         projectId: "project",
-        targetObject: { in: ["event", "experiment", "trace_transcript"] },
-        assignments: { none: { evaluator: { type: "FACET" } } },
         status: "ACTIVE",
+        OR: [
+          { targetObject: { in: ["event", "experiment"] } },
+          {
+            targetObject: "trace_transcript",
+            assignments: { none: { evaluator: { type: "FACET" } } },
+          },
+        ],
       },
     });
   });

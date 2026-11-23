@@ -60,8 +60,9 @@ export type RuleAuditEvent = {
   ruleId: string;
 };
 
-// Carries no target; the immutable stored target drives the update.
-type RuleServiceUpdateInput = UpdateRuleInput;
+type RuleServiceUpdateInput = UpdateRuleInput & {
+  targetObject?: EvalTargetObject;
+};
 
 export class RuleService {
   /**
@@ -433,7 +434,16 @@ export class RuleService {
             : current.status === JobConfigState.ACTIVE),
         assignmentCount: resultingAssignmentCount,
       });
-      // The immutable stored target decides filter normalization and assignments.
+      // trace_transcript is immutable: an update may not move a rule into or out of it.
+      const intendedTarget = input.targetObject ?? current.targetObject;
+      if (
+        (intendedTarget === TopicsTargetObject) !==
+        (current.targetObject === TopicsTargetObject)
+      ) {
+        throw new InvalidRequestError(
+          "A trace transcript rule's target cannot be changed.",
+        );
+      }
       const isTraceTranscript = current.targetObject === TopicsTargetObject;
       const { targetObject, filter } = this.resolveRuleUpdateTarget(
         current,
@@ -451,7 +461,7 @@ export class RuleService {
         ? await this.prepareRuleUpdateAssignments({
             prisma,
             projectId: input.projectId,
-            targetObject: current.targetObject,
+            targetObject,
             evaluatorMappings: input.evaluatorMappings,
           })
         : undefined;
@@ -497,7 +507,7 @@ export class RuleService {
     return response;
   }
 
-  /** Derives an update's target and filter from the immutable stored target. */
+  /** Derives the update's target and filter; trace_transcript keeps its stored target. */
   private resolveRuleUpdateTarget(
     current: { targetObject: string; filter: Prisma.JsonValue },
     input: RuleServiceUpdateInput,
@@ -532,7 +542,7 @@ export class RuleService {
         ? EvalTargetObject.EXPERIMENT
         : currentTargetObject;
     const normalized = normalizeEvaluationRuleTarget({
-      targetObject: inheritedTargetObject,
+      targetObject: input.targetObject ?? inheritedTargetObject,
       filter: effectiveFilter,
     });
     return {
@@ -882,7 +892,8 @@ export class RuleService {
       input.enabled !== false ||
       input.name !== undefined ||
       input.filter !== undefined ||
-      input.sampling !== undefined
+      input.sampling !== undefined ||
+      input.targetObject !== undefined
     ) {
       throw new InvalidRequestError(
         "Legacy evaluation rules can only be deactivated or deleted",

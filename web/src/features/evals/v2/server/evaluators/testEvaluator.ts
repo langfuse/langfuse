@@ -78,7 +78,7 @@ export async function testEvaluator(params: {
     ...executionData,
   });
 
-  return { ...result, durationMs: Date.now() - startedAt };
+  return { ...result, durationMs: Date.now() - startedAt, variables };
 }
 
 /** Mirrors a trace transcript rule: every variable reads the assembled transcript's `threads`. */

@@ -643,30 +643,27 @@ describe("RuleService", () => {
       ).resolves.toEqual({ targetObject: TopicsTargetObject });
     });
 
-    it("ignores an attempt to change the target of an existing rule", async () => {
+    it("rejects an attempt to change the target of an existing rule", async () => {
       const service = createService();
       const rule = await service.create(createInput(), null);
 
-      // A rule's target is immutable, so a stray target in the update payload
-      // must be ignored rather than promote the rule to another target.
-      const updated = await service.update({
-        projectId,
-        ruleId: rule.id,
-        sampling: 0.5,
-        targetObject: TopicsTargetObject,
-      } as unknown as Parameters<typeof service.update>[0]);
+      // A rule's target is immutable across trace_transcript: an update may not
+      // move a rule into or out of it.
+      await expect(
+        service.update({
+          projectId,
+          ruleId: rule.id,
+          sampling: 0.5,
+          targetObject: TopicsTargetObject,
+        } as unknown as Parameters<typeof service.update>[0]),
+      ).rejects.toThrow("A trace transcript rule's target cannot be changed");
 
-      expect(updated.targetObject).toBe(EvalTargetObject.EVENT);
-      expect(updated.sampling).toBe(0.5);
       await expect(
         prisma.evaluationRule.findUniqueOrThrow({
           where: { id: rule.id },
           select: { targetObject: true },
         }),
       ).resolves.toEqual({ targetObject: EvalTargetObject.EVENT });
-      // The rule stays a modern observation rule, so it remains in the list.
-      const list = await service.list({ projectId, page: 1, limit: 50 });
-      expect(list.rules.map(({ id }) => id)).toContain(rule.id);
     });
 
     it("manages a trace rule only through a service that opted into trace rules", async () => {
