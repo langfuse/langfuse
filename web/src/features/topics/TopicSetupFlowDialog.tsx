@@ -51,7 +51,7 @@ const MODEL_ROWS = [
   {
     slot: "embedding",
     label: "Embeddings",
-    hint: "Embeddings turn each summary into a vector, so similar summaries group into topics. You can change the model later, but summaries already embedded are not re-embedded, so topic maps then start over from new summaries.",
+    hint: "Embeddings turn each summary into a vector, so similar summaries group into topics. The model and dimensions are fixed once the first summaries are embedded, because vectors from different models can't be compared.",
   },
   { slot: "clustering", label: "Grouping" },
 ] as const satisfies ReadonlyArray<{

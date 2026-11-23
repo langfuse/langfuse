@@ -429,8 +429,7 @@ export async function readTopicsModelSettings(projectId: string) {
 
 /**
  * Whether summaries were embedded with the stored embedding model and
- * dimensions. Changing either then starts a new embedding space: those
- * summaries are not re-embedded and no longer reach fits or assignment.
+ * dimensions, which locks both. Mirrors the check in `prepareTopicsModelSettings`.
  */
 export async function hasCurrentTopicEmbeddings(
   projectId: string,
@@ -511,6 +510,19 @@ export async function prepareTopicsModelSettings(
     );
 
   const slots = resolveSavedSlots(resolved, current);
+  // Vectors of different models or sizes cannot be clustered together.
+  if (
+    current?.embeddingModel &&
+    (slots.embedding.model !== current.embeddingModel ||
+      slots.embeddingDimensions !== current.embeddingDimensions) &&
+    (await hasTopicEmbeddings(projectId, {
+      embeddingModel: current.embeddingModel,
+      embeddingDimensions: current.embeddingDimensions,
+    }))
+  )
+    throw new InvalidRequestError(
+      `The embedding model and dimensions can't change once summaries are embedded: vectors from another model or size can't be grouped with the existing ones. Keep ${current.embeddingModel} at ${current.embeddingDimensions} dimensions; it can still move to another connection.`,
+    );
 
   // Only changed models are tested: the dialog tests each pick, turning
   // processing on tests all three, and a broken stored connection pauses Topics.

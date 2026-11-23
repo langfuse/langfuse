@@ -37,7 +37,7 @@ export type ConfigureTopicsDraft = {
   idleSeconds: string;
   /**
    * Summaries were embedded with the saved embedding model and dimensions, so
-   * changing either leaves them behind in the old embedding space.
+   * the server rejects any other.
    */
   hasEmbeddings: boolean;
   /**
@@ -142,15 +142,18 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
           (slot === "embedding" && dimensions !== draft.embeddingDimensions)),
     )
     .every((slot) => !slotChecks || slotChecks[slot]?.status === "ok");
-  // Another connection serving the same model keeps the embedding space.
-  const leavesEmbeddings =
-    draft.hasEmbeddings &&
+  // The lock covers the model and dimensions, not the connection, so the same
+  // model can still move to another connection.
+  const lockedEmbedding = draft.hasEmbeddings ? draft.embedding : null;
+  const leavesLockedEmbedding =
+    lockedEmbedding !== null &&
     embedding !== null &&
-    (embedding.model !== draft.embedding?.model ||
+    (embedding.model !== lockedEmbedding.model ||
       Number(dimensions) !== Number(draft.embeddingDimensions));
   const canSave =
     canWrite &&
     !saving &&
+    !leavesLockedEmbedding &&
     (draft.automaticProcessing ? modelsPass : changedSlotsPass);
   const commitSlot = (
     slot: "summary" | "embedding" | "clustering",
@@ -257,7 +260,12 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 commitSlot("embedding", model);
               }}
             >
-              {leavesEmbeddings ? <EmbeddingChangeWarning /> : null}
+              {lockedEmbedding && leavesLockedEmbedding ? (
+                <EmbeddingLockedWarning
+                  model={lockedEmbedding.model}
+                  dimensions={draft.embeddingDimensions}
+                />
+              ) : null}
             </ModelSlot>
             <ModelSlot
               name="clustering"
@@ -401,13 +409,20 @@ function SlotStatus({
   return <p className="text-muted-foreground text-xs">{recommendation}</p>;
 }
 
-function EmbeddingChangeWarning() {
+function EmbeddingLockedWarning({
+  dimensions,
+  model,
+}: {
+  dimensions: string;
+  model: string;
+}) {
   return (
     <Banner variant="warning">
       <p>
-        Existing summaries keep their current embeddings and are not
-        re-embedded. Topic maps then start over from new summaries at the next
-        update.
+        This can&apos;t change once summaries are embedded: vectors from another
+        model or size can&apos;t be grouped with the existing ones. Keep{" "}
+        <span className="font-mono">{model}</span> at {dimensions} dimensions;
+        you can still pick it on another connection.
       </p>
     </Banner>
   );

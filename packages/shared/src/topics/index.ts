@@ -77,7 +77,7 @@ export const TOPICS_MODEL_SLOT_DETAILS: Record<
   embedding: {
     label: "Embeddings",
     recommendation:
-      "An embedding model such as text-embedding-3-small or Cohere Embed v4. Changing it later does not re-embed existing summaries.",
+      "An embedding model such as text-embedding-3-small or Cohere Embed v4. It cannot be changed once summaries are embedded.",
   },
   clustering: {
     label: "Topic clustering",

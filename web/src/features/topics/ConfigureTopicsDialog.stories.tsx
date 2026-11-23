@@ -71,15 +71,16 @@ export const Configured = meta.story({
   },
 });
 
-export const WarnsBeforeLeavingEmbeddings = meta.story({
-  name: "(Test) Changing an embedding model with embedded summaries warns but saves",
+export const LockedEmbeddingExplainsWhy = meta.story({
+  name: "(Test) Changing an embedded model explains the lock and blocks Save",
   args: {
     draft: filledDraft,
     notice: "none",
   },
-  play: async ({ args }) => {
+  play: async () => {
     const body = within(document.body);
-    const warning = /are not re-embedded/;
+    const warning = /can't change once summaries are embedded/;
+    const save = body.getByRole("button", { name: "Save" });
     await expect(body.queryByText(warning)).not.toBeInTheDocument();
     const dimensions = body.getByRole("spinbutton", {
       name: "Embedding dimensions",
@@ -87,10 +88,11 @@ export const WarnsBeforeLeavingEmbeddings = meta.story({
     await userEvent.clear(dimensions);
     await userEvent.type(dimensions, "512");
     await expect(body.getByText(warning)).toBeVisible();
-    await userEvent.click(body.getByRole("button", { name: "Save" }));
-    await expect(args.onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ embeddingDimensions: "512" }),
-    );
+    await expect(save).toBeDisabled();
+    await userEvent.clear(dimensions);
+    await userEvent.type(dimensions, "1024");
+    await expect(body.queryByText(warning)).not.toBeInTheDocument();
+    await expect(save).toBeEnabled();
   },
 });
 
