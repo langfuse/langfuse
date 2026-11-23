@@ -88,11 +88,20 @@ impl Outcome {
     }
 }
 
-/// Compiled guardrails, keyed by their patterns. Every request of a key resolves
-/// the same guardrails, so each compiles once and the check is a scan. Cleared
-/// when full rather than evicted: sets are few and cheap to rebuild.
-static COMPILED: LazyLock<Mutex<HashMap<Vec<String>, Arc<RegexSet>>>> =
+/// A compiled regex set and, per pattern, the index of the guardrail it belongs to.
+struct Matcher {
+    set: RegexSet,
+    owners: Vec<usize>,
+}
+
+/// Compiled matchers, keyed by the patterns of the guardrails they check. Every
+/// request of a key resolves the same guardrails, so they compile once and the
+/// check is a scan. Cleared when full rather than evicted: entries are few and
+/// cheap to rebuild.
+static COMPILED: LazyLock<Mutex<HashMap<GuardrailPatterns, Arc<[Matcher]>>>> =
     LazyLock::new(Mutex::default);
+/// Per guardrail, its patterns.
+type GuardrailPatterns = Vec<Vec<String>>;
 const MAX_COMPILED: usize = 1024;
 
 /// Checks `body`'s last turn against `guardrails`. Guardrails fail open: one whose
@@ -115,10 +124,7 @@ pub(crate) fn check(
     if active.is_empty() || crate::capture::guardrail_members(api_format).is_empty() {
         return Outcome::default();
     }
-    let sets: Vec<Option<Arc<RegexSet>>> = active
-        .iter()
-        .map(|guardrail| compiled(&guardrail.patterns))
-        .collect();
+    let matchers = compiled(&active);
     let mut matched = vec![false; active.len()];
     let member = |name: &str| {
         let (_, range) = scanned.members.iter().find(|(member, _)| *member == name)?;
@@ -126,10 +132,16 @@ pub(crate) fn check(
     };
     let unreadable = scanned.duplicated
         || crate::capture::guardrail_last_turn(api_format, member, &mut |text| {
-            for (matched, set) in matched.iter_mut().zip(&sets) {
-                *matched |= set
-                    .as_ref()
-                    .is_some_and(|set| set.is_match(text.as_bytes()));
+            for matcher in matchers.iter() {
+                for pattern in matcher.set.matches(text.as_bytes()) {
+                    if let Some(owner) = matcher
+                        .owners
+                        .get(pattern)
+                        .and_then(|owner| matched.get_mut(*owner))
+                    {
+                        *owner = true;
+                    }
+                }
             }
         })
         .is_err();
@@ -146,24 +158,53 @@ pub(crate) fn check(
     Outcome { findings }
 }
 
+/// One set over all guardrails' patterns, so each text is scanned once however
+/// many guardrails apply. If it does not compile, one set per guardrail, so a bad
+/// pattern only disables its own guardrail.
+fn compiled(active: &[&Guardrail]) -> Arc<[Matcher]> {
+    let key: GuardrailPatterns = active
+        .iter()
+        .map(|guardrail| guardrail.patterns.clone())
+        .collect();
+    let mut cache = COMPILED.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(matchers) = cache.get(&key) {
+        return Arc::clone(matchers);
+    }
+    let owned_patterns = |owners: &[usize]| -> Vec<(usize, &String)> {
+        owners
+            .iter()
+            .filter_map(|owner| key.get(*owner).map(|patterns| (*owner, patterns)))
+            .flat_map(|(owner, patterns)| patterns.iter().map(move |pattern| (owner, pattern)))
+            .collect()
+    };
+    let all: Vec<usize> = (0..key.len()).collect();
+    let matchers = match matcher(&owned_patterns(&all)) {
+        Some(combined) => vec![combined],
+        None => all
+            .iter()
+            .filter_map(|owner| matcher(&owned_patterns(std::slice::from_ref(owner))))
+            .collect(),
+    };
+    if cache.len() >= MAX_COMPILED {
+        cache.clear();
+    }
+    let matchers: Arc<[Matcher]> = matchers.into();
+    cache.insert(key, Arc::clone(&matchers));
+    matchers
+}
+
 /// The patterns compiled in ASCII mode, so `\b` and `\d` stay on the fast DFA path
 /// even when the text holds non-ASCII; `None` when a pattern does not compile.
-fn compiled(patterns: &[String]) -> Option<Arc<RegexSet>> {
-    let mut cache = COMPILED.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some(set) = cache.get(patterns) {
-        return Some(Arc::clone(set));
-    }
-    let set = RegexSetBuilder::new(patterns)
+fn matcher(patterns: &[(usize, &String)]) -> Option<Matcher> {
+    let set = RegexSetBuilder::new(patterns.iter().map(|(_, pattern)| pattern.as_str()))
         .unicode(false)
         .build()
         .inspect_err(|error| tracing::warn!(%error, "guardrail patterns failed to compile"))
         .ok()?;
-    if cache.len() >= MAX_COMPILED {
-        cache.clear();
-    }
-    let set = Arc::new(set);
-    cache.insert(patterns.to_vec(), Arc::clone(&set));
-    Some(set)
+    Some(Matcher {
+        set,
+        owners: patterns.iter().map(|(owner, _)| *owner).collect(),
+    })
 }
 
 #[cfg(test)]
@@ -219,6 +260,26 @@ mod tests {
                 action: GuardrailAction::Log,
             }]
         );
+    }
+
+    #[test]
+    fn one_combined_scan_reports_each_matching_guardrail() {
+        let body = r#"{"messages":[{"role":"user","content":"ssn 123-45-6789"}]}"#;
+        let outcome = check(
+            &[
+                guardrail("email", GuardrailAction::Log, &[EMAIL]),
+                guardrail("ssn", GuardrailAction::Block, &[EMAIL, SSN]),
+            ],
+            ApiFormat::OpenAiChatCompletions,
+            body.as_bytes(),
+            &scanned(body, &["messages"]),
+        );
+        let ids: Vec<String> = outcome
+            .into_findings()
+            .into_iter()
+            .map(|finding| finding.id)
+            .collect();
+        assert_eq!(ids, ["ssn"]);
     }
 
     #[test]
