@@ -10,7 +10,8 @@ const meta = preview.meta({
     samplingPercent: 100,
     dailyTraces: 954,
     backfillTraces: 500,
-    modelSettingsHref: "/project/demo/settings/models",
+    canAddModelPrice: true,
+    onAddModelPrice: fn(),
     starting: false,
     disabled: false,
     error: null,
@@ -56,6 +57,11 @@ export const UnpricedModel = meta.story({
       null,
     ),
   },
+});
+
+// Without permission to edit model definitions the button stays, disabled.
+export const UnpricedModelWithoutPermission = meta.story({
+  args: { ...UnpricedModel.input.args, canAddModelPrice: false },
 });
 
 export const Failed = meta.story({

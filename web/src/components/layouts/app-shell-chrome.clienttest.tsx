@@ -11,7 +11,7 @@ import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell
 import { MobilePageTitle } from "@/src/components/layouts/MobilePageTitle";
 import PageHeader from "@/src/components/layouts/page-header";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
-import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
+import { ClassicNavigationProvider } from "@/src/components/nav/ClassicNavigationProvider";
 import { SidebarProvider } from "@/src/components/ui/sidebar";
 
 vi.mock("next/router", () => ({
@@ -98,12 +98,12 @@ const sidebarArgs = {
 };
 
 const Shell = () => (
-  <SidebarPresenceProvider>
-    <SidebarProvider>
+  <SidebarProvider>
+    <ClassicNavigationProvider>
       <AppSidebar {...sidebarArgs} />
       <PageHeader title="Tracing" />
-    </SidebarProvider>
-  </SidebarPresenceProvider>
+    </ClassicNavigationProvider>
+  </SidebarProvider>
 );
 
 describe("app shell chrome row", () => {
@@ -137,11 +137,11 @@ describe("app shell chrome row", () => {
 
   it("keeps the page-header chrome divider full-width on container pages", () => {
     render(
-      <SidebarPresenceProvider>
-        <SidebarProvider>
+      <SidebarProvider>
+        <ClassicNavigationProvider>
           <PageHeader title="Settings" container />
-        </SidebarProvider>
-      </SidebarPresenceProvider>,
+        </ClassicNavigationProvider>
+      </SidebarProvider>,
     );
 
     const row = screen.getByTestId(APP_SHELL_CHROME_ROW_TEST_ID);

@@ -85,6 +85,38 @@ const createMockTrace = (overrides: Record<string, unknown> = {}) => ({
 
 describe("buildTraceUiData", () => {
   describe("session scope", () => {
+    it("builds a session without an anchor trace", () => {
+      const early = createMockTrace({ id: "early" });
+      const late = createMockTrace({
+        id: "late",
+        timestamp: new Date("2024-01-01T00:00:10.000Z"),
+      });
+      const result = buildTraceUiData(
+        null,
+        [
+          createMockObservation({ id: "early-root", traceId: "early" }),
+          createMockObservation({
+            id: "late-root",
+            traceId: "late",
+            startTime: late.timestamp,
+          }),
+        ],
+        [late, early],
+      );
+      expect(result.roots.map((root) => root.id)).toEqual([
+        "trace-early",
+        "trace-late",
+      ]);
+      expect(result.nodeMap.get("late-root")?.startTimeSinceTrace).toBe(10_000);
+    });
+
+    it("handles an empty session without inventing a trace", () => {
+      const result = buildTraceUiData(null, [], []);
+      expect(result.roots).toEqual([]);
+      expect(result.searchItems).toEqual([]);
+      expect(result.nodeMap.size).toBe(0);
+    });
+
     it("orders traces chronologically using one time origin without changing the input", () => {
       const early = createMockTrace({
         id: "early",

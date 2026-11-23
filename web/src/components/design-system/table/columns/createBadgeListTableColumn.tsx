@@ -3,8 +3,7 @@ import { type IconComponent } from "@langfuse/icons";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
-// eslint-disable-next-line boundaries/dependencies
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 // eslint-disable-next-line boundaries/dependencies
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -123,11 +122,14 @@ export function createBadgeListTableColumn<
       );
 
       return (
-        <SingleLineOverflowList
-          items={badges}
+        <OverflowList
           additionalOverflowCount={0}
+          spacing="compact"
+          items={badges}
           getKey={(badge) => badge.key}
-          renderItem={renderBadge}
+          renderItem={(badge, { getItemProps }) => (
+            <span {...getItemProps()}>{renderBadge(badge)}</span>
+          )}
           renderOverflow={({ hiddenItems, overflowItemCount }) => (
             <CustomTooltip
               content={
