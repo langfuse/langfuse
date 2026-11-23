@@ -552,10 +552,11 @@ function TopicsWorkspaceContent({
     maps.data !== undefined &&
     shownResults.data !== undefined &&
     !ruleSetup.isLoading;
+  const setupStage = (showSetupProgress && setup?.stage) || null;
   const pageState = pageResolved
     ? topicsPageState({
         snapshot: analysisId !== null,
-        setup: showSetupProgress ? (setup?.stage ?? null) : null,
+        setup: setupStage,
         waitingForTraces,
         landing: showLanding,
         building: showBuilding,
