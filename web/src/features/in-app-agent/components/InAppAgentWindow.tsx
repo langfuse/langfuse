@@ -924,7 +924,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {headerLeading}
-          <HaloIcon variant="header" />
           {conversationTitle ? (
             <p
               className="min-w-0 truncate text-base font-bold"
@@ -945,7 +944,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           ) : null}
         </div>
         <div
-          className="flex shrink-0 items-center gap-0.5"
+          className="flex shrink-0 items-center gap-1"
           data-movable-resizable-panel-ignore-drag="true"
         >
           {hasConversation ? (
@@ -1126,7 +1125,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   }}
                 >
                   {isExpanded ? (
-                    <Minimize2 size="lg" color="default" />
+                    <Minimize2 size="base" color="default" />
                   ) : (
                     <Maximize2 size="lg" color="default" />
                   )}
@@ -1155,7 +1154,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   {isHandheld ? (
                     <X size="lg" color="default" />
                   ) : (
-                    <Minus size="lg" color="default" />
+                    <Minus size={isExpanded ? "base" : "lg"} color="default" />
                   )}
                 </Button>
               )}

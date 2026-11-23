@@ -85,9 +85,6 @@ export function InAppAgentHomeComposer() {
       : null;
   const capture = usePostHogClientCapture();
   const [request, setRequest] = useState("");
-  // The group whose option currently fills the composer, until it is edited.
-  const [pickedGroup, setPickedGroup] =
-    useState<InAppAgentQuickActionContext | null>(null);
   const [openGroup, setOpenGroup] =
     useState<InAppAgentQuickActionContext | null>(null);
   // Prompt of the menu option under the pointer or keyboard focus. It shows as
@@ -102,7 +99,6 @@ export function InAppAgentHomeComposer() {
 
     setLayoutMode("full");
     setRequest("");
-    setPickedGroup(null);
     // `submit` reports its own failures in the conversation.
     submit(trimmedRequest, {
       newConversation: true,
@@ -143,7 +139,7 @@ export function InAppAgentHomeComposer() {
           {previewedPrompt && !request ? (
             <p
               aria-hidden
-              className="text-foreground-tertiary pointer-events-none absolute inset-x-0 top-0 line-clamp-3 px-4 pt-4 text-base leading-relaxed"
+              className="text-foreground-tertiary pointer-events-none absolute inset-x-0 top-0 line-clamp-3 px-4 pt-4 text-lg leading-relaxed"
             >
               {previewedPrompt}
             </p>
@@ -158,12 +154,11 @@ export function InAppAgentHomeComposer() {
             value={request}
             onChange={(event) => {
               setRequest(event.target.value);
-              setPickedGroup(null);
             }}
             onKeyDown={handleKeyDown}
             // The card draws the focus state, so the field's own border and ring
             // are off.
-            className="placeholder:text-foreground-tertiary block min-h-24 w-full resize-none border-0 bg-transparent px-4 pt-4 pb-1 text-base leading-relaxed outline-none focus:ring-0"
+            className="placeholder:text-foreground-tertiary block min-h-24 w-full resize-none border-0 bg-transparent px-4 pt-4 pb-1 text-lg leading-relaxed outline-none focus:ring-0"
           />
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 py-2 pr-2 pl-3">
@@ -206,7 +201,6 @@ export function InAppAgentHomeComposer() {
                     entryPoint: "home_composer",
                   });
                   setRequest(option.prompt);
-                  setPickedGroup(context);
                   setPreviewedPrompt(null);
                   // After the closing menu has handed focus back to its
                   // trigger, so the box keeps it.
@@ -220,7 +214,7 @@ export function InAppAgentHomeComposer() {
                 <Button
                   {...getTriggerProps()}
                   type="button"
-                  variant={pickedGroup === context ? "secondary" : "outline"}
+                  variant="secondary"
                   size="sm"
                   className="h-7 gap-1.5 px-2 text-xs"
                 >
