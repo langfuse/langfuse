@@ -44,7 +44,7 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
     );
     let model_range = model_range(&original).unwrap();
     assert_eq!(
-        rewrite_model(original, model_range, "provider-model").unwrap(),
+        rewrite_body(original, model_range, "provider-model", None).unwrap(),
         expected
     );
 }
@@ -53,7 +53,7 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
 fn model_rewrite_fails_closed_for_an_invalid_model_range() {
     let missing = Bytes::from_static(br#"{"input":{"model":"nested-model"}}"#);
     assert!(matches!(
-        rewrite_model(missing, 100..110, "provider-model"),
+        rewrite_body(missing, 100..110, "provider-model", None),
         Err(ProviderError::Configuration)
     ));
 }
@@ -76,6 +76,7 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
                 input: Some(crate::capture::RequestInput::from_body(
                     br#"{"model":"requested"}"#,
                 )),
+                stream_options: StreamOptions::of(br#"{"model":"requested"}"#),
             },
             Route::OpenAiResponses,
             &mut RequestCorrelation::default(),
@@ -187,7 +188,7 @@ fn model_rewrite_accepts_a_shorter_provider_model() {
     let original = Bytes::from_static(br#"{"model":"connection:model","input":"large"}"#);
     let model_range = model_range(&original).unwrap();
     assert_eq!(
-        rewrite_model(original, model_range, "m").unwrap(),
+        rewrite_body(original, model_range, "m", None).unwrap(),
         r#"{"model":"m","input":"large"}"#
     );
 }
@@ -840,6 +841,7 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
                 reservation: None,
                 parse_growth: None,
                 input: Some(crate::capture::RequestInput::from_body(COMPACT)),
+                stream_options: StreamOptions::of(COMPACT),
             },
             Route::OpenAiResponsesCompact,
             &mut RequestCorrelation::default(),
@@ -909,6 +911,7 @@ async fn decisions_records_questions_answers_and_usage() {
                 reservation: None,
                 parse_growth: None,
                 input: Some(crate::capture::RequestInput::from_body(DECISION)),
+                stream_options: StreamOptions::of(DECISION),
             },
             Route::OpenAiDecisions,
             &mut RequestCorrelation::default(),
@@ -1001,6 +1004,7 @@ async fn embeddings_records_input_vector_summary_and_usage() {
                 reservation: None,
                 parse_growth: None,
                 input: Some(crate::capture::RequestInput::from_body(EMBEDDING)),
+                stream_options: StreamOptions::of(EMBEDDING),
             },
             Route::OpenAiEmbeddings,
             &mut RequestCorrelation::default(),
@@ -1233,6 +1237,7 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
                 reservation: None,
                 parse_growth: None,
                 input: Some(crate::capture::RequestInput::from_body(REQUEST)),
+                stream_options: StreamOptions::of(REQUEST),
             },
             Route::AnthropicMessages,
             &mut RequestCorrelation::default(),
@@ -1296,6 +1301,9 @@ async fn count_tokens_relays_the_body() {
                 input: Some(crate::capture::RequestInput::from_body(
                     br#"{"model":"claude-sonnet-4-5","messages":[]}"#,
                 )),
+                stream_options: StreamOptions::of(
+                    br#"{"model":"claude-sonnet-4-5","messages":[]}"#,
+                ),
             },
             Route::AnthropicCountTokens,
             &mut RequestCorrelation::default(),
@@ -1402,6 +1410,7 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
                     reservation: None,
                     parse_growth: None,
                     input: Some(crate::capture::RequestInput::from_body(request.as_bytes())),
+                    stream_options: StreamOptions::of(request.as_bytes()),
                 },
                 Route::OpenAiChatCompletions,
                 &mut RequestCorrelation::default(),
@@ -1452,12 +1461,13 @@ async fn chat_completions_rewrite_non_streamed_models() {
             RequestBody {
                 bytes: Bytes::from_static(JSON_REQUEST.as_bytes()),
                 model_range: model_range(JSON_REQUEST.as_bytes()).unwrap(),
-                streaming: true,
+                streaming: false,
                 reservation: None,
                 parse_growth: None,
                 input: Some(crate::capture::RequestInput::from_body(
                     JSON_REQUEST.as_bytes(),
                 )),
+                stream_options: StreamOptions::of(JSON_REQUEST.as_bytes()),
             },
             Route::OpenAiChatCompletions,
             &mut RequestCorrelation::default(),

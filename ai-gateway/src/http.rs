@@ -25,7 +25,7 @@ use crate::{
         resolution_origin,
     },
     observability::{ErrorOrigin, Wait},
-    providers::{ProviderError, RequestBody, Route},
+    providers::{ProviderError, RequestBody, Route, StreamOptions},
     resolution::{ApiFormat, ResolutionError, SpendLimitExceeded},
     server::GatewayLifecycleState,
 };
@@ -272,6 +272,7 @@ async fn relay(
             RequestBody {
                 bytes: request_body.bytes,
                 model_range: request_body.model_range,
+                stream_options: request_body.stream_options,
                 streaming: request_body.streaming,
                 reservation: Some(Box::new(reservation)),
                 parse_growth,
@@ -289,6 +290,7 @@ pub(crate) struct ParsedRequest {
     bytes: Bytes,
     pub(crate) model: String,
     model_range: Range<usize>,
+    stream_options: StreamOptions,
     streaming: bool,
     /// The top-level members for capture; `None` on routes that record no generation.
     pub(crate) input: Option<RequestInput>,
@@ -306,6 +308,9 @@ struct Members<'a> {
     model: Option<&'a RawValue>,
     /// Kept raw so a non-boolean value is left for the provider to reject.
     stream: Option<&'a RawValue>,
+    stream_options: Option<&'a RawValue>,
+    /// More than one `stream_options`: the body is forwarded without opting into usage.
+    stream_options_duplicated: bool,
     /// Every member, for capture; later members replace earlier ones of the same
     /// name, as in the recorded input. `None` when capture does not apply.
     all: Option<BTreeMap<String, &'a RawValue>>,
@@ -339,6 +344,8 @@ impl<'de> serde::de::Visitor<'de> for MembersSeed {
         let mut members = Members {
             model: None,
             stream: None,
+            stream_options: None,
+            stream_options_duplicated: false,
             all: self.collect.then(BTreeMap::new),
         };
         while let Some(key) = map.next_key::<std::borrow::Cow<'de, str>>()? {
@@ -352,6 +359,10 @@ impl<'de> serde::de::Visitor<'de> for MembersSeed {
                 && slot.replace(value).is_some()
             {
                 return Err(serde::de::Error::custom("duplicate member"));
+            }
+            if key == "stream_options" {
+                members.stream_options_duplicated |=
+                    members.stream_options.replace(value).is_some();
             }
             if let Some(all) = &mut members.all {
                 all.insert(key.into_owned(), value);
@@ -370,31 +381,44 @@ fn parse_request_body(bytes: Bytes, capture: bool) -> Result<ParsedRequest, Infe
         serde::de::DeserializeSeed::deserialize(MembersSeed { collect }, &mut deserializer)
             .and_then(|members| deserializer.end().map(|()| members))
             .map_err(|_| InferenceHttpError::InvalidBody)?;
-    let raw_model = members.model.ok_or(InferenceHttpError::InvalidBody)?.get();
-    let model =
-        serde_json::from_str::<String>(raw_model).map_err(|_| InferenceHttpError::InvalidBody)?;
+    let raw_model = members.model.ok_or(InferenceHttpError::InvalidBody)?;
+    let model = serde_json::from_str::<String>(raw_model.get())
+        .map_err(|_| InferenceHttpError::InvalidBody)?;
     if model.is_empty() {
         return Err(InferenceHttpError::InvalidBody);
     }
-    let start = raw_model
-        .as_ptr()
-        .addr()
-        .checked_sub(bytes.as_ptr().addr())
-        .ok_or(InferenceHttpError::InvalidBody)?;
-    let end = start
-        .checked_add(raw_model.len())
-        .filter(|end| *end <= bytes.len())
-        .ok_or(InferenceHttpError::InvalidBody)?;
+    let model_range = value_range(&bytes, raw_model).ok_or(InferenceHttpError::InvalidBody)?;
+    let stream_options = match members.stream_options {
+        _ if members.stream_options_duplicated => StreamOptions::Duplicated,
+        None => StreamOptions::Absent,
+        Some(raw) => {
+            StreamOptions::At(value_range(&bytes, raw).ok_or(InferenceHttpError::InvalidBody)?)
+        }
+    };
     let streaming = members.stream.is_some_and(|stream| stream.get() == "true");
     let input =
         capture.then(|| RequestInput::from_members(members.all.into_iter().flatten(), bytes.len()));
     Ok(ParsedRequest {
         bytes,
         model,
-        model_range: start..end,
+        model_range,
+        stream_options,
         streaming,
         input,
     })
+}
+
+/// The byte range of a value borrowed from `body`.
+fn value_range(body: &[u8], value: &RawValue) -> Option<Range<usize>> {
+    let start = value
+        .get()
+        .as_ptr()
+        .addr()
+        .checked_sub(body.as_ptr().addr())?;
+    let end = start
+        .checked_add(value.get().len())
+        .filter(|end| *end <= body.len())?;
+    Some(start..end)
 }
 
 /// Buffer the client body, reserving its allocation from the memory budget as bytes

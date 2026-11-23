@@ -1,4 +1,5 @@
 mod chat_completions;
+pub(crate) use chat_completions::StreamOptions;
 pub(crate) mod model_list;
 mod outbound;
 pub(crate) mod usage;
@@ -98,6 +99,8 @@ impl RequestPermit {
 pub(crate) struct RequestBody {
     pub bytes: Bytes,
     pub model_range: Range<usize>,
+    /// Where `stream_options` sits, for opting a streamed Chat Completions call into usage.
+    pub stream_options: StreamOptions,
     /// The caller asked for a streamed response (`"stream": true`).
     pub streaming: bool,
     /// Capacity held for the body, released with the execution once the response ends.
@@ -117,7 +120,6 @@ pub struct ProviderTransport {
     telemetry: Option<crate::telemetry::Telemetry>,
     origin_override: Option<String>,
     policy: Arc<OutboundPolicy>,
-    cpu: crate::cpu::CpuWork,
 }
 
 impl ProviderTransport {
@@ -146,19 +148,11 @@ impl ProviderTransport {
             telemetry: None,
             origin_override: None,
             policy,
-            cpu: crate::cpu::CpuWork::new(),
         })
     }
 
     pub(crate) fn with_telemetry(mut self, telemetry: crate::telemetry::Telemetry) -> Self {
         self.telemetry = Some(telemetry);
-        self
-    }
-
-    /// Shares the request path's CPU permits, so body rewrites and parses draw
-    /// from one cap.
-    pub(crate) fn with_cpu(mut self, cpu: crate::cpu::CpuWork) -> Self {
-        self.cpu = cpu;
         self
     }
 
@@ -189,12 +183,14 @@ impl ProviderTransport {
     ) -> Result<Response<Body>, ProviderError> {
         let model_range = model_range(&body)?;
         let input = Some(crate::capture::RequestInput::from_body(&body));
+        let stream_options = StreamOptions::of(&body);
         self.forward_route(
             permit,
             context,
             headers,
             RequestBody {
                 bytes: body,
+                stream_options,
                 model_range,
                 streaming: true,
                 reservation: None,
@@ -205,33 +201,6 @@ impl ProviderTransport {
             &mut RequestCorrelation::from_headers(headers),
         )
         .await
-    }
-
-    /// The body sent upstream: the caller's body with the provider model, and for a
-    /// streamed Chat Completions call also opted into usage. Only a streamed call can
-    /// opt in, so a non-streamed one skips that parse.
-    async fn upstream_body(
-        &self,
-        route: Route,
-        body: Bytes,
-        model_range: Range<usize>,
-        streaming: bool,
-        provider_model: &str,
-    ) -> Result<Bytes, ProviderError> {
-        if matches!(route, Route::OpenAiChatCompletions) && streaming {
-            let (original, model) = (body.clone(), provider_model.to_owned());
-            let rewritten = self
-                .cpu
-                .run(body.len(), move || {
-                    chat_completions::request_stream_usage(&original, &model)
-                })
-                .await
-                .flatten();
-            if let Some(rewritten) = rewritten {
-                return Ok(rewritten);
-            }
-        }
-        rewrite_model(body, model_range, provider_model)
     }
 
     pub(crate) async fn forward_route(
@@ -246,6 +215,7 @@ impl ProviderTransport {
         let RequestBody {
             bytes: body,
             model_range,
+            stream_options,
             streaming,
             reservation,
             parse_growth,
@@ -268,9 +238,14 @@ impl ProviderTransport {
             ExecutionCapture::unobserved()
         };
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
-        let body = self
-            .upstream_body(route, body, model_range, streaming, provider_model)
-            .await?;
+        let body = upstream_body(
+            route,
+            body,
+            model_range,
+            streaming,
+            &stream_options,
+            provider_model,
+        )?;
         capture.charge_on_finish(permit.spend_limits.take(), parse_growth);
         capture.set_provider_model(provider_model);
         correlation.record_upstream(UpstreamTarget::for_connection(
@@ -439,24 +414,50 @@ fn record_provider_status(observation: &RequestObservation, status: StatusCode) 
     }
 }
 
+/// The body sent upstream: the caller's body with the provider model and, for a
+/// streamed Chat Completions call, opted into usage. Only a streamed call can opt in.
+fn upstream_body(
+    route: Route,
+    body: Bytes,
+    model_range: Range<usize>,
+    streaming: bool,
+    stream_options: &StreamOptions,
+    provider_model: &str,
+) -> Result<Bytes, ProviderError> {
+    let usage = (matches!(route, Route::OpenAiChatCompletions) && streaming)
+        .then(|| chat_completions::stream_usage_edit(&body, stream_options))
+        .flatten();
+    rewrite_body(body, model_range, provider_model, usage)
+}
+
+/// Replaces the model bytes and applies `extra`, a byte range and its replacement;
+/// every other byte is copied unchanged.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "ownership releases the caller body when rewriting returns, before the upstream wait"
 )]
-fn rewrite_model(
+fn rewrite_body(
     body: Bytes,
     model_range: Range<usize>,
     provider_model: &str,
+    extra: Option<(Range<usize>, Vec<u8>)>,
 ) -> Result<Bytes, ProviderError> {
-    if model_range.start > model_range.end || model_range.end > body.len() {
-        return Err(ProviderError::Configuration);
-    }
     let model = serde_json::to_vec(provider_model).map_err(|_| ProviderError::Configuration)?;
-    let capacity = body.len() - model_range.len() + model.len();
-    let mut rewritten = Vec::with_capacity(capacity);
-    rewritten.extend_from_slice(&body[..model_range.start]);
-    rewritten.extend_from_slice(&model);
-    rewritten.extend_from_slice(&body[model_range.end..]);
+    let mut edits = vec![(model_range, model)];
+    edits.extend(extra);
+    edits.sort_by_key(|(range, _)| range.start);
+    let added = edits.iter().map(|(_, bytes)| bytes.len()).sum::<usize>();
+    let mut rewritten = Vec::with_capacity(body.len() + added);
+    let mut copied = 0;
+    for (range, replacement) in edits {
+        if range.start < copied || range.start > range.end || range.end > body.len() {
+            return Err(ProviderError::Configuration);
+        }
+        rewritten.extend_from_slice(&body[copied..range.start]);
+        rewritten.extend_from_slice(&replacement);
+        copied = range.end;
+    }
+    rewritten.extend_from_slice(&body[copied..]);
     Ok(Bytes::from(rewritten))
 }
 
