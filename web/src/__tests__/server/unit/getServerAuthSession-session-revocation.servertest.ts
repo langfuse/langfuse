@@ -31,6 +31,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   instrumentAsync: mockInstrumentAsync,
 }));
 
+vi.mock("@/src/features/auth/policy/contextResolver", () => ({
+  getPoliciesForUser: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
   findMultiTenantSsoConfig: vi.fn(),
   getSsoAuthProviderIdForDomain: vi.fn(),

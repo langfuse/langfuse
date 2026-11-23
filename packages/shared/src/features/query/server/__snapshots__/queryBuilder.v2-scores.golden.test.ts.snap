@@ -1868,7 +1868,7 @@ exports[`golden: executeQuery v2 scores > filters > build filter=number value>= 
     "sql": "SELECT count((1)) AS count_count
 FROM scores AS scores_numeric
 FINAL
-WHERE (scores_numeric.value >= {param1:Decimal64(12)})
+WHERE (scores_numeric.value >= {param1:Decimal128(12)})
     AND (scores.project_id = {param2:String})
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
@@ -2259,7 +2259,7 @@ FROM
     FROM scores AS scores_numeric
     FINAL
     INNER JOIN events_core AS events_observations ON (scores.project_id = events_observations.project_id) AND (scores.trace_id = events_observations.trace_id) AND (scores.observation_id = events_observations.span_id)
-    WHERE (events_observations.prompt_version >= {param1:Decimal64(12)})
+    WHERE (events_observations.prompt_version >= {param1:Decimal128(12)})
         AND (scores.project_id = {param2:String})
         AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
         AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})

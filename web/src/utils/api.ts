@@ -30,6 +30,10 @@ import { versionUpdateStore } from "@/src/features/version-update/versionUpdateS
 import { type AppRouter } from "@/src/server/api/root";
 import { reportError } from "@/src/utils/reportError";
 import { setUpSuperjson } from "@/src/utils/superjson";
+import {
+  annotateTrpcParseError,
+  trpcCorrelationTags,
+} from "@/src/utils/trpcCorrelation";
 import { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
@@ -151,11 +155,13 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * Zod input validation (`BAD_REQUEST` whose message is a Zod 4 issue list or
  * whose `data.zodError` is populated), plus CONFLICT on
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
- * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}. Empty/too-short fields, stale
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, plus PRECONDITION_FAILED on
+ * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}. Empty/too-short fields, stale
  * in-app-agent approvals, a rejected user-configured remote-experiment URL,
- * and an invite for someone who is already a member or already invited are
- * the product working as designed — the UI already explains them; Sentry
- * must not log them.
+ * an invite for someone who is already a member or already invited, a prompt
+ * export over the 10,000 version limit, and an organization delete while
+ * projects are still being purged are the product working as designed — the
+ * UI already explains them; Sentry must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
  * any non-tRPC error is not expected and keeps flowing to Sentry.
@@ -183,6 +189,17 @@ export const EXPECTED_TRPC_ERROR_CODES = [
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
   "members.create",
+] as const;
+
+/**
+ * PRECONDITION_FAILED is usually an unexpected guard. These procedures throw
+ * it only as user-facing product state the UI already explains.
+ *
+ * `organizations.delete` throws it while soft-deleted projects are still
+ * being purged. The delete dialog renders that inline.
+ */
+const EXPECTED_TRPC_PRECONDITION_FAILED_PATHS = [
+  "organizations.delete",
 ] as const;
 
 const getTrpcErrorData = (
@@ -214,7 +231,8 @@ export const getTrpcErrorPath = (error: unknown): string | undefined => {
  * True when `error` is a TRPCClientError whose code is an EXPECTED, user-facing
  * state that should not be captured to Sentry.
  * See {@link EXPECTED_TRPC_ERROR_CODES}, {@link EXPECTED_TRPC_CONFLICT_PATHS},
- * and {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}.
+ * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}, and
+ * {@link EXPECTED_TRPC_PRECONDITION_FAILED_PATHS}.
  */
 export const isExpectedTrpcClientError = (error: unknown): boolean => {
   const code = getTrpcErrorCode(error);
@@ -239,6 +257,15 @@ export const isExpectedTrpcClientError = (error: unknown): boolean => {
   ) {
     return true;
   }
+  if (
+    code === "PRECONDITION_FAILED" &&
+    path !== undefined &&
+    (EXPECTED_TRPC_PRECONDITION_FAILED_PATHS as readonly string[]).includes(
+      path,
+    )
+  ) {
+    return true;
+  }
   return isTrpcZodValidationError(error);
 };
 
@@ -258,6 +285,8 @@ const REQUEST_TOO_LARGE_STATUSES = [414, 431];
  *  - when a JSON body still fails to parse, replaces the engine error with
  *    {@link TrpcNonJsonResponseError} so status and classification do not
  *    depend on which browser threw.
+ * Both `httpLink` and `httpBatchLink` drop `meta.response` when `res.json()`
+ * throws, so the safe correlation headers are copied onto that error.
  * Exported for tests.
  */
 export const fetchWithParseErrorStatus: typeof fetch = async (input, init) => {
@@ -265,13 +294,19 @@ export const fetchWithParseErrorStatus: typeof fetch = async (input, init) => {
   const originalJson = response.json.bind(response);
   response.json = async () => {
     if (!shouldParseResponseAsJson(response.headers.get("content-type"))) {
-      throw new TrpcNonJsonResponseError(response.status);
+      throw annotateTrpcParseError(
+        new TrpcNonJsonResponseError(response.status),
+        response,
+      );
     }
     try {
       return await originalJson();
     } catch (error) {
       if (isResponseJsonParseFailure(error)) {
-        throw new TrpcNonJsonResponseError(response.status, error);
+        throw annotateTrpcParseError(
+          new TrpcNonJsonResponseError(response.status, error),
+          response,
+        );
       }
       throw error;
     }
@@ -476,6 +511,7 @@ const handleTrpcError = (
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
+    const correlationTags = trpcCorrelationTags(error);
 
     // Version mismatch UX is owned by VersionUpdateBanner (fed by
     // buildIdLink / versionUpdateStore). 400/404 here are real API errors.
@@ -495,6 +531,7 @@ const handleTrpcError = (
           code: getTrpcErrorCode(error),
           path: getTrpcErrorPath(error),
           httpStatus,
+          ...correlationTags,
         },
       });
     } else if (isTrpcResponseParseError(error)) {
@@ -510,6 +547,7 @@ const handleTrpcError = (
           message: error.message,
           status: getResponseStatus(error),
           path: getTrpcErrorPath(error),
+          ...correlationTags,
         },
       });
     } else {
@@ -531,6 +569,7 @@ const handleTrpcError = (
           ...(nonJsonStatus !== undefined
             ? { "http.status": String(nonJsonStatus) }
             : {}),
+          ...correlationTags,
         },
       });
     }

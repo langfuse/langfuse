@@ -3,7 +3,7 @@ import {
   TooManyRequestsError,
 } from "@langfuse/shared";
 
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 /**

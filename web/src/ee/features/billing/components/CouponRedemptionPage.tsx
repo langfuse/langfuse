@@ -4,9 +4,8 @@
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -57,35 +56,26 @@ function CouponRedemptionContent() {
 
   if (!organization) {
     return (
-      <Alert>
-        <Alert.Title>Organization not found</Alert.Title>
-        <Alert.Description>
-          You are not a member of this organization.
-        </Alert.Description>
-      </Alert>
+      <Banner title="Organization not found">
+        You are not a member of this organization.
+      </Banner>
     );
   }
 
   if (!isCloudBillingAvailable) {
     return (
-      <Alert>
-        <Alert.Title>Not available</Alert.Title>
-        <Alert.Description>
-          Coupons can only be redeemed on Langfuse Cloud.
-        </Alert.Description>
-      </Alert>
+      <Banner title="Not available">
+        Coupons can only be redeemed on Langfuse Cloud.
+      </Banner>
     );
   }
 
   if (!hasAccess) {
     return (
-      <Alert>
-        <Alert.Title>Access denied</Alert.Title>
-        <Alert.Description>
-          Only organization owners can redeem coupons. Ask an owner of this
-          organization to open this page.
-        </Alert.Description>
-      </Alert>
+      <Banner title="Access denied">
+        Only organization owners can redeem coupons. Ask an owner of this
+        organization to open this page.
+      </Banner>
     );
   }
 
@@ -102,43 +92,36 @@ function CouponRedemptionContent() {
 
   if (isStripeBilled) {
     return (
-      <Alert variant="info">
-        <Alert.Title>Apply your coupon at checkout</Alert.Title>
-        <Alert.Description>
-          <span className="flex flex-col items-start gap-2">
-            This organization is billed through Stripe. Enter the code when you
-            check out, or add it in the billing portal if you already have a
-            subscription. Both are in the billing settings.
-            <TextLink path={billingPath} value="Open billing settings" />
-          </span>
-        </Alert.Description>
-      </Alert>
+      <Banner
+        variant="info"
+        title="Apply your coupon at checkout"
+        actions={[{ text: "Open billing settings", href: billingPath }]}
+      >
+        This organization is billed through Stripe. Enter the code when you
+        check out, or add it in the billing portal if you already have a
+        subscription. Both are in the billing settings.
+      </Banner>
     );
   }
 
   if (!clickhouse?.organizationId || !clickhouse.attachedPlanId) {
     return (
-      <Alert variant="info">
-        <Alert.Title>Upgrade to a paid plan first</Alert.Title>
-        <Alert.Description>
-          <span className="flex flex-col items-start gap-2">
-            Credits are applied to a paid subscription. Choose a plan in the
-            billing settings, then come back to this page to redeem your coupon.
-            <TextLink path={billingPath} value="Open billing settings" />
-          </span>
-        </Alert.Description>
-      </Alert>
+      <Banner
+        variant="info"
+        title="Upgrade to a paid plan first"
+        actions={[{ text: "Open billing settings", href: billingPath }]}
+      >
+        Credits are applied to a paid subscription. Choose a plan in the billing
+        settings, then come back to this page to redeem your coupon.
+      </Banner>
     );
   }
 
   if (!submitterEmail) {
     return (
-      <Alert>
-        <Alert.Title>Email address required</Alert.Title>
-        <Alert.Description>
-          Your account needs an email address to redeem a coupon.
-        </Alert.Description>
-      </Alert>
+      <Banner title="Email address required">
+        Your account needs an email address to redeem a coupon.
+      </Banner>
     );
   }
 

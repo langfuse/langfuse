@@ -140,8 +140,7 @@ export function SelectDropdown<V extends string>({
     const item = (
       <InputDropdown.Option highlight="focus">
         <SelectPrimitive.Item value={node.value} disabled={node.disabled}>
-          <InputDropdown.OptionContent
-            type="radio"
+          <InputDropdown.SingleSelectOptionContent
             checked={value === node.value}
             label={
               <SelectPrimitive.ItemText>

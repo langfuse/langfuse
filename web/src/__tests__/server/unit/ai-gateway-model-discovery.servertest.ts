@@ -643,6 +643,43 @@ describe("AI Gateway model discovery", () => {
     );
   });
 
+  it("lists Vertex AI models from the .rep. hosts for us and eu multi-regions", async () => {
+    for (const [location, expectedUrl] of [
+      [
+        "us",
+        "https://aiplatform.us.rep.googleapis.com/v1beta1/publishers/google/models",
+      ],
+      [
+        "eu",
+        "https://aiplatform.eu.rep.googleapis.com/v1beta1/publishers/google/models",
+      ],
+      [
+        "global",
+        "https://aiplatform.googleapis.com/v1beta1/publishers/google/models",
+      ],
+    ] as const) {
+      const requestedUrls: string[] = [];
+      const result = await vertexModelDiscoveryAdapter.fetchCatalog({
+        credential: JSON.stringify(vertexServiceAccountKey),
+        config: { location },
+        baseURL: null,
+        extraHeaders: {},
+        fetcher: async (input) => {
+          const url = new URL(String(input));
+          requestedUrls.push(url.origin + url.pathname);
+          return Response.json({
+            publisherModels: [
+              { name: "publishers/google/models/gemini-2.5-flash" },
+            ],
+          });
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(requestedUrls).toEqual([expectedUrl]);
+    }
+  });
+
   it("lists Google AI Studio's Gemini chat and embedding models under the ids requests use", async () => {
     const fetcher = vi.fn<typeof fetch>(
       respondWith({

@@ -358,6 +358,42 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
       )
       .min(1),
   }),
+  /** Spend budget warning (85%/95%) or organization-scope alert email; separate type so an older worker never renders a warning as an exceeded rejection. */
+  z.object({
+    type: z.literal("AI_GATEWAY_SPEND_LIMIT_ALERT"),
+    orgId: z.string(),
+    orgName: z.string(),
+    to: z.string(),
+    receiverName: z.string().optional(),
+    audience: z.enum(["keyOwner", "orgOwner"]),
+    scope: z.discriminatedUnion("type", [
+      z.object({
+        type: z.literal("API_KEY"),
+        apiKeyId: z.string(),
+        name: z.string(),
+        displaySecretKey: z.string(),
+      }),
+      z.object({
+        type: z.literal("USER"),
+        userId: z.string(),
+        name: z.string(),
+        email: z.string(),
+      }),
+      z.object({
+        type: z.literal("ORGANIZATION"),
+      }),
+    ]),
+    limits: z
+      .array(
+        z.object({
+          interval: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TOTAL"]),
+          limitUsd: z.number(),
+          thresholdPercent: z.number().int().min(1).max(100),
+          resetsAt: z.string().optional(),
+        }),
+      )
+      .min(1),
+  }),
   // Future notification types can be added here
 ]);
 
@@ -562,7 +598,7 @@ export enum QueueJobs {
   EventsDispatchJob = "events-dispatch-job",
 }
 
-export const TraceBatchTraceSchema = z.object({
+export const EventsDispatchTraceSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
   minStart: z.number(),
@@ -575,7 +611,7 @@ export const TraceBatchTraceSchema = z.object({
   serializedEventBytes: z.number().nonnegative().optional(),
 });
 
-/** One trace's Topics summaries, from the transcript trace-batch stored for this revision. */
+/** One trace's Topics summaries, from the transcript stored for this revision. */
 export const TopicsTraceEventSchema = z.object({
   projectId: z.string().min(1),
   traceId: z.string().min(1),
@@ -597,7 +633,7 @@ export const EventsDispatchEventSchema = z.object({
   id: z.string(),
   name: z.literal(QueueJobs.EventsDispatchJob),
   payload: z.object({
-    traces: z.array(TraceBatchTraceSchema).min(1),
+    traces: z.array(EventsDispatchTraceSchema).min(1),
     // Set by a snapshot, which enqueues its traces directly instead of through the dispatch maps.
     batchActionId: z.string().min(1).optional(),
   }),

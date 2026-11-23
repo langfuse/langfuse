@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { GatewayBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetDialog/GatewayBudgetDialog";
+import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { useGatewayOrganizationBudget } from "@/src/features/ai-gateway/hooks/useGatewayOrganizationBudget";
 import { useSetGatewayOrganizationBudget } from "@/src/features/ai-gateway/hooks/useSetGatewayOrganizationBudget";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
@@ -26,6 +27,7 @@ export function GatewayOrganizationBudgetDialogController({
   const organizationBudget = useGatewayOrganizationBudget(organizationId);
   const { setBudget, mutation } =
     useSetGatewayOrganizationBudget(organizationId);
+  const captureBudgetChange = useCaptureGatewayBudgetChange(organizationId);
 
   const save = async (
     spendLimit: GatewaySpendLimit | null,
@@ -33,6 +35,12 @@ export function GatewayOrganizationBudgetDialogController({
   ) => {
     const saved = await setBudget(spendLimit);
     if (!saved) return;
+    captureBudgetChange({
+      surface: "budgets_page",
+      scope: "ORGANIZATION",
+      subjectCount: 1,
+      spendLimit,
+    });
     closeDialog();
     mutation.reset();
   };

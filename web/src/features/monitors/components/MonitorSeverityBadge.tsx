@@ -1,9 +1,21 @@
-/* eslint-disable @repo/no-style-props */
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
 import { type MonitorSeverity } from "@langfuse/shared/monitors";
 
-const badgeBaseClassName =
-  "inline-flex h-5.25 items-center gap-1.5 rounded-sm border pr-1.5 pl-2 text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
+const monitorSeverityBadgeVariants = cva(
+  "inline-flex h-5.25 items-center gap-1.5 rounded-sm border pr-1.5 pl-2 text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      size: {
+        default: "w-20 justify-center py-1",
+        compact: "w-auto shrink-0 px-2 py-0.5 text-[10px]",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+    },
+  },
+);
 
 /** severityVariantClassName maps each MonitorSeverity to its base badge chrome. */
 const severityVariantClassName: Record<MonitorSeverity, string> = {
@@ -39,22 +51,21 @@ const severityLabel: Record<MonitorSeverity, string> = {
   ALERT: "ALERT",
 };
 
+type MonitorSeverityBadgeProps = {
+  severity: MonitorSeverity;
+} & VariantProps<typeof monitorSeverityBadgeVariants>;
+
 /** MonitorSeverityBadge displays the Monitor's severity, including loading states for pending monitors. */
 export function MonitorSeverityBadge({
   severity,
-  className,
-}: {
-  severity: MonitorSeverity;
-  className?: string;
-}) {
+  size,
+}: MonitorSeverityBadgeProps) {
   return (
     <div
       className={cn(
-        badgeBaseClassName,
+        monitorSeverityBadgeVariants({ size }),
         severityVariantClassName[severity],
-        "w-20 justify-center py-1",
         severityClassName[severity],
-        className,
       )}
     >
       {severity === "UNKNOWN" ? (

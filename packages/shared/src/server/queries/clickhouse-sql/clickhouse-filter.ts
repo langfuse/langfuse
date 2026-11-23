@@ -222,7 +222,7 @@ export class NumberFilter implements Filter {
   apply(): ClickhouseFilter {
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `numberFilter${uid}`;
-    const type = this.clickhouseTypeOverwrite ?? "Decimal64(12)";
+    const type = this.clickhouseTypeOverwrite ?? "Decimal128(12)";
     return {
       query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: ${type}}`,
       params: { [varName]: this.value.toString() },
@@ -726,7 +726,7 @@ export class NumberObjectFilter implements Filter {
     const varValueName = `numberObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
     return {
-      query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal64(12)})), ${column})) = 0`,
+      query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal128(12)})), ${column})) = 0`,
       params: { [varKeyName]: this.key, [varValueName]: this.value },
     };
   }

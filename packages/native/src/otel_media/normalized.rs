@@ -449,29 +449,6 @@ mod tests {
     }
 
     #[test]
-    fn late_normalization_extracts_small_media_from_stringified_documents() {
-        let uri = data_uri(b"tiny");
-        let provider_data = BASE64.encode(b"small-provider");
-        let mut value = Value::String(format!(
-            r#"{{"uri":"{uri}","provider":{{"type":"file","mediaType":"image/png","data":"{provider_data}"}}}}"#
-        ).into());
-        let mut registry = Vec::new();
-
-        extract_normalized_media(&mut value, &mut registry)
-            .expect("extract small media from stringified JSON");
-
-        assert_eq!(registry.len(), 2);
-        let compacted = value.as_str().expect("stringified document stays a string");
-        assert_eq!(compacted.matches("@@@langfuseMedia:").count(), 2);
-        assert!(registry
-            .iter()
-            .any(|media| media.decode().unwrap() == b"tiny"));
-        assert!(registry
-            .iter()
-            .any(|media| media.decode().unwrap() == b"small-provider"));
-    }
-
-    #[test]
     fn late_escaped_provider_media_decodes_and_restores_each_retained_layer() {
         let mut original = json!({
             "type": "file", "mediaType": "image/png", "data": r"b'\x80\x00\xFF'"
@@ -514,38 +491,12 @@ mod tests {
     }
 
     #[test]
-    fn leaves_stringified_json_unchanged_when_no_media_is_extracted() {
-        let original = r#"{"number":1.0,"value":"data:image/png;base64,not#base64"}"#;
-        let mut value = Value::String(original.to_owned().into());
-        let mut registry = Vec::new();
-
-        extract_normalized_media(&mut value, &mut registry).expect("scan normalized media");
-
-        assert!(registry.is_empty());
-        assert_eq!(value, Value::String(original.to_owned().into()));
-    }
-
-    #[test]
-    fn continues_direct_scan_when_embedded_json_has_an_undecodable_sibling() {
-        let original = r#"{"value":"\ud800 data:image/png;base64,aGk="}"#;
-        let mut value = Value::String(original.to_owned().into());
-        let mut registry = Vec::new();
-
-        extract_normalized_media(&mut value, &mut registry).expect("scan normalized media");
-
-        assert_eq!(registry.len(), 1);
-        assert!(value
-            .as_str()
-            .unwrap()
-            .contains("@@@langfuseMedia:type=image/png|id="));
-    }
-
-    #[test]
     fn empty_embedded_documents_do_not_allocate_media_ids() {
         for original in [
             r#"{"prompt":"\u3053\u3093\u306b\u3061\u306f"}"#,
             r#"{"value":"data:application/x-not-supported;base64,aGk="}"#,
             r#"{"type":"file","mediaType":"image/png","data":"not base64!"}"#,
+            r#"{"number":1.0,"value":"data:image/png;base64,not#base64"}"#,
         ] {
             let mut registry = Vec::new();
             let mut value = Value::from(original);
@@ -600,58 +551,94 @@ mod tests {
     }
 
     #[test]
-    fn residual_data_uris_restore_verbatim_with_other_media_and_json_layers() {
+    fn stringified_documents_extract_media_and_restore_verbatim() {
+        // Each row is the text of one string value and the bodies it yields, in order.
+        let mut rows: Vec<(String, Vec<&[u8]>)> = Vec::new();
+        // A Data URI with an escaped header parameter beside an undecodable escape, alone or
+        // with a second URI, as a document and under one and two further JSON string layers.
         for header in [r"name=\u00e9", r"name=\\path", r"name=\ud800"] {
-            for sibling in ["", r#", "other":"data:image/png;base64,b2s= ""#] {
-                let mut original = format!(
+            for (sibling, bodies) in [
+                ("", vec![b"hi".as_slice()]),
+                (
+                    r#", "other":"data:image/png;base64,b2s= ""#,
+                    vec![b"hi".as_slice(), b"ok"],
+                ),
+            ] {
+                let mut source = format!(
                     r#"{{"value":"\ud800 data:image/png;{header};base64,aGk= "{sibling}}}"#
                 );
                 for _ in 0..3 {
-                    let mut value = Value::from(original.clone());
-                    let mut registry = Vec::new();
-                    extract_normalized_media(&mut value, &mut registry).unwrap();
-                    assert_eq!(
-                        registry.len(),
-                        if sibling.is_empty() { 1 } else { 2 },
-                        "{original}"
-                    );
-                    let Value::String(text) = &mut value else {
-                        unreachable!()
-                    };
-                    super::super::source_text::rewrite_known_references(
-                        text,
-                        |reference| registry.iter().any(|media| media.reference() == reference),
-                        |_| true,
-                        |reference, depth| {
-                            registry
-                                .iter()
-                                .find(|media| media.reference() == reference)
-                                .unwrap()
-                                .original_value_for_layers(Some(depth))
-                        },
-                    )
-                    .unwrap();
-                    assert_eq!(text.as_str(), original);
-                    assert_eq!(registry[0].decode().unwrap().len(), 2);
-                    original = serde_json::to_string(&original).unwrap();
+                    rows.push((source.clone(), bodies.clone()));
+                    source = serde_json::to_string(&source).unwrap();
                 }
             }
         }
-    }
+        let small_uri = data_uri(b"tiny");
+        let small_provider = BASE64.encode(b"small-provider");
+        rows.extend([
+            // Media below the early size cutoff, as a Data URI and in a provider object.
+            (
+                format!(
+                    r#"{{"uri":"{small_uri}","provider":{{"type":"file","mediaType":"image/png","data":"{small_provider}"}}}}"#
+                ),
+                vec![b"tiny".as_slice(), b"small-provider"],
+            ),
+            // The string holding the URI cannot be decoded as part of the embedded document.
+            (
+                r#"{"value":"\ud800 data:image/png;base64,aGk="}"#.to_owned(),
+                vec![b"hi".as_slice()],
+            ),
+            // The `data:` marker is spelled with a Unicode escape.
+            (
+                r#"{"image":"\u0064ata:image/png;base64,aGk="}"#.to_owned(),
+                vec![b"hi".as_slice()],
+            ),
+            // Text that looks like JSON but is not valid JSON.
+            (
+                r#"{"broken":data:image/png;base64,aGk=}"#.to_owned(),
+                vec![b"hi".as_slice()],
+            ),
+        ]);
 
-    #[test]
-    fn extracts_unicode_escaped_data_uri_markers_in_embedded_json() {
-        let original = r#"{"image":"\u0064ata:image/png;base64,aGk="}"#;
-        let mut value = Value::String(original.to_owned().into());
-        let mut registry = Vec::new();
-
-        extract_normalized_media(&mut value, &mut registry).expect("scan normalized media");
-
-        assert_eq!(registry.len(), 1);
-        assert!(value
-            .as_str()
-            .unwrap()
-            .contains("@@@langfuseMedia:type=image/png|id="));
+        for (source, bodies) in rows {
+            let mut value = Value::from(source.clone());
+            let mut registry = Vec::new();
+            extract_normalized_media(&mut value, &mut registry).unwrap();
+            let decoded = registry
+                .iter()
+                .map(|media| media.decode().unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(decoded, bodies, "{source}");
+            let Value::String(text) = &mut value else {
+                unreachable!()
+            };
+            assert_eq!(
+                text.as_str()
+                    .matches(super::super::rules::MEDIA_REFERENCE_PREFIX)
+                    .count(),
+                bodies.len(),
+                "{source}"
+            );
+            for media in &registry {
+                let reference = media.reference();
+                assert!(reference.starts_with("@@@langfuseMedia:type=image/png|id="));
+                assert!(text.as_str().contains(&reference), "{source}");
+            }
+            super::super::source_text::rewrite_known_references(
+                text,
+                |reference| registry.iter().any(|media| media.reference() == reference),
+                |_| true,
+                |reference, depth| {
+                    registry
+                        .iter()
+                        .find(|media| media.reference() == reference)
+                        .unwrap()
+                        .original_value_for_layers(Some(depth))
+                },
+            )
+            .unwrap();
+            assert_eq!(text.as_str(), source);
+        }
     }
 
     #[test]
@@ -688,21 +675,6 @@ mod tests {
         assert_eq!(registry.len(), 1);
         assert_eq!(registry[0].kind, MediaPayloadKind::Gemini);
         assert_eq!(registry[0].decode().unwrap(), b"gemini");
-    }
-
-    #[test]
-    fn scans_data_uris_in_malformed_json_looking_text() {
-        let original = r#"{"broken":data:image/png;base64,aGk=}"#;
-        let mut value = Value::String(original.to_owned().into());
-        let mut registry = Vec::new();
-
-        extract_normalized_media(&mut value, &mut registry).expect("scan normalized media");
-
-        assert_eq!(registry.len(), 1);
-        assert!(value
-            .as_str()
-            .unwrap()
-            .contains("@@@langfuseMedia:type=image/png|id="));
     }
 
     fn data_uri(value: &[u8]) -> String {

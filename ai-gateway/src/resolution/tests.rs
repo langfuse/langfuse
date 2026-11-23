@@ -246,7 +246,7 @@ async fn reports_reached_spend_limits_to_the_control_plane() {
             to_bytes(request.into_body(), 1024).await.unwrap(),
             concat!(
                 r#"{"limits":[{"countingStartedAt":1700000000123,"limitId":"limit-1","windowStart":1767225600000},"#,
-                r#"{"countingStartedAt":1700000000456,"limitId":"limit-2","windowStart":1767225600000}]}"#
+                r#"{"countingStartedAt":1700000000456,"limitId":"limit-2","thresholdPercent":85,"windowStart":1767225600000}]}"#
             )
         );
         response(json!({}))
@@ -261,11 +261,13 @@ async fn reports_reached_spend_limits_to_the_control_plane() {
                     limit_id: "limit-1",
                     counting_started_at: 1_700_000_000_123,
                     window_start: 1_767_225_600_000,
+                    threshold_percent: None,
                 },
                 ReachedSpendLimit {
                     limit_id: "limit-2",
                     counting_started_at: 1_700_000_000_456,
                     window_start: 1_767_225_600_000,
+                    threshold_percent: Some(85),
                 },
             ],
             REQUEST_ID,
@@ -1361,6 +1363,8 @@ async fn vertex_connections_only_reach_the_openai_compatible_endpoint_of_their_l
     let bearer = json!({"type": "Bearer", "token": "vertex-access-token"});
     for base_url in [
         GLOBAL,
+        "https://aiplatform.us.rep.googleapis.com/v1/projects/my-project/locations/us/endpoints/openapi",
+        "https://aiplatform.eu.rep.googleapis.com/v1/projects/my-project/locations/eu/endpoints/openapi",
         "https://europe-west4-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4/endpoints/openapi",
     ] {
         let body = vertex_success("openai.chat-completions", base_url, &bearer);
@@ -1387,47 +1391,32 @@ async fn vertex_connections_only_reach_the_openai_compatible_endpoint_of_their_l
 
     let x_api_key =
         json!({"type": "x-api-key", "header": "x-api-key", "value": "vertex-access-token"});
-    for (api_format, base_url, auth) in [
-        (ApiFormat::OpenAiChatCompletions, GLOBAL, &x_api_key),
-        (ApiFormat::OpenAiResponses, GLOBAL, &bearer),
-        (ApiFormat::AnthropicMessages, GLOBAL, &bearer),
-        // The host's location must match the path's.
-        (
-            ApiFormat::OpenAiChatCompletions,
-            "https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4/endpoints/openapi",
-            &bearer,
-        ),
-        (
-            ApiFormat::OpenAiChatCompletions,
-            "https://aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/endpoints/openapi",
-            &bearer,
-        ),
-        (
-            ApiFormat::OpenAiChatCompletions,
-            "https://attacker.example/x-aiplatform.googleapis.com/v1/projects/my-project/locations/x/endpoints/openapi",
-            &bearer,
-        ),
-        (
-            ApiFormat::OpenAiChatCompletions,
-            "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi/",
-            &bearer,
-        ),
-        (
-            ApiFormat::OpenAiChatCompletions,
-            "https://aiplatform.googleapis.com/v1/projects/a/b/locations/global/endpoints/openapi",
-            &bearer,
-        ),
-        (
-            ApiFormat::OpenAiChatCompletions,
-            "http://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi",
-            &bearer,
-        ),
+    for (api_format, auth) in [
+        (ApiFormat::OpenAiChatCompletions, &x_api_key),
+        (ApiFormat::OpenAiResponses, &bearer),
+        (ApiFormat::AnthropicMessages, &bearer),
     ] {
-        assert_invalid_context_for(
-            vertex_success(api_format.as_str(), base_url, auth),
-            api_format,
-        )
-        .await;
+        let body = vertex_success(api_format.as_str(), GLOBAL, auth);
+        assert_invalid_context_for(body, api_format).await;
+    }
+
+    // The host's location must match the path's.
+    for base_url in [
+        "https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4/endpoints/openapi",
+        "https://aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/endpoints/openapi",
+        "https://aiplatform.googleapis.com/v1/projects/my-project/locations/us/endpoints/openapi",
+        "https://aiplatform.us.rep.googleapis.com/v1/projects/my-project/locations/eu/endpoints/openapi",
+        "https://us-aiplatform.googleapis.com/v1/projects/my-project/locations/us/endpoints/openapi",
+        "https://eu-aiplatform.googleapis.com/v1/projects/my-project/locations/eu/endpoints/openapi",
+        "https://aiplatform.us-central1.rep.googleapis.com/v1/projects/my-project/locations/us-central1/endpoints/openapi",
+        "https://aiplatform.ap.rep.googleapis.com/v1/projects/my-project/locations/ap/endpoints/openapi",
+        "https://attacker.example/x-aiplatform.googleapis.com/v1/projects/my-project/locations/x/endpoints/openapi",
+        "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi/",
+        "https://aiplatform.googleapis.com/v1/projects/a/b/locations/global/endpoints/openapi",
+        "http://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi",
+    ] {
+        let body = vertex_success("openai.chat-completions", base_url, &bearer);
+        assert_invalid_context_for(body, ApiFormat::OpenAiChatCompletions).await;
     }
 }
 

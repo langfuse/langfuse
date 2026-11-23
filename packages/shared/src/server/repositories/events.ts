@@ -1,3 +1,4 @@
+import { visibleModelsWhere } from "../ingestion/modelVisibility";
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { isTopicFilter } from "../../topics";
 import { topicFilterConditions } from "../topics/trace-filter";
@@ -8,7 +9,6 @@ import {
   type ClickHouseSettings,
 } from "@clickhouse/client";
 import {
-  sql,
   type AliasableExpression,
   type AliasedExpression,
   type Expression,
@@ -43,6 +43,7 @@ import {
   byteLength,
   count,
   dateDiff,
+  emptyMap,
   startsWith,
   leftUTF8,
   limitBy,
@@ -386,7 +387,7 @@ async function enrichObservationsWithModelData(
                 id: {
                   in: uniqueModels,
                 },
-                OR: [{ projectId: projectId }, { scope: "LANGFUSE" }],
+                ...visibleModelsWhere(projectId),
               },
               include: {
                 Price: {
@@ -1345,7 +1346,7 @@ export const getTraceByIdFromEventsTable = async ({
       .orderBy("timestamp", "desc");
 
   const metadataSelect = excludeMetadata
-    ? sql`map()`.as("metadata")
+    ? emptyMap<string>().as("metadata")
     : "t.metadata";
 
   const builder = db

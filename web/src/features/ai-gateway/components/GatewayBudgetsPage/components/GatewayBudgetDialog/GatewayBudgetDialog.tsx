@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { GatewaySpendBudgetField } from "@/src/features/ai-gateway/components/GatewaySpendBudgetField/GatewaySpendBudgetField";
@@ -105,9 +105,7 @@ export function GatewayBudgetDialog({
         >
           <p className="text-muted-foreground text-sm">{description}</p>
           {warning !== undefined ? (
-            <Alert variant="warning" size="sm">
-              <Alert.Description>{warning}</Alert.Description>
-            </Alert>
+            <Banner variant="warning">{warning}</Banner>
           ) : null}
           <GatewaySpendBudgetField.Inputs
             subject={subject}
@@ -115,10 +113,9 @@ export function GatewayBudgetDialog({
             disabledReason={unavailableReason}
           />
           {errorMessage !== null ? (
-            <Alert variant="destructive">
-              <Alert.Title>Budget could not be saved</Alert.Title>
-              <Alert.Description>{errorMessage}</Alert.Description>
-            </Alert>
+            <Banner variant="error" title="Budget could not be saved">
+              {errorMessage}
+            </Banner>
           ) : null}
         </Form>
       </Dialog.Body>

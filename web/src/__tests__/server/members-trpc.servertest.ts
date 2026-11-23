@@ -7,8 +7,7 @@ import {
   createOrgMembership,
   createProjectMembership,
 } from "@langfuse/shared/memberships";
-import { Role, type Plan } from "@langfuse/shared";
-import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
+import { Role, type Plan, entitlementAccess } from "@langfuse/shared";
 import { createApiKey } from "@langfuse/shared/src/server";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
@@ -1173,10 +1172,14 @@ describe("membersRouter.create - project organization consistency", () => {
         projectRole: Role.VIEWER,
       },
     );
-    session.user!.organizations.push(
-      ...memberSession(caller, callerOrg, callerProject, "cloud:team").user!
-        .organizations,
+    const callerSession = memberSession(
+      caller,
+      callerOrg,
+      callerProject,
+      "cloud:team",
     );
+    session.user.organizations.push(...callerSession.user.organizations);
+    session.policies[0].push(...callerSession.policies[0]);
     const ctx = createInnerTRPCContext({ session, headers: {} });
     const trpc = appRouter.createCaller({ ...ctx, prisma });
 

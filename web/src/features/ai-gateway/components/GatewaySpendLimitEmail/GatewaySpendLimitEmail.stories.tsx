@@ -81,3 +81,53 @@ export const UserLimit = meta.story({
     link: "https://cloud.langfuse.com/organization/org-1/ai-gateway/budgets",
   },
 });
+
+export const WarningThreshold = meta.story({
+  args: {
+    audience: "keyOwner",
+    limits: [
+      {
+        interval: "monthly",
+        limitUsd: 100,
+        thresholdPercent: 85,
+        resetsAt: "Dec 1, 2026, 12:00 AM UTC",
+      },
+    ],
+  },
+});
+
+export const OrganizationWarning = meta.story({
+  args: {
+    audience: "orgOwner",
+    scope: { type: "ORGANIZATION" as const },
+    limits: [
+      {
+        interval: "monthly",
+        limitUsd: 500,
+        thresholdPercent: 95,
+        resetsAt: "Dec 1, 2026, 12:00 AM UTC",
+      },
+    ],
+    link: "https://cloud.langfuse.com/organization/org-1/ai-gateway/budgets",
+  },
+});
+
+export const MixedWarningAndExceeded = meta.story({
+  args: {
+    audience: "orgOwner",
+    limits: [
+      {
+        interval: "daily",
+        limitUsd: 25,
+        thresholdPercent: 100,
+        resetsAt: "Nov 17, 2026, 12:00 AM UTC",
+      },
+      {
+        interval: "monthly",
+        limitUsd: 400,
+        thresholdPercent: 85,
+        resetsAt: "Dec 1, 2026, 12:00 AM UTC",
+      },
+    ],
+  },
+});

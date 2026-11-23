@@ -6,7 +6,7 @@ import {
   QueueName,
   createW3CTraceId,
   logger,
-  type TraceBatchInputReference,
+  type TraceTranscriptReference,
 } from "@langfuse/shared/src/server";
 
 export const TRACE_TRANSCRIPT_EVAL_CONSUMER = "trace-transcript-eval";
@@ -98,7 +98,7 @@ export function extractTranscriptEvalVariables(
 }
 
 function buildTraceTranscriptEvalJob(params: {
-  reference: TraceBatchInputReference;
+  reference: TraceTranscriptReference;
   transcriptS3Path: string;
   assignment: TraceTranscriptEvalAssignment;
 }): TraceTranscriptEvalJob {
@@ -127,7 +127,7 @@ function buildTraceTranscriptEvalJob(params: {
  * attempted; any failure is thrown afterwards so dispatch can retry.
  */
 export async function enqueueTraceTranscriptEvals(
-  reference: TraceBatchInputReference,
+  reference: TraceTranscriptReference,
   ruleIds: string[],
   context: { transcriptS3Path: string },
 ): Promise<void> {

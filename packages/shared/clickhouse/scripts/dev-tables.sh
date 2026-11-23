@@ -147,7 +147,7 @@ SELECT
     environment
 FROM topic_facet_summaries
 WHERE processing_state != 'insufficient_input'
-  AND processed_at >= now() - INTERVAL 48 HOUR;
+  AND created_at >= now() - INTERVAL 48 HOUR;
 
 -- PROD ROLLOUT: unlike analytics_scores (managed via numbered migrations),
 -- this view is NOT migration-managed because it is a Cloud-only diagnostic

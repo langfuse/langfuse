@@ -65,13 +65,11 @@ const EnvSchema = z.object({
   // in every CHB tenant, and overridable in case that stops being true.
   CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
   // Compares each metered Stripe interval with the billable_events ledger and
-  // reports the gap. Keep in sync with web/src/env.mjs.
+  // reports the gap.
   LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
 
-  LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
-  LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
@@ -113,7 +111,6 @@ const EnvSchema = z.object({
     .positive()
     .default(24),
   BATCH_EXPORT_S3_PART_SIZE_MIB: z.coerce.number().min(5).max(100).default(10),
-  BATCH_ACTION_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
   LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z.coerce
     .number()
     .positive()
@@ -168,16 +165,6 @@ const EnvSchema = z.object({
     .positive()
     .max(1_000)
     .default(120),
-  // Experiment: also records traces without a matching rule, by deterministic trace-ID sample.
-  LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0),
-  // Experiment: read and store every dispatched trace, enqueueing consumers only where rules apply.
-  LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL: z
-    .enum(["true", "false"])
-    .default("false"),
   QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -194,6 +181,12 @@ const EnvSchema = z.object({
     .min(0)
     .max(23)
     .default(4),
+  // Rendered transcript characters per Topics summary request; ~135k-150k o200k tokens at typical density.
+  LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(500_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -206,6 +199,13 @@ const EnvSchema = z.object({
     .positive()
     .default(5),
   LANGFUSE_SECONDARY_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z.string().optional(),
+  // Sends `date_time_input_format = best_effort` with the ClickHouse writer's
+  // JSONEachRow inserts. ClickHouse before 26.5 defaults to `basic`, which
+  // rejects a datetime string that carries a zone such as `Z` or `+02:00` and
+  // fails the whole insert. Set to "false" to keep the server's own setting.
+  LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
@@ -466,12 +466,6 @@ const EnvSchema = z.object({
 
   // Comma-separated list of project IDs to exclude from experiment backfill processing
   LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS: z
-    .string()
-    .optional()
-    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
-
-  // Comma-separated list of project IDs to exclude from event propagation dual-write
-  LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS: z
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),

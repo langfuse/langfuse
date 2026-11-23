@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import {
   getTRPCErrorCodeFromHTTPStatusCode,
   getTRPCErrorReporting,
+  signInRequiredError,
 } from "@/src/server/utils/trpc-utils";
 
 describe("trpc-utils", () => {
@@ -24,8 +25,19 @@ describe("trpc-utils", () => {
       shouldTrace: false,
     });
 
+    expect(getTRPCErrorReporting(signInRequiredError())).toMatchObject({
+      httpStatus: 401,
+      logLevel: "debug",
+      shouldTrace: false,
+    });
+
     expect(
-      getTRPCErrorReporting(new TRPCError({ code: "UNAUTHORIZED" })),
+      getTRPCErrorReporting(
+        new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Unauthorized: Invalid token",
+        }),
+      ),
     ).toMatchObject({
       httpStatus: 401,
       logLevel: "info",

@@ -31,7 +31,7 @@ export function topicRuleWhere(
 }
 
 /**
- * The share of the project's new traces that enter trace-batch processing for
+ * The share of the project's new traces that enter trace dispatch for
  * Topics: the largest sampling rate of the active rules when the project is allowlisted,
  * Topics is on with all three models configured, and an active rule runs at
  * least one facet that is not blocked; otherwise 0. The answer is cached in
@@ -55,7 +55,7 @@ export async function getTopicsProcessingSampling(
   return sampling;
 }
 
-/** Whether any new traces of the project enter trace-batch processing for Topics. */
+/** Whether any new traces of the project enter trace dispatch for Topics. */
 export async function isTopicsProcessingActive(
   projectId: string,
 ): Promise<boolean> {

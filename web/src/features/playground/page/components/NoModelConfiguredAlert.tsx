@@ -1,6 +1,5 @@
-import { AlertCircle, Settings } from "@langfuse/icons";
-import Link from "next/link";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Settings } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 interface NoModelConfiguredAlertProps {
   projectId: string;
@@ -11,20 +10,20 @@ export function NoModelConfiguredAlert({
 }: NoModelConfiguredAlertProps) {
   return (
     <div className="px-4 pt-4">
-      <Alert variant="warning" icon={AlertCircle}>
-        <Alert.Title>No LLM Connection Configured</Alert.Title>
-        <Alert.Description>
-          To use the playground, you need to configure a model first. Go to{" "}
-          <Link
-            href={`/project/${projectId}/settings/llm-connections`}
-            className="font-bold underline underline-offset-4 hover:text-yellow-900 dark:hover:text-yellow-300"
-          >
-            <Settings size="sm" __rawClassName="inline" /> LLM Connection
-            Settings
-          </Link>{" "}
-          to add an LLM API key and configure your models.
-        </Alert.Description>
-      </Alert>
+      <Banner
+        variant="warning"
+        title="No LLM connection configured"
+        actions={[
+          {
+            text: "LLM connection settings",
+            href: `/project/${projectId}/settings/llm-connections`,
+            icon: Settings,
+          },
+        ]}
+      >
+        To use the playground, you need to configure a model first. Go to LLM
+        Connection Settings to add an LLM API key and configure your models.
+      </Banner>
     </div>
   );
 }

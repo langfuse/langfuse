@@ -15,7 +15,7 @@ import { signOut, useSession } from "next-auth/react";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { clearV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 
 // Layout variants
 import { LoadingLayout } from "./variants/LoadingLayout";
