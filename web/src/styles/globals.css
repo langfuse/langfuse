@@ -39,9 +39,9 @@
      identify an entity, e.g. the org and project switchers. font-semibold /
      raw numbers are drift. The numbers are tuned to IBM Plex Sans
      (public/fonts/README.md). */
-  --font-weight-normal: 410;
+  --font-weight-normal: 400;
   --font-weight-medium: 480;
-  --font-weight-bold: 560;
+  --font-weight-bold: 540;
 }
 
 @theme inline {
