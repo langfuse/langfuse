@@ -19,6 +19,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 vi.mock("@/src/features/media/server/getMediaStorageClient", () => ({
   getMediaStorageServiceClient: () => ({
+    canOverrideResponseHeaders: true,
     getSignedUrl: vi.fn().mockResolvedValue("https://media.example/download"),
   }),
 }));
