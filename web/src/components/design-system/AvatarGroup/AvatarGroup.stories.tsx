@@ -86,13 +86,36 @@ export const TestHoverListsEveryone = meta.story({
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
 
-    await userEvent.hover(canvas.getByLabelText("7 members"));
+    // Hover an avatar itself, where its own name tooltip would open.
+    await userEvent.hover(canvas.getByText("AL"));
 
     // Margaret is collapsed into the "+3" count, so only the card names her.
     await waitFor(
       () => expect(body.getByText("Margaret Hamilton")).toBeVisible(),
       { timeout: 2000 },
     );
+    // Outlast the tooltip's open delay before checking none appeared.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     expect(body.queryByRole("tooltip")).toBeNull();
+  },
+});
+
+export const TestKeyboardReachesMemberList = meta.story({
+  name: "(Test) Keyboard reaches a long member list",
+  args: {
+    avatars: avatars(250),
+    max: 4,
+    label: "250 members",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.tab();
+    expect(canvas.getByRole("button", { name: "250 members" })).toHaveFocus();
+
+    const list = await body.findByRole("group", { name: "250 members" });
+    await userEvent.tab();
+    expect(list).toHaveFocus();
   },
 });

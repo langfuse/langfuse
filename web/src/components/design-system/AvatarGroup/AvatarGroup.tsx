@@ -33,21 +33,25 @@ function AvatarGroup({ avatars, max, label }: AvatarGroupProps) {
       closeDelay={100}
       placement="bottom"
       content={
-        <div className="flex max-h-72 w-64 flex-col gap-2 overflow-y-auto p-3 text-xs">
+        // Focusable, so keyboard users can scroll a long list.
+        <div
+          className="ph-no-capture focus-visible:ring-ring flex max-h-72 w-64 flex-col gap-2 overflow-y-auto rounded-md p-3 text-xs focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset"
+          role="group"
+          aria-label={label}
+          tabIndex={0}
+        >
           <p className="font-medium">{label}</p>
           <ul className="flex flex-col gap-1.5">
             {avatars.map((avatar) => (
               <li key={avatar.id} className="flex items-center gap-2">
-                {/* The name sits beside it, so its tooltip stays closed. */}
-                <span className="pointer-events-none inline-flex">
-                  <Avatar
-                    aria-hidden
-                    size="sm"
-                    tone="tinted"
-                    displayName={avatar.displayName}
-                    src={avatar.src}
-                  />
-                </span>
+                <Avatar
+                  aria-hidden
+                  size="sm"
+                  tone="tinted"
+                  shouldShowTooltip={false}
+                  displayName={avatar.displayName}
+                  src={avatar.src}
+                />
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate" title={avatar.displayName}>
                     {avatar.displayName}
@@ -69,10 +73,10 @@ function AvatarGroup({ avatars, max, label }: AvatarGroupProps) {
     >
       {({ getTriggerProps }) => (
         // One hover target for the whole stack: the card names everyone, so
-        // the items ignore the pointer and the avatars' own tooltips stay
-        // closed.
+        // the avatars show no tooltips of their own.
         <span
-          className="inline-flex items-center -space-x-0.5 *:pointer-events-none"
+          className="ph-no-capture inline-flex items-center -space-x-0.5"
+          role="button"
           tabIndex={0}
           aria-label={label}
           {...getTriggerProps()}
@@ -88,6 +92,7 @@ function AvatarGroup({ avatars, max, label }: AvatarGroupProps) {
                 aria-hidden
                 size="sm"
                 tone="tinted"
+                shouldShowTooltip={false}
                 displayName={avatar.displayName}
                 src={avatar.src}
               />

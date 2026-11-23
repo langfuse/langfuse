@@ -23,13 +23,14 @@ function CustomTooltip({
   children,
   content,
   delay = 150,
+  enabled,
   hoverableContent = true,
   placement = "top",
   padding = "default",
   overflow = "hidden",
 }: Pick<
   React.ComponentProps<typeof FloatingController>,
-  "children" | "placement" | "hoverableContent"
+  "children" | "enabled" | "placement" | "hoverableContent"
 > & {
   content: React.ReactElement;
   delay?: number;
@@ -43,6 +44,7 @@ function CustomTooltip({
       open={open}
       onOpenChange={setOpen}
       role="tooltip"
+      enabled={enabled}
       openDelay={delay}
       closeDelay={0}
       placement={placement}
