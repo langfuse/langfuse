@@ -364,8 +364,10 @@ impl ExecutionCapture {
     /// Lists the guardrails the request matched in the generation's metadata, by id
     /// and action, so generations can be filtered by either.
     pub(crate) fn record_guardrails(&mut self, guardrails: &[crate::guardrails::Finding]) {
-        if !guardrails.is_empty() {
-            self.metadata["guardrails"] = json!(guardrails);
+        if !guardrails.is_empty()
+            && let Some(metadata) = self.metadata.as_object_mut()
+        {
+            metadata.insert("guardrails".into(), json!(guardrails));
         }
     }
 

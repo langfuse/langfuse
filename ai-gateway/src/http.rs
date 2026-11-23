@@ -396,8 +396,13 @@ impl<'de> serde::de::Visitor<'de> for MembersSeed {
                 "stream_options" => members.stream_options.record(value),
                 _ => {}
             }
-            if let Some(index) = self.scanned.iter().position(|name| *name == key) {
-                members.scanned[index].record(value);
+            if let Some(seen) = self
+                .scanned
+                .iter()
+                .position(|name| *name == key)
+                .and_then(|index| members.scanned.get_mut(index))
+            {
+                seen.record(value);
             }
             if let Some(all) = &mut members.all {
                 all.insert(key.into_owned(), value);
