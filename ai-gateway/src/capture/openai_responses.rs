@@ -343,31 +343,33 @@ impl GuardrailItem<'_> {
 
 pub(super) fn guardrail_last_turn<'a>(
     member: impl Fn(&str) -> Option<&'a str>,
-    texts: &mut Vec<std::borrow::Cow<'a, str>>,
-) {
-    let input = member("input")
-        .and_then(|raw| serde_json::from_str::<&serde_json::value::RawValue>(raw).ok());
-    let items = input
-        .filter(|input| input.get().starts_with('['))
-        .and_then(|input| serde_json::from_str::<Vec<GuardrailItem<'a>>>(input.get()).ok())
-        .unwrap_or_default();
-    let last_from_model = items.iter().rposition(GuardrailItem::is_from_model);
-    if last_from_model.is_none()
-        && let Some(instructions) = member("instructions")
-            .and_then(|raw| serde_json::from_str::<&serde_json::value::RawValue>(raw).ok())
-    {
-        crate::guardrails::text::collect(instructions, texts);
-    }
-    if let Some(input) = input.filter(|input| input.get().starts_with('"')) {
-        texts.extend(crate::guardrails::text::string(input));
-        return;
-    }
-    let start = last_from_model.map_or(0, |index| index + 1);
-    for item in &items[start..] {
-        for value in [item.content, item.output].into_iter().flatten() {
-            crate::guardrails::text::collect(value, texts);
+    sink: &mut dyn FnMut(&str),
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    let had_model_item = match member("input") {
+        Some(items) if items.starts_with('[') => crate::guardrails::text::for_each_after_last(
+            items,
+            GuardrailItem::is_from_model,
+            |item: GuardrailItem<'_>| {
+                for value in [item.content, item.output].into_iter().flatten() {
+                    crate::guardrails::text::collect(value, sink)?;
+                }
+                Ok(())
+            },
+        )?,
+        Some(input) => {
+            let input: &serde_json::value::RawValue =
+                serde_json::from_str(input).map_err(|_| crate::guardrails::text::Unreadable)?;
+            crate::guardrails::text::collect(input, sink)?;
+            false
         }
+        None => false,
+    };
+    if !had_model_item && let Some(instructions) = member("instructions") {
+        let instructions: &serde_json::value::RawValue =
+            serde_json::from_str(instructions).map_err(|_| crate::guardrails::text::Unreadable)?;
+        crate::guardrails::text::collect(instructions, sink)?;
     }
+    Ok(())
 }
 
 #[cfg(test)]

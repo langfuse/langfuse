@@ -289,13 +289,14 @@ pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["input"];
 
 pub(super) fn guardrail_last_turn<'a>(
     member: impl Fn(&str) -> Option<&'a str>,
-    texts: &mut Vec<std::borrow::Cow<'a, str>>,
-) {
-    if let Some(input) = member("input")
-        .and_then(|raw| serde_json::from_str::<&serde_json::value::RawValue>(raw).ok())
-    {
-        crate::guardrails::text::collect(input, texts);
-    }
+    sink: &mut dyn FnMut(&str),
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    let Some(input) = member("input") else {
+        return Ok(());
+    };
+    let input: &serde_json::value::RawValue =
+        serde_json::from_str(input).map_err(|_| crate::guardrails::text::Unreadable)?;
+    crate::guardrails::text::collect(input, sink)
 }
 
 #[cfg(test)]

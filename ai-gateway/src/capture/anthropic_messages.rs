@@ -475,33 +475,37 @@ struct GuardrailMessage<'a> {
     content: Option<&'a serde_json::value::RawValue>,
 }
 
-pub(super) fn guardrail_last_turn<'a>(
-    member: impl Fn(&str) -> Option<&'a str>,
-    texts: &mut Vec<std::borrow::Cow<'a, str>>,
-) {
-    let messages = member("messages")
-        .and_then(|raw| serde_json::from_str::<Vec<GuardrailMessage<'a>>>(raw).ok())
-        .unwrap_or_default();
-    let last_assistant = messages.iter().rposition(|message| {
-        message
-            .role
+impl GuardrailMessage<'_> {
+    fn is_assistant(&self) -> bool {
+        self.role
             .and_then(crate::guardrails::text::string)
             .as_deref()
             == Some("assistant")
-    });
-    if last_assistant.is_none()
-        && let Some(system) = member("system")
-            .and_then(|raw| serde_json::from_str::<&serde_json::value::RawValue>(raw).ok())
-    {
-        crate::guardrails::text::collect(system, texts);
     }
-    let start = last_assistant.map_or(0, |index| index + 1);
-    for content in messages[start..]
-        .iter()
-        .filter_map(|message| message.content)
-    {
-        crate::guardrails::text::collect(content, texts);
+}
+
+pub(super) fn guardrail_last_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+    sink: &mut dyn FnMut(&str),
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    let had_assistant = match member("messages") {
+        Some(messages) => crate::guardrails::text::for_each_after_last(
+            messages,
+            GuardrailMessage::is_assistant,
+            |message: GuardrailMessage<'_>| {
+                message.content.map_or(Ok(()), |content| {
+                    crate::guardrails::text::collect(content, sink)
+                })
+            },
+        )?,
+        None => false,
+    };
+    if !had_assistant && let Some(system) = member("system") {
+        let system: &serde_json::value::RawValue =
+            serde_json::from_str(system).map_err(|_| crate::guardrails::text::Unreadable)?;
+        crate::guardrails::text::collect(system, sink)?;
     }
+    Ok(())
 }
 
 #[cfg(test)]

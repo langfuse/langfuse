@@ -746,12 +746,10 @@ fn guardrail_scan(system: &str, messages: &str) -> Vec<String> {
             "messages" => Some(messages),
             _ => None,
         },
-        &mut texts,
-    );
+        &mut |text: &str| texts.push(text.to_owned()),
+    )
+    .unwrap();
     texts
-        .into_iter()
-        .map(std::borrow::Cow::into_owned)
-        .collect()
 }
 
 #[test]
@@ -761,7 +759,7 @@ fn the_system_prompt_counts_only_on_the_first_turn() {
             r#"[{"type":"text","text":"sys"}]"#,
             r#"[{"role":"user","content":"first"}]"#
         ),
-        ["sys", "first"]
+        ["first", "sys"]
     );
     assert_eq!(
         guardrail_scan(

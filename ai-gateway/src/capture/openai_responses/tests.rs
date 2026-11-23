@@ -1149,17 +1149,15 @@ fn guardrail_scan(instructions: &str, input: &str) -> Vec<String> {
             "input" => Some(input),
             _ => None,
         },
-        &mut texts,
-    );
+        &mut |text: &str| texts.push(text.to_owned()),
+    )
+    .unwrap();
     texts
-        .into_iter()
-        .map(std::borrow::Cow::into_owned)
-        .collect()
 }
 
 #[test]
 fn the_last_turn_follows_the_last_item_the_model_produced() {
-    assert_eq!(guardrail_scan(r#""sys""#, r#""hello""#), ["sys", "hello"]);
+    assert_eq!(guardrail_scan(r#""sys""#, r#""hello""#), ["hello", "sys"]);
     assert_eq!(
         guardrail_scan(
             r#""sys""#,

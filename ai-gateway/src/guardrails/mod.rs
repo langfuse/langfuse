@@ -96,53 +96,54 @@ static COMPILED: LazyLock<Mutex<HashMap<Vec<String>, Arc<RegexSet>>>> =
 const MAX_COMPILED: usize = 1024;
 
 /// Checks `body`'s last turn against `guardrails`. Guardrails fail open: one whose
-/// patterns do not compile matches nothing. A conversation member that appears
-/// twice is not a failure but a way to show the provider other text than the
-/// gateway scans, so it matches every guardrail.
+/// patterns do not compile matches nothing. A conversation the gateway cannot read
+/// the way a provider might, such as a member or field that appears twice, is not
+/// a failure but a way to show the provider other text than the gateway scans, so
+/// it matches every guardrail.
 pub(crate) fn check(
     guardrails: &[Guardrail],
     api_format: ApiFormat,
     body: &[u8],
     scanned: &ScannedMembers,
 ) -> Outcome {
-    let active = guardrails.iter().filter(|guardrail| {
-        guardrail.action != GuardrailAction::Unknown && !guardrail.patterns.is_empty()
-    });
-    if active.clone().next().is_none() || crate::capture::guardrail_members(api_format).is_empty() {
+    let active: Vec<&Guardrail> = guardrails
+        .iter()
+        .filter(|guardrail| {
+            guardrail.action != GuardrailAction::Unknown && !guardrail.patterns.is_empty()
+        })
+        .collect();
+    if active.is_empty() || crate::capture::guardrail_members(api_format).is_empty() {
         return Outcome::default();
     }
-    let texts = if scanned.duplicated {
-        Vec::new()
-    } else {
-        last_turn(api_format, body, scanned)
+    let sets: Vec<Option<Arc<RegexSet>>> = active
+        .iter()
+        .map(|guardrail| compiled(&guardrail.patterns))
+        .collect();
+    let mut matched = vec![false; active.len()];
+    let member = |name: &str| {
+        let (_, range) = scanned.members.iter().find(|(member, _)| *member == name)?;
+        std::str::from_utf8(body.get(range.clone())?).ok()
     };
-    let findings = active
-        .filter(|guardrail| {
-            scanned.duplicated
-                || compiled(&guardrail.patterns)
-                    .is_some_and(|set| texts.iter().any(|text| set.is_match(text.as_bytes())))
+    let unreadable = scanned.duplicated
+        || crate::capture::guardrail_last_turn(api_format, member, &mut |text| {
+            for (matched, set) in matched.iter_mut().zip(&sets) {
+                *matched |= set
+                    .as_ref()
+                    .is_some_and(|set| set.is_match(text.as_bytes()));
+            }
         })
-        .map(|guardrail| Finding {
+        .is_err();
+    let findings = active
+        .into_iter()
+        .zip(matched)
+        .filter(|(_, matched)| unreadable || *matched)
+        .map(|(guardrail, _)| Finding {
             id: guardrail.id.clone(),
             name: guardrail.name.clone(),
             action: guardrail.action,
         })
         .collect();
     Outcome { findings }
-}
-
-fn last_turn<'a>(
-    api_format: ApiFormat,
-    body: &'a [u8],
-    scanned: &ScannedMembers,
-) -> Vec<std::borrow::Cow<'a, str>> {
-    let member = |name: &str| {
-        let (_, range) = scanned.members.iter().find(|(member, _)| *member == name)?;
-        std::str::from_utf8(body.get(range.clone())?).ok()
-    };
-    let mut texts = Vec::new();
-    crate::capture::guardrail_last_turn(api_format, member, &mut texts);
-    texts
 }
 
 /// The patterns compiled in ASCII mode, so `\b` and `\d` stay on the fast DFA path
@@ -217,6 +218,21 @@ mod tests {
                 name: "email name".into(),
                 action: GuardrailAction::Log,
             }]
+        );
+    }
+
+    #[test]
+    fn a_message_with_a_duplicated_field_matches_every_guardrail() {
+        let body = r#"{"messages":[{"role":"user","role":"user","content":"123-45-6789"}]}"#;
+        let outcome = check(
+            &[guardrail("email", GuardrailAction::Block, &[EMAIL])],
+            ApiFormat::OpenAiChatCompletions,
+            body.as_bytes(),
+            &scanned(body, &["messages"]),
+        );
+        assert_eq!(
+            outcome.blocking().map(|finding| finding.id.as_str()),
+            Some("email")
         );
     }
 

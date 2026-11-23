@@ -507,31 +507,32 @@ struct GuardrailMessage<'a> {
     content: Option<&'a serde_json::value::RawValue>,
 }
 
+impl GuardrailMessage<'_> {
+    fn is_assistant(&self) -> bool {
+        self.role
+            .and_then(crate::guardrails::text::string)
+            .as_deref()
+            == Some("assistant")
+    }
+}
+
 pub(super) fn guardrail_last_turn<'a>(
     member: impl Fn(&str) -> Option<&'a str>,
-    texts: &mut Vec<std::borrow::Cow<'a, str>>,
-) {
-    let Some(messages) = member("messages")
-        .and_then(|raw| serde_json::from_str::<Vec<GuardrailMessage<'a>>>(raw).ok())
-    else {
-        return;
+    sink: &mut dyn FnMut(&str),
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    let Some(messages) = member("messages") else {
+        return Ok(());
     };
-    let start = messages
-        .iter()
-        .rposition(|message| {
-            message
-                .role
-                .and_then(crate::guardrails::text::string)
-                .as_deref()
-                == Some("assistant")
-        })
-        .map_or(0, |index| index + 1);
-    for content in messages[start..]
-        .iter()
-        .filter_map(|message| message.content)
-    {
-        crate::guardrails::text::collect(content, texts);
-    }
+    crate::guardrails::text::for_each_after_last(
+        messages,
+        GuardrailMessage::is_assistant,
+        |message: GuardrailMessage<'_>| {
+            message.content.map_or(Ok(()), |content| {
+                crate::guardrails::text::collect(content, sink)
+            })
+        },
+    )?;
+    Ok(())
 }
 
 #[cfg(test)]
