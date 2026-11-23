@@ -441,6 +441,10 @@ fn request_limits(
 }
 
 /// The first readable cgroup v2 or v1 memory limit, or `None` when unlimited or absent.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "startup cgroup probe runs once before the server accepts traffic"
+)]
 fn cgroup_memory_limit(files: &[&str]) -> Option<usize> {
     files
         .iter()
