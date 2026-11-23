@@ -4,7 +4,6 @@ import {
   type ComponentProps,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   type RefObject,
   type UIEvent,
@@ -45,19 +44,12 @@ const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
 const TRACE_ID_MIN_WIDTH = 96;
 const TOPIC_MIN_WIDTH = 120;
-/** The table pads its right edge so the last column's resize handle clears the scrollbar. */
-const TABLE_RIGHT_PADDING_PX = 8;
-
-/** Width of a classic scrollbar; 0 where scrollbars overlay the content. */
-function scrollbarWidth() {
-  const probe = document.createElement("div");
-  probe.style.cssText =
-    "position:absolute;visibility:hidden;width:100px;overflow-y:scroll";
-  document.body.append(probe);
-  const width = probe.offsetWidth - probe.clientWidth;
-  probe.remove();
-  return width;
-}
+/**
+ * The table's 8px right padding plus a classic vertical scrollbar (up to 17px).
+ * Where scrollbars overlay the rows, the fixed table layout spreads the spare
+ * pixels over the columns, so reserving them never shows as a gap.
+ */
+const TABLE_RIGHT_GUTTER_PX = 8 + 17;
 
 /**
  * `truncate` compares unrounded widths: whole-pixel `scrollWidth` misses
@@ -108,17 +100,11 @@ export function TopicTraceList({
   const tableRef = useRef<HTMLDivElement>(null);
   const [sizeRef, tableSize] = useElementSize<HTMLDivElement>();
   // Default widths: 20% trace ID, 30% topic and the rest summary of the measured
-  // list, less the table's right padding and vertical scrollbar. The summary
-  // gives up what the minimums add, so the defaults fit whenever the minimums do.
-  const columnsWidth = useMemo(
-    () =>
-      tableSize
-        ? Math.max(
-            0,
-            tableSize.width - TABLE_RIGHT_PADDING_PX - scrollbarWidth(),
-          )
-        : 0,
-    [tableSize],
+  // list. The summary gives up what the minimums add, so the defaults fit
+  // whenever the minimums do.
+  const columnsWidth = Math.max(
+    0,
+    (tableSize?.width ?? 0) - TABLE_RIGHT_GUTTER_PX,
   );
   const traceIdWidth = Math.max(
     TRACE_ID_MIN_WIDTH,
