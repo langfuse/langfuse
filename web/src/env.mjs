@@ -521,8 +521,8 @@ export const env = createEnv({
     // /organization/<orgId>/enterprise-trial (Langfuse Cloud only), as a JSON
     // object from code to trial length in days, e.g.
     // {"CODE-FOR-SHORT-TRIALS":14,"CODE-FOR-LONG-TRIALS":60}. Unset disables
-    // redemption. Redemption is not rate limited, so codes must be long enough
-    // that guessing one is impractical.
+    // redemption. Attempts share the per-org coupon rate limit; use random
+    // codes all the same, since one code works for any number of orgs.
     LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES: z
       .string()
       .optional()

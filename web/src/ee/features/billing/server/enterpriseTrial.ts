@@ -12,6 +12,7 @@ import {
   invalidateCachedOrgApiKeys,
   logger,
 } from "@langfuse/shared/src/server";
+import { assertCouponRedemptionRateLimit } from "@/src/ee/features/billing/server/coupons/couponRateLimit";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -56,16 +57,21 @@ export async function redeemEnterpriseTrial(params: {
   if (coupons.length === 0) {
     throw new InvalidRequestError("Enterprise trials are not available.");
   }
-  const coupon = findCoupon(code, coupons);
-  if (!coupon) {
-    throw new InvalidRequestError("This coupon code is not valid.");
-  }
 
   const dbOrg = await prisma.organization.findUnique({ where: { id: orgId } });
   if (!dbOrg) {
     throw new LangfuseNotFoundError("Organization not found.");
   }
   const org = parseDbOrg(dbOrg);
+
+  // Counted before the comparison, so every attempt draws from the org's
+  // coupon budget and a code cannot be found by trying many.
+  await assertCouponRedemptionRateLimit(org);
+  const coupon = findCoupon(code, coupons);
+  if (!coupon) {
+    throw new InvalidRequestError("This coupon code is not valid.");
+  }
+
   if (dbOrg.cloudConfig !== null && org.cloudConfig === null) {
     // parseDbOrg drops a config that fails the schema, which would hide any
     // paid billing state in it from the paid check below.

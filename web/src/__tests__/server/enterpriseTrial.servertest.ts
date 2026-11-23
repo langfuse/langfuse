@@ -5,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { redeemEnterpriseTrial } from "@/src/ee/features/billing/server/enterpriseTrial";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 const VALID_CODE = "LF-ENTERPRISE-TRIAL-TEST-CODE";
 const COUPONS = [{ code: VALID_CODE, durationDays: 14 }];
@@ -112,6 +113,17 @@ describe("redeemEnterpriseTrial", () => {
       expect((await dbOrg()).cloudConfig).toEqual(existingConfig);
     },
   );
+
+  it("rejects a valid code once the org has used up its coupon attempts", async () => {
+    vi.spyOn(RateLimitService.prototype, "rateLimitRequest").mockResolvedValue({
+      isRateLimited: () => true,
+      res: { msBeforeNext: 30_000 },
+    } as never);
+
+    await expect(redeemValidCode()).rejects.toMatchObject({ httpCode: 429 });
+
+    expect(await cloudConfig()).not.toHaveProperty("enterpriseTrial");
+  });
 
   it("keeps a CH organization id that a checkout saved after the trial read the org", async () => {
     const staleOrg = await dbOrg();

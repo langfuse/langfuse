@@ -94,6 +94,17 @@ describe("getOrganizationPlanServerSide (cloud)", () => {
     ],
     ["an expired trial", { enterpriseTrial: trial(-1) }, "cloud:hobby"],
     [
+      "an active trial whose end date was written by Postgres",
+      {
+        enterpriseTrial: {
+          ...trial(1),
+          // `to_jsonb(timestamptz)` writes microseconds and a UTC offset.
+          endsAt: trial(1).endsAt.replace(/\.\d{3}Z$/, ".123456+00:00"),
+        },
+      },
+      "cloud:enterprise-trial",
+    ],
+    [
       "an active trial with an unfinished CHB checkout",
       {
         enterpriseTrial: trial(1),

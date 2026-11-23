@@ -650,10 +650,10 @@ describe("processThresholds", () => {
       });
 
     it.each([
-      ["active trial below its warning threshold", 1, 100_000, null],
-      ["active trial at 80% of its cap", 1, 200_000, "WARNING"],
-      ["active trial at its cap", 1, 250_000, "BLOCKED"],
-      ["expired trial at the free-tier threshold", -1, 100_000, "WARNING"],
+      // Free-tier thresholds already give WARNING and BLOCKED at 200k and
+      // 250k, so only usage below 200k tells the two policies apart.
+      ["active trial just below its warning threshold", 1, 199_999, null],
+      ["expired trial at the same usage", -1, 199_999, "WARNING"],
     ])(
       "enforces the trial's own cap: %s",
       async (_case, endsInDays, usage, expectedState) => {

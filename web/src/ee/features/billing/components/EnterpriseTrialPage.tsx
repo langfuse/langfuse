@@ -1,6 +1,8 @@
 // Langfuse Cloud only
 
-import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 import { useSession } from "next-auth/react";
 import { ENTERPRISE_TRIAL_UNIT_LIMIT, planLabels } from "@langfuse/shared";
 
@@ -8,7 +10,6 @@ import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Form } from "@/src/components/design-system/Form/Form";
-import { Input } from "@/src/components/design-system/Input/Input";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
@@ -101,14 +102,26 @@ function EnterpriseTrialContent({
   return <RedeemEnterpriseTrialForm orgId={organization.id} />;
 }
 
+const redeemTrialFormSchema = z.object({
+  code: z.string().trim().min(1, "Enter your coupon code").max(256),
+});
+
+type RedeemTrialFormInput = z.input<typeof redeemTrialFormSchema>;
+type RedeemTrialFormOutput = z.output<typeof redeemTrialFormSchema>;
+
 function RedeemEnterpriseTrialForm({ orgId }: { orgId: string }) {
   const session = useSession();
   const capture = usePostHogClientCapture();
-  const [code, setCode] = useState("");
+  const form = useForm<RedeemTrialFormInput, undefined, RedeemTrialFormOutput>({
+    resolver: zodResolver(redeemTrialFormSchema),
+    defaultValues: { code: "" },
+  });
   const redeem = api.cloudBilling.redeemEnterpriseTrial.useMutation({
     // The error is shown under the field instead of as a toast.
-    onError: (error) =>
-      reportTrpcErrorWithoutToast(error, "enterprise-trial.redeem"),
+    onError: (error) => {
+      reportTrpcErrorWithoutToast(error, "enterprise-trial.redeem");
+      form.setError("code", { message: error.message }, { shouldFocus: true });
+    },
     onSuccess: async (trial) => {
       capture("organization_settings:enterprise_trial_redeemed");
       showSuccessToast({
@@ -128,45 +141,27 @@ function RedeemEnterpriseTrialForm({ orgId }: { orgId: string }) {
         {`Try every Enterprise feature, such as SSO, SCIM, audit logs and unlimited members, with no payment method needed. Your coupon code sets how long the trial lasts; when it ends, the organization returns to the Hobby plan. Ingestion pauses at ${numberFormatter(ENTERPRISE_TRIAL_UNIT_LIMIT, 0)} units per billing period.`}
       </p>
       <Form
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (code.trim().length === 0) return;
-          redeem.mutate({ orgId, code: code.trim() });
-        }}
+        onSubmit={form.handleSubmit(({ code }) =>
+          redeem.mutate({ orgId, code }),
+        )}
         actions={[
           {
             id: "start-trial",
             type: "submit",
             text: "Start trial",
             loading: redeem.isPending,
-            disabled: code.trim().length === 0,
           },
         ]}
       >
-        <Form.Field
+        <Form.InputField
+          control={form.control}
+          name="code"
           label="Coupon code"
           description="Your Langfuse contact shares this code with you."
-        >
-          {(field) => (
-            <div className="flex flex-col gap-1">
-              <Input
-                id={field.id}
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                aria-describedby={field.inputDescribedById}
-                aria-invalid={Boolean(redeem.error)}
-                error={Boolean(redeem.error)}
-                autoComplete="off"
-                maxLength={256}
-              />
-              {redeem.error && (
-                <p role="alert" className="text-destructive text-sm">
-                  {redeem.error.message}
-                </p>
-              )}
-            </div>
-          )}
-        </Form.Field>
+          required
+          maxLength={256}
+          autoComplete="off"
+        />
       </Form>
     </div>
   );
