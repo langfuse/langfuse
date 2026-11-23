@@ -134,7 +134,7 @@ jobs:
       llm_connections: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.llm_connections }}
       topics_llm: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.topics_llm }}
       ai_gateway: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.ai_gateway }}
-      guardrail_rules: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.guardrail_rules }}
+      ai_gateway_guardrail_rules: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.ai_gateway_guardrail_rules }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -208,16 +208,16 @@ jobs:
 
   # Rebuilds the committed WebAssembly module and fails when it is out of date,
   # so web builds can use pkg/ without a Rust toolchain.
-  tests-guardrail-rules:
+  tests-ai-gateway-guardrail-rules:
     timeout-minutes: 15
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
       - llm-connections-filter
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.guardrail_rules == 'true' }}
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.ai_gateway_guardrail_rules == 'true' }}
     defaults:
       run:
-        working-directory: packages/guardrail-rules
+        working-directory: packages/ai-gateway-guardrail-rules
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1885,7 +1885,7 @@ jobs:
         knip,
         format-check,
         tests-ai-gateway,
-        tests-guardrail-rules,
+        tests-ai-gateway-guardrail-rules,
         tests-eslint-plugin,
         tests-in-app-agent-sandbox-runtime,
         tests-storybook,

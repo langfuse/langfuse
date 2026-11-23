@@ -65,7 +65,7 @@ ai_gateway:
 
 # The regex rule validator: its Rust source, build config and committed
 # WebAssembly output.
-guardrail_rules:
+ai_gateway_guardrail_rules:
   - .github/workflows/pipeline.yml
   - .github/ci-paths.yml
-  - packages/guardrail-rules/**
+  - packages/ai-gateway-guardrail-rules/**

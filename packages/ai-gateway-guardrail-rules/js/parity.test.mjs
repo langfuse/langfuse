@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 import { test } from "node:test";
 
 const require = createRequire(import.meta.url);
-const { validate } = require("../pkg/guardrail_rules.js");
+const { validate } = require("../pkg/ai_gateway_guardrail_rules.js");
 const fixture = JSON.parse(
   readFileSync(new URL("../tests/compiled-sizes.json", import.meta.url)),
 );

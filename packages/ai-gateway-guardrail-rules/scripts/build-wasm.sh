@@ -18,9 +18,9 @@ fi
 
 # Panic messages embed source paths; remap them so the binary does not depend
 # on the checkout or cargo home location.
-export RUSTFLAGS="--remap-path-prefix=$PWD=/guardrail-rules --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo"
+export RUSTFLAGS="--remap-path-prefix=$PWD=/ai-gateway-guardrail-rules --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo"
 CARGO_TARGET_DIR="$TARGET_DIR" cargo build --locked --release --target wasm32-unknown-unknown --features wasm
 
 rm -rf "$OUT"
-"$WASM_BINDGEN" --target nodejs --out-dir "$OUT" "$TARGET_DIR/wasm32-unknown-unknown/release/guardrail_rules.wasm"
-echo "built $OUT ($(wc -c < "$OUT/guardrail_rules_bg.wasm") bytes wasm, $(gzip -9 -c "$OUT/guardrail_rules_bg.wasm" | wc -c) gzipped)"
+"$WASM_BINDGEN" --target nodejs --out-dir "$OUT" "$TARGET_DIR/wasm32-unknown-unknown/release/ai_gateway_guardrail_rules.wasm"
+echo "built $OUT ($(wc -c < "$OUT/ai_gateway_guardrail_rules_bg.wasm") bytes wasm, $(gzip -9 -c "$OUT/ai_gateway_guardrail_rules_bg.wasm" | wc -c) gzipped)"

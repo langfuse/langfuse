@@ -9,6 +9,6 @@
     ".screenshots-review",
     "packages/native/index.js",
     "packages/native/index.d.ts",
-    "packages/guardrail-rules/pkg"
+    "packages/ai-gateway-guardrail-rules/pkg"
   ]
 }

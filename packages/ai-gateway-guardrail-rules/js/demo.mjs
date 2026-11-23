@@ -3,7 +3,7 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { limits, validate } = require("../pkg/guardrail_rules.js");
+const { limits, validate } = require("../pkg/ai_gateway_guardrail_rules.js");
 
 const check = (patterns) => {
   const started = performance.now();

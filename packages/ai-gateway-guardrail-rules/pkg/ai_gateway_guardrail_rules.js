@@ -1,4 +1,4 @@
-/* @ts-self-types="./guardrail_rules.d.ts" */
+/* @ts-self-types="./ai_gateway_guardrail_rules.d.ts" */
 
 /**
  * [`super::LIMITS`] as JSON, for the control plane to show.
@@ -53,7 +53,7 @@ function __wbg_get_imports() {
     };
     return {
         __proto__: null,
-        "./guardrail_rules_bg.js": import0,
+        "./ai_gateway_guardrail_rules_bg.js": import0,
     };
 }
 
@@ -128,7 +128,7 @@ if (!('encodeInto' in cachedTextEncoder)) {
 
 let WASM_VECTOR_LEN = 0;
 
-const wasmPath = `${__dirname}/guardrail_rules_bg.wasm`;
+const wasmPath = `${__dirname}/ai_gateway_guardrail_rules_bg.wasm`;
 const wasmBytes = require('fs').readFileSync(wasmPath);
 const wasmModule = new WebAssembly.Module(wasmBytes);
 let wasmInstance = new WebAssembly.Instance(wasmModule, __wbg_get_imports());

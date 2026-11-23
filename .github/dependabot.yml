@@ -35,7 +35,7 @@ updates:
           - "*"
 
   - package-ecosystem: cargo
-    directory: "/packages/guardrail-rules"
+    directory: "/packages/ai-gateway-guardrail-rules"
     assignees:
       - "hassiebp"
       - "wochinge"

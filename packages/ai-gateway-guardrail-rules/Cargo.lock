@@ -12,6 +12,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ai-gateway-guardrail-rules"
+version = "0.1.0"
+dependencies = [
+ "regex-automata",
+ "regex-syntax",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -22,17 +33,6 @@ name = "cfg-if"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
-
-[[package]]
-name = "guardrail-rules"
-version = "0.1.0"
-dependencies = [
- "regex-automata",
- "regex-syntax",
- "serde",
- "serde_json",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "itoa"
