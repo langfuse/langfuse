@@ -1,9 +1,9 @@
 import type { FilterState } from "@langfuse/shared";
 import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
+import { useTopicsCapture } from "./useTopicsCapture";
 
 type TopicCostEstimateProps = {
   projectId: string;
@@ -27,7 +27,7 @@ export function TopicCostEstimate({
   backfillTraces,
   source,
 }: TopicCostEstimateProps) {
-  const capture = usePostHogClientCapture();
+  const capture = useTopicsCapture();
   const utils = api.useUtils();
   const input = { projectId, filter, facetIds };
   const estimate = api.topics.costEstimate.useQuery(input, {
