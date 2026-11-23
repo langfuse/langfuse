@@ -67,6 +67,7 @@ import {
 import {
   resolveTopicMapSelection,
   topicMapQuery,
+  topicsViewQueryPatch,
   type TopicMapSelection,
 } from "./topic-maps";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -443,6 +444,27 @@ function TopicsWorkspaceContent({
     shownResults.data?.facets ?? [],
   );
   const { selectedFacetId } = traceFilters;
+  const shownMap = mapSelection ? topicMapQuery(mapSelection).map : undefined;
+  // Live results shown while maps load, or another map's placeholder results,
+  // may lack the requested facet and must not replace it in the URL.
+  const shownFacet =
+    mapSelection && (analysisId || !results.isPlaceholderData)
+      ? selectedFacetId
+      : undefined;
+  // Halo and copied links only see the URL, so it names the map and facet the
+  // page fell back to. Replacing adds no history entry.
+  useEffect(() => {
+    const patch = topicsViewQueryPatch(router.query, {
+      map: shownMap,
+      facetId: shownFacet,
+    });
+    if (!patch) return;
+    router.replace(
+      { pathname: router.pathname, query: { ...router.query, ...patch } },
+      undefined,
+      { shallow: true },
+    );
+  }, [router, shownMap, shownFacet]);
   const openExecution = (id: string) => {
     router.push(
       {

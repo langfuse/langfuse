@@ -31,6 +31,21 @@ export function topicMapQuery(selection: TopicMapSelection) {
   return { map: `${selection.kind}:${selection.id}` };
 }
 
+/**
+ * The `map` and `topicFacet` params to write so the URL names the view the
+ * page shows, or null when it already does. Unresolved parts stay untouched.
+ */
+export function topicsViewQueryPatch(
+  query: Record<string, string | string[] | undefined>,
+  view: { map: string | undefined; facetId: string | undefined },
+): Record<string, string> | null {
+  const patch: Record<string, string> = {};
+  if (view.map && query.map !== view.map) patch.map = view.map;
+  if (view.facetId && query.topicFacet !== view.facetId)
+    patch.topicFacet = view.facetId;
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
 function filterValue(value: unknown): string {
   if (Array.isArray(value)) return value.map(String).join(", ");
   if (value instanceof Date) return value.toISOString();
