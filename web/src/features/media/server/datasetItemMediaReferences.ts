@@ -17,6 +17,35 @@ export function datasetItemMediaReferenceKey(item: DatasetItemVersionKey) {
   return `${item.id}:${item.validFrom.getTime()}`;
 }
 
+type DatasetItemMediaReference = Omit<APIDatasetItemMediaReference, "media"> & {
+  media: Omit<APIDatasetItemMediaReference["media"], "url"> & {
+    url: string | null;
+  };
+};
+
+const hasDownloadUrl = (
+  reference: DatasetItemMediaReference,
+): reference is APIDatasetItemMediaReference => reference.media.url !== null;
+
+/**
+ * Resolves the media references of dataset item versions for the public API.
+ * References without a download URL are dropped, so every returned reference
+ * has one. See resolveDatasetItemMediaReferencesForDisplay for the map shape.
+ */
+export async function resolveDatasetItemMediaReferences(props: {
+  projectId: string;
+  items: DatasetItemVersionKey[];
+}): Promise<Map<string, APIDatasetItemMediaReference[]>> {
+  const referencesByItem =
+    await resolveDatasetItemMediaReferencesForDisplay(props);
+  return new Map(
+    [...referencesByItem].map(([key, references]) => [
+      key,
+      references.filter(hasDownloadUrl),
+    ]),
+  );
+}
+
 /**
  * Resolves the media references of dataset item versions to signed download
  * URLs from dataset_item_media, returning a map keyed by
@@ -24,14 +53,15 @@ export function datasetItemMediaReferenceKey(item: DatasetItemVersionKey) {
  * present in the map (empty array if it has no references), so callers look up
  * by key rather than relying on positional alignment with the input. One media
  * lookup and one signed URL is generated per distinct mediaId per call.
- * References whose media cannot be resolved or downloaded are dropped, so
- * every returned reference has a download URL.
+ * References whose media cannot be resolved are dropped. Media the storage
+ * provider cannot serve safely keeps its reference with a `null` URL, so the UI
+ * can show it as unavailable.
  */
-export async function resolveDatasetItemMediaReferences(props: {
+export async function resolveDatasetItemMediaReferencesForDisplay(props: {
   projectId: string;
   items: DatasetItemVersionKey[];
-}): Promise<Map<string, APIDatasetItemMediaReference[]>> {
-  const referencesByItem = new Map<string, APIDatasetItemMediaReference[]>();
+}): Promise<Map<string, DatasetItemMediaReference[]>> {
+  const referencesByItem = new Map<string, DatasetItemMediaReference[]>();
   for (const item of props.items) {
     referencesByItem.set(datasetItemMediaReferenceKey(item), []);
   }
@@ -81,8 +111,6 @@ export async function resolveDatasetItemMediaReferences(props: {
           contentType: media.contentType,
           ttlSeconds,
         });
-        if (!url) return [media.id, null] as const;
-
         return [
           media.id,
           {
@@ -101,8 +129,6 @@ export async function resolveDatasetItemMediaReferences(props: {
   // preserves it per item.
   for (const row of claimedRows) {
     const media = mediaById.get(row.mediaId);
-    // The storage provider cannot serve this media type safely.
-    if (media === null) continue;
     if (!media) {
       // A linked reference should always resolve; log the drift, drop the row.
       logger.warn(

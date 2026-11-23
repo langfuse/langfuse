@@ -18,11 +18,33 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createDatasetItem,
   createManyDatasetItems,
+  type StorageService,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { MediaContentType } from "@/src/features/media/validation";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import type * as MediaStorageClient from "@/src/features/media/server/getMediaStorageClient";
+
+const storage = vi.hoisted(() => ({ canOverrideResponseHeaders: true }));
+vi.mock(
+  "@/src/features/media/server/getMediaStorageClient",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof MediaStorageClient>();
+    return {
+      ...actual,
+      getMediaStorageServiceClient: (bucketName: string): StorageService => {
+        const client = actual.getMediaStorageServiceClient(bucketName);
+        return storage.canOverrideResponseHeaders
+          ? client
+          : Object.assign(Object.create(client), {
+              canOverrideResponseHeaders: false,
+            });
+      },
+    };
+  },
+);
+
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const session: Session = createSession({
@@ -519,6 +541,35 @@ describe("Dataset item media tRPC procedures", () => {
         media: expect.objectContaining({ mediaId: media.mediaId }),
       }),
     ]);
+  });
+
+  it("keeps saved media the storage provider cannot link, without a URL", async () => {
+    const media = await createMediaRow();
+    const { datasetItemId } = await createDatasetWithItem({
+      image: media.referenceString,
+    });
+    await prisma.media.update({
+      where: { projectId_id: { projectId, id: media.mediaId } },
+      data: { contentType: "application/json" },
+    });
+
+    storage.canOverrideResponseHeaders = false;
+    try {
+      const references = await caller.datasets.itemMediaByItemId({
+        projectId,
+        datasetItemId,
+      });
+      const item = await getDatasetItemForApi({ projectId, datasetItemId });
+
+      expect(references).toEqual([
+        expect.objectContaining({
+          media: expect.objectContaining({ mediaId: media.mediaId, url: null }),
+        }),
+      ]);
+      expect(item.mediaReferences).toEqual([]);
+    } finally {
+      storage.canOverrideResponseHeaders = true;
+    }
   });
 
   it("resolves saved media for the exact viewed version", async () => {

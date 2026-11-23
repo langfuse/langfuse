@@ -17,7 +17,7 @@ import {
 import { mediaUrlQueryOptions } from "@/src/features/media/constants/mediaUrlQueryOptions";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MediaFileView } from "@/src/components/ui/media/MediaFileView";
-import { MEDIA_DOWNLOAD_UNAVAILABLE_MESSAGE } from "@/src/constants/mediaDownloadUnavailableMessage";
+import { MEDIA_DOWNLOAD_UNAVAILABLE_MESSAGE } from "@/src/features/media/constants/mediaDownloadUnavailableMessage";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.

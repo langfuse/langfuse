@@ -12,6 +12,7 @@ const SAFE_INLINE_MEDIA_TYPES = new Set([
   "image/bmp",
   "image/avif",
   "image/heic",
+  "image/heif",
   "application/pdf",
   "text/plain",
   "text/csv",

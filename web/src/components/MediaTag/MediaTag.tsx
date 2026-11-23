@@ -18,7 +18,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { cn } from "@/src/utils/tailwind";
 import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
-import { MEDIA_DOWNLOAD_UNAVAILABLE_MESSAGE } from "@/src/constants/mediaDownloadUnavailableMessage";
+import { MEDIA_DOWNLOAD_UNAVAILABLE_MESSAGE } from "@/src/features/media/constants/mediaDownloadUnavailableMessage";
 
 /**
  * Resolution state of the previewable content. The collapsed chip renders the
