@@ -16,6 +16,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { traceTranscriptAssignments } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
+import { ruleScopeOf } from "@/src/features/evals/v2/fns/rules/ruleScope";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
 
@@ -38,31 +40,35 @@ export function EditRuleDialogContent({
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const scope = ruleScopeOf(rule.targetObject);
   const [ruleSetupStore] = useState(() =>
-    createRuleSetupStore({
-      name: rule.name,
-      filter: singleFilterList.catch([]).parse(rule.filter),
-      sampling: rule.sampling,
-      assignments: rule.assignments.map((assignment) => {
-        const preparedDefault = prepareModernRuleVariableMapping(
-          assignment.evaluator.latestVersion?.variableMapping,
-          assignment.evaluator.type,
-        );
-        return {
-          evaluatorId: assignment.evaluator.id,
-          evaluatorName: assignment.evaluator.name,
-          evaluatorType: assignment.evaluator.type,
-          defaultVariableMapping: preparedDefault.defaultVariableMapping,
-          variableMapping:
-            assignment.evaluator.type === EvalTemplateType.CODE ||
-            assignment.variableMapping == null
-              ? preparedDefault.initialVariableMapping
-              : observationVariableMappingList
-                  .catch([])
-                  .parse(assignment.variableMapping),
-        };
-      }),
-    }),
+    createRuleSetupStore(
+      {
+        name: rule.name,
+        filter: singleFilterList.catch([]).parse(rule.filter),
+        sampling: rule.sampling,
+        assignments: rule.assignments.map((assignment) => {
+          const preparedDefault = prepareModernRuleVariableMapping(
+            assignment.evaluator.latestVersion?.variableMapping,
+            assignment.evaluator.type,
+          );
+          return {
+            evaluatorId: assignment.evaluator.id,
+            evaluatorName: assignment.evaluator.name,
+            evaluatorType: assignment.evaluator.type,
+            defaultVariableMapping: preparedDefault.defaultVariableMapping,
+            variableMapping:
+              assignment.evaluator.type === EvalTemplateType.CODE ||
+              assignment.variableMapping == null
+                ? preparedDefault.initialVariableMapping
+                : observationVariableMappingList
+                    .catch([])
+                    .parse(assignment.variableMapping),
+          };
+        }),
+      },
+      { scope, scopeControl: "locked" },
+    ),
   );
   const update = api.evalsV2.rules.update.useMutation({
     onError: (error) => trpcErrorToast(error, "evaluator_rule.update"),
@@ -88,10 +94,13 @@ export function EditRuleDialogContent({
       name: draft.name.trim(),
       filter: draft.filter,
       sampling: draft.sampling,
-      evaluatorMappings: draft.assignments.map((assignment) => ({
-        evaluatorId: assignment.evaluatorId,
-        variableMapping: assignment.variableMapping,
-      })),
+      evaluatorMappings:
+        scope === "trace"
+          ? traceTranscriptAssignments(draft.assignments)
+          : draft.assignments.map((assignment) => ({
+              evaluatorId: assignment.evaluatorId,
+              variableMapping: assignment.variableMapping,
+            })),
     });
     capture("evaluation_rules:update", {
       assignmentCount: draft.assignments.length,

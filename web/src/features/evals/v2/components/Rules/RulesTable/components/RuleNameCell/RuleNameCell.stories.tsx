@@ -7,6 +7,10 @@ export const Default = meta.story({
   args: { name: "Production quality checks", legacy: false },
 });
 
+export const TraceScope = meta.story({
+  args: { name: "Support conversations", legacy: false, scope: "trace" },
+});
+
 export const Legacy = meta.story({
   args: { name: "Legacy trace evaluator", legacy: true },
 });

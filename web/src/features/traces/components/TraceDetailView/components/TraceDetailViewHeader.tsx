@@ -39,6 +39,7 @@ import {
 } from "../../TraceMetadataBadges";
 import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Button } from "@/src/components/ui/button";
@@ -127,6 +128,7 @@ function LoadedTraceDetailViewHeader({
   commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
+  const hideMetrics = useTracePresentation() != null;
   const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
   const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -417,27 +419,28 @@ function LoadedTraceDetailViewHeader({
         )}
       />
 
-      {/* Metadata badges */}
-      <div className="flex flex-col gap-2">
-        {/* Timestamp alone in annotation mode; otherwise first in the badge row */}
-        {isAnnotationMode && timestampBadge}
-        {!isAnnotationMode && (
-          <CollapsibleBadgeRow>
-            {timestampBadge}
-            {targetTraceId && (
-              <TargetTraceBadge
-                targetTraceId={targetTraceId}
-                projectId={projectId}
-              />
-            )}
-            {trace.environment && (
-              <EnvironmentBadge environment={trace.environment} />
-            )}
-            {trace.release && <ReleaseBadge release={trace.release} />}
-            {trace.version && <VersionBadge version={trace.version} />}
-          </CollapsibleBadgeRow>
-        )}
-      </div>
+      {!hideMetrics && (
+        <div className="flex flex-col gap-2">
+          {/* Timestamp alone in annotation mode; otherwise first in the badge row */}
+          {isAnnotationMode && timestampBadge}
+          {!isAnnotationMode && (
+            <CollapsibleBadgeRow>
+              {timestampBadge}
+              {targetTraceId && (
+                <TargetTraceBadge
+                  targetTraceId={targetTraceId}
+                  projectId={projectId}
+                />
+              )}
+              {trace.environment && (
+                <EnvironmentBadge environment={trace.environment} />
+              )}
+              {trace.release && <ReleaseBadge release={trace.release} />}
+              {trace.version && <VersionBadge version={trace.version} />}
+            </CollapsibleBadgeRow>
+          )}
+        </div>
+      )}
     </DetailViewHeaderShell>
   );
 }

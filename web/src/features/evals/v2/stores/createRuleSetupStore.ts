@@ -2,18 +2,29 @@ import { createStore } from "zustand/vanilla";
 
 import type {
   RuleDraft,
+  RuleScope,
+  RuleScopeControl,
   RuleSetupStore,
 } from "@/src/features/evals/v2/types/rules";
 
-export function createRuleSetupStore(initialDraft: RuleDraft): RuleSetupStore {
+export function createRuleSetupStore(
+  initialDraft: RuleDraft,
+  scopeSetup: { scope: RuleScope; scopeControl: RuleScopeControl } = {
+    scope: "observation",
+    scopeControl: "hidden",
+  },
+): RuleSetupStore {
   return createStore<ReturnType<RuleSetupStore["getState"]>>((set) => ({
     ...initialDraft,
     initialDraft,
     selectedObservation: null,
+    scope: scopeSetup.scope,
+    scopeControl: scopeSetup.scopeControl,
     actions: {
       setName: (name) => set({ name }),
       setFilter: (filter) => set({ filter }),
       setSampling: (sampling) => set({ sampling }),
+      setScope: (scope) => set({ scope }),
       attachEvaluator: (assignment) =>
         set((state) => ({ assignments: [...state.assignments, assignment] })),
       detachEvaluator: (evaluatorId) =>

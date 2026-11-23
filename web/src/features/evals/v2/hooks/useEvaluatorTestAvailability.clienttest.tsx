@@ -9,6 +9,13 @@ vi.mock("@/src/features/evals/v2/hooks/useEvaluatorSetupSample", () => ({
   useEvaluatorSetupSample: () => ({ id: "sample" }),
 }));
 
+vi.mock("@/src/features/evals/v2/hooks/useEvaluatorTraceSample", () => ({
+  useEvaluatorTraceSample: () => ({
+    sourceObject: undefined,
+    hasNoTranscript: false,
+  }),
+}));
+
 vi.mock("@/src/utils/api", () => ({
   api: {
     llmApiKey: {

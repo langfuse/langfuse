@@ -54,6 +54,8 @@ interface TreeNodeWrapperProps {
 
   // Optional customization
   className?: string;
+  /** Replaces the default selected and hover wash. */
+  surfaceClassName?: string;
 }
 
 /** Placeholder row: same geometry, a skeleton in the icon slot, no actions. */
@@ -89,9 +91,10 @@ export function VirtualizedTreeNodeWrapper(
         // Dim unselected rows in dark only — in light the gray read as washed
         // out, an accepted light/dark inconsistency.
         loaded &&
-          (isSelected
-            ? "bg-muted text-foreground"
-            : "hover:bg-accent dark:text-muted-foreground"),
+          (loaded.surfaceClassName ??
+            (isSelected
+              ? "bg-muted text-foreground"
+              : "hover:bg-accent dark:text-muted-foreground")),
         loaded?.className,
       )}
       style={{

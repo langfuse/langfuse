@@ -24,6 +24,11 @@ export type RuleDraft = {
   assignments: RuleDraftAssignment[];
 };
 
+export type RuleScope = "observation" | "trace";
+
+/** Scope selector behavior: hidden (ungated create), editable (gated create), locked with a note (edit). */
+export type RuleScopeControl = "hidden" | "editable" | "locked";
+
 export type RuleEvaluatorOption = {
   id: string;
   name: string;
@@ -59,11 +64,14 @@ type RuleSetupStoreActions = {
     variableMapping: ObservationVariableMapping[],
   ) => void;
   setSelectedObservation: (observation: SampleObservation | null) => void;
+  setScope: (scope: RuleScope) => void;
 };
 
 type RuleSetupStoreState = RuleDraft & {
   initialDraft: RuleDraft;
   selectedObservation: SampleObservation | null;
+  scope: RuleScope;
+  scopeControl: RuleScopeControl;
   actions: RuleSetupStoreActions;
 };
 

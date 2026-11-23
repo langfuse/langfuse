@@ -9,6 +9,7 @@ import type {
 } from "@/src/features/evals/v2/types/rules";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { prepareRuleCloneDraft } from "@/src/features/evals/v2/fns/rules/prepareRuleCloneDraft";
+import { ruleScopeOf } from "@/src/features/evals/v2/fns/rules/ruleScope";
 import { api } from "@/src/utils/api";
 
 export function CreateRuleDialog({
@@ -97,6 +98,7 @@ export function CreateRuleDialog({
       initialEvaluator={resolvedInitialEvaluator}
       initialDraft={initialDraft}
       initialFilter={initialFilter}
+      initialScope={ruleScopeOf(initialRule?.targetObject)}
       targetObject={targetObject}
       evaluatorSearch={evaluatorSearch}
       successNotification={successNotification}

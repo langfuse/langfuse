@@ -17,7 +17,8 @@ const preserveObservedOptions: Parameters<
   typeof SampleObservationSelectorBase
 >[0]["mapObservedOptions"] = (observed) => observed;
 
-const resolveSelection: Parameters<
+/** Keeps the selection while it still matches, otherwise picks the first match. */
+export const resolveSelection: Parameters<
   typeof SampleObservationSelectorBase
 >[0]["resolveSelection"] = (observations, selectedObservationId) => {
   const selectedObservationMatches = observations.some(
@@ -33,18 +34,22 @@ export function EvaluatorSampleObservationSelector({
   projectId,
   timeRange,
   selectedObservationId,
+  selectedObservation = null,
   filterState,
   onFilterStateChange,
   onSelect,
   onOpenTrace,
+  samplePresentation = "table",
 }: {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
   selectedObservationId: string | null;
+  selectedObservation?: SampleObservation | null;
   filterState: FilterState;
   onFilterStateChange: (filters: FilterState) => void;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
+  samplePresentation?: "table" | "detail";
 }) {
   const selectionGroupName = useId();
   const leadingColumns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
@@ -95,6 +100,7 @@ export function EvaluatorSampleObservationSelector({
       tableName="evaluator-sample-observations"
       registry={EVALUATOR_FIELD_REGISTRY}
       selectedObservationId={selectedObservationId}
+      selectedObservation={selectedObservation}
       onSelect={onSelect}
       onOpenTrace={onOpenTrace}
       leadingColumns={leadingColumns}
@@ -110,6 +116,8 @@ export function EvaluatorSampleObservationSelector({
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }
       mapObservedOptions={preserveObservedOptions}
+      samplePresentation={samplePresentation}
+      sampleScope="observation"
     />
   );
 }

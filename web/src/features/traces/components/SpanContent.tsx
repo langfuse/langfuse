@@ -145,7 +145,10 @@ function LoadedSpanContent({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Name and badges row */}
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="shrink truncate text-sm" title={nodeDisplayName}>
+          <span
+            className="min-w-0 shrink truncate text-sm"
+            title={nodeDisplayName}
+          >
             {nodeDisplayName}
           </span>
 

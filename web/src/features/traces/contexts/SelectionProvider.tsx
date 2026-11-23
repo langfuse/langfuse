@@ -91,6 +91,8 @@ interface SelectionProviderProps {
   defaultObservationId: string | null;
   isMobile: boolean;
   expandDetailOnMount: boolean;
+  /** The preselected observation does not open the detail pane. */
+  collapseDetailInitially?: boolean;
 }
 
 export function SelectionProvider({
@@ -98,12 +100,16 @@ export function SelectionProvider({
   defaultObservationId,
   isMobile,
   expandDetailOnMount,
+  collapseDetailInitially = false,
 }: SelectionProviderProps) {
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
   );
   const previousObservationId = useRef(currentObservationId ?? null);
+  // The sample writes the preselected observation into the URL after mount.
+  // That write is not a click, so it must not open a pane that starts collapsed.
+  const ignoreInitialUrlDetailOpen = useRef(collapseDetailInitially);
   const pendingObservationId = useRef<string | null | undefined>(undefined);
   const [tabParam, setTabParam] = useQueryParam("traceTab", StringParam);
   const [prefParam, setPrefParam] = useQueryParam("pref", StringParam);
@@ -132,7 +138,9 @@ export function SelectionProvider({
   const [pendingPanelExpand, setPendingPanelExpand] = useState<
     "navigation" | "detail" | null
   >(
-    !isMobile && (currentObservationId || expandDetailOnMount)
+    !isMobile &&
+      !collapseDetailInitially &&
+      (currentObservationId || expandDetailOnMount)
       ? "detail"
       : null,
   );
@@ -184,6 +192,10 @@ export function SelectionProvider({
     pendingObservationId.current = undefined;
     if (pendingId === observationId || isMobile) return;
     if (observationId === null) return;
+    if (ignoreInitialUrlDetailOpen.current) {
+      ignoreInitialUrlDetailOpen.current = false;
+      return;
+    }
 
     openDetails();
   }, [currentObservationId, isMobile, openDetails]);
