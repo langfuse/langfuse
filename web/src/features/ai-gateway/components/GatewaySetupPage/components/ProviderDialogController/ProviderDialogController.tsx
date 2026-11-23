@@ -1,9 +1,12 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ReactNode } from "react";
 import { type MutationStatus } from "@tanstack/react-query";
-import { Info, TriangleAlert } from "@langfuse/icons";
+import {
+  getInvalidLlmBaseUrlReason,
+  getLlmBaseUrlFormatError,
+} from "@langfuse/shared";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -21,14 +24,16 @@ import {
   AzureResourceField,
   type AzureResourceFieldValue,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AzureResourceField/AzureResourceField";
-import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
 import { ConnectionTestStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionTestStatus/ConnectionTestStatus";
 import { type ConnectionTestFailure } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionTestStatus/components/ConnectionTestDetails/ConnectionTestDetails";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
+import { RegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/RegionField/RegionField";
 import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderSelect";
 import { SecretKeyField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/SecretKeyField/SecretKeyField";
+import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { vertexLocationGroups } from "@/src/features/ai-gateway/constants/vertexLocations";
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { showToast } from "@/src/features/notifications/showToast";
 import {
@@ -59,6 +64,23 @@ import { getLiveConnectionNameError } from "@/src/features/ai-gateway/components
 import { useExistingConnectionNames } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/hooks/useExistingConnectionNames";
 
 const EMPTY_AZURE_RESOURCE: AzureResourceFieldValue = { name: "", project: "" };
+const DEFAULT_VERTEX_LOCATION = "global";
+const BEDROCK_REGION_FIELD = {
+  id: "gateway-bedrock-region",
+  label: "AWS region",
+};
+const VERTEX_LOCATION_FIELD = {
+  id: "gateway-vertex-location",
+  label: "Location",
+};
+
+function getStoredRegionField(
+  config: { region: string } | { location: string },
+) {
+  return "region" in config
+    ? { ...BEDROCK_REGION_FIELD, value: config.region }
+    : { ...VERTEX_LOCATION_FIELD, value: config.location };
+}
 
 export function ProviderDialogController({
   organizationId,
@@ -87,6 +109,7 @@ export function ProviderDialogController({
   );
   const [credential, setCredential] = useState("");
   const [awsRegion, setAwsRegion] = useState("");
+  const [vertexLocation, setVertexLocation] = useState(DEFAULT_VERTEX_LOCATION);
   const [baseURL, setBaseURL] = useState("");
   const [azureResource, setAzureResource] =
     useState<AzureResourceFieldValue>(EMPTY_AZURE_RESOURCE);
@@ -94,7 +117,7 @@ export function ProviderDialogController({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const existingNames = useExistingConnectionNames(organizationId);
-  const { region } = useLangfuseCloudRegion();
+  const { region, isLangfuseCloud } = useLangfuseCloudRegion();
   const name =
     nameDraft ?? suggestGatewayConnectionName(provider, existingNames);
   const test = api.aiGateway.testConnection.useMutation({
@@ -118,7 +141,9 @@ export function ProviderDialogController({
     saveError && isGatewayConnectionNameError(saveError.message)
       ? saveError.message
       : null;
-  const isSaveError = Boolean(saveError) && !serverNameError;
+  const serverBaseURLError = saveError
+    ? getInvalidLlmBaseUrlReason(saveError.message)
+    : null;
   const testOutcome = getTestOutcome(test);
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */
@@ -131,17 +156,27 @@ export function ProviderDialogController({
           existingNames,
         }) ?? serverNameError);
 
-  /** Bedrock's region is fixed once saved, so edits reuse the stored one. */
+  /** The server skips an unchanged base URL, as it was validated when it was saved. */
+  const getBaseURLFormatError = (
+    selectedConnection: GatewayConnection | null,
+  ) => {
+    const trimmed = baseURL.trim();
+    return trimmed && trimmed !== (selectedConnection?.baseURL ?? "")
+      ? getLlmBaseUrlFormatError(trimmed, isLangfuseCloud)
+      : null;
+  };
+
+  /** Bedrock's region and Vertex AI's location are fixed once saved, so edits reuse the stored one. */
   const getConfig = (selectedConnection: GatewayConnection | null) => {
-    if ((selectedConnection?.provider ?? provider) !== "BEDROCK") {
-      return undefined;
-    }
-    return selectedConnection?.config ?? { region: awsRegion.trim() };
+    if (selectedConnection) return selectedConnection.config ?? undefined;
+    if (provider === "BEDROCK") return { region: awsRegion.trim() };
+    if (provider === "VERTEX") return { location: vertexLocation };
+    return undefined;
   };
 
   /**
-   * Bedrock, xAI, Vercel and Google AI Studio have no custom endpoint, and
-   * Azure only the endpoint of its resource and project.
+   * Bedrock, xAI, Vercel, Google AI Studio and Vertex AI have no custom
+   * endpoint, and Azure only the endpoint of its resource and project.
    * When editing, a blank header value keeps the stored value, so those rows
    * are sent; a new connection has no stored values and drops them.
    */
@@ -197,6 +232,7 @@ export function ProviderDialogController({
     setNameDraft(null);
     setCredential("");
     setAwsRegion("");
+    setVertexLocation(DEFAULT_VERTEX_LOCATION);
     loadEndpoint(null);
     resetMutations();
   };
@@ -214,6 +250,11 @@ export function ProviderDialogController({
 
   const updateName = (value: string) => {
     setNameDraft(value);
+    clearSaveError();
+  };
+
+  const updateBaseURL = (value: string) => {
+    setBaseURL(value);
     clearSaveError();
   };
 
@@ -255,6 +296,7 @@ export function ProviderDialogController({
           provider: selectedConnection.provider,
           isRenamed: name.trim() !== selectedConnection.name,
           isCredentialReplaced: Boolean(credential),
+          ...toEndpointUsage(saved),
         });
       } else {
         saved = await create.mutateAsync({
@@ -270,6 +312,7 @@ export function ProviderDialogController({
           surface,
           provider,
           isFirstCredential: existingNames.length === 0,
+          ...toEndpointUsage(saved),
         });
         onAfterCreate?.({ provider });
       }
@@ -311,10 +354,28 @@ export function ProviderDialogController({
       onBeforeClose={() => !isPending}
       renderContent={({ state: selectedConnection, closeDialog }) => {
         const nameError = getNameError(selectedConnection);
+        const config = getConfig(selectedConnection);
+        const isMissingRegion =
+          config !== undefined && "region" in config && config.region === "";
+        const storedRegion = selectedConnection?.config
+          ? getStoredRegionField(selectedConnection.config)
+          : null;
         const dialogProvider = selectedConnection?.provider ?? provider;
-        const isMissingRegion = getConfig(selectedConnection)?.region === "";
         const isMissingEndpoint =
           dialogProvider === "AZURE" && !isValidAzureResource(azureResource);
+        const hasBaseURLField = supportsCustomEndpoint(dialogProvider);
+        const baseURLFormatError = hasBaseURLField
+          ? getBaseURLFormatError(selectedConnection)
+          : null;
+        // Server rejections can be transient, like a failed DNS lookup, so
+        // only format errors block a retry.
+        const baseURLError = hasBaseURLField
+          ? (baseURLFormatError ?? serverBaseURLError)
+          : null;
+        const isSaveError =
+          Boolean(saveError) &&
+          !serverNameError &&
+          !(hasBaseURLField && serverBaseURLError);
         return (
           <>
             <DialogHeader>
@@ -324,14 +385,11 @@ export function ProviderDialogController({
             </DialogHeader>
             <DialogBody className="gap-6">
               {isGatewayHipaaNoticeVisible(region) ? (
-                <Alert variant="info" icon={Info}>
-                  <Alert.Title>HIPAA region</Alert.Title>
-                  <Alert.Description>
-                    Requests are forwarded to the provider you configure, using
-                    your provider connection and on your instruction. Make sure
-                    you have a BAA with that provider before sending PHI.
-                  </Alert.Description>
-                </Alert>
+                <Banner variant="info" title="HIPAA region">
+                  Requests are forwarded to the provider you configure, using
+                  your provider connection and on your instruction. Make sure
+                  you have a BAA with that provider before sending PHI.
+                </Banner>
               ) : null}
               {selectedConnection ? (
                 <div>
@@ -358,22 +416,39 @@ export function ProviderDialogController({
                 nameError={nameError}
                 onNameChange={updateName}
               />
-              {selectedConnection?.config ? (
+              {storedRegion ? (
                 <div>
                   <FieldHeader
-                    htmlFor="gateway-bedrock-region"
-                    label="AWS region"
+                    htmlFor={storedRegion.id}
+                    label={storedRegion.label}
                     description="Fixed once the connection is saved."
                   />
                   <Input
-                    id="gateway-bedrock-region"
-                    value={selectedConnection.config.region}
+                    id={storedRegion.id}
+                    value={storedRegion.value}
                     disabled
                   />
                 </div>
               ) : null}
               {!selectedConnection && provider === "BEDROCK" ? (
-                <BedrockRegionField value={awsRegion} onChange={setAwsRegion} />
+                <RegionField
+                  id={BEDROCK_REGION_FIELD.id}
+                  label={BEDROCK_REGION_FIELD.label}
+                  description="Requests go to Bedrock in this region. It can't be changed after saving."
+                  groups={bedrockRegionGroups}
+                  value={awsRegion}
+                  onChange={setAwsRegion}
+                />
+              ) : null}
+              {!selectedConnection && provider === "VERTEX" ? (
+                <RegionField
+                  id={VERTEX_LOCATION_FIELD.id}
+                  label={VERTEX_LOCATION_FIELD.label}
+                  description="Requests go to Vertex AI in this location. It can't be changed after saving."
+                  groups={vertexLocationGroups}
+                  value={vertexLocation}
+                  onChange={setVertexLocation}
+                />
               ) : null}
               {dialogProvider === "AZURE" ? (
                 <AzureResourceField
@@ -388,34 +463,29 @@ export function ProviderDialogController({
                 hasSavedKey={Boolean(selectedConnection)}
                 onCredentialChange={setCredential}
               />
-              {supportsCustomEndpoint(dialogProvider) ? (
+              {hasBaseURLField ? (
                 <AdvancedSettings
                   provider={dialogProvider}
                   baseURL={baseURL}
+                  baseURLError={baseURLError}
                   headers={extraHeaders}
                   storedHeaderKeys={selectedConnection?.extraHeaderKeys ?? []}
                   isEditing={Boolean(selectedConnection)}
-                  onBaseURLChange={setBaseURL}
+                  onBaseURLChange={updateBaseURL}
                   onHeadersChange={setExtraHeaders}
                 />
               ) : null}
               {selectedConnection && name.trim() !== selectedConnection.name ? (
-                <Alert variant="warning" icon={TriangleAlert}>
-                  <Alert.Title>Renaming changes model slugs</Alert.Title>
-                  <Alert.Description>
-                    Requests using model slugs with the old connection name will
-                    stop resolving.
-                  </Alert.Description>
-                </Alert>
+                <Banner variant="warning" title="Renaming changes model slugs">
+                  Requests using model slugs with the old connection name will
+                  stop resolving.
+                </Banner>
               ) : null}
               {isSaveError ? (
-                <Alert variant="destructive">
-                  <Alert.Title>Connection could not be saved</Alert.Title>
-                  <Alert.Description>
-                    {/* Base URL validation and provider errors can echo the configured host. */}
-                    <span className="ph-no-capture">{saveError?.message}</span>
-                  </Alert.Description>
-                </Alert>
+                <Banner variant="error" title="Connection could not be saved">
+                  {/* Base URL validation and provider errors can echo the configured host. */}
+                  <span className="ph-no-capture">{saveError?.message}</span>
+                </Banner>
               ) : null}
               {test.data?.success &&
               test.data.modelListingDenied &&
@@ -436,6 +506,7 @@ export function ProviderDialogController({
                   !credential ||
                   isMissingRegion ||
                   isMissingEndpoint ||
+                  Boolean(baseURLFormatError) ||
                   isPending
                 }
                 loading={test.isPending}
@@ -450,6 +521,7 @@ export function ProviderDialogController({
                   (!selectedConnection && !credential) ||
                   isMissingRegion ||
                   isMissingEndpoint ||
+                  Boolean(baseURLFormatError) ||
                   isPending ||
                   isSaved
                 }
@@ -469,6 +541,7 @@ export function ProviderDialogController({
           setNameDraft(connection?.name ?? null);
           setCredential("");
           setAwsRegion("");
+          setVertexLocation(DEFAULT_VERTEX_LOCATION);
           loadEndpoint(connection ?? null);
           resetMutations();
           openDialog(connection ?? null);
@@ -482,6 +555,7 @@ export function ProviderDialogController({
             setNameDraft(selectedConnection.name);
             setCredential("");
             setAwsRegion("");
+            setVertexLocation(DEFAULT_VERTEX_LOCATION);
             loadEndpoint(selectedConnection);
             resetMutations();
             openDialog(selectedConnection);
@@ -490,6 +564,24 @@ export function ProviderDialogController({
       }}
     </DialogController>
   );
+}
+
+/**
+ * Reads the saved connection, as the server drops blank header rows it has no
+ * value for. Azure's endpoint is its resource, not a custom base URL.
+ */
+function toEndpointUsage(
+  connection: Pick<
+    GatewayConnection,
+    "provider" | "baseURL" | "extraHeaderKeys"
+  >,
+) {
+  return {
+    hasCustomBaseUrl:
+      supportsCustomEndpoint(connection.provider) &&
+      Boolean(connection.baseURL),
+    extraHeaderCount: connection.extraHeaderKeys.length,
+  };
 }
 
 function isValidAzureResource({ name, project }: AzureResourceFieldValue) {

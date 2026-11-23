@@ -93,6 +93,9 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES`      | `1048576` (1 MiB)                                                | Integer from 0 to 4294967295; fixed bytes each request reserves on top of its body for response capture and buffers                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS`              | `600`                                                            | Integer of at least 60; ceiling from execution admission until the response completes. Web ingestion tokens last 15 minutes, so traces of longer executions may be dropped                                                                                                                                                                                                                                                                                                                                                               |
 | `LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS`              | `120`                                                            | Integer from 1 to the execution ceiling; longest wait without progress                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `LANGFUSE_AI_GATEWAY_REDIS_URL`                          | unset                                                            | `redis://` or `rediss://` URL, or comma-separated cluster node URLs, of the Redis that counts keys' spend; see [Budgets](#budgets). Without it, requests on a key with a budget return 503                                                                                                                                                                                                                                                                                                                                               |
+| `LANGFUSE_AI_GATEWAY_REDIS_CLUSTER_ENABLED`              | `false`                                                          | `true`, `false`; connect to `LANGFUSE_AI_GATEWAY_REDIS_URL` as a Redis Cluster                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `LANGFUSE_AI_GATEWAY_REDIS_AUTH`                         | unset                                                            | Password of the Redis at `LANGFUSE_AI_GATEWAY_REDIS_URL`, such as an ElastiCache auth token. A password in the URL takes precedence                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
 `fatal` maps to Rust's `error` level and therefore includes ordinary error logs.
@@ -260,10 +263,9 @@ Gateway-specific metrics:
 - `gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
   `gateway.admission.rejected` (`phase`: `request`, `request_body` or
   `model_catalog`), and `gateway.telemetry.records`.
+- `gateway.spend.usd` (`langfuse.organization.id`, `langfuse.project.id`, `gateway.provider`): monotonic counter of the USD a request on a spend-limited key added to its budget counters. Each charge also logs `gateway spend charged` with `cost_usd`, `user_id`, `organization_id` and `project_id`, so per-user spend can be derived from logs.
 
-Durations use seconds; first-byte timing measures provider bytes arriving at the
-gateway, not first-token delivery to the caller. Metric attributes contain
-bounded categories, not tenant or request identifiers.
+Durations use seconds; first-byte timing measures provider bytes arriving at the gateway, not first-token delivery to the caller. Metric attributes contain bounded categories, not tenant or request identifiers, except the organization and project on `gateway.spend.usd`, which per-organization spend alerts need. User ids never become metric attributes.
 
 Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
 Metrics export every 30 seconds. Export calls use a three-second timeout; failures
@@ -411,7 +413,10 @@ buffers and validates the request and resolves the credential and model-aware ro
 through Web. A declared `Content-Length` is checked against the request limit before
 reading. The reservation grows with the body buffer's allocation as bytes arrive, so a
 client that declares a large body and stalls holds only the overhead and what it sent.
-The whole reservation stays held until the response ends. Model catalog requests
+The whole reservation stays held until the response ends. A request charged to spend
+limits reserves up to 7 MiB more only when a response body or event outgrows 1 MiB, so it
+can still read the usage; without that memory, the usage is not read and the response
+counts as uncharged. Model catalog requests
 reserve the overhead, grow it with Web's catalog buffer as it arrives, then to three
 times the catalog for parsing and the provider-shaped response, and hold it until the
 client has read that response; the response is relayed under the same stall timeout and
@@ -452,6 +457,20 @@ timing/version/rate-limit headers, or Anthropic's `request-id`, `x-should-retry`
 overrides, gateway/ingestion credentials, client `x-claude-code-*` correlation
 headers, hop-by-hop headers and upstream framing are excluded.
 
+## Budgets
+
+A key with budgets is checked before its request reaches the provider: when a budget's counted spend has reached its amount, the request fails with 429. A request for a model without a Langfuse price fails with 400, unless its provider reports billed cost, and a key whose counters cannot be read fails with 503. After the response, its cost is added to the counter of every budget of the key. The cost is the provider's billed cost when it reports one, else the usage priced as Langfuse prices the generation.
+
+Web sends the budgets of the key, of its user and of its organization. A budget's counter is keyed by its id, so a user budget counts across the user's keys and an organization budget across every key of the organization.
+
+A budget counts spend from when it is set; earlier spend does not count. Daily, weekly and monthly budgets start over at 00:00 UTC each day, each Monday and on the 1st of each month; `total` budgets never do.
+
+Budgets are soft. Spend is added only once a response completes, so requests already in flight when a budget is reached still complete and can carry spend past the budget. A response that ends before its usage is reported, such as a stream the client disconnects from, adds nothing. A successful response that adds nothing counts in `gateway.spend.uncharged` with `reason=zero_cost` (usage priced at $0) or `reason=no_usage` (no usage reported), and logs a warning; `reason=backlog` counts costs dropped because too many counter writes were pending.
+
+Counters live in the Redis at `LANGFUSE_AI_GATEWAY_REDIS_URL`, under keys prefixed `gateway-spend:`. Its password goes in `LANGFUSE_AI_GATEWAY_REDIS_AUTH` or in the URL; the URL's wins. Run a dedicated Redis 7 or later with `maxmemory-policy noeviction`: counters of `total` budgets never expire, and an evicted counter resets its budget's spend. Daily, weekly and monthly counters expire 10 minutes after their window ends.
+
+The gateway connects to Redis at startup. Each Redis call times out after 500 ms. After three failed calls in a row, calls fail at once for one second, so keys with budgets get their 503 without waiting; after that, one failed call fails them again for a second and one successful call ends it.
+
 ## Langfuse uploads
 
 When inference is configured, each finalized execution is mapped to a generation
@@ -490,12 +509,15 @@ are dropped without re-resolving the execution. Requests explicitly select v4 in
 Each execution becomes one generation with a new observation ID and either the
 caller's trace/parent IDs or a generated root trace ID, the model, model parameters,
 native usage, and trusted key/connection attribution. Full mode includes the captured input/output; usage mode omits content.
+A full-mode record that is too large for one record or for the telemetry buffer drops its input,
+then its output, so its usage and cost are still delivered.
 Completion-start time is emitted only for upstream `text/event-stream` responses,
 on the first nonempty text, reasoning, refusal, tool-input, audio, or partial-image content. JSON responses
 and streams without a captured content delta have no completion-start time or TTFT.
-OpenAI Responses and Chat Completions usage are projected into the receiver's strict
+OpenAI Responses and Chat Completions usage are reduced to the receiver's strict
 native schemas (`input_tokens`/`output_tokens` or `prompt_tokens`/`completion_tokens`,
-plus `total_tokens`), keeping their nested detail counters. Anthropic usage is uploaded exactly as the provider reported
+plus `total_tokens`), keeping their nested detail counters. A Chat Completions response without
+`total_tokens` gets prompt plus completion as its total. Anthropic usage is uploaded exactly as the provider reported
 it; ingestion decides what to price. Usage is not duplicated in metadata. Missing usage
 is not reported as zero.
 
@@ -534,11 +556,13 @@ Every gateway fact is a metadata key under `langfuse.gateway.`, grouped by the r
 | `model.upstream`                   | string                                                                                                                                 | Web: the connection's provider model, sent upstream                  | When the request reached the provider path                                              |
 | `model.response`                   | string                                                                                                                                 | Provider: response `model`                                           | When the provider reported one                                                          |
 | `user_id_source`                   | string: `client`, `api_key_owner`, or `api_key_name`                                                                                   | Gateway                                                              | When the generation has a user ID                                                       |
+| `cost.source`                      | string: `calculated`                                                                                                                   | Gateway                                                              | When the gateway calculated the generation's cost from model pricing                    |
 | `request.id`                       | string                                                                                                                                 | Gateway                                                              | Always; also the `langfuse-request-id` response header                                  |
 | `request.api_format`               | string: `openai.responses`, `openai.chat-completions`, `openai.decisions`, `openai.embeddings` or `anthropic.messages`                 | Gateway                                                              | Always                                                                                  |
 | `request.body_bytes`               | integer                                                                                                                                | Gateway: the caller's uncompressed request body                      | Always                                                                                  |
 | `request.input_omitted`            | string: `size_limit`, `content_encoding`, `invalid_json`, `record_limit` or `telemetry_buffer`                                         | Gateway                                                              | Full mode, when the input is not recorded                                               |
 | `request.input_limit_bytes`        | integer                                                                                                                                | Gateway                                                              | With `input_omitted` `size_limit`                                                       |
+| `response.output_omitted`          | string: `record_limit` or `telemetry_buffer`                                                                                           | Gateway                                                              | Full mode, when the record does not fit even without its input                          |
 | `client.request.id`                | string                                                                                                                                 | Caller: `x-request-id` header                                        | When valid                                                                              |
 | `client.user_agent`                | string, at most 256 bytes                                                                                                              | Caller: `User-Agent` header, trimmed                                 | When present, single and free of control characters                                     |
 | `client.request.metadata`          | JSON value as sent                                                                                                                     | Caller: request body `metadata`                                      | Full mode, when sent                                                                    |
@@ -976,7 +1000,7 @@ not Cargo's potentially large `target` directory. Development similarly caches
 only the final debug binary so unchanged gateway builds can be reused across
 worktrees.
 The JavaScript CI jobs and commit-hook lint exclude it; the dedicated Rust CI job
-runs its checks without Node. Root Prettier formatting remains JavaScript/CSS-only;
+runs its checks without Node. Root Oxfmt formatting remains JavaScript/CSS-only;
 use the gateway `format` script for Rust. Docker builds also use Cargo directly.
 
 Equivalent Cargo checks, without pnpm:

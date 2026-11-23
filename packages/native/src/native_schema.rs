@@ -9,12 +9,21 @@
 //! text from media processing on `OwnedEvent`. Row restoration replaces temporary
 //! media references in the remaining string fields.
 
-use napi::bindgen_prelude::Object;
 use serde::Serialize;
 use serde_json::Value;
 
 use crate::native_codec::{DateTime64Micros, Decimal64, SkillReference, SkillResourceLoaded};
 use crate::otel::attributes::AttributeSource::{Resource, Scope, Span};
+
+const OPTIONAL_EXPERIMENT_EVALUATION_FIELDS: [&str; 7] = [
+    "experiment_id",
+    "experiment_name",
+    "experiment_description",
+    "experiment_dataset_id",
+    "experiment_item_id",
+    "experiment_item_expected_output",
+    "experiment_item_root_span_id",
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DefaultPolicy {
@@ -29,44 +38,56 @@ pub(crate) enum DefaultPolicy {
 mod macros;
 
 impl OtelStorageRow {
-    /// Estimate the serialized row for trace-queue capacity, only when recording a trace.
-    /// Persisted `event_bytes` is computed separately by ClickHouse.
-    pub fn serialized_byte_length(&self) -> Result<u64, serde_json::Error> {
-        #[derive(Serialize)]
-        struct Event<'a> {
-            id: &'a str,
-            #[serde(flatten)]
-            row: &'a OtelStorageRow,
-        }
-        let mut counter = ByteCounter(0);
-        serde_json::to_writer(
-            &mut counter,
-            &Event {
-                id: &self.span_id,
-                row: self,
-            },
-        )?;
-        Ok(counter.0)
+    /// Estimate the fields read for a trace after overflow has replaced uploaded payloads.
+    pub fn estimated_dispatch_bytes(&self) -> usize {
+        // Small spans still cost a row to read. The fixed allowance approximates the
+        // per-row overhead observed in replays without serializing every stored column.
+        const ROW_OVERHEAD_BYTES: usize = 1_536;
+        let text = [
+            Some(&self.project_id),
+            Some(&self.trace_id),
+            Some(&self.span_id),
+            self.parent_span_id.as_ref(),
+            Some(&self.name),
+            self.trace_name.as_ref(),
+            self.session_id.as_ref(),
+            Some(&self.environment),
+            Some(&self.event_type),
+            Some(&self.level),
+            self.status_message.as_ref(),
+            self.input.as_ref(),
+            self.output.as_ref(),
+        ];
+        let payload_bytes = text
+            .into_iter()
+            .flatten()
+            .chain(&self.metadata_names)
+            .chain(&self.metadata_values)
+            .chain(&self.tool_calls)
+            .chain(&self.tool_call_names)
+            .chain(
+                self.tool_definitions
+                    .iter()
+                    .flat_map(|(name, definition)| [name, definition]),
+            )
+            .map(String::len)
+            .sum::<usize>();
+        ROW_OVERHEAD_BYTES + payload_bytes
     }
 
     pub fn evaluation_value(&self) -> Result<Value, serde_json::Error> {
         let mut value = serde_json::to_value(self)?;
-        value
-            .as_object_mut()
-            .expect("row is an object")
-            .insert("id".into(), Value::String(self.span_id.clone()));
-        Ok(value)
-    }
-}
+        let object = value.as_object_mut().expect("row is an object");
+        object.insert("id".into(), Value::String(self.span_id.clone()));
 
-struct ByteCounter(u64);
-impl std::io::Write for ByteCounter {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0 += bytes.len() as u64;
-        Ok(bytes.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
+        // TypeScript leaves missing experiment attributes undefined, so evaluation
+        // uploads omit those keys even though the storage row allows nulls.
+        for field in OPTIONAL_EXPERIMENT_EVALUATION_FIELDS {
+            if object.get(field).is_some_and(Value::is_null) {
+                object.remove(field);
+            }
+        }
+        Ok(value)
     }
 }
 

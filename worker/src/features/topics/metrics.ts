@@ -8,7 +8,6 @@ import { TopicsProviderUnavailable } from "./provider-error";
 type TopicStage =
   | "execution"
   | "trace"
-  | "transcript"
   | "summary"
   | "embedding"
   | "clustering"
@@ -17,7 +16,6 @@ type TopicStage =
   | "storage";
 export type TopicResult =
   | "generated"
-  | "cached"
   | "applicable"
   | "not_applicable"
   | "insufficient_input"
@@ -28,17 +26,15 @@ export type TopicResult =
   | "insufficient_data"
   | "no_applicable_summaries"
   | "assigned"
-  | "awaiting_topics"
   | "outlier"
   | "name_conflict"
+  | "name_kept"
   | "duplicate_name";
 type TopicErrorReason =
   | TopicsProviderUnavailable["reason"]
-  | "trace_load"
   | "storage"
   | "numerical"
   | "input_too_large"
-  | "trace_too_large"
   | "definition_readback"
   | "unknown";
 
@@ -74,6 +70,18 @@ export function recordTopicModelCall(
   else if (httpStatus >= 400 && httpStatus < 500) status = "4xx";
   else if (httpStatus >= 500 && httpStatus < 600) status = "5xx";
   recordIncrement("langfuse.topics.llm_calls", 1, { stage, adapter, status });
+}
+
+/** One cost estimate from the user's click to its end, queue wait included; the count per outcome is the success rate. */
+export function recordTopicCostEstimate(
+  outcome: "done" | "failed" | "superseded",
+  startedAt: number,
+): void {
+  recordDistribution(
+    "langfuse.topics.cost_estimate_duration_ms",
+    Date.now() - startedAt,
+    { outcome, unit: "milliseconds" },
+  );
 }
 
 /** One instance per execution attempt prevents nested catches counting an error twice. */
@@ -166,7 +174,6 @@ export class TopicMetrics {
       if (["AbortError", "TimeoutError"].includes(error.name))
         reason = "timeout";
       if (error.name === "TopicInputTooLarge") reason = "input_too_large";
-      if (error.name === "TopicTraceTooLarge") reason = "trace_too_large";
       if (error.name === "TopicDefinitionReadbackError")
         reason = "definition_readback";
       if (

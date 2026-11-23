@@ -166,9 +166,7 @@
         "$TURBO_ROOT$/scripts/vitest/ci-reporter.ts",
         "$TURBO_ROOT$/fern/apis/server/definition/**",
         "$TURBO_ROOT$/scripts/code-eval-runners/python/code_based_eval_handler.py",
-        "$TURBO_ROOT$/prettier.config.*",
-        "$TURBO_ROOT$/.prettierrc*",
-        "$TURBO_ROOT$/.prettierignore",
+        "$TURBO_ROOT$/.oxfmtrc.json",
         "$TURBO_ROOT$/.editorconfig",
         "$TURBO_ROOT$/.env.test"
       ]

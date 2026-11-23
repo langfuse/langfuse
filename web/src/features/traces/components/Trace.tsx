@@ -1,9 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ScoreDomain } from "@langfuse/shared";
-import {
-  type buildTraceUiData,
-  traceNodeId,
-} from "@/src/features/traces/fns/treeBuilding";
+import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
@@ -45,7 +42,7 @@ import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { cn } from "@/src/utils/tailwind";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { TabBar } from "@/src/components/design-system/TabBar/TabBar";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { StringParam, useQueryParam } from "use-query-params";
@@ -54,12 +51,18 @@ import { useSessionScopeData } from "@/src/features/traces/hooks/useSessionScope
 import { SessionErrorBanner } from "./SessionErrorBanner/SessionErrorBanner";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
+import { SessionEventsWorkspace } from "@/src/features/sessions/SessionPages";
+import { useSessionTraceData } from "../hooks/useSessionTraceData";
+import { type TraceDataTrace, type TraceScope } from "../types/traceScope";
+import { ErrorPage } from "@/src/components/ErrorPage";
+import { SessionTracePeek } from "./SessionTracePeek/SessionTracePeek";
+import { useIsSessionTracePeek } from "./SessionTracePeek/SessionTracePeekNavigationProvider";
 
 export type TraceProps = {
   header: React.ComponentProps<typeof TraceHeader>["header"];
   isLoading?: false;
   observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Parameters<typeof buildTraceUiData>[0];
+  trace: TraceDataTrace;
   scores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   projectId: string;
@@ -95,6 +98,106 @@ const DESKTOP_LAYOUTS = {
 } as const;
 
 type DesktopLayout = (typeof DESKTOP_LAYOUTS)[keyof typeof DESKTOP_LAYOUTS];
+
+Trace.Session = ConnectedSessionTrace;
+
+function ConnectedSessionTrace({
+  projectId,
+  sessionId,
+  header,
+  context,
+}: {
+  projectId: string;
+  sessionId: string;
+  header: TraceProps["header"];
+  context: "peek" | "fullscreen";
+}) {
+  const result = useSessionTraceData({ projectId, sessionId });
+  const scope = useMemo<TraceScope>(
+    () => ({
+      type: "session",
+      projectId,
+      sessionId,
+      traces: result.data?.traces ?? [],
+    }),
+    [projectId, sessionId, result.data?.traces],
+  );
+  const { observationCommentCounts, sessionTraceCommentCounts } =
+    useTraceComments({
+      projectId,
+      target: { type: "session", sessionId },
+    });
+  const comments = useMemo(
+    () =>
+      new Map([
+        ...(observationCommentCounts ?? []),
+        ...sessionTraceCommentCounts,
+      ]),
+    [observationCommentCounts, sessionTraceCommentCounts],
+  );
+  const isMobile = useIsMobile();
+  const desktopLayout = DESKTOP_LAYOUTS[context];
+  if (result.isError) {
+    return (
+      <ErrorPage
+        title={
+          result.error.data?.code === "NOT_FOUND"
+            ? "Session not found"
+            : "Failed to load session"
+        }
+        message="The session could not be loaded."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => {
+            result.refetch();
+          },
+        }}
+      />
+    );
+  }
+  return (
+    <ViewPreferencesProvider traceContext={context}>
+      <SelectionProvider
+        defaultObservationId={null}
+        isMobile={isMobile}
+        expandDetailOnMount={false}
+      >
+        {!result.data ? (
+          <TraceLoading desktopLayout={desktopLayout} header={header} />
+        ) : (
+          <TraceDataProvider
+            scope={scope}
+            observations={result.data.observations}
+            serverScores={result.data.scores}
+            corrections={result.data.corrections}
+            comments={comments}
+            truncatedAtObservations={
+              result.data.cutoffObservationsAfterMaxCount
+                ? result.data.maxObservationsPerSession
+                : undefined
+            }
+          >
+            <TraceGraphDataProvider
+              projectId={projectId}
+              target={{ type: "session", sessionId }}
+              observations={result.data.observations}
+            >
+              <SearchProvider>
+                <JsonExpansionProvider>
+                  <TraceContent
+                    desktopLayout={desktopLayout}
+                    header={header}
+                    sessionError={null}
+                  />
+                </JsonExpansionProvider>
+              </SearchProvider>
+            </TraceGraphDataProvider>
+          </TraceDataProvider>
+        )}
+      </SelectionProvider>
+    </ViewPreferencesProvider>
+  );
+}
 
 /**
  * SelectionProvider sits ABOVE the trace data so the selected observation can be
@@ -189,6 +292,17 @@ function TraceWithSelection({
     isPlaceholderData,
   });
   const scopedObservations = sessionData?.observations ?? loadedObservations;
+  const scope = useMemo<TraceScope>(() => {
+    if (sessionData && trace.sessionId) {
+      return {
+        type: "session",
+        projectId,
+        sessionId: trace.sessionId,
+        traces: sessionData.traces,
+      };
+    }
+    return { type: "trace", trace };
+  }, [projectId, trace, sessionData]);
 
   // Fetch comment counts using existing hook
   const {
@@ -197,8 +311,10 @@ function TraceWithSelection({
     sessionTraceCommentCounts,
   } = useTraceComments({
     projectId,
-    traceId: trace.id,
-    sessionId: sessionData ? (trace.sessionId ?? undefined) : undefined,
+    target:
+      scope.type === "session"
+        ? { type: "session", sessionId: scope.sessionId }
+        : { type: "trace", traceId: trace.id },
   });
 
   // Merge observation + trace comments into single Map for TraceDataContext
@@ -270,8 +386,8 @@ function TraceWithSelection({
       <div className="min-h-0 flex-1">
         {/* Keep review drafts mounted while session data loads or retries. */}
         <TraceDataProvider
-          trace={trace}
-          sessionTraces={sessionData?.traces}
+          scope={scope}
+          anchorTrace={trace}
           observations={observations}
           serverScores={sessionData?.scores ?? scores}
           corrections={sessionData?.corrections ?? corrections}
@@ -287,8 +403,11 @@ function TraceWithSelection({
         >
           <TraceGraphDataProvider
             projectId={trace.projectId}
-            traceId={trace.id}
-            sessionId={sessionData ? (trace.sessionId ?? undefined) : undefined}
+            target={
+              scope.type === "session"
+                ? { type: "session", sessionId: scope.sessionId }
+                : { type: "trace", traceId: trace.id }
+            }
             observations={observations}
           >
             <SearchProvider>
@@ -337,13 +456,67 @@ function TraceContent({
 } & Pick<TraceProps, "header">) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
-  const { isPlaceholderData, sessionTraces } = useTraceData();
+  const { isPlaceholderData, scope, projectId, trace } = useTraceData();
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const router = useRouter();
+  const isSessionTracePeek = useIsSessionTracePeek();
+  const tracePeek =
+    typeof router.query.sessionPeek === "string"
+      ? router.query.sessionPeek
+      : null;
+  const openTracePeek = (search: string) => {
+    if (isSessionTracePeek) {
+      const params = new URLSearchParams(search);
+      const {
+        sessionPeek,
+        observation,
+        timestamp,
+        traceView,
+        traceTab,
+        ...query
+      } = router.query;
+      return router.push(
+        {
+          pathname: router.pathname,
+          query: {
+            ...query,
+            peek: trace
+              ? (params.get("observation") ?? params.get("peek") ?? undefined)
+              : router.query.peek,
+            traceId: params.get("peek") ?? undefined,
+            observation: params.get("observation") ?? undefined,
+            aggregation: "trace",
+          },
+        },
+        undefined,
+        { shallow: true },
+      );
+    }
+    return router.push(
+      {
+        pathname: router.pathname,
+        query: { ...router.query, sessionPeek: search },
+      },
+      undefined,
+      { shallow: true },
+    );
+  };
+  const closeTracePeek = () => {
+    const { sessionPeek: _, ...query } = router.query;
+    return router.replace({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
+  };
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { projectId },
+  );
   const { isV4 } = useReadPath();
-  const showMessagesTab = isV4 && internalFeaturesEnabled;
+  const showMessagesTab = isV4 && unifiedTraceSessionViewEnabled;
   const activeView =
-    showMessagesTab && traceView === "messages" ? "messages" : "trace";
+    showMessagesTab && !isSessionTracePeek && traceView === "messages"
+      ? "messages"
+      : "trace";
   const stale = staleProps(isPlaceholderData);
   const sessionErrorBanner = sessionError ? (
     <SessionErrorBanner onRetry={sessionError.onRetry} />
@@ -355,6 +528,45 @@ function TraceContent({
     <DesktopTraceContent desktopLayout={desktopLayout} />
   );
 
+  const sessionWorkspace =
+    showMessagesTab && scope.type === "session" ? (
+      <SessionEventsWorkspace
+        key={`${projectId}:${scope.sessionId}`}
+        projectId={projectId}
+        sessionId={scope.sessionId}
+        navigation={{
+          activeView,
+          onViewChange: (value) =>
+            setTraceView(
+              value === "messages" ? "messages" : undefined,
+              "pushIn",
+            ),
+          onOpenTrace: (id, row) => {
+            const params = new URLSearchParams({
+              peek: id,
+              aggregation: "trace",
+            });
+            if (row.observationId) {
+              params.set("observation", row.observationId);
+            }
+            openTracePeek(params.toString());
+          },
+        }}
+        treeContent={
+          <>
+            {sessionErrorBanner}
+            {panels}
+          </>
+        }
+      />
+    ) : null;
+
+  const messagesDisabled = isSessionTracePeek
+    ? {
+        disabledReason:
+          "Messages view is unavailable in stacked trace peeks. Open the trace in a new tab to view messages.",
+      }
+    : false;
   const content = (
     <div className={traceContentClassName}>
       <TraceHeader header={header} />
@@ -362,50 +574,76 @@ function TraceContent({
         inert={stale.inert}
         className={cn("flex min-h-0 flex-1 flex-col", stale.className)}
       >
-        {showMessagesTab ? (
-          <Tabs
-            value={activeView}
-            onValueChange={(value) => {
-              if (value === "messages") setTraceView("messages", "pushIn");
-              if (value === "trace") setTraceView(undefined, "pushIn");
-            }}
-            layout="fill"
-          >
-            <Tabs.List variant="underline">
-              <Tabs.Trigger
-                value="trace"
-                label={sessionTraces ? "Session" : "Trace"}
+        {sessionWorkspace ??
+          (showMessagesTab ? (
+            <Tabs
+              value={activeView}
+              onValueChange={(value) => {
+                if (value === "messages") setTraceView("messages", "pushIn");
+                if (value === "trace") setTraceView(undefined, "pushIn");
+              }}
+              layout="fill"
+            >
+              <TabBar
+                label="Trace views"
+                tabs={[
+                  { value: "trace", label: "Trace" },
+                  {
+                    value: "messages",
+                    label: "Messages",
+                    disabled: messagesDisabled,
+                  },
+                ]}
               />
-              <Tabs.Trigger value="messages" label="Messages" internal />
-            </Tabs.List>
-            <Tabs.Content value="trace" layout="fill">
+              <Tabs.Content value="trace" layout="fill">
+                {sessionErrorBanner}
+                {panels}
+              </Tabs.Content>
+              <Tabs.Content value="messages" layout="fill">
+                <div className="min-h-0 flex-1 p-4">
+                  <TraceMessagesView
+                    onOpenObservation={(traceId, observationId) => {
+                      const params = new URLSearchParams({
+                        peek: traceId,
+                        observation: observationId,
+                        aggregation: "trace",
+                      });
+                      openTracePeek(params.toString());
+                    }}
+                  />
+                </div>
+              </Tabs.Content>
+            </Tabs>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col">
               {sessionErrorBanner}
               {panels}
-            </Tabs.Content>
-            <Tabs.Content value="messages" layout="fill">
-              <div className="min-h-0 flex-1 p-4">
-                <TraceMessagesView />
-              </div>
-            </Tabs.Content>
-          </Tabs>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col">
-            {sessionErrorBanner}
-            {panels}
-          </div>
-        )}
+            </div>
+          ))}
       </div>
     </div>
+  );
+  const workspace = (
+    <>
+      {content}
+      {showMessagesTab && !isSessionTracePeek && tracePeek && (
+        <SessionTracePeek
+          projectId={projectId}
+          search={tracePeek}
+          onClose={closeTracePeek}
+        />
+      )}
+    </>
   );
 
   if (
     isMobile ||
     desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId
   ) {
-    return content;
+    return workspace;
   }
 
-  return <DesktopTraceReviewProvider>{content}</DesktopTraceReviewProvider>;
+  return <DesktopTraceReviewProvider>{workspace}</DesktopTraceReviewProvider>;
 }
 
 const traceContentClassName =
@@ -450,32 +688,36 @@ function DesktopTraceContent({
 }: {
   desktopLayout: DesktopLayout;
 }) {
-  const { trace } = useTraceData();
+  const { projectId } = useTraceData();
   if (desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId) {
     return <DesktopTraceWorkspace desktopLayout={desktopLayout} />;
   }
   return (
     <DesktopTraceReviewWorkspace
       desktopLayout={desktopLayout}
-      projectId={trace.projectId}
+      projectId={projectId}
     />
   );
 }
 
 function DesktopTraceReviewProvider({ children }: { children: ReactNode }) {
-  const { trace, observations } = useTraceData();
+  const { trace, projectId, sessionId, observations } = useTraceData();
   const { selectedNodeId } = useSelection();
   const router = useRouter();
   return (
     <TraceReviewPanelProvider
-      key={`${trace.projectId}:${trace.id}`}
-      projectId={trace.projectId}
-      initialComments={getTraceCommentsDeepLink({
-        target: getCommentDrawerInitialStateFromUrl(router.query),
-        trace,
-        observations,
-        selectedNodeId,
-      })}
+      key={`${projectId}:${trace?.id ?? sessionId}`}
+      projectId={projectId}
+      initialComments={
+        trace
+          ? getTraceCommentsDeepLink({
+              target: getCommentDrawerInitialStateFromUrl(router.query),
+              trace,
+              observations,
+              selectedNodeId,
+            })
+          : getCommentDrawerInitialStateFromUrl(router.query)
+      }
       deepLinkNodeId={selectedNodeId}
       onOpen={(panel, target) => {
         const {

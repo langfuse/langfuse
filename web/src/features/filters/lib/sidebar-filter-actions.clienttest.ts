@@ -16,9 +16,13 @@ import {
   buildOnlySelection,
   clearCategoricalColumn,
   deriveOperatorChange,
+  isStringKeyValueTextEntry,
+  numericRowText,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
+  stringFacetRowsOf,
   type SidebarFilterActionContext,
+  type StringKeyValueFilterEntry,
 } from "./sidebar-filter-actions";
 
 // The exclusion/complement gestures (LFE-10717) are covered end-to-end in
@@ -157,55 +161,87 @@ describe("applySelection", () => {
       target: "run-b",
     },
   ] satisfies FilterState)(
-    "replaces an emptied positive selection with exclusions for $column ($operator)",
+    "clears an emptied positive selection for $column ($operator)",
     (filter) => {
-      const { column, type, value } = filter;
-      const current: FilterState = [filter];
-      const empty = applyCheckboxSelection(ctx, current, column, []);
-      expect(empty).toEqual([
-        {
-          column,
-          type,
-          operator: "none of",
-          value: column === "tags" ? ["a", "b"] : ["prod", "dev", "test"],
-          target: "run-b",
-        },
-      ]);
-      expect(
-        empty.every((filter) => singleFilter.safeParse(filter).success),
-      ).toBe(true);
-      expect(decodeFiltersGeneric(encodeFiltersGeneric(empty))).toEqual(empty);
-      expect(applyCheckboxSelection(ctx, empty, column, value)).toEqual([
-        {
-          column,
-          type,
-          operator: "none of",
-          value: column === "tags" ? ["b"] : ["dev", "test"],
-          target: "run-b",
-        },
-      ]);
-      expect(clearCategoricalColumn(empty, column)).toEqual([]);
+      const other: FilterState = [
+        { column: "bookmarked", type: "boolean", operator: "=", value: true },
+      ];
+      const current: FilterState = [...other, filter];
+      expect(applyCheckboxSelection(ctx, current, filter.column, [])).toEqual(
+        other,
+      );
     },
   );
 
-  it.each(["env", "tags"])(
-    "keeps empty %s selections valid when options are blank or unavailable",
-    (column) => {
-      const type = column === "tags" ? "arrayOptions" : "stringOptions";
-      for (const options of [[], [""]]) {
-        const empty = applyCheckboxSelection(
-          { ...ctx, options: { [column]: options } },
-          [{ column, type, operator: "any of", value: [""] }],
-          column,
-          [],
-        );
-        expect(empty).toEqual([
-          { column, type, operator: "none of", value: [""] },
-        ]);
-        expect(
-          empty.every((filter) => singleFilter.safeParse(filter).success),
-        ).toBe(true);
-      }
+  it("preserves separate conditions and only resets an exact legacy empty pair", () => {
+    const positive: FilterState[number] = {
+      column: "tags",
+      type: "arrayOptions",
+      operator: "any of",
+      value: ["a"],
+    };
+    const exclusion: FilterState[number] = {
+      column: "tags",
+      type: "arrayOptions",
+      operator: "none of",
+      value: ["b"],
+    };
+    const compound = [positive, exclusion];
+    expect(applyCheckboxSelection(ctx, compound, "tags", [])).toBe(compound);
+
+    // any of [a] together with none of [a] is one empty selection, not an
+    // exclusion to keep.
+    const emptyPair: FilterState = [
+      positive,
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "none of",
+        value: ["a"],
+      },
+    ];
+    expect(applyCheckboxSelection(ctx, emptyPair, "tags", [])).toEqual([]);
+  });
+
+  it.each([
+    [
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["prod"],
+      },
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["dev"],
+      },
+    ],
+    [{ column: "env", type: "null", operator: "is null", value: "" }],
+    [{ column: "env", type: "string", operator: "starts with", value: "pr" }],
+    [
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["prod"],
+      },
+      { column: "env", type: "string", operator: "contains", value: "pr" },
+    ],
+  ] satisfies FilterState[])(
+    "refuses lossy categorical mutations for %j",
+    (...current) => {
+      expect(applySelection(ctx, current, "env", ["prod"])).toBe(current);
+      expect(applyCheckboxSelection(ctx, current, "env", ["prod"])).toBe(
+        current,
+      );
+      expect(buildOnlySelection(ctx, current, "env", "prod")).toBeNull();
+      expect(deriveOperatorChange(ctx, current, "env")).toBeNull();
+      expect(addTextFilterEntry(current, "env", "contains", "x")).toBeNull();
+      expect(removeTextFilterEntry(current, "env", "contains", "pr")).toBe(
+        current,
+      );
     },
   );
 
@@ -346,7 +382,7 @@ describe("applySelection", () => {
     ).toEqual([]);
   });
 
-  it("removes the filter when every option is selected implicitly", () => {
+  it("preserves a positive filter when every loaded option is selected", () => {
     const current: FilterState = [
       {
         column: "env",
@@ -357,7 +393,7 @@ describe("applySelection", () => {
     ];
     expect(
       applySelection(ctx, current, "env", ["prod", "dev", "test"]),
-    ).toEqual([]);
+    ).toEqual([{ ...current[0], value: ["prod", "dev", "test"] }]);
   });
 
   it("persists an explicit keep-everything override for the managed env column", () => {
@@ -795,6 +831,82 @@ describe("keyed facet transitions", () => {
         value: "",
       },
     ]);
+  });
+
+  it("writes numeric metadata rows as numberObject filters only on a numeric facet", () => {
+    const current: FilterState = [
+      {
+        column: "metadata",
+        type: "numberObject",
+        operator: "<",
+        key: "old",
+        value: 1,
+      },
+    ];
+    const entries: StringKeyValueFilterEntry[] = [
+      { key: "env", operator: "=", value: "prod" },
+      { key: "attempt", valueType: "number", operator: ">", value: "2.5" },
+      { key: "draft", valueType: "number", operator: ">", value: "abc" },
+    ];
+    expect(
+      applyKeyedFilterEntries(current, "metadata", {
+        kind: "stringObject",
+        entries,
+        numericValues: true,
+      }),
+    ).toEqual([
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "=",
+        key: "env",
+        value: "prod",
+      },
+      {
+        column: "metadata",
+        type: "numberObject",
+        operator: ">",
+        key: "attempt",
+        value: 2.5,
+      },
+    ]);
+    // A text-only facet takes text rows only and leaves numberObject filters
+    // alone.
+    expect(
+      applyKeyedFilterEntries(current, "metadata", {
+        kind: "stringObject",
+        entries: entries.filter(isStringKeyValueTextEntry),
+      }),
+    ).toEqual([
+      current[0],
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "=",
+        key: "env",
+        value: "prod",
+      },
+    ]);
+  });
+
+  it("keeps the typed text of a numeric metadata row through its round trip", () => {
+    const typed = (value: string) => {
+      const applied = applyKeyedFilterEntries([], "metadata", {
+        kind: "stringObject",
+        entries: [
+          { key: "attempt", valueType: "number", operator: ">", value },
+        ],
+        numericValues: true,
+      });
+      const [row] = stringFacetRowsOf(applied, "metadata", true);
+      return numericRowText(row!.value, value);
+    };
+    expect(typed("2.")).toBe("2.");
+    expect(typed("0.0")).toBe("0.0");
+    expect(typed("1e3")).toBe("1e3");
+    // A value changed outside the row (URL, search bar) wins over stale text.
+    expect(numericRowText("3", "2.")).toBe("3");
+    expect(numericRowText("3", undefined)).toBe("3");
   });
 
   it("filters numeric and boolean drafts by their empty-value sentinel", () => {

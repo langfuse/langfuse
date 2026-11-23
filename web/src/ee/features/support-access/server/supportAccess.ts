@@ -1,6 +1,14 @@
 import { z } from "zod/v4";
 
 import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  replaceRolesForPrincipal,
+  revokeRolesForPrincipal,
+} from "@langfuse/shared/rbac/server";
+
+/** supportAccessTag tags the role assignments support grants create. */
+const supportAccessTag = "source:c1";
 
 // users.support_access, e.g.
 // { "<orgId>": { "role": "VIEWER", "expiresAt": "2026-10-27T04:15:37.316Z" } }
@@ -72,6 +80,7 @@ export async function getSupportAccessMemberships(
   });
 }
 
+/** grantSupportAccess records a support grant and mirrors it as an expiring VIEWER assignment. */
 export async function grantSupportAccess(
   userId: string,
   orgId: string,
@@ -81,21 +90,41 @@ export async function grantSupportAccess(
     role: "VIEWER",
     expiresAt: expiresAt.toISOString(),
   };
-  // Single statement so concurrent grants for different orgs don't collide.
-  await prisma.$executeRaw`
-    UPDATE users
-    SET support_access = COALESCE(support_access, '{}'::jsonb)
-      || jsonb_build_object(${orgId}::text, ${JSON.stringify(entry)}::jsonb)
-    WHERE id = ${userId}`;
+  await prisma.$transaction(async (tx) => {
+    // Single statement so concurrent grants for different orgs don't collide.
+    await tx.$executeRaw`
+      UPDATE users
+      SET support_access = COALESCE(support_access, '{}'::jsonb)
+        || jsonb_build_object(${orgId}::text, ${JSON.stringify(entry)}::jsonb)
+      WHERE id = ${userId}`;
+    await replaceRolesForPrincipal(tx, {
+      tenantId: OrganizationId(orgId),
+      ownerId: OrganizationId(orgId),
+      principalId: UserId(userId),
+      roleId: SystemRoleId("VIEWER"),
+      tags: [supportAccessTag],
+      expiresAt,
+    });
+  });
 }
 
+/** revokeAllSupportAccess clears a user's support grants and the role assignments they created. */
 export async function revokeAllSupportAccess(user: {
   id: string;
   supportAccess: SupportAccess;
 }): Promise<string[]> {
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { supportAccess: Prisma.DbNull },
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: { supportAccess: Prisma.DbNull },
+    });
+    for (const orgId of Object.keys(user.supportAccess)) {
+      await revokeRolesForPrincipal(tx, {
+        tenantId: OrganizationId(orgId),
+        principalId: UserId(user.id),
+        tags: [supportAccessTag],
+      });
+    }
   });
   return Object.keys(user.supportAccess);
 }

@@ -148,6 +148,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         sessionViewV2: true,
         sessionViewV2Timeline: false,
+        unifiedTraceSessionView: false,
       },
       management: { allowed: true },
     });
@@ -170,6 +171,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         sessionViewV2: false,
         sessionViewV2Timeline: false,
+        unifiedTraceSessionView: false,
       },
       management: {
         allowed: false,
@@ -193,6 +195,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         sessionViewV2: false,
         sessionViewV2Timeline: false,
+        unifiedTraceSessionView: false,
       },
       management: { allowed: true },
     });
@@ -239,6 +242,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         sessionViewV2: false,
         sessionViewV2Timeline: false,
+        unifiedTraceSessionView: false,
       },
       management: { allowed: true },
     });
@@ -270,6 +274,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         sessionViewV2: false,
         sessionViewV2Timeline: false,
+        unifiedTraceSessionView: false,
       },
       management: { allowed: true },
     });

@@ -1,20 +1,18 @@
 import { expect, fn, within } from "storybook/test";
 import preview from "../../../../../../../.storybook/preview";
 import { ActivationConfirmationDialog } from "./ActivationConfirmationDialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 
 const sharedArgs = {
-  onOpenChange: fn(),
   onSamplingChange: fn(),
   onConfirm: fn(),
 };
 
 const confirmation = {
-  open: true,
   isConfirming: false,
   title: "Activate evaluation rule?",
   description: "Estimate details",
   confirmLabel: "Activate rule",
-  pendingAction: fn().mockResolvedValue(undefined),
 };
 
 const unavailableEstimate = {
@@ -58,7 +56,17 @@ const estimatedCost = {
   matchingObservations: 715,
 };
 
-const meta = preview.meta({ component: ActivationConfirmationDialog });
+const meta = preview.meta({
+  component: ActivationConfirmationDialog,
+  render: (args) => (
+    <DialogController
+      initialState={() => ({})}
+      renderDialog={() => <ActivationConfirmationDialog {...args} />}
+    >
+      {() => null}
+    </DialogController>
+  ),
+});
 
 export const CostWarning = meta.story({
   args: {

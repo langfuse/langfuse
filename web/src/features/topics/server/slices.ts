@@ -3,7 +3,9 @@ import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   TOPICS_ANALYSIS_MIN_TRACES,
   TOPICS_ANALYSIS_SAMPLING_SEED,
+  TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES,
   TOPICS_SLICE_MAX_TRACES,
+  type TopicSnapshotSummarize,
   type TopicAnalysisConfig,
   type TopicExecutionSummary,
   type TopicFacetRef,
@@ -14,7 +16,9 @@ import {
   countTopicCohortTraces,
   createTopicExecution,
   enqueueTopicExecution,
+  enqueueTopicSnapshotSetup,
   getTopicRuleRefits,
+  getTopicRuleRefreshStatuses,
   getTopicSummaryCounts,
   getTopicsModels,
   listTopicAnalysisExecutions,
@@ -22,6 +26,8 @@ import {
   readTopicExecutionSummary,
   topicAnalysisCohort,
 } from "@langfuse/shared/topics/server";
+import { logger } from "@langfuse/shared/src/server";
+import { countUnsummarizedTopicTraces } from "./traceSelection";
 
 type Filter = TopicRule["filter"];
 type AnalysisExecution = TopicExecutionSummary & {
@@ -42,17 +48,24 @@ export async function topicMapsOverview(projectId: string) {
     getTopicRuleRefits(projectId),
     listTopicAnalysisExecutions(projectId),
   ]);
+  const refreshes = await getTopicRuleRefreshStatuses(
+    projectId,
+    rules.map((rule) => rule.id),
+  );
   return {
-    rules: rules.map((rule) => ({
+    rules: rules.map((rule, index) => ({
       ...rule,
       lastRefitAt: refits.get(rule.id)?.toISOString() ?? null,
+      refresh: refreshes[index],
     })),
     analyses: executions.filter(isAnalysis).map((execution) => ({
       id: execution.id,
       label: execution.input.analysis.label,
+      summarize: execution.input.analysis.summarize,
       filter: execution.input.analysis.filter,
       facetIds: execution.input.facets.map(({ facetId }) => facetId),
       status: execution.status,
+      updatedAt: execution.updatedAt,
       createdAt: execution.createdAt,
       timeRange: execution.input.timeRange,
       traceCount: Math.max(
@@ -101,7 +114,7 @@ export async function previewTopicAnalysis(input: {
     }),
     embeddingConfig(input.projectId),
   ]);
-  const [matchedTraceCount, counts] = await Promise.all([
+  const [matchedTraceCount, counts, unsummarizedCount] = await Promise.all([
     countTopicCohortTraces(input.projectId, cohort.traces),
     getTopicSummaryCounts(
       input.projectId,
@@ -110,19 +123,34 @@ export async function previewTopicAnalysis(input: {
       input.timeRange,
       cohort,
     ),
+    // An estimate for the summarize option; a slow scan must not block the snapshot.
+    countUnsummarizedTopicTraces({ ...input, embeddingConfig: config }).catch(
+      (error: unknown) => {
+        logger.warn("Topics snapshot could not count unsummarized traces", {
+          projectId: input.projectId,
+          error,
+        });
+        return null;
+      },
+    ),
   ]);
   const summarizedCount = Math.min(...counts.map(({ count }) => count));
   return {
     matchedTraceCount,
+    unsummarizedCount,
     capped: summarizedCount >= TOPICS_SLICE_MAX_TRACES,
     summarized: counts,
     summarizedCount,
     minimumTraceCount: TOPICS_ANALYSIS_MIN_TRACES,
+    smallSampleMinimumTraceCount: TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES,
     ready: summarizedCount >= TOPICS_ANALYSIS_MIN_TRACES,
   };
 }
 
-/** Starts a one-off clustering run over a summarized slice. */
+/**
+ * Starts a snapshot: a one-off clustering run over a summarized slice. With
+ * `summarize`, its controller first summarizes up to that many more traces.
+ */
 export async function startTopicAnalysis(
   input: {
     projectId: string;
@@ -130,14 +158,24 @@ export async function startTopicAnalysis(
     filter: Filter;
     timeRange: TopicTimeRange;
     facets: TopicFacetRef[];
+    summarize?: TopicSnapshotSummarize;
   },
   userId: string,
 ) {
   const preview = await previewTopicAnalysis(input);
-  if (!preview.ready)
+  // Without a count, the selection itself bounds what gets summarized.
+  const extra = input.summarize
+    ? Math.min(
+        input.summarize.limit,
+        preview.unsummarizedCount ?? input.summarize.limit,
+      )
+    : 0;
+  const grouped = preview.summarizedCount + extra;
+  if (grouped < TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES)
     throw new InvalidRequestError(
-      `A scan needs at least ${TOPICS_ANALYSIS_MIN_TRACES} summarized traces in this slice.`,
+      `A snapshot needs at least ${TOPICS_ANALYSIS_SMALL_SAMPLE_MIN_TRACES} summarized traces in this slice.`,
     );
+  const summarize = extra > 0 ? input.summarize : undefined;
   const requestId = randomUUID();
   const execution = await createTopicExecution(
     {
@@ -147,17 +185,21 @@ export async function startTopicAnalysis(
       facets: input.facets,
       embeddingConfig: await embeddingConfig(input.projectId),
       timeRange: input.timeRange,
+      // The fit picks small-sample clustering from the summaries it loads.
       exploratory: false,
       analysis: {
         label: input.label,
         filter: input.filter,
         seed: TOPICS_ANALYSIS_SAMPLING_SEED,
+        ...(summarize ? { summarize } : {}),
       },
     },
     createHash("sha256").update(requestId).digest("hex"),
     userId,
   );
   if (execution.status === "queued")
-    await enqueueTopicExecution(input.projectId, execution.id);
+    await (summarize
+      ? enqueueTopicSnapshotSetup(input.projectId, execution.id)
+      : enqueueTopicExecution(input.projectId, execution.id));
   return { id: execution.id };
 }

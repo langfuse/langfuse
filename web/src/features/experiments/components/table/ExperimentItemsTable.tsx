@@ -2,6 +2,7 @@
 /* eslint-disable @repo/no-style-props */
 import { useRouter } from "next/router";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
+import { buildExperimentFilterContextId } from "@/src/features/experiments/lib/experiment-filter-context";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
@@ -552,7 +553,7 @@ export default function ExperimentItemsTable({
     layout,
     diffMode,
     itemVisibility,
-  } = useExperimentResultsState();
+  } = useExperimentResultsState(projectId);
 
   // "Off" turns the whole diff apparatus into plain values; "expected" keeps the
   // baseline deltas on the scores (a score has no expected value to diff
@@ -672,7 +673,12 @@ export default function ExperimentItemsTable({
     experimentItemsFilterConfig,
     scoreFilterOptions,
     {
-      stateLocation: "url",
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: buildExperimentFilterContextId({
+        projectId,
+        baselineId,
+        comparisonIds,
+      }),
       onExplicitFilterStateChange,
       loading: isFilterOptionsLoading,
       // v4-only surface — drives `isV4` on filters:* analytics.

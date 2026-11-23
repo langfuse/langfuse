@@ -28,6 +28,7 @@ export function GatewayIngestionHeaderAction({
     <IngestionDialogController
       organizationId={organizationId}
       config={gatewayConfig.config}
+      hasSpendLimits={gatewayConfig.hasSpendLimits}
       projects={projects.filter((project) => !project.deletedAt)}
     >
       {({ openDialog }) => (

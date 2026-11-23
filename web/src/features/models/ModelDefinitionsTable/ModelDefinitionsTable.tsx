@@ -5,9 +5,9 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -17,10 +17,15 @@ import {
   type PriceUnit,
 } from "@/src/features/models/validation";
 import { PriceBreakdownTooltip } from "@/src/features/models/components/PriceBreakdownTooltip";
+import {
+  type ModelMaintainer,
+  isProjectEditableModel,
+  modelMaintainerBadgeVariant,
+} from "@/src/features/models/modelMaintainer";
 
 export type ModelTableRow = {
   modelId: string;
-  maintainer: "User" | "Langfuse";
+  maintainer: ModelMaintainer;
   modelName: string;
   matchPattern: string;
   prices?: Record<string, number>;
@@ -36,7 +41,7 @@ const modelConfigDescriptions = {
     "Date to start pricing model. If not set, model is active unless a more recent version exists.",
   prices: "Prices per usage type",
   maintainer:
-    "Maintainer of the model. Langfuse managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse managed model, set the custom model name to the Langfuse model name.",
+    "Maintainer of the model. Langfuse and organization managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse or organization managed model, set the custom model name to its model name.",
   lastUsed: "Start time of the latest generation using this model",
 } as const;
 
@@ -63,7 +68,7 @@ export function ModelDefinitionsTable({
   priceUnitMultiplier: number;
   priceUnitSelector?: ReactNode;
   lastUsed?: Record<string, Date>;
-  toolbarActions?: SettingsTableProps<ModelTableRow>["toolbarActions"];
+  toolbarActions?: TableCardProps<ModelTableRow>["toolbarActions"];
   modelActions: {
     canEdit: boolean;
     onClone: (model: ModelTableRow) => void;
@@ -89,9 +94,9 @@ export function ModelDefinitionsTable({
       },
       size: 60,
       range: "decorative",
-      getBadge: (maintainer) => ({
+      getBadge: (maintainer, { row }) => ({
         value: maintainer,
-        variant: maintainer === "Langfuse" ? "teal" : "blue",
+        variant: modelMaintainerBadgeVariant[row.original.maintainer],
       }),
     }),
     createTextTableColumn<ModelTableRow>({
@@ -150,11 +155,11 @@ export function ModelDefinitionsTable({
   ];
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="models"
       columns={columns}
       actions={(model) =>
-        model.maintainer === "Langfuse"
+        !isProjectEditableModel(model.serverResponse.scope)
           ? [
               {
                 id: "clone",

@@ -1,8 +1,7 @@
 import { type ReactNode, useState } from "react";
 import type { OrderByState } from "@langfuse/shared";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -16,12 +15,15 @@ export function ConnectedGatewayApiKeysTable({
   organizationId,
   description,
   emptyState,
+  onCreateKey,
 }: {
   organizationId: string;
   /** Shown above the table; the no-keys placeholder explains keys itself. */
   description: ReactNode;
   /** Replaces the whole table, search included, while there are no keys. */
   emptyState?: ReactNode;
+  /** The dialog must live above this table: the empty state unmounts once the key exists. */
+  onCreateKey: () => void;
 }) {
   const [paginationState, setPaginationState] = usePaginationState(0, 10, {
     page: "pageIndex",
@@ -29,7 +31,7 @@ export function ConnectedGatewayApiKeysTable({
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [orderBy, setOrderBy] = useOrderByState();
-  const { apiKeysQuery, rows, lastUsed } = useGatewayApiKeysTableData({
+  const { apiKeysQuery, rows, lastUsed, spend } = useGatewayApiKeysTableData({
     organizationId,
     searchQuery,
     orderBy,
@@ -55,21 +57,13 @@ export function ConnectedGatewayApiKeysTable({
 
   if (apiKeysQuery.isError) {
     return (
-      <div className="flex flex-col gap-4">
-        <Alert variant="destructive">
-          <Alert.Title>Gateway keys could not be loaded</Alert.Title>
-          <Alert.Description>
-            Retry to manage keys for this organization.
-          </Alert.Description>
-        </Alert>
-        <Button
-          className="w-fit"
-          variant="secondary"
-          onClick={() => apiKeysQuery.refetch()}
-        >
-          Retry
-        </Button>
-      </div>
+      <Banner
+        variant="error"
+        title="Gateway keys could not be loaded"
+        actions={[{ text: "Retry", onClick: () => apiKeysQuery.refetch() }]}
+      >
+        Retry to manage keys for this organization.
+      </Banner>
     );
   }
 
@@ -116,6 +110,7 @@ export function ConnectedGatewayApiKeysTable({
                       : { status: "success", data: rows }
                   }
                   lastUsed={lastUsed}
+                  spend={spend}
                   orderBy={orderBy}
                   setOrderBy={handleOrderByChange}
                   pagination={{
@@ -130,6 +125,7 @@ export function ConnectedGatewayApiKeysTable({
                   }}
                   onEdit={openEditDialog}
                   onRevoke={openRevokeDialog}
+                  onCreateKey={onCreateKey}
                 />
               </div>
             </div>

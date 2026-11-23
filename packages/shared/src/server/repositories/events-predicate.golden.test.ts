@@ -78,13 +78,12 @@ type Raw = Compiled | { error: string };
 const PLACEHOLDER = /\{[A-Za-z_][A-Za-z0-9_]*\s*:\s*([^}]+)\}/g;
 
 const PROJECT_ID = "golden-project";
-const TENANCY_PREFIX =
-  /^e\.project_id = \{(\w+):String\} and e\.is_deleted = 0 and /;
+const TENANCY_PREFIX = /^e\.project_id = \{(\w+):String\} and /;
 
 /**
- * `compiled` minus the project and soft-delete conjuncts the compiler passes
- * put first, which the raw-SQL builders it is compared with omit. Throws
- * unless they lead the SQL and bind `PROJECT_ID`.
+ * `compiled` minus the project conjunct the tenancy pass puts first, which
+ * the raw-SQL builders it is compared with omit. Throws unless it leads the
+ * SQL and binds `PROJECT_ID`.
  */
 const withoutTenancy = (compiled: Compiled): Compiled => {
   const match = TENANCY_PREFIX.exec(compiled.sql);
@@ -234,8 +233,8 @@ function samples(
   }
 }
 
-// `numberObject` on metadata has no FilterState counterpart, so `samples`
-// returns none; it runs in clickhouse local instead, one row per operator:
+// `samples` returns none for `numberObject` on metadata, so these cases run
+// in clickhouse local, one row per operator:
 // `[op, value, matching span ids]` over the rows of "numeric metadata
 // conditions".
 const NUMERIC_METADATA_CASES = [
@@ -253,8 +252,7 @@ const loweredFields = eventsPredicateSource.fields.filter(
 );
 
 // Every lowered field × accepted condition type × operator × sample value,
-// plus `null` on every field. `numberObject` on metadata has no FilterState
-// counterpart; its tests are below.
+// plus `null` on every field. `numberObject` on metadata is tested below.
 const conditionCases: [string, FilterStateCondition][] = loweredFields.flatMap(
   (field) => [
     ...Object.entries(field.operators).flatMap(([type, operators]) =>
@@ -284,7 +282,7 @@ const conditionCases: [string, FilterStateCondition][] = loweredFields.flatMap(
 // reads events_full for every input/output filter. `is not empty` ignores its
 // sample value, so every sample matches.
 const CORE_WHERE_LEGACY_READS_FULL =
-  /^(input|output) (string = ""|string is not empty .*|null is null|null is not null)$/;
+  /^(input|output) (string = ""|string is not empty .*)$/;
 
 describeWithClickhouse("events predicate lowering vs FilterList", () => {
   it.each(compared(conditionCases.map(([name, filter]) => [name, [filter]])))(
@@ -702,6 +700,40 @@ describeWithClickhouseLocal("numeric metadata conditions", () => {
     expect(matches(`leftUTF8(${long}, 200)`)).toBe("1");
   });
 });
+
+describeWithClickhouseLocal(
+  "number conditions on a default-bound field",
+  () => {
+    // A cost bound at or above 1e6 is valid input: it matches every stored cost
+    // (`<=`) or none (`>=`), and must not fail the query.
+    const matchCount = (op: "<=" | ">=", value: number) => {
+      const { sql, params } = compileForProject({
+        kind: "condition",
+        type: "number",
+        field: { id: "totalCost" },
+        op,
+        value,
+      });
+      const typed = sql.replace(
+        /\{[A-Za-z0-9_]+:([^}]+)\}/g,
+        (placeholder, type: string) => `CAST(${placeholder} AS ${type})`,
+      );
+      return executeClickhouseLocal(
+        substituteNamedParams(
+          `SELECT count() FROM (SELECT map('total', toDecimal64(2.5, 12)) AS cost_details) AS e WHERE ${typed}`,
+          params,
+        ),
+      );
+    };
+
+    it.each([
+      ["<=", 1840000, "1"],
+      [">=", 1840000, "0"],
+    ] as const)("%s %s", (op, value, expected) => {
+      expect(matchCount(op, value)).toBe(expected);
+    });
+  },
+);
 
 describe("lowering inside an AST query", () => {
   const compiled = (predicate: Predicate) =>

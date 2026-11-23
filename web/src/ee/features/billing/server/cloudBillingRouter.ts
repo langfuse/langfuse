@@ -10,9 +10,20 @@ import { TRPCError } from "@trpc/server";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { logger } from "@langfuse/shared/src/server";
-import { type BillingProvider } from "@langfuse/shared";
-import { resolveBillingService } from "./resolveBillingService";
+import {
+  type BillingProvider,
+  LangfuseNotFoundError,
+  parseDbOrg,
+} from "@langfuse/shared";
+import {
+  resolveBillingProvider,
+  resolveBillingService,
+} from "./resolveBillingService";
 import { isCloudBillingEnabled } from "../utils/isCloudBillingEnabled";
+import { env } from "@/src/env.mjs";
+import { CouponCodeSchema } from "../utils/coupons";
+import { assertCouponRedemptionRateLimit } from "./coupons/couponRateLimit";
+import { buildCouponRedemptionPayload } from "./coupons/couponRedemption";
 
 const PROVIDER_LABEL: Record<BillingProvider, string> = {
   stripe: "Stripe",
@@ -426,5 +437,103 @@ export const cloudBillingRouter = createTRPCRouter({
       );
 
       return result;
+    }),
+  /**
+   * Checks that the org can receive credits and returns the values the client
+   * submits to ClickHouse's credit-request form, which grants the program's
+   * credits to the org's ClickHouse organization. Only the program and code
+   * come from the client; the submitter email and ClickHouse organization id
+   * are inferred server-side.
+   */
+  /** The provider checkout uses, without calling either billing API. */
+  getBillingProvider: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      if (!isCloudBillingEnabled()) return "stripe" as const;
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+      });
+      if (!org) throw new LangfuseNotFoundError("Organization not found");
+
+      return resolveBillingProvider(parseDbOrg(org));
+    }),
+  /**
+   * Checks the org and the code, and returns what the browser submits to the
+   * credit-request form. Returns null for a code that is not configured.
+   */
+  prepareCouponRedemption: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        couponCode: CouponCodeSchema,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cloud billing is not available in this environment. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
+
+      const org = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+      });
+      if (!org) throw new LangfuseNotFoundError("Organization not found");
+      const parsedOrg = parseDbOrg(org);
+
+      // Every attempt counts, so a code cannot be found by trying many.
+      await assertCouponRedemptionRateLimit(parsedOrg);
+
+      const payload = buildCouponRedemptionPayload({
+        org: parsedOrg,
+        submitterEmail: ctx.session.user.email,
+        couponCode: input.couponCode,
+        couponCodes: env.LANGFUSE_CLOUD_COUPON_CODES,
+      });
+      if (!payload) {
+        logger.info(
+          "cloudBilling.prepareCouponRedemption: unknown coupon code",
+          { orgId: input.orgId },
+        );
+        return null;
+      }
+
+      // Awaited, so every code that reaches the credit-request form has an
+      // audit record, and a failed write fails this request only.
+      await auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "organization",
+        resourceId: input.orgId,
+        action: "BillingService.prepareCouponRedemption",
+        after: { program: payload.program },
+      });
+
+      return payload;
     }),
 });

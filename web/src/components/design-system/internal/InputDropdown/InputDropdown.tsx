@@ -1,6 +1,6 @@
 import { Slot } from "@radix-ui/react-slot";
 import { Check, LoaderCircle, Search as SearchIcon } from "@langfuse/icons";
-import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from "react";
+import { type ComponentPropsWithoutRef, type ReactNode } from "react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
@@ -121,14 +121,7 @@ function Loading({ message }: { message: string }) {
   );
 }
 
-function OptionContent({
-  label,
-  secondaryLabel,
-  badges,
-  title,
-  type,
-  checked,
-}: {
+type OptionContentProps = {
   label: ReactNode;
   secondaryLabel?: string;
   /**
@@ -138,77 +131,91 @@ function OptionContent({
    */
   badges?: ReactNode;
   title: string;
-  type: "checkbox" | "checkmark" | "radio";
   checked: boolean;
-}) {
-  const indicator = useMemo(() => {
-    if (type === "checkbox") {
-      return (
+};
+
+function SingleSelectOptionContent({ checked, ...props }: OptionContentProps) {
+  return (
+    <>
+      <OptionLabel {...props} />
+      <OptionIndicator hasBadges={!!props.badges}>
+        <Check
+          aria-hidden="true"
+          size="base"
+          __rawClassName={cn(checked ? "opacity-100" : "opacity-0")}
+        />
+      </OptionIndicator>
+    </>
+  );
+}
+
+function MultiSelectOptionContent({ checked, ...props }: OptionContentProps) {
+  return (
+    <>
+      <OptionIndicator hasBadges={!!props.badges} leading>
         <Checkbox
           checked={checked}
           size="sm"
           tabIndex={-1}
           aria-hidden="true"
         />
-      );
-    }
-    if (type === "radio") {
-      return (
-        <span
-          aria-hidden="true"
-          className={cn(
-            "border-control-border flex size-3.5 items-center justify-center rounded-full border shadow-sm",
-            checked && "border-control-fill",
-          )}
-        >
-          {checked && (
-            <span className="bg-control-fill size-1.5 rounded-full" />
-          )}
-        </span>
-      );
-    }
-    return (
-      <Check
-        aria-hidden="true"
-        size="base"
-        __rawClassName={cn(checked ? "opacity-100" : "opacity-0")}
-      />
-    );
-  }, [type, checked]);
-
-  return (
-    <>
-      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        {/*
-          `flex-auto`, not `flex-1`: the basis must stay `auto` so the label's
-          own width is what decides whether the badges still fit on this line
-          (a `flex-1` basis of 0 would let everything share one line forever,
-          which is the bug). Growing from that basis keeps the label filling
-          the row when it does fit, which is what holds the badges against the
-          right edge and keeps `title` hoverable across the whole row.
-        */}
-        <span className="flex-auto truncate" title={title}>
-          {label}
-          {secondaryLabel && (
-            <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
-          )}
-        </span>
-        {badges}
-      </span>
-      <span
-        className={cn(
-          "pointer-events-none flex w-3.5 shrink-0 items-center justify-center",
-          // A badged row can wrap to two or three lines. Centring the indicator
-          // against the whole block would float it down level with the badges,
-          // away from the label it marks — so pin it to the first line's box
-          // (h-5 matches the row's text-sm line height) instead.
-          badges ? "h-5 self-start" : "h-3.5",
-          (type === "checkbox" || type === "radio") && "order-first",
-        )}
-      >
-        {indicator}
-      </span>
+      </OptionIndicator>
+      <OptionLabel {...props} />
     </>
+  );
+}
+
+function OptionLabel({
+  label,
+  secondaryLabel,
+  badges,
+  title,
+}: Omit<OptionContentProps, "checked">) {
+  return (
+    <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+      {/*
+        `flex-auto`, not `flex-1`: the basis must stay `auto` so the label's
+        own width is what decides whether the badges still fit on this line
+        (a `flex-1` basis of 0 would let everything share one line forever,
+        which is the bug). Growing from that basis keeps the label filling
+        the row when it does fit, which is what holds the badges against the
+        right edge and keeps `title` hoverable across the whole row.
+      */}
+      <span className="flex-auto truncate" title={title}>
+        {label}
+        {secondaryLabel && (
+          <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
+        )}
+      </span>
+      {badges}
+    </span>
+  );
+}
+
+function OptionIndicator({
+  hasBadges,
+  leading,
+  children,
+}: {
+  hasBadges: boolean;
+  leading?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "pointer-events-none flex w-3.5 shrink-0 items-center justify-center",
+        // A badged row can wrap to two or three lines. Centring the indicator
+        // against the whole block would float it down level with the badges,
+        // away from the label it marks — so pin it to the first line's box
+        // (h-5 matches the row's text-sm line height) instead.
+        hasBadges ? "h-5 self-start" : "h-3.5",
+        // Ahead of any icon the caller renders before the option content.
+        leading && "order-first",
+      )}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -217,8 +224,9 @@ export const InputDropdown = {
   Empty,
   List,
   Loading,
+  MultiSelectOptionContent,
   Option,
-  OptionContent,
   Root,
   Search,
+  SingleSelectOptionContent,
 };

@@ -23,6 +23,11 @@ import {
   RATE_LIMIT_REDIS_KEY_PREFIX,
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
+import { findGatewayModelPricing } from "@/src/features/ai-gateway/server/resolve/gatewayModelPricing";
+
+vi.mock("@/src/features/ai-gateway/server/resolve/gatewayModelPricing", () => ({
+  findGatewayModelPricing: vi.fn(),
+}));
 
 const MiB = 1024 * 1024;
 
@@ -41,6 +46,7 @@ describe("AI Gateway organization rate limits", () => {
     userEmail: null,
     keyMetadata: {},
     keyAllowedModels: null,
+    spendLimits: [],
     ingestionProjectId: "project-1",
     ingestionMode: "USAGE",
     plan: "cloud:hobby",
@@ -188,5 +194,58 @@ describe("AI Gateway organization rate limits", () => {
       limit: "bytes",
       organizationId,
     });
+  });
+
+  it("looks up pricing alongside rate limiting and still answers a rate-limited request with a 429", async () => {
+    vi.mocked(findGatewayModelPricing).mockRejectedValue(
+      new Error("pricing unavailable"),
+    );
+    vi.spyOn(
+      GatewayApiKeyAuthenticator.prototype,
+      "authenticateRequest",
+    ).mockResolvedValue(
+      contextFor({
+        connection: {
+          id: "connection-1",
+          name: "OpenAI",
+          provider: "OPENAI",
+          encryptedCredential: "encrypted-credential",
+          allowedModels: null,
+          config: null,
+          baseURL: null,
+          extraHeaders: null,
+        },
+        providerModel: "gpt-4o-mini",
+        spendLimits: [
+          {
+            id: "limit-1",
+            scope: "api_key",
+            interval: "monthly",
+            limit_usd: 10,
+            counting_started_at: 0,
+            alert_thresholds: [100],
+          },
+        ],
+      }),
+    );
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+    });
+
+    await gatewayResolveApiHandler({
+      req,
+      res,
+      fastHashedSecretKey: "hashed-secret-key",
+      apiFormat: "openai.responses",
+      model: "gpt-4o-mini",
+      requestBytes: 64 * MiB + 1,
+    });
+
+    expect(findGatewayModelPricing).toHaveBeenCalledWith({
+      projectId: "project-1",
+      providerModel: "gpt-4o-mini",
+    });
+    expect(res.statusCode).toBe(429);
+    expect(res._getJSONData()).toMatchObject({ limit: "bytes" });
   });
 });

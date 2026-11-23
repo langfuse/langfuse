@@ -1,5 +1,6 @@
 import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { TopicTreemapView } from "./TopicTreemapView";
 import { staticTopicTraces, storyFacet } from "./topic-story-traces";
@@ -258,18 +259,74 @@ export const LongNamesOnShortTiles = meta.story({
 });
 
 export const SelectTopic = meta.story({
-  name: "(Test) Selecting a tile lists its traces",
+  name: "(Test) Selecting a tile lists its traces, selecting it again lists all",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const tile = await canvas.findByRole("button", {
       name: "Trace cost analysis, 21 traces",
     });
+    // The list remounts per selection, so it is looked up again each time.
+    const traceList = () =>
+      within(canvas.getByRole("region", { name: "Topic traces" }));
+    await expect(
+      traceList().getByRole("heading", { name: "All traces" }),
+    ).toBeVisible();
     await userEvent.click(tile);
     await expect(tile).toHaveAttribute("aria-pressed", "true");
-    const list = canvas.getByRole("region", { name: "Topic traces" });
     await expect(
-      within(list).getByRole("heading", { name: /Trace cost analysis/ }),
+      await traceList().findByRole("heading", { name: /Trace cost analysis/ }),
     ).toBeVisible();
+    await userEvent.click(tile);
+    await expect(tile).toHaveAttribute("aria-pressed", "false");
+    await expect(
+      await traceList().findByRole("heading", { name: "All traces" }),
+    ).toBeVisible();
+  },
+});
+
+export const ZoomTreemap = meta.story({
+  name: "(Test) Control scroll zooms tiles and reset restores them",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const tile = await canvas.findByRole("button", {
+      name: "Trace cost analysis, 21 traces",
+    });
+    const area = () => {
+      const rect = tile.getBoundingClientRect();
+      return rect.width * rect.height;
+    };
+    const before = area();
+    await expect(
+      canvas.queryByRole("button", { name: "Reset zoom" }),
+    ).not.toBeInTheDocument();
+    const start = tile.getBoundingClientRect();
+    const at = {
+      clientX: start.left + start.width / 2,
+      clientY: start.top + start.height / 2,
+    };
+    tile.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        deltaY: -1 / PINCH_ZOOM_RATE,
+        ...at,
+      }),
+    );
+    // One zoom level doubles the treemap height, so every tile gets about twice the area.
+    await waitFor(() => expect(area() / before).toBeGreaterThan(1.8));
+    // The layout reflows, but the tile under the cursor stays in view.
+    const zoomed = tile.getBoundingClientRect();
+    const visible = canvas
+      .getByRole("region", { name: "Topics" })
+      .parentElement!.getBoundingClientRect();
+    await expect(zoomed.bottom).toBeGreaterThan(visible.top);
+    await expect(zoomed.top).toBeLessThan(visible.bottom);
+    await userEvent.click(canvas.getByRole("button", { name: "Reset zoom" }));
+    await waitFor(() => expect(area()).toBeCloseTo(before, 0));
+    await expect(
+      canvas.queryByRole("button", { name: "Reset zoom" }),
+    ).not.toBeInTheDocument();
   },
 });
 
@@ -281,18 +338,25 @@ export const DescriptionTooltipWhenClipped = meta.story({
     </div>
   ),
   play: async ({ canvasElement }) => {
-    const list = within(
-      within(canvasElement).getByRole("region", { name: "Topic traces" }),
+    const canvas = within(canvasElement);
+    // No tile is picked at first, so pick the topic with the long description.
+    await userEvent.click(
+      await canvas.findByRole("button", {
+        name: "Langfuse user assistance, 55 traces",
+      }),
     );
-    const title = list.getByRole("heading", {
+    const list = within(canvas.getByRole("region", { name: "Topic traces" }));
+    const title = await list.findByRole("heading", {
       name: "Langfuse user assistance",
     });
     const description = list.getByText(LONG_DESCRIPTION);
-    await userEvent.hover(title);
+    // The title lives on the name span, not the heading.
+    const name = within(title).getByText("Langfuse user assistance");
+    await userEvent.hover(name);
     await userEvent.hover(description);
     await waitFor(() =>
       expect(description).toHaveAttribute("title", LONG_DESCRIPTION),
     );
-    await expect(title).not.toHaveAttribute("title");
+    await expect(name).not.toHaveAttribute("title");
   },
 });

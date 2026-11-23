@@ -98,6 +98,49 @@ describe("createEvaluatorSetupStore", () => {
     });
   });
 
+  it("leaves variables of a legacy trace or dataset mapping unmapped", () => {
+    const legacyMapping = [
+      {
+        templateVariable: "output",
+        langfuseObject: "trace",
+        selectedColumnId: "output",
+      },
+      {
+        templateVariable: "expected",
+        langfuseObject: "dataset_item",
+        selectedColumnId: "expected_output",
+      },
+    ];
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: {
+        name: "Correctness",
+        description: "Compares the answer to the expected output",
+        definition: {
+          type: "LLM_AS_JUDGE",
+          promptMessages: [
+            { role: "user", content: "Judge {{output}} against {{expected}}" },
+          ],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output", "expected"],
+          variableMapping: legacyMapping,
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Correctness" },
+            reasoning: { description: "Explain the score" },
+          },
+        },
+      },
+      mode: "edit",
+    });
+
+    expect(store.getState().variableFields).toEqual({
+      output: { selectedColumnId: null, jsonSelector: null },
+      expected: { selectedColumnId: null, jsonSelector: null },
+    });
+  });
+
   it("prefills an existing evaluator from its first assigned rule", () => {
     const initialSampleFilter = [
       {

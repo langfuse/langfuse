@@ -11,9 +11,9 @@ import {
   parseGatewayCustomModels,
 } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
 import {
-  type GatewayBedrockConfig,
-  GatewayBedrockConfigSchema,
-} from "@/src/features/ai-gateway/server/provider/bedrock";
+  type GatewayProviderConfig,
+  GatewayProviderConfigSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 
 const safeConnectionSelect = {
   id: true,
@@ -42,7 +42,7 @@ function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
     allowedModels: parseGatewayAllowedModels(connection.allowedModels),
     customModels: parseGatewayCustomModels(connection.customModels),
     config:
-      GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
+      GatewayProviderConfigSchema.safeParse(connection.config).data ?? null,
   };
 }
 
@@ -136,7 +136,7 @@ export class GatewayProviderRepository {
     provider: GatewayProvider;
     encryptedCredential: string;
     displaySecret: string;
-    config: GatewayBedrockConfig | null;
+    config: GatewayProviderConfig | null;
     baseURL: string | null;
     extraHeaders: string | null;
     extraHeaderKeys: string[];

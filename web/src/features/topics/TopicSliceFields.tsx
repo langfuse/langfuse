@@ -35,7 +35,7 @@ type TopicFacetOption = {
   description: string;
 };
 
-/** The questions a scan answers, one row each with its description. */
+/** The facets a map answers, one row each with its description. */
 function TopicFacetChecklist({
   facets,
   selectedIds,
@@ -49,7 +49,12 @@ function TopicFacetChecklist({
 }) {
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="text-sm font-bold">What to look for</h3>
+      <h3 className="text-sm font-bold">
+        Facets{" "}
+        <span className="text-muted-foreground font-normal">
+          · What to look for
+        </span>
+      </h3>
       <div className="divide-y rounded-md border">
         {facets.map((facet) => (
           <div
@@ -155,17 +160,14 @@ function TopicSamplingField({
   );
 }
 
-/** The Auto-analyze switch that makes a scan live; `children` (the sample rate) show while on. */
-function TopicAutoAnalyzeField({
+/** Whether a map takes new traces: on is LIVE, off pauses it; `children` (the sample rate) show while on. */
+function TopicLiveUpdatesField({
   on,
   onChange,
-  disabledReason,
   children,
 }: {
   on: boolean;
   onChange: (on: boolean) => void;
-  /** Why the scan can't be live, e.g. the project's live scan limit. */
-  disabledReason?: string;
   children: ReactNode;
 }) {
   const id = useId();
@@ -175,20 +177,21 @@ function TopicAutoAnalyzeField({
         <div className="flex flex-col gap-1">
           <span className="flex items-center gap-2">
             <label htmlFor={id} className="text-sm leading-none font-bold">
-              Auto-analyze
+              Live updates
             </label>
-            {on ? <Badge text="LIVE" size="sm" color="success" /> : null}
+            {on ? (
+              <Badge text="LIVE" size="sm" color="success" />
+            ) : (
+              <Badge text="PAUSED" size="sm" color="filled" />
+            )}
           </span>
           <p className="text-muted-foreground text-sm">
-            {disabledReason ?? "Analyze new matching traces as they arrive."}
+            {on
+              ? "Analyzes new matching traces as they arrive and refits nightly."
+              : "Paused. The map keeps its current topics; new traces aren’t analyzed."}
           </p>
         </div>
-        <Switch
-          id={id}
-          checked={on}
-          disabled={Boolean(disabledReason)}
-          onCheckedChange={onChange}
-        />
+        <Switch id={id} checked={on} onCheckedChange={onChange} />
       </div>
       {on ? children : null}
     </section>
@@ -200,5 +203,5 @@ export const TopicSliceFields = Object.assign(TopicDialogSection, {
   Section: TopicDialogSection,
   Facets: TopicFacetChecklist,
   Sampling: TopicSamplingField,
-  AutoAnalyze: TopicAutoAnalyzeField,
+  LiveUpdates: TopicLiveUpdatesField,
 });

@@ -77,6 +77,20 @@ minimumReleaseAgeExclude:
   - "@ag-ui/core@1.0.4"
   - "@ag-ui/encoder@1.0.4"
   - "@ag-ui/proto@1.0.4"
+  # AI SDK release with native Gemini Decisions support; the set shares one provider
+  # version and clears the five-day window on November 16.
+  - ai@7.0.170
+  - "@ai-sdk/amazon-bedrock@5.0.139"
+  - "@ai-sdk/anthropic@4.0.102"
+  - "@ai-sdk/azure@4.0.123"
+  - "@ai-sdk/deepseek@3.0.84"
+  - "@ai-sdk/gateway@4.0.143"
+  - "@ai-sdk/google@4.0.118"
+  - "@ai-sdk/google-vertex@5.0.138"
+  - "@ai-sdk/openai@4.0.115"
+  - "@ai-sdk/openai-compatible@3.0.90"
+  - "@ai-sdk/provider-utils@5.0.79"
+  - "@ai-sdk/typesafe-ai@3.0.38"
 # Drop exceptions for versions no longer in the lockfile during writable installs.
 minimumReleaseAgeExcludePrune: true
 # Reject recent releases whose publishing trust is weaker than earlier versions.
@@ -125,6 +139,9 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 overrides:
+  # BullMQ instrumentation 0.9.0 requires ^0.221.0.
+  # Keep it on the same instrumentation runtime as the Node SDK.
+  "@appsignal/opentelemetry-instrumentation-bullmq@0.9.0>@opentelemetry/instrumentation": 0.222.0
   # React Email requires html-to-text ^9, which pulls in vulnerable deepmerge
   # (CVE-2026-93753). Version 10.0.1 replaces it with patched deepmerge-ts.
   "@react-email/render>html-to-text": 10.0.1
@@ -175,9 +192,17 @@ overrides:
   # CVE-2026-104844: quadratic flat-selector parsing, fixed in 6.1.5.
   # @tailwindcss/typography pins exactly 6.0.10, including at its latest release.
   "@tailwindcss/typography>postcss-selector-parser": 6.1.5
-  # Hono's dependents allow these security fixes: XSS in 4.13.7 and
-  # double decoding in 4.13.11 (GHSA-5r4p-p66f-jhc7).
-  hono: 4.13.11
+  # Hono 4.13.16 fixes middleware bypasses, multipart validation,
+  # CSS injection, and hyperlink-auditing CSRF. All dependents allow it.
+  hono: 4.13.16
+  # CVE-2026-126204: MemoryStore.resetClient lets in-flight requests extend
+  # the next window's limit, fixed in 8.7.2. @modelcontextprotocol/sdk declares
+  # ^8.2.1, which the vulnerable 8.6.1 already satisfies.
+  express-rate-limit: 8.7.2
+  # CVE-2026-126345: malicious MLSD listings crash basic-ftp before 6.2.4.
+  # get-uri still requires v5; its Client APIs are compatible with v6,
+  # including v6's restriction on third-party FTP data connections.
+  "get-uri>basic-ftp": 6.2.4
   # A batch of SSRF, prototype-pollution, ReDoS and proxy-confusion fixes
   # (CVE-2026-101898 through -101909) all land in 1.20.0. @slack/web-api and
   # @vueuse/integrations declare ^1 ranges the vulnerable 1.18.0 already
@@ -204,6 +229,10 @@ overrides:
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^10.
   "next-auth>nodemailer": "^10.4.1"
+  # CVE-2026-121707: Schema.TemplateLiteral ReDoS, fixed in 3.22.1.
+  # @prisma/config pins effect to exactly 3.21.0 (3.20.0 at its latest 7.x
+  # release), so only an override moves it within the same major.
+  "@prisma/config>effect": 3.22.1
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
@@ -215,11 +244,15 @@ patchedDependencies:
   # Fixed upstream in 2.3.7; remove this patch when we bump.
   "@radix-ui/react-select@2.2.6": patches/@radix-ui__react-select@2.2.6.patch
   next-auth@4.24.15: patches/next-auth@4.24.15.patch
-  # The document-level drag handlers crash when a panel group unmounts
-  # mid-drag: setPointerCapture on the detached separator throws
-  # InvalidStateError on every pointermove, and the pointerup teardown throws
-  # "Could not find data for Group with id ...". Guard both (skip detached
-  # elements / unmounted groups). Still unfixed upstream as of 4.12.2.
+  # Document pointer handlers throw while a group is mid-drag or mid-hover:
+  # setPointerCapture on a detached separator (InvalidStateError), pointerup
+  # looking up a group that is already gone, and stacking-order comparison
+  # when the event target or the group element is detached or lives in
+  # another document ("Stacking order can only be calculated for elements
+  # with a common ancestor"). Skip those hit regions instead of asserting.
+  # Upstream fixed the drag teardown in 4.12.3/4.12.4 and the stacking-order
+  # throw in 4.14.4/4.14.8. Staying on 4.8.0: 4.14.1 persists the requested
+  # layout from useDefaultLayout instead of the constrained one.
   react-resizable-panels@4.8.0: patches/react-resizable-panels@4.8.0.patch
 publicHoistPattern:
   - "*prisma*"

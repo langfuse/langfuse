@@ -9,7 +9,6 @@ import {
   SeedError,
   SeedSummary,
 } from "./types";
-import { utcDayStartMs } from "./rng";
 import { countRows, escapeLike, tracesListLink } from "./verify";
 
 const SESSION_POOL_SIZE = 100;
@@ -106,12 +105,36 @@ const run = async (
   ctx.log(
     `bulk-inserting ${count} traces, ${counts.observations} observations, ${counts.scores} scores over ${days} day(s)`,
   );
-  // One shared anchor so the three INSERT statements cannot straddle a UTC
+  // One shared anchor so the three INSERT statements cannot straddle a
   // midnight and anchor observations/scores to a different day than traces.
+  // The newest trace lands at seed time so a fresh seed fills the default
+  // "past 1 day" filter; observations (60s per depth) and scores (90s each)
+  // follow their trace, so the window ends early enough to keep them out of
+  // the future. The anchor is midnight in the ClickHouse server timezone, not
+  // UTC: merges evaluate the toDate(...) sorting keys there, and the
+  // compressed anchor day is only date-stable in that timezone.
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const childLeadSeconds = Math.max(
+    observationsPerTrace * 65,
+    scoresPerTrace * 90,
+  );
+  const dayStart = await clickhouseClient().query({
+    query:
+      "SELECT toUnixTimestamp(toStartOfDay(toDateTime({now: UInt32}, serverTimezone()))) AS s",
+    query_params: { now: nowSeconds },
+    format: "JSONEachRow",
+  });
+  const [dayStartRow] = await dayStart.json<{ s: string | number }>();
+  const anchorSeconds = Number(dayStartRow?.s);
+  if (!Number.isFinite(anchorSeconds)) {
+    throw new SeedError("Could not read today's start from ClickHouse");
+  }
   const bulkOpts = {
     numberOfDays: days,
     idPrefix: ctx.idPrefix,
-    anchorSeconds: Math.floor(utcDayStartMs() / 1000),
+    anchorSeconds,
+    endSeconds: nowSeconds - childLeadSeconds,
+    nowSeconds,
     seed: ctx.seed,
   };
   // Link ~10% of generations to REAL prompts — fabricated prompt ids would
@@ -258,7 +281,8 @@ export const manyTracesScenario: ScenarioDefinition = {
       flag: "days",
       type: "number",
       default: 3,
-      description: "spread timestamps over the past N days",
+      description:
+        "spread timestamps over the past N days, newest at seed time",
     },
     {
       flag: "observations-per-trace",

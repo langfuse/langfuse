@@ -1,22 +1,32 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { costFormatter } from "@/src/utils/numbers";
 import {
+  type TopicExecutionSummary,
   type TopicExecutionStatus,
   type TopicOperation,
 } from "@langfuse/shared/topics";
+
+export type TopicRunWithCost = TopicExecutionSummary & {
+  estimatedCost?: number | null;
+};
+
+type RunCostInput = {
+  operation: TopicOperation;
+  analysis?: { summarize?: unknown };
+};
 
 const operationLabels: Record<TopicOperation, string> = {
   process: "Analyze traces",
   update: "Regenerate topics",
 };
 
-/** A run's name in History: one-off scans carry their own name. */
+/** A run's name in History: snapshots carry their own name. */
 export function runLabel(input: {
   operation: TopicOperation;
   analysis?: { label: string };
 }) {
   return input.operation === "update" && input.analysis
-    ? `One-off scan · ${input.analysis.label}`
+    ? `Snapshot · ${input.analysis.label}`
     : operationLabels[input.operation];
 }
 
@@ -40,12 +50,16 @@ export const executionBadgeTypes: Record<TopicExecutionStatus, Status> = {
 export const busy = (status: string) =>
   status === "queued" || status === "running";
 
+export function createsSummaries(input: RunCostInput) {
+  return input.operation === "process" || Boolean(input.analysis?.summarize);
+}
+
 export function formatTopicRunCost(
-  operation: TopicOperation,
-  estimatedCost: number | null,
+  input: RunCostInput,
+  estimatedCost: number | null | undefined,
 ) {
-  if (operation === "update") return "Not tracked";
-  return estimatedCost == null
-    ? "Unavailable"
-    : `~${costFormatter(estimatedCost)}`;
+  if (!createsSummaries(input)) return "No new summaries";
+  if (estimatedCost === undefined) return "Loading…";
+  if (estimatedCost === null) return "Unavailable";
+  return `~${costFormatter(estimatedCost)}`;
 }

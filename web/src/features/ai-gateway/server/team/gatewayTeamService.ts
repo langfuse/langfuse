@@ -22,7 +22,7 @@ import { OrganizationMembersService } from "@/src/features/rbac/server/organizat
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 const MEMBER_SUGGESTION_LIMIT = 4;
-const GATEWAY_USER_SCOPE = "gateway:invoke";
+export const GATEWAY_USER_SCOPE = "gateway:invoke";
 
 type GatewayInvitationEmail = Extract<
   NotificationEventType,

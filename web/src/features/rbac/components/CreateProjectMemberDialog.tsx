@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Role } from "@langfuse/shared";
-import { useId } from "react";
+import { useId, type ComponentProps } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import {
   Form,
@@ -13,9 +14,11 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  useFormField,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
+import { placeMemberInviteError } from "@/src/features/rbac/fns/placeMemberInviteError";
 import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
 
 const roleValues = {
@@ -34,6 +37,22 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+function MemberRoleSelect(props: ComponentProps<typeof RoleSelect>) {
+  const { error, formItemId, formDescriptionId, formMessageId } =
+    useFormField();
+
+  return (
+    <RoleSelect
+      {...props}
+      triggerId={formItemId}
+      aria-invalid={Boolean(error)}
+      aria-describedby={
+        error ? `${formDescriptionId} ${formMessageId}` : formDescriptionId
+      }
+    />
+  );
+}
 
 type CreateProjectMemberDialogProps = {
   project: { id: string; name: string } | undefined;
@@ -71,19 +90,22 @@ export function CreateProjectMemberDialog({
   });
 
   async function onSubmit(values: FormValues) {
+    form.clearErrors();
     try {
       await createProjectMember(values);
       form.reset();
       onSuccess();
     } catch (error) {
-      form.setError("email", {
+      const placed = placeMemberInviteError(error);
+      form.setError(placed.field, {
         type: "manual",
-        message:
-          error instanceof Error ? error.message : "Failed to add member",
+        message: placed.message,
       });
       reportTrpcErrorWithoutToast(error, "members");
     }
   }
+
+  const formError = form.formState.errors.root?.message;
 
   return (
     <Dialog
@@ -106,6 +128,7 @@ export function CreateProjectMemberDialog({
           onSubmit={form.handleSubmit(onSubmit)}
         >
           <Dialog.Body>
+            {formError ? <Banner variant="error">{formError}</Banner> : null}
             <FormField
               control={form.control}
               name="email"
@@ -126,7 +149,7 @@ export function CreateProjectMemberDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Organization Role</FormLabel>
-                    <RoleSelect
+                    <MemberRoleSelect
                       roles={Object.values(roleValues).filter(
                         (role) =>
                           isAiGatewayEnabled || role !== roleValues.AI_GATEWAY,
@@ -147,7 +170,7 @@ export function CreateProjectMemberDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Project Role</FormLabel>
-                    <RoleSelect
+                    <MemberRoleSelect
                       isProjectRole
                       canManageOwnership={canManageProjectOwnership}
                       roles={Object.values(roleValues).filter(

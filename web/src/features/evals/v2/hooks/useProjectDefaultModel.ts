@@ -1,6 +1,5 @@
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useState } from "react";
 
 import { env } from "@/src/env.mjs";
 import { getJudgeModelProviderAdapters } from "@/src/features/evals/v2/judgeModel";
@@ -26,8 +25,6 @@ export function useProjectDefaultModel({
 }) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const [pendingModel, setPendingModel] =
-    useState<ProjectDefaultModelConfig | null>(null);
   const canRead = useHasProjectAccess({
     projectId,
     scope: "evalDefaultModel:read",
@@ -59,11 +56,11 @@ export function useProjectDefaultModel({
     },
   );
 
-  const updateDefaultModel = (
+  const updateDefaultModel = async (
     model: ProjectDefaultModelConfig,
     isReplacement: boolean,
   ) => {
-    upsertDefaultModel.mutate(
+    await upsertDefaultModel.mutateAsync(
       { projectId, ...model },
       {
         onSuccess: async () => {
@@ -82,21 +79,25 @@ export function useProjectDefaultModel({
             title: "Project default model updated",
             description: `${model.provider} / ${model.model} is now the project default.`,
           });
-          setPendingModel(null);
         },
       },
     );
   };
 
-  const requestUpdate = (model: ProjectDefaultModelConfig) => {
+  const requestUpdate = (
+    model: ProjectDefaultModelConfig,
+    openConfirmation: (model: ProjectDefaultModelConfig) => void,
+  ) => {
     if (isSameJudgeModel(defaultModel, model)) return;
 
     if (defaultModel) {
-      setPendingModel(model);
+      openConfirmation(model);
       return;
     }
 
-    updateDefaultModel(model, false);
+    updateDefaultModel(model, false).catch(() => {
+      // The mutation reports the error.
+    });
   };
 
   return {
@@ -111,15 +112,14 @@ export function useProjectDefaultModel({
     canRead,
     canUpdate,
     update: {
-      pendingModel,
       isPending: upsertDefaultModel.isPending,
       requestUpdate,
       updateConfiguration: (model: ProjectDefaultModelConfig) =>
-        updateDefaultModel(model, defaultModel !== null),
-      dismissConfirmation: () => setPendingModel(null),
-      confirmUpdate: () => {
-        if (pendingModel) updateDefaultModel(pendingModel, true);
-      },
+        updateDefaultModel(model, defaultModel !== null).catch(() => {
+          // The mutation reports the error.
+        }),
+      confirmUpdate: (model: ProjectDefaultModelConfig) =>
+        updateDefaultModel(model, true),
     },
     openProviderSettings: () => {
       window.open(

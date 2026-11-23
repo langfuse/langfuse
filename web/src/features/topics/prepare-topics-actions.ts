@@ -1,7 +1,8 @@
+import { type TopicRuleMap } from "./topic-maps";
 import {
+  CalendarRange,
   Eye,
   History,
-  Pencil,
   Plus,
   Settings,
   type IconComponent,
@@ -14,7 +15,7 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "edit" | "new-analysis" | "configure" | "history";
+  id: "new-map" | "new-snapshot" | "configure" | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -22,52 +23,94 @@ type TopicAction = {
   badge?: string;
 };
 
-function newAnalysisDisabledReason(
-  canWrite: boolean,
-  state: AutomaticProcessingState,
-) {
-  if (!canWrite) return "You need permission to edit Topics.";
+const NO_WRITE_ACCESS = "You need permission to edit Topics.";
+
+function createDisabledReason(state: AutomaticProcessingState) {
   if (state.status === "unconfigured") return "Set up Topics first.";
   return undefined;
 }
 
-/** One action policy for the Edit scan button and both overflow-menu presentations. */
+const minutesUntil = (ms: number) => Math.max(1, Math.ceil(ms / 60_000));
+
+/** Why the selected map can't be refreshed now; undefined when it can. */
+export function refreshMapDisabledReason({
+  canWrite,
+  state,
+  rule,
+  setupActive,
+  now,
+}: {
+  canWrite: boolean;
+  state: AutomaticProcessingState;
+  rule: Pick<TopicRuleMap, "enabled" | "refresh">;
+  setupActive: boolean;
+  now: number;
+}) {
+  if (!canWrite) return NO_WRITE_ACCESS;
+  if (state.status === "paused") return "Topics is paused.";
+  if (state.status !== "on")
+    return "Turn on automatic processing to refresh this map.";
+  if (rule.enabled === false)
+    return "Turn on live updates to refresh this map.";
+  if (setupActive) return "This map's first topics are still being built.";
+  if (rule.refresh.running) return "This map is being refreshed.";
+  const availableAt = rule.refresh.availableAt
+    ? Date.parse(rule.refresh.availableAt)
+    : 0;
+  if (availableAt > now)
+    return `Refreshed recently. Available again in ${minutesUntil(availableAt - now)} min.`;
+  return undefined;
+}
+
+/**
+ * One action policy for the Edit map button, the map picker and both
+ * overflow-menu presentations. Creating and refreshing maps live in the map
+ * picker, so the overflow menu keeps page-wide actions; it offers creating
+ * only while the picker is hidden, e.g. during onboarding.
+ */
 export function prepareTopicsActions({
   automaticProcessing,
   canWrite,
   configureAvailable,
-  menuOnly,
   onConfigure,
   onHistory,
-  onNewAnalysis,
+  onNewMap,
+  onNewSnapshot,
+  mapDisabledReason,
   onEditRun,
+  refreshMap,
+  mapPickerShown,
   showUnassigned,
   onShowUnassignedChange,
+  onGiveFeedback,
 }: {
   automaticProcessing: { state: AutomaticProcessingState; saving: boolean };
   canWrite: boolean;
   configureAvailable: boolean;
-  menuOnly: boolean;
   onConfigure: () => void;
   onHistory: () => void;
-  /** Starts a one-off analysis; absent where none can start. */
-  onNewAnalysis?: () => void;
-  /** Edits the selected live run; absent for past runs or without write access. */
+  /** Opens New map and New snapshot; disabled without write access. */
+  onNewMap?: () => void;
+  onNewSnapshot?: () => void;
+  /** Why no further map can be created, e.g. the project's limit. */
+  mapDisabledReason?: string;
+  /** Opens the selected map's settings; absent for snapshots. */
   onEditRun?: () => void;
+  /** Refreshes a live map, e.g. the one the map picker previews. */
+  refreshMap?: (rule: TopicRuleMap) => {
+    onSelect: () => void;
+    disabledReason?: string;
+  };
+  /** The map picker, which carries New map and New snapshot, is on screen. */
+  mapPickerShown: boolean;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
+  /** Opens the support form as Topics feedback. */
+  onGiveFeedback?: () => void;
 }) {
   const { state } = automaticProcessing;
-  const menu: TopicAction[] = [];
-  // Handheld headers show only the menu, so it carries Edit scan there.
-  if (onEditRun && menuOnly)
-    menu.push({
-      id: "edit",
-      label: "Edit scan",
-      icon: Pencil,
-      onSelect: onEditRun,
-    });
-  menu.push(
+  const editDisabledReason = canWrite ? undefined : NO_WRITE_ACCESS;
+  const menu: TopicAction[] = [
     {
       id: "history",
       label: "History",
@@ -83,7 +126,7 @@ export function prepareTopicsActions({
         : "Topics settings are still loading.",
       onSelect: onConfigure,
     },
-  );
+  ];
   const display = {
     id: "show-unassigned",
     label: "Show unassigned",
@@ -91,26 +134,51 @@ export function prepareTopicsActions({
     checked: showUnassigned,
     onCheckedChange: onShowUnassignedChange,
   } as const;
-  const newAnalysis = onNewAnalysis
+  const newMap = onNewMap
     ? {
-        onSelect: onNewAnalysis,
-        disabledReason: newAnalysisDisabledReason(canWrite, state),
+        onSelect: onNewMap,
+        disabledReason: !canWrite
+          ? NO_WRITE_ACCESS
+          : (createDisabledReason(state) ?? mapDisabledReason),
       }
     : null;
-  if (newAnalysis)
-    menu.unshift({
-      id: "new-analysis",
-      label: "New scan",
-      icon: Plus,
-      disabledReason: newAnalysis.disabledReason,
-      onSelect: newAnalysis.onSelect,
-    });
-  const editRun = onEditRun && !menuOnly ? { onSelect: onEditRun } : null;
+  const newSnapshot = onNewSnapshot
+    ? {
+        onSelect: onNewSnapshot,
+        disabledReason: !canWrite
+          ? NO_WRITE_ACCESS
+          : createDisabledReason(state),
+      }
+    : null;
+  if (!mapPickerShown) {
+    const create: TopicAction[] = [];
+    if (newMap)
+      create.push({
+        id: "new-map",
+        label: "New live map",
+        icon: Plus,
+        ...newMap,
+      });
+    if (newSnapshot)
+      create.push({
+        id: "new-snapshot",
+        label: "New snapshot",
+        icon: CalendarRange,
+        ...newSnapshot,
+      });
+    menu.unshift(...create);
+  }
+  const editRun = onEditRun
+    ? { onSelect: onEditRun, disabledReason: editDisabledReason }
+    : null;
   return {
     editRun,
-    newScan: newAnalysis,
+    newMap,
+    newSnapshot,
+    refreshMap: refreshMap ?? null,
     menu,
     display,
+    giveFeedback: onGiveFeedback ?? null,
   };
 }
 

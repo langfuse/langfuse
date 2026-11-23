@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useId, useState, type ReactNode } from "react";
 import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -6,16 +5,16 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Button as LegacyButton } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
 } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
+import {
+  TOPICS_MAX_EMBEDDING_DIMENSIONS,
+  TOPICS_MIN_EMBEDDING_DIMENSIONS,
+} from "@langfuse/shared/topics";
 
 export type TopicSlotCheck = {
   status: "idle" | "testing" | "ok" | "error";
@@ -185,8 +184,8 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
       >
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4">
           <p className="bg-light-blue text-dark-blue rounded-md px-4 py-2.5 text-sm">
-            Applies to every scan in this project. Questions and filters live in
-            Edit scan.
+            Applies to every map in this project. Questions and filters live in
+            Edit map.
           </p>
           {automaticProcessingOff ? (
             <div className="flex items-center justify-between gap-3">
@@ -355,6 +354,8 @@ function ModelSlot({
             aria-label="Embedding dimensions"
             type="number"
             inputMode="numeric"
+            min={TOPICS_MIN_EMBEDDING_DIMENSIONS}
+            max={TOPICS_MAX_EMBEDDING_DIMENSIONS}
             value={dimensions}
             disabled={inactive}
             onChange={(event) => onDimensionsChange?.(event.target.value)}
@@ -374,11 +375,18 @@ function ModelSlot({
       </p>
       <div className="flex w-full min-w-0 flex-1 flex-col gap-1">
         {locked ? (
-          <Tooltip>
-            <TooltipTrigger asChild>{fields}</TooltipTrigger>
-            <TooltipContent side="bottom">
-              {"lockedHint" in copy ? copy.lockedHint : null}
-            </TooltipContent>
+          <Tooltip
+            label={name === "embedding" ? SLOT_COPY.embedding.lockedHint : ""}
+            placement="bottom"
+          >
+            {({ getTriggerProps }) => (
+              <div
+                {...getTriggerProps()}
+                className="flex min-w-0 flex-1 items-center gap-2"
+              >
+                {controls}
+              </div>
+            )}
           </Tooltip>
         ) : (
           fields

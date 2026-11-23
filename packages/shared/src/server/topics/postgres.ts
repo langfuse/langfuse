@@ -1,17 +1,16 @@
 import { JobConfigState, prisma, Prisma } from "../../db";
 import {
   DEFAULT_TOPIC_FACETS,
+  DEFAULT_TOPIC_RULE_NAME,
   TOPICS_MAX_RULES,
   topicRuleSettingsSchema,
   topicTimeRangeSchema,
   sameTopicGeometry,
   type TopicFacet,
-  type TopicFacetRef,
   type TopicFacetVersion,
   type TopicRun,
   type TopicRule,
   type TopicDefinition,
-  type TopicEmbeddingConfig,
 } from "../../topics";
 import { isEqual } from "lodash";
 import {
@@ -309,7 +308,7 @@ export async function writeTopicRule(
       `A project can have at most ${TOPICS_MAX_RULES} Topics rules.`,
     );
   const ruleId = existing?.id;
-  const name = input.name?.trim() || existing?.name || "All traces";
+  const name = input.name?.trim() || existing?.name || DEFAULT_TOPIC_RULE_NAME;
   // A write without sampling or a filter keeps the rule's stored rate and filter.
   const config = topicRuleSettingsSchema.parse({
     ...input,
@@ -533,9 +532,8 @@ export async function getPublishedTopicMaps(
   projectId: string,
   facetIds: string[],
 ) {
-  const unique = (await getCurrentTopicMapRows(projectId, facetIds)).map(
-    ({ run }) => run,
-  );
+  const current = await getCurrentTopicMapRows(projectId, facetIds);
+  const unique = current.map(({ run }) => run);
   const ids = unique.flatMap((run) => run.topicVersionIds);
   // Only names and ids: these reads run on every tracing request with topics.
   const names = new Map(
@@ -546,37 +544,34 @@ export async function getPublishedTopicMaps(
   );
   return {
     runIds: unique.map(({ id }) => id),
-    maps: unique.map((run) => ({
+    ruleIds: [
+      ...new Set(current.flatMap(({ ruleId }) => (ruleId ? [ruleId] : []))),
+    ],
+    maps: current.map(({ ruleId, run }) => ({
       facetId: run.facetId,
+      runId: run.id,
+      ruleId,
       topics: run.topicVersionIds.flatMap((id) => names.get(id) ?? []),
     })),
   };
 }
 
-/** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */
-export async function getTopicProcessingMapIds(
+/** Every completed run of the rules, outside analyses: a pending or failed refit's assignments never show. */
+export async function getCompletedTopicRuleRunIds(
   projectId: string,
-  facets: TopicFacetRef[],
-  embeddingConfig: TopicEmbeddingConfig,
-): Promise<{ facetId: string; facetVersion: number; runId: string | null }[]> {
-  if (!facets.length) return [];
-  const runs = await findServingRuns(projectId, [
-    ...new Set(facets.map((facet) => facet.facetId)),
-  ]);
-  return facets.map(({ facetId, version }) => {
-    const run = runs.find((run) => run.facetId === facetId);
-    const config = run?.config as Record<string, unknown> | undefined;
-    return {
-      facetId,
-      facetVersion: version,
-      runId:
-        run?.facetVersion === version &&
-        config?.embeddingModel === embeddingConfig.embeddingModel &&
-        config?.dimensions === embeddingConfig.embeddingDimensions
-          ? run.id
-          : null,
-    };
+  ruleIds: string[],
+): Promise<string[]> {
+  if (!ruleIds.length) return [];
+  const runs = await prisma.topicClusteringRun.findMany({
+    where: {
+      projectId,
+      ruleId: { in: ruleIds },
+      status: "completed",
+      config: { path: ["analysis"], equals: Prisma.DbNull },
+    },
+    select: { id: true },
   });
+  return runs.map(({ id }) => id);
 }
 
 export async function createTopicRun(input: {

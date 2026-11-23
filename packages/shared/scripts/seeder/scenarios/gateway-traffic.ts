@@ -47,7 +47,10 @@ import { countRows, escapeLike } from "./verify";
  */
 
 /** A `null` rate is a model without a Langfuse price: requests carry usage but no cost. */
-const MODELS: ReadonlyArray<{ name: string; rate: number | null }> = [
+export const GATEWAY_MODELS: ReadonlyArray<{
+  name: string;
+  rate: number | null;
+}> = [
   { name: "gpt-5.4-mini", rate: 1 },
   { name: "claude-haiku-4-5", rate: 1.5 },
   { name: "gpt-5.6-sol", rate: 6 },
@@ -116,7 +119,7 @@ const ensureGatewayKeys = async (params: {
         await createApiKey(prisma, {
           tenant: OrganizationId(params.organizationId),
           scope: UserId(userId),
-          role: SystemRoleId("AI_GATEWAY"),
+          role: SystemRoleId("AI_GATEWAY_INFERENCE"),
           createdBy: UserId(userId),
           name: `Seeded team key ${i}`,
           predefinedKeys: {
@@ -160,7 +163,7 @@ const ensureServiceKey = async (params: {
       await createApiKey(prisma, {
         tenant: OrganizationId(params.organizationId),
         scope: OrganizationId(params.organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: "system",
         name: "Seeded service key",
         predefinedKeys: {
@@ -210,7 +213,7 @@ const generationCost = (
   };
 };
 
-const toGenerationEvent = (params: {
+export const toGatewayGenerationEvent = (params: {
   projectId: string;
   environment: string;
   id: string;
@@ -218,7 +221,7 @@ const toGenerationEvent = (params: {
   userId: string | null;
   gatewayKeyId: string | null;
   keyOwnerUserId: string | null;
-  model: (typeof MODELS)[number];
+  model: (typeof GATEWAY_MODELS)[number];
   usageInput: number;
   usageOutput: number;
   startTime: number;
@@ -395,7 +398,7 @@ const run = async (
           )
         ];
       events.push(
-        toGenerationEvent({
+        toGatewayGenerationEvent({
           projectId: ingestionProjectId,
           environment: ctx.environment,
           id: isGateway
@@ -408,7 +411,10 @@ const run = async (
             : "sdk-user",
           gatewayKeyId: isGateway ? key.id : null,
           keyOwnerUserId: isGateway ? key.userId : null,
-          model: MODELS[jitter(ctx.seed, g * 11 + 2, MODELS.length - 1)],
+          model:
+            GATEWAY_MODELS[
+              jitter(ctx.seed, g * 11 + 2, GATEWAY_MODELS.length - 1)
+            ],
           usageInput: 300 + jitter(ctx.seed, g * 13 + 3, 4000),
           usageOutput: 100 + jitter(ctx.seed, g * 17 + 4, 1500),
           startTime: dayStart + jitter(ctx.seed, g * 19 + 5, 86_399_000),

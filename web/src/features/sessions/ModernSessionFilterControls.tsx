@@ -176,7 +176,6 @@ export function ModernSessionFilterControls({
     capture("saved_views:update_config", {
       tableName: TableViewPresetTableName.SessionDetail,
       viewId: updateView.id,
-      name: updateView.name,
     });
 
     const viewWasApplied =
@@ -308,14 +307,18 @@ export function ModernSessionFilterControls({
         ) : null}
       </Dialog>
 
-      <Dialog open={saveViewDialogOpen} onOpenChange={setSaveViewDialogOpen}>
+      <Dialog
+        open={saveViewDialogOpen}
+        onOpenChange={(open) => {
+          setSaveViewDialogOpen(open);
+          if (!open) setFilterDialogOpen(true);
+        }}
+      >
         {saveViewDialogOpen ? (
           <ModernSessionSaveViewDialogContent
+            allowedOwnerships={["PROJECT"]}
+            showOwnership={false}
             isSaving={createMutation.isPending}
-            onCancel={() => {
-              setSaveViewDialogOpen(false);
-              setFilterDialogOpen(true);
-            }}
             onSave={saveView}
           />
         ) : null}

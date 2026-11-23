@@ -21,7 +21,6 @@ import type { OrgAuthedContext } from "@/src/server/api/trpc";
 const session = {
   user: { id: "user-1" },
   orgId: "org-1",
-  orgRole: "OWNER",
 } as OrgAuthedContext["session"];
 
 vi.mock(
@@ -91,6 +90,7 @@ describe("AI gateway provider registry", () => {
         apiFormat: "anthropic.messages",
         config,
         baseURL: null,
+        credential: "unused",
       }),
     ).toEqual({
       baseUrl:
@@ -103,6 +103,7 @@ describe("AI gateway provider registry", () => {
         apiFormat: "openai.chat-completions",
         config,
         baseURL: null,
+        credential: "unused",
       }),
     ).toEqual({
       baseUrl: "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1",
@@ -114,8 +115,55 @@ describe("AI gateway provider registry", () => {
         apiFormat: "openai.responses",
         config: { region: "evil.example/x" },
         baseURL: null,
+        credential: "unused",
       }),
     ).toThrow();
+  });
+
+  it("routes Vertex AI to the global, multi-region and regional OpenAI-compatible endpoints", () => {
+    const credential = JSON.stringify({
+      type: "service_account",
+      project_id: "my-project",
+      private_key_id: "key-1",
+      private_key: "unused",
+      client_email: "gateway@my-project.iam.gserviceaccount.com",
+      client_id: "1",
+      auth_uri: "https://accounts.google.com/o/oauth2/auth",
+      token_uri: "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url:
+        "https://www.googleapis.com/robot/v1/metadata/x509/gateway",
+    });
+    const upstream = (location: string) =>
+      getGatewayUpstream({
+        provider: "VERTEX",
+        apiFormat: "openai.chat-completions",
+        config: { location },
+        baseURL: null,
+        credential,
+      });
+
+    expect(upstream("global")).toEqual({
+      baseUrl:
+        "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/endpoints/openapi",
+      authType: "bearer",
+    });
+    expect(upstream("us")).toEqual({
+      baseUrl:
+        "https://aiplatform.us.rep.googleapis.com/v1/projects/my-project/locations/us/endpoints/openapi",
+      authType: "bearer",
+    });
+    expect(upstream("eu")).toEqual({
+      baseUrl:
+        "https://aiplatform.eu.rep.googleapis.com/v1/projects/my-project/locations/eu/endpoints/openapi",
+      authType: "bearer",
+    });
+    expect(upstream("europe-west4")).toEqual({
+      baseUrl:
+        "https://europe-west4-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4/endpoints/openapi",
+      authType: "bearer",
+    });
+    expect(() => upstream("evil.example/x")).toThrow();
   });
 
   it("stores the Azure resource and project and routes each format to the resource", async () => {
@@ -166,6 +214,7 @@ describe("AI gateway provider registry", () => {
         config: null,
         baseURL:
           "https://contoso.services.ai.azure.com/api/projects/my-project",
+        credential: "azure-key",
       });
     expect(upstream("openai.embeddings")).toEqual({
       baseUrl: "https://contoso.services.ai.azure.com/openai/v1",

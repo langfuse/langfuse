@@ -6,16 +6,21 @@ import {
   type BedrockApiKey,
   type BedrockAccessKeys,
   type BedrockConfig,
+  type BedrockIamRole,
   type OpenAIConfig,
   type VertexAIConfig,
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  getLlmBaseUrlFormatError,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   resolveTypeSafeUpstream,
+  STORAGE_ROLE_ARN_INVALID_MESSAGE,
+  STORAGE_ROLE_ARN_REGEX,
   type TypeSafeUpstream,
 } from "@langfuse/shared";
-import { ChevronDown, PlusIcon, TrashIcon } from "@langfuse/icons";
+import { ChevronDown, Lock, PlusIcon, TrashIcon } from "@langfuse/icons";
+import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -28,6 +33,12 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { BaseUrlPicker } from "@/src/components/BaseUrlPicker/BaseUrlPicker";
+import {
+  OPENAI_DATA_RESIDENCY_HINT,
+  openAiBaseUrlPresets,
+} from "@/src/constants/openAiBaseUrlPresets";
+import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import {
   Select,
@@ -38,6 +49,8 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
+import { BedrockRoleSetupInstructions } from "@/src/features/llm-api-key/components/BedrockRoleSetupInstructions/BedrockRoleSetupInstructions";
+import { useBedrockIamRoleAuth } from "@/src/features/llm-api-key/useBedrockIamRoleAuth";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   api,
@@ -48,6 +61,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import type { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
+import {
+  getBaseURLFieldPlacement,
+  getLlmConnectionSaveErrorTarget,
+} from "@/src/features/public-api/fns/getLlmConnectionSaveErrorTarget";
 import {
   AuthMethod,
   BedrockAuthMethodSchema,
@@ -88,6 +105,8 @@ const isMatchingBedrockAuthMethod = (
 ): boolean =>
   (newAuthMethod === AuthMethod.ApiKey &&
     existingAuthMethod === AuthMethod.ApiKey) ||
+  (newAuthMethod === AuthMethod.IamRole &&
+    existingAuthMethod === AuthMethod.IamRole) ||
   (newAuthMethod === AuthMethod.AccessKeys &&
     (existingAuthMethod === AuthMethod.AccessKeys ||
       existingAuthMethod === AuthMethod.DefaultCredentials));
@@ -101,8 +120,9 @@ const getInitialBedrockAuthMethod = (params: {
   existingAuthMethod?: BedrockAuthMethod;
 }): BedrockAuthMethod => {
   if (params.mode === "update") {
-    return params.existingAuthMethod === AuthMethod.ApiKey
-      ? AuthMethod.ApiKey
+    return params.existingAuthMethod === AuthMethod.ApiKey ||
+      params.existingAuthMethod === AuthMethod.IamRole
+      ? params.existingAuthMethod
       : AuthMethod.AccessKeys;
   }
 
@@ -112,6 +132,7 @@ const getInitialBedrockAuthMethod = (params: {
 const createFormSchema = (params: {
   mode: "create" | "update";
   existingAuthMethod?: BedrockAuthMethod;
+  existingBaseURL?: string | null;
 }) =>
   z
     .object({
@@ -124,7 +145,13 @@ const createFormSchema = (params: {
           "Provider name cannot contain colons. Use a format like 'OpenRouter_Mistral' instead.",
         ),
       adapter: z.enum(LLMAdapter),
-      baseURL: z.union([z.literal(""), z.url()]),
+      baseURL: z.string().superRefine((baseURL, ctx) => {
+        // The server skips an unchanged base URL on update, so a URL saved
+        // under older rules must not block other edits.
+        if (baseURL === "" || baseURL === params.existingBaseURL) return;
+        const message = getLlmBaseUrlFormatError(baseURL, isLangfuseCloud);
+        if (message) ctx.addIssue({ code: "custom", message });
+      }),
       typeSafeUpstream: z.enum(
         TYPESAFE_UPSTREAMS.map(
           (upstream): TypeSafeUpstream["id"] => upstream.id,
@@ -135,6 +162,7 @@ const createFormSchema = (params: {
       awsAccessKeyId: z.string().optional(),
       awsSecretAccessKey: z.string().optional(),
       bedrockApiKey: z.string().optional(),
+      bedrockRoleArn: z.string().optional(),
       authMethod: BedrockAuthMethodSchema,
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
@@ -192,6 +220,24 @@ const createFormSchema = (params: {
             code: "custom",
             message: "AWS Secret Access Key is required.",
             path: ["awsSecretAccessKey"],
+          });
+        }
+        return;
+      }
+
+      if (authMethod === AuthMethod.IamRole) {
+        const roleArn = data.bedrockRoleArn?.trim() ?? "";
+        if (!roleArn) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Role ARN is required.",
+            path: ["bedrockRoleArn"],
+          });
+        } else if (!STORAGE_ROLE_ARN_REGEX.test(roleArn)) {
+          ctx.addIssue({
+            code: "custom",
+            message: STORAGE_ROLE_ARN_INVALID_MESSAGE,
+            path: ["bedrockRoleArn"],
           });
         }
         return;
@@ -293,12 +339,23 @@ export type LlmConnectionFormOwner =
 // React Query default that would show the same error in a toast.
 const suppressSaveErrorToast = () => undefined;
 
+/**
+ * Prefill for a new connection, e.g. from a link. Limited to fields that do
+ * not decide where the API key is sent: a link must never set the base URL
+ * or headers.
+ */
+export type NewLlmConnectionPrefill = {
+  provider?: string;
+  adapter?: LLMAdapter;
+};
+
 interface CreateLLMApiKeyFormProps {
   owner: LlmConnectionFormOwner;
   onSuccess: () => void;
   customization: ReturnType<typeof useUiCustomization>;
   mode?: "create" | "update";
   existingKey?: LlmApiKeyListItem;
+  prefill?: NewLlmConnectionPrefill;
 }
 
 export function CreateLLMApiKeyForm({
@@ -307,12 +364,16 @@ export function CreateLLMApiKeyForm({
   customization,
   mode = "create",
   existingKey,
+  prefill,
 }: CreateLLMApiKeyFormProps) {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   // When the "Other model" option is selected we hide the form fields and show
   // guidance instead. This is purely UI state and never reaches the form value.
   const [showOtherModelInfo, setShowOtherModelInfo] = useState(false);
   const [adapterSelectOpen, setAdapterSelectOpen] = useState(false);
+  // The server derives a Bedrock IAM role external ID from it, so the form can
+  // show the ID before the connection exists.
+  const [bedrockExternalIdNonce] = useState(() => uuidv4());
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -373,9 +434,11 @@ export function CreateLLMApiKeyForm({
   const mutTestUpdateOrganizationLlmApiKey =
     api.organizationLlmApiKey.testUpdate.useMutation();
 
-  const defaultAdapter: LLMAdapter = customization?.defaultModelAdapter
-    ? LLMAdapter[customization.defaultModelAdapter]
-    : LLMAdapter.OpenAI;
+  const defaultAdapter: LLMAdapter =
+    prefill?.adapter ??
+    (customization?.defaultModelAdapter
+      ? LLMAdapter[customization.defaultModelAdapter]
+      : LLMAdapter.OpenAI);
 
   const getCustomizedBaseURL = (adapter: LLMAdapter) => {
     switch (adapter) {
@@ -393,6 +456,7 @@ export function CreateLLMApiKeyForm({
   const formSchema = createFormSchema({
     mode,
     existingAuthMethod: existingKey?.authMethod,
+    existingBaseURL: existingKey?.baseURL,
   });
 
   const form = useForm({
@@ -432,6 +496,10 @@ export function CreateLLMApiKeyForm({
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
             bedrockApiKey: "",
+            bedrockRoleArn:
+              existingKey.authMethod === AuthMethod.IamRole
+                ? existingKey.displaySecretKey
+                : "",
             authMethod: getInitialBedrockAuthMethod({
               mode,
               existingAuthMethod: existingKey.authMethod,
@@ -439,7 +507,7 @@ export function CreateLLMApiKeyForm({
           }
         : {
             adapter: defaultAdapter,
-            provider: "",
+            provider: prefill?.provider ?? "",
             secretKey: "",
             baseURL: getCustomizedBaseURL(defaultAdapter),
             typeSafeUpstream: TYPESAFE_UPSTREAMS[0].id,
@@ -452,6 +520,7 @@ export function CreateLLMApiKeyForm({
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
             bedrockApiKey: "",
+            bedrockRoleArn: "",
             authMethod: getInitialBedrockAuthMethod({
               mode,
             }),
@@ -470,6 +539,17 @@ export function CreateLLMApiKeyForm({
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
     isMatchingBedrockAuthMethod(currentAuthMethod, existingKey?.authMethod);
+  const bedrockIamRoleAuth = useBedrockIamRoleAuth({
+    owner,
+    enabled: currentAdapter === LLMAdapter.Bedrock,
+  });
+  // A connection that already uses a role keeps it selectable, so a downgraded
+  // organization can still edit it or switch to another method.
+  const usesIamRole = existingKey?.authMethod === AuthMethod.IamRole;
+  const isIamRoleDisabled = !bedrockIamRoleAuth.isAvailable && !usesIamRole;
+  const iamRoleDisabledReason = isIamRoleDisabled
+    ? bedrockIamRoleAuth.unavailableReason
+    : null;
   const isUsingDefaultAwsCredentialsForCurrentAuthMethod =
     currentAuthMethod === AuthMethod.AccessKeys &&
     existingKey?.authMethod === AuthMethod.DefaultCredentials;
@@ -480,7 +560,6 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.VertexAI ||
     adapter === LLMAdapter.GoogleAIStudio ||
     adapter === LLMAdapter.TypeSafe;
-
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "customModels",
@@ -619,6 +698,30 @@ export function CreateLLMApiKeyForm({
     return ["provider", "adapter"].includes(fieldName);
   };
 
+  const showSaveError = (message: string) => {
+    const target = getLlmConnectionSaveErrorTarget({
+      message,
+      adapter: currentAdapter,
+      typeSafeUpstreamId: currentTypeSafeUpstream.id,
+    });
+    if (target.field === "root") {
+      form.setError("root", { type: "manual", message: target.message });
+      return;
+    }
+    form.setError("baseURL", { type: "server", message: target.message });
+    if (target.opensAdvancedSettings) setShowAdvancedSettings(true);
+  };
+
+  const handleInvalidSubmit = (errors: typeof form.formState.errors) => {
+    const placement = getBaseURLFieldPlacement(
+      currentAdapter,
+      currentTypeSafeUpstream.id,
+    );
+    if (errors.baseURL && placement === "advanced") {
+      setShowAdvancedSettings(true);
+    }
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (mode === "create") {
       if (existingKeys?.map((key) => key.provider).includes(values.provider)) {
@@ -659,6 +762,16 @@ export function CreateLLMApiKeyForm({
             } satisfies BedrockAccessKeys);
           }
           break;
+        case AuthMethod.IamRole: {
+          const roleArn = values.bedrockRoleArn!.trim();
+          // Resending an unchanged role would re-check the plan on every edit.
+          secretKey =
+            shouldPreserveExistingBedrockCredentials &&
+            roleArn === existingKey?.displaySecretKey
+              ? undefined
+              : JSON.stringify({ roleArn } satisfies BedrockIamRole);
+          break;
+        }
       }
 
       config = {
@@ -713,7 +826,9 @@ export function CreateLLMApiKeyForm({
       adapter: values.adapter,
       baseURL:
         values.baseURL ||
-        (mode === "update" && currentAdapter === LLMAdapter.TypeSafe
+        (mode === "update" &&
+        (currentAdapter === LLMAdapter.TypeSafe ||
+          currentAdapter === LLMAdapter.OpenAI)
           ? null
           : undefined),
       withDefaultModels: isCustomModelsRequired(currentAdapter)
@@ -729,13 +844,21 @@ export function CreateLLMApiKeyForm({
     try {
       let testResult;
       if (owner.scope === "project") {
-        const input = { ...connectionInput, projectId: owner.projectId };
+        const input = {
+          ...connectionInput,
+          projectId: owner.projectId,
+          bedrockExternalIdNonce,
+        };
         testResult =
           mode === "create"
             ? await mutTestLLMApiKey.mutateAsync(input)
             : await mutTestUpdateLLMApiKey.mutateAsync(input);
       } else {
-        const input = { ...connectionInput, orgId: owner.organizationId };
+        const input = {
+          ...connectionInput,
+          orgId: owner.organizationId,
+          bedrockExternalIdNonce,
+        };
         testResult =
           mode === "create"
             ? await mutTestOrganizationLlmApiKey.mutateAsync(input)
@@ -744,26 +867,31 @@ export function CreateLLMApiKeyForm({
 
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
-      form.setError("root", {
-        type: "manual",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not verify the API key.",
-      });
-
+      showSaveError(
+        error instanceof Error
+          ? error.message
+          : "Could not verify the API key.",
+      );
       return;
     }
 
     let mutation;
     if (owner.scope === "project") {
-      const input = { ...connectionInput, projectId: owner.projectId };
+      const input = {
+        ...connectionInput,
+        projectId: owner.projectId,
+        bedrockExternalIdNonce,
+      };
       mutation =
         mode === "create"
           ? mutCreateLlmApiKey.mutateAsync(input)
           : mutUpdateLlmApiKey.mutateAsync(input);
     } else {
-      const input = { ...connectionInput, orgId: owner.organizationId };
+      const input = {
+        ...connectionInput,
+        orgId: owner.organizationId,
+        bedrockExternalIdNonce,
+      };
       mutation =
         mode === "create"
           ? mutCreateOrganizationLlmApiKey.mutateAsync(input)
@@ -793,13 +921,11 @@ export function CreateLLMApiKeyForm({
       })
       .catch((error) => {
         reportTrpcErrorWithoutToast(error, "llm-api-keys");
-        form.setError("root", {
-          type: "manual",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Could not save the connection.",
-        });
+        showSaveError(
+          error instanceof Error
+            ? error.message
+            : "Could not save the connection.",
+        );
       });
   }
 
@@ -809,7 +935,7 @@ export function CreateLLMApiKeyForm({
         className="flex flex-col gap-4 overflow-auto"
         onSubmit={(e) => {
           e.stopPropagation(); // Prevent event bubbling to parent forms
-          form.handleSubmit(onSubmit)(e);
+          form.handleSubmit(onSubmit, handleInvalidSubmit)(e);
         }}
       >
         <DialogBody>
@@ -970,7 +1096,7 @@ export function CreateLLMApiKeyForm({
                   <FormField
                     control={form.control}
                     name="baseURL"
-                    render={({ field }) => (
+                    render={({ field, fieldState }) => (
                       <FormItem>
                         <FormLabel>Custom base URL</FormLabel>
                         <FormDescription>
@@ -980,8 +1106,9 @@ export function CreateLLMApiKeyForm({
                           out.
                         </FormDescription>
                         <FormControl>
-                          <Input
+                          <DesignSystemInput
                             {...field}
+                            error={Boolean(fieldState.error)}
                             placeholder="https://gateway.example.com/v1"
                           />
                         </FormControl>
@@ -1025,10 +1152,27 @@ export function CreateLLMApiKeyForm({
                                   value={AuthMethod.ApiKey}
                                   label="API key"
                                 />
+                                <Tabs.Trigger
+                                  value={AuthMethod.IamRole}
+                                  label="IAM role"
+                                  disabled={
+                                    iamRoleDisabledReason
+                                      ? {
+                                          disabledReason: iamRoleDisabledReason,
+                                        }
+                                      : isIamRoleDisabled
+                                  }
+                                  icon={isIamRoleDisabled ? Lock : undefined}
+                                />
                               </Tabs.List>
                             </Tabs>
                           </div>
                         </FormControl>
+                        {iamRoleDisabledReason ? (
+                          <FormDescription>
+                            {iamRoleDisabledReason}
+                          </FormDescription>
+                        ) : null}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1067,6 +1211,42 @@ export function CreateLLMApiKeyForm({
                       </FormItem>
                     )}
                   />
+                  {currentAuthMethod === AuthMethod.IamRole && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="bedrockRoleArn"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Role ARN</FormLabel>
+                            <FormDescription>
+                              Langfuse assumes this role in your AWS account
+                              instead of storing credentials.
+                            </FormDescription>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="arn:aws:iam::123456789012:role/langfuse-bedrock"
+                                autoComplete="off"
+                                data-1p-ignore
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {bedrockIamRoleAuth.crossAccountRoleArn ? (
+                        <BedrockRoleSetupInstructions
+                          owner={owner}
+                          nonce={bedrockExternalIdNonce}
+                          connectionId={existingKey?.id}
+                          crossAccountRoleArn={
+                            bedrockIamRoleAuth.crossAccountRoleArn
+                          }
+                        />
+                      ) : null}
+                    </>
+                  )}
                   {currentAuthMethod === AuthMethod.ApiKey && (
                     <FormField
                       control={form.control}
@@ -1401,7 +1581,7 @@ export function CreateLLMApiKeyForm({
                 <FormField
                   control={form.control}
                   name="baseURL"
-                  render={({ field }) => (
+                  render={({ field, fieldState }) => (
                     <FormItem>
                       <FormLabel>API Base URL</FormLabel>
                       <FormDescription>
@@ -1410,8 +1590,9 @@ export function CreateLLMApiKeyForm({
                         https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
                       </FormDescription>
                       <FormControl>
-                        <Input
+                        <DesignSystemInput
                           {...field}
+                          error={Boolean(fieldState.error)}
                           placeholder="https://your-instance.openai.azure.com/openai/deployments"
                         />
                       </FormControl>
@@ -1459,28 +1640,46 @@ export function CreateLLMApiKeyForm({
                     <FormField
                       control={form.control}
                       name="baseURL"
-                      render={({ field }) => (
+                      render={({ field, fieldState }) => (
                         <FormItem>
                           <FormLabel>API Base URL</FormLabel>
-                          <FormDescription>
-                            Leave blank to use the default base URL for the
-                            given LLM adapter.{" "}
-                            {currentAdapter === LLMAdapter.OpenAI && (
-                              <span>
-                                OpenAI default: https://api.openai.com/v1
-                              </span>
-                            )}
-                            {currentAdapter === LLMAdapter.Anthropic && (
-                              <span>
-                                Anthropic default: https://api.anthropic.com
-                                (excluding /v1/messages)
-                              </span>
-                            )}
-                          </FormDescription>
-
-                          <FormControl>
-                            <Input {...field} placeholder="default" />
-                          </FormControl>
+                          {currentAdapter === LLMAdapter.OpenAI ? (
+                            <>
+                              <FormDescription>
+                                {OPENAI_DATA_RESIDENCY_HINT}
+                              </FormDescription>
+                              <FormControl>
+                                <BaseUrlPicker
+                                  presets={openAiBaseUrlPresets}
+                                  value={field.value}
+                                  error={Boolean(fieldState.error)}
+                                  onChange={field.onChange}
+                                  onBlur={field.onBlur}
+                                  ref={field.ref}
+                                />
+                              </FormControl>
+                            </>
+                          ) : (
+                            <>
+                              <FormDescription>
+                                Leave blank to use the default base URL for the
+                                given LLM adapter.{" "}
+                                {currentAdapter === LLMAdapter.Anthropic && (
+                                  <span>
+                                    Anthropic default: https://api.anthropic.com
+                                    (excluding /v1/messages)
+                                  </span>
+                                )}
+                              </FormDescription>
+                              <FormControl>
+                                <DesignSystemInput
+                                  {...field}
+                                  error={Boolean(fieldState.error)}
+                                  placeholder="default"
+                                />
+                              </FormControl>
+                            </>
+                          )}
 
                           <FormMessage />
                         </FormItem>

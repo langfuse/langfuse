@@ -20,6 +20,8 @@
 import {
   eventsPredicateSource,
   eventsTableCols,
+  ObservationLevel,
+  ObservationType,
   type ColumnDefinition,
   type FilterState,
   type PredicateSource,
@@ -72,6 +74,17 @@ export type FieldDef = {
   displayValueByFilterValue?: ReadonlyMap<string, string>;
   /** Nullable-only columns participate in `has:` but are not direct filters. */
   directFilter?: boolean;
+  operators?: readonly CompareOp[];
+  negatedOperators?: readonly CompareOp[];
+  /** Insert an explicit exact match when selecting a suggested value. */
+  exactSuggestions?: boolean;
+  /**
+   * Closed enum for this field. Bare text that matches one of these values
+   * suggests `field:value` even when the value is absent from loaded facets.
+   * Only small static lists belong here — observed values cover everything
+   * that varies per project.
+   */
+  knownValues?: readonly string[];
 };
 
 export type SearchScope = {
@@ -127,11 +140,20 @@ export type FieldRegistry = {
    *  on views without one, whose lowerings carry no predicate. */
   predicateSource: PredicateSource | null;
   allowFreeText: boolean;
+  allowPresence?: boolean;
   targeting?: FilterTargeting;
   /** View-specific backend constraints beyond individual column operators. */
   filterStateErrors?: (filters: FilterState) => readonly string[];
   /** Whether this view exposes metadata.<key> filters. */
   metadata: boolean;
+  /**
+   * Whether `metadata.<key>:>n` (and `<`, `>=`, `<=`) lower to numeric
+   * `numberObject` filters. Only for views whose server compiles filters
+   * through the events predicate source; legacy filter paths reject
+   * `numberObject` on metadata. Applies to the `metadata.` root only, not to
+   * `metadataNamespaces`.
+   */
+  numericMetadata: boolean;
   /** Additional metadata roots mapped to their backend FilterState columns. */
   metadataNamespaces?: Readonly<Record<string, string>>;
   /** Keyed option roots (`topics.<facet>:<value>`) mapped to categoryOptions columns. */
@@ -203,6 +225,41 @@ export type FieldOverlay = Partial<
   description?: string;
 };
 
+/**
+ * Static option lists longer than this are not a closed enum. Copying them
+ * onto the field would scan a high-cardinality catalog on every keystroke.
+ */
+const MAX_KNOWN_VALUES = 24;
+
+/**
+ * A column's static options, when they are a small closed enum (the value is
+ * what the user types). Empty lists are filled at runtime from facet data, and
+ * a distinct display label is an id/name pair, not an enum the bar can insert
+ * as-is.
+ */
+function knownValuesFromColumn(
+  column: ColumnDefinition,
+): readonly string[] | undefined {
+  if (column.type !== "stringOptions" && column.type !== "arrayOptions") {
+    return undefined;
+  }
+  if (column.options.length === 0 || column.options.length > MAX_KNOWN_VALUES) {
+    return undefined;
+  }
+  const values: string[] = [];
+  for (const option of column.options) {
+    if (option.value.length === 0) return undefined;
+    if (
+      option.displayValue !== undefined &&
+      option.displayValue !== option.value
+    ) {
+      return undefined;
+    }
+    values.push(option.value);
+  }
+  return values;
+}
+
 /** `number`, `datetime` and `boolean` columns keep their type as kind; every other column is `text`. */
 function fieldKindOf(type: ColumnDefinition["type"]): FieldKind {
   return type === "number" || type === "datetime" || type === "boolean"
@@ -221,6 +278,7 @@ export function fieldRegistryFromColumns(
     /** Defaults to `scores`. */
     traceScores?: boolean;
     allowFreeText?: boolean;
+    allowPresence?: boolean;
     defaultSearchType?: readonly TracingSearchType[];
     searchScopes?: Readonly<Record<string, SearchScope>>;
     filterStateErrors?: (filters: FilterState) => readonly string[];
@@ -272,6 +330,10 @@ export function fieldRegistryFromColumns(
         displayValueByFilterValue: fieldOverlay?.displayValueByFilterValue,
         unit: fieldOverlay?.unit,
         negatedLabel: fieldOverlay?.negatedLabel,
+        operators: fieldOverlay?.operators,
+        negatedOperators: fieldOverlay?.negatedOperators,
+        exactSuggestions: fieldOverlay?.exactSuggestions,
+        knownValues: fieldOverlay?.knownValues ?? knownValuesFromColumn(column),
       };
     });
 
@@ -284,6 +346,7 @@ export function fieldRegistryFromColumns(
     scores,
     traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
+    allowPresence: overlay.allowPresence,
     defaultSearchType: overlay.defaultSearchType,
     searchScopes: overlay.searchScopes,
     filterStateErrors: overlay.filterStateErrors,
@@ -298,6 +361,11 @@ export function fieldRegistryFromColumns(
   });
 }
 
+/**
+ * `registry` plus fields for `columns`, for a view built on another view's
+ * grammar. `numericMetadata` is not inherited: the extended view's server
+ * (evaluator filters) may still reject numeric metadata filters.
+ */
 export function extendFieldRegistryWithColumns(
   registry: FieldRegistry,
   columns: readonly ColumnDefinition[],
@@ -319,6 +387,7 @@ export function extendFieldRegistryWithColumns(
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
+    allowPresence: registry.allowPresence,
     defaultSearchType: registry.defaultSearchType,
     searchScopes: registry.searchScopes,
     filterStateErrors: registry.filterStateErrors,
@@ -333,6 +402,7 @@ export function extendFieldRegistryWithColumns(
   });
 }
 
+/** `registry` with labeled options on `fieldId`; same view, same grammar. */
 export function withFieldOptions(
   registry: FieldRegistry,
   fieldId: string,
@@ -364,11 +434,13 @@ export function withFieldOptions(
     columns: registry.columns,
     predicateSource: registry.predicateSource,
     metadata: registry.metadata,
+    numericMetadata: registry.numericMetadata,
     metadataNamespaces: registry.metadataNamespaces,
     keyedOptionNamespaces: registry.keyedOptionNamespaces,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
+    allowPresence: registry.allowPresence,
     defaultSearchType: registry.defaultSearchType,
     searchScopes: registry.searchScopes,
     filterStateErrors: registry.filterStateErrors,
@@ -391,7 +463,7 @@ const EVENTS_FIELD_ROWS: Record<string, Omit<FieldDef, "id" | "kind">> = {
   traceId: { aliases: ["traceid", "trace_id"], syncMode: "textSearch", label: "Trace ID", description: "Trace identifier" },
   name: { aliases: [], syncMode: "textSearch", suggestObservedValues: true, exactMatchUsesOptions: true, label: "Name", description: "Observation name", nullable: true },
   traceName: { aliases: ["tracename", "trace_name"], syncMode: "exactOption", label: "Trace name", description: "Trace name", nullable: true },
-  type: { aliases: [], syncMode: "exactOption", label: "Type", description: "Observation type" },
+  type: { aliases: [], syncMode: "exactOption", label: "Type", description: "Observation type", knownValues: Object.values(ObservationType) },
   environment: { aliases: ["env"], syncMode: "exactOption", label: "Environment", description: "Environment", nullable: true },
   ingestionApiKey: { aliases: ["ingestionapikey", "ingestion_api_key", "apikey", "api_key", "publickey", "public_key"], syncMode: "exactOption", label: "Ingestion API key", description: "Public ingestion API key" },
   ingestionSdkName: { aliases: ["ingestionsdkname", "ingestion_sdk_name", "sdkname", "sdk_name"], syncMode: "exactOption", label: "Ingestion SDK name", description: "Ingestion SDK name" },
@@ -399,7 +471,7 @@ const EVENTS_FIELD_ROWS: Record<string, Omit<FieldDef, "id" | "kind">> = {
   ingestionSource: { aliases: ["ingestionsource", "ingestion_source", "source"], syncMode: "exactOption", label: "Ingestion source", description: "Ingestion source (API or OTel path)" },
   userId: { aliases: ["userid", "user_id", "user"], syncMode: "exactOption", label: "User ID", description: "Trace user id", nullable: true },
   sessionId: { aliases: ["sessionid", "session_id", "session"], syncMode: "exactOption", label: "Session ID", description: "Trace session id", nullable: true },
-  level: { aliases: [], syncMode: "exactOption", label: "Status", description: "Observation status" },
+  level: { aliases: [], syncMode: "exactOption", label: "Status", description: "Observation status", knownValues: Object.values(ObservationLevel) },
   statusMessage: { aliases: ["statusmessage", "status_message", "status"], syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
   modelId: { aliases: ["modelid", "model_id"], syncMode: "exactOption", label: "Model ID", description: "Internal model id", nullable: true },
   providedModelName: { aliases: ["providedmodelname", "provided_model_name", "model"], syncMode: "exactOption", label: "Model name", description: "Provided model name", nullable: true },
@@ -501,7 +573,14 @@ function isKeyedScoreColumn(column: string): boolean {
 export type FieldRef =
   | { type: "field"; field: FieldDef }
   | { type: "searchScope"; id: string; scope: SearchScope }
-  | { type: "metadata"; key: string; namespace?: string; column?: string }
+  | {
+      type: "metadata";
+      key: string;
+      namespace?: string;
+      column?: string;
+      /** The registry's `numericMetadata`, on the `metadata.` root. */
+      numeric?: boolean;
+    }
   | { type: "scores"; key: string; level: "observation" | "trace" }
   | { type: "keyedOptions"; key: string; namespace: string; column: string }
   | { type: "pseudo"; id: typeof HAS_KEY | "in" };
@@ -520,11 +599,13 @@ export function createFieldRegistry({
   columns,
   predicateSource = null,
   metadata,
+  numericMetadata = false,
   metadataNamespaces,
   keyedOptionNamespaces,
   scores,
   traceScores,
   allowFreeText,
+  allowPresence,
   defaultSearchType = ["id", "content"],
   searchScopes = {},
   filterStateErrors,
@@ -543,11 +624,13 @@ export function createFieldRegistry({
   columns: readonly ColumnDefinition[];
   predicateSource?: PredicateSource | null;
   metadata: boolean;
+  numericMetadata?: boolean;
   metadataNamespaces?: Readonly<Record<string, string>>;
   keyedOptionNamespaces?: Readonly<Record<string, string>>;
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
+  allowPresence?: boolean;
   defaultSearchType?: readonly TracingSearchType[];
   searchScopes?: Readonly<Record<string, SearchScope>>;
   targeting?: FilterTargeting;
@@ -588,11 +671,13 @@ export function createFieldRegistry({
     columns,
     predicateSource,
     allowFreeText,
+    allowPresence,
     defaultSearchType,
     searchScopes,
     filterStateErrors,
     targeting,
     metadata,
+    numericMetadata,
     metadataNamespaces,
     keyedOptionNamespaces,
     scores,
@@ -630,6 +715,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   columns: eventsTableCols,
   predicateSource: eventsPredicateSource,
   metadata: true,
+  numericMetadata: true,
   scores: true,
   traceScores: true,
   allowFreeText: true,
@@ -703,6 +789,12 @@ export function effectiveSearchType(
   return [...(searchType ?? registry.defaultSearchType)];
 }
 
+/**
+ * `name` as a field reference, tried in order: a metadata namespace, a keyed
+ * option namespace, `metadata.<key>` (numeric with `numericMetadata`), a
+ * score path, `has` / `in`, a search scope, then a field id or alias. Null
+ * for an unknown name or a dot path without a key.
+ */
 function resolveFromRegistry(
   name: string,
   registry: FieldRegistry,
@@ -733,7 +825,10 @@ function resolveFromRegistry(
   }
   if (registry.metadata && lower.startsWith(METADATA_PREFIX)) {
     const key = unquote(name.slice(METADATA_PREFIX.length)).value;
-    return key.length > 0 ? { type: "metadata", key } : null;
+    if (key.length === 0) return null;
+    return registry.numericMetadata
+      ? { type: "metadata", key, numeric: true }
+      : { type: "metadata", key };
   }
   if (registry.traceScores) {
     for (const prefix of TRACE_SCORE_PREFIXES) {
@@ -753,7 +848,8 @@ function resolveFromRegistry(
       }
     }
   }
-  if (lower === HAS_KEY) return { type: "pseudo", id: lower };
+  if (lower === HAS_KEY && registry.allowPresence !== false)
+    return { type: "pseudo", id: lower };
   if (
     registry.allowFreeText &&
     Object.keys(registry.searchScopes).length > 0 &&
@@ -826,6 +922,12 @@ export function operatorIssue(
   op: CompareOp,
   valueOp: "or" | "and" = "or",
 ): string | null {
+  if (
+    ref.type === "field" &&
+    ref.field.operators &&
+    !ref.field.operators.includes(op)
+  )
+    return `"${ref.field.id}" does not support ${label(op)}`;
   if (valueOp === "and") {
     const isArray =
       ref.type === "field" && ref.field.syncMode === "arrayOption";
@@ -848,9 +950,9 @@ export function operatorIssue(
       }
       return null;
     case "metadata":
-      // stringObject filters support string ops only; there is no numeric
-      // metadata filter in the current contract.
-      if (COMPARISONS.has(op)) {
+      // Comparisons lower to numberObject filters, which only views with
+      // `numericMetadata` accept; everywhere else metadata matches text.
+      if (COMPARISONS.has(op) && ref.numeric !== true) {
         return `metadata filters match text — ${op} comparisons are not supported`;
       }
       return null;
@@ -914,6 +1016,14 @@ export function negationIssue(
   op: CompareOp,
   valueOp: "or" | "and" = "or",
 ): string | null {
+  const issue = operatorIssue(ref, op, valueOp);
+  if (issue) return issue;
+  if (
+    ref.type === "field" &&
+    ref.field.negatedOperators &&
+    !ref.field.negatedOperators.includes(op)
+  )
+    return `"${ref.field.id}" does not support negated ${label(op)}`;
   if (
     ref.type === "searchScope" ||
     (ref.type === "pseudo" && ref.id === "in")
@@ -929,6 +1039,11 @@ export function negationIssue(
   }
   if (op === "^" || op === "$") {
     return `negation of ${label(op)} is not representable in the Langfuse filter contract`;
+  }
+  if (ref.type === "metadata" && COMPARISONS.has(op)) {
+    // An inverted comparison would drop rows whose value is missing or not a
+    // number, which the negation keeps.
+    return `negated comparisons on metadata are not representable — use the opposite comparison (e.g. ${refName(ref)}:<=n)`;
   }
   if (op === "exact" || op === "=") {
     if (ref.type === "metadata") {

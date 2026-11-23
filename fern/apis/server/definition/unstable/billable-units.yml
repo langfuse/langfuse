@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  errors: ./errors.yml
+
+service:
+  auth: true
+  base-path: /api/public/unstable
+  endpoints:
+    get:
+      docs: |
+        Unstable: the shape may change without notice.
+
+        Billable units of the organization's projects, per UTC time bucket and
+        project. These are the numbers of the organization's Usage settings
+        tab. Requires an organization-scoped API key.
+
+        Units are counted by ingestion time in `[fromTimestamp, toTimestamp)`
+        as approximate distinct units per bucket (about 0.3% error on large
+        counts, small counts are exact). A unit counts once in every bucket it
+        appears in, so the counts stay close to, but are not exactly, what is
+        billed. Deployments still in the v3 `legacy` write mode count the rows
+        of the traces, observations and scores tables instead.
+
+        Buckets start at UTC hour, day, Monday or month boundaries. The first
+        and last bucket cover only the part inside the range, and a
+        `toTimestamp` in the future is cut off at now. Buckets and projects
+        without usage are left out, and so are deleted projects.
+      method: GET
+      path: /organizations/billable-units
+      request:
+        name: GetBillableUnitsRequest
+        query-parameters:
+          fromTimestamp:
+            type: datetime
+            docs: Start of the range (inclusive), ISO 8601 with a time zone.
+          toTimestamp:
+            type: datetime
+            docs: End of the range (exclusive), ISO 8601 with a time zone. At most 31 days after `fromTimestamp` for `hour` granularity, 366 days otherwise.
+          granularity:
+            type: optional<BillableUnitsGranularity>
+            docs: Bucket size. Defaults to `day`.
+      response: BillableUnitsResponse
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+
+types:
+  BillableUnitsGranularity:
+    enum:
+      - hour
+      - day
+      - week
+      - month
+
+  BillableUnitsRow:
+    docs: Billable units of one project in one bucket.
+    properties:
+      bucket:
+        type: datetime
+        docs: Start of the UTC bucket.
+      projectId: string
+      count:
+        type: integer
+        docs: All billable units, the sum of the per-type counts.
+      traces: integer
+      observations: integer
+      scores: integer
+      topicFacetSummaries: integer
+
+  BillableUnitsResponse:
+    properties:
+      data: list<BillableUnitsRow>
+      usageRecordedFrom:
+        type: optional<datetime>
+        docs: When usage recording started on this deployment. Buckets before it show no usage. Null while nothing has been recorded, and on deployments that count the legacy tables.

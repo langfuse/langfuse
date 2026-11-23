@@ -1,5 +1,6 @@
 const officialSourceHosts = [
   "ai.google.dev",
+  "aistudio.google.com",
   "aws.amazon.com",
   "azure.microsoft.com",
   "cloud.google.com",
