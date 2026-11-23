@@ -419,6 +419,7 @@ export default defineConfig({
       rules: {
         "@repo/no-raw-font-weight": "warn",
         "@repo/no-arbitrary-colors": "warn",
+        "@repo/no-banner-external-link-icon": "warn",
       },
     },
     {
