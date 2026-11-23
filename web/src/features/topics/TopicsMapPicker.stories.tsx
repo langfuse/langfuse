@@ -308,6 +308,8 @@ export const TestKeepsHeightWhilePreviewing = meta.story({
         "dialog",
         { name: "Topic maps" },
       );
+      // Exercise wider font metrics consistently across platforms.
+      dialog.style.fontFamily = "monospace";
       // The selected live map: three top topics, a one-line filter, and Refresh available.
       await expect(
         picker.getByRole("button", { name: "Refresh" }),

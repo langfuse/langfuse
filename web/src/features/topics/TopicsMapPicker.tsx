@@ -540,7 +540,7 @@ function RefreshMapButton({
 
 function PreviewRows({ rows }: { rows: [string, ReactNode][] }) {
   return (
-    <dl className="grid grid-cols-[6rem_1fr] items-start gap-x-4 gap-y-2 text-sm">
+    <dl className="grid grid-cols-[minmax(6rem,max-content)_minmax(0,1fr)] items-start gap-x-4 gap-y-2 text-sm">
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
           {/* Rows match the filter chip's height so plain values line up with it. */}

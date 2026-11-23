@@ -812,7 +812,7 @@ async function readRetainedTopicCosts(
       : "";
   // Inspect newer rows regardless of their owner: reprocessing can move a source or clear its price.
   const rows = await queryClickhouse<{ id: string; cost: string }>({
-    query: `SELECT arrayJoin(latest.1) AS id, sum(latest.2 / length(latest.1)) AS cost
+    query: `SELECT arrayJoin(latest.1) AS id, sum(latest.2 / greatest(length(latest.1), 1)) AS cost
       FROM (
         SELECT argMax(tuple(${owners}, if(mapContains(cost_details, 'total'), total_cost, NULL)),
                       tuple(facet_version, created_at, _block_number, _block_offset)) AS latest
