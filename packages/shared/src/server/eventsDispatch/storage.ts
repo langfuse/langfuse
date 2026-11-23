@@ -74,10 +74,8 @@ export const TRACE_TRANSCRIPT_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 let storage: StorageService | undefined;
 
 /**
- * Serializes the V1 storage envelope and reports whether it exceeds the limit.
- * `put` stores the JSON when it fits; the test-on-trace path reuses this to
- * reject a transcript the scheduled rule would skip, so both measure the same
- * envelope against the same constant.
+ * Serializes the V1 envelope and flags whether it exceeds the limit, so `put`
+ * and the test-on-trace path measure the same envelope against the same constant.
  */
 export function serializeTraceTranscriptInputs({
   transcript,

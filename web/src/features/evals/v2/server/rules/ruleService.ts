@@ -60,15 +60,13 @@ export type RuleAuditEvent = {
   ruleId: string;
 };
 
-// A rule never changes its target, so the update input carries no target: the
-// persisted target drives filter normalization and assignment handling.
+// Carries no target; the immutable stored target drives the update.
 type RuleServiceUpdateInput = UpdateRuleInput;
 
 export class RuleService {
   /**
-   * `visibility` opts into trace transcript rules. The rule router passes it
-   * behind the trace transcript evals gate; the public API and MCP leave it
-   * off, so their reads and writes never reach a trace transcript rule.
+   * Only the rule router (behind the evals gate) opts into trace transcript
+   * rules; public API and MCP leave it off and never reach them.
    */
   constructor(
     private readonly prisma: PrismaClient,
@@ -309,10 +307,7 @@ export class RuleService {
     return response;
   }
 
-  /**
-   * The only writer of trace transcript rules. The rule router calls it behind
-   * the trace transcript evals gate; the public API and MCP never do.
-   */
+  /** The only writer of trace transcript rules; reached only via the gated router. */
   async createTraceTranscriptRule(
     input: CreateTraceTranscriptRuleInput,
     createdByUserId: string | null,
@@ -434,8 +429,7 @@ export class RuleService {
             : current.status === JobConfigState.ACTIVE),
         assignmentCount: resultingAssignmentCount,
       });
-      // The persisted target is immutable, so it alone decides how the filter
-      // is normalized and which assignment rules apply.
+      // The immutable stored target decides filter normalization and assignments.
       const isTraceTranscript = current.targetObject === TopicsTargetObject;
       const { targetObject, filter } = this.resolveRuleUpdateTarget(
         current,
@@ -499,12 +493,7 @@ export class RuleService {
     return response;
   }
 
-  /**
-   * Resolves the target and validated filter for an update from the rule's
-   * immutable stored target. Trace transcript rules keep their target and only
-   * re-validate the filter; legacy rules keep target and filter untouched;
-   * modern observation rules re-derive experiment targeting from the filter.
-   */
+  /** Derives an update's target and filter from the immutable stored target. */
   private resolveRuleUpdateTarget(
     current: { targetObject: string; filter: Prisma.JsonValue },
     input: RuleServiceUpdateInput,
@@ -523,16 +512,13 @@ export class RuleService {
       };
     }
 
-    // Legacy trace/dataset rules are read-only apart from deactivation, so
-    // their target and filter are preserved exactly.
+    // Legacy trace/dataset rules are read-only apart from deactivation.
     if (isLegacyEvalTarget(currentTargetObject)) {
       return { targetObject: currentTargetObject, filter: currentFilter };
     }
 
-    // Whether a modern rule targets experiments is derived from its filter, so
-    // an update that supplies a filter re-decides it — otherwise removing the
-    // experiment-root filter would be silently undone. An update that leaves
-    // the filter alone inherits the stored classification.
+    // Experiment targeting is derived from the filter, so an update that omits a
+    // filter inherits the stored classification instead of silently clearing it.
     const inheritedTargetObject =
       input.filter === undefined &&
       isExperimentEvaluationRule({
@@ -554,10 +540,7 @@ export class RuleService {
     };
   }
 
-  /**
-   * Validates and, for modern observation rules, resolves the assignments for
-   * an update, branching on the rule's immutable stored target.
-   */
+  /** Validates update assignments, branching on the immutable stored target. */
   private async prepareRuleUpdateAssignments(params: {
     prisma: Prisma.TransactionClient;
     projectId: string;
@@ -938,8 +921,7 @@ export class RuleService {
       if (!latestVersion) {
         throw new LangfuseNotFoundError("Evaluator version not found");
       }
-      // Assignments now share the modern (nullable) mapping shape, so a missing
-      // mapping is normalized to empty and rejected here rather than crashing.
+      // A null mapping normalizes to empty so validation rejects it, not crashes.
       const variableMapping = assignment.variableMapping ?? [];
       const extracted = extractTranscriptEvalVariables(null, variableMapping);
       if (!extracted.ok) throw new InvalidRequestError(extracted.error);
@@ -1036,11 +1018,8 @@ function requiredEvaluatorVariables(
 
 function toRuleResponse(rule: StoredRule) {
   const { status, assignments, filter, sampling, ...rest } = rule;
-  // Only observation experiment rules (EVENT) and legacy experiment rules
-  // (EXPERIMENT) are unified onto EVENT. Every other target reports its stored
-  // target and filter unchanged, including trace transcript rules whose
-  // isExperimentItemRootSpan filter is a valid trace column rather than an
-  // experiment marker.
+  // Only EVENT and EXPERIMENT rules unify onto EVENT; other targets keep their
+  // stored target, since isExperimentItemRootSpan is a valid trace filter column.
   const normalized =
     rest.targetObject === EvalTargetObject.EVENT ||
     rest.targetObject === EvalTargetObject.EXPERIMENT

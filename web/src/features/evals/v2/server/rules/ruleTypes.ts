@@ -85,11 +85,8 @@ export const CreateRuleSchema = RuleMetadataSchema.extend({
 });
 
 /**
- * Trace transcript rules evaluate a whole trace. Assignments use the shared
- * modern shape; the service (assertTraceTranscriptAssignments) enforces the
- * trace-specific rule that each one maps the `threads` column, because the
- * evaluator defaults map observation columns that do not apply here. At least
- * one assignment is required — nothing downstream rejects an empty trace rule.
+ * `.min(1)` is load-bearing: nothing downstream rejects an empty trace rule.
+ * The service enforces that each assignment maps the `threads` column.
  */
 export const CreateTraceTranscriptRuleSchema = RuleMetadataSchema.extend({
   projectId: z.string(),

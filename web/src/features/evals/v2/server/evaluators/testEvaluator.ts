@@ -123,11 +123,8 @@ export async function testEvaluatorOnTrace(params: {
       variables: [],
     };
   }
-  // A scheduled rule reads every observation and skips traces whose stored
-  // transcript exceeds the size cap, so testing a cut-off or oversized
-  // transcript would score something the rule never evaluates. The test loader
-  // caps observations, so `cutoff` means the test cannot see the full
-  // transcript the rule would.
+  // The scheduled rule reads every observation, but the test loader caps them,
+  // so a cutoff transcript would score something the rule never evaluates.
   if (cutoff) {
     return {
       success: false as const,

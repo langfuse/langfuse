@@ -34,15 +34,12 @@ export type RulePrisma = PrismaClient | Prisma.TransactionClient;
 
 const MAX_REUSABLE_FILTER_CANDIDATES = 20;
 
-/**
- * Opt-in for trace transcript rules. Only the rule router sets it, behind the
- * trace transcript evals gate; the public API and MCP never do.
- */
+/** Opt-in for trace transcript rules; only the gated rule router sets it. */
 export type RuleVisibility = { includeTraceTranscriptRules?: boolean };
 
 /**
- * Topics rules never show. Trace transcript rules stay out of every read and
- * write unless the caller opts in through `RuleVisibility`.
+ * FACET (Topics) rules are always excluded; trace transcript rules too, unless
+ * the caller opts in through `RuleVisibility`.
  */
 function visibleRuleWhere(visibility?: RuleVisibility) {
   return {
@@ -496,10 +493,8 @@ export function setRuleStatus(params: {
   const status = params.enabled
     ? JobConfigState.ACTIVE
     : JobConfigState.INACTIVE;
-  // The zero-assignment cleanup includes trace transcript rules regardless of
-  // the caller's visibility. The predicate sits under AND so it does not
-  // overwrite the FACET exclusion in visibleRuleWhere, leaving FACET-assigned
-  // (Topics) rules untouched.
+  // The zero-assignment cleanup covers trace transcript rules too; its AND
+  // predicate keeps the FACET exclusion, so Topics rules stay untouched.
   const visibility = params.unassignedOnly
     ? { includeTraceTranscriptRules: true }
     : params.visibility;

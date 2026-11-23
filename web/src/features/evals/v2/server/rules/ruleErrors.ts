@@ -44,11 +44,8 @@ export class ActiveEvaluationRuleLimitError extends LangfuseConflictError {
 }
 
 /**
- * Counted over the writable targets only: legacy trace and dataset rules are
- * read-only through these surfaces and are being migrated away, so they must not
- * consume a slot callers cannot free. Trace transcript rules are writable and so
- * count; Topics rules (whose FACET evaluators share the trace_transcript target)
- * are managed elsewhere and stay excluded like the legacy ones.
+ * Counts only the writable targets; legacy read-only rules and FACET (Topics)
+ * rules cannot be freed by callers, so they are excluded.
  */
 export async function countActiveEvaluationRules(params: {
   prisma: PrismaClient | Prisma.TransactionClient;

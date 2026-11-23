@@ -610,9 +610,8 @@ describe("RuleService", () => {
         },
       ];
 
-      // isExperimentItemRootSpan is a valid trace transcript filter column, so
-      // the response must still report the stored trace target rather than be
-      // reclassified to EVENT the way an observation experiment rule would be.
+      // isExperimentItemRootSpan is a valid trace transcript filter column, so the
+      // response must report the stored trace target, not reclassify it to EVENT.
       const rule = await service.createTraceTranscriptRule(
         {
           projectId,
@@ -648,9 +647,8 @@ describe("RuleService", () => {
       const service = createService();
       const rule = await service.create(createInput(), null);
 
-      // A rule's target is immutable. The field is no longer part of the update
-      // input, but a stray target in the payload (for example from an old
-      // client) must be ignored rather than promote the rule to another target.
+      // A rule's target is immutable, so a stray target in the update payload
+      // must be ignored rather than promote the rule to another target.
       const updated = await service.update({
         projectId,
         ruleId: rule.id,

@@ -36,10 +36,7 @@ import {
   UpdateRuleSchema,
 } from "./ruleTypes";
 
-/**
- * Trace transcript rules are read and written here only, and only for a
- * session that passes the trace transcript evals gate.
- */
+/** Opts into trace transcript rules only when the session passes the evals gate. */
 function serviceForContext(ctx: ProjectAuthedContext) {
   return new RuleService(
     ctx.prisma,
@@ -215,11 +212,8 @@ export const ruleRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
-      // A rule never changes its target, so there is no target in the input to
-      // gate on. Access to trace transcript rules is enforced on the stored
-      // target by the service's visibility (`requireRule`), which hides them
-      // from projects without access — the same path used by setEnabled,
-      // delete, attach, and detach.
+      // Target is immutable, so trace transcript access is gated on the stored
+      // target by the service's visibility (`requireRule`), not on any input.
       return serviceForContext(ctx).update({
         ...input,
         projectId: ctx.session.projectId,

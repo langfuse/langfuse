@@ -25,9 +25,8 @@ export function getDatasetExperimentRules(
   datasetId: string,
 ) {
   return (rules ?? []).filter((rule) => {
-    // Trace transcript rules can carry an isExperimentItemRootSpan filter
-    // without being experiment rules, so they are never dataset experiment
-    // rules regardless of their filter.
+    // A trace transcript rule may carry an isExperimentItemRootSpan filter
+    // without being an experiment rule, so it is never a dataset experiment rule.
     if (rule.targetObject === TopicsTargetObject) {
       return false;
     }
