@@ -23,7 +23,6 @@ import {
   type RequestPolicyFactory,
 } from "@azure/storage-blob";
 import { Storage, Bucket, GetSignedUrlConfig } from "@google-cloud/storage";
-import { JWT } from "google-auth-library";
 import { logger } from "../logger";
 import { env } from "../../env";
 import { GCPServiceAccountKeySchema } from "../../interfaces/customLLMProviderConfigSchemas";
@@ -52,30 +51,16 @@ import {
 
 import { isS3SlowDownError } from "./s3ThrottleError";
 
-const GOOGLE_CLOUD_STORAGE_AUTH_SCOPES = [
-  "https://www.googleapis.com/auth/iam",
-  "https://www.googleapis.com/auth/cloud-platform",
-  "https://www.googleapis.com/auth/devstorage.full_control",
-];
-
 /**
- * Build a Storage `authClient` from a service-account JSON string or file path.
- * Parses and validates the key before constructing the JWT so unexpected
- * credential types are rejected at initialization.
+ * Parse a service-account key from a JSON string or file path and validate it,
+ * so unexpected credential types are rejected at initialization.
  */
-function createGoogleCloudStorageAuthClient(googleCloudCredentials: string) {
+function parseGoogleCloudStorageKey(googleCloudCredentials: string) {
   const trimmed = googleCloudCredentials.trim();
   const raw = trimmed.startsWith("{")
     ? JSON.parse(trimmed)
     : JSON.parse(readFileSync(trimmed, "utf8"));
-  const key = GCPServiceAccountKeySchema.parse(raw);
-
-  return new JWT({
-    email: key.client_email,
-    key: key.private_key,
-    projectId: key.project_id,
-    scopes: GOOGLE_CLOUD_STORAGE_AUTH_SCOPES,
-  });
+  return GCPServiceAccountKeySchema.parse(raw);
 }
 
 export interface S3SseConfig {
@@ -1345,11 +1330,17 @@ class GoogleCloudStorageService implements StorageService {
   constructor(params: { bucketName: string; googleCloudCredentials?: string }) {
     if (params.googleCloudCredentials) {
       try {
+        const key = parseGoogleCloudStorageKey(params.googleCloudCredentials);
         this.storage = new Storage({
           universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
-          authClient: createGoogleCloudStorageAuthClient(
-            params.googleCloudCredentials,
-          ),
+          projectId: key.project_id,
+          // Signed URLs need the key here: the signer reads its email from
+          // GoogleAuth#getCredentials(), which cannot derive it from an
+          // `authClient` and falls back to the GCE metadata server. Signing
+          // then fails outside Google Cloud and names the instance's service
+          // account on GCE (#20692).
+          // eslint-disable-next-line @typescript-eslint/no-deprecated -- The key is validated by GCPServiceAccountKeySchema above.
+          credentials: key,
         });
       } catch (err) {
         logger.error("Failed to parse Google Cloud Storage credentials", err);

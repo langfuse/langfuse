@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { createHash, getFips } from "crypto";
+import { createHash, generateKeyPairSync, getFips } from "crypto";
 import { subscribe, unsubscribe } from "node:diagnostics_channel";
 import { once } from "events";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
@@ -457,24 +457,22 @@ describe("StorageServiceFactory GCS credentials", () => {
   const serviceAccountEmail = "gcs-test@example.iam.gserviceaccount.com";
   const tempDir = mkdtempSync(join(tmpdir(), "langfuse-gcs-creds-"));
   const deploymentKeyPath = join(tempDir, "deployment-key.json");
+  const deploymentKey = {
+    type: "service_account",
+    project_id: "test-project",
+    private_key_id: "test-key-id",
+    private_key:
+      "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n",
+    client_email: serviceAccountEmail,
+    client_id: "1234567890",
+    auth_uri: "https://accounts.google.com/o/oauth2/auth",
+    token_uri: "https://oauth2.googleapis.com/token",
+    auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+    client_x509_cert_url:
+      "https://www.googleapis.com/robot/v1/metadata/x509/test",
+  };
 
-  writeFileSync(
-    deploymentKeyPath,
-    JSON.stringify({
-      type: "service_account",
-      project_id: "test-project",
-      private_key_id: "test-key-id",
-      private_key:
-        "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n",
-      client_email: serviceAccountEmail,
-      client_id: "1234567890",
-      auth_uri: "https://accounts.google.com/o/oauth2/auth",
-      token_uri: "https://oauth2.googleapis.com/token",
-      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-      client_x509_cert_url:
-        "https://www.googleapis.com/robot/v1/metadata/x509/test",
-    }),
-  );
+  writeFileSync(deploymentKeyPath, JSON.stringify(deploymentKey));
 
   afterEach(() => {
     env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = original;
@@ -484,12 +482,17 @@ describe("StorageServiceFactory GCS credentials", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  const credentialEmailOf = (service: unknown) =>
+  const credentialsOf = (service: unknown) =>
     (
       service as {
-        storage: { authClient: { cachedCredential?: { email?: string } } };
+        storage: {
+          authClient: { jsonContent?: Record<string, unknown> | null };
+        };
       }
-    ).storage.authClient.cachedCredential?.email;
+    ).storage.authClient.jsonContent;
+
+  const credentialEmailOf = (service: unknown) =>
+    credentialsOf(service)?.client_email;
 
   it("uses ADC, not the deployment storage key, when GCS is selected explicitly without credentials", () => {
     env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = deploymentKeyPath;
@@ -529,6 +532,29 @@ describe("StorageServiceFactory GCS credentials", () => {
     ).toThrow("Failed to initialize Google Cloud Storage");
   });
 
+  // The key goes to google-auth-library as `credentials`, so nothing beyond
+  // the validated service-account fields may reach it from a customer key.
+  it("passes only the validated service-account fields to the auth library", () => {
+    const service = StorageServiceFactory.getInstance({
+      credentials: storageKeys(undefined, undefined),
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      googleCloudCredentials: JSON.stringify({
+        ...deploymentKey,
+        universe_domain: "attacker.example",
+        quota_project_id: "other-project",
+        credential_source: { file: "/proc/self/environ" },
+      }),
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    expect(credentialsOf(service)).toEqual(deploymentKey);
+  });
+
   it("uses the deployment storage key when GCS is selected by env", () => {
     env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = deploymentKeyPath;
     const originalUseGcs = env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE;
@@ -545,6 +571,57 @@ describe("StorageServiceFactory GCS credentials", () => {
       });
 
       expect(credentialEmailOf(service)).toBe(serviceAccountEmail);
+    } finally {
+      env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = originalUseGcs;
+    }
+  });
+
+  // Signing with a service-account key must work without ADC or the GCE
+  // metadata server, i.e. on any self-hosted machine outside Google Cloud.
+  it("signs upload and read URLs with the deployment storage key", async () => {
+    const { privateKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      publicKeyEncoding: { type: "spki", format: "pem" },
+    });
+    const signingKeyPath = join(tempDir, "signing-key.json");
+    writeFileSync(
+      signingKeyPath,
+      JSON.stringify({ ...deploymentKey, private_key: privateKey }),
+    );
+    env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = signingKeyPath;
+    const originalUseGcs = env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE;
+    env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = "true";
+    try {
+      const service = StorageServiceFactory.getInstance({
+        credentials: storageKeys(undefined, undefined),
+        bucketName: "test-bucket",
+        endpoint: undefined,
+        region: undefined,
+        forcePathStyle: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+
+      const urls = [
+        await service.getSignedUploadUrl({
+          path: "media/p.png",
+          ttlSeconds: 3600,
+          sha256Hash: "hash",
+          contentType: "image/png",
+          contentLength: 1,
+        }),
+        await service.getSignedUrl("media/p.png", 3600),
+      ].map((url) => new URL(url));
+
+      for (const url of urls) {
+        expect(url.searchParams.get("X-Goog-Credential")?.split("/")[0]).toBe(
+          serviceAccountEmail,
+        );
+        expect(url.searchParams.get("X-Goog-Signature")).toMatch(
+          /^[0-9a-f]{512}$/,
+        );
+      }
     } finally {
       env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = originalUseGcs;
     }
