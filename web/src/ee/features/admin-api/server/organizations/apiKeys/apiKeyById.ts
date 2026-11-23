@@ -1,5 +1,4 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { deleteApiKey } from "@/src/features/apiKey/apiKeyService";
@@ -24,7 +23,7 @@ export async function handleDeleteApiKey(
   organizationId: string,
   apiKeyId: string,
 ) {
-  const deleted = await deleteApiKey(prisma, {
+  const deleted = await deleteApiKey({
     id: apiKeyId,
     orgId: organizationId,
     isInAppAgentKey: false,

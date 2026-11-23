@@ -208,7 +208,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
       });
-      const deleted = await deleteApiKey(ctx.prisma, {
+      const deleted = await deleteApiKey({
         id: input.id,
         orgId: input.orgId,
         isInAppAgentKey: false,

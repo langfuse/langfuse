@@ -165,7 +165,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "apiKeys:CUD",
       });
-      const deleted = await deleteApiKey(ctx.prisma, {
+      const deleted = await deleteApiKey({
         id: input.id,
         projectId: input.projectId,
         isInAppAgentKey: false,
