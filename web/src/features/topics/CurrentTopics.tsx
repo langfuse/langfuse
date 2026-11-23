@@ -24,8 +24,9 @@ import { splitTopicTraceFilters } from "./topic-trace-filters";
 import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
+  UNASSIGNED_TOPIC_ID,
 } from "./prepare-topic-display";
-import { topicsMapView, useTopicsCapture } from "./useTopicsCapture";
+import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
 import {
   FacetTraceSource,
   useFacetTopicTraces,
@@ -48,6 +49,26 @@ export function CurrentTopics({
   );
   const empty =
     !result.isLoading && !result.error && result.data?.facets.length === 0;
+  const capture = useTopicsCapture();
+  const facets = result.data?.facets ?? [];
+  const topicCount = facets.reduce(
+    (sum, facet) =>
+      sum +
+      facet.topics.filter((topic) => topic.id !== UNASSIGNED_TOPIC_ID).length,
+    0,
+  );
+  const mapKind = scope.analysisId ? "analysis" : "rule";
+  const mapKey = `${mapKind}:${scope.analysisId ?? scope.ruleId ?? "default"}`;
+  // A map switch keeps the previous map's results until its own arrive.
+  useTopicsViewCapture(
+    topicCount > 0 && !result.isPlaceholderData ? mapKey : null,
+    () =>
+      capture("topics:map_viewed", {
+        mapKind,
+        topicCount,
+        facetCount: facets.length,
+      }),
+  );
   return (
     <section
       className={cn(
@@ -94,8 +115,6 @@ function CurrentFacet({
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
   const mobileVisualization = useMobileTopicsVisualization();
-  const mapView = topicsMapView(isHandheld, view, mobileVisualization.view);
-  const capture = useTopicsCapture();
   // Only the Map view needs the run's projection.
   const mapQuery = useCurrentTopicMap(
     projectId,
@@ -127,15 +146,7 @@ function CurrentFacet({
     isV4: true,
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
-  const openTrace: typeof peekNavigation.openPeek = (...args) => {
-    capture("topics:trace_opened", { view: mapView });
-    peekNavigation.openPeek(...args);
-  };
-  const peekView = {
-    itemType: "TRACE" as const,
-    ...peekNavigation,
-    openPeek: openTrace,
-  };
+  const peekView = { itemType: "TRACE" as const, ...peekNavigation };
   return (
     <FacetTraceSource.Provider value={traceSource}>
       {renderView()}
@@ -151,7 +162,7 @@ function CurrentFacet({
           onViewChange={mobileVisualization.onViewChange}
           mapResult={mapResult}
           traceFilters={traceFilters}
-          onOpenTrace={openTrace}
+          onOpenTrace={peekNavigation.openPeek}
           showUnassigned={showUnassigned}
           mapActions={mapActions}
         />
@@ -168,7 +179,7 @@ function CurrentFacet({
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
-          onOpenTrace={openTrace}
+          onOpenTrace={peekNavigation.openPeek}
         />
       );
     return (
@@ -291,6 +302,7 @@ type CurrentTopicsProps = {
   result: {
     data: { facets: Facet[] } | undefined;
     isLoading: boolean;
+    isPlaceholderData?: boolean;
     error: { message: string } | null;
   };
   selectedFacetId: string | undefined;

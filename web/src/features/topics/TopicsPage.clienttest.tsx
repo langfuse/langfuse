@@ -22,12 +22,7 @@ const state = vi.hoisted(() => ({
   hasStoredSummaries: true,
   resultsDataAvailable: true,
   mobileHeader: false,
-  resultFacets: [] as Array<{
-    facetId: string;
-    name: string;
-    topics: Array<{ id: string }>;
-  }>,
-  resultsPlaceholder: false,
+  resultFacets: [] as Array<{ facetId: string; name: string }>,
   openAutomaticProcessing: vi.fn(),
   push: vi.fn(),
   openConfigure: vi.fn(),
@@ -145,7 +140,6 @@ vi.mock("./CurrentTopics", () => ({
           }
         : undefined,
       isLoading: false,
-      isPlaceholderData: state.resultsPlaceholder,
     };
   },
   CurrentTopics: ({
@@ -329,7 +323,6 @@ beforeEach(() => {
   state.resultsDataAvailable = true;
   state.mobileHeader = false;
   state.resultFacets = [];
-  state.resultsPlaceholder = false;
   state.hasStoredSummaries = true;
   state.status = "failed";
   state.executionUpdatedAt = 110;
@@ -379,7 +372,7 @@ it("shows Not found instead of the workspace when the Topics gate is closed", ()
 
 it("keeps the question picker reachable with the mobile header", () => {
   state.mobileHeader = true;
-  state.resultFacets = [{ facetId: "intent", name: "Intent", topics: [] }];
+  state.resultFacets = [{ facetId: "intent", name: "Intent" }];
   state.rules = [{ facetIds: ["intent"] }];
   renderTopicsPage();
   expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
@@ -616,23 +609,4 @@ it("shows the setup landing until the project's first stored summary exists", ()
     "topics:page_viewed",
     expect.objectContaining({ ...context, pageState: "landing" }),
   );
-  expect(state.capture).toHaveBeenCalledWith(
-    "topics:landing_viewed",
-    expect.objectContaining(context),
-  );
-});
-
-it("waits for the selected map's own results before counting a map view", () => {
-  state.resultFacets = [
-    { facetId: "intent", name: "Intent", topics: [{ id: "billing" }] },
-  ];
-  state.resultsPlaceholder = true;
-  const view = renderTopicsPage();
-  const mapViews = () =>
-    state.capture.mock.calls.filter(([event]) => event === "topics:map_viewed");
-  expect(mapViews()).toHaveLength(0);
-  state.resultsPlaceholder = false;
-  view.rerender(<TopicsPage />);
-  expect(mapViews()).toHaveLength(1);
-  expect(mapViews()[0]?.[1]).toMatchObject({ mapKind: "rule", topicCount: 1 });
 });

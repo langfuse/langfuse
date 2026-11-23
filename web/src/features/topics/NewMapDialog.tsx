@@ -75,7 +75,6 @@ export function NewMapDialog({
     });
     capture("topics:map_created", {
       filterCount: values.filter.length,
-      hasFilter: values.filter.length > 0,
       facetCount: values.facetIds.length,
       samplePercent: values.samplingPercent,
     });

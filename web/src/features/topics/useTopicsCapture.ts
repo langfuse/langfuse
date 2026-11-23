@@ -5,12 +5,7 @@ import {
   type TopicsEventInput,
   type TopicsEventMap,
   type TopicsEventName,
-  type TopicsMapView,
 } from "./topicsAnalytics";
-import {
-  type MobileTopicsVisualization,
-  type TopicsResultsView,
-} from "./TopicsResultsViewSelect";
 
 /** Captures a Topics event with the route's project and its organization. */
 export function useTopicsCapture() {
@@ -42,27 +37,6 @@ export function useTopicsCapture() {
     },
     [capture, projectId, orgId],
   );
-}
-
-export function topicsMapView(
-  isHandheld: boolean,
-  view: TopicsResultsView,
-  mobileView: MobileTopicsVisualization,
-): TopicsMapView {
-  if (!isHandheld) return view;
-  return mobileView === "map" ? "mobile_map" : "mobile_treemap";
-}
-
-/** True the first time this browser shows the map; storage failures count as seen. */
-export function markFirstMapView(projectId: string, mapKey: string) {
-  const key = `topicsFirstMapViewed:${projectId}:${mapKey}`;
-  try {
-    if (window.localStorage.getItem(key)) return false;
-    window.localStorage.setItem(key, "1");
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

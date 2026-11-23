@@ -117,7 +117,6 @@ export function SnapshotDialog({
     });
     capture("topics:snapshot_started", {
       filterCount: values.filter.length,
-      hasFilter: values.filter.length > 0,
       facetCount: facetRefs.length,
       windowDays: values.windowDays,
       summarizeCount: extra,
