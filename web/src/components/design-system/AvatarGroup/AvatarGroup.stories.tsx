@@ -20,11 +20,14 @@ const people = [
   "Margaret Hamilton",
 ];
 
+const emailOf = (name: string) =>
+  `${name.split(" ")[0].toLowerCase()}@example.com`;
+
 const avatars = (count: number): ComponentProps["avatars"] =>
-  Array.from({ length: count }, (_, index) => ({
-    id: String(index),
-    displayName: people[index % people.length],
-  }));
+  Array.from({ length: count }, (_, index) => {
+    const displayName = people[index % people.length];
+    return { id: String(index), displayName, email: emailOf(displayName) };
+  });
 
 export const Default = meta.story({
   args: {
@@ -45,11 +48,11 @@ export const WithImages = meta.story({
   },
 });
 
-export const WithEmails = meta.story({
+export const WithoutNames = meta.story({
   args: {
     avatars: avatars(3).map((avatar) => ({
       ...avatar,
-      email: `${avatar.displayName.split(" ")[0].toLowerCase()}@example.com`,
+      displayName: avatar.email ?? avatar.displayName,
     })),
     max: 4,
     label: "3 members",

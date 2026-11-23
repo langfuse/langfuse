@@ -10,7 +10,13 @@ const stackedItemClass =
   "ring-background relative inline-flex shrink-0 rounded-full ring-2";
 
 type AvatarGroupProps = {
-  avatars: { id: string; displayName: string; email?: string; src?: string }[];
+  /** Each person's email is listed under their name in the hover card. */
+  avatars: {
+    id: string;
+    displayName: string;
+    email: string | null;
+    src?: string;
+  }[];
   /** Avatars shown before the rest collapse into a trailing "+N" count. */
   max: number;
   /** Names the group, such as "7 members"; it heads the hover card. */
