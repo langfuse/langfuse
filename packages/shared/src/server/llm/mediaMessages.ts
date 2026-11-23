@@ -7,6 +7,7 @@ import {
   MEDIA_REFERENCE_PATTERN,
   MediaReferenceStringSchema,
 } from "../../utils/IORepresentation/chatML/types";
+import { getMediaDownloadUrl } from "../media/getMediaDownloadUrl";
 import { getS3MediaStorageClient } from "../s3";
 import { mapChatMessagesToModelMessages } from "./ai-sdk/messages";
 import { LLMValidationError } from "./errors";
@@ -116,11 +117,12 @@ export const resolveProjectMedia: EvaluatorMediaResolver = async ({
     });
   }
 
-  const url = await getS3MediaStorageClient(media.bucketName).getSignedUrl(
-    media.bucketPath,
-    EVALUATOR_MEDIA_SIGNED_URL_TTL_SECONDS,
-    false,
-  );
+  const url = await getMediaDownloadUrl({
+    storageService: getS3MediaStorageClient(media.bucketName),
+    bucketPath: media.bucketPath,
+    contentType: media.contentType,
+    ttlSeconds: EVALUATOR_MEDIA_SIGNED_URL_TTL_SECONDS,
+  });
   return {
     url,
     mediaType: storedMediaType,
