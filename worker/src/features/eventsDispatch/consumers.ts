@@ -3,6 +3,7 @@ import {
   EvalTemplateType,
   JobConfigState,
   TopicsTargetObject,
+  TRACE_TRANSCRIPT_EVAL_TYPES,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -12,7 +13,6 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   TRACE_TRANSCRIPT_EVAL_CONSUMER,
-  TRACE_TRANSCRIPT_EVAL_TYPES,
   enqueueTraceTranscriptEvals,
 } from "./traceTranscriptEval";
 
