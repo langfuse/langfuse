@@ -695,17 +695,6 @@ export const topicsRouter = createTRPCRouter({
         prices: await priceTopicCostEstimate(input.projectId, estimate),
       };
     }),
-  /** A known estimate by key, for polling without resolving its inputs again. */
-  costEstimateProgress: topicsWriteProcedure
-    .input(projectInput.extend({ key: z.string().regex(/^[0-9a-f]{32}$/) }))
-    .query(async ({ input }) => {
-      const estimate = await readTopicCostEstimate(input.projectId, input.key);
-      if (!estimate) return null;
-      return {
-        ...estimate,
-        prices: await priceTopicCostEstimate(input.projectId, estimate),
-      };
-    }),
   setupTraceNames: topicsProcedure.query(({ input }) =>
     getTopicSetupTraceNames({ projectId: input.projectId, now: new Date() }),
   ),

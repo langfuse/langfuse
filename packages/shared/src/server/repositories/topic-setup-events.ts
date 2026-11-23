@@ -198,11 +198,11 @@ export async function getTopicSetupTraceBounds(input: {
 const COST_ESTIMATE_BUCKET_TRACES = 20_000;
 
 /**
- * Finished traces of the last 7 days for the Topics cost estimate: their count
- * and a seeded sample with each trace's start bounds and size. Large projects
- * are read through one xxHash32 bucket sized from a cheap uniqCombined pass,
- * and the bucket's count is scaled back up. Reads one hour before the window
- * so traces that started there are left out rather than cut off.
+ * A seeded sample of the last 7 days' finished traces for the Topics cost
+ * estimate, with each trace's start bounds and size. Large projects are read
+ * through one xxHash32 bucket sized from a cheap uniqCombined pass. Reads one
+ * hour before the window so traces that started there are left out rather
+ * than cut off.
  */
 export async function getTopicCostEstimateSample(input: {
   projectId: string;
@@ -248,14 +248,12 @@ export async function getTopicCostEstimateSample(input: {
     modulus *= 2;
 
   const rows = await queryClickhouse<{
-    finished: string;
-    sample: Array<[string, string, string, string, string, string]>;
+    sample: Array<[string, string, string, string, string]>;
   }>({
     query: `
       SELECT
-        count() AS finished,
         groupArraySample({limit: UInt32}, {seed: UInt64})(
-          (trace_id, toString(min_start), toString(max_start), toString(rows), toString(event_bytes), trace_name)
+          (trace_id, toString(min_start), toString(max_start), toString(rows), toString(event_bytes))
         ) AS sample
       FROM (
         SELECT
@@ -264,8 +262,7 @@ export async function getTopicCostEstimateSample(input: {
           toUnixTimestamp64Milli(min(start_time)) AS min_start,
           toUnixTimestamp64Milli(max(start_time)) AS max_start,
           count() AS rows,
-          sum(event_bytes) AS event_bytes,
-          anyIf(trace_name, trace_name != '') AS trace_name
+          sum(event_bytes) AS event_bytes
         FROM events_core
         ${where(modulus > 1)}
         GROUP BY trace_id
@@ -282,20 +279,15 @@ export async function getTopicCostEstimateSample(input: {
     tags: { route: "topics-cost-estimate-sample", projectId: input.projectId },
     ...settings,
   });
-  const row = rows[0];
-  return {
-    finishedTraces: Number(row?.finished ?? 0) * modulus,
-    traces: (row?.sample ?? []).map(
-      ([traceId, minStart, maxStart, eventRows, eventBytes, name]) => ({
-        traceId,
-        minStart: Number(minStart),
-        maxStart: Number(maxStart),
-        rows: Number(eventRows),
-        eventBytes: Number(eventBytes),
-        name: name || null,
-      }),
-    ),
-  };
+  return (rows[0]?.sample ?? []).map(
+    ([traceId, minStart, maxStart, eventRows, eventBytes]) => ({
+      traceId,
+      minStart: Number(minStart),
+      maxStart: Number(maxStart),
+      rows: Number(eventRows),
+      eventBytes: Number(eventBytes),
+    }),
+  );
 }
 
 /**

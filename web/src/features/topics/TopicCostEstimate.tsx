@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
 import type { FilterState } from "@langfuse/shared";
-import { TOPICS_COST_ESTIMATE_COOLDOWN_MS } from "@langfuse/shared/topics";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
@@ -10,6 +8,8 @@ type TopicCostEstimateProps = {
   filter: FilterState;
   facetIds: string[];
   samplingPercent: number;
+  /** Finished matching traces a day, before sampling. */
+  dailyTraces: number | null;
   /** Traces the first backfill would summarize, after sampling and its limit. */
   backfillTraces: number | null;
   source: "setup" | "new_map";
@@ -21,6 +21,7 @@ export function TopicCostEstimate({
   filter,
   facetIds,
   samplingPercent,
+  dailyTraces,
   backfillTraces,
   source,
 }: TopicCostEstimateProps) {
@@ -29,52 +30,19 @@ export function TopicCostEstimate({
   const input = { projectId, filter, facetIds };
   const estimate = api.topics.costEstimate.useQuery(input, {
     enabled: facetIds.length > 0,
+    refetchInterval: (query) =>
+      query.state.data?.status === "running" ? 2000 : false,
   });
-  // While running, poll the record by key so the inputs are not resolved again.
-  const runningKey =
-    estimate.data?.status === "running" ? estimate.data.key : null;
-  const progress = api.topics.costEstimateProgress.useQuery(
-    { projectId, key: runningKey ?? "" },
-    {
-      enabled: runningKey !== null,
-      refetchInterval: (query) =>
-        query.state.data?.status === "running" ? 2000 : false,
-    },
-  );
   const start = api.topics.startCostEstimate.useMutation({
-    onSuccess: () =>
-      Promise.all([
-        utils.topics.costEstimate.invalidate(input),
-        utils.topics.costEstimateProgress.invalidate(),
-      ]),
+    onSuccess: () => utils.topics.costEstimate.invalidate(input),
   });
-  // A null progress read means the record expired, so the card offers a new estimate.
-  const current =
-    runningKey !== null &&
-    progress.isSuccess &&
-    (progress.data === null || progress.data.runId === estimate.data?.runId)
-      ? progress.data
-      : (estimate.data ?? null);
-  // The server reuses a finished estimate for the same inputs until the cooldown ends.
-  const restartAt =
-    current?.status === "done" && current.finishedAt !== null
-      ? current.finishedAt + TOPICS_COST_ESTIMATE_COOLDOWN_MS
-      : null;
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (restartAt === null) return;
-    const timer = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(timer);
-  }, [restartAt]);
-  const restartInMinutes =
-    restartAt !== null && restartAt > now
-      ? Math.ceil((restartAt - now) / 60_000)
-      : null;
+  // Null once the record expired, so the card offers a new estimate.
+  const current = estimate.data ?? null;
   return (
     <TopicCostEstimateView
       estimate={current}
-      restartInMinutes={restartInMinutes}
       samplingPercent={samplingPercent}
+      dailyTraces={dailyTraces}
       backfillTraces={backfillTraces}
       modelSettingsHref={`/project/${projectId}/settings/models`}
       // Also while the started estimate loads, so a second click cannot slip in.

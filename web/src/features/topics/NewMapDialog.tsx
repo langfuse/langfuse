@@ -114,6 +114,11 @@ export function NewMapDialog({
           filter={filter}
           facetIds={filterError ? [] : facetIds}
           samplingPercent={samplingPercent}
+          dailyTraces={
+            traceCounts.data
+              ? traceCounts.data.finished7d / TOPIC_SETUP_BACKFILL_DAYS
+              : null
+          }
           backfillTraces={
             traceCounts.data
               ? Math.min(

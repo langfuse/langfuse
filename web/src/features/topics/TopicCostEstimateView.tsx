@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  TOPICS_COST_ESTIMATE_PARTIAL_MIN_TRACES,
   TOPICS_COST_ESTIMATE_SAMPLE_SIZE,
   type TopicCostEstimate,
   type TopicCostEstimatePrices,
@@ -29,12 +28,12 @@ const approxCount = (count: number) =>
     maximumFractionDigits: 1,
   }).format(Math.round(count))}`;
 
-/** The cost estimate card: start button, progress, cost per trace and what it adds up to. */
+/** The cost estimate card: start button, cost per trace and what it adds up to. */
 export function TopicCostEstimateView({
   estimate,
   samplingPercent,
+  dailyTraces,
   backfillTraces,
-  restartInMinutes,
   modelSettingsHref,
   starting,
   disabled,
@@ -44,9 +43,9 @@ export function TopicCostEstimateView({
   estimate: Estimate | null;
   /** Applied on read, so changing it never needs a new estimate. */
   samplingPercent: number;
+  /** Finished matching traces a day, before sampling. */
+  dailyTraces: number | null;
   backfillTraces: number | null;
-  /** Minutes until the same inputs can be estimated again; null when they can now. */
-  restartInMinutes: number | null;
   modelSettingsHref: string;
   starting: boolean;
   disabled: boolean;
@@ -55,15 +54,10 @@ export function TopicCostEstimateView({
 }) {
   const running = estimate?.status === "running";
   const done = estimate?.status === "done";
-  const measured =
-    estimate !== null &&
-    estimate.processed > 0 &&
-    (done || estimate.processed >= TOPICS_COST_ESTIMATE_PARTIAL_MIN_TRACES);
+  const measured = done && estimate.sampled > 0;
   const perTraceUsd = measured ? estimate.prices.perTraceUsd : null;
-  const dailyTraces =
-    measured && estimate.finishedTraces7d !== null
-      ? (estimate.finishedTraces7d / 7) * (samplingPercent / 100)
-      : null;
+  const sampledDailyTraces =
+    dailyTraces !== null ? dailyTraces * (samplingPercent / 100) : null;
   const unpriced =
     measured && perTraceUsd === null
       ? [
@@ -76,10 +70,8 @@ export function TopicCostEstimateView({
   const tokensPerTrace =
     measured && unpriced.length > 0
       ? {
-          input:
-            (estimate.tokens.prefixTokens + estimate.tokens.inputTokens) /
-            estimate.processed,
-          output: estimate.tokens.outputTokens / estimate.processed,
+          input: estimate.tokens.inputTokens / estimate.sampled,
+          output: estimate.tokens.outputTokens / estimate.sampled,
         }
       : null;
 
@@ -90,26 +82,18 @@ export function TopicCostEstimateView({
         {running ? (
           <span className="text-muted-foreground flex items-center gap-2 text-xs">
             <Spinner size="sm" />
-            {estimate.sampled > 0
-              ? `Measuring ${estimate.processed} of ${estimate.sampled} traces`
-              : "Picking traces"}
+            Measuring recent traces
           </span>
         ) : (
-          <span className="flex items-center gap-2">
-            {restartInMinutes !== null ? (
-              <span className="text-muted-foreground text-xs">
-                Again in {restartInMinutes} min
-              </span>
-            ) : null}
-            <Button
-              text={done ? "Estimate again" : "Estimate cost"}
-              variant="outline"
-              size="sm"
-              loading={starting}
-              disabled={disabled || restartInMinutes !== null}
-              onClick={onStart}
-            />
-          </span>
+          <Button
+            text="Estimate cost"
+            variant="outline"
+            size="sm"
+            loading={starting}
+            // The same inputs give the same estimate, so a measured one is not run again.
+            disabled={disabled || measured}
+            onClick={onStart}
+          />
         )}
       </div>
 
@@ -138,13 +122,13 @@ export function TopicCostEstimateView({
               </span>
             </span>
           </div>
-          {dailyTraces !== null ? (
+          {sampledDailyTraces !== null ? (
             <span className="text-sm">
-              {approxUsd(perTraceUsd * dailyTraces)} per day at{" "}
+              {approxUsd(perTraceUsd * sampledDailyTraces)} per day at{" "}
               {samplingPercent}% sampling
               <span className="text-muted-foreground">
                 {" "}
-                · {approxCount(dailyTraces)} traces a day
+                · {approxCount(sampledDailyTraces)} traces a day
                 {backfillTraces
                   ? ` · ${approxUsd(perTraceUsd * backfillTraces)} for the first backfill of ${backfillTraces.toLocaleString("en-US")} traces`
                   : ""}

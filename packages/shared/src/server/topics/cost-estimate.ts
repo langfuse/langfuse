@@ -2,7 +2,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { TooManyRequestsError } from "../../errors/TooManyRequestsError";
 import type { FilterState } from "../../types";
 import {
-  TOPICS_COST_ESTIMATE_COOLDOWN_MS,
   type TopicCostEstimate,
   type TopicCostEstimatePrices,
   type TopicFacetRef,
@@ -13,8 +12,8 @@ import { redis } from "../redis/redis";
 import { TOPICS_TEXT_VERSION } from "../transcript/topics-model-input";
 import { enqueueTopicCostEstimate } from "./queue";
 
-// A running record expires unless the job refreshes it, so a lost job frees the project.
-const RUNNING_TTL_MS = 2 * 60_000;
+// Outlives the job's two-minute deadline, so a lost job frees the project soon after.
+const RUNNING_TTL_MS = 3 * 60_000;
 // Until the job starts, the record outlives a wait behind other setup jobs.
 const QUEUED_TTL_MS = 15 * 60_000;
 const DONE_TTL_MS = 24 * 60 * 60_000;
@@ -29,7 +28,7 @@ const lockKey = (projectId: string) =>
 const hourlyKey = (projectId: string) =>
   `topics:cost-estimate:{${projectId}}:hourly`;
 
-/** Same inputs, same key: a finished estimate is reused within the cooldown. */
+/** Same inputs, same key: a finished estimate is reused while its record lasts. */
 export function topicCostEstimateKey(inputs: TopicCostEstimate["inputs"]) {
   return createHash("sha256")
     .update(
@@ -45,22 +44,20 @@ export function topicCostEstimateKey(inputs: TopicCostEstimate["inputs"]) {
     .slice(0, 32);
 }
 
-// 1: claimed; 0: an estimate for these inputs is running or recent; 2: another estimate of the project runs; 3: hourly limit.
+// 1: claimed; 0: an estimate for these inputs is running or has measured traces; 2: another estimate of the project runs; 3: hourly limit.
 const CLAIM_SCRIPT = `
 local current = redis.call('GET', KEYS[1])
 if current then
   local record = cjson.decode(current)
   if record.status == 'running' then return {0, current} end
-  if record.status == 'done' and tonumber(ARGV[2]) - record.finishedAt < tonumber(ARGV[3]) then
-    return {0, current}
-  end
+  if record.status == 'done' and record.sampled > 0 then return {0, current} end
 end
 if redis.call('EXISTS', KEYS[2]) == 1 then return {2, ''} end
 local count = redis.call('INCR', KEYS[3])
 if count == 1 then redis.call('PEXPIRE', KEYS[3], 3600000) end
-if count > tonumber(ARGV[6]) then return {3, ''} end
-redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[4])
-redis.call('SET', KEYS[2], ARGV[5], 'PX', ARGV[4])
+if count > tonumber(ARGV[4]) then return {3, ''} end
+redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
+redis.call('SET', KEYS[2], ARGV[3], 'PX', ARGV[2])
 return {1, ARGV[1]}`;
 
 // Writes only while the record is this run's and still running; a final write frees the project.
@@ -96,9 +93,8 @@ type TopicCostEstimateStart = {
 };
 
 /**
- * Claims a running record unless one for the same inputs is running or
- * finished within the cooldown; then returns that one. One estimate runs per
- * project.
+ * Claims a running record unless one for the same inputs is running or has
+ * measured traces; then returns that one. One estimate runs per project.
  */
 export async function claimTopicCostEstimate(
   input: TopicCostEstimateStart,
@@ -119,18 +115,14 @@ export async function claimTopicCostEstimate(
     finishedAt: null,
     error: null,
     inputs,
-    finishedTraces7d: null,
     sampled: 0,
-    processed: 0,
     summarizable: 0,
     skipped: { tooLarge: 0, noContent: 0 },
     tokens: {
-      prefixTokens: 0,
       inputTokens: 0,
       outputTokens: 0,
       embeddingTokens: 0,
     },
-    traceNames: [],
   };
   const [code, value] = (await redis.eval(
     CLAIM_SCRIPT,
@@ -139,8 +131,6 @@ export async function claimTopicCostEstimate(
     lockKey(input.projectId),
     hourlyKey(input.projectId),
     JSON.stringify(record),
-    record.startedAt,
-    TOPICS_COST_ESTIMATE_COOLDOWN_MS,
     QUEUED_TTL_MS,
     record.runId,
     HOURLY_LIMIT,
@@ -185,8 +175,8 @@ export async function startTopicCostEstimate(
   return estimate;
 }
 
-/** Saves progress of a running estimate; false once the record is no longer this run's. */
-export async function writeTopicCostEstimateProgress(
+/** Marks a queued estimate as started by its job; false once the record is no longer this run's. */
+export async function markTopicCostEstimateStarted(
   projectId: string,
   record: TopicCostEstimate,
 ): Promise<boolean> {
@@ -247,12 +237,12 @@ export async function priceTopicCostEstimate(
   projectId: string,
   record: TopicCostEstimate,
 ): Promise<TopicCostEstimatePrices> {
-  const { tokens, processed, summarizable, inputs } = record;
+  const { tokens, sampled, summarizable, inputs } = record;
   const mean = (total: number) => (summarizable > 0 ? total / summarizable : 0);
   const embeddingTokens = mean(tokens.embeddingTokens);
   const [summary, embedding] = await Promise.all([
     priceUsage(projectId, inputs.summaryModel, {
-      input: mean(tokens.prefixTokens + tokens.inputTokens),
+      input: mean(tokens.inputTokens),
       output: mean(tokens.outputTokens),
     }),
     inputs.embeddingModel
@@ -266,10 +256,10 @@ export async function priceTopicCostEstimate(
   const summaryPriced = summary !== null;
   const embeddingPriced = embedding !== null;
   return {
-    // Skipped traces cost nothing, so the average spreads over every processed trace.
+    // Skipped traces cost nothing, so the average spreads over every sampled trace.
     perTraceUsd:
-      summaryPriced && embeddingPriced && processed > 0
-        ? ((summary + embedding) * summarizable) / processed
+      summaryPriced && embeddingPriced && sampled > 0
+        ? ((summary + embedding) * summarizable) / sampled
         : null,
     summaryPriced,
     embeddingPriced,

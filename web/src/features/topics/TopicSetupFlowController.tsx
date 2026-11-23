@@ -351,6 +351,9 @@ function TopicSetupSession({
           filter={draft.filter}
           facetIds={savedRule?.facetIds ?? []}
           samplingPercent={draft.samplePercent}
+          dailyTraces={
+            pastCount.status === "ready" ? pastCount.dailyTraces : null
+          }
           backfillTraces={
             pastCount.status === "ready" ? pastCount.matched : null
           }

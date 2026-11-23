@@ -114,8 +114,8 @@ function NewMapStory({
         <TopicCostEstimateView
           estimate={costEstimateFixture()}
           samplingPercent={samplingPercent}
+          dailyTraces={180}
           backfillTraces={Math.round((412 * samplingPercent) / 100)}
-          restartInMinutes={null}
           modelSettingsHref="/project/demo-project/settings/models"
           starting={false}
           disabled={facetIds.length === 0}

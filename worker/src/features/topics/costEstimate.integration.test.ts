@@ -5,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   claimTopicCostEstimate,
   createTopicFacet,
+  markTopicCostEstimateStarted,
   readTopicCostEstimate,
 } from "@langfuse/shared/topics/server";
 import { runTopicCostEstimate } from "./costEstimate";
@@ -64,14 +65,18 @@ describe("Topics cost estimate", () => {
       summaryModel: "gpt-5.6-luna",
       embeddingModel: "text-embedding-3-small",
     });
+    // Counts left by an attempt that died; a redelivered job must not add to them.
+    await markTopicCostEstimateStarted(projectId, {
+      ...estimate,
+      sampled: 3,
+      summarizable: 2,
+    });
     await runTopicCostEstimate(projectId, estimate.key);
 
     const done = await readTopicCostEstimate(projectId, estimate.key);
     expect(done).toMatchObject({
       status: "done",
-      finishedTraces7d: 3,
       sampled: 3,
-      processed: 3,
       summarizable: 2,
       skipped: { tooLarge: 0, noContent: 1 },
     });

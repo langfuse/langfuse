@@ -70,8 +70,8 @@ function SetupStory({
         <TopicCostEstimateView
           estimate={costEstimateFixture()}
           samplingPercent={samplePercent}
+          dailyTraces={180}
           backfillTraces={Math.round((412 * samplePercent) / 100)}
-          restartInMinutes={null}
           modelSettingsHref="/project/demo-project/settings/models"
           starting={false}
           disabled={false}
