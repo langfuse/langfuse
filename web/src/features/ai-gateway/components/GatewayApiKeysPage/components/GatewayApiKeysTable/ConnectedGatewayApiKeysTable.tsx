@@ -9,6 +9,7 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useGatewayApiKeysTableData } from "@/src/features/ai-gateway/hooks/useGatewayApiKeysTableData";
 import { api } from "@/src/utils/api";
 import { EditGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/EditGatewayApiKeyDialogController/EditGatewayApiKeyDialogController";
+import { GatewayResetBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayResetBudgetDialogController/GatewayResetBudgetDialogController";
 import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 
 export function ConnectedGatewayApiKeysTable({
@@ -98,39 +99,50 @@ export function ConnectedGatewayApiKeysTable({
       }}
     >
       {({ openDialog: openRevokeDialog }) => (
-        <EditGatewayApiKeyDialogController organizationId={organizationId}>
-          {({ openDialog: openEditDialog }) => (
-            <div className="flex h-full min-h-0 flex-col gap-4">
-              {hasNoKeys ? null : description}
-              <div className="flex min-h-0 flex-1 flex-col">
-                <GatewayApiKeysTable
-                  data={
-                    rows === undefined
-                      ? { status: "loading" }
-                      : { status: "success", data: rows }
-                  }
-                  lastUsed={lastUsed}
-                  spend={spend}
-                  orderBy={orderBy}
-                  setOrderBy={handleOrderByChange}
-                  pagination={{
-                    mode: "offset",
-                    totalCount: apiKeysQuery.data?.totalCount ?? null,
-                    state: paginationState,
-                    onChange: setPaginationState,
-                  }}
-                  search={{
-                    value: searchQuery,
-                    onChange: handleSearchChange,
-                  }}
-                  onEdit={openEditDialog}
-                  onRevoke={openRevokeDialog}
-                  onCreateKey={onCreateKey}
-                />
-              </div>
-            </div>
+        <GatewayResetBudgetDialogController organizationId={organizationId}>
+          {({ openDialog: openResetDialog }) => (
+            <EditGatewayApiKeyDialogController organizationId={organizationId}>
+              {({ openDialog: openEditDialog }) => (
+                <div className="flex h-full min-h-0 flex-col gap-4">
+                  {hasNoKeys ? null : description}
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    <GatewayApiKeysTable
+                      data={
+                        rows === undefined
+                          ? { status: "loading" }
+                          : { status: "success", data: rows }
+                      }
+                      lastUsed={lastUsed}
+                      spend={spend}
+                      orderBy={orderBy}
+                      setOrderBy={handleOrderByChange}
+                      pagination={{
+                        mode: "offset",
+                        totalCount: apiKeysQuery.data?.totalCount ?? null,
+                        state: paginationState,
+                        onChange: setPaginationState,
+                      }}
+                      search={{
+                        value: searchQuery,
+                        onChange: handleSearchChange,
+                      }}
+                      onEdit={openEditDialog}
+                      onResetBudget={(row) =>
+                        openResetDialog({
+                          scope: "API_KEY",
+                          subjectId: row.apiKey.id,
+                          name: row.apiKey.note ?? row.apiKey.displaySecretKey,
+                        })
+                      }
+                      onRevoke={openRevokeDialog}
+                      onCreateKey={onCreateKey}
+                    />
+                  </div>
+                </div>
+              )}
+            </EditGatewayApiKeyDialogController>
           )}
-        </EditGatewayApiKeyDialogController>
+        </GatewayResetBudgetDialogController>
       )}
     </ConfirmationDialogController>
   );

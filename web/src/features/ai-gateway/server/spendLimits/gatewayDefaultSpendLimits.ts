@@ -17,3 +17,17 @@ export const GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES = {
  * user counts its own spend against the default.
  */
 export const GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR = ":";
+
+/**
+ * Effective counting start for one subject under a default limit: the subject's
+ * latest reset when it is later than the default's own start.
+ */
+export function getEffectiveDefaultCountingStartedAt(
+  defaultCountingStartedAt: Date,
+  resetCountingStartedAt?: Date | null,
+) {
+  return resetCountingStartedAt &&
+    resetCountingStartedAt.getTime() > defaultCountingStartedAt.getTime()
+    ? resetCountingStartedAt
+    : defaultCountingStartedAt;
+}

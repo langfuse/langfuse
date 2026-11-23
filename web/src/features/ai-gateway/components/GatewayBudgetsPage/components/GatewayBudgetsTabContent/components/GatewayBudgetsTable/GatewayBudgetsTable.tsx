@@ -1,4 +1,4 @@
-import { Pencil } from "@langfuse/icons";
+import { Pencil, RotateCcw } from "@langfuse/icons";
 
 import {
   TableCard,
@@ -49,6 +49,7 @@ type GatewayBudgetsTableProps = Pick<
   selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
   multiSelect: MultiSelect;
   onEditBudget: (row: GatewayBudgetRow) => void;
+  onResetBudget: (row: GatewayBudgetRow) => void;
   /** Right of the search and filter, e.g. the default budget. */
   toolbarActions?: TableCardProps<GatewayBudgetRow>["toolbarActions"];
 };
@@ -157,6 +158,11 @@ const notEditableReasons = {
   apiKeys: "A gateway admin set this budget, so only an admin can change it.",
 } as const satisfies Record<GatewaySpendTab, string>;
 
+const noBudgetResetReasons = {
+  users: "This user has no budget to reset.",
+  apiKeys: "This key has no budget to reset.",
+} as const satisfies Record<GatewaySpendTab, string>;
+
 const copyByTab = {
   apiKeys: {
     searchPlaceholder: "Search keys",
@@ -181,6 +187,7 @@ export function GatewayBudgetsTable({
   selectColumn,
   multiSelect,
   onEditBudget,
+  onResetBudget,
   toolbarActions,
 }: GatewayBudgetsTableProps) {
   const copy = copyByTab[tab];
@@ -202,6 +209,16 @@ export function GatewayBudgetsTable({
             ? undefined
             : { reason: notEditableReasons[tab] },
           onClick: () => onEditBudget(row),
+        },
+        {
+          id: "resetBudget",
+          type: "item",
+          title: "Reset budget",
+          icon: RotateCcw,
+          disabled: row.spendLimit
+            ? undefined
+            : { reason: noBudgetResetReasons[tab] },
+          onClick: () => onResetBudget(row),
         },
       ]}
       pagination={pagination}

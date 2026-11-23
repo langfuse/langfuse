@@ -317,10 +317,98 @@ export class GatewaySpendLimitRepository {
     });
   }
 
+  resetCountingStartedAt(params: { id: string; countingStartedAt: Date }) {
+    return this.prisma.gatewaySpendLimit.update({
+      where: { id: params.id },
+      data: { countingStartedAt: params.countingStartedAt },
+      select: GATEWAY_SPEND_LIMIT_SELECT,
+    });
+  }
+
+  findResetForDefault(params: {
+    spendLimitId: string;
+    scope: GatewaySpendLimitScope;
+  }) {
+    return this.prisma.gatewaySpendLimitReset.findUnique({
+      where: toDefaultResetUniqueWhere(params.spendLimitId, params.scope),
+      select: { id: true, countingStartedAt: true },
+    });
+  }
+
+  upsertResetForDefault(params: {
+    organizationId: string;
+    spendLimitId: string;
+    scope: GatewaySpendLimitScope;
+    countingStartedAt: Date;
+  }) {
+    const subject =
+      params.scope.type === "API_KEY"
+        ? { apiKeyId: params.scope.apiKeyId }
+        : { userId: params.scope.userId };
+    return this.prisma.gatewaySpendLimitReset.upsert({
+      where: toDefaultResetUniqueWhere(params.spendLimitId, params.scope),
+      create: {
+        organizationId: params.organizationId,
+        spendLimitId: params.spendLimitId,
+        ...subject,
+        countingStartedAt: params.countingStartedAt,
+      },
+      update: { countingStartedAt: params.countingStartedAt },
+      select: { id: true, countingStartedAt: true },
+    });
+  }
+
+  async listResetsForDefault(params: {
+    spendLimitId: string;
+    scope: GatewaySpendLimitScope["type"];
+    subjectIds: string[];
+  }) {
+    if (params.subjectIds.length === 0) return new Map<string, Date>();
+    const rows = await this.prisma.gatewaySpendLimitReset.findMany({
+      where:
+        params.scope === "API_KEY"
+          ? {
+              spendLimitId: params.spendLimitId,
+              apiKeyId: { in: params.subjectIds },
+            }
+          : {
+              spendLimitId: params.spendLimitId,
+              userId: { in: params.subjectIds },
+            },
+      select: {
+        apiKeyId: true,
+        userId: true,
+        countingStartedAt: true,
+      },
+    });
+    const resets = new Map<string, Date>();
+    for (const row of rows) {
+      const subjectId = params.scope === "API_KEY" ? row.apiKeyId : row.userId;
+      if (subjectId) resets.set(subjectId, row.countingStartedAt);
+    }
+    return resets;
+  }
+
   delete(params: { id: string }) {
     return this.prisma.gatewaySpendLimit.delete({
       where: { id: params.id },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
+  }
+}
+
+function toDefaultResetUniqueWhere(
+  spendLimitId: string,
+  scope: GatewaySpendLimitScope,
+) {
+  switch (scope.type) {
+    case "API_KEY":
+      return {
+        spendLimitId_apiKeyId: { spendLimitId, apiKeyId: scope.apiKeyId },
+      };
+    case "USER":
+      return {
+        spendLimitId_userId: { spendLimitId, userId: scope.userId },
+      };
   }
 }

@@ -1,4 +1,4 @@
-import { Pencil, Trash } from "@langfuse/icons";
+import { Pencil, RotateCcw, Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
@@ -67,6 +67,7 @@ export function GatewayApiKeysTable({
   lastUsed,
   spend,
   onEdit,
+  onResetBudget,
   onRevoke,
   onCreateKey,
   pagination,
@@ -78,6 +79,7 @@ export function GatewayApiKeysTable({
   lastUsed: GatewayApiKeysLastUsedState;
   spend: GatewayApiKeysSpendState;
   onEdit: (apiKey: GatewayApiKey) => void;
+  onResetBudget: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
   onCreateKey: () => void;
   pagination: PaginationBarProps;
@@ -218,6 +220,17 @@ export function GatewayApiKeysTable({
           title: "Edit key",
           icon: Pencil,
           onClick: () => onEdit(row),
+        },
+        {
+          id: "resetBudget",
+          type: "item",
+          title: "Reset budget",
+          icon: RotateCcw,
+          disabled:
+            row.spendLimit || row.defaultSpendLimit
+              ? undefined
+              : { reason: "This key has no budget to reset." },
+          onClick: () => onResetBudget(row),
         },
         {
           id: "revoke",
