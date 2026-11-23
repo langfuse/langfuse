@@ -17,7 +17,6 @@ import type {
   ColumnDefinition,
 } from "../../tableDefinitions/types";
 import { createFilterFromFilterState } from "./clickhouse-sql/factory";
-import { eventsFieldSql } from "../repositories/events-predicate-fields";
 
 export type ApiColumnMapping = {
   id: string;
@@ -129,28 +128,15 @@ export function createPublicApiTracesColumnMapping(
 }
 
 /**
- * Factory function to create public API column mappings for events/observations tables.
- * Eliminates duplication between events and observations filter mappings.
+ * Public API simple filter mappings for the legacy observations table. It
+ * does not carry `user_id` or `session_id`, so those filters read the joined
+ * traces CTE `t`.
  */
-export function createPublicApiObservationsColumnMapping(
-  tableName: "events_proto" | "observations",
-  tablePrefix: "e" | "o",
-  parentFieldName: "parent_span_id" | "parent_observation_id",
-): ApiColumnMapping[] {
-  // user_id and session_id are denormalized onto events_core/events_full, so
-  // the events_proto path filters directly without joining the traces CTE.
-  // The legacy observations table does not carry either field, so that path
-  // still joins traces.
-  const traceFieldMapping =
-    tableName === "events_proto"
-      ? {
-          clickhouseTable: tableName,
-          clickhousePrefix: tablePrefix,
-        }
-      : {
-          clickhouseTable: "traces",
-          clickhousePrefix: "t",
-        };
+export function createPublicApiObservationsColumnMapping(): ApiColumnMapping[] {
+  const traceFieldMapping = {
+    clickhouseTable: "traces",
+    clickhousePrefix: "t",
+  };
   const userIdMapping: ApiColumnMapping = {
     id: "userId",
     clickhouseSelect: "user_id",
@@ -170,76 +156,66 @@ export function createPublicApiObservationsColumnMapping(
       id: "traceId",
       clickhouseSelect: "trace_id",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "name",
       clickhouseSelect: "name",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "level",
       clickhouseSelect: "level",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "type",
       clickhouseSelect: "type",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "parentObservationId",
-      clickhouseSelect: parentFieldName,
+      clickhouseSelect: "parent_observation_id",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
-    ...(tableName === "events_proto"
-      ? [
-          {
-            id: "isRootObservation",
-            clickhouseSelect: eventsFieldSql("isRootObservation"),
-            filterType: "BooleanFilter",
-            clickhouseTable: tableName,
-          },
-        ]
-      : []),
     {
       id: "fromStartTime",
       clickhouseSelect: "start_time",
       operator: ">=",
       filterType: "DateTimeFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "toStartTime",
       clickhouseSelect: "start_time",
       operator: "<",
       filterType: "DateTimeFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "version",
       clickhouseSelect: "version",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "environment",
       clickhouseSelect: "environment",
       filterType: "StringOptionsFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
   ];
 }
