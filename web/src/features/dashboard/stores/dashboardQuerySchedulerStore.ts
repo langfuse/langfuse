@@ -22,7 +22,7 @@ type DashboardQuerySchedulerState = {
       runKey?: string,
     ) => void;
     unregister: (id: string) => void;
-    markDone: (id: string) => void;
+    markDone: (id: string, runKey?: string) => void;
     /** Re-queues every item — only for genuine query-param changes (reset key). */
     resetQueue: () => void;
     setMaxConcurrent: (maxConcurrent: number) => void;
@@ -90,9 +90,10 @@ export function createDashboardQuerySchedulerStore({
           }
 
           const didRunKeyChange = existing.runKey !== runKey;
-          // A changed run key re-queues a completed item (its inputs changed);
-          // queued/running items just carry the new key into their next run.
-          const shouldRequeue = didRunKeyChange && existing.status === "done";
+          const shouldRequeue =
+            (!isEligible && existing.status === "running") ||
+            (existing.status === "done" &&
+              (didRunKeyChange || (!existing.isEligible && isEligible)));
           const didChange =
             existing.priority !== priority ||
             existing.isEligible !== isEligible ||
@@ -125,10 +126,16 @@ export function createDashboardQuerySchedulerStore({
           return { items: promote(rest, state.maxConcurrent) };
         }),
 
-      markDone: (id) =>
+      markDone: (id, runKey) =>
         set((state) => {
           const item = state.items[id];
-          if (!item || item.status === "done") return state;
+          if (
+            !item ||
+            item.status !== "running" ||
+            !item.isEligible ||
+            (runKey !== undefined && item.runKey !== runKey)
+          )
+            return state;
           return {
             items: promote(
               { ...state.items, [id]: { ...item, status: "done" } },

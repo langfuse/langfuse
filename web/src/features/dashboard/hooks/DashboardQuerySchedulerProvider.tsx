@@ -3,7 +3,12 @@ import {
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
-import { hashKey, useQuery, type UseQueryOptions } from "@tanstack/react-query";
+import {
+  hashKey,
+  useQuery,
+  useQueryClient,
+  type UseQueryOptions,
+} from "@tanstack/react-query";
 import {
   createContext,
   type ReactNode,
@@ -314,6 +319,7 @@ export const useScheduledDashboardExecuteQuery = (
   const useSSE = requestedSSE && !fetchQuery;
   const context = useContext(DashboardQuerySchedulerContext);
   const utils = api.useUtils();
+  const queryClient = useQueryClient();
   const store = context?.store ?? unmanagedSchedulerStore;
   const { actions } = store.getState();
   const shouldBucketQueriesByTimeRange =
@@ -403,6 +409,15 @@ export const useScheduledDashboardExecuteQuery = (
 
   const activeResult = useSSE ? sseResult : trpcResult;
 
+  // Disabling an observer does not stop its stream. Abort only an inactive
+  // cache entry so an enabled widget sharing the same query keeps its stream.
+  useEffect(() => {
+    if (enabled || !useSSE) return;
+    const query = queryClient.getQueryCache().get(effectiveRunKey);
+    if (query?.state.fetchStatus !== "fetching" || query.isActive()) return;
+    query.cancel({ revert: true });
+  }, [effectiveRunKey, enabled, queryClient, useSSE]);
+
   // Release the scheduler slot whenever this query stops fetching for ANY
   // reason — success, error, stall timeout, or abort. Holding a slot on a
   // failed stream would freeze the whole dashboard at low concurrency.
@@ -411,7 +426,7 @@ export const useScheduledDashboardExecuteQuery = (
     if (activeResult.fetchStatus !== "idle") return;
     if (activeResult.isPending) return;
 
-    actions.markDone(queryId);
+    actions.markDone(queryId, effectiveRunKey);
   }, [
     canFetch,
     enabled,
@@ -419,6 +434,7 @@ export const useScheduledDashboardExecuteQuery = (
     queryId,
     activeResult.fetchStatus,
     activeResult.isPending,
+    effectiveRunKey,
   ]);
 
   return {
