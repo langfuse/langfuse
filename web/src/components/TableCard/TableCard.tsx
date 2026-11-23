@@ -250,7 +250,7 @@ export function TableCard<TData extends object>({
       {showEmptyState ? (
         emptyState
       ) : (
-        <div className="mb-4">
+        <div className="mb-4 flex min-h-0 flex-col">
           <TableCardContainer>
             <Table
               columns={columns}
