@@ -3,8 +3,6 @@ import type { TopicFacetRef } from "./index";
 
 /** Finished traces the cost estimate loads and measures. */
 export const TOPICS_COST_ESTIMATE_SAMPLE_SIZE = 50;
-/** The estimate shows a range of this share above and below its midpoint. */
-export const TOPICS_COST_ESTIMATE_BAND = 0.25;
 /** Expected output tokens of one facet's summary. */
 export const TOPICS_COST_ESTIMATE_OUTPUT_TOKENS_PER_FACET = 60;
 /** Expected embedding input of one facet's summary. */
@@ -77,22 +75,3 @@ export type TopicCostEstimatePrices = {
   summaryPriced: boolean;
   embeddingPriced: boolean;
 };
-
-/** Daily and backfill cost for a sampling rate; each with the fixed band around it. */
-export function scaleTopicCostEstimate(input: {
-  perTraceUsd: number;
-  finishedTraces7d: number;
-  samplingPercent: number;
-  backfillTraces: number;
-}) {
-  const sampling = input.samplingPercent / 100;
-  const band = (usd: number) => ({
-    low: usd * (1 - TOPICS_COST_ESTIMATE_BAND),
-    mid: usd,
-    high: usd * (1 + TOPICS_COST_ESTIMATE_BAND),
-  });
-  return {
-    daily: band(((input.perTraceUsd * input.finishedTraces7d) / 7) * sampling),
-    backfill: band(input.perTraceUsd * input.backfillTraces),
-  };
-}
