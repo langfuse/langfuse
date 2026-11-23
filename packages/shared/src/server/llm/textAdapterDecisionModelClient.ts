@@ -15,7 +15,8 @@ import type { DecisionModelEntry } from "../../features/evals/decisionModel";
 
 /**
  * Decision client for text adapters with a native decisions endpoint (OpenAI,
- * Google AI Studio). Both take one text `input` and plain-text questions.
+ * Google AI Studio). Both receive the keyed state as one JSON text `input`
+ * and plain-text questions that name its keys.
  */
 export function createTextAdapterDecisionModelClient(params: {
   model: Parameters<typeof decide>[0]["model"];
