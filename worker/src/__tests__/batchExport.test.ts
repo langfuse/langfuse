@@ -7,6 +7,8 @@ import {
   createTraceScore,
   createDatasetRunScore,
   createScoresCh,
+  createAuditLogsCh,
+  convertDateToClickhouseDateTime,
   createTrace,
   createTracesCh,
   createManyDatasetItems,
@@ -1663,62 +1665,60 @@ describe("batch export test suite", () => {
   it("should export audit logs", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
 
-    // Create some audit log entries directly in the database
-    const auditLogEntries = [
+    await createAuditLogsCh([
       {
-        id: randomUUID(),
-        projectId: projectId,
-        orgId: orgId,
-        type: "USER" as const,
-        userId: randomUUID(),
-        userOrgRole: "OWNER",
-        userProjectRole: "ADMIN",
-        resourceType: "trace",
-        resourceId: randomUUID(),
+        org_id: orgId,
+        project_id: projectId,
+        actor_type: "USER",
+        user_org_role: "OWNER",
+        user_project_role: "ADMIN",
+        resource_type: "trace",
         action: "CREATE",
-        before: null,
         after: JSON.stringify({ name: "test-trace", version: 1 }),
-        createdAt: new Date("2024-01-01T10:00:00Z"),
-        updatedAt: new Date("2024-01-01T10:00:00Z"),
+        timestamp: convertDateToClickhouseDateTime(
+          new Date("2024-01-01T10:00:00Z"),
+        ),
       },
       {
-        id: randomUUID(),
-        projectId: projectId,
-        orgId: orgId,
-        type: "API_KEY" as const,
-        apiKeyId: randomUUID(),
-        resourceType: "score",
-        resourceId: randomUUID(),
+        org_id: orgId,
+        project_id: projectId,
+        actor_type: "API_KEY",
+        user_id: "",
+        api_key_id: randomUUID(),
+        resource_type: "score",
         action: "UPDATE",
         before: JSON.stringify({ value: 0.5 }),
         after: JSON.stringify({ value: 0.8 }),
-        createdAt: new Date("2024-01-02T10:00:00Z"),
-        updatedAt: new Date("2024-01-02T10:00:00Z"),
+        timestamp: convertDateToClickhouseDateTime(
+          new Date("2024-01-02T10:00:00Z"),
+        ),
       },
       {
-        id: randomUUID(),
-        projectId: projectId,
-        orgId: orgId,
-        type: "USER" as const,
-        userId: randomUUID(),
-        userOrgRole: "MEMBER",
-        userProjectRole: "VIEWER",
-        resourceType: "prompt",
-        resourceId: randomUUID(),
-        action: "DELETE",
-        before: JSON.stringify({ name: "old-prompt", content: "Hello World" }),
-        after: null,
-        createdAt: new Date("2024-01-03T10:00:00Z"),
-        updatedAt: new Date("2024-01-03T10:00:00Z"),
+        org_id: orgId,
+        project_id: projectId,
+        event_kind: "access",
+        resource_type: "trace",
+        action: "list",
+        surface: "public-api",
+        route: "GET /api/public/v2/observations",
+        params: JSON.stringify({ limit: 1 }),
+        result_count: 1,
+        resource_refs: ["trace:trace-1"],
+        timestamp: convertDateToClickhouseDateTime(
+          new Date("2024-01-03T10:00:00Z"),
+        ),
       },
-    ];
+      // Not exported: a support access read and an organisation-level event.
+      {
+        org_id: orgId,
+        project_id: projectId,
+        event_kind: "access",
+        action: "read",
+        support_access: true,
+      },
+      { org_id: orgId },
+    ]);
 
-    // Insert audit log entries
-    await prisma.auditLog.createMany({
-      data: auditLogEntries,
-    });
-
-    // Export audit logs
     const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.AuditLogs,
@@ -1735,30 +1735,39 @@ describe("batch export test suite", () => {
 
     expect(rows).toHaveLength(3);
 
-    // Verify the audit logs are sorted by createdAt DESC
-    expect(rows[0].action).toBe("DELETE");
-    expect(rows[0].resourceType).toBe("prompt");
-    expect(rows[0].type).toBe("USER");
-    expect(rows[0].before).toBe(
-      JSON.stringify({ name: "old-prompt", content: "Hello World" }),
-    );
-    expect(rows[0].after).toBe(null);
+    // Newest first.
+    expect(rows[0]).toMatchObject({
+      eventKind: "access",
+      action: "list",
+      surface: "public-api",
+      route: "GET /api/public/v2/observations",
+      params: JSON.stringify({ limit: 1 }),
+      resultCount: 1,
+      resourceRefs: ["trace:trace-1"],
+      before: null,
+      after: null,
+    });
 
-    expect(rows[1].action).toBe("UPDATE");
-    expect(rows[1].resourceType).toBe("score");
-    expect(rows[1].type).toBe("API_KEY");
-    expect(rows[1].before).toBe(JSON.stringify({ value: 0.5 }));
-    expect(rows[1].after).toBe(JSON.stringify({ value: 0.8 }));
+    expect(rows[1]).toMatchObject({
+      eventKind: "change",
+      action: "UPDATE",
+      resourceType: "score",
+      type: "API_KEY",
+      before: JSON.stringify({ value: 0.5 }),
+      after: JSON.stringify({ value: 0.8 }),
+    });
 
-    expect(rows[2].action).toBe("CREATE");
-    expect(rows[2].resourceType).toBe("trace");
-    expect(rows[2].type).toBe("USER");
-    expect(rows[2].before).toBe(null);
-    expect(rows[2].after).toBe(
-      JSON.stringify({ name: "test-trace", version: 1 }),
-    );
+    expect(rows[2]).toMatchObject({
+      eventKind: "change",
+      action: "CREATE",
+      resourceType: "trace",
+      type: "USER",
+      userOrgRole: "OWNER",
+      userProjectRole: "ADMIN",
+      before: null,
+      after: JSON.stringify({ name: "test-trace", version: 1 }),
+    });
 
-    // Verify all rows have the correct project ID
     rows.forEach((row) => {
       expect(row.projectId).toBe(projectId);
       expect(row.orgId).toBe(orgId);
@@ -1779,21 +1788,20 @@ describe("batch export test suite", () => {
 
   it("should export every audit log exactly once across pages", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
-    const tiedCreatedAt = new Date("2024-01-02T10:00:00Z");
-    // Four entries share one createdAt so pages of two split a tie group.
-    const entries = Array.from({ length: 5 }, (_, i) => ({
-      id: randomUUID(),
-      projectId,
-      orgId,
-      type: "USER" as const,
-      userId: randomUUID(),
-      resourceType: "trace",
-      resourceId: randomUUID(),
-      action: "CREATE",
-      createdAt: i === 0 ? new Date("2024-01-01T10:00:00Z") : tiedCreatedAt,
-      updatedAt: tiedCreatedAt,
-    }));
-    await prisma.auditLog.createMany({ data: entries });
+    const tiedTimestamp = convertDateToClickhouseDateTime(
+      new Date("2024-01-02T10:00:00Z"),
+    );
+    // Four entries share one timestamp so pages of two split a tie group.
+    const entries = await createAuditLogsCh(
+      Array.from({ length: 5 }, (_, i) => ({
+        org_id: orgId,
+        project_id: projectId,
+        timestamp:
+          i === 0
+            ? convertDateToClickhouseDateTime(new Date("2024-01-01T10:00:00Z"))
+            : tiedTimestamp,
+      })),
+    );
 
     const stream = await getDatabaseReadStreamPaginated({
       projectId,

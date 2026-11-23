@@ -251,7 +251,7 @@ describe("external media storage service", () => {
     });
 
     expect(result.url).toBe("https://signed.example");
-    expect(getSignedUrl).toHaveBeenCalledWith("customer/image.png", 300, false);
+    expect(getSignedUrl).toHaveBeenCalledWith("customer/image.png", 300, true);
   });
 
   it("allows any object in the bucket when no prefix is configured", async () => {
@@ -270,7 +270,7 @@ describe("external media storage service", () => {
     expect(getSignedUrl).toHaveBeenCalledWith(
       "any/directory/image.png",
       300,
-      false,
+      true,
     );
   });
 

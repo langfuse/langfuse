@@ -290,9 +290,6 @@ export const splitScoreDataTypeIcon = (
 
 export const getScoreDataTypeIcon = (dataType: ScoreDataTypeType): string => {
   switch (dataType) {
-    case "NUMERIC":
-    default:
-      return "#";
     case "CATEGORICAL":
       return "Ⓒ";
     case "BOOLEAN":
@@ -301,6 +298,9 @@ export const getScoreDataTypeIcon = (dataType: ScoreDataTypeType): string => {
       return "";
     case "TEXT":
       return "Aa";
+    case "NUMERIC":
+    default:
+      return "#";
   }
 };
 

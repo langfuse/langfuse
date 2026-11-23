@@ -8,10 +8,9 @@
  *     (`ArrayJoinNode` / `LimitByNode` / `WithFillNode`) onto the select node
  *     during query transformation; the ClickHouse compiler renders them.
  *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}, {@link withFill},
- *     {@link useFinal}, {@link includeDeleted})
- *     that apply those plugins while extending the builder's output row type,
- *     so produced aliases are type-checked and misspelled references are
- *     compile errors.
+ *     {@link useFinal}) that apply those plugins while extending the builder's
+ *     output row type, so produced aliases are type-checked and misspelled
+ *     references are compile errors.
  *   - Typed expression helpers ({@link mapKeys}, {@link metadataValue},
  *     {@link medianExact}, …) that build ClickHouse aggregates, map/array
  *     function calls and `metadata[key]` subscripts as real, parameter-bound
@@ -351,18 +350,12 @@ export function typedValue<T>(value: unknown, type: string): ChExpression<T> {
 /**
  * A constant inlined into the SQL text rather than bound, so code-defined
  * constants (`level = 'ERROR'`, `span_id != ''`) render as literals. Never
- * pass user input; bind it instead.
+ * pass user input; bind it instead. A string with a backslash throws when
+ * compiled, as ClickHouse would read it as an escape.
  */
 export function literal<T extends string | number | boolean | null>(
   value: T,
 ): ChExpression<T> {
-  // Kysely doubles single quotes but leaves backslashes, which ClickHouse
-  // reads as escapes.
-  if (typeof value === "string" && value.includes("\\")) {
-    throw new QueryCompileError(
-      `literal does not accept backslashes, got ${value}.`,
-    );
-  }
   return new ExpressionWrapper(ValueNode.createImmediate(value));
 }
 
@@ -1052,6 +1045,11 @@ export function mapFromArrays<V>(
   return functionCall("mapFromArrays", [keys, values]);
 }
 
+/** ClickHouse `map()`: an empty map. */
+export function emptyMap<V>(): ChExpression<Record<string, V>> {
+  return functionCall("map", []);
+}
+
 /**
  * Events metadata as a map: `mapFromArrays(arrayReverse(names),
  * arrayReverse(values))`. Both arrays are reversed so that, for a key stored
@@ -1502,49 +1500,4 @@ export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
   return <DB, TB extends keyof DB, O>(
     qb: SelectQueryBuilder<DB, TB, O>,
   ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new FinalPlugin(names));
-}
-
-/**
- * Read soft-deleted rows too: `qb.$call(includeDeleted())`. Applies to this
- * select's FROM/JOIN relations only; nested selects are still filtered. A
- * select that reads no soft-delete table fails to compile.
- */
-export function includeDeleted() {
-  return <DB, TB extends keyof DB, O>(
-    qb: SelectQueryBuilder<DB, TB, O>,
-  ): SelectQueryBuilder<DB, TB, O> =>
-    qb.withPlugin(new SoftDeleteMarkerPlugin("includeDeleted"));
-}
-
-/**
- * Drop soft-deleted rows after this select's ORDER BY / LIMIT / LIMIT BY
- * instead of before: `qb.$call(softDeleteAfterLimit())`. For a latest-version
- * pick, where a deletion is a newer version with the flag set; filtering
- * first would return the older live version. Compiles to
- * `select latest.<output>, … from (<this select, flag added>) as latest where
- * latest.<flag> = 0`. The select reads exactly one soft-delete table, has a
- * LIMIT or LIMIT BY, has no GROUP BY or set operation, names every output (no
- * `*`, unaliased expressions), and does not select the flag itself.
- */
-export function softDeleteAfterLimit() {
-  return <DB, TB extends keyof DB, O>(
-    qb: SelectQueryBuilder<DB, TB, O>,
-  ): SelectQueryBuilder<DB, TB, O> =>
-    qb.withPlugin(new SoftDeleteMarkerPlugin("softDeleteAfterLimit"));
-}
-
-/** Sets a soft-delete marker on the select; the soft-delete pass reads it. */
-class SoftDeleteMarkerPlugin implements KyselyPlugin {
-  constructor(
-    private readonly marker: "includeDeleted" | "softDeleteAfterLimit",
-  ) {}
-
-  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
-    if (args.node.kind !== "SelectQueryNode") return args.node;
-    return { ...args.node, [this.marker]: true } as RootOperationNode;
-  }
-
-  async transformResult(args: PluginTransformResultArgs) {
-    return args.result;
-  }
 }

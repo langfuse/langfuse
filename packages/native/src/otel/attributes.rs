@@ -48,6 +48,7 @@ pub struct EventAttributes<'a> {
     pub scope: &'a JsonObject,
     pub cache: &'a mut JsonParseCache,
     pub decode_metadata: bool,
+    pub evaluation_fields: &'a mut Option<Box<JsonObject>>,
 }
 
 impl EventAttributes<'_> {
@@ -59,10 +60,20 @@ impl EventAttributes<'_> {
         }
     }
 
-    pub fn text(&self, sources: &[AttributeSource]) -> Option<String> {
-        sources
-            .iter()
-            .find_map(|source| self.get(*source).and_then(value_as_string))
+    pub fn text(&mut self, column: &str, sources: &[AttributeSource]) -> Option<String> {
+        for source in sources {
+            let (map, key) = match *source {
+                AttributeSource::Span(key) => (self.span, key),
+                AttributeSource::Resource(key) => (self.resource, key),
+                AttributeSource::Scope(key) => (self.scope, key),
+            };
+            let Some(value) = map.get(key).filter(|value| !value.is_null()) else {
+                continue;
+            };
+            retain_evaluation_value(self.evaluation_fields, column, value);
+            return value_as_string(value);
+        }
+        None
     }
 
     pub fn truthy_text(&self, sources: &[AttributeSource]) -> Option<String> {
@@ -73,12 +84,9 @@ impl EventAttributes<'_> {
     }
 
     pub fn scope_name(&self, sources: &[AttributeSource]) -> Option<String> {
-        sources.iter().find_map(|source| {
-            self.get(*source)?
-                .as_str()
-                .filter(|text| !text.is_empty())
-                .map(str::to_owned)
-        })
+        sources
+            .iter()
+            .find_map(|source| self.get(*source)?.as_str().map(str::to_owned))
     }
 
     pub fn identity(&mut self, sources: &[AttributeSource]) -> Option<String> {
@@ -109,6 +117,20 @@ impl EventAttributes<'_> {
             }
         }
         None
+    }
+}
+
+/// Storage accepts coerced text, but evaluation validates the original field types.
+/// Retain only values whose types would otherwise be hidden by stringification.
+pub(crate) fn retain_evaluation_value(
+    fields: &mut Option<Box<JsonObject>>,
+    column: &str,
+    value: &Value,
+) {
+    if !matches!(value, Value::String(_) | Value::Null) {
+        fields
+            .get_or_insert_with(Default::default)
+            .insert(column.into(), value.clone());
     }
 }
 
@@ -516,11 +538,17 @@ fn number_from_integer_like_f64(value: f64) -> Option<Number> {
 ///
 /// The queue graph is already normalized at its boundary, so non-string values can be borrowed
 /// directly. Parsed strings are normalized once and borrowed by all provider extractors that use
-/// the same source. Malformed or too-deep strings are cached as missing values so one optional
-/// field cannot reject the rest of an event batch.
+/// the same source. The cache distinguishes inputs beyond the nesting limit from malformed JSON
+/// so tool normalization can preserve their original string representation.
 #[derive(Default)]
 pub struct JsonParseCache {
-    parsed_strings: HashMap<JsString, Option<Rc<Value>>>,
+    parsed_strings: HashMap<JsString, CachedParse>,
+}
+
+enum CachedParse {
+    Parsed(Rc<Value>),
+    DepthLimited,
+    Invalid,
 }
 
 impl JsonParseCache {
@@ -533,10 +561,17 @@ impl JsonParseCache {
             return None;
         }
         if !self.parsed_strings.contains_key(text) {
-            let parsed = super::value::parse_js_string(text).ok().map(Rc::new);
+            let parsed = match super::value::parse_js_string(text) {
+                Ok(value) => CachedParse::Parsed(Rc::new(value)),
+                Err(error) if is_depth_limit_error(&error) => CachedParse::DepthLimited,
+                Err(_) => CachedParse::Invalid,
+            };
             self.parsed_strings.insert(text.clone(), parsed);
         }
-        self.parsed_strings.get(text).and_then(Option::as_deref)
+        match self.parsed_strings.get(text) {
+            Some(CachedParse::Parsed(value)) => Some(value),
+            Some(CachedParse::DepthLimited | CachedParse::Invalid) | None => None,
+        }
     }
 
     pub fn parse_or_self<'a>(&'a mut self, value: Option<&'a Value>) -> Option<&'a Value> {
@@ -551,16 +586,17 @@ impl JsonParseCache {
             return ParsedJson::Borrowed(value);
         };
         self.parse(Some(value));
-        self.parsed_strings
-            .get(text)
-            .and_then(Option::as_ref)
-            .map(|parsed| ParsedJson::Shared(Rc::clone(parsed)))
-            .unwrap_or(ParsedJson::Borrowed(value))
+        match self.parsed_strings.get(text) {
+            Some(CachedParse::Parsed(parsed)) => ParsedJson::Shared(Rc::clone(parsed)),
+            Some(CachedParse::DepthLimited) => ParsedJson::DepthLimited(value),
+            Some(CachedParse::Invalid) | None => ParsedJson::Borrowed(value),
+        }
     }
 }
 
 pub enum ParsedJson<'a> {
     Borrowed(&'a Value),
+    DepthLimited(&'a Value),
     Shared(Rc<Value>),
 }
 
@@ -569,7 +605,7 @@ impl std::ops::Deref for ParsedJson<'_> {
 
     fn deref(&self) -> &Value {
         match self {
-            Self::Borrowed(value) => value,
+            Self::Borrowed(value) | Self::DepthLimited(value) => value,
             Self::Shared(value) => value,
         }
     }
@@ -578,10 +614,14 @@ impl std::ops::Deref for ParsedJson<'_> {
 impl ParsedJson<'_> {
     pub fn into_owned(self) -> Value {
         match self {
-            Self::Borrowed(value) => value.clone(),
+            Self::Borrowed(value) | Self::DepthLimited(value) => value.clone(),
             Self::Shared(value) => Rc::unwrap_or_clone(value),
         }
     }
+}
+
+fn is_depth_limit_error(error: &serde_json::Error) -> bool {
+    error.to_string().starts_with("recursion limit exceeded")
 }
 
 fn looks_like_json(text: &str) -> bool {
@@ -782,6 +822,7 @@ mod tests {
                 scope: &JsonObject::new(),
                 cache: &mut cache,
                 decode_metadata: false,
+                evaluation_fields: &mut None,
             };
             assert_eq!(
                 attributes

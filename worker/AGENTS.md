@@ -16,11 +16,11 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
-- Topics: `src/features/topics/processTopicsExecution.ts`, `src/features/topics/topicsAutomation.ts` and `src/features/topics/nightlyRefit.ts`, which fits each rule's continuous map daily at `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a per-project offset. Before changing extraction, model configuration, fitting, scheduling, persistence, costs or retries, read `src/features/topics/README.md` for lifecycle and recovery contracts.
+- Topics: `src/features/topics/processTopicsExecution.ts` and `src/features/topics/nightlyRefit.ts`, which fits each rule's continuous map daily at `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a per-project offset. Before changing extraction, model configuration, fitting, scheduling, persistence, costs or retries, read `src/features/topics/README.md` for lifecycle and recovery contracts.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
-  scheduling, direct events-table writes, and trace-batch accounting.
+  scheduling, direct events-table writes, and trace-dispatch recording.
 - Automatic evaluation scheduling: OTel ingestion, including prompt-experiment telemetry, uses
   `src/features/evaluation/fetchEvalRules.ts` and `scheduleEvals.ts` for both
   observation and transcript rules. Create scheduler dependencies once per batch.
@@ -33,20 +33,8 @@
   Prompt experiments select observation rules only on their root span. Transcript
   recording preserves Topics' exclusion of internal environments, including prompt
   experiments. The direct internal writer retains its root-only ready callback.
-- Trace batching: `src/features/traceBatching/traceBatching.ts`, `src/features/traceBatching/traceRuleRecording.ts` and `src/queues/traceBatchQueue.ts`. Read `src/features/traceBatching/README.md` before changing mode selection, readiness/Redis state, streaming, transcript capture or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement; a failed stream must not assemble its partial final trace. Trace-batch stores each sampled trace's inputs with `createTraceBatchInputStorage().put` and enqueues one `topics-trace-queue` job carrying `{ projectId, traceId, revision, ruleIds }`, deduplicated per revision; it makes no model calls. `src/features/topics/processTopicsTrace.ts` summarizes, embeds and assigns. Storage is required: oversized inputs or failed uploads count the trace as failed instead of enqueueing.
-- Events dispatch: `src/features/eventsDispatch/`, consumed only on
-  worker-cpu, replaces the trace-batch consumer when
-  `LANGFUSE_EVENTS_DISPATCH_ENABLED`. It routes each trace's recorded rule
-  IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only
-  for routed traces, stores the transcript once and enqueues one job per
-  consumer; consumers resolve their rule definitions themselves. The
-  trace-transcript-eval consumer schedules LLM-as-a-judge and decision-model
-  executions from the stored object key on `llm-as-a-judge-execution-queue`.
-  Topics is unchanged and still receives only the project, trace, and
-  revision. Per-trace failures return to the `{trace-dispatch:N}` maps via
-  `RESTORE_RECORDING_SCRIPT` (backoff 5/15/45 min, then dropped); a failed
-  read retries the whole job once. New names use events-dispatch; the Redis
-  maps keep trace-dispatch.
+- Trace dispatch: `src/features/traceDispatch/traceDispatcher.ts` and `src/features/traceDispatch/traceRuleRecording.ts`. Read `src/features/traceDispatch/README.md` before changing recording/Redis state, dispatch or metrics. Preserve ingestion error boundaries and revision-guarded enqueue acknowledgement. The dispatcher enqueues ready traces only to `events-dispatch-queue`.
+- Events dispatch: `src/features/eventsDispatch/`, consumed only on worker-cpu, enabled by `LANGFUSE_EVENTS_DISPATCH_ENABLED`; a failed stream must not assemble its partial final trace. It routes each trace's recorded rule IDs to consumers by evaluator type (`consumers.ts`), reads ClickHouse only for routed traces, stores the transcript once and enqueues one job per consumer; consumers resolve their rule definitions themselves. The trace-transcript-eval consumer schedules LLM-as-a-judge and decision-model executions from the stored object key on `llm-as-a-judge-execution-queue`. Topics is unchanged and still receives only the project, trace, and revision. Per-trace failures return to the `{trace-dispatch:N}` maps via `RESTORE_RECORDING_SCRIPT` (backoff 5/15/45 min, then dropped); a failed read retries the whole job once. `transcriptCleaner.ts` deletes stored transcripts older than three days when `LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED=true`. New names use events-dispatch; the Redis maps keep trace-dispatch.
 - Audit log relay: `src/features/audit-log-relay/index.ts` moves Postgres
   `audit_log_staging` rows into ClickHouse `audit_logs`, deleting them only
   after ClickHouse acknowledged the insert. It starts where audit logs are
@@ -58,14 +46,10 @@
   and are retried after 10 minutes.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
-- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain both singletons. `IngestionService.writeEventRecord()` returns the accepted post-overflow row, including `event_bytes` in legacy sizing mode. Trace-batch intake reuses that estimate or measures JSON size only when enabled, to preserve its read-capacity guard. When v4 event writes are enabled, startup detects the `events_full` `byteSize` DEFAULT with `DESCRIBE TABLE` before queue consumers load. TypeScript writers use the DEFAULT only when confirmed; otherwise they preserve legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native always omits `event_bytes` and requires the migration.
+- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain both singletons. `IngestionService.writeEventRecord()` returns the accepted post-overflow row, including `event_bytes` in legacy sizing mode. Trace-dispatch recording reuses that estimate or measures JSON size only when enabled, to preserve its read-capacity guard. When v4 event writes are enabled, startup detects the `events_full` `byteSize` DEFAULT with `DESCRIBE TABLE` before queue consumers load. TypeScript writers use the DEFAULT only when confirmed; otherwise they preserve legacy estimates. Detection failures warn and continue. The mode stays fixed until restart. Native always omits `event_bytes` and requires the migration.
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
-- Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the
-  original and early-media TypeScript paths from identical raw S3 JSON through
-  the production OTEL queue and JSON writer into isolated ClickHouse tables,
-  including retained legacy writes in dual-write mode. Setup and scope:
-  `src/features/otel-ingestion/README.md`.
+- Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the original TypeScript, early-media TypeScript, and early-media Rust paths from identical raw S3 JSON through the production OTEL queue and their production writers into isolated ClickHouse tables, including retained legacy writes in dual-write mode. Setup and scope: `src/features/otel-ingestion/README.md`.
 - Native codec checks: `pnpm --filter worker run test:native-codec` selects
   `nativeCodec` suites. Build the addon first; the command requires ClickHouse
   whenever the live parity suite is present.
@@ -100,7 +84,7 @@
    `../packages/shared/src/server/redis/*` when needed.
 3. Implement/update processor in `src/queues/*`.
 4. Register/gate worker in `src/app.ts` (env flags, concurrency, limiter).
-5. Add/adjust tests in `src/__tests__/*` or `src/queues/__tests__/*`.
+5. Whether to add a test follows root [`AGENTS.md`](../AGENTS.md). Place a warranted test in `src/__tests__/*` or `src/queues/__tests__/*`.
 
 - If a queue is sharded, also update shard-aware resolution in
   `src/queues/workerManager.ts`,
@@ -141,6 +125,8 @@
 ## Package-Specific Rules
 
 - Keep tests independent; no ordering assumptions.
+- Before enabling `isolate: false`, make every file restore its timers, environment/global stubs, spies, listeners, mutable module state, and pending work in `afterAll`. Delete only its own database rows and Redis keys; close private clients while keeping reused singletons open. Module mocks need an explicit reset contract or file isolation.
+- Verify reused workers with at least two recorded shuffle seeds and one worker (`--sequence.shuffle.files --sequence.seed=<seed> --maxWorkers=1`). Order-dependent failures must stay red; fix the leak without retries or wider timeouts.
 - Avoid editing `dist/*` directly.
 - Coordinate shared changes with `../packages/shared`.
 - Changes to `src/features/blobstorage/` (export pipeline, enrichment logic,

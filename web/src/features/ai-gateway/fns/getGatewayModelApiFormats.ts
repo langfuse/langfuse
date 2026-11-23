@@ -54,6 +54,8 @@ export function getGatewayModelApiFormats(
       ],
     ];
   }
+  if (provider === "VERTEX")
+    return [apiFormatLabels["openai.chat-completions"]];
   if (provider !== "BEDROCK") return [...providerFormats[provider]];
   return getBedrockModelApiFormats(modelId).map(
     (apiFormat) => apiFormatLabels[apiFormat],

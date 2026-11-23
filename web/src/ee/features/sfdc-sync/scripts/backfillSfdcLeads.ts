@@ -131,9 +131,9 @@ import {
   toSfdcPlan,
 } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { getSfdcResolvedPlan } from "@/src/ee/features/sfdc-sync/server/planChangeSync";
+import { logger } from "@langfuse/shared/src/server";
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
 
 type Cli = {
   execute: boolean;

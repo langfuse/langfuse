@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import * as React from "react";
@@ -20,25 +20,13 @@ import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { type RouteGroup } from "@/src/components/layouts/routes";
-import {
-  ArrowUp10,
-  BadgeCheck,
-  ExternalLink,
-  Grid2X2,
-  HardDriveDownload,
-  Info,
-  Map,
-  Newspaper,
-  X,
-} from "@langfuse/icons";
+import { ExternalLink, Grid2X2 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { SiGithub } from "@langfuse/icons/si";
 import { VERSION } from "@/src/constants/VERSION";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
@@ -46,23 +34,29 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { Button } from "@/src/components/ui/button";
 import { isCloudPlan, planLabels, type Plan } from "@langfuse/shared";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { env } from "@/src/env.mjs";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
-import { assertUnreachable } from "@/src/utils/types";
 import { nextCompactPlanBadge } from "./compactPlanBadge";
-import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
+import {
+  SidebarNotifications,
+  getActiveSidebarNotifications,
+  type SidebarNotificationState,
+} from "@/src/components/nav/SidebarNotifications";
+import {
+  UserMenuItems,
+  type UserNavigationItem,
+} from "@/src/components/nav/UserMenuItems";
+import { VersionAttentionDot } from "@/src/components/nav/VersionAttentionDot";
+import { VersionMenuItems } from "@/src/components/nav/VersionMenuItems";
+import {
+  describeVersionState,
+  type SidebarVersionState,
+} from "@/src/components/nav/versionState";
+import { ControlledOrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/ControlledOrganizationDropdownMenu";
 import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
@@ -70,73 +64,10 @@ import {
 } from "@/src/components/layouts/app-shell-chrome";
 import { cn } from "@/src/utils/tailwind";
 
-const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
-
-type SelfHostedPlan = Extract<Plan, "oss" | `self-hosted:${string}`>;
-
-type SidebarVersionState =
-  | { deployment: "cloud" }
-  | {
-      deployment: "self-hosted";
-      plan: SelfHostedPlan;
-      release:
-        | { status: "current" }
-        | {
-            status: "update-available";
-            updateType: "major" | "minor" | "patch";
-            latestRelease: string;
-          };
-      migration: { status: "idle" } | { status: "in-progress"; phase: string };
-    };
-
-const selfHostedPlanLabels = {
-  oss: { short: "OSS", long: "Open source" },
-  "self-hosted:pro": {
-    short: "Pro",
-    long: planLabels["self-hosted:pro"],
-  },
-  "self-hosted:enterprise": {
-    short: "EE",
-    long: planLabels["self-hosted:enterprise"],
-  },
-  "self-hosted:gov": {
-    short: "Gov",
-    long: planLabels["self-hosted:gov"],
-  },
-} satisfies Record<SelfHostedPlan, { short: string; long: string }>;
-
-type UserNavigationItemBase = {
-  name: string;
-  content?: React.ReactNode;
-};
-
-type UserNavigationLeafItem =
-  | (UserNavigationItemBase & {
-      type: "action";
-      onClick: () => void;
-    })
-  | (UserNavigationItemBase & {
-      type: "link";
-      href: string;
-    });
-
-type UserNavigationItem =
-  | UserNavigationLeafItem
-  | (UserNavigationItemBase & {
-      type: "submenu";
-      subItems: UserNavigationLeafItem[];
-    });
-
 type SidebarUser = {
   name: string;
   email: string;
   avatar: string;
-};
-
-type SidebarNotificationState = {
-  dismissedIds: string[];
-  onDismiss: (id: string) => void;
-  onLinkClick: (id: string) => void;
 };
 
 type OrganizationDropdownOption = Extract<
@@ -182,7 +113,7 @@ type AppSidebarProps = {
   canCreateProjects: boolean;
 };
 
-export function AppSidebar({
+function AppSidebarRoot({
   navItems,
   secondaryNavItems,
   user,
@@ -201,15 +132,7 @@ export function AppSidebar({
   canCreateProjects,
 }: AppSidebarProps) {
   const activeNotifications = !v4UpgradeUiEnabled
-    ? SIDEBAR_NOTIFICATIONS.filter((notification) => {
-        if (notificationState.dismissedIds.includes(notification.id)) {
-          return false;
-        }
-        if (!notification.createdAt) return true;
-
-        const createdAt = new Date(notification.createdAt).getTime();
-        return Date.now() <= createdAt + (notification.ttlMs ?? TWO_WEEKS_MS);
-      })
+    ? getActiveSidebarNotifications(notificationState.dismissedIds)
     : [];
 
   return (
@@ -246,7 +169,7 @@ export function AppSidebar({
                   <LangfuseIcon size={24} />
                 )}
               </Link>
-              <SidebarOrganizationSwitcher
+              <ClassicSidebarOrganizationSwitcher
                 organization={organization}
                 organizations={organizations}
                 canCreateOrganizations={canCreateOrganizations}
@@ -299,6 +222,10 @@ export function AppSidebar({
     </Sidebar>
   );
 }
+
+export const AppSidebar = Object.assign(AppSidebarRoot, {
+  OrganizationSwitcher: SidebarOrganizationSwitcher,
+});
 
 /** Plans whose badge has a shorter form for when the full one would truncate the org name. */
 const SHORT_PLAN_LABELS: Partial<Record<Plan, string>> = {
@@ -362,14 +289,34 @@ function useCompactPlanBadge(hasShortLabel: boolean, name: string) {
   return { nameRef, badgeRef, chevronRef, compact };
 }
 
+function ClassicSidebarOrganizationSwitcher(
+  props: Pick<
+    React.ComponentProps<typeof SidebarOrganizationSwitcher>,
+    "organization" | "organizations" | "canCreateOrganizations"
+  >,
+) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <SidebarOrganizationSwitcher
+      {...props}
+      open={open}
+      onOpenChange={setOpen}
+    />
+  );
+}
+
 function SidebarOrganizationSwitcher({
   organization,
   organizations,
   canCreateOrganizations,
+  open,
+  onOpenChange,
 }: {
   organization: { id: string; name: string };
   organizations: OrganizationOption[] | null;
   canCreateOrganizations: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const { getOrgPath } = useOrgProjectSwitchPaths();
   const plan = organizations?.find((org) => org.id === organization.id)?.plan;
@@ -385,13 +332,15 @@ function SidebarOrganizationSwitcher({
 
   return (
     <div className="flex min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-      <OrganizationDropdownMenu
+      <ControlledOrganizationDropdownMenu
         {...(organizations
           ? { state: "loaded", organizations }
           : { state: "loading" })}
         canCreateOrganizations={canCreateOrganizations}
         getOrgPath={getOrgPath}
         currentOrganizationId={organization.id}
+        open={open}
+        onOpenChange={onOpenChange}
       >
         {({ getTriggerProps }) => (
           <button
@@ -424,7 +373,7 @@ function SidebarOrganizationSwitcher({
             </span>
           </button>
         )}
-      </OrganizationDropdownMenu>
+      </ControlledOrganizationDropdownMenu>
     </div>
   );
 }
@@ -511,98 +460,6 @@ function MobileNavSwitcher({
   );
 }
 
-function SidebarNotifications({
-  state,
-  activeNotifications,
-}: {
-  state: SidebarNotificationState;
-  activeNotifications: SidebarNotification[];
-}) {
-  const visibleNotifications = activeNotifications.slice(0, 3);
-  const frontNotification = visibleNotifications[0];
-  const backCount = visibleNotifications.length - 1;
-  const peekOffset = 8;
-  const peekScaleStep = 0.05;
-
-  return (
-    <div
-      className="group-data-[collapsible=icon]:hidden"
-      style={{ paddingBottom: backCount * peekOffset + 2 }}
-    >
-      <div className="relative">
-        {Array.from({ length: backCount }).map((_, index) => {
-          const stackIndex = index + 1;
-          return (
-            <Card
-              key={`stack-${stackIndex}`}
-              aria-hidden
-              className="bg-card pointer-events-none absolute inset-0 rounded-md shadow-none"
-              style={{
-                transform: `translateY(${stackIndex * peekOffset}px) scaleX(${
-                  1 - stackIndex * peekScaleStep
-                })`,
-                transformOrigin: "top center",
-                zIndex: visibleNotifications.length - stackIndex,
-              }}
-            />
-          );
-        })}
-        <Card
-          key={frontNotification.id}
-          className="bg-card relative max-h-60 overflow-hidden rounded-md shadow-none"
-          style={{ zIndex: visibleNotifications.length }}
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute top-2.5 right-1.5 h-5 w-5 p-0"
-            onClick={() => state.onDismiss(frontNotification.id)}
-            title="Dismiss"
-          >
-            <X size="base" color="default" />
-          </Button>
-          <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
-            <CardTitle className="text-sm">{frontNotification.title}</CardTitle>
-            <CardDescription className="mt-1">
-              {frontNotification.description}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-3 pt-1.5 pb-2.5">
-            {frontNotification.link &&
-              (frontNotification.linkImage ? (
-                <Link
-                  href={frontNotification.link}
-                  target="_blank"
-                  onClick={() => state.onLinkClick(frontNotification.id)}
-                >
-                  <img
-                    alt={frontNotification.linkImage.alt}
-                    src={frontNotification.linkImage.src}
-                  />
-                </Link>
-              ) : (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="w-full"
-                  asChild
-                >
-                  <Link
-                    href={frontNotification.link}
-                    target="_blank"
-                    onClick={() => state.onLinkClick(frontNotification.id)}
-                  >
-                    {frontNotification.linkTitle ?? "Learn more"} &rarr;
-                  </Link>
-                </Button>
-              ))}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
 function NavUser({
   user,
   items,
@@ -616,41 +473,8 @@ function NavUser({
   versionState: SidebarVersionState;
   version: string;
 }) {
-  const versionDetails = getVersionDetails(versionState, version);
+  const versionDetails = describeVersionState(versionState, version);
   const versionStatusDot = getVersionStatusDot(versionDetails);
-
-  const renderMenuItem = (item: UserNavigationItem) => {
-    if (item.type === "submenu") {
-      return (
-        <DropdownMenuSub key={item.name}>
-          <DropdownMenuSubTrigger>
-            {item.content ?? item.name}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {item.subItems.map(renderMenuItem)}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-      );
-    }
-
-    if (item.type === "link") {
-      return (
-        <DropdownMenuItem key={item.name} asChild>
-          <Link href={item.href}>{item.content ?? item.name}</Link>
-        </DropdownMenuItem>
-      );
-    }
-
-    if (item.type === "action") {
-      return (
-        <DropdownMenuItem key={item.name} onClick={item.onClick}>
-          {item.content ?? item.name}
-        </DropdownMenuItem>
-      );
-    }
-
-    return assertUnreachable(item);
-  };
 
   return (
     <SidebarMenu>
@@ -673,10 +497,12 @@ function NavUser({
                   {user.name}
                 </span>
                 <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
-                  <span className="truncate" title={versionDetails.text}>
-                    {versionDetails.text}
+                  <span className="truncate" title={versionDetails.versionText}>
+                    {versionDetails.versionText}
                   </span>
-                  {versionStatusDot && <AttentionDot {...versionStatusDot} />}
+                  {versionStatusDot && (
+                    <VersionAttentionDot {...versionStatusDot} />
+                  )}
                 </span>
               </div>
             </SidebarMenuButton>
@@ -710,8 +536,10 @@ function NavUser({
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <span className="flex items-center gap-1.5">
-                  {versionDetails.text}
-                  {versionStatusDot && <AttentionDot {...versionStatusDot} />}
+                  {versionDetails.versionText}
+                  {versionStatusDot && (
+                    <VersionAttentionDot {...versionStatusDot} />
+                  )}
                 </span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
@@ -722,7 +550,9 @@ function NavUser({
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>{items.map(renderMenuItem)}</DropdownMenuGroup>
+            <DropdownMenuGroup>
+              <UserMenuItems items={items} />
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
@@ -766,65 +596,9 @@ const DemoBadge = () => {
   );
 };
 
-const attentionDotTones = {
-  major: "bg-dark-red",
-  minor: "bg-category-amber",
-  patch: "bg-muted-foreground",
-  migration: "bg-dark-blue",
-} as const;
-
-const AttentionDot = ({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: keyof typeof attentionDotTones;
-}) => (
-  <span
-    role="img"
-    aria-label={label}
-    title={label}
-    className={cn("size-1.5 shrink-0 rounded-full", attentionDotTones[tone])}
-  />
-);
-
-type VersionDetails = {
-  text: string;
-  selfHostedPlanLabel: { short: string; long: string } | null;
-  backgroundMigrationStatus: string | null;
-  update: {
-    updateType: "major" | "minor" | "patch";
-    latestRelease: string;
-  } | null;
-};
-
-const getVersionDetails = (
-  state: SidebarVersionState,
-  version: string,
-): VersionDetails => {
-  const selfHostedPlanLabel =
-    state.deployment === "self-hosted"
-      ? selfHostedPlanLabels[state.plan]
-      : null;
-  return {
-    text: `${version}${selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""}`,
-    selfHostedPlanLabel,
-    backgroundMigrationStatus:
-      state.deployment === "self-hosted" &&
-      state.migration.status === "in-progress"
-        ? state.migration.phase
-        : null,
-    update:
-      state.deployment === "self-hosted" &&
-      state.release.status === "update-available"
-        ? state.release
-        : null,
-  };
-};
-
 const getVersionStatusDot = (
-  details: VersionDetails,
-): React.ComponentProps<typeof AttentionDot> | null => {
+  details: ReturnType<typeof describeVersionState>,
+): React.ComponentProps<typeof VersionAttentionDot> | null => {
   const { update, backgroundMigrationStatus } = details;
   if (backgroundMigrationStatus) {
     return { label: "Background migration running", tone: "migration" };
@@ -836,112 +610,4 @@ const getVersionStatusDot = (
     };
   }
   return null;
-};
-
-const VersionMenuItems = ({
-  state,
-  details,
-}: {
-  state: SidebarVersionState;
-  details: VersionDetails;
-}) => {
-  const { selfHostedPlanLabel, backgroundMigrationStatus, update } = details;
-
-  return (
-    <>
-      {update ? (
-        <>
-          <DropdownMenuLabel>
-            New {update.updateType} version: {update.latestRelease}
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-        </>
-      ) : state.deployment === "self-hosted" ? (
-        <>
-          <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-        </>
-      ) : null}
-      {selfHostedPlanLabel && (
-        <>
-          <DropdownMenuLabel className="flex items-center font-normal">
-            <BadgeCheck size="base" __rawClassName="mr-2" />
-            {selfHostedPlanLabel.long}
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-        </>
-      )}
-      <DropdownMenuItem asChild>
-        <Link
-          href="https://github.com/langfuse/langfuse/releases"
-          target="_blank"
-        >
-          <SiGithub size="base" color="default" __rawClassName="mr-2" />
-          Releases
-        </Link>
-      </DropdownMenuItem>
-      {state.deployment === "self-hosted" && (
-        <DropdownMenuItem asChild>
-          <Link href="/background-migrations">
-            <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
-            Background migrations
-            {backgroundMigrationStatus && (
-              <span className="ml-2 inline-flex">
-                <AttentionDot
-                  label="Background migration running"
-                  tone="migration"
-                />
-              </span>
-            )}
-          </Link>
-        </DropdownMenuItem>
-      )}
-      <DropdownMenuItem asChild>
-        <Link href="https://langfuse.com/changelog" target="_blank">
-          <Newspaper size="base" color="default" __rawClassName="mr-2" />
-          Changelog
-        </Link>
-      </DropdownMenuItem>
-      <DropdownMenuItem asChild>
-        <Link href="https://langfuse.com/roadmap" target="_blank">
-          <Map size="base" color="default" __rawClassName="mr-2" />
-          Roadmap
-        </Link>
-      </DropdownMenuItem>
-      {state.deployment === "self-hosted" && (
-        <DropdownMenuItem asChild>
-          <Link href="https://langfuse.com/pricing-self-host" target="_blank">
-            <Info size="base" color="default" __rawClassName="mr-2" />
-            Compare versions
-          </Link>
-        </DropdownMenuItem>
-      )}
-      {update && (
-        <>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link
-              href="https://langfuse.com/docs/deployment/self-host#update"
-              target="_blank"
-            >
-              <HardDriveDownload
-                size="base"
-                color="default"
-                __rawClassName="mr-2"
-              />
-              Update
-              {!backgroundMigrationStatus && (
-                <span className="ml-2 inline-flex">
-                  <AttentionDot
-                    label="Update available"
-                    tone={update.updateType}
-                  />
-                </span>
-              )}
-            </Link>
-          </DropdownMenuItem>
-        </>
-      )}
-    </>
-  );
 };

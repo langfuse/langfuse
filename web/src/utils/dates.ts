@@ -104,8 +104,11 @@ export const getTimezoneDetails = () => {
 
 // Compact relative time: "just now", "3m ago", "5h ago", "15d ago",
 // "2mo ago", "1y ago" — largest sensible unit, no live refresh implied.
-export const formatCompactRelativeTime = (timestamp: Date): string => {
-  const diffInSeconds = Math.max(0, (Date.now() - timestamp.getTime()) / 1000);
+export const formatCompactRelativeTime = (
+  timestamp: Date,
+  now: number = Date.now(),
+): string => {
+  const diffInSeconds = Math.max(0, (now - timestamp.getTime()) / 1000);
   if (diffInSeconds < 60) return "just now";
   const minutes = diffInSeconds / 60;
   if (minutes < 60) return `${Math.floor(minutes)}m ago`;

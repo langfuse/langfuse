@@ -1,6 +1,5 @@
 /** @jest-environment node */
 
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { TableViewPresetTableName } from "@langfuse/shared";
@@ -8,47 +7,24 @@ import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { randomUUID } from "node:crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const prepare = async (projectRole: "ADMIN" | "VIEWER" = "ADMIN") => {
   const { project, org } = await createOrgProjectAndApiKey();
   const userId = `table-view-user-${randomUUID()}`;
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: userId,
-      canCreateOrganizations: true,
-      name: "Table View Test User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  };
+  const session: Session = createSession({
+    user: { id: userId, name: "Table View Test User" },
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        aiTelemetryEnabled: true,
+        projects: [{ id: project.id, role: projectRole, name: project.name }],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return {

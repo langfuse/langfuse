@@ -2,6 +2,7 @@ import { useContext, useMemo, useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   type Facet,
   type UseTopicTraces,
@@ -14,17 +15,26 @@ import {
   selectTopicTraceFilters,
 } from "./topic-trace-filters";
 import { TopicMobileList } from "./TopicMobileList";
+import { TopicsEmptyActions } from "./TopicsEmptyActions";
+import { type TopicsActions } from "./prepare-topics-actions";
 import { TopicMobileTraceList } from "./TopicMobileTraceList";
 import { MobileTopicVisualization } from "./MobileTopicVisualization";
 import { TopicsTraceToolbar } from "./TopicsTraceToolbar";
 import { prepareMobileTopics } from "./prepare-mobile-topics";
 import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
 import { FacetTraceSource } from "./useFacetTopicTraces";
+import { type MobileTopicsVisualization } from "./TopicsResultsViewSelect";
+
+const VISUALIZATIONS = [
+  { value: "treemap", label: "Treemap" },
+  { value: "map", label: "Scatter" },
+] as const;
 
 type MobileTopicsViewProps = {
   projectId: string;
   facet: Facet;
   view: ComponentProps<typeof MobileTopicVisualization>["view"];
+  onViewChange: (view: MobileTopicsVisualization) => void;
   mapResult: ComponentProps<typeof MobileTopicVisualization>["mapResult"];
   filters: FilterState;
   searchQuery: string | null;
@@ -33,11 +43,11 @@ type MobileTopicsViewProps = {
   selectedTraceId: string | null;
   onSelectTrace: (traceId: string | null) => void;
   onOpenTrace: (traceId: string) => void;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   isV4: boolean;
   useTraces: UseTopicTraces;
   showUnassigned: boolean;
+  /** Offered under an empty topic list. */
+  mapActions: TopicsActions;
 };
 
 /** Local navigation only; query data and persisted filters stay with the caller. */
@@ -45,6 +55,7 @@ export function MobileTopicsView({
   projectId,
   facet,
   view,
+  onViewChange,
   mapResult,
   filters,
   searchQuery,
@@ -53,11 +64,10 @@ export function MobileTopicsView({
   selectedTraceId,
   onSelectTrace,
   onOpenTrace,
-  onGenerateTopics,
-  canGenerateTopics,
   isV4,
   useTraces,
   showUnassigned,
+  mapActions,
 }: MobileTopicsViewProps) {
   const [navigation, setNavigation] = useState({
     view,
@@ -174,11 +184,11 @@ export function MobileTopicsView({
             onSelectTopic={selectTopic}
             onShowAllTraces={showAllTraces}
           />
-          {facet.topics.length === 0 && canGenerateTopics && (
+          {facet.topics.length === 0 ? (
             <div className="shrink-0 border-t p-3">
-              <Button text="Generate topics" onClick={onGenerateTopics} />
+              <TopicsEmptyActions actions={mapActions} />
             </div>
-          )}
+          ) : null}
         </Tabs.Content>
         <Tabs.Content value="traces" layout="fill">
           <section
@@ -241,6 +251,18 @@ export function MobileTopicsView({
           </section>
         </Tabs.Content>
         <Tabs.Content value="visualization" layout="fill">
+          <div className="flex shrink-0 items-center border-b p-2">
+            <div className="w-40">
+              <SelectInput
+                aria-label="Visualization"
+                placeholder="Visualization"
+                value={view}
+                onValueChange={onViewChange}
+                options={[...VISUALIZATIONS]}
+                noCapture
+              />
+            </div>
+          </div>
           <MobileTopicVisualization
             facet={facet}
             treemapTopics={topics}

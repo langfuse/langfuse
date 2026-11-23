@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { api } from "@/src/utils/api";
+import { api, type RouterInputs } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
@@ -24,7 +24,19 @@ import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
-import { type ScoreConfigDataType } from "@langfuse/shared";
+import { type OrderByState, type ScoreConfigDataType } from "@langfuse/shared";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+
+type QueueOrderBy = RouterInputs["annotationQueues"]["all"]["orderBy"];
+
+/** The Name column keeps the id `key`, which the server sorts as `name`. */
+function toQueueOrderBy(orderBy: OrderByState): QueueOrderBy {
+  if (!orderBy) return null;
+  if (orderBy.column === "key") return { column: "name", order: orderBy.order };
+  if (orderBy.column === "createdAt")
+    return { column: "createdAt", order: orderBy.order };
+  return null;
+}
 
 type RowData = {
   key: {
@@ -79,10 +91,16 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const [orderByState, setOrderByState] = useOrderByState({
+    column: "createdAt",
+    order: "DESC",
+  });
+
   const queues = api.annotationQueues.all.useQuery({
     projectId: projectId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    orderBy: toQueueOrderBy(orderByState),
   });
 
   const hasAccess = useHasProjectAccess({
@@ -94,6 +112,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     createLinkTableColumn<RowData, RowData["key"]>({
       accessorKey: "key",
       header: "Name",
+      enableSorting: true,
       size: 150,
       isPinnedLeft: true,
       isFixedPosition: true,
@@ -154,6 +173,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       header: "Created",
       id: "createdAt",
       enableHiding: true,
+      enableSorting: true,
       size: 150,
     },
     {
@@ -266,6 +286,8 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         onColumnVisibilityChange={setColumnVisibility}
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
+        orderBy={orderByState}
+        setOrderBy={setOrderByState}
         rowHeight={rowHeight}
         customRowHeightPx={rowHeights.activeHeightPx}
         onCustomRowHeightChange={rowHeights.setCustomPx}

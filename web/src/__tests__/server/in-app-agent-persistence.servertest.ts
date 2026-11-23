@@ -59,6 +59,7 @@ import {
 import { finishClaimedRun } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { watchConversationFrames } from "@/src/features/in-app-agent/server/watch";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
@@ -96,40 +97,25 @@ describe("in-app agent persistence", () => {
       },
     });
 
-    const session: Session = {
-      expires: "1",
+    const session: Session = createSession({
       user: {
         id: userId,
         name: "Agent User",
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: setup.orgId,
-            role: "OWNER",
-            plan,
-            cloudConfig: undefined,
-            name: "Test Organization",
-            metadata: {},
-            aiFeaturesEnabled: true,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: setup.projectId,
-                role: "ADMIN",
-                name: "Test Project",
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags({ templateFlag: false }),
       },
-      environment: {} as any,
-    };
+      organizations: [
+        {
+          id: setup.orgId,
+          role: "OWNER",
+          plan,
+          aiFeaturesEnabled: true,
+          aiTelemetryEnabled: true,
+          projects: [
+            { id: setup.projectId, role: "ADMIN", retentionDays: null },
+          ],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
 

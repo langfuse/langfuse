@@ -45,8 +45,10 @@ programmatic calls from the dx seed chain.
 | `deep-chain`        | one trace whose observations form a single deep parent chain of sequential generations (child starts after parent ends; depth = observation count) — the mis-parented-instrumentation shape that collapses tree/timeline layouts at extreme depth                                                                                                                        | `--observations`                                                                                                                                                                                  |
 | `long-session`      | one session with many traces for session-detail and virtualization work; creates the Postgres `trace_sessions` row the session page requires                                                                                                                                                                                                                             | `--traces`, `--observations-per-trace`, `--payload-bytes`, `--minutes`, `--session-id`, `--v4`                                                                                                    |
 | `many-traces`       | trace-list and filter performance via `numbers()` bulk SQL; parent/score/prompt/session links all resolve                                                                                                                                                                                                                                                                | `--count`, `--days`, `--observations-per-trace`, `--scores-per-trace`, `--rich-payloads`                                                                                                          |
+| `filter-variety`    | readable root names with common and rare workflows, real v4 roots and children, varied observation types, environments, tags, levels, models, users, sessions, and metadata                                                                                                                                                                                              | `--traces`, `--names` (1–240), `--v4` (default true)                                                                                                                                              |
 | `outlier-traffic`   | diurnal base traffic over the past N days with deterministic cost/latency/token outliers and hour-long latency incidents — built for the outlier chart strip above the trace table                                                                                                                                                                                       | `--days`, `--traces-per-day`, `--incidents`                                                                                                                                                       |
 | `scored-traces`     | standalone traces with mixed current/legacy Python and JavaScript SDK attribution, each carrying numeric + categorical scores whose names contain SPACES (e.g. "Rouge Score") at observation and trace level, plus dual-level score names ("confidence", "verdict") present at both levels on the same trace                                                             | `--traces`                                                                                                                                                                                        |
+| `score-distributions` | synthetic numeric scores for the distribution chart: 0–1, a 0.91–0.94 cluster, negatives, a near-zero cluster, and a span across zero, on shared traces so two series can be compared. Prints Scores analytics links | — |
 | `session-shapes`    | diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION, a MIXED session, and a MEDIA session whose messages carry langfuseMedia references                                                                                       | `--shape chat\|agent\|mixed\|media\|all`, `--turns`                                                                                                                                               |
 | `annotation-queue`  | two human-annotation queues for the annotate UI: a "core types" queue with one of every score-field render path (categorical toggle/combobox, boolean, ranged/decimal/unranged numeric, text) over fresh trace items, and an "edge cases" queue adding archived/stale/partial scores, comments, and observation/session/deleted/completed items                          | `--core-items`, `--v4` (default true)                                                                                                                                                             |
 | `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog; `--usage-states` adds root/child inferred, empty, zero, and error usage/cost fixtures              | `--usage-states`                                                                                                                                                                                  |
@@ -59,6 +61,8 @@ programmatic calls from the dx seed chain.
 Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic
 counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
+
+Use `filter-variety --traces 1200 --names 240` for filter/search work on both Traces and Observations. Every requested name appears on a real root observation; repeated workflows produce varied counts. Generations link to existing project prompts when available. A fresh `--id-prefix` adds an independent fixture.
 
 For queue setup testing, use `annotation-queue --setup-demo --core-items 4`.
 It seeds Answer quality and Safety review queues with different, nonalphabetical
@@ -153,6 +157,12 @@ The default seeds discovery and held-out assignment traces; `evaluation` adds va
 
 Use `--batch discovery`, summarize those traces, then update topics with **Small sample mode**. Process `--batch assignment` after the map is published to check assignment to existing topics. These processing steps require configured models. The evaluation batch also needs small sample mode for facets with fewer than the normal minimum of applicable summaries. Use `pnpm run seed -- list` for flags.
 
+```bash
+pnpm run seed -- topics-map
+```
+
+`topics-map` skips the models: it writes summaries, two rules (an unfiltered one and a long-named rule whose tag filter matches its 48 traces, both named `Seed: …` so existing rules are never overwritten) and completed Intent and Issues maps with 2D coordinates, so the treemap, list and map views render right away. Topic sizes range from 34 traces down to 2, and the map includes long topic names, outliers and four traces awaiting a map. The project still needs Topics enabled (`LANGFUSE_TOPICS_ENABLED`, `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` and the Topics feature flag for the user).
+
 ## The contract (additive-only)
 
 Scenario names, flag names, JSON summary keys, and exit-code semantics are a
@@ -195,6 +205,7 @@ the wall clock** — otherwise re-runs silently duplicate rows and
 
 - time anchors come from `utcDayStartMs()` (UTC midnight, computed in TS —
   ClickHouse's `today()` is server-timezone)
+- the bulk SQL may end at seed time (`endSeconds`, used by `many-traces`) only by compressing the anchor day's rows into midnight..now, with the anchor at midnight in the ClickHouse server timezone (`serverTimezone()`, not UTC): each row's server-local date stays fixed, so `toDate(...)` keys survive same-day re-runs
 - per-row variation comes from the stateless `jitter(seed, index, max)`
   (scenarios) or salted `xxHash32(number)` columns (bulk SQL); wrap hash
   inputs in `toUInt64` — xxHash32 hashes the binary representation, and a
@@ -237,7 +248,8 @@ cost.
 - `scenarios/` — one file per scenario plus `rng.ts` (Rng/jitter/anchor),
   `payload.ts`, `event-mirror.ts` (v3→v4 mapping), `verify.ts` (readbacks)
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing dx
-  seed path (the bulk builders in `utils/clickhouse-builder.ts` are shared)
+  seed path (the bulk builders in `utils/clickhouse-builder.ts` are shared;
+  `seed-clickhouse.ts` also runs the `gateway-budgets` scenario)
 
 ## What's next (deliberately not built yet)
 

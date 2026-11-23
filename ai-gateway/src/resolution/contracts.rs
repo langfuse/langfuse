@@ -1,4 +1,4 @@
-use super::{ResolutionError, bedrock, valid_token};
+use super::{ResolutionError, bedrock, valid_token, vertex};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{
@@ -55,6 +55,7 @@ pub enum Provider {
     Vercel,
     #[serde(rename = "google_ai_studio")]
     GoogleAiStudio,
+    Vertex,
 }
 
 impl Provider {
@@ -69,13 +70,15 @@ impl Provider {
             Self::Xai => "xai",
             Self::Vercel => "vercel",
             Self::GoogleAiStudio => "google_ai_studio",
+            Self::Vertex => "vertex",
         }
     }
 
     /// Vercel serves every API format. `OpenRouter` and Azure serve every format
     /// but Decisions, each under its own path, and Bedrock neither Decisions nor
     /// Embeddings. xAI serves only the `OpenAI` Responses and Chat Completions formats,
-    /// and Google AI Studio only Chat Completions and Embeddings.
+    /// Google AI Studio only Chat Completions and Embeddings, and Vertex AI only its
+    /// OpenAI-compatible Chat Completions endpoint.
     fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
@@ -93,13 +96,15 @@ impl Provider {
                 api_format,
                 ApiFormat::OpenAiChatCompletions | ApiFormat::OpenAiEmbeddings
             ),
+            Self::Vertex => api_format == ApiFormat::OpenAiChatCompletions,
         }
     }
 
     /// The credential scheme follows the API format, so Azure and Bedrock take both.
-    /// `OpenRouter` and Vercel take a Bearer key on every format, including Anthropic Messages.
+    /// `OpenRouter` and Vercel take a Bearer key on every format, including Anthropic Messages,
+    /// and Vertex AI a Google OAuth access token.
     fn accepts(self, api_format: ApiFormat, credential: ProviderCredential<'_>) -> bool {
-        if matches!(self, Self::OpenRouter | Self::Vercel) {
+        if matches!(self, Self::OpenRouter | Self::Vercel | Self::Vertex) {
             return matches!(credential, ProviderCredential::Bearer(_));
         }
         matches!(
@@ -109,15 +114,16 @@ impl Provider {
         )
     }
 
-    // OpenAI and Anthropic connections may point at a compatible proxy, and Azure
-    // at the customer's resource, which Web validated on save; the transport's
+    // OpenAI and Anthropic connections may point at a compatible proxy, OpenRouter
+    // connections at another OpenRouter endpoint such as its EU one, and Azure at
+    // the customer's resource, which Web validated on save; the transport's
     // outbound policy still decides whether the destination is reachable. Azure
-    // serves each format family under its own path. Bedrock only ever targets its
-    // regional endpoints, and OpenRouter, xAI, Vercel and Google AI Studio their
-    // single hosted API.
+    // serves each format family under its own path. Bedrock and Vertex AI only
+    // ever target their regional endpoints, and xAI, Vercel and Google AI Studio
+    // their single hosted API.
     fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
         match self {
-            Self::OpenAi | Self::Anthropic => valid_custom_base_url(base_url),
+            Self::OpenAi | Self::Anthropic | Self::OpenRouter => valid_custom_base_url(base_url),
             Self::Azure => {
                 let path = match api_format {
                     ApiFormat::AnthropicMessages => AZURE_ANTHROPIC_PATH,
@@ -129,10 +135,10 @@ impl Provider {
                 valid_custom_base_url(base_url) && base_url.ends_with(path)
             }
             Self::Bedrock => bedrock::allows_runtime_base_url(api_format, base_url),
-            Self::OpenRouter => base_url == OPENROUTER_BASE_URL,
             Self::Xai => base_url == XAI_BASE_URL,
             Self::Vercel => base_url == VERCEL_BASE_URL,
             Self::GoogleAiStudio => base_url == GOOGLE_AI_STUDIO_BASE_URL,
+            Self::Vertex => vertex::allows_openai_compatible_base_url(base_url),
         }
     }
 }
@@ -265,18 +271,19 @@ impl ProviderConnection {
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
-    /// Bedrock's regional hosts and the official origins are fixed, so only a
+    /// Bedrock's and Vertex AI's regional hosts and the official origins are fixed, so only a
     /// user-entered base URL goes through the outbound policy.
     pub fn has_custom_base_url(&self) -> bool {
         let official = match self.provider {
             Provider::OpenAi => OPENAI_BASE_URL,
             Provider::Anthropic => ANTHROPIC_BASE_URL,
+            Provider::OpenRouter => OPENROUTER_BASE_URL,
             Provider::Azure => return true,
             Provider::Bedrock
-            | Provider::OpenRouter
             | Provider::Xai
             | Provider::Vercel
-            | Provider::GoogleAiStudio => return false,
+            | Provider::GoogleAiStudio
+            | Provider::Vertex => return false,
         };
         self.base_url.trim_end_matches('/') != official
     }
@@ -441,6 +448,41 @@ struct ResolutionResponse {
     ingestion_mode: IngestionMode,
     /// Absent only in [`IngestionMode::None`]; nothing is delivered without it.
     ingestion: Option<IngestionGrant>,
+    /// Empty when the key has no limits or its spend is not recorded.
+    #[serde(default)]
+    spend_limits: Vec<SpendLimit>,
+    /// The provider model's prices; absent when the key has no limits or the
+    /// model has no prices.
+    #[serde(default)]
+    pricing: Option<ModelPricing>,
+}
+
+fn default_alert_thresholds() -> Vec<u8> {
+    vec![100]
+}
+
+/// A cap on what a scope spends per UTC calendar window.
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct SpendLimit {
+    pub id: String,
+    #[serde(deserialize_with = "string_enum")]
+    pub scope: crate::spend::SpendLimitScope,
+    #[serde(deserialize_with = "string_enum")]
+    pub interval: crate::spend::SpendLimitInterval,
+    pub limit_usd: f64,
+    /// When the gateway started counting, in Unix milliseconds. Part of the
+    /// counter key, so a new counting start begins a new counter.
+    pub counting_started_at: i64,
+    /// Usage percentages (e.g. 85, 95, 100) that trigger an email alert.
+    /// Defaults to `[100]` for Web versions that predate warning thresholds.
+    #[serde(default = "default_alert_thresholds")]
+    pub alert_thresholds: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct ModelPricing {
+    pub model_id: String,
+    pub tiers: Vec<crate::spend::PricingTierWithPrices>,
 }
 
 /// A validated v1 execution. Construction is restricted to successful resolution.
@@ -469,6 +511,12 @@ impl ResolvedRequestContext {
     }
     pub fn ingestion(&self) -> Option<&IngestionGrant> {
         self.0.ingestion.as_ref()
+    }
+    pub(crate) fn spend_limits(&self) -> &[SpendLimit] {
+        &self.0.spend_limits
+    }
+    pub(crate) fn pricing(&self) -> Option<&ModelPricing> {
+        self.0.pricing.as_ref()
     }
     /// The project and grant telemetry is delivered with. Resolution guarantees both
     /// in every mode but [`IngestionMode::None`], which never delivers.

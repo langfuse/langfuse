@@ -59,6 +59,7 @@ vi.mock("../../env", async (importOriginal) => {
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: 100,
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: 5000,
       LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: 3,
+      LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING: "true",
     },
   };
 });
@@ -228,6 +229,31 @@ describe("ClickhouseWriter", () => {
       }),
     );
     expect(clickhouseClientMock.exec).not.toHaveBeenCalled();
+  });
+
+  it("sends best-effort datetime parsing with JSON inserts unless it is switched off", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockResolvedValue();
+    const flag = env as {
+      LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING: string;
+    };
+
+    writer.addToQueue(TableName.Traces, { id: "1", project_id: "p" } as any);
+    await writer["flushAll"](true);
+    flag.LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING = "false";
+    try {
+      writer.addToQueue(TableName.Traces, { id: "2", project_id: "p" } as any);
+      await writer["flushAll"](true);
+    } finally {
+      flag.LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING = "true";
+    }
+
+    const [enabled, disabled] = mockInsert.mock.calls.map(
+      ([params]) => params.clickhouse_settings,
+    );
+    expect(enabled?.date_time_input_format).toBe("best_effort");
+    expect(disabled).not.toHaveProperty("date_time_input_format");
   });
 
   it("encodes a selected Native batch once and reuses its bytes on a transport retry", async () => {

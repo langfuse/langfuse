@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { z as zodV3 } from "zod";
 import type { Session } from "next-auth";
 
+import { GATEWAY_BUDGET_STATUSES } from "@/src/features/ai-gateway/constants/gatewayBudgetStatuses";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
@@ -11,7 +12,6 @@ import {
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedOrganizationProcedureWithoutTracing,
-  type AuthedSession,
 } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
@@ -20,9 +20,10 @@ import {
   GatewayConnectionStatus,
   GatewayIngestionMode,
   GatewayProvider,
+  GatewaySpendLimitInterval,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
-import { orderBy } from "@langfuse/shared";
+import { InvalidRequestError, orderBy } from "@langfuse/shared";
 import { query as analyticsQuery } from "@langfuse/shared/query";
 
 import {
@@ -38,10 +39,29 @@ import {
 import { GatewayAnalyticsLabelsRepository } from "./analytics/gatewayAnalyticsLabelsRepository";
 import { GatewayAnalyticsService } from "./analytics/gatewayAnalyticsService";
 import { GatewayConfigService } from "./config/gatewayConfigService";
-import { getKeyOwnerFilter, type GatewayUsageScope } from "./gatewayUsageScope";
+import { getKeyOwnerFilter } from "./gatewayUsageScope";
+import {
+  getGatewayUsageScope,
+  requireGatewayAdmin,
+  requireGatewayInvoke,
+} from "./gatewayAccess";
+import {
+  GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+  type GatewaySpendBudgetAlertThreshold,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
+import {
+  GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS,
+  GATEWAY_SPEND_BUDGET_MAX_SUBJECTS,
+  GATEWAY_SPEND_BUDGET_MAX_USD,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
+import { GatewaySpendLimitService } from "./spendLimits/gatewaySpendLimitService";
+import { GatewaySpendLimitRepository } from "./spendLimits/gatewaySpendLimitRepository";
 import { GatewayTeamService } from "./team/gatewayTeamService";
-import { GatewayMetadataSchema } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
+import {
+  GatewayMetadataSchema,
+  GatewayProviderConfigSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
@@ -71,38 +91,68 @@ const allowedModelsSchema = z
   .nullable();
 const customModelSchema = z.string().trim().min(1).max(500);
 
-function requireGatewayAdmin(params: { session: Session; orgId: string }) {
-  requireGatewayEnabledForOrganization(params.orgId);
-  throwIfNoOrganizationAccess({
-    session: params.session,
-    organizationId: params.orgId,
-    scope: "gateway:manage",
-  });
-}
+const gatewaySpendLimitAlertThresholdInput = z
+  .number()
+  .int()
+  .refine(
+    (value): value is GatewaySpendBudgetAlertThreshold =>
+      (GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS as readonly number[]).includes(
+        value,
+      ),
+    "Unsupported alert threshold",
+  );
 
-/** Admits gateway key owners. */
-function requireGatewayInvoke(params: { session: Session; orgId: string }) {
-  requireGatewayEnabledForOrganization(params.orgId);
-  throwIfNoOrganizationAccess({
-    session: params.session,
-    organizationId: params.orgId,
-    scope: "gateway:invoke",
-  });
-}
+/** A key's or user's single spend limit. */
+const gatewaySpendLimitInput = z.object({
+  interval: z.enum(GatewaySpendLimitInterval),
+  limitUsd: z.number().positive().max(GATEWAY_SPEND_BUDGET_MAX_USD),
+  // Omitted by older clients: updates preserve stored thresholds, creates default to [100].
+  alertThresholds: z
+    .array(gatewaySpendLimitAlertThresholdInput)
+    .transform(normalizeGatewaySpendBudgetAlertThresholds)
+    .optional(),
+});
+const gatewaySpendLimitScopeInput = z.enum(["API_KEY", "USER"]);
+/** The keys or users a budget change applies to, at most one table page. */
+const gatewaySpendLimitSubjectIdsInput = z
+  .array(z.string())
+  .min(1)
+  .max(GATEWAY_SPEND_BUDGET_MAX_SUBJECTS)
+  .transform((ids) => [...new Set(ids)]);
 
-/** Gateway managers see the whole organization; every other key owner only their own keys and usage. */
-function getGatewayUsageScope(params: {
-  session: AuthedSession;
-  orgId: string;
-}): GatewayUsageScope {
-  const canManageGateway = hasOrganizationAccess({
-    session: params.session,
-    organizationId: params.orgId,
-    scope: "gateway:manage",
-  });
-  return canManageGateway
-    ? { scope: "organization" }
-    : { scope: "ownUsage", userId: params.session.user.id };
+/** The Budgets table's search and status filter. */
+const gatewayBudgetFilterInput = z.object({
+  searchQuery: z.string().trim().optional(),
+  status: z.enum(GATEWAY_BUDGET_STATUSES).default("all"),
+});
+/** Explicit keys or users, or every one matching a search and status, as the Budgets table lists them. */
+const gatewayBudgetSubjectsInput = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("ids"),
+    subjectIds: gatewaySpendLimitSubjectIdsInput,
+  }),
+  gatewayBudgetFilterInput.extend({ type: z.literal("matching") }),
+]);
+/** A key without patterns, or with an empty list, may call every enabled model. */
+const gatewayKeyAllowedModelsSchema = z
+  .array(z.string().trim().min(1).max(500))
+  .max(100)
+  .nullish()
+  .transform((patterns) =>
+    patterns && patterns.length > 0 ? [...new Set(patterns)] : null,
+  );
+
+/** User budgets are for gateway managers only; members work with their own keys' budgets. */
+function requireBudgetScopeAccess(
+  session: Session,
+  orgId: string,
+  scope: "API_KEY" | "USER",
+) {
+  if (scope === "USER") {
+    requireGatewayAdmin({ session, orgId });
+    return;
+  }
+  requireGatewayInvoke({ session, orgId });
 }
 
 function requireGatewayRead(params: { session: Session; orgId: string }) {
@@ -143,11 +193,11 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return {
-        config: await new GatewayConfigService(ctx.prisma).getConfig(
-          input.orgId,
-        ),
-      };
+      const [config, hasSpendLimits] = await Promise.all([
+        new GatewayConfigService(ctx.prisma).getConfig(input.orgId),
+        new GatewaySpendLimitRepository(ctx.prisma).hasAny(input.orgId),
+      ]);
+      return { config, hasSpendLimits };
     }),
 
   /** Readable by every gateway reader and key owner; exposes only whether setup is done, not the config itself. */
@@ -218,7 +268,8 @@ export const aiGatewayRouter = createTRPCRouter({
         }
         if (
           connection.provider === "XAI" ||
-          connection.provider === "GOOGLE_AI_STUDIO"
+          connection.provider === "GOOGLE_AI_STUDIO" ||
+          connection.provider === "VERTEX"
         ) {
           return ["OPENAI"] satisfies GatewayApiFamily[];
         }
@@ -230,12 +281,14 @@ export const aiGatewayRouter = createTRPCRouter({
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
         // Agent clients call the OpenAI route with the Responses API, which
-        // Google AI Studio lacks; plain API calls also work over Chat Completions.
+        // Google AI Studio and Vertex AI lack; plain API calls also work over Chat Completions.
         providers: [
           ...new Set(
             connections
               .filter(
-                (connection) => connection.provider !== "GOOGLE_AI_STUDIO",
+                (connection) =>
+                  connection.provider !== "GOOGLE_AI_STUDIO" &&
+                  connection.provider !== "VERTEX",
               )
               .flatMap(families),
           ),
@@ -349,7 +402,7 @@ export const aiGatewayRouter = createTRPCRouter({
         id: z.string().optional(),
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
-        config: GatewayBedrockConfigSchema.optional(),
+        config: GatewayProviderConfigSchema.optional(),
         ...connectionEndpointInput,
       }),
     )
@@ -387,7 +440,7 @@ export const aiGatewayRouter = createTRPCRouter({
         name: connectionNameSchema,
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
-        config: GatewayBedrockConfigSchema.optional(),
+        config: GatewayProviderConfigSchema.optional(),
         ...connectionEndpointInput,
       }),
     )
@@ -614,12 +667,207 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  /** Loaded after listApiKeys for the visible page, like getApiKeysLastUsed. */
+  getApiKeysSpend: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        apiKeyIds: z.array(z.string()).max(100),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).getApiKeysSpend({
+        organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
+        apiKeyIds: input.apiKeyIds,
+      });
+    }),
+
+  listBudgets: protectedOrganizationProcedure
+    .input(
+      offsetPaginatedOrganizationInput.extend({
+        scope: gatewaySpendLimitScopeInput,
+        ...gatewayBudgetFilterInput.shape,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireBudgetScopeAccess(ctx.session, input.orgId, input.scope);
+      return new GatewaySpendLimitService(ctx.prisma).listBudgets({
+        organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
+        scope: input.scope,
+        searchQuery: input.searchQuery,
+        status: input.status,
+        page: input.page,
+        limit: input.limit,
+      });
+    }),
+
+  /** Gives each key or user without one the same budget; members only their own keys. */
+  createSpendLimits: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        scope: gatewaySpendLimitScopeInput,
+        subjectIds: gatewaySpendLimitSubjectIdsInput,
+        spendLimit: gatewaySpendLimitInput,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // User budgets are for gateway managers; members budget their own keys.
+      if (input.scope === "USER") {
+        requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      } else {
+        requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      }
+      await new GatewaySpendLimitService(ctx.prisma).createForSubjects({
+        organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
+        scope: input.scope,
+        subjectIds: input.subjectIds,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
+  /**
+   * Replaces the budget of each key or user; null removes it. Only gateway
+   * managers may change user budgets; members may change only budgets they set
+   * on their own keys.
+   */
+  setSpendLimits: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        scope: gatewaySpendLimitScopeInput,
+        subjects: gatewayBudgetSubjectsInput,
+        spendLimit: gatewaySpendLimitInput.nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireBudgetScopeAccess(ctx.session, input.orgId, input.scope);
+      const service = new GatewaySpendLimitService(ctx.prisma);
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      const subjectIds =
+        input.subjects.type === "ids"
+          ? input.subjects.subjectIds
+          : (
+              await service.listMatchingSubjects({
+                organizationId: input.orgId,
+                usageScope,
+                scope: input.scope,
+                searchQuery: input.subjects.searchQuery,
+                status: input.subjects.status,
+              })
+            ).map(({ subjectId }) => subjectId);
+      if (subjectIds.length > GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS) {
+        throw new InvalidRequestError(
+          `Budgets can change for at most ${GATEWAY_SPEND_BUDGET_MAX_MATCHING_SUBJECTS} keys or users at once. Narrow the search or status filter.`,
+        );
+      }
+      await service.setForSubjects({
+        organizationId: input.orgId,
+        usageScope,
+        scope: input.scope,
+        subjectIds,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
+  /** Every key or user matching a search and status, for the spend chart when all of them are selected. */
+  listMatchingBudgetSubjects: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        scope: gatewaySpendLimitScopeInput,
+        ...gatewayBudgetFilterInput.shape,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireBudgetScopeAccess(ctx.session, input.orgId, input.scope);
+      const subjects = await new GatewaySpendLimitService(
+        ctx.prisma,
+      ).listMatchingSubjects({
+        organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
+        scope: input.scope,
+        searchQuery: input.searchQuery,
+        status: input.status,
+      });
+      return subjects.map(({ subjectId, name }) => ({ id: subjectId, name }));
+    }),
+
+  getDefaultSpendLimits: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).getDefaults(input.orgId);
+    }),
+
+  /** Sets or removes (null) the default budget of keys or users without their own. */
+  setDefaultSpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        scope: gatewaySpendLimitScopeInput,
+        spendLimit: gatewaySpendLimitInput.nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).setDefault({
+        organizationId: input.orgId,
+        scope: input.scope,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
+  /** The organization's own budget, capping all of its gateway spend, with its spend; null when none is set. */
+  getOrganizationSpendLimit: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewaySpendLimitService(ctx.prisma).getOrganizationBudget(
+        input.orgId,
+      );
+    }),
+
+  /** Sets or removes (null) the organization's own budget. */
+  setOrganizationSpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        spendLimit: gatewaySpendLimitInput.nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewaySpendLimitService(ctx.prisma).setOrganizationBudget({
+        organizationId: input.orgId,
+        limit: input.spendLimit,
+        session: ctx.session,
+      });
+    }),
+
   // Returns the plaintext secret key once, so the procedure must not be traced.
   createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
         name: z.string().trim().min(1, "Gateway keys need a name").max(500),
         metadata: GatewayMetadataSchema.default({}),
+        allowedModels: gatewayKeyAllowedModelsSchema,
         expiresAt: z
           .date()
           .nullish()
@@ -627,6 +875,7 @@ export const aiGatewayRouter = createTRPCRouter({
             message: "Expiration date must be in the future",
           }),
         issuedAs: z.enum(["user", "serviceAccount"]).default("user"),
+        spendLimit: gatewaySpendLimitInput.nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -644,15 +893,85 @@ export const aiGatewayRouter = createTRPCRouter({
           scope,
         });
       }
-      const key = await new GatewayApiKeyService(ctx.prisma, redis).create({
+      const spendLimits = new GatewaySpendLimitService(ctx.prisma);
+      if (input.spendLimit) {
+        await spendLimits.requireAvailable(input.orgId);
+      }
+      const apiKeys = new GatewayApiKeyService(ctx.prisma, redis);
+      const key = await apiKeys.create({
         organizationId: input.orgId,
         name: input.name,
         metadata: input.metadata,
+        allowedModels: input.allowedModels,
         expiresAt: input.expiresAt,
         issuedAs: input.issuedAs,
         session: ctx.session,
       });
+      if (input.spendLimit) {
+        try {
+          await spendLimits.setForApiKey({
+            organizationId: input.orgId,
+            usageScope: getGatewayUsageScope({
+              session: ctx.session,
+              orgId: input.orgId,
+            }),
+            apiKeyId: key.id,
+            limit: input.spendLimit,
+            session: ctx.session,
+          });
+        } catch (error) {
+          // A key asked for with a budget must not stay usable without one.
+          await apiKeys.revoke({
+            organizationId: input.orgId,
+            apiKeyId: key.id,
+            session: ctx.session,
+          });
+          throw error;
+        }
+      }
       return key;
+    }),
+
+  updateApiKey: protectedOrganizationProcedure
+    .input(
+      connectionInput.extend({
+        name: z.string().trim().min(1, "Gateway keys need a name").max(500),
+        metadata: GatewayMetadataSchema,
+        allowedModels: gatewayKeyAllowedModelsSchema,
+        /** The patterns the editor loaded; the write is rejected if they changed since. */
+        previousAllowedModels: z.array(z.string()).nullable(),
+        /** Null removes the key's spend limits; omitted leaves them unchanged. */
+        spendLimit: gatewaySpendLimitInput.nullish(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      const setSpendLimit =
+        input.spendLimit === undefined
+          ? undefined
+          : await new GatewaySpendLimitService(ctx.prisma).prepareSetForApiKey({
+              organizationId: input.orgId,
+              usageScope,
+              apiKeyId: input.id,
+              limit: input.spendLimit,
+              session: ctx.session,
+            });
+      const updated = await new GatewayApiKeyService(ctx.prisma, redis).update({
+        organizationId: input.orgId,
+        ownerUserId: getKeyOwnerFilter(usageScope),
+        apiKeyId: input.id,
+        name: input.name,
+        metadata: input.metadata,
+        allowedModels: input.allowedModels,
+        previousAllowedModels: input.previousAllowedModels,
+        session: ctx.session,
+      });
+      await setSpendLimit?.();
+      return updated;
     }),
 
   revokeApiKey: protectedOrganizationProcedure

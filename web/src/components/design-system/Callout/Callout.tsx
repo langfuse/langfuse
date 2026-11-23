@@ -35,8 +35,30 @@ const descriptionVariants = cva(
   },
 );
 
+const toneClasses = {
+  info: "text-dark-blue",
+  warning: "text-dark-yellow",
+};
+
+// One line tall: centers the icon on the first line of the text.
+const iconVariants = cva("flex h-lh shrink-0 items-center", {
+  variants: { variant: toneClasses },
+});
+
+// One action sits right of the text, several sit under it.
+const actionsVariants = cva("flex", {
+  variants: {
+    variant: toneClasses,
+    placement: {
+      right: "shrink-0 items-center self-end sm:ml-6 sm:self-auto",
+      below: "mt-2 flex-wrap gap-x-4 gap-y-1",
+    },
+  },
+});
+
+// Bold text in the callout tone, no box.
 const actionClasses =
-  "inline-flex h-6 items-center justify-center gap-1.5 rounded-md border border-current bg-transparent px-2.5 text-sm transition-colors hover:bg-black/5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10";
+  "inline-flex items-center gap-1.5 rounded-sm text-sm font-bold hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50";
 
 export type CalloutAction =
   | {
@@ -55,79 +77,88 @@ export type CalloutAction =
 export type CalloutProps = {
   variant: "info" | "warning";
   align: "top" | "middle";
+  /** Sits on the first line of the text. */
+  icon?: IconComponent;
   children: React.ReactElement;
   actions: ReadonlyArray<CalloutAction>;
   onDismiss: () => void;
 };
 
+function CalloutActionItem({ action }: { action: CalloutAction }) {
+  if (action.type === "button") {
+    const Icon = action.icon;
+    return (
+      <button className={actionClasses} onClick={action.onClick} type="button">
+        {Icon ? <Icon size="base" aria-hidden /> : null}
+        {action.label}
+      </button>
+    );
+  }
+
+  const isExternal =
+    action.href.startsWith("https://") || action.href.startsWith("http://");
+
+  if (isExternal) {
+    return (
+      <a
+        className={actionClasses}
+        href={action.href}
+        onClick={action.onClick}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        {action.label}
+      </a>
+    );
+  }
+
+  return (
+    <Link className={actionClasses} href={action.href} onClick={action.onClick}>
+      {action.label}
+    </Link>
+  );
+}
+
 export function Callout({
   variant,
   align,
+  icon: LeadingIcon,
   children,
   actions,
   onDismiss,
 }: CalloutProps) {
+  const placement = actions.length > 1 ? "below" : "right";
+  const actionList =
+    actions.length > 0 ? (
+      <div className={actionsVariants({ variant, placement })}>
+        {actions.map((action) => (
+          <CalloutActionItem action={action} key={action.label} />
+        ))}
+      </div>
+    ) : null;
+
   return (
     <div role="alert" className={calloutVariants({ variant })}>
       <div className={descriptionVariants({ align })}>
         <div
           className={`${contentVariants({ align })} sm:flex-row sm:justify-between`}
         >
-          <div className="text-foreground min-w-0 text-sm">{children}</div>
-          {actions.length > 0 ? (
-            <div className="flex shrink-0 items-center gap-2 self-end sm:ml-4 sm:self-auto">
-              {actions.map((action) => {
-                if (action.type === "button") {
-                  const Icon = action.icon;
-                  return (
-                    <button
-                      className={actionClasses}
-                      key={action.label}
-                      onClick={action.onClick}
-                      type="button"
-                    >
-                      {Icon ? <Icon size="base" aria-hidden /> : null}
-                      {action.label}
-                    </button>
-                  );
-                }
-
-                const isExternal =
-                  action.href.startsWith("https://") ||
-                  action.href.startsWith("http://");
-
-                if (isExternal) {
-                  return (
-                    <a
-                      className={actionClasses}
-                      href={action.href}
-                      key={action.label}
-                      onClick={action.onClick}
-                      rel="noopener noreferrer"
-                      target="_blank"
-                    >
-                      {action.label}
-                    </a>
-                  );
-                }
-
-                return (
-                  <Link
-                    className={actionClasses}
-                    href={action.href}
-                    key={action.label}
-                    onClick={action.onClick}
-                  >
-                    {action.label}
-                  </Link>
-                );
-              })}
+          <div className="text-foreground flex min-w-0 gap-2 text-sm">
+            {LeadingIcon ? (
+              <span className={iconVariants({ variant })}>
+                <LeadingIcon size="base" aria-hidden />
+              </span>
+            ) : null}
+            <div className="min-w-0">
+              {children}
+              {placement === "below" ? actionList : null}
             </div>
-          ) : null}
+          </div>
+          {placement === "right" ? actionList : null}
         </div>
         <button
           aria-label="Dismiss"
-          className="focus-visible:ring-ring inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden dark:hover:bg-white/10"
+          className="focus-visible:ring-ring text-icon-foreground inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden dark:hover:bg-white/10"
           onClick={onDismiss}
           type="button"
         >

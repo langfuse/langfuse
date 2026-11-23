@@ -19,9 +19,10 @@ import {
   StringFilter,
   StringObjectFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
-import { compileClickhouseQuery } from "./compile";
+import { compileClickhouseQuery, type ClickhouseCompilable } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
+import { EventsTableRoutingPlugin } from "./eventsRouting";
 import {
   firstMetadataValue,
   ifElse,
@@ -39,12 +40,22 @@ import {
   useFinal,
 } from "./extensions";
 import { finalTable } from "./nodes";
+import { applyPassOnly, renderPassOutput } from "./passHarness";
 import type { ClickHouseDatabase } from "./schema";
 
-// Raw compiler output, so these run without a `clickhouse` binary.
+// Raw compiler output, so these run without a `clickhouse` binary. The routing
+// pass runs alone, so no other pass can hide a gap in it; `compile` runs every
+// pass, for the tests of what the later passes do with a routed relation.
 const projectId = "p";
 
-function compile(builder: Parameters<typeof compileClickhouseQuery>[0]) {
+/** SQL of `builder` after the routing pass alone. */
+function routeAlone(builder: ClickhouseCompilable) {
+  return renderPassOutput(
+    applyPassOnly(builder, new EventsTableRoutingPlugin()),
+  ).sql;
+}
+
+function compile(builder: ClickhouseCompilable) {
   return compileClickhouseQuery(builder, projectId).sql;
 }
 
@@ -73,14 +84,14 @@ const eventsMetadata = (eb: EventsEb, key: string) =>
 describe("logical events routing", () => {
   it("routes a read of untruncated columns to events_core", () => {
     expect(
-      compile(
+      routeAlone(
         db
           .selectFrom("events as e")
           .select(["e.span_id", "e.name"])
           .where("e.trace_id", "=", "t"),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id, e.name from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and e.trace_id = {p2:String}"`,
+      `"select e.span_id, e.name from events_core as e where e.trace_id = {p1:String}"`,
     );
   });
 
@@ -92,14 +103,16 @@ describe("logical events routing", () => {
     "output_length",
   ] as const)("routes a projection of %s to events_full", (column) => {
     expect(
-      routedTables(compile(db.selectFrom("events as e").select(`e.${column}`))),
+      routedTables(
+        routeAlone(db.selectFrom("events as e").select(`e.${column}`)),
+      ),
     ).toEqual(["events_full"]);
   });
 
   it("routes a projected metadata value to events_full", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events as e")
             .select((eb) => [eventsMetadata(eb, "k").as("v")]),
@@ -109,25 +122,52 @@ describe("logical events routing", () => {
   });
 
   it("rejects select * and select e.*, but not count(*)", () => {
-    expect(() => compile(db.selectFrom("events").selectAll())).toThrow(
+    expect(() => routeAlone(db.selectFrom("events").selectAll())).toThrow(
       QueryCompileError,
     );
-    expect(() => compile(db.selectFrom("events as e").selectAll("e"))).toThrow(
-      QueryCompileError,
-    );
+    expect(() =>
+      routeAlone(db.selectFrom("events as e").selectAll("e")),
+    ).toThrow(QueryCompileError);
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db.selectFrom("events as e").select((eb) => eb.fn.countAll().as("n")),
         ),
       ),
     ).toEqual(["events_core"]);
   });
 
+  // `sql.ref` and a string `*` argument parse the star as a column named `*`.
+  it.each<[string, () => ClickhouseCompilable]>([
+    [
+      "sql.ref('e.*')",
+      () => db.selectFrom("events as e").select(sql.ref("e.*").as("x")),
+    ],
+    [
+      "sql.ref('*')",
+      () => db.selectFrom("events as e").select(sql.ref("*").as("x")),
+    ],
+    [
+      "uniq('*')",
+      () =>
+        db
+          .selectFrom("events as e")
+          .select((eb) => eb.fn.agg("uniq", ["*" as never]).as("n")),
+    ],
+  ])("rejects a star column from %s", (_, build) => {
+    expect(() => routeAlone(build())).toThrow(/cannot expand the logical/);
+  });
+
+  it("reads a truncated column whole on events_full", () => {
+    expect(
+      routeAlone(db.selectFrom("events as e").select("e.input")),
+    ).toMatchInlineSnapshot(`"select e.input from events_full as e"`);
+  });
+
   it("routes count(*) with a clause on a truncated column to events_full", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events as e")
             .select((eb) =>
@@ -138,7 +178,7 @@ describe("logical events routing", () => {
     ).toEqual(["events_full"]);
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db.selectFrom("events as e").select((eb) =>
             eb.fn
               .countAll()
@@ -153,7 +193,7 @@ describe("logical events routing", () => {
   it("keeps count(*) with a clause on an untruncated column on events_core", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events as e")
             .select((eb) =>
@@ -167,7 +207,7 @@ describe("logical events routing", () => {
   it("ignores an alias named like a truncated column", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events as e")
             .select((eb) => eb.fn.count("e.span_id").as("input")),
@@ -176,67 +216,23 @@ describe("logical events routing", () => {
     ).toEqual(["events_core"]);
   });
 
-  it.each([
-    ["lengthUTF8(e.output)", sql<string>`lengthUTF8(e.output)`],
-    ["sql.id e.input", sql<string>`${sql.id("e", "input")}`],
-    ["sql.id input", sql<string>`${sql.id("input")}`],
-    ["sql.table input", sql<string>`${sql.table("input")}`],
-    ["*", sql<string>`*`],
-    ["e.*", sql.raw<string>("e.*")],
-    ["tuple(*)", sql<string>`tuple(*)`],
-    ["COLUMNS(...)", sql<string>`COLUMNS('^inp')`],
-    ["sql.ref e.*", sql.ref<string>("e.*")],
-    ["sql.ref *", sql.ref<string>("*")],
-    ["tuple(sql.ref e.*)", sql<string>`tuple(${sql.ref("e.*")})`],
-  ])("rejects raw %s in a select that reads events", (_, expression) => {
-    expect(() =>
-      compile(db.selectFrom("events as e").select(expression.as("x"))),
-    ).toThrow(QueryCompileError);
-  });
-
-  it("rejects a raw identifier in the where clause of a select that reads events", () => {
-    expect(() =>
-      compile(
-        db
-          .selectFrom("events as e")
-          .select("e.span_id")
-          .where(sql<string>`${sql.id("input")}`, "=", "x"),
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
-  it("rejects raw SQL in a select nested under one that reads events", () => {
-    expect(() =>
-      compile(
-        db.selectFrom("events as e").select((eb) => [
-          "e.span_id",
-          eb
-            .selectFrom("scores as s")
-            .select(sql<number>`1`.as("one"))
-            .limit(1)
-            .as("x"),
-        ]),
-      ),
-    ).toThrow(QueryCompileError);
-  });
-
   it("rejects COLUMNS() in a select that reads events", () => {
     expect(() =>
-      compile(
+      routeAlone(
         db
           .selectFrom("events as e")
           .select((eb) => eb.fn<string>("COLUMNS", [eb.val("^inp")]).as("x")),
       ),
-    ).toThrow(QueryCompileError);
+    ).toThrow('COLUMNS(…) cannot expand the logical "events" relation');
     expect(() =>
-      compile(
+      routeAlone(
         db
           .selectFrom("events as e")
           .select((eb) =>
             eb.fn.agg<string>("columns", [eb.val("^inp")]).as("x"),
           ),
       ),
-    ).toThrow(QueryCompileError);
+    ).toThrow('columns(…) cannot expand the logical "events" relation');
   });
 
   it("rejects FINAL around the logical relation", () => {
@@ -255,7 +251,7 @@ describe("logical events routing", () => {
       },
     };
     expect(() =>
-      compile(
+      routeAlone(
         db.withPlugin(wrapFinal).selectFrom("events as e").select("e.span_id"),
       ),
     ).toThrow(/FINAL cannot wrap the logical "events" relation/);
@@ -302,21 +298,17 @@ describe("logical events routing", () => {
           ),
     ],
     [
-      "raw SQL text",
+      "qualifier in an emptiness check",
       () =>
         db
-          .selectFrom("scores as s")
-          .select(sql<number>`(select count() from events_full)`.as("n")),
-    ],
-    [
-      "sql.table",
-      () =>
-        db
-          .selectFrom("scores as s")
-          .select(sql<string>`${sql.table("events_core")}.input`.as("x")),
+          .selectFrom("events as e")
+          .select("e.span_id")
+          .where((eb) =>
+            eb(eb.ref("events_full.input" as never), "!=", "" as never),
+          ),
     ],
   ])("rejects a physical events table named as %s", (_, build) => {
-    expect(() => compile(build())).toThrow(
+    expect(() => routeAlone(build())).toThrow(
       /Read the logical "events" relation instead of "events_(core|full)"/,
     );
   });
@@ -324,7 +316,7 @@ describe("logical events routing", () => {
   it("resolves sql.ref like a builder reference", () => {
     const route = (ref: string) =>
       routedTables(
-        compile(
+        routeAlone(
           db.selectFrom("events as e").select(sql.ref<string>(ref).as("x")),
         ),
       );
@@ -332,22 +324,8 @@ describe("logical events routing", () => {
     expect(route("e.span_id")).toEqual(["events_core"]);
   });
 
-  it("allows raw SQL in a select over a subquery that reads events", () => {
-    expect(
-      routedTables(
-        compile(
-          db
-            .selectFrom(
-              db.selectFrom("events as e").select("e.span_id").as("x"),
-            )
-            .select(sql<number>`1`.as("one")),
-        ),
-      ),
-    ).toEqual(["events_core"]);
-  });
-
   it("rejects an unqualified truncated column of the only relation", () => {
-    expect(() => compile(db.selectFrom("events").select("input"))).toThrow(
+    expect(() => routeAlone(db.selectFrom("events").select("input"))).toThrow(
       QueryCompileError,
     );
   });
@@ -362,20 +340,38 @@ describe("logical events routing", () => {
     ["unqualified input = ''", (eb) => eb("input", "=", "")],
     ["e.input is not null", (eb) => eb("e.input", "is not", null)],
     ["e.output is null", (eb) => eb("e.output", "is", null)],
+    [
+      "e.input = typed ''",
+      (eb) => eb("e.input", "=", typedValue<string>("", "String")),
+    ],
   ])("routes the emptiness check %s to events_core", (_, condition) => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db.selectFrom("events as e").select("e.span_id").where(condition),
         ),
       ),
     ).toEqual(["events_core"]);
   });
 
+  it("routes a truncated read in one conjunct of an AND to events_full", () => {
+    expect(
+      routedTables(
+        routeAlone(
+          db
+            .selectFrom("events as e")
+            .select("e.span_id")
+            .where("e.trace_id", "=", "t")
+            .where("e.input", "=", "x"),
+        ),
+      ),
+    ).toEqual(["events_full"]);
+  });
+
   it("routes a non-comparison of a truncated column with '' to events_full", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events as e")
             .select((eb) => eb("e.input", "||", "").as("x")),
@@ -386,13 +382,13 @@ describe("logical events routing", () => {
 
   it("routes a table-qualified read of an unaliased logical relation", () => {
     expect(
-      routedTables(compile(db.selectFrom("events").select("events.input"))),
+      routedTables(routeAlone(db.selectFrom("events").select("events.input"))),
     ).toEqual(["events_full"]);
   });
 
   it("rejects an unqualified limit by column of the only relation", () => {
     expect(() =>
-      compile(
+      routeAlone(
         db
           .selectFrom("events")
           .select("span_id")
@@ -400,7 +396,7 @@ describe("logical events routing", () => {
       ),
     ).toThrow(QueryCompileError);
     expect(() =>
-      compile(
+      routeAlone(
         db
           .selectFrom("events")
           .select("span_id")
@@ -414,7 +410,7 @@ describe("logical events routing", () => {
     const base = db.selectFrom("events as e");
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .with("a", () => base.select(["e.span_id", "e.input"]))
             .with("b", () => base.select(["e.span_id"]))
@@ -428,7 +424,7 @@ describe("logical events routing", () => {
 
   it("rejects an unqualified truncated column in a subquery under a select that reads events", () => {
     expect(() =>
-      compile(
+      routeAlone(
         db
           .selectFrom("events as e")
           .select((eb) => [
@@ -446,7 +442,7 @@ describe("logical events routing", () => {
   it("rejects an unqualified truncated column in a subquery with no FROM under a select that reads events", () => {
     // ClickHouse resolves `input` in a no-FROM subquery to the outer relation.
     expect(() =>
-      compile(
+      routeAlone(
         db
           .selectFrom("events")
           .select([
@@ -460,7 +456,7 @@ describe("logical events routing", () => {
   it("resolves a qualifier to an inner FINAL relation before an outer one", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db.selectFrom("events as s").select((eb) => [
             "s.span_id",
             eb
@@ -477,7 +473,7 @@ describe("logical events routing", () => {
 
   it("rejects an unqualified truncated column with two relations in scope", () => {
     expect(() =>
-      compile(
+      routeAlone(
         db
           .selectFrom("events as a")
           .innerJoin("events as b", "a.span_id", "b.span_id")
@@ -487,6 +483,8 @@ describe("logical events routing", () => {
   });
 
   it("keeps an unaliased logical read addressable by its name", () => {
+    // Every pass, so `events.project_id` below shows that a qualifier a later
+    // pass adds resolves to the routed relation.
     expect(
       compile(
         db
@@ -495,14 +493,14 @@ describe("logical events routing", () => {
           .where("span_id", "=", "s"),
       ),
     ).toMatchInlineSnapshot(
-      `"select events.span_id from events_core as events where events.project_id = {p1:String} and events.is_deleted = 0 and span_id = {p2:String}"`,
+      `"select events.span_id from events_core as events where events.project_id = {p1:String} and span_id = {p2:String}"`,
     );
   });
 
   it("routes a joined logical relation", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("scores as s")
             .innerJoin("events as e", (join) =>
@@ -525,7 +523,7 @@ describe("logical events routing", () => {
       .innerJoin("io", "io.span_id", "e.span_id")
       .select(["e.span_id", "io.input"]);
 
-    expect(routedTables(compile(query))).toEqual([
+    expect(routedTables(routeAlone(query))).toEqual([
       "events_full",
       "events_core",
     ]);
@@ -534,7 +532,7 @@ describe("logical events routing", () => {
   it("routes joined logical relations separately", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events as a")
             .innerJoin("events as b", "a.span_id", "b.span_id")
@@ -546,20 +544,20 @@ describe("logical events routing", () => {
 
   it("keeps events_truncated on events_core when only its select reads a truncated column", () => {
     expect(
-      compile(
+      routeAlone(
         db
           .selectFrom("events_truncated as e")
           .select(["e.span_id", "e.input"])
           .where((eb) => eb(eventsMetadata(eb, "k"), "=", "x")),
       ),
     ).toMatchInlineSnapshot(
-      `"select e.span_id, e.input from events_core as e where e.project_id = {p1:String} and e.is_deleted = 0 and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p2:String}] = {p3:String}"`,
+      `"select e.span_id, e.input from events_core as e where mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p1:String}] = {p2:String}"`,
     );
   });
 
   it("routes events_truncated to events_full on a filter events_core cannot answer, and cuts what it selects", () => {
     expect(
-      compile(
+      routeAlone(
         db
           .selectFrom("events_truncated as e")
           .select((eb) => [
@@ -576,19 +574,40 @@ describe("logical events routing", () => {
           .orderBy("e.input"),
       ),
     ).toMatchInlineSnapshot(
-      `"select leftUTF8(e.input, 200) as input, lengthUTF8(leftUTF8(e.output, 200)) as output_length, arrayMap(v -> leftUTF8(v, 200), e.metadata_values)[indexOf(e.metadata_names, {p1:String})] as k from events_full as e where e.project_id = {p2:String} and e.is_deleted = 0 and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p1:String}] != {p3:String} group by leftUTF8(e.input, 200) order by leftUTF8(e.input, 200)"`,
+      `"select leftUTF8(e.input, 200) as input, lengthUTF8(leftUTF8(e.output, 200)) as output_length, arrayMap(v -> leftUTF8(v, 200), e.metadata_values)[indexOf(e.metadata_names, {p1:String})] as k from events_full as e where mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p1:String}] != {p2:String} group by leftUTF8(e.input, 200) order by leftUTF8(e.input, 200)"`,
+    );
+  });
+
+  it("cuts a sql.ref like a builder reference once events_truncated reads events_full", () => {
+    expect(
+      routeAlone(
+        db
+          .selectFrom("events_truncated as e")
+          .select(sql.ref<string>("e.input").as("x"))
+          .where("e.output", "=", "x"),
+      ),
+    ).toBe(
+      "select leftUTF8(e.input, 200) as x from events_full as e where e.output = {p1:String}",
     );
   });
 
   it("rejects a read of events_truncated it cannot cut once a filter routes it to events_full", () => {
     expect(() =>
-      compile(
+      routeAlone(
         db
           .selectFrom("events_truncated as e")
           .selectAll("e")
           .where("e.input", "=", "x"),
       ),
     ).toThrow(/e\.\* cannot read "e"/);
+    expect(() =>
+      routeAlone(
+        db
+          .selectFrom("events_truncated as e")
+          .select("input")
+          .where("e.input", "=", "x"),
+      ),
+    ).toThrow(/Unqualified "input" cannot read "e"/);
   });
 
   // Only the select's own WHERE routes; transformWhere also sees FILTER's.
@@ -597,26 +616,13 @@ describe("logical events routing", () => {
       .selectFrom("events_truncated as e")
       .select((eb) => eb.fn.countAll().filterWhere("e.input", "=", "x").as("n"))
       .where("e.span_id", "=", "s");
-    expect(routedTables(compile(query))).toEqual(["events_core"]);
-  });
-
-  it("rejects raw SQL text in the WHERE of a select that reads events_truncated", () => {
-    expect(() =>
-      compile(
-        db
-          .selectFrom("events_truncated as e")
-          .select("e.span_id")
-          .where(sql<boolean>`e.input ilike '%x%'`),
-      ),
-    ).toThrow(
-      /cannot appear in the WHERE of a select that reads "events_truncated"/,
-    );
+    expect(routedTables(routeAlone(query))).toEqual(["events_core"]);
   });
 
   // The core-safe shortcut skips the walk only in a WHERE.
   it("cuts a core-safe metadata comparison outside the WHERE once events_truncated reads events_full", () => {
     expect(
-      compile(
+      routeAlone(
         db
           .selectFrom("events_truncated as e")
           .select((eb) =>
@@ -625,13 +631,13 @@ describe("logical events routing", () => {
           .where("e.output", "like", "%x%"),
       ),
     ).toMatchInlineSnapshot(
-      `"select toFloat64OrNull(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(arrayMap(v -> leftUTF8(v, 200), e.metadata_values)))[{p1:String}]) > {p2:Int64} as big from events_full as e where e.project_id = {p3:String} and e.is_deleted = 0 and e.output like {p4:String}"`,
+      `"select toFloat64OrNull(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(arrayMap(v -> leftUTF8(v, 200), e.metadata_values)))[{p1:String}]) > {p2:Int64} as big from events_full as e where e.output like {p3:String}"`,
     );
   });
 
   it("cuts a vouched prefilter outside the WHERE once events_truncated reads events_full", () => {
     expect(
-      compile(
+      routeAlone(
         db
           .selectFrom("events_truncated as e")
           .select((eb) =>
@@ -645,7 +651,7 @@ describe("logical events routing", () => {
           .where("e.output", "like", "%x%"),
       ),
     ).toMatchInlineSnapshot(
-      `"select (hasAllTokens(arrayMap(v -> leftUTF8(v, 200), e.metadata_values), arraySlice(arrayDistinct(tokens({p1:String})), 1, 64)) and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(arrayMap(v -> leftUTF8(v, 200), e.metadata_values)))[{p2:String}] = {p1:String}) as hit from events_full as e where e.project_id = {p3:String} and e.is_deleted = 0 and e.output like {p4:String}"`,
+      `"select (hasAllTokens(arrayMap(v -> leftUTF8(v, 200), e.metadata_values), arraySlice(arrayDistinct(tokens({p1:String})), 1, 64)) and mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(arrayMap(v -> leftUTF8(v, 200), e.metadata_values)))[{p2:String}] = {p1:String}) as hit from events_full as e where e.output like {p3:String}"`,
     );
   });
 
@@ -660,16 +666,6 @@ describe("logical events routing", () => {
           .where("input", "=", "x"),
       /Qualify "input" in the WHERE/,
     ],
-    // transformRaw: raw text outside the WHERE over a full copy.
-    [
-      "raw SQL text in its select once full",
-      () =>
-        db
-          .selectFrom("events_truncated as e")
-          .select(sql<string>`e.input`.as("i"))
-          .where("e.output", "=", "x"),
-      /Raw SQL text or identifiers cannot read "e"/,
-    ],
     // rejectStar: a bare `*` over a full copy of the current select.
     [
       "selectAll() once full",
@@ -682,22 +678,16 @@ describe("logical events routing", () => {
     ],
     // copiesInScope: the enclosing select's copy counts.
     [
-      "raw SQL text in a subquery under a full copy",
+      "an unqualified truncated column in a subquery under a full copy",
       () =>
         db
           .selectFrom("events_truncated as e")
-          .select((eb) =>
-            eb
-              .selectFrom("traces as t")
-              .select(sql<string>`e.input`.as("i"))
-              .limit(1)
-              .as("i"),
-          )
+          .select(db.selectNoFrom(sql.ref<string>("input").as("i")).as("i"))
           .where("e.output", "=", "x"),
-      /Raw SQL text or identifiers cannot read "e"/,
+      /Unqualified "input" cannot read "e"/,
     ],
   ])("rejects %s of events_truncated", (_name, query, error) => {
-    expect(() => compile(query())).toThrow(error);
+    expect(() => routeAlone(query())).toThrow(error);
   });
 
   // transformWhere resets the flag: Kysely walks HAVING after WHERE.
@@ -708,7 +698,7 @@ describe("logical events routing", () => {
       .where("e.span_id", "=", "s")
       .groupBy(["e.span_id", "e.input"])
       .having("e.input", "=", "x");
-    expect(routedTables(compile(query))).toEqual(["events_core"]);
+    expect(routedTables(routeAlone(query))).toEqual(["events_core"]);
   });
 
   // A core-safe condition in a select reads no truncated value of `events`.
@@ -718,7 +708,7 @@ describe("logical events routing", () => {
   ])("keeps events on events_core for %s in its select", (_name, condition) => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events as e")
             .select((eb) => condition(eb).as("c"))
@@ -730,16 +720,16 @@ describe("logical events routing", () => {
 
   it("keeps an unaliased events_truncated name as the alias", () => {
     expect(
-      compile(db.selectFrom("events_truncated").select("input")),
+      routeAlone(db.selectFrom("events_truncated").select("input")),
     ).toMatchInlineSnapshot(
-      `"select input from events_core as events_truncated where events_truncated.project_id = {p1:String} and events_truncated.is_deleted = 0"`,
+      `"select input from events_core as events_truncated"`,
     );
   });
 
   it("routes events and events_truncated in one query separately", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events as a")
             .innerJoin("events_truncated as b", "a.span_id", "b.span_id")
@@ -753,7 +743,7 @@ describe("logical events routing", () => {
 describe("logical events routing of metadata predicates", () => {
   const route = (predicate: (eb: EventsEb) => Expression<SqlBool>) =>
     routedTables(
-      compile(
+      routeAlone(
         db.selectFrom("events as e").select("e.span_id").where(predicate),
       ),
     );
@@ -770,7 +760,7 @@ describe("logical events routing of metadata predicates", () => {
   it("keeps a short `=` on events_core under a plugin that rewrites the select", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events as e")
             .select("e.span_id")
@@ -802,6 +792,20 @@ describe("logical events routing of metadata predicates", () => {
     expect(
       route((eb) => eb(eventsMetadata(eb, "k"), "=", eb.ref("e.name"))),
     ).toEqual(["events_full"]);
+    // Looked up by a key read from a truncated column.
+    expect(
+      route((eb) =>
+        eb(
+          metadataValue(
+            eb.ref("e.metadata_names"),
+            eb.ref("e.metadata_values"),
+            eb.ref("e.input"),
+          ),
+          "=",
+          "x",
+        ),
+      ),
+    ).toEqual(["events_full"]);
   });
 
   it("routes the relation whose values a hand-built metadata map reads", () => {
@@ -823,7 +827,7 @@ describe("logical events routing of metadata predicates", () => {
         ),
       );
 
-    expect(routedTables(compile(query))).toEqual([
+    expect(routedTables(routeAlone(query))).toEqual([
       "events_core",
       "events_full",
     ]);
@@ -855,6 +859,31 @@ describe("logical events routing of metadata predicates", () => {
       );
     expect(route(listed(["a", "b"]))).toEqual(["events_core"]);
     expect(route(listed(["a", "x".repeat(200)]))).toEqual(["events_full"]);
+  });
+
+  it("routes an IN that is not a list of short values over a metadata lookup to events_full", () => {
+    // Only a bound list is checked value by value, so a scalar's length is
+    // never checked.
+    expect(
+      route((eb) =>
+        eb(
+          firstValue(eb),
+          "in",
+          eb.parens(typedValue<string>("x".repeat(200), "String")),
+        ),
+      ),
+    ).toEqual(["events_full"]);
+    // Only `metadataValue` / `firstMetadataValue` vouch that their map reads
+    // one relation's metadata, so a hand-built map's IN routes by its reads.
+    expect(
+      route((eb) =>
+        eb(
+          mapValue(metadataMap(eb.ref("e.metadata_names"), values(eb)), "k"),
+          "in",
+          eb.parens(typedValue<string>(["a"], "Array(String)")),
+        ),
+      ),
+    ).toEqual(["events_full"]);
   });
 
   // `nullIf(…, '')` maps an empty entry to NULL, so `''` matches no row on
@@ -983,7 +1012,7 @@ describe("logical events routing of metadata predicates", () => {
     ).toEqual(["events_full"]);
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events_truncated as e")
             .select((eb) => guarded(eb, short(eb)).as("owner"))
@@ -1017,7 +1046,7 @@ describe("logical events routing of metadata predicates", () => {
   it("vouches a prefilter in an enclosing AND chain of where calls", () => {
     expect(
       routedTables(
-        compile(
+        routeAlone(
           db
             .selectFrom("events as e")
             .select("e.span_id")
@@ -1135,7 +1164,7 @@ describe("logical events routing of metadata predicates", () => {
         ]),
       );
 
-    expect(routedTables(compile(query))).toEqual([
+    expect(routedTables(routeAlone(query))).toEqual([
       "events_core",
       "events_full",
     ]);
@@ -1210,7 +1239,7 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
       ]),
     );
     const [routed] = routedTables(
-      compile(
+      routeAlone(
         db
           .selectFrom("events as e")
           .select("e.span_id")
@@ -1242,7 +1271,7 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
     );
     const bound = typedValue<string>(value, "String");
     const [routed] = routedTables(
-      compile(
+      routeAlone(
         db
           .selectFrom("events as e")
           .select("e.span_id")
@@ -1270,7 +1299,7 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
       ]),
     );
     const [routed] = routedTables(
-      compile(
+      routeAlone(
         db
           .selectFrom("events as e")
           .select("e.span_id")
@@ -1281,4 +1310,68 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
     expect(legacyNeedsFull).toBe(true);
     expect(routed).toBe("events_full");
   });
+});
+
+// The routing pass alone: every logical events relation, wherever a select
+// holds it, becomes one physical table, `events_full` only when it reads a
+// truncated column, and no logical name reaches the SQL.
+describe("routing pass alone", () => {
+  /** `select e.span_id from events as e [where e.input = 'x']`. */
+  const eventsRead = (readsInput: boolean) =>
+    db
+      .selectFrom("events as e")
+      .select("e.span_id")
+      .$if(readsInput, (qb) => qb.where("e.input", "=", "x"));
+
+  const positions = [
+    ["the FROM", (readsInput: boolean) => eventsRead(readsInput)],
+    [
+      "a JOIN",
+      (readsInput: boolean) =>
+        db
+          .selectFrom("traces as t")
+          .innerJoin("events as e", "e.trace_id", "t.id")
+          .select("t.id")
+          .$if(readsInput, (qb) => qb.where("e.input", "=", "x")),
+    ],
+    [
+      "a FROM subquery",
+      (readsInput: boolean) =>
+        db.selectFrom(eventsRead(readsInput).as("s")).select("s.span_id"),
+    ],
+    [
+      "an IN subquery",
+      (readsInput: boolean) =>
+        db
+          .selectFrom("traces as t")
+          .select("t.id")
+          .where("t.id", "in", eventsRead(readsInput)),
+    ],
+    [
+      "a scalar subquery",
+      (readsInput: boolean) =>
+        db.selectFrom("traces as t").select(eventsRead(readsInput).as("s")),
+    ],
+    [
+      "a CTE body",
+      (readsInput: boolean) =>
+        db
+          .with("w", () => eventsRead(readsInput))
+          .selectFrom("w")
+          .select("w.span_id"),
+    ],
+  ] as const;
+
+  it.each(positions)(
+    "routes a relation in %s by the columns it reads",
+    (_position, build) => {
+      const core = routeAlone(build(false));
+      const full = routeAlone(build(true));
+      expect(routedTables(core)).toEqual(["events_core"]);
+      expect(routedTables(full)).toEqual(["events_full"]);
+      for (const sql of [core, full]) {
+        expect(sql).not.toMatch(/\b(?:from|join) events(?:_truncated)? /);
+      }
+    },
+  );
 });

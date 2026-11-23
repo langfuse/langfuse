@@ -50,12 +50,12 @@ const mockSession = ({
 
 describe("useIsFeatureEnabled", () => {
   it.each([false, true])(
-    "requires explicit unified trace/session opt-in (%s), independent of internal access",
+    "honors unified trace/session opt-in (%s), independent of internal access",
     (unifiedTraceSessionView) => {
       mockSession({
         aiGateway: false,
         email: "staff@clickhouse.com",
-        enableExperimentalFeatures: true,
+        enableExperimentalFeatures: false,
         internalFeatures: true,
         unifiedTraceSessionView,
       });
@@ -71,6 +71,17 @@ describe("useIsFeatureEnabled", () => {
       expect(result.current).toBe(unifiedTraceSessionView);
     },
   );
+  it("enables the unified preview on experimental deployments", () => {
+    mockSession({
+      aiGateway: false,
+      enableExperimentalFeatures: true,
+      unifiedTraceSessionView: false,
+    });
+    const { result } = renderHook(() =>
+      useIsFeatureEnabled("unifiedTraceSessionView"),
+    );
+    expect(result.current).toBe(true);
+  });
   it("honors preview preferences for internal users while preserving the deployment override", () => {
     mockSession({ aiGateway: false, email: "staff@clickhouse.com" });
     const { result, rerender } = renderHook(() =>
@@ -128,13 +139,11 @@ describe("useIsFeatureEnabled", () => {
     });
     const { result } = renderHook(() => ({
       internal: useInternalFeaturesEnabled(),
-      searchBar: useIsFeatureEnabled("searchBar"),
       aiGateway: useIsFeatureEnabled("aiGateway"),
       langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
     }));
     expect(result.current).toEqual({
       internal: expected,
-      searchBar: false,
       aiGateway: false,
       langfuseTopics: false,
     });

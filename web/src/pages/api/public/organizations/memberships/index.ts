@@ -6,12 +6,11 @@ import {
   handleUpdateMembership,
 } from "@/src/ee/features/admin-api/server/memberships";
 import { authenticator } from "@/src/features/apiKey/authenticator";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan, BaseError } from "@langfuse/shared";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeOrgError } from "@/src/features/public-api/server/writeError";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { BaseError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
 /** handler serves organization memberships for authenticated API keys. */

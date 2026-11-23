@@ -31,7 +31,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::Index;
 use std::ops::Range;
 
-use hstr::wtf8::{CodePoint, Wtf8Buf};
+use hstr::wtf8::{CodePoint, IllFormedUtf16CodeUnits, Wtf8, Wtf8Buf};
 use indexmap::{Equivalent, IndexMap};
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -92,6 +92,17 @@ impl JsString {
         }
     }
 
+    pub(crate) fn retained_bytes(&self) -> usize {
+        match self {
+            Self::Utf8(value) => value.capacity(),
+            Self::Wtf8(value) => {
+                std::mem::size_of::<Wtf8String>()
+                    + value.wtf8.capacity()
+                    + value.projection.capacity()
+            }
+        }
+    }
+
     pub fn as_utf8(&self) -> Option<&str> {
         match self {
             Self::Utf8(value) => Some(value),
@@ -120,6 +131,18 @@ impl JsString {
 
     pub fn is_empty(&self) -> bool {
         self.as_bytes().is_empty()
+    }
+
+    pub(crate) fn utf16_units(&self) -> IllFormedUtf16CodeUnits<'_> {
+        let value: &Wtf8 = match self {
+            Self::Utf8(value) => Wtf8::from_str(value),
+            Self::Wtf8(value) => &value.wtf8,
+        };
+        value.to_ill_formed_utf16()
+    }
+
+    pub(crate) fn from_utf16_unit(unit: u16) -> Self {
+        Self::from_wtf8_buf(Wtf8Buf::from_ill_formed_utf16(&[unit]))
     }
 
     /// Remove a prefix while retaining the remaining JavaScript string code units.

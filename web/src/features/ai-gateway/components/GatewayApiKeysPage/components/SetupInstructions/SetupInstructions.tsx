@@ -1,4 +1,4 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { SetupInstructionsTabs } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/SetupInstructionsTabs/SetupInstructionsTabs";
 import {
@@ -27,12 +27,9 @@ export function SetupInstructions({
   }
   if (isError || !instructions) {
     return (
-      <Alert variant="destructive">
-        <Alert.Title>Setup instructions could not be loaded</Alert.Title>
-        <Alert.Description>
-          Your key works. Follow the docs to connect your tools.
-        </Alert.Description>
-      </Alert>
+      <Banner variant="error" title="Setup instructions could not be loaded">
+        Your key works. Follow the docs to connect your tools.
+      </Banner>
     );
   }
 

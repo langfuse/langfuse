@@ -11,12 +11,13 @@ import {
   Lock,
   RefreshCw,
 } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -75,6 +76,9 @@ export type TopicSetupFlowDialogProps = {
   connectionSettingsUrl: string;
   onEdit: (step: "questions" | "traces") => void;
   onEmbeddingChange: (model: JudgeModel) => void;
+  /** Name of the map the setup creates, edited on the review step. */
+  name: string;
+  onNameChange: (name: string) => void;
   onNext: () => void;
   onQuestionEnabled: (
     name: TopicSetupQuestion["name"],
@@ -115,6 +119,8 @@ export function TopicSetupFlowDialog({
   connectionSettingsUrl,
   onEdit,
   onEmbeddingChange,
+  name,
+  onNameChange,
   onNext,
   onQuestionEnabled,
   onSamplePercentChange,
@@ -152,7 +158,11 @@ export function TopicSetupFlowDialog({
     clustering,
   });
   // The server picks its own traces, so a failed estimate must not block Start.
-  const canStart = canWrite && !busy && pastCount.status !== "loading";
+  const canStart =
+    canWrite &&
+    !busy &&
+    pastCount.status !== "loading" &&
+    name.trim().length > 0;
   // Without a connection, people who cannot add one only get a link to share and Close.
   const viewerBlocked = !hasConnection && !canAddConnection;
   // Without a connection Next stays clickable and opens the connection settings instead.
@@ -315,7 +325,7 @@ export function TopicSetupFlowDialog({
                 filters={filter}
                 onFiltersChange={onFilterChange}
                 model={traceFilter}
-                description="Topics runs on trace-level. If this project traces several agents or AI applications, filter to one so the topic maps are specific to your use case. After first setup, you can add a live scan for each."
+                description="Topics runs on trace-level. If this project traces several agents or AI applications, filter to one so the topic maps are specific to your use case. After first setup, you can add a map for each."
               />
               <TopicSliceFields.Sampling
                 value={samplePercent}
@@ -330,6 +340,18 @@ export function TopicSetupFlowDialog({
           ) : null}
           {step === "review" ? (
             <div className="flex flex-col gap-2.5">
+              <div className="ph-no-capture mb-2.5">
+                <TopicSliceFields.Section label="Name">
+                  <Input
+                    aria-label="Map name"
+                    placeholder="e.g. Support agent"
+                    value={name}
+                    maxLength={100}
+                    disabled={!canWrite}
+                    onChange={(event) => onNameChange(event.target.value)}
+                  />
+                </TopicSliceFields.Section>
+              </div>
               <ReviewRow
                 label="Look for"
                 onEdit={() => onEdit("questions")}
@@ -376,13 +398,7 @@ export function TopicSetupFlowDialog({
                   { value: backfillLine(pastCount) },
                 ]}
               />
-              {notice ? (
-                <Alert variant="warning" size="sm">
-                  <Alert.Description>
-                    <p>{notice}</p>
-                  </Alert.Description>
-                </Alert>
-              ) : null}
+              {notice ? <Banner variant="warning">{notice}</Banner> : null}
               <div className="bg-light-blue text-dark-blue mt-1 flex flex-col gap-1.5 rounded-md px-4 py-2.5 text-sm">
                 {pastCount.status !== "ready" || pastCount.matched > 0 ? (
                   <span className="flex items-center gap-2">

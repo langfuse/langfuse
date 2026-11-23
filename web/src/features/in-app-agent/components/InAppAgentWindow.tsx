@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import {
@@ -36,11 +36,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { formatApproximateDuration } from "@/src/utils/dates";
@@ -246,6 +242,10 @@ function formatScreenContextNotice(
 
   if (description.type === "experimentRun") {
     return "Current experiment run in context";
+  }
+
+  if (description.type === "topics") {
+    return "Current topics view in context";
   }
 
   if (
@@ -973,9 +973,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           className="flex shrink-0 items-center gap-0.5"
           data-movable-resizable-panel-ignore-drag="true"
         >
-          <Tooltip delayDuration={100} disableHoverableContent>
-            <TooltipTrigger asChild>
+          <Tooltip
+            label="Start new conversation"
+            delay={100}
+            hoverableContent={false}
+          >
+            {({ getTriggerProps }) => (
               <Button
+                {...getTriggerProps()}
                 type="button"
                 variant="ghost"
                 size="icon"
@@ -985,8 +990,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               >
                 <Plus size="base" color="default" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>Start new conversation</TooltipContent>
+            )}
           </Tooltip>
           <DropdownMenu
             open={isConversationHistoryOpen}
@@ -998,10 +1002,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               }
             }}
           >
-            <Tooltip delayDuration={100} disableHoverableContent>
-              <TooltipTrigger asChild>
+            <Tooltip
+              label="Conversation history"
+              delay={100}
+              hoverableContent={false}
+            >
+              {({ getTriggerProps }) => (
                 <DropdownMenuTrigger asChild>
                   <Button
+                    {...getTriggerProps()}
                     type="button"
                     variant="ghost"
                     size="icon"
@@ -1025,8 +1034,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Conversation history</TooltipContent>
+              )}
             </Tooltip>
             <DropdownMenuContent
               align="end"
@@ -1104,9 +1112,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </DropdownMenu>
           {/* Mobile is always full-screen, so there is nothing to expand. */}
           {!isHandheld ? (
-            <Tooltip delayDuration={100} disableHoverableContent>
-              <TooltipTrigger asChild>
+            <Tooltip
+              label={isExpanded ? "Collapse window" : "Expand window"}
+              delay={100}
+              hoverableContent={false}
+            >
+              {({ getTriggerProps }) => (
                 <Button
+                  {...getTriggerProps()}
                   type="button"
                   variant="ghost"
                   size="icon"
@@ -1122,16 +1135,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     <Maximize2 size="base" color="default" />
                   )}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {isExpanded ? "Collapse window" : "Expand window"}
-              </TooltipContent>
+              )}
             </Tooltip>
           ) : null}
           {props.showCloseButton !== false ? (
-            <Tooltip delayDuration={100} disableHoverableContent>
-              <TooltipTrigger asChild>
+            <Tooltip
+              label={isHandheld ? "Close Halo" : "Minimize Halo"}
+              delay={100}
+              hoverableContent={false}
+            >
+              {({ getTriggerProps }) => (
                 <Button
+                  {...getTriggerProps()}
                   type="button"
                   variant="ghost"
                   size="icon"
@@ -1147,10 +1162,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     <Minus size="base" color="default" />
                   )}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {isHandheld ? "Close Halo" : "Minimize Halo"}
-              </TooltipContent>
+              )}
             </Tooltip>
           ) : null}
         </div>

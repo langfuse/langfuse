@@ -185,6 +185,46 @@ describe("WorkerManager queue metrics", () => {
     ]);
   });
 
+  it("adds a queue's metric tags from job data to its rate and time metrics", async () => {
+    WorkerManager.register("webhook-queue" as never, async () => "processed", {
+      metricTags: (data) => ({
+        event_source: (data as { kind: string }).kind,
+      }),
+    });
+
+    const job = { data: { kind: "monitor-alert" }, timestamp: Date.now() };
+    await mocks.processor!(job);
+    mocks.handlers.get("completed")?.(job);
+
+    expect(mocks.recordIncrement.mock.calls).toEqual([
+      [
+        "langfuse.queue.webhook.rate",
+        1,
+        { type: "request", attempt: "first", event_source: "monitor-alert" },
+      ],
+      [
+        "langfuse.queue.webhook.rate",
+        1,
+        { type: "completed", event_source: "monitor-alert" },
+      ],
+    ]);
+    expect(
+      mocks.recordDistribution.mock.calls.map(([, , tags]) => tags),
+    ).toEqual([
+      {
+        type: "wait",
+        attempt: "first",
+        unit: "milliseconds",
+        event_source: "monitor-alert",
+      },
+      {
+        type: "processing",
+        unit: "milliseconds",
+        event_source: "monitor-alert",
+      },
+    ]);
+  });
+
   it("counts failed_terminal only once BullMQ moved the job to the failed set", () => {
     WorkerManager.register("project-delete" as never, async () => undefined);
 

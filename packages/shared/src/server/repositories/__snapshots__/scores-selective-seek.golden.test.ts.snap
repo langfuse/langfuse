@@ -203,7 +203,7 @@ FROM
 ) AS s
 WHERE (s.data_type IN ({param2:Array(String)}))
     AND (project_id = {param3:String})
-    AND (s.value > {param4:Decimal64(12)})",
+    AND (s.value > {param4:Decimal128(12)})",
   },
 ]
 `;
@@ -276,7 +276,7 @@ FROM
     ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
     WHERE (s.data_type IN ({param2:Array(String)}))
         AND (project_id = {param3:String})
-        AND (s.value > {param4:Decimal64(12)})
+        AND (s.value > {param4:Decimal128(12)})
     LIMIT 1 BY
         s.project_id,
         toDate(s.timestamp),

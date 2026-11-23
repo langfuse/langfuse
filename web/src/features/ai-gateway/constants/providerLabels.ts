@@ -9,4 +9,5 @@ export const providerLabels: Record<GatewayProvider, string> = {
   VERCEL: "Vercel AI Gateway",
   AZURE: "Microsoft Azure",
   GOOGLE_AI_STUDIO: "Google AI Studio",
+  VERTEX: "Google Vertex AI",
 };

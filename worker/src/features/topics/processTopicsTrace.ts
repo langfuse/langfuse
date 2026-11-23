@@ -1,14 +1,15 @@
 import { ZodError } from "zod";
 import {
-  createTraceBatchInputStorage,
+  createTraceTranscriptStorage,
   logger,
   recordIncrement,
   type TopicsTraceEventType,
-  type TraceBatchInputData,
+  type TraceTranscriptData,
 } from "@langfuse/shared/src/server";
 import {
   getEnabledTopicsModels,
   isTopicsProjectEnabled,
+  readTopicExecutionSummary,
   isValidTopicSummary,
   listTopicFacets,
   listTopicRules,
@@ -35,7 +36,7 @@ import {
   type TopicsFailedStage,
 } from "./summarizeAssembledTrace";
 
-const inputStorage = createTraceBatchInputStorage();
+const inputStorage = createTraceTranscriptStorage();
 
 export type TopicsTraceOutcome =
   | { outcome: "disabled" | "stale" | "summarized" }
@@ -93,13 +94,38 @@ function matchedRules(
   return settings.rules.filter((rule) => ruleIds.has(rule.id));
 }
 
-/** Facets the matched rules select, in listing order; a retry restricts them to its unfinished facets. */
+/**
+ * Facets a snapshot selected whose current version is still the one it saved,
+ * since the snapshot counts and clusters that version; null when it no longer summarizes.
+ */
+async function snapshotFacetIds(
+  projectId: string,
+  executionId: string,
+  facets: TopicFacet[],
+): Promise<string[] | null> {
+  const execution = await readTopicExecutionSummary(projectId, executionId);
+  if (execution?.input.operation !== "update" || execution.status === "failed")
+    return null;
+  return execution.input.facets.flatMap(({ facetId, version }) =>
+    facets.some(
+      (facet) => facet.id === facetId && facet.versions[0]?.version === version,
+    )
+      ? [facetId]
+      : [],
+  );
+}
+
+/** Facets the matched rules or the snapshot select, in listing order; a retry restricts them to its unfinished facets. */
 function selectFacets(
   event: TopicsTraceEventType,
   rules: TopicRule[],
   settings: ProjectSettings,
+  snapshotFacets: string[] = [],
 ): TopicFacet[] {
-  const selected = new Set(rules.flatMap((rule) => rule.facetIds));
+  const selected = new Set([
+    ...rules.flatMap((rule) => rule.facetIds),
+    ...snapshotFacets,
+  ]);
   const pending = event.facetIds && new Set(event.facetIds);
   return settings.facets.filter(
     (facet) =>
@@ -118,13 +144,9 @@ function pendingFacetIds(facets: TopicFacet[], rows: TopicSummary[]): string[] {
 /** Unreadable objects are retried; a stored object that does not parse never will. */
 async function readInputs(
   event: TopicsTraceEventType,
-): Promise<TraceBatchInputData | null> {
+): Promise<TraceTranscriptData | null> {
   try {
-    return await inputStorage.legacyGet({
-      projectId: event.projectId,
-      traceId: event.traceId,
-      revision: event.revision,
-    });
+    return await inputStorage.get(event.transcriptS3Path);
   } catch (error) {
     if (error instanceof SyntaxError || error instanceof ZodError) {
       logger.warn("Stored Topics trace input is invalid", {
@@ -191,6 +213,7 @@ async function assignSummaries(
           embeddingConfig,
           summaries: [row],
           run,
+          ruleId: rule.id,
           origin: "online",
           assignedAt,
         }))
@@ -232,7 +255,11 @@ async function processEvent(
   const models = settings.models;
   if (!models) return { outcome: "disabled" };
   const rules = matchedRules(event, settings);
-  const facets = selectFacets(event, rules, settings);
+  const snapshotFacets = event.batchActionId
+    ? await snapshotFacetIds(projectId, event.batchActionId, settings.facets)
+    : [];
+  if (snapshotFacets === null) return { outcome: "stale" };
+  const facets = selectFacets(event, rules, settings, snapshotFacets);
   if (facets.length === 0) return { outcome: "stale" };
 
   const inputs = await readInputs(event);
@@ -249,9 +276,13 @@ async function processEvent(
       ...inputs.traceContext,
       traceName: inputs.traceContext.traceName ?? "",
       transcript: inputs.transcript,
+      executionIssues: inputs.executionIssues,
       models,
       facets,
+      revision: event.revision,
       attempt: deps.attempt ? "retry" : "first",
+      rules,
+      executionId: event.batchActionId,
     });
     if (result.outcome === "disabled") return { outcome: "disabled" };
     rows = result.rows;

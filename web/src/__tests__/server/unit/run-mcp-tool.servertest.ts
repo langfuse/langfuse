@@ -1,7 +1,6 @@
 import type { Span } from "@opentelemetry/api";
 import { FTS_MATCH_OPERATOR, InvalidRequestError } from "@langfuse/shared";
 import { ClickHouseResourceError } from "@langfuse/shared/src/server";
-import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { z } from "zod";
 import type { ServerContext } from "@/src/features/mcp/types";
@@ -41,6 +40,7 @@ vi.mock("@/src/env.mjs", () => ({
 }));
 
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
+import { inputRequired, ProtocolErrorCode } from "@modelcontextprotocol/server";
 
 const context: ServerContext = {
   projectId: "project-id",
@@ -81,7 +81,7 @@ describe("runMcpTool outcome telemetry", () => {
         "request_error",
       );
       const response = formatErrorForUser(error);
-      expect(response.code).toBe(ErrorCode.InvalidRequest);
+      expect(response.code).toBe(ProtocolErrorCode.InvalidRequest);
       expect(response.message).toMatch(/date range/);
       expect(response.message).not.toContain("sensitive ClickHouse details");
     },
@@ -92,6 +92,19 @@ describe("runMcpTool outcome telemetry", () => {
       name: "successful execution",
       execute: async () => "ok",
       expectedOutcome: "success",
+    },
+    {
+      name: "request for client input",
+      execute: async () =>
+        inputRequired({
+          inputRequests: {
+            step: inputRequired.elicitUrl({
+              message: "Continue in Langfuse",
+              url: "https://cloud.langfuse.com",
+            }),
+          },
+        }),
+      expectedOutcome: "input_required",
     },
     {
       name: "actionable request error",
@@ -178,6 +191,24 @@ describe("MCP observation search cooldown", () => {
         "mcp.projects_metadata": false,
         "mcp.time_range_hours": 24,
       }),
+    );
+  });
+
+  it("records requested and applied limits when an input projection lowers the page size", async () => {
+    await handleListObservations(
+      { ...input, fields: ["id", "input"], limit: 100 },
+      context,
+    );
+
+    expect(fakeSpan.setAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "mcp.requested_limit": 100,
+        "mcp.applied_limit": 50,
+      }),
+    );
+    expect(queryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 50 }),
+      expect.anything(),
     );
   });
 
@@ -268,6 +299,14 @@ describe("MCP observation search cooldown", () => {
 
       await expect(handleListObservations(input, context)).rejects.toThrow(
         /retry in 30s/i,
+      );
+      expect(fakeSpan.setAttribute).toHaveBeenCalledWith(
+        "mcp.outcome",
+        "throttled",
+      );
+      expect(fakeSpan.setAttribute).toHaveBeenCalledWith(
+        "mcp.retry_after_seconds",
+        30,
       );
       expect(queryMock).toHaveBeenCalledTimes(2);
       expect(redis.set).toHaveBeenCalledWith(

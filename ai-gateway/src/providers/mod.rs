@@ -1,6 +1,7 @@
 mod chat_completions;
 pub(crate) mod model_list;
 mod outbound;
+pub(crate) mod usage;
 
 use std::{ops::Range, sync::Arc, time::Duration};
 
@@ -83,6 +84,14 @@ pub(crate) struct ProviderLimits {
 pub struct RequestPermit {
     _active: crate::observability::Active,
     deadline: Instant,
+    spend_limits: Option<crate::spend::SpendRecording>,
+}
+
+impl RequestPermit {
+    /// The execution's cost counts toward spend limits.
+    pub(crate) fn charges_spend(&self) -> bool {
+        self.spend_limits.is_some()
+    }
 }
 
 /// The validated caller body and the facts the relay needs about it.
@@ -93,6 +102,8 @@ pub(crate) struct RequestBody {
     pub streaming: bool,
     /// Capacity held for the body, released with the execution once the response ends.
     pub reservation: Option<BodyReservation>,
+    /// Grows the capacity when a response charged to spend limits needs a larger parse.
+    pub parse_growth: Option<crate::capture::ResponseParseGrowth>,
 }
 
 pub(crate) type BodyReservation = Box<dyn Send + Sync>;
@@ -115,10 +126,10 @@ impl ProviderTransport {
 
     fn with_limits(limits: ProviderLimits, policy: OutboundPolicy) -> Result<Self, ProviderError> {
         let policy = Arc::new(policy);
-        let client = provider_client_builder()
+        let client = provider_client_builder(limits.execution.max_execution_time)
             .build()
             .map_err(|_| ProviderError::Configuration)?;
-        let custom_base_url_client = provider_client_builder()
+        let custom_base_url_client = provider_client_builder(limits.execution.max_execution_time)
             .dns_resolver(outbound::PolicyResolver(Arc::clone(&policy)))
             .build()
             .map_err(|_| ProviderError::Configuration)?;
@@ -140,11 +151,16 @@ impl ProviderTransport {
         self
     }
 
-    /// Start the execution deadline.
-    pub fn admit(&self) -> RequestPermit {
+    /// Start the execution deadline. The execution's cost counts toward `spend_limits`
+    /// once it finishes.
+    pub(crate) fn admit(
+        &self,
+        spend_limits: Option<crate::spend::SpendRecording>,
+    ) -> RequestPermit {
         RequestPermit {
             _active: crate::observability::Active::new("execution"),
             deadline: Instant::now() + self.limits.execution.max_execution_time,
+            spend_limits,
         }
     }
 
@@ -170,6 +186,7 @@ impl ProviderTransport {
                 model_range,
                 streaming: true,
                 reservation: None,
+                parse_growth: None,
             },
             Route::OpenAiResponses,
             &mut RequestCorrelation::from_headers(headers),
@@ -179,7 +196,7 @@ impl ProviderTransport {
 
     pub(crate) async fn forward_route(
         &self,
-        permit: RequestPermit,
+        mut permit: RequestPermit,
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         request: RequestBody,
@@ -191,6 +208,7 @@ impl ProviderTransport {
             model_range,
             streaming,
             reservation,
+            parse_growth,
         } = request;
         let api_format = route.api_format();
         let provider_model = context.connection().provider_model();
@@ -221,6 +239,7 @@ impl ProviderTransport {
             }
             _ => rewrite_model(body, model_range, provider_model)?,
         };
+        capture.charge_on_finish(permit.spend_limits.take(), parse_growth);
         capture.set_provider_model(provider_model);
         correlation.record_upstream(UpstreamTarget::for_connection(
             context.connection(),
@@ -432,8 +451,13 @@ pub(crate) fn model_range(body: &[u8]) -> Result<Range<usize>, ProviderError> {
     Ok(start..end)
 }
 
-fn provider_client_builder() -> reqwest::ClientBuilder {
-    Client::builder()
+const PROVIDER_TCP_KEEPALIVE_IDLE: Duration = Duration::from_secs(30);
+const PROVIDER_TCP_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
+// Linux rejects `TCP_KEEPCNT` outside `1..=MAX_TCP_KEEPCNT` (127).
+const MAX_TCP_KEEPALIVE_RETRIES: u32 = 127;
+
+fn provider_client_builder(max_execution_time: Duration) -> reqwest::ClientBuilder {
+    let builder = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .retry(reqwest::retry::never())
         .no_proxy()
@@ -443,10 +467,29 @@ fn provider_client_builder() -> reqwest::ClientBuilder {
         .no_zstd()
         // No client read timeout: it would also cut a non-streaming call while the
         // provider generates before sending headers. The relay bounds stalls instead.
+        // Match TCP keepalive and `TCP_USER_TIMEOUT` to `max_execution_time` (the
+        // longest wait the relay allows for non-streaming headers) so reqwest's 30 s
+        // default does not abort a silent upstream connection early.
         .connect_timeout(Duration::from_secs(5))
+        .tcp_keepalive(PROVIDER_TCP_KEEPALIVE_IDLE)
+        .tcp_keepalive_interval(PROVIDER_TCP_KEEPALIVE_INTERVAL)
+        .tcp_keepalive_retries(tcp_keepalive_retries(max_execution_time))
         .pool_max_idle_per_host(16)
         // reqwest's http2 feature is for Web-bound clients (resolver, telemetry); provider calls stay on HTTP/1.1.
-        .http1_only()
+        .http1_only();
+    #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+    let builder = builder.tcp_user_timeout(max_execution_time);
+    builder
+}
+
+fn tcp_keepalive_retries(timeout: Duration) -> u32 {
+    let probe_window = timeout
+        .saturating_sub(PROVIDER_TCP_KEEPALIVE_IDLE)
+        .as_secs();
+    let retries = probe_window.div_ceil(PROVIDER_TCP_KEEPALIVE_INTERVAL.as_secs());
+    u32::try_from(retries)
+        .unwrap_or(MAX_TCP_KEEPALIVE_RETRIES)
+        .clamp(1, MAX_TCP_KEEPALIVE_RETRIES)
 }
 
 /// The connection's extra headers plus its credential. Resolution already rejected

@@ -7,15 +7,20 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { CurrentTopicsView } from "./CurrentTopicsView";
-import { TopicListView } from "./TopicListView";
+import { ScatterTopicsView } from "./scatter/ScatterTopicsView";
 import { TopicTreemapView } from "./TopicTreemapView";
-import { type TopicsResultsView } from "./TopicsResultsViewSelect";
+import {
+  type MobileTopicsVisualization,
+  type TopicsResultsView,
+  useMobileTopicsVisualization,
+} from "./TopicsResultsViewSelect";
 import type { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
+import { type TopicsActions } from "./prepare-topics-actions";
+import { splitTopicTraceFilters } from "./topic-trace-filters";
 import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
@@ -34,9 +39,8 @@ export function CurrentTopics({
   view,
   tracePanelRef,
   traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
   showUnassigned,
+  mapActions,
 }: CurrentTopicsProps) {
   const selectedFacet = result.data?.facets.find(
     (facet) => facet.facetId === selectedFacetId,
@@ -54,9 +58,7 @@ export function CurrentTopics({
         <TopicsCenteredState
           icon={<CircleAlert size="lg" color="destructive" aria-hidden />}
           title={
-            scope.analysisId
-              ? "Couldn’t load this scan"
-              : "Couldn’t load topics"
+            scope.analysisId ? "Couldn’t load this map" : "Couldn’t load topics"
           }
           body={result.error.message}
         />
@@ -71,9 +73,8 @@ export function CurrentTopics({
           view={view}
           tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
           showUnassigned={showUnassigned}
+          mapActions={mapActions}
         />
       )}
     </section>
@@ -87,15 +88,17 @@ function CurrentFacet({
   view,
   tracePanelRef,
   traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
   showUnassigned,
+  mapActions,
 }: CurrentFacetProps) {
   const isHandheld = useIsHandheld();
-  // Only the desktop Map view needs the run's projection.
+  const mobileVisualization = useMobileTopicsVisualization();
+  // Only the Map view needs the run's projection.
   const mapQuery = useCurrentTopicMap(
     projectId,
-    view === "map" && !isHandheld ? resultFacet.map?.runId : undefined,
+    ["map", "scatter"].includes(isHandheld ? mobileVisualization.view : view)
+      ? resultFacet.map?.runId
+      : undefined,
   );
   // Stable identities keep the map camera and grid layout across re-renders.
   const facet = useMemo(
@@ -133,39 +136,28 @@ function CurrentFacet({
         <MobileTopics
           projectId={projectId}
           facet={facet}
-          view="treemap"
+          view={mobileVisualization.view}
+          onViewChange={mobileVisualization.onViewChange}
           mapResult={mapResult}
           traceFilters={traceFilters}
-          onGenerateTopics={onGenerateTopics}
-          canGenerateTopics={canGenerateTopics}
           onOpenTrace={peekNavigation.openPeek}
           showUnassigned={showUnassigned}
+          mapActions={mapActions}
         />
       );
-    if (view === "map")
+    if (view === "scatter")
       return (
-        <CurrentTopicsView
+        <ScatterTopicsView
           key={facet.facetId}
           projectId={projectId}
           facet={facet}
           mapResult={mapResult}
-          tracePanelRef={tracePanelRef}
           traceFilters={traceFilters}
-          onOpenTrace={peekNavigation.openPeek}
-          peekView={peekView}
-          useTraces={useFacetTopicTraces}
           showUnassigned={showUnassigned}
-        />
-      );
-    if (view === "list")
-      return (
-        <TopicListView
-          key={facet.facetId}
-          projectId={projectId}
-          facet={facet}
           peekView={peekView}
           tracePanelRef={tracePanelRef}
           useTraces={useFacetTopicTraces}
+          onOpenTrace={peekNavigation.openPeek}
         />
       );
     return (
@@ -175,6 +167,7 @@ function CurrentFacet({
         facet={facet}
         peekView={peekView}
         useTraces={useFacetTopicTraces}
+        showUnassigned={showUnassigned}
       />
     );
   }
@@ -184,47 +177,50 @@ function MobileTopics({
   projectId,
   facet,
   view,
+  onViewChange,
   mapResult,
   traceFilters,
-  onGenerateTopics,
-  canGenerateTopics,
   onOpenTrace,
   showUnassigned,
+  mapActions,
 }: Pick<
   CurrentFacetProps,
-  | "projectId"
-  | "facet"
-  | "traceFilters"
-  | "onGenerateTopics"
-  | "canGenerateTopics"
-  | "showUnassigned"
+  "projectId" | "facet" | "traceFilters" | "showUnassigned" | "mapActions"
 > & {
-  view: "treemap";
+  view: MobileTopicsVisualization;
+  onViewChange: ComponentProps<typeof MobileTopicsView>["onViewChange"];
   mapResult: ComponentProps<typeof MobileTopicsView>["mapResult"];
   onOpenTrace: (traceId: string) => void;
 }) {
   const { isV4 } = useReadPath();
-  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
-    string | null
-  >(`topics-selected-trace:${projectId}`, null);
+  const [selectedTraceId, setSelectedTraceId] = useMobileTraceSelection(
+    projectId,
+    facet.facetId,
+  );
+  // Mobile filters by topic and assignment only; Scatter's trace filters wait until it is back.
+  const [topicFilters, scatterFilters] = splitTopicTraceFilters(
+    traceFilters.filters,
+  );
   return (
     <MobileTopicsView
       projectId={projectId}
       facet={facet}
       view={view}
+      onViewChange={onViewChange}
       mapResult={mapResult}
-      filters={traceFilters.filters}
+      filters={topicFilters}
       searchQuery={traceFilters.searchQuery}
-      onFiltersChange={traceFilters.setFilters}
+      onFiltersChange={(filters) =>
+        traceFilters.setFilters([...filters, ...scatterFilters])
+      }
       onSearchQueryChange={traceFilters.setSearchQuery}
       selectedTraceId={selectedTraceId}
       onSelectTrace={setSelectedTraceId}
       onOpenTrace={onOpenTrace}
-      onGenerateTopics={onGenerateTopics}
-      canGenerateTopics={canGenerateTopics}
       isV4={isV4}
       useTraces={useFacetTopicTraces}
       showUnassigned={showUnassigned}
+      mapActions={mapActions}
     />
   );
 }
@@ -290,9 +286,9 @@ type CurrentTopicsProps = {
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   showUnassigned: boolean;
+  /** Offered on phones under an empty topic list. */
+  mapActions: TopicsActions;
 };
 
 type CurrentFacetProps = {
@@ -302,12 +298,28 @@ type CurrentFacetProps = {
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
   traceFilters: ReturnType<typeof useTopicTraceFilters>;
-  onGenerateTopics: () => void;
-  canGenerateTopics: boolean;
   showUnassigned: boolean;
+  /** Offered on phones under an empty topic list. */
+  mapActions: TopicsActions;
 };
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
+
+function useMobileTraceSelection(projectId: string, facetId: string) {
+  const [selection, setSelection] = useSessionStorage<{
+    facetId: string;
+    traceId: string | null;
+  }>(`topics-mobile-selected-trace:${projectId}`, { facetId, traceId: null });
+  const traceId = selection.facetId === facetId ? selection.traceId : null;
+  if (selection.facetId !== facetId) {
+    setSelection({ facetId, traceId: null });
+  }
+  return [
+    traceId,
+    (nextTraceId: string | null) =>
+      setSelection({ facetId, traceId: nextTraceId }),
+  ] as const;
+}
 
 function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   return api.topics.map.useQuery(
@@ -316,4 +328,4 @@ function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   );
 }
 
-export const __test = { useCurrentTopics };
+export const __test = { useCurrentTopics, useMobileTraceSelection };

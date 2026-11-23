@@ -25,6 +25,11 @@ fn single_request_memory() -> RequestLimits {
     }
 }
 
+/// Declare an oversized upload without writing bytes after the gateway rejects its headers.
+fn oversized_body() -> reqwest::Body {
+    reqwest::Body::wrap_stream(stream::pending::<Result<&'static [u8], Infallible>>())
+}
+
 struct Gateway {
     url: String,
     shutdown: Option<oneshot::Sender<()>>,
@@ -357,7 +362,8 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
             configured
                 .chat_completions()
                 .bearer_auth("valid")
-                .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
+                .header(header::CONTENT_LENGTH, (MAX_REQUEST_BYTES + 1).to_string())
+                .body(oversized_body()),
             StatusCode::PAYLOAD_TOO_LARGE,
             false,
             false,
@@ -384,7 +390,8 @@ async fn every_error_carries_a_fresh_request_id_in_its_header_and_native_body() 
             configured
                 .post()
                 .bearer_auth("valid")
-                .body(vec![b'x'; MAX_REQUEST_BYTES + 1]),
+                .header(header::CONTENT_LENGTH, (MAX_REQUEST_BYTES + 1).to_string())
+                .body(oversized_body()),
             StatusCode::PAYLOAD_TOO_LARGE,
             false,
             false,
@@ -737,7 +744,8 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_memor
     let response = gateway
         .post()
         .bearer_auth("valid-key")
-        .body(vec![b'x'; MAX_REQUEST_BYTES + 1])
+        .header(header::CONTENT_LENGTH, (MAX_REQUEST_BYTES + 1).to_string())
+        .body(oversized_body())
         .send()
         .await
         .unwrap();
@@ -1528,6 +1536,188 @@ async fn organization_rate_limits_become_provider_native_429s_with_retry_after()
     assert_eq!(provider.calls(), 0);
 }
 
+/// A resolution for a key with a daily spend limit, changed by `edit`.
+async fn spend_limited_resolution(edit: fn(&mut serde_json::Value)) -> Response<Body> {
+    let bytes = to_bytes(resolution_response("provider-secret").into_body(), 4096)
+        .await
+        .unwrap();
+    let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    body["spend_limits"] = serde_json::json!([{
+        "id": "limit-1", "scope": "api_key", "interval": "daily", "limit_usd": 10,
+        "counting_started_at": 0,
+    }]);
+    body["pricing"] = serde_json::json!({
+        "model_id": "model-1",
+        "tiers": [{
+            "id": "tier-1", "name": "Standard", "is_default": true, "priority": 0,
+            "conditions": [], "prices": { "input": 0.000_001 },
+        }],
+    });
+    edit(&mut body);
+    Response::builder()
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap()
+}
+
+async fn spend_limited_request(edit: fn(&mut serde_json::Value)) -> (StatusCode, String, usize) {
+    let web = FakeServer::start(move |_| spend_limited_resolution(edit)).await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    let response = gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1"}"#)
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+    let code = body["error"]["code"].as_str().unwrap().to_owned();
+    (status, code, provider.calls())
+}
+
+#[tokio::test]
+async fn keys_with_spend_limits_fail_closed_without_spend_counters() {
+    let (status, code, provider_calls) = spend_limited_request(|_| {}).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(code, "gateway_unavailable");
+    assert_eq!(provider_calls, 0);
+}
+
+#[tokio::test]
+async fn keys_with_spend_limits_reject_requests_they_cannot_price() {
+    type Edit = fn(&mut serde_json::Value);
+    let cases: [(Edit, &str); 2] = [
+        (
+            |body| body["pricing"] = serde_json::Value::Null,
+            "spend_limit_unpriced_model",
+        ),
+        (
+            |body| body["pricing"]["tiers"][0]["prices"] = serde_json::json!({}),
+            "spend_limit_unpriced_model",
+        ),
+    ];
+    for (edit, expected) in cases {
+        let (status, code, provider_calls) = spend_limited_request(edit).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(code, expected);
+        assert_eq!(provider_calls, 0);
+    }
+}
+
+#[tokio::test]
+async fn keys_with_spend_limits_charge_the_billed_cost_of_unpriced_models() {
+    let (status, code, provider_calls) = spend_limited_request(|body| {
+        body["pricing"] = serde_json::Value::Null;
+        body["connection"]["provider"] = "openrouter".into();
+    })
+    .await;
+    // Past the pricing check, the key fails closed on the missing spend counters.
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(code, "gateway_unavailable");
+    assert_eq!(provider_calls, 0);
+}
+
+#[tokio::test]
+async fn keys_with_spend_limits_still_count_tokens() {
+    let web = FakeServer::start(|_| async {
+        let bytes = to_bytes(
+            resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic").into_body(),
+            4096,
+        )
+        .await
+        .unwrap();
+        let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        body["spend_limits"] = serde_json::json!([{
+            "id": "limit-1", "scope": "api_key", "interval": "daily", "limit_usd": 10,
+            "counting_started_at": 0,
+        }]);
+        Response::new(Body::from(body.to_string()))
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::from("{}")) }).await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    let response = reqwest::Client::new()
+        .post(format!(
+            "{}/anthropic/v1/messages/count_tokens",
+            gateway.url
+        ))
+        .header("x-api-key", "gateway-anthropic")
+        .body(r#"{"model":"Production key:test"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(provider.calls(), 1);
+}
+
+#[tokio::test]
+async fn spend_limit_rejections_are_recorded_as_error_generations() {
+    let (sent, mut uploads) = tokio::sync::mpsc::unbounded_channel();
+    let web = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        async move {
+            if request.uri().path().ends_with("/resolve") {
+                return spend_limited_resolution(|body| body["pricing"] = serde_json::Value::Null)
+                    .await;
+            }
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(crate::test_support::upload_json(&bytes)).unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let telemetry = crate::telemetry::Telemetry::for_test(
+        &crate::resolution::ControlPlaneConfig::new(&web.url, "service-key").unwrap(),
+    );
+    let gateway = Gateway::start(Some(
+        inference(&web, &provider).with_telemetry(telemetry.clone()),
+    ))
+    .await;
+    let response = gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(r#"{"model":"Production key:gpt-4.1"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    let payload = uploads.try_recv().unwrap();
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    let attribute = |key: &str| {
+        span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .map(|attribute| {
+                attribute["value"]["stringValue"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
+    };
+    assert_eq!(attribute("langfuse.observation.level").unwrap(), "ERROR");
+    assert!(
+        attribute("langfuse.observation.status_message")
+            .unwrap()
+            .contains("Langfuse has no price for this model")
+    );
+    let metadata: serde_json::Value =
+        serde_json::from_str(&attribute("langfuse.observation.metadata").unwrap()).unwrap();
+    assert_eq!(metadata["langfuse.gateway.response.status_code"], 400);
+    assert_eq!(
+        metadata["langfuse.gateway.error.type"],
+        "spend_limit_unpriced_model"
+    );
+    assert_eq!(provider.calls(), 0);
+}
+
 #[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
@@ -1683,7 +1873,14 @@ async fn anthropic_routes_share_the_request_body_limit() {
             send(MAX_REQUEST_BYTES).await.unwrap().status(),
             StatusCode::OK
         );
-        let rejected = send(MAX_REQUEST_BYTES + 1).await.unwrap();
+        let rejected = client
+            .post(format!("{}/anthropic/v1/{path}", gateway.url))
+            .header("x-api-key", "gateway-anthropic")
+            .header(header::CONTENT_LENGTH, (MAX_REQUEST_BYTES + 1).to_string())
+            .body(oversized_body())
+            .send()
+            .await
+            .unwrap();
         assert_eq!(rejected.status(), StatusCode::PAYLOAD_TOO_LARGE);
         let body: serde_json::Value =
             serde_json::from_str(&rejected.text().await.unwrap()).unwrap();

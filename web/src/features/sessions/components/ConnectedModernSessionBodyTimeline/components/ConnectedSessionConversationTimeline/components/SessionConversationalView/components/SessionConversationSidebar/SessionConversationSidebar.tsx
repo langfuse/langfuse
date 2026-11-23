@@ -75,13 +75,13 @@ export function SessionConversationSidebar(
       }
   ) & {
     searchVisibility?: "hidden";
+    sidebarToggle?: ReactNode;
     customization?: {
       activeFilterCount: number;
       onCustomizeView: () => void;
     };
   },
 ) {
-  const { customization } = props;
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
@@ -239,6 +239,7 @@ export function SessionConversationSidebar(
     return (
       <SessionSidebar
         label="Session messages and tools"
+        sidebarToggle={props.sidebarToggle}
         isLoading
         search={
           props.searchVisibility !== "hidden"
@@ -246,7 +247,6 @@ export function SessionConversationSidebar(
                 search: "",
                 disabled: true,
                 onSearchChange: () => {},
-                customization,
               }
             : undefined
         }
@@ -265,6 +265,7 @@ export function SessionConversationSidebar(
   return (
     <SessionSidebar
       label="Session messages and tools"
+      sidebarToggle={props.sidebarToggle}
       isListScrolled={isListScrolled}
       search={
         props.searchVisibility !== "hidden"
@@ -274,7 +275,6 @@ export function SessionConversationSidebar(
                 virtualizer.scrollToOffset(0);
                 props.onSearchChange(search);
               },
-              customization,
             }
           : undefined
       }

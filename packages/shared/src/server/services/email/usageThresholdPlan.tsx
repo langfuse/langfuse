@@ -39,12 +39,9 @@ export const UsageThresholdUpgradeSection = ({
       </Heading>
       <Text className="text-gray-700 text-sm leading-6">
         When you upgrade, you can:
-        <br />
-        • Add unlimited number of users
-        <br />
-        • Retain data for 90 days
-        <br />
-        • Access unlimited evaluators
+        <br />• Add unlimited number of users
+        <br />• Retain data for 90 days
+        <br />• Access unlimited evaluators
         <br />• Get support via Email/Chat
       </Text>
       <Text className="text-gray-700 text-sm leading-6 mt-4">

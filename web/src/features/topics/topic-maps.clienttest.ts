@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   resolveTopicMapSelection,
-  suggestTopicRuleName,
+  topicNextRefitLabel,
   type TopicMapsOverview,
 } from "./topic-maps";
 
@@ -33,24 +33,11 @@ describe("resolveTopicMapSelection", () => {
   });
 });
 
-describe("rule labels", () => {
-  it("suggests a name from the filter values", () => {
+describe("topicNextRefitLabel", () => {
+  it("estimates the next nightly refit a whole number of days after the last", () => {
+    const last = Date.parse("2026-11-17T04:12:00.000Z");
     expect(
-      suggestTopicRuleName([
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["production"],
-        },
-        {
-          column: "traceName",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["support-agent"],
-        },
-      ]),
-    ).toBe("production · support-agent");
-    expect(suggestTopicRuleName([])).toBe("All traces");
+      topicNextRefitLabel(new Date(last).toISOString(), last + 25 * 3_600_000),
+    ).toBe("in about 23 hours");
   });
 });

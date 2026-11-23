@@ -60,7 +60,7 @@ export const UsageThresholdSuspensionEmailTemplate = ({
               <Img
                 src="https://static.langfuse.com/langfuse_logo_transactional_email.png"
                 width="40"
-                height="40"
+                height="26"
                 alt="Langfuse"
                 className="mx-auto my-0"
               />
@@ -111,10 +111,8 @@ export const UsageThresholdSuspensionEmailTemplate = ({
                 <strong>
                   New traces, observations, and scores cannot be ingested
                 </strong>
-                <br />
-                • Existing data remains accessible
-                <br />
-                • Dashboard and analytics continue to work
+                <br />• Existing data remains accessible
+                <br />• Dashboard and analytics continue to work
                 <br />• API calls to ingestion endpoints return 403 errors
               </Text>
             </Section>
