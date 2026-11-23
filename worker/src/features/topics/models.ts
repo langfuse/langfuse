@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@langfuse/shared/src/env";
+import { env as workerEnv } from "../../env";
 import {
   calculateModelUsageCosts,
   findModel,
@@ -90,26 +91,7 @@ async function priceTopicUsage(
   };
 }
 
-function countTopicRequestTokens(
-  system: TopicPromptPart[],
-  input: string,
-  schema: z.ZodType,
-): number {
-  const encoding = get_encoding("o200k_base");
-  try {
-    return encoding.encode(
-      system.map((part) => part.text).join("") +
-        input +
-        JSON.stringify(z.toJSONSchema(schema)),
-      "all",
-      [],
-    ).length;
-  } finally {
-    encoding.free();
-  }
-}
-
-/** The input exceeds the run's token limit; no model call was made. */
+/** The rendered transcript exceeds the character limit; no model call was made. */
 export class TopicInputTooLarge extends Error {
   readonly name = "TopicInputTooLarge";
 }
@@ -337,11 +319,9 @@ ${facetBlock(true)}`,
     ...(customFacets ? [{ text: customFacets, cache: true }] : []),
   ];
   const input = `<transcript>\n${text}\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.`;
-  const countedInputTokens =
-    countTopicRequestTokens(system, input, schema) + 256;
-  if (countedInputTokens > config.maxInputTokens)
+  if (text.length > workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS)
     throw new TopicInputTooLarge(
-      `The shared trace transcript and instructions are ${countedInputTokens} tokens, above this run's ${config.maxInputTokens}-token input limit. No model call was made; the transcript is never shortened per facet.`,
+      `The rendered trace transcript is ${text.length} characters, above the ${workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS}-character input limit. No model call was made; the transcript is never shortened per facet.`,
     );
   return structuredCall(
     system,
