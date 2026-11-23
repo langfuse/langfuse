@@ -4,13 +4,39 @@ import {
   LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import {
+  type BillableEventType,
+  type BillableUnitBucketGranularity,
+  bucketStartSql,
   convertDateToClickhouseDateTime,
+  getBillableEventsLedgerStart,
+  getBillableUnitCountsByProjectAndBucket,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
-type BillableUnitType = "traces" | "observations" | "scores";
+type BillableUnitType =
+  | "traces"
+  | "observations"
+  | "scores"
+  | "topicFacetSummaries";
 
-type UsageBreakdownGranularity = "hour" | "day" | "week" | "month";
+type UsageBreakdownGranularity = BillableUnitBucketGranularity;
+
+type V4WriteMode = typeof env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+type UsageBreakdownRow = {
+  bucket: string;
+  projectId: string;
+  unitType: BillableUnitType;
+  count: number;
+};
+
+const UNIT_TYPE_BY_EVENT_TYPE: Record<BillableEventType, BillableUnitType> = {
+  trace: "traces",
+  observation: "observations",
+  score: "scores",
+  topic_facet_summary: "topicFacetSummaries",
+};
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -30,14 +56,7 @@ const getUsageBreakdownGranularity = (
   return "month";
 };
 
-/** UTC bucket expression; weeks start on Monday. Must match `startOfBucket`. */
-const BUCKET_SQL: Record<UsageBreakdownGranularity, string> = {
-  hour: "toStartOfHour(created_at, 'UTC')",
-  day: "toStartOfDay(created_at, 'UTC')",
-  week: "toDateTime(toStartOfWeek(created_at, 1, 'UTC'), 'UTC')",
-  month: "toDateTime(toStartOfMonth(created_at, 'UTC'), 'UTC')",
-};
-
+/** Must start buckets where `bucketStartSql` does. */
 const startOfBucket = (
   date: Date,
   granularity: UsageBreakdownGranularity,
@@ -100,27 +119,28 @@ const getBucketStarts = (
 };
 
 /**
- * Billable units per bucket, project and unit type. Mirrors the metering
- * definition used for Stripe and ClickHouse Billing: rows counted by
- * `created_at` in a half-open window, no FINAL. Scores include the listable
- * data types, plus CORRECTION rows created at or after the billing cutoff.
+ * Billable units per bucket, project and unit type from the legacy traces,
+ * observations and scores tables, the only ones a `legacy` deployment writes:
+ * rows counted by `created_at` in a half-open window, no FINAL. Scores include
+ * the listable data types, plus CORRECTION rows created at or after the
+ * billing cutoff.
  */
-const getBillableUnitsByBucket = async ({
+const getLegacyBillableUnitsByBucket = async ({
   projectIds,
-  start,
-  end,
+  from,
+  to,
   granularity,
 }: {
   projectIds: string[];
-  start: Date;
-  end: Date;
+  from: Date;
+  to: Date;
   granularity: UsageBreakdownGranularity;
-}) => {
-  const bucket = `toUnixTimestamp(${BUCKET_SQL[granularity]})`;
+}): Promise<UsageBreakdownRow[]> => {
+  const bucket = `toUnixTimestamp(${bucketStartSql("created_at", granularity)})`;
   const where = `
     project_id IN {projectIds: Array(String)}
-    AND created_at >= {start: DateTime64(3)}
-    AND created_at < {end: DateTime64(3)}`;
+    AND created_at >= {from: DateTime64(3)}
+    AND created_at < {to: DateTime64(3)}`;
 
   const query = `
     SELECT ${bucket} AS bucket, project_id, 'traces' AS unit_type, count() AS count
@@ -155,8 +175,8 @@ const getBillableUnitsByBucket = async ({
     query,
     params: {
       projectIds,
-      start: convertDateToClickhouseDateTime(start),
-      end: convertDateToClickhouseDateTime(end),
+      from: convertDateToClickhouseDateTime(from),
+      to: convertDateToClickhouseDateTime(to),
       dataTypes: LISTABLE_SCORE_TYPES,
       correctionsFrom: convertDateToClickhouseDateTime(
         CORRECTION_SCORES_BILLABLE_FROM,
@@ -174,26 +194,55 @@ const getBillableUnitsByBucket = async ({
 };
 
 /**
+ * Billable units per bucket, project and unit type from the billable_events
+ * ledger, which billing reads once the deployment writes the events tables:
+ * approximate distinct units per bucket, close to but not exactly what is
+ * billed.
+ */
+const getLedgerBillableUnitsByBucket = async (
+  params: Parameters<typeof getBillableUnitCountsByProjectAndBucket>[0],
+): Promise<UsageBreakdownRow[]> =>
+  (await getBillableUnitCountsByProjectAndBucket(params)).map((row) => ({
+    bucket: row.bucket.toISOString(),
+    projectId: row.projectId,
+    unitType: UNIT_TYPE_BY_EVENT_TYPE[row.eventType],
+    count: row.count,
+  }));
+
+/**
  * Billable units of an organization's live projects over [from, to), bucketed
- * by an automatically chosen UTC granularity. Soft-deleted projects are left
- * out, as they are when usage is metered.
+ * by the given UTC granularity, or one chosen from the range's length. A `to`
+ * in the future is cut off at now. Soft-deleted projects are left out, as
+ * they are when usage is metered.
+ *
+ * The source follows the v4 write mode: `legacy` deployments count the legacy
+ * tables, and `dual` and `events_only` deployments read the billable_events
+ * ledger, fed from the events tables. The ledger is not backfilled, so
+ * `usageRecordedFrom` is when it got its first row (null when it is empty);
+ * buckets before it show no usage. It is null for the legacy tables.
  */
 export const getOrgUsageBreakdown = async ({
   prisma,
   orgId,
   from,
   to,
+  granularity: requestedGranularity,
+  writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
 }: {
   prisma: PrismaClient;
   orgId: string;
   from: Date;
   to: Date;
+  granularity?: UsageBreakdownGranularity;
+  writeMode?: V4WriteMode;
 }) => {
   const end = new Date(Math.min(to.getTime(), Date.now()));
-  const granularity = getUsageBreakdownGranularity(from, end);
+  const granularity =
+    requestedGranularity ?? getUsageBreakdownGranularity(from, end);
   const buckets = getBucketStarts(from, end, granularity).map((bucket) =>
     bucket.toISOString(),
   );
+  const readsLedger = writeMode !== "legacy";
 
   const projects = await prisma.project.findMany({
     where: { orgId, deletedAt: null },
@@ -201,15 +250,28 @@ export const getOrgUsageBreakdown = async ({
     orderBy: { name: "asc" },
   });
 
-  const rows =
-    projects.length > 0 && from < end
-      ? await getBillableUnitsByBucket({
-          projectIds: projects.map((project) => project.id),
-          start: from,
-          end,
-          granularity,
-        })
-      : [];
+  const query = {
+    projectIds: projects.map((project) => project.id),
+    from,
+    to: end,
+    granularity,
+  };
+  const readRows = async (): Promise<UsageBreakdownRow[]> => {
+    if (projects.length === 0 || from >= end) return [];
+    return readsLedger
+      ? getLedgerBillableUnitsByBucket(query)
+      : getLegacyBillableUnitsByBucket(query);
+  };
+  const [rows, ledgerStart] = await Promise.all([
+    readRows(),
+    readsLedger ? getBillableEventsLedgerStart() : null,
+  ]);
 
-  return { granularity, buckets, projects, rows };
+  return {
+    granularity,
+    buckets,
+    projects,
+    rows,
+    usageRecordedFrom: ledgerStart?.toISOString() ?? null,
+  };
 };
