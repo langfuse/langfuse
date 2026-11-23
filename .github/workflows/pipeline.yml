@@ -271,6 +271,8 @@ jobs:
         run: node --test scripts/vitest/ci-reporter.test.mjs
       - name: merge gate tests
         run: node --test scripts/ci/merge-gate.test.mjs
+      - name: web entrypoint tests
+        run: node --test scripts/ci/web-entrypoint.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
