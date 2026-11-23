@@ -6,6 +6,10 @@ const inputVariants = cva(
   "placeholder:text-muted-foreground text-sm disabled:cursor-not-allowed",
   {
     variants: {
+      noCapture: {
+        true: "ph-no-capture",
+        false: null,
+      },
       valuePrefixed: {
         true: "h-full min-w-0 flex-1 border-0 bg-transparent p-0 shadow-none outline-hidden focus:ring-0",
         false: null,
@@ -76,6 +80,8 @@ type InputProps = Pick<
 > & {
   allowPasswordManager?: boolean;
   error?: boolean;
+  /** Keeps the input out of session replay. */
+  noCapture?: boolean;
   /** Shaded label and/or decorative icon before the editable value. */
   prefix?: ComponentProps<typeof InputControl>["prefix"];
   /** Uneditable text displayed as part of the value, e.g. https://. */
@@ -86,16 +92,33 @@ type InputProps = Pick<
    */
   layout?: "block" | "inline";
   ref?: Ref<HTMLInputElement>;
-};
+} & (
+    | { copyAction?: never }
+    | {
+        copyAction: Omit<
+          Extract<
+            ComponentProps<typeof InputControl>["trailingAction"],
+            { kind: "copy" }
+          >,
+          "kind" | "value"
+        >;
+        readOnly: true;
+        value: string;
+        valuePrefix?: never;
+      }
+  );
 
 export function Input({
   allowPasswordManager,
   error,
   layout = "block",
+  noCapture,
   prefix,
   valuePrefix,
   ref,
   disabled,
+  copyAction,
+  value,
   ...props
 }: InputProps) {
   if (valuePrefix === undefined) {
@@ -105,10 +128,14 @@ export function Input({
         error={error}
         disabled={disabled}
         prefix={prefix}
+        trailingAction={
+          copyAction ? { ...copyAction, kind: "copy", value } : undefined
+        }
       >
         <input
           {...props}
-          className={inputVariants({ valuePrefixed: false, layout })}
+          value={value}
+          className={inputVariants({ valuePrefixed: false, layout, noCapture })}
           {...(!allowPasswordManager && { "data-1p-ignore": true })}
           ref={ref}
           disabled={disabled}
@@ -138,7 +165,8 @@ export function Input({
         </span>
         <input
           {...props}
-          className={inputVariants({ valuePrefixed: true, layout })}
+          value={value}
+          className={inputVariants({ valuePrefixed: true, layout, noCapture })}
           {...(!allowPasswordManager && { "data-1p-ignore": true })}
           ref={ref}
           disabled={disabled}

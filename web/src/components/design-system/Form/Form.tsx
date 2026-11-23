@@ -1,4 +1,5 @@
 import {
+  useState,
   type ComponentProps,
   type FormHTMLAttributes,
   type ReactNode,
@@ -11,10 +12,13 @@ import {
 } from "react-hook-form";
 
 import { Button } from "@/src/components/design-system/Button/Button";
+import { CopyInput } from "@/src/components/design-system/CopyInput/CopyInput";
+import { FormError } from "@/src/components/design-system/FormError/FormError";
 import {
   FormField,
   type FormFieldProps,
 } from "@/src/components/design-system/FormField/FormField";
+import { FormCompositeField } from "@/src/components/design-system/FormCompositeField/FormCompositeField";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -99,6 +103,7 @@ function FormInputField<
     | "id"
     | "name"
     | "value"
+    | "copyAction"
     | "defaultValue"
     | "onChange"
     | "onBlur"
@@ -137,6 +142,40 @@ function FormInputField<
           }
           aria-invalid={Boolean(field.error)}
           error={Boolean(field.error)}
+        />
+      )}
+    </FormField>
+  );
+}
+
+function FormCopyInputField({
+  label,
+  description,
+  value,
+  copyLabel,
+  noCapture,
+}: Pick<ComponentProps<typeof FormField>, "label" | "description"> &
+  Pick<ComponentProps<typeof CopyInput>, "value" | "copyLabel" | "noCapture">) {
+  const [copyFailed, setCopyFailed] = useState(false);
+
+  return (
+    <FormField
+      label={label}
+      description={description}
+      error={
+        copyFailed
+          ? "Copy failed. Select the value and copy it manually."
+          : undefined
+      }
+    >
+      {({ id, inputDescribedById }) => (
+        <CopyInput
+          id={id}
+          aria-describedby={inputDescribedById}
+          value={value}
+          copyLabel={copyLabel}
+          noCapture={noCapture}
+          onCopyResult={(result) => setCopyFailed(result === "failed")}
         />
       )}
     </FormField>
@@ -277,7 +316,10 @@ function FormRoot({
 }
 
 export const Form = Object.assign(FormRoot, {
+  Error: FormError,
   Field: FormField,
+  CompositeField: FormCompositeField,
+  CopyInputField: FormCopyInputField,
   InputField: FormInputField,
   PasswordInputField: FormPasswordInputField,
   SelectInputField: FormSelectInputField,
