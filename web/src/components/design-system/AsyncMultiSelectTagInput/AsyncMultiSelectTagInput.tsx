@@ -355,10 +355,9 @@ export function AsyncMultiSelectTagInput<V extends string>({
                               )
                             }
                           >
-                            <InputDropdown.OptionContent
+                            <InputDropdown.MultiSelectOptionContent
                               label={selectAllLabel}
                               title={selectAllLabel}
-                              type="checkbox"
                               checked={allSelected}
                             />
                           </CommandPrimitive.Item>
@@ -397,11 +396,10 @@ export function AsyncMultiSelectTagInput<V extends string>({
                                 changeValue([...value, option.value]);
                               }}
                             >
-                              <InputDropdown.OptionContent
+                              <InputDropdown.MultiSelectOptionContent
                                 label={option.label}
                                 secondaryLabel={option.secondaryLabel}
                                 title={visibleLabel}
-                                type="checkbox"
                                 checked={isSelected}
                               />
                             </CommandPrimitive.Item>

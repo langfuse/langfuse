@@ -29,7 +29,7 @@ import {
   isTopicsProjectEnabled,
 } from "@langfuse/shared/topics/server";
 import { processOtelEvents } from "../../features/otel-ingestion/processOtelEvents";
-import { recordTraceActivity } from "../../features/traceBatching/traceRuleRecording";
+import { recordTraceActivity } from "../../features/traceDispatch/traceRuleRecording";
 import {
   createTestEvalConfig,
   createMockSchedulerDeps,
@@ -201,8 +201,6 @@ describe("native Rust trace activity", () => {
     const original = {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       LANGFUSE_EVENTS_DISPATCH_ENABLED: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
-      LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL:
-        env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL,
       LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
         env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
@@ -210,11 +208,10 @@ describe("native Rust trace activity", () => {
     Object.assign(env, {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "DEV",
       LANGFUSE_EVENTS_DISPATCH_ENABLED: "true",
-      LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL: 1,
       LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "false",
       LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
     });
-    vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
+    vi.mocked(getTopicsProcessingSampling).mockResolvedValue(1);
     const projectId = "project";
     vi.mocked(fetchEvalRules).mockResolvedValue({
       observationRules: [],
@@ -294,13 +291,12 @@ describe("native Rust trace activity", () => {
         "langfuse.ingestion.otel.observation_count",
         records.length,
       );
-      expect(scheduleObservationEvals).not.toHaveBeenCalled();
       expect(recordTraceActivity).toHaveBeenCalledOnce();
       expect(recordedActivity).toEqual([
         {
           traceId: "trace-a",
           spanStartTimeISO: records[0].startTimeIso,
-          ruleIds: ["__trace_batch_experiment__"],
+          ruleIds: [],
           serializedEventBytes: records[0].serializedEventBytes,
         },
       ]);
@@ -434,7 +430,7 @@ describe("native Rust trace activity", () => {
   });
 });
 
-vi.mock("../../features/traceBatching/traceRuleRecording", () => ({
+vi.mock("../../features/traceDispatch/traceRuleRecording", () => ({
   recordTraceActivity: vi.fn(),
 }));
 
@@ -499,12 +495,11 @@ describe("trace-rule recording at the evaluation stage", () => {
       vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
         topicsEnabled ? 1 : 0,
       );
-      env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = 1;
       env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
         ? "true"
         : "false";
       const includeTraceTranscriptRules =
-        shouldWriteToEventsTable && ingestionEnabled;
+        shouldWriteToEventsTable && ingestionEnabled && topicsEnabled;
       env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
       const projectId = "recording-test";
       const observationRule = createTestEvalConfig({ projectId });
@@ -612,7 +607,7 @@ describe("trace-rule recording at the evaluation stage", () => {
                 {
                   traceId: "trace",
                   spanStartTimeISO: inputs[1].startTimeISO,
-                  ruleIds: ["__trace_batch_experiment__"],
+                  ruleIds: [],
                   serializedEventBytes: Buffer.byteLength(
                     JSON.stringify(persistedOther),
                   ),
@@ -667,12 +662,12 @@ describe("trace-rule recording at the evaluation stage", () => {
     { mode: "intake off", rate: 0.1, ingestionEnabled: false, cloud: true },
     { mode: "self-hosted", rate: 0.1, ingestionEnabled: true, cloud: false },
   ])(
-    "records the stable experiment cohort without evaluation rules ($mode)",
+    "records bounds for the stable Topics sample without transcript rules ($mode)",
     async ({ rate, ingestionEnabled, cloud }) => {
       const original = { ...env };
       const projectId = "sampled-recording-test";
       const normalize = vi.spyOn(observationForEvalSchema, "parse");
-      // Existing trace-batch sampler fixtures: 0.0593 is selected at 10%; 0.7116 is not.
+      // Deterministic sampler fixtures: 0.0593 is selected at 10%; 0.7116 is not.
       const selected = "00000000000000000000000000000001";
       const excluded = "00000000000000000000000000000002";
       const inputs = [selected, excluded, selected, selected].map(
@@ -691,7 +686,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
           ? "true"
           : "false";
-        env.LANGFUSE_EVENTS_DISPATCH_SAMPLING_RATE_EXPERIMENTAL = rate;
+        vi.mocked(getTopicsProcessingSampling).mockResolvedValue(rate);
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
         vi.mocked(fetchEvalRules).mockResolvedValue({
           observationRules: [],
@@ -736,7 +731,7 @@ describe("trace-rule recording at the evaluation stage", () => {
             [inputs[0], inputs[2]].map((input) => ({
               traceId: selected,
               spanStartTimeISO: input.startTimeISO,
-              ruleIds: ["__trace_batch_experiment__"],
+              ruleIds: [],
               serializedEventBytes: Buffer.byteLength(
                 JSON.stringify(persistedRecord),
               ),
@@ -748,6 +743,7 @@ describe("trace-rule recording at the evaluation stage", () => {
       } finally {
         normalize.mockRestore();
         Object.assign(env, original);
+        vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
         vi.clearAllMocks();
       }
     },

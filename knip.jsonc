@@ -19,6 +19,10 @@
       // `pnpm change check` is a pnpm built-in, not an installed binary.
       "ignoreBinaries": ["change"],
     },
+    "packages/native": {
+      // The public types re-export the declarations paired with the generated JS loader.
+      "entry": ["index.d.ts"],
+    },
     "packages/shared": {
       "oxlint": { "config": ["oxlint.config.mts"] },
       // Loaded through the inherited config; declared by @repo/oxlint-config.

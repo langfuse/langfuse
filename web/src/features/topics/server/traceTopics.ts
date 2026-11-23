@@ -1,4 +1,5 @@
 import {
+  getCompletedTopicRuleRunIds,
   getCurrentTopicMapRows,
   getPublishedTopicMaps,
   listTopicFacets,
@@ -28,27 +29,39 @@ export async function topicFilterOptions(projectId: string) {
   ) as Record<string, string[]>;
 }
 
-/** Current topics for a page of traces: one ClickHouse read across facets, one topic or outlier per rule's map. */
+/** Latest topics for a page of traces: one ClickHouse read across facets, one topic or outlier per rule's map. */
 export async function tracesTopics(
   projectId: string,
   traces: { traceId: string; timestamp: Date }[],
 ) {
   const facets = await listTopicFacets(projectId);
   if (facets.length === 0) return {};
-  const { runIds, maps } = await getPublishedTopicMaps(
+  const { runIds, ruleIds, maps } = await getPublishedTopicMaps(
     projectId,
     facets.map((facet) => facet.id),
   );
+  const ruleRunIds = await getCompletedTopicRuleRunIds(projectId, ruleIds);
   const rows = await readCurrentTraceTopics(projectId, {
     traces,
     facetIds: facets.map((facet) => facet.id),
-    publishedRunIds: runIds,
+    runIds: [...new Set([...runIds, ...ruleRunIds])],
     includeOutliers: true,
   });
-  const topicNames = new Map(
-    maps
-      .flatMap((map) => map.topics)
-      .map((topic) => [topic.topicVersionId, topic.name]),
+  // A placement belongs to its rule's current map, a snapshot placement to its own run. That map
+  // names its stable topic id and is the run the stripe compares against.
+  const currentMaps = new Map(
+    maps.flatMap((map) => {
+      const names = new Map(
+        map.topics.map((topic) => [topic.topicId, topic.name]),
+      );
+      const entry = { runId: map.runId, names };
+      return [
+        [`${map.facetId}:run:${map.runId}`, entry] as const,
+        ...(map.ruleId
+          ? [[`${map.facetId}:rule:${map.ruleId}`, entry] as const]
+          : []),
+      ];
+    }),
   );
   const result: Record<
     string,
@@ -56,18 +69,23 @@ export async function tracesTopics(
   > = {};
   for (const facet of facets)
     for (const row of rows) {
+      if (row.facetId !== facet.id) continue;
+      const map = currentMaps.get(
+        row.ruleId
+          ? `${row.facetId}:rule:${row.ruleId}`
+          : `${row.facetId}:run:${row.runId}`,
+      );
       // A null topic is an outlier: the map analysed the trace without assigning one.
-      const topic =
-        row.topicId === "" ? null : topicNames.get(row.topicVersionId);
-      if (row.facetId !== facet.id || topic === undefined) continue;
+      const topic = row.topicId === "" ? null : map?.names.get(row.topicId);
+      if (!map || topic === undefined) continue;
       const items = result[row.traceId] ?? [];
       result[row.traceId] = items;
       // Rules can each assign a topic; a name several rules assigned shows once, listing each map.
       const same = items.find(
         (item) => item.facet === facet.name && item.topic === topic,
       );
-      if (same) same.runIds.push(row.runId);
-      else items.push({ facet: facet.name, topic, runIds: [row.runId] });
+      if (same) same.runIds.push(map.runId);
+      else items.push({ facet: facet.name, topic, runIds: [map.runId] });
     }
   return result;
 }

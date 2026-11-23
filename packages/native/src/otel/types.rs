@@ -67,6 +67,7 @@ pub struct OwnedEvent {
     pub model_parameters: Option<Value>,
     pub provided_usage_details: IndexMap<String, Value>,
     pub provided_cost_details: BTreeMap<String, Value>,
+    pub gateway_calculated_cost: bool,
     pub input: Option<Value>,
     pub output: Option<Value>,
     pub metadata: JsonObject,
@@ -103,6 +104,7 @@ impl Default for OwnedEvent {
             output: None,
             provided_usage_details: IndexMap::new(),
             provided_cost_details: BTreeMap::new(),
+            gateway_calculated_cost: false,
             metadata: JsonObject::new(),
             skills_available: Vec::new(),
             skills_resource_loaded: Vec::new(),
@@ -122,7 +124,11 @@ impl OwnedEvent {
         row.model_parameters = json_storage_string(self.model_parameters);
         (row.metadata_names, row.metadata_values) = flatten_object_owned(self.metadata);
         row.provided_usage_details = storage_map(self.provided_usage_details);
-        row.provided_cost_details = storage_map(self.provided_cost_details);
+        row.provided_cost_details = if self.gateway_calculated_cost {
+            BTreeMap::new()
+        } else {
+            storage_map(self.provided_cost_details)
+        };
         row.prompt_id = enrichment.prompt_id;
         row.model_id = enrichment.model_id;
         row.usage_details = storage_map(enrichment.usage_details);

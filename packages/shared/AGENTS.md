@@ -33,6 +33,15 @@
   `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
   generation after history is split off; it is not the depth of the first
   generation in the full thread.
+- Model definition visibility: `src/server/ingestion/modelVisibility.ts`.
+  Every project-scoped read of `models` filters with `visibleModelsWhere`
+  (Prisma) or `visibleModelsSql` (raw SQL): the project's rows, its
+  organization's rows, and Langfuse rows. Never filter on null owner columns.
+  Resolution ranks project over organization over Langfuse
+  (`modelScopeRankSql`) before pattern or start date. After changing an
+  organization's definitions, call `clearModelCacheForOrganization`
+  (`src/server/ingestion/modelMatch.ts`).
+- Plans and entitlements: the plan → entitlement table and `hasEntitlementBasedOnPlan` live in `src/features/entitlements/` (client-safe barrel); `getOrganizationPlanServerSide` / `getSelfHostedInstancePlanServerSide` in `src/server/entitlements/getPlan.ts` (server barrel), so web and worker resolve an organization's plan the same way. The resolver reads shared's `env`, so tests override it there (`@langfuse/shared/src/env`), not via `process.env` or a `@/src/env.mjs` mock.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Audit snapshots and replay: `src/server/repositories/auditLogs.ts`; `getAuditLogResourceRefs` derives bulk trace refs from the persisted snapshot for live staging and backfill.
@@ -44,7 +53,7 @@
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server
   barrel; hash the unit identity when a project can dominate traffic.
-- Full-event streaming reads for events dispatch live in `src/server/repositories/trace-batch.ts`; the worker owns enablement and lifecycle. Reader options control per-query threads/block size; retain exact tenant pairs and per-trace time windows when changing parameter chunking. Rows must stay contiguous by project and trace ID so consumers can finish a trace at the next pair or successful EOF; time buckets must not precede trace ID.
+- Full-event streaming reads for events dispatch live in `src/server/repositories/events-dispatch.ts`; the worker owns enablement and lifecycle. Reader options control per-query threads/block size; retain exact tenant pairs and per-trace time windows when changing parameter chunking. Rows must stay contiguous by project and trace ID so consumers can finish a trace at the next pair or successful EOF; time buckets must not precede trace ID.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely ClickHouse dialect (ARRAY JOIN / LIMIT BY / FINAL / metadata subscript nodes, single-project tenancy injection, per-table dedup lowering, virtual views, catalog parity). Compile only through `compileClickhouseQuery` in `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL harness (`src/server/repositories/goldenHarness.ts`, capturing at the `src/server/repositories/clickhouse.ts` exec seam and normalizing via `clickhouse format`); each migrated call site keeps its `*.golden.test.ts` baseline next to the call site (e.g. `src/server/repositories/environments.golden.test.ts`, `src/server/repositories/events.golden.test.ts`, `src/server/repositories/scores.golden.test.ts`, `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
@@ -84,26 +93,26 @@
   `TOPICS_TEXT_VERSION`); the worker and the internal trace "Show topics
   transcript" dialog share it.
 
-- `src/server/traceBatch`: versioned input storage through the server barrel.
-  `createTraceBatchInputStorage()` returns the `TraceBatchInputStorage` interface
+- `src/server/eventsDispatch`: versioned trace transcript storage through the server barrel.
+  `createTraceTranscriptStorage()` returns the `TraceTranscriptStorage` interface
   with `put` and `get`, and one lazily initialized provider client across
   factory calls. `put` returns the object key when the envelope is stored.
   `get` reads that key. Topics and trace-transcript eval jobs carry it as `transcriptS3Path`; readers never rebuild it.
   Consumers
-  receive the storage object. The writer takes `TraceBatchInputData` with transcript,
+  receive the storage object. The writer takes `TraceTranscriptData` with transcript,
   `executionIssues` (empty without a transcript) and required `traceContext`; session ID and trace name are nullable. The reader
   requires and returns both. Context timestamps
   stay ISO strings. The writer skips envelopes over 1,000,000 UTF-16
   units; the reader validates the stored version and restores message dates, and
-  throws `UnsupportedTraceBatchInputVersionError` for a newer version, which
+  throws `UnsupportedTraceTranscriptVersionError` for a newer version, which
   callers treat as retryable. Same-revision PUTs may overwrite.
-  Objects live under `TRACE_BATCH_INPUT_PREFIX` for `TRACE_BATCH_INPUT_RETENTION_MS` (three days). The worker events-dispatch transcript cleaner deletes expired objects; trace and project deletion do not.
-  `src/server/traceBatch/versions/v1.ts` freezes the complete envelope, including
+  Objects live under `TRACE_TRANSCRIPT_PREFIX` for `TRACE_TRANSCRIPT_RETENTION_MS` (three days). The worker events-dispatch transcript cleaner deletes expired objects; trace and project deletion do not.
+  `src/server/eventsDispatch/versions/v1.ts` freezes the complete envelope, including
   transcript and trace context, without importing live schemas; `serialization.ts` owns the typed
   transcript adapters and `storage-schema.ts` only probes the version. Compatible
   optional additions may extend V1; anything else starts a new version module
   with its own adapters. Schema versions and readiness revisions are independent;
-  see the trace-batch README.
+  see the events-dispatch storage README.
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt

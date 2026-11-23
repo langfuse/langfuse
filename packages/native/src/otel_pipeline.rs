@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
+use crate::native_memory::{retained_size, NativeMemory, RetainedSize};
 use crate::native_schema::OtelStorageRow;
 use crate::native_task::{to_js_error, NativeResult, OwnedTask};
 use crate::otel::{process_to_events, EventBuildConfig, OwnedEvent, StorageContext};
@@ -59,6 +60,7 @@ impl OtelProcessingContext {
 
 struct Pipeline {
     source: Arc<ExtractedBatch>,
+    memory: Arc<NativeMemory>,
     rows: BatchRows,
     context: StorageContext,
     media_requests: Vec<u32>,
@@ -67,9 +69,15 @@ struct Pipeline {
 }
 
 impl Pipeline {
-    fn new(source: Arc<ExtractedBatch>, events: Vec<OwnedEvent>, context: StorageContext) -> Self {
+    fn new(
+        source: Arc<ExtractedBatch>,
+        events: Vec<OwnedEvent>,
+        context: StorageContext,
+        memory: Arc<NativeMemory>,
+    ) -> Self {
         Self {
             source,
+            memory,
             rows: BatchRows::Prepared(events),
             context,
             media_requests: Vec::new(),
@@ -98,6 +106,61 @@ struct EnrichedStorageRow {
     row: OtelStorageRow,
     start_time_iso: String,
     evaluation_fields: Option<Box<crate::otel::types::JsonObject>>,
+}
+
+impl RetainedSize for EnrichedStorageRow {
+    fn retained_bytes(&self) -> usize {
+        let Self {
+            row,
+            start_time_iso,
+            evaluation_fields,
+        } = self;
+        retained_size(row) + retained_size(start_time_iso) + retained_size(evaluation_fields)
+    }
+}
+
+impl Pipeline {
+    fn refresh_memory(&self) {
+        self.memory.resize(self.retained_bytes());
+    }
+
+    fn retained_bytes(&self) -> usize {
+        let Self {
+            source: _, // The source batch has its own tracker.
+            memory: _,
+            rows,
+            context,
+            media_requests,
+            late_media,
+            overflow_requests,
+        } = self;
+        let row_bytes = match rows {
+            BatchRows::Prepared(rows) => retained_size(rows),
+            BatchRows::Ready(rows) => retained_size(rows),
+            // Finalized rows carry the shared tracker through PreparedEvent handles.
+            BatchRows::Finalized => return 0,
+        };
+        let mut media_seen = std::collections::HashSet::new();
+        let mut late_sources = HashSet::new();
+        let late_source_bytes = late_media
+            .iter()
+            .filter_map(ExtractedMedia::source_allocation)
+            .filter(|(source, _)| late_sources.insert(*source))
+            .map(|(_, bytes)| bytes)
+            .sum::<usize>();
+        let late_media_bytes = late_media.capacity() * std::mem::size_of::<ExtractedMedia>()
+            + late_media
+                .iter()
+                .map(|media| media.retained_bytes(&mut media_seen))
+                .sum::<usize>()
+            + late_source_bytes;
+        std::mem::size_of::<Self>()
+            + row_bytes
+            + retained_size(media_requests)
+            + late_media_bytes
+            + retained_size(overflow_requests)
+            + retained_size(context)
+    }
 }
 
 #[napi]
@@ -204,15 +267,17 @@ impl EarlyOtelBatch {
         env: Env,
         context: OtelProcessingContext,
     ) -> napi::Result<AsyncTask<OwnedTask<PreparedOtelBatch>>> {
+        let pipeline_memory = Arc::new(NativeMemory::new(&env, 0)?);
         let source = self.take_data().map_err(|error| to_js_error(env, error))?;
         Ok(AsyncTask::new(OwnedTask::new(move || {
             let (build_config, storage_context) = context.into_configs();
             let mut events = parse_events(&source, &build_config)?;
             media::restore_lookup_fields(&mut events, &source.media)?;
             let trace_ids = unique_trace_ids(&events);
-            let mut pipeline = Pipeline::new(source, events, storage_context);
+            let mut pipeline = Pipeline::new(source, events, storage_context, pipeline_memory);
             let media_requests = media::collect_media_requests(&mut pipeline)?;
             let lookup_requests = rows::collect_lookup_requests(&pipeline);
+            pipeline.refresh_memory();
             let batch = RustOtelBatch {
                 state: Arc::new(Mutex::new(Some(pipeline))),
             };
@@ -268,7 +333,7 @@ impl RustOtelBatch {
         Ok(Either::A(AsyncTask::new(OwnedTask::new(move || {
             state
                 .lock()
-                .map_err(|_| failure("OTEL processing lock poisoned"))?
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take();
             Ok(())
         }))))

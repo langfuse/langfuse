@@ -10,9 +10,9 @@ import {
 
 const defaultArgs = {
   confirmMessage: "acme",
-  hasProjects: false,
-  isPending: false,
+  isSubmitting: false,
   onConfirm: fn(),
+  status: "confirm",
 } satisfies DeleteOrganizationDialogProps;
 
 const renderDialog = (args: DeleteOrganizationDialogProps) => (
@@ -38,7 +38,23 @@ export const Default = meta.story({
 export const WithProjects = meta.story({
   args: {
     ...defaultArgs,
-    hasProjects: true,
+    status: "has-projects",
+  },
+  render: renderDialog,
+});
+
+export const ProjectsStillDeleting = meta.story({
+  args: {
+    ...defaultArgs,
+    status: "projects-deleting",
+  },
+  render: renderDialog,
+});
+
+export const CheckingDeletion = meta.story({
+  args: {
+    ...defaultArgs,
+    status: "loading",
   },
   render: renderDialog,
 });
@@ -46,7 +62,7 @@ export const WithProjects = meta.story({
 export const Loading = meta.story({
   args: {
     ...defaultArgs,
-    isPending: true,
+    isSubmitting: true,
   },
   render: renderDialog,
 });

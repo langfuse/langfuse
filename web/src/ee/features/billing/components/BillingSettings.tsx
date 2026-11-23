@@ -5,7 +5,7 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useRouter } from "next/router";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
@@ -62,13 +62,10 @@ export const BillingSettings = () => {
 
   if (!hasAccess) {
     return (
-      <Alert>
-        <Alert.Title>Access Denied</Alert.Title>
-        <Alert.Description>
-          You do not have permission to view the billing settings of this
-          organization.
-        </Alert.Description>
-      </Alert>
+      <Banner title="Access denied">
+        You do not have permission to view the billing settings of this
+        organization.
+      </Banner>
     );
   }
 

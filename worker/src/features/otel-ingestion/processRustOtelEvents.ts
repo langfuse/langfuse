@@ -40,9 +40,9 @@ import {
   scheduleEvals,
 } from "../evaluation/scheduleEvals";
 import {
-  isTraceBatchSampled,
-  resolveTraceBatchSamplingRate,
-} from "../traceBatching/traceBatchSampling";
+  isTraceDispatchSampled,
+  resolveTraceDispatchSamplingRate,
+} from "../traceDispatch/traceDispatchSampling";
 import { isEventsDispatchEnabled } from "../eventsDispatch/config";
 import type { OtelMediaPresence } from "../otel-media/processOtelMedia";
 import {
@@ -51,7 +51,7 @@ import {
 } from "../otel-media/resolveExtractedMedia";
 
 type EvalRuleResolution = {
-  traceBatchSamplingRate: number;
+  traceDispatchSamplingRate: number;
   sampledTraceIds: string[];
   evalConfigs: EvalRules;
 };
@@ -68,7 +68,7 @@ export async function processRustOtelEvents(params: {
   const { batch, context } = params;
   const { projectId } = context;
   const samplingRate = isEventsDispatchEnabled()
-    ? resolveTraceBatchSamplingRate(projectId)
+    ? resolveTraceDispatchSamplingRate(projectId)
     : Promise.resolve(0);
   const prepared = await batch.process(context);
   const processing = prepared.batch;
@@ -95,23 +95,28 @@ export async function processRustOtelEvents(params: {
 function fetchSampledEvalRules(
   projectId: string,
   traceIds: string[],
-  traceBatchSamplingRatePromise: Promise<number>,
+  traceDispatchSamplingRatePromise: Promise<number>,
 ): Promise<EvalRuleResolution> {
-  return traceBatchSamplingRatePromise.then(async (traceBatchSamplingRate) => {
-    // Select transcript rules using `process`'s trace IDs. Pass selected IDs to
-    // `complete`/`finalize` to measure rows after oversized fields are replaced.
-    const sampledTraceIds = traceIds.filter((traceId) =>
-      isTraceBatchSampled(traceId, traceBatchSamplingRate),
-    );
-    const evalConfigs = await fetchEvalRules(projectId, {
-      includeTraceTranscriptRules: sampledTraceIds.length > 0,
-    }).catch((error) => {
-      traceException(error);
-      logger.warn(`Failed to fetch eval rules for project ${projectId}`, error);
-      return { observationRules: [], traceTranscriptRules: [] };
-    });
-    return { traceBatchSamplingRate, sampledTraceIds, evalConfigs };
-  });
+  return traceDispatchSamplingRatePromise.then(
+    async (traceDispatchSamplingRate) => {
+      // Select transcript rules using `process`'s trace IDs. Pass selected IDs to
+      // `complete`/`finalize` to measure rows after oversized fields are replaced.
+      const sampledTraceIds = traceIds.filter((traceId) =>
+        isTraceDispatchSampled(traceId, traceDispatchSamplingRate),
+      );
+      const evalConfigs = await fetchEvalRules(projectId, {
+        includeTraceTranscriptRules: sampledTraceIds.length > 0,
+      }).catch((error) => {
+        traceException(error);
+        logger.warn(
+          `Failed to fetch eval rules for project ${projectId}`,
+          error,
+        );
+        return { observationRules: [], traceTranscriptRules: [] };
+      });
+      return { traceDispatchSamplingRate, sampledTraceIds, evalConfigs };
+    },
+  );
 }
 
 async function waitForServiceWork<T extends readonly Promise<unknown>[]>(
@@ -248,7 +253,11 @@ function recordIngestionCounts(records: FinalizedEvent[]): void {
 
 async function writeRecordsAndScheduleEvals(
   { events: records, evaluationRows }: FinalizedOtelBatch,
-  { traceBatchSamplingRate, sampledTraceIds, evalConfigs }: EvalRuleResolution,
+  {
+    traceDispatchSamplingRate,
+    sampledTraceIds,
+    evalConfigs,
+  }: EvalRuleResolution,
   { projectId, fileKey }: OtelProcessingContext,
 ): Promise<void> {
   const needsScheduler =
@@ -260,9 +269,9 @@ async function writeRecordsAndScheduleEvals(
   recordIngestionCounts(records);
   await Promise.all(
     records.map(async (record, index) => {
-      const traceActivity = isTraceBatchSampled(
+      const traceActivity = isTraceDispatchSampled(
         record.traceId,
-        traceBatchSamplingRate,
+        traceDispatchSamplingRate,
       )
         ? {
             traceId: record.traceId,

@@ -145,6 +145,7 @@ import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { CloudConfigSchema, Role } from "@langfuse/shared";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import type { Session } from "next-auth";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
@@ -557,18 +558,16 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
   const PRO_PRODUCT = "prod_QhK7UMhrkVeF6R";
   const TEAM_PRODUCT = "prod_QhK9qKGH25BTcS";
 
-  // getOrganizationPlanServerSide reads process.env directly (not env.mjs),
-  // so the region must be stubbed on the real process env.
-  const originalRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  // getOrganizationPlanServerSide reads the region from shared's env, not
+  // env.mjs.
+  const originalRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+    Object.assign(sharedEnv, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
   });
   afterEach(() => {
-    if (originalRegion === undefined) {
-      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    } else {
-      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
-    }
+    Object.assign(sharedEnv, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion,
+    });
   });
 
   const orgBefore = (cloudConfig: unknown) => ({

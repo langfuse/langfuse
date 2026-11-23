@@ -47,10 +47,8 @@ function createCaller(
       id: "user",
       canCreateOrganizations: false,
       featureFlags: {
-        excludeClickhouseRead: false,
         templateFlag: true,
         v4BetaToggleVisible: false,
-        observationEvals: false,
         experimentsV4Enabled: false,
         langfuseTopics: false,
       },

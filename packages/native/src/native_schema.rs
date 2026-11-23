@@ -9,7 +9,6 @@
 //! text from media processing on `OwnedEvent`. Row restoration replaces temporary
 //! media references in the remaining string fields.
 
-use napi::bindgen_prelude::Object;
 use serde::Serialize;
 use serde_json::Value;
 
