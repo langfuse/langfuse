@@ -4,6 +4,7 @@ import {
   buildPageShortcuts,
   getEntityBaseUrl,
   getIdNavigationItem,
+  getEvaluatorSearchTerm,
   getRecentPickAnalytics,
   getSearchAnalytics,
   getVisibleRecents,
@@ -286,5 +287,26 @@ describe("toEntityGroup", () => {
       toEntityGroup("evaluator", null, [{ id: "e1", name: "Toxicity" }], "")
         .items,
     ).toEqual([]);
+  });
+});
+
+describe("getEvaluatorSearchTerm", () => {
+  it("removes evaluator keywords before querying the server", () => {
+    expect(getEvaluatorSearchTerm("evaluator")).toBeUndefined();
+    expect(getEvaluatorSearchTerm("eval")).toBeUndefined();
+    expect(getEvaluatorSearchTerm("eval answer_relevance")).toBe(
+      "answer_relevance",
+    );
+    expect(getEvaluatorSearchTerm("Evaluator answer relevance")).toBe(
+      "answer relevance",
+    );
+  });
+
+  it("preserves searches that do not start with an evaluator keyword", () => {
+    expect(getEvaluatorSearchTerm("answer_relevance")).toBe("answer_relevance");
+    expect(getEvaluatorSearchTerm("evaluation")).toBe("evaluation");
+    expect(getEvaluatorSearchTerm("  answer relevance  ")).toBe(
+      "answer relevance",
+    );
   });
 });
