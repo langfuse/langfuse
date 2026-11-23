@@ -71,15 +71,15 @@ export const addToDatasetRouter = createTRPCRouter({
           limit: 1,
           offset: 0,
         };
-        let observationCount = 0;
-        if (!commentFilterResult.hasNoMatches) {
-          if (useEventsTable) {
-            observationCount =
-              await getObservationsCountFromEventsTable(queryOpts);
-          } else {
-            observationCount = await getObservationsTableCount(queryOpts);
+        const observationCount = await (async () => {
+          if (commentFilterResult.hasNoMatches) {
+            return 0;
           }
-        }
+          if (useEventsTable) {
+            return getObservationsCountFromEventsTable(queryOpts);
+          }
+          return getObservationsTableCount(queryOpts);
+        })();
 
         if (observationCount > MAX_BATCH_ADD_TO_DATASET_ITEMS) {
           throw new TRPCError({
