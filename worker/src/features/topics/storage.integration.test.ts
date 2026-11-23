@@ -538,7 +538,7 @@ describe("Topics definition persistence", () => {
     ).toEqual(["session", "trace"]);
   });
 
-  it("counts completed summaries processed in the telemetry interval", async () => {
+  it("counts billable summaries processed in the telemetry interval", async () => {
     const start = new Date("2026-09-01T00:00:00.000Z");
     const end = new Date("2026-09-02T00:00:00.000Z");
     const row = (processedAt: string, state: TopicSummary["state"]) => ({
@@ -552,6 +552,7 @@ describe("Topics definition persistence", () => {
       row(start.toISOString(), "complete"),
       row("2026-09-01T12:00:00.000Z", "complete"),
       row("2026-09-01T12:00:00.000Z", "not_applicable"),
+      row("2026-09-01T12:00:00.000Z", "insufficient_input"),
       row(end.toISOString(), "complete"),
     ]);
 
@@ -561,7 +562,7 @@ describe("Topics definition persistence", () => {
     });
     expect(
       counts.find((count) => count.projectId === telemetryProjectId)?.count,
-    ).toBe(2);
+    ).toBe(3);
   });
 
   it("partitions by source time while preserving replacement and published map identities", async () => {
