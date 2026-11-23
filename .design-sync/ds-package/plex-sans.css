@@ -8,4 +8,8 @@
   font-style: normal;
   font-display: swap;
   size-adjust: 102%;
+  ascent-override: 94.8%;
+  descent-override: 20.69%;
+  line-gap-override: 0%;
+  unicode-range: U+0-274B, U+274D-10FFFF;
 }

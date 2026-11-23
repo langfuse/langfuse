@@ -32,7 +32,7 @@
 
 ## Fonts
 
-- Sans = IBM Plex Sans (variable, weights 100 to 700, `size-adjust: 102%`) and mono = IBM Plex Mono (400, 600). Both are self-hosted at `web/public/fonts/*.woff2` and loaded in the app by `next/font/local` (`web/src/styles/fonts.ts`, vars `--font-plex-sans` and `--font-plex-mono`). Outside Next the vars are unset and the stacks fall back to the literal "IBM Plex Sans" and "IBM Plex Mono" families, so `ds-package/plex-sans.css` and `ds-package/plex-mono.css` (cfg.extraFonts) declare those families; copy-css.sh injects the same faces into the reference iframe so compare verifies with the real fonts. Keep them in sync with fonts.ts.
+- Sans = IBM Plex Sans (variable, weights 100 to 700, `size-adjust: 102%`, system line metrics via `ascent-override` / `descent-override`, U+274C left out by `unicode-range`) and mono = IBM Plex Mono (400, 600). Both are self-hosted at `web/public/fonts/*.woff2` and loaded in the app by `next/font/local` (`web/src/styles/fonts.ts`, vars `--font-plex-sans` and `--font-plex-mono`). Outside Next the vars are unset and the stacks fall back to the literal "IBM Plex Sans" and "IBM Plex Mono" families, so `ds-package/plex-sans.css` and `ds-package/plex-mono.css` (cfg.extraFonts) declare those families; copy-css.sh injects the same faces into the reference iframe so compare verifies with the real fonts. Keep them in sync with fonts.ts.
 
 ## Preview / grading decisions
 

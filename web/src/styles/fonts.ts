@@ -17,14 +17,21 @@ const plexMono = localFont({
   display: "swap",
 });
 
-// `size-adjust` scales the face to the system font's x-height.
+// Matched to the system font: x-height via `size-adjust`, line metrics via the
+// overrides. The range leaves U+274C to the emoji font.
 const plexSans = localFont({
   src: "../../public/fonts/IBMPlexSans-Variable.woff2",
   weight: "100 700",
   style: "normal",
   variable: "--font-plex-sans",
   display: "swap",
-  declarations: [{ prop: "size-adjust", value: "102%" }],
+  declarations: [
+    { prop: "size-adjust", value: "102%" },
+    { prop: "ascent-override", value: "94.8%" },
+    { prop: "descent-override", value: "20.69%" },
+    { prop: "line-gap-override", value: "0%" },
+    { prop: "unicode-range", value: "U+0-274B, U+274D-10FFFF" },
+  ],
 });
 
 /** Class names that declare the font variables; set on `<html>` and the app root. */

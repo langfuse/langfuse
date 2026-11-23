@@ -90,6 +90,7 @@ There is no italic face. Browsers slant the upright one for italic text, as they
 Layouts in this app were sized on the system font, so the face is matched to it (SF Pro, measured at 13px):
 
 - `size-adjust: 102%` in `fonts.ts` equalises x-height.
+- `ascent-override: 94.8%`, `descent-override: 20.69%` and `line-gap-override: 0%` give the face the system font's line metrics (ascent 0.967em, descent 0.211em; the overrides are multiplied by `size-adjust`). Browsers round ascent and descent to whole pixels, so without them 12px text sits a pixel lower and 9px text a pixel higher than in the system font. Safari ignores these three descriptors.
 - The weight roles in `globals.css` are 410 / 480 / 560, the weights whose stroke matches the system font at 400 / 500 / 600. They need the variable weight axis, so do not swap the face for static weights without retuning them.
 
 Digits are tabular by default (every digit has the same advance), so numbers line up with or without `tabular-nums`.
@@ -99,6 +100,8 @@ Digits are tabular by default (every digit has the same advance), so numbers lin
 Same rule as IBM Plex Mono: **ship every glyph the upstream family has — 891 codepoints — and do not subset by script.** `fonts.clienttest.ts` asserts it.
 
 That covers Latin, Latin Extended, Vietnamese, Cyrillic and Greek. The family has no CJK and no box drawing; those characters fall back to the system font.
+
+The file keeps every glyph, but `unicode-range` in `fonts.ts` leaves out U+274C (❌). The family draws it as a plain text cross; without the glyph the browser uses the colour emoji, as it does for ✅.
 
 ## Regenerating
 
