@@ -21,7 +21,6 @@ declare module "next-auth" {
           id: PrismaUser["id"];
           name?: PrismaUser["name"];
           email?: PrismaUser["email"];
-          isVerifiedEmployee?: boolean;
           image?: PrismaUser["image"];
           v4BetaEnabled?: boolean;
           canToggleV4?: boolean;
@@ -111,6 +110,5 @@ declare module "next-auth/jwt" {
     email?: string | null;
     image?: string | null;
     loginAt?: number;
-    verifiedEmployeeEmail?: string;
   }
 }

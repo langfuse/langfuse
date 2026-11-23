@@ -3,9 +3,7 @@ import { type GetServerSidePropsContext } from "next";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   getServerSession,
-  type Account,
   type NextAuthOptions,
-  type Profile,
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
@@ -20,7 +18,6 @@ import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
 } from "@/src/features/feature-flags/server/parseFlags";
-import { hasInternalEmailDomain } from "@/src/features/feature-flags/utils";
 import {
   isGatewayDeployedOnInstance,
   isGatewayEnabledForOrganization,
@@ -809,44 +806,6 @@ const createExtendedPrismaAdapter = (
   };
 };
 
-/** Only a trusted sign-in provider can attest the employee mailbox for this JWT. */
-async function verifiedEmployeeSignInEmail(
-  email: string | null | undefined,
-  account: Account | null,
-  profile: Profile | undefined,
-): Promise<string | undefined> {
-  const normalizedEmail = email?.toLowerCase();
-  if (
-    !normalizedEmail ||
-    !hasInternalEmailDomain(normalizedEmail) ||
-    account?.type !== "oauth" ||
-    typeof profile?.email !== "string" ||
-    profile.email.toLowerCase() !== normalizedEmail ||
-    !("email_verified" in profile) ||
-    profile.email_verified !== true
-  )
-    return;
-
-  const domain = normalizedEmail.split("@")[1];
-  if (
-    account.provider === "google" ||
-    account.provider === `${domain}.google`
-  ) {
-    return "hd" in profile &&
-      typeof profile.hd === "string" &&
-      profile.hd.toLowerCase() === domain
-      ? normalizedEmail
-      : undefined;
-  }
-
-  if (
-    account.provider === "clickhouse-cloud" ||
-    account.provider === (await getSsoAuthProviderIdForDomain(domain))
-  ) {
-    return normalizedEmail;
-  }
-}
-
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
@@ -911,15 +870,10 @@ export async function getAuthOptions(
         }
         return baseUrl;
       },
-      async jwt({ token, user, account, profile }) {
+      async jwt({ token, user }) {
         if (user) {
           const loginAt = await getSessionLoginAt(token.email!);
           token.loginAt = loginAt.getTime();
-          token.verifiedEmployeeEmail = await verifiedEmployeeSignInEmail(
-            token.email,
-            account,
-            profile,
-          );
         }
         return token;
       },
@@ -951,7 +905,6 @@ export async function getAuthOptions(
                   id: true,
                   name: true,
                   email: true,
-                  emailVerified: true,
                   image: true,
                   password: true,
                   createdAt: true,
@@ -1062,11 +1015,6 @@ export async function getAuthOptions(
                     id: dbUser.id,
                     name: dbUser.name,
                     email: dbUser.email,
-                    isVerifiedEmployee:
-                      hasInternalEmailDomain(dbUser.email) &&
-                      (Boolean(dbUser.emailVerified) ||
-                        token.verifiedEmployeeEmail ===
-                          dbUser.email?.toLowerCase()),
                     image: dbUser.image,
                     v4BetaEnabled,
                     v4UpgradeUiAvailable,

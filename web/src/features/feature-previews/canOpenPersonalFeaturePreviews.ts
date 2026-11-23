@@ -1,6 +1,6 @@
 import type { Session } from "next-auth";
 import {
-  isVerifiedEmployee,
+  canShowDashboardBlockPreview,
   isInternalViewEnabled,
 } from "@/src/features/feature-flags/utils";
 
@@ -15,7 +15,7 @@ export function canOpenPersonalFeaturePreviews({
   return (
     isLangfuseCloud ||
     session?.user?.v4BetaEnabled === true ||
-    isVerifiedEmployee(session) ||
+    canShowDashboardBlockPreview(session) ||
     isInternalViewEnabled(session) ||
     session?.user?.featureFlags.langfuseTopics === true ||
     session?.user?.featureFlags.traceTranscriptEvals === true

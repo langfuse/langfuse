@@ -38,15 +38,17 @@ describe("project dashboard blocks", () => {
       email = "author@langfuse.com",
       optedIn = true,
       experimental = false,
-      verifiedEmployee = true,
+      internalView = true,
     } = {},
   ) {
     const session = createSession({
       user: {
         id: userId,
         email,
-        isVerifiedEmployee: verifiedEmployee,
-        featureFlags: testFeatureFlags({ dashboardBlockAuthoring: optedIn }),
+        featureFlags: testFeatureFlags({
+          dashboardBlockAuthoring: optedIn,
+          internalFeatures: internalView,
+        }),
       },
       environment: { enableExperimentalFeatures: experimental },
       organizations: [
@@ -87,7 +89,10 @@ describe("project dashboard blocks", () => {
   });
 
   it("preserves blocks across legacy saves and lets a non-author read and clone them", async () => {
-    const owner = caller(projectId);
+    const owner = caller(projectId, "ADMIN", {
+      email: "author@LANGFUSE.COM",
+      internalView: false,
+    });
     const dashboard = await owner.dashboard.createDashboard({
       projectId,
       name: "Notebook",
@@ -187,7 +192,9 @@ describe("project dashboard blocks", () => {
   });
 
   it("requires employee opt-in and dashboard permissions for writes and preserves tenant boundaries and revisions", async () => {
-    const owner = caller(projectId);
+    const owner = caller(projectId, "ADMIN", {
+      email: "author@clickhouse.com",
+    });
     const viewer = caller(projectId, "VIEWER", {
       email: "viewer@example.com",
       optedIn: false,
@@ -214,10 +221,6 @@ describe("project dashboard blocks", () => {
       config: multiQueryConfig,
     };
     const nonAuthors = [
-      caller(projectId, "ADMIN", {
-        verifiedEmployee: false,
-        experimental: true,
-      }),
       caller(projectId, "ADMIN", { optedIn: false, experimental: true }),
       caller(projectId, "ADMIN", {
         email: "user@example.com",

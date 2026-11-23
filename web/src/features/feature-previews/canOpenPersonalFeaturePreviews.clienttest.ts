@@ -14,7 +14,6 @@ it("opens personal previews for employees and eligible external users on self-ho
     user: {
       id: "user-1",
       email: "member@clickhouse.com",
-      isVerifiedEmployee: true,
       v4BetaEnabled: false,
       canCreateOrganizations: true,
       organizations: [],
@@ -30,9 +29,12 @@ it("opens personal previews for employees and eligible external users on self-ho
   expect(canOpenPersonalFeaturePreviews(input)).toBe(true);
 
   session.user.featureFlags.internalFeatures = false;
+  expect(canOpenPersonalFeaturePreviews(input)).toBe(false);
+  session.user.featureFlags.dashboardBlockAuthoring = true;
   expect(canOpenPersonalFeaturePreviews(input)).toBe(true);
 
   session.user.email = "member@example.com";
+  expect(canOpenPersonalFeaturePreviews(input)).toBe(false);
   session.user.featureFlags.langfuseTopics = true;
   expect(canOpenPersonalFeaturePreviews(input)).toBe(true);
 

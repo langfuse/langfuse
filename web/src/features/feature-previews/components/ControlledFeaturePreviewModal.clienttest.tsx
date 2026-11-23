@@ -116,7 +116,6 @@ describe("ControlledFeaturePreviewModal", () => {
     const session = {
       user: {
         email: "member@CLICKHOUSE.COM",
-        isVerifiedEmployee: true,
         featureFlags: testFeatureFlags({ internalFeatures: true }),
       },
       environment: { enableExperimentalFeatures: true },
@@ -142,15 +141,35 @@ describe("ControlledFeaturePreviewModal", () => {
       enabled: true,
     });
 
+    session.user!.featureFlags.internalFeatures = false;
+    rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
+    expect(
+      screen.queryByRole("button", { name: /Dashboard block authoring/ }),
+    ).not.toBeInTheDocument();
     session.user!.featureFlags.dashboardBlockAuthoring = true;
-    session.user!.isVerifiedEmployee = false;
+    rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Dashboard block authoring/ }),
+    );
+    const holderToggle = screen.getByRole("switch", {
+      name: "Toggle Dashboard block authoring",
+    });
+    expect(holderToggle).toBeChecked();
+    fireEvent.click(holderToggle);
+    expect(mocks.mutate).toHaveBeenLastCalledWith({
+      flag: "dashboardBlockAuthoring",
+      enabled: false,
+    });
+
+    session.user!.featureFlags.dashboardBlockAuthoring = false;
     rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
     expect(
       screen.queryByRole("button", { name: /Dashboard block authoring/ }),
     ).not.toBeInTheDocument();
 
     session.user!.email = "member@example.com";
-    session.user!.isVerifiedEmployee = true;
+    session.user!.featureFlags.internalFeatures = true;
+    session.user!.featureFlags.dashboardBlockAuthoring = true;
     rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
     expect(
       screen.queryByRole("button", { name: /Dashboard block authoring/ }),

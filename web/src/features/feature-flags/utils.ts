@@ -26,12 +26,8 @@ export const hasInternalEmailDomain = (email: string | null | undefined) => {
   );
 };
 
-export const isVerifiedEmployee = (session: Session | null | undefined) =>
-  hasInternalEmailDomain(session?.user?.email) &&
-  session?.user?.isVerifiedEmployee === true;
-
 export const canAuthorDashboardBlocks = (session: Session | null | undefined) =>
-  isVerifiedEmployee(session) &&
+  hasInternalEmailDomain(session?.user?.email) &&
   session?.user?.featureFlags.dashboardBlockAuthoring === true;
 
 /**
@@ -52,6 +48,13 @@ export const isInternalViewEnabled = (session: Session | null | undefined) =>
     isExperimentalFeaturesEnabled:
       session?.environment?.enableExperimentalFeatures === true,
   }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;
+
+export const canShowDashboardBlockPreview = (
+  session: Session | null | undefined,
+) =>
+  hasInternalEmailDomain(session?.user?.email) &&
+  (isInternalViewEnabled(session) ||
+    session?.user?.featureFlags.dashboardBlockAuthoring === true);
 
 export const parseFlags = (
   dbFlags: string[],
