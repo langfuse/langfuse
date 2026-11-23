@@ -247,6 +247,39 @@ describe("SCIM Groups API", () => {
       expect(res.body.Resources[0].externalId).toBe(externalId);
     });
 
+    it("matches displayName case-insensitively", async () => {
+      const displayName = uniqueName("Mixed Case");
+      await createGroup({ displayName });
+      const filter = encodeURIComponent(
+        `displayName eq "${displayName.toUpperCase()}"`,
+      );
+      const res = await makeAPICall<ScimList>(
+        "GET",
+        `/api/public/scim/Groups?filter=${filter}`,
+        undefined,
+        auth(),
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.totalResults).toBe(1);
+      expect(res.body.Resources[0].displayName).toBe(displayName);
+    });
+
+    it("matches externalId case-sensitively", async () => {
+      const externalId = randomUUID();
+      await createGroup({ displayName: uniqueName("ext-case"), externalId });
+      const filter = encodeURIComponent(
+        `externalId eq "${externalId.toUpperCase()}"`,
+      );
+      const res = await makeAPICall<ScimList>(
+        "GET",
+        `/api/public/scim/Groups?filter=${filter}`,
+        undefined,
+        auth(),
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.totalResults).toBe(0);
+    });
+
     it("returns an empty list when nothing matches", async () => {
       const filter = encodeURIComponent(`displayName eq "${randomUUID()}"`);
       const res = await makeAPICall<ScimList>(

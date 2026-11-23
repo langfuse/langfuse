@@ -198,7 +198,7 @@ export function parseGroupFilter(filter: unknown): Prisma.GroupWhereInput {
   }
   const value = match[2].replace(/\\(.)/g, "$1");
   return match[1].toLowerCase() === "displayname"
-    ? { displayName: value }
+    ? { displayName: { equals: value, mode: "insensitive" } }
     : { externalId: value };
 }
 
