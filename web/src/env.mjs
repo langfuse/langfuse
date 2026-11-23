@@ -518,46 +518,35 @@ export const env = createEnv({
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     // Coupon codes that start a self-serve enterprise trial on
-    // /organization/<orgId>/enterprise-trial (Langfuse Cloud only), as a
-    // comma-separated list of `<code>:<trial length in days>` pairs, e.g.
-    // `CODE-FOR-SHORT-TRIALS:14,CODE-FOR-LONG-TRIALS:60`. Unset disables
+    // /organization/<orgId>/enterprise-trial (Langfuse Cloud only), as a JSON
+    // object from code to trial length in days, e.g.
+    // {"CODE-FOR-SHORT-TRIALS":14,"CODE-FOR-LONG-TRIALS":60}. Unset disables
     // redemption. Redemption is not rate limited, so codes must be long enough
     // that guessing one is impractical.
     LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES: z
       .string()
       .optional()
       .transform((value, ctx) => {
-        const coupons = [];
-        for (const entry of (value ?? "").split(",")) {
-          if (!entry.trim()) continue;
-          const separator = entry.lastIndexOf(":");
-          const code = entry.slice(0, Math.max(separator, 0)).trim();
-          const durationDays = Number(entry.slice(separator + 1).trim());
-          if (
-            separator < 0 ||
-            code.length < 16 ||
-            !Number.isInteger(durationDays) ||
-            durationDays < 1 ||
-            durationDays > 365
-          ) {
-            ctx.addIssue({
-              code: "custom",
-              message:
-                "LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES must be a comma separated list of <code>:<days> pairs, with codes of at least 16 characters and 1 to 365 days",
-            });
-            return z.NEVER;
-          }
-          coupons.push({ code, durationDays });
-        }
-        if (new Set(coupons.map((c) => c.code)).size !== coupons.length) {
+        if (value == null || value.trim() === "") return [];
+        try {
+          const coupons = z
+            .record(
+              z.string().regex(/^\S{16,}$/),
+              z.number().int().min(1).max(365),
+            )
+            .parse(JSON.parse(value));
+          return Object.entries(coupons).map(([code, durationDays]) => ({
+            code,
+            durationDays,
+          }));
+        } catch {
           ctx.addIssue({
             code: "custom",
             message:
-              "LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES must not list the same code twice",
+              "LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES must be a JSON object mapping coupon codes of at least 16 characters without spaces to trial lengths of 1 to 365 days",
           });
           return z.NEVER;
         }
-        return coupons;
       }),
     // ClickHouse Billing (CHB) integration. First-time upgrades on/after this
     // UTC date route to CHB; unset = feature off. Date-only (YYYY-MM-DD) so the
