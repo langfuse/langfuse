@@ -14,10 +14,8 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
-import {
-  MCP_APP_MIME_TYPE,
-  appToolResult,
-} from "@/src/features/mcp/core/mcp-app";
+import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
+import { appToolResult } from "@/src/features/mcp/core/mcp-app";
 import { WIDGET_APP_RESOURCE_URI } from "@/src/features/mcp/server/apps/resources";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
@@ -174,7 +172,7 @@ describe("MCP Apps", () => {
       // The page's root-relative assets must load from Langfuse, not from
       // the host's sandbox origin.
       const origin = getProductBaseUrl().origin;
-      expect(read.contents[0]?.mimeType).toBe(MCP_APP_MIME_TYPE);
+      expect(read.contents[0]?.mimeType).toBe(RESOURCE_MIME_TYPE);
       expect(read.contents[0]?.text).toContain(
         `<script src="${origin}/_next/static/chunks/app.js">`,
       );

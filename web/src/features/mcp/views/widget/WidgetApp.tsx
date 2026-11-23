@@ -6,7 +6,8 @@ import {
   type McpUiToolResultNotification,
 } from "@modelcontextprotocol/ext-apps/react";
 import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
-import { toChartProps, type WidgetPayload } from "./toChartProps";
+import { type WidgetPayload } from "../../core/widget-payload";
+import { toChartProps } from "./toChartProps";
 
 type ToolResult = McpUiToolResultNotification["params"];
 

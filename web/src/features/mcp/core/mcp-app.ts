@@ -1,3 +1,5 @@
+import { RESOURCE_URI_META_KEY } from "@modelcontextprotocol/ext-apps/server";
+
 /**
  * MCP Apps support (https://github.com/modelcontextprotocol/ext-apps).
  *
@@ -8,21 +10,18 @@
  * text content, so every app tool still answers in text.
  */
 
-/** MIME type hosts look for on `ui://` resources. */
-export const MCP_APP_MIME_TYPE = "text/html;profile=mcp-app";
-
 export type McpAppToolUi = {
   /** `ui://` resource rendered for this tool's results. */
   resourceUri: `ui://${string}`;
 };
 
 /**
- * Tool `_meta` announcing the UI resource. The flat `ui/resourceUri` key is
- * the older spelling that some hosts still read.
+ * Tool `_meta` announcing the UI resource. Like the SDK's `registerAppTool`,
+ * it also sets the flat `ui/resourceUri` key that older hosts read.
  */
 export const toMcpAppToolMeta = (ui: McpAppToolUi) => ({
   ui: { resourceUri: ui.resourceUri },
-  "ui/resourceUri": ui.resourceUri,
+  [RESOURCE_URI_META_KEY]: ui.resourceUri,
 });
 
 const APP_TOOL_RESULT = Symbol("mcp.appToolResult");

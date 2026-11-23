@@ -37,7 +37,7 @@ import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { appToolResult } from "../../../core/mcp-app";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import type { ServerContext } from "../../../types";
-import { type WidgetPayload } from "@/src/features/mcp/views/widget/toChartProps";
+import { type WidgetPayload } from "../../../core/widget-payload";
 import { WIDGET_APP_RESOURCE_URI } from "../resources";
 import { summarizeWidget, toNumber } from "./widgetSummary";
 
@@ -351,28 +351,24 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         };
 
         return appToolResult({
-          text: JSON.stringify(
-            {
-              note: "Complete summary of the chart's data. Hosts that support MCP Apps also show the chart to the user.",
-              title: spec.title,
-              chartType: spec.chartType,
-              metric: alias,
-              unit,
-              dimension: dimensionField ?? null,
-              timeRange: TIME_RANGES[timeRange].label,
-              ...summarizeWidget({
-                rows,
-                metricField: alias,
-                aggregation: firstMetric.aggregation,
-                dimensionField,
-                isTimeSeries,
-                kpi: isNumber ? { value, previousValue } : undefined,
-              }),
-              url: spec.url,
-            },
-            null,
-            2,
-          ),
+          text: JSON.stringify({
+            note: "Complete summary of the chart's data. Hosts that support MCP Apps also show the chart to the user.",
+            title: spec.title,
+            chartType: spec.chartType,
+            metric: alias,
+            unit,
+            dimension: dimensionField ?? null,
+            timeRange: TIME_RANGES[timeRange].label,
+            ...summarizeWidget({
+              rows,
+              metricField: alias,
+              aggregation: firstMetric.aggregation,
+              dimensionField,
+              isTimeSeries,
+              kpi: isNumber ? { value, previousValue } : undefined,
+            }),
+            url: spec.url,
+          }),
           // Rows for the MCP App view; hosts keep result _meta from the model.
           meta: { widget: payload },
         });
