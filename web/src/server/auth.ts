@@ -81,7 +81,8 @@ import {
   verifyTurnstileToken,
 } from "@/src/features/auth/server/verifyTurnstile";
 import { z } from "zod";
-import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
+import { CloudConfigSchema } from "@langfuse/shared";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
@@ -90,10 +91,10 @@ import {
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
-  resolveProjectRole,
   isLangfuseAITracingConfigured,
   shouldSkipScoresDedup,
   isForceV3ExperienceProject,
+  isTraceEvalsProjectEnabled,
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,
 } from "@langfuse/shared/src/server";
@@ -108,6 +109,9 @@ import {
 } from "@/src/features/events/lib/v4Rollout";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server/onboardingService";
+import { getPoliciesForUser } from "@/src/features/auth/policy/contextResolver";
+import { authorize } from "@/src/features/rbac/authorize";
+import { type Policy } from "@/src/features/rbac/types";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -981,9 +985,11 @@ export async function getAuthOptions(
             v4WriteMode,
             dualPreviewAvailable,
           });
+          const policies = await sessionPolicies(dbUser);
 
           return {
             ...session,
+            policies,
             environment: {
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
@@ -1042,7 +1048,6 @@ export async function getAuthOptions(
                         return {
                           id: orgMembership.organization.id,
                           name: orgMembership.organization.name,
-                          role: orgMembership.role,
                           supportAccess: "supportAccess" in orgMembership,
                           metadata:
                             (orgMembership.organization.metadata as Record<
@@ -1067,20 +1072,26 @@ export async function getAuthOptions(
                           ),
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
+                            // Only include projects the user can read
+                            .filter(
+                              (project) =>
+                                authorize(
+                                  { policies },
+                                  OrganizationId(orgMembership.organization.id),
+                                  "project:read",
+                                  ProjectId(project.id),
+                                ).success,
+                            )
                             .map((project) => {
-                              const projectRole = resolveProjectRole({
-                                projectId: project.id,
-                                projectMemberships:
-                                  orgMembership.ProjectMemberships,
-                                orgMembershipRole: orgMembership.role,
-                              });
                               return {
                                 id: project.id,
                                 name: project.name,
-                                role: projectRole,
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
                                 topicsEnabled: isTopicsProjectEnabled(
+                                  project.id,
+                                ),
+                                traceEvalsEnabled: isTraceEvalsProjectEnabled(
                                   project.id,
                                 ),
                                 scoreEditsDisabled: shouldSkipScoresDedup(
@@ -1097,13 +1108,7 @@ export async function getAuthOptions(
                                   >) ?? {},
                                 createdAt: project.createdAt.toISOString(),
                               };
-                            })
-                            // Only include projects where the user has the required role
-                            .filter((project) =>
-                              projectRoleAccessRights[project.role].includes(
-                                "project:read",
-                              ),
-                            ),
+                            }),
 
                           // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting
                           // If you edit this line, you risk executing code that is not MIT licensed (contained in /ee folders, see LICENSE)
@@ -1401,3 +1406,11 @@ const sanitizeServerSessionCallbackUrl = (
     },
   );
 };
+
+/** sessionPolicies loads the signed-in user's policy set, and none for a token without a live user. */
+async function sessionPolicies(
+  user: { id: string } | null,
+): Promise<Policy[][]> {
+  if (!user) return [];
+  return [await getPoliciesForUser(prisma, user.id)];
+}

@@ -7,6 +7,7 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { belongsToTraceEvalsProject } from "@/src/features/evals/transcriptEvalsAccess";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
@@ -59,6 +60,18 @@ export function ControlledFeaturePreviewModal({
     internalViewEnabled ||
     authSession.data?.user?.featureFlags.langfuseTopics === true;
 
+  const hasTraceEvalsProject = belongsToTraceEvalsProject(
+    authSession.data?.user,
+  );
+
+  const isTraceEvalsPreviewOn =
+    internalViewEnabled ||
+    authSession.data?.user?.featureFlags.traceTranscriptEvals === true;
+
+  const traceEvalsWarningReason = internalViewEnabled
+    ? "Trace transcript evals are enabled by Internal view. Switching to External view hides them unless they have been enabled for you separately."
+    : undefined;
+
   const isModernSessionEnabled =
     isV4 &&
     (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
@@ -91,6 +104,17 @@ export function ControlledFeaturePreviewModal({
               ? "Topics is enabled by Internal view. Switching to External view hides it unless it has been enabled for you separately."
               : undefined,
             onToggle: onToggle("langfuseTopics"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
+    ...(hasTraceEvalsProject
+      ? {
+          traceTranscriptEvals: {
+            enabled: isTraceEvalsPreviewOn,
+            disabled: internalViewEnabled,
+            warningReason: traceEvalsWarningReason,
+            onToggle: onToggle("traceTranscriptEvals"),
             isToggling: setFeaturePreviewEnabled.isPending,
           },
         }

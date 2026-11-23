@@ -93,11 +93,11 @@ One dispatcher holds the renewable `{trace-dispatch}:dispatcher` lease and snaps
 
 The events-dispatch consumer reads the supplied trace window. Per-trace Topics jobs check existing summaries for each facet: a summary processed since the job was enqueued is skipped on retry; a later redispatch generates and appends an updated row. There are no Redis completion markers or staged results. BullMQ still uses Redis for queue delivery.
 
-`ReplacingMergeTree(processed_at)` retains the greatest processing timestamp
-when the Topics sort key matches. That key includes the start minute: an event
-revealing a genuinely earlier start in a different minute can leave the previous
-summary under its original key. `processed_at` is assigned when summary
-processing starts, so it orders processing attempts rather than dispatch windows.
+`ReplacingMergeTree(created_at)` retains the summary with the latest processing
+timestamp when the Topics sort key matches. That key includes the unit's start
+hour. An event revealing an earlier start in a different hour can leave the
+previous summary under its original key. The worker sets `created_at` when
+summary processing starts, so it orders processing attempts.
 An older, narrower dispatch processed later can replace a summary that includes
 newer events. This is an accepted limitation; dispatch-order versioning must be
 revisited before requiring the newest dispatch window to win.

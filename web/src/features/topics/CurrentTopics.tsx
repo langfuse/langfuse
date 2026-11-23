@@ -20,6 +20,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { type TopicsActions } from "./prepare-topics-actions";
+import { splitTopicTraceFilters } from "./topic-trace-filters";
 import {
   facetWithoutUnassigned,
   mapWithoutUnassigned,
@@ -196,6 +197,10 @@ function MobileTopics({
     projectId,
     facet.facetId,
   );
+  // Mobile filters by topic and assignment only; Scatter's trace filters wait until it is back.
+  const [topicFilters, scatterFilters] = splitTopicTraceFilters(
+    traceFilters.filters,
+  );
   return (
     <MobileTopicsView
       projectId={projectId}
@@ -203,9 +208,11 @@ function MobileTopics({
       view={view}
       onViewChange={onViewChange}
       mapResult={mapResult}
-      filters={traceFilters.filters}
+      filters={topicFilters}
       searchQuery={traceFilters.searchQuery}
-      onFiltersChange={traceFilters.setFilters}
+      onFiltersChange={(filters) =>
+        traceFilters.setFilters([...filters, ...scatterFilters])
+      }
       onSearchQueryChange={traceFilters.setSearchQuery}
       selectedTraceId={selectedTraceId}
       onSelectTrace={setSelectedTraceId}

@@ -259,7 +259,6 @@ describe("support access in the product", () => {
     expect(session.user?.organizations).toContainEqual(
       expect.objectContaining({
         id: orgId,
-        role: "VIEWER",
         supportAccess: true,
       }),
     );

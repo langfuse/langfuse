@@ -47,6 +47,7 @@ function SetupStory({
 }) {
   const [selected, setSelected] = useState(questions);
   const [filter, setFilter] = useState<FilterState>([]);
+  const [name, setName] = useState("Default");
   // The query editor's Ask AI needs tRPC, which stories don't provide.
   const [mode, setMode] = useState<EvaluatorFilterExperience>("builder");
   const traceFilterState = useTopicTraceFilterState({
@@ -82,6 +83,8 @@ function SetupStory({
       connectionSettingsUrl="https://cloud.langfuse.com/project/demo-project/settings/llm-connections"
       onEdit={fn()}
       onEmbeddingChange={fn()}
+      name={name}
+      onNameChange={setName}
       onNext={fn()}
       onQuestionEnabled={(name, enabled) =>
         setSelected((current) =>
@@ -171,6 +174,23 @@ export const Traces = meta.story({
 
 export const Review = meta.story({
   args: { step: "review" },
+});
+
+export const RequiresAName = meta.story({
+  name: "(Test) Start stays disabled without a map name",
+  args: { step: "review" },
+  play: async () => {
+    const body = within(document.body);
+    const start = body.getByRole("button", { name: "Start analyzing" });
+    expect(start).toBeEnabled();
+    await userEvent.clear(body.getByRole("textbox", { name: "Map name" }));
+    expect(start).toBeDisabled();
+    await userEvent.type(
+      body.getByRole("textbox", { name: "Map name" }),
+      "Support agent",
+    );
+    expect(start).toBeEnabled();
+  },
 });
 
 export const RequiresAQuestion = meta.story({

@@ -110,6 +110,8 @@ const openAiModelIds = [
   "openai.gpt-6-sol",
   "openai.gpt-6.1-sol",
   "openai.gpt-6.1-terra",
+  "openai.gpt-6.2-astra",
+  "openai.gpt-6.2-sol",
   "openai.gpt-daybreak-blue-5.6-sol",
   "xai.grok-4.6",
   "xai.grok-4.7",

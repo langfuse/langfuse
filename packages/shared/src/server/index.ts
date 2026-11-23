@@ -14,6 +14,7 @@ export { type TransformMediaPayloadResult } from "./media/MediaPayloadProcessor"
 export { transformMediaPayload } from "./media/MediaPayloadProcessor";
 export { getMediaId } from "./media/mediaService";
 export { getMediaBucketPath } from "./media/mediaService";
+export { getMediaDownloadUrl } from "./media/getMediaDownloadUrl";
 export { upsertMediaRecord } from "./media/mediaService";
 export { linkMediaToTraceOrObservation } from "./media/mediaService";
 export { type UploadMediaForTraceResult } from "./media/mediaService";
@@ -65,6 +66,8 @@ export * from "./evals/extractObservationVariables";
 export * from "./evals/classifyEvaluatorLlmError";
 export * from "./evals/llmEvaluatorExecution";
 export * from "./evals/decisionModelEvaluatorExecution";
+export * from "./evals/traceEvalsConfig";
+export * from "./evals/traceEvalsProcessingGate";
 export * from "./llm/createDecisionModelClient";
 export * from "./llm/typesafe/typeSafeDecisionModelClient";
 export * from "./utils/traceId";
@@ -748,6 +751,10 @@ export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export {
   BILLING_SETTLE_MS,
+  type BillableUnitBucketGranularity,
+  bucketStartSql,
+  getBillableEventsLedgerStart,
+  getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
 } from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
@@ -758,6 +765,7 @@ export {
 } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
+  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTopicResultCounts,
   type TopicResultCounts,
   listCurrentTopicAssignments,
@@ -953,6 +961,8 @@ export { isExecutionIssue } from "./transcript/context";
 export type { ExecutionIssue } from "./transcript/types";
 export type { TranscriptContext } from "./transcript/types";
 export { getTracingCountsByProjectInCreationIntervalFromEventsTable } from "./repositories/events";
+export { AI_GATEWAY_COST_SOURCE_CALCULATED } from "./otel/OtelIngestionProcessor";
+export { AI_GATEWAY_COST_SOURCE_METADATA_KEY } from "./otel/OtelIngestionProcessor";
 export { AI_GATEWAY_KEY_ID_METADATA_KEY } from "./otel/OtelIngestionProcessor";
 export { aiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";
 export { isAiGatewayIngestionApiKey } from "./otel/OtelIngestionProcessor";

@@ -4,26 +4,27 @@ import { createRule } from "../util.js";
 import { extractTailwindUtilityTokens } from "../rule-helpers/tailwind.js";
 
 // The app uses a three-weight type system: text-* size tokens carry the
-// regular weight (--font-weight-regular), `font-medium` is the medium role
+// regular weight (--font-weight-normal), `font-medium` is the medium role
 // (--font-weight-medium) and `font-bold` is the bold role (--font-weight-bold).
 // Any other weight utility escapes the system and re-introduces the
 // many-weights typography this migration removed.
 //
 // Banned: font-thin, font-extralight, font-light, font-semibold,
-// font-extrabold, font-black, and arbitrary numeric weights like `font-[550]`
+// font-extrabold, font-black, font-regular (not a utility: the regular role
+// is `font-normal`), and arbitrary numeric weights like `font-[550]`
 // — including variant-prefixed (`hover:font-semibold`, `dark:font-semibold`,
 // `md:font-light`, `data-[state=open]:font-light`) and important-marked
 // (`!font-semibold`, `font-semibold!`) forms.
 //
 // Allowed: `font-bold` (the bold role), `font-medium` (the medium role) and
-// `font-normal` (explicit reset to the regular weight, e.g. to undo an
-// inherited bold). Font-family utilities
+// `font-normal` (the regular role, e.g. to undo an inherited bold). Font-family utilities
 // (`font-sans`, `font-mono`, `font-[Inter]`) are untouched.
 const FORBIDDEN_FONT_WEIGHT_UTILITIES = new Set([
   "font-thin",
   "font-extralight",
   "font-light",
   "font-semibold",
+  "font-regular",
   "font-extrabold",
   "font-black",
 ]);
@@ -57,7 +58,7 @@ const rule = createRule({
     schema: [],
     messages: {
       unexpected:
-        "Avoid `{{utility}}` — the type system has exactly three weights. Use `font-bold` for the bold role, `font-medium` for the medium role, or remove the utility entirely (text-* size tokens already carry the regular weight).",
+        "Avoid `{{utility}}` — the type system has exactly three weights. Use `font-bold` for the bold role, `font-medium` for the medium role, `font-normal` for the regular role, or remove the utility entirely (text-* size tokens already carry the regular weight).",
     },
   },
   defaultOptions: [],

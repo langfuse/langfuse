@@ -93,10 +93,7 @@ export async function createDefaultSpendAlerts({
     });
 
     await auditLog({
-      session: {
-        user: { id: `${source}-webhook` },
-        orgId,
-      },
+      userId: `${source}-webhook`,
       orgId,
       resourceType: "cloudSpendAlert",
       resourceId: alert.id,

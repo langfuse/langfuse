@@ -27,8 +27,8 @@ import {
   type GatewayApiKeyFormValues,
   type GatewayApiKeySection,
 } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
+import { createDefaultGatewaySpendBudget } from "@/src/features/ai-gateway/fns/spendLimits/createDefaultGatewaySpendBudget";
 import { toGatewaySpendLimit } from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
-import { emptyGatewaySpendBudget } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import { toGatewayApiKeyMetadata } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadata";
 import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 import type { RouterInputs } from "@/src/utils/api";
@@ -40,7 +40,7 @@ const emptyValues: GatewayApiKeyFormValues = {
   customExpiry: "",
   metadata: [],
   modelPatterns: [],
-  spendBudget: emptyGatewaySpendBudget,
+  spendBudget: createDefaultGatewaySpendBudget(),
   sections: [],
 };
 
@@ -310,7 +310,7 @@ function OptionalSections({
         form.setValue("customExpiry", "", update);
         break;
       case "spendBudget":
-        form.setValue("spendBudget", emptyGatewaySpendBudget, update);
+        form.setValue("spendBudget", createDefaultGatewaySpendBudget(), update);
         break;
       case "models":
         form.setValue("modelPatterns", [], update);

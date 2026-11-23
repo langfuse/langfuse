@@ -9,6 +9,13 @@ export const vertexLocationGroups: RegionGroup[] = [
     regions: [{ value: "global", label: "Global endpoint" }],
   },
   {
+    label: "Multi-region",
+    regions: [
+      { value: "us", label: "United States" },
+      { value: "eu", label: "European Union" },
+    ],
+  },
+  {
     label: "Americas",
     regions: [
       { value: "us-central1", label: "Iowa" },

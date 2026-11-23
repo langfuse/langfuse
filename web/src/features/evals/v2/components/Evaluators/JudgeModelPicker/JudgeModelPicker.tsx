@@ -317,7 +317,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
             <Button
               type="button"
               variant="ghost"
-              className="font-regular justify-start"
+              className="justify-start font-normal"
               onClick={() => selectAndClose(onConfigureProviders)}
             >
               <Plug size="base" color="muted" __rawClassName="mr-2" />
@@ -332,7 +332,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
               <Button
                 type="button"
                 variant="ghost"
-                className="font-regular justify-start"
+                className="justify-start font-normal"
                 disabled={
                   props.purpose === "projectDefault"
                     ? !props.defaultModel
@@ -361,7 +361,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
               <Button
                 type="button"
                 variant="ghost"
-                className="font-regular justify-start"
+                className="justify-start font-normal"
                 disabled={
                   props.mode !== "custom" ||
                   !selectedModel ||
