@@ -18,13 +18,21 @@ import { type Flags } from "./types";
 export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
 
-const hasInternalEmailDomain = (email: string | null | undefined) => {
+export const hasInternalEmailDomain = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
   return (
     normalizedEmail?.endsWith("@langfuse.com") === true ||
     normalizedEmail?.endsWith("@clickhouse.com") === true
   );
 };
+
+export const isVerifiedEmployee = (session: Session | null | undefined) =>
+  hasInternalEmailDomain(session?.user?.email) &&
+  session?.user?.isVerifiedEmployee === true;
+
+export const canAuthorDashboardBlocks = (session: Session | null | undefined) =>
+  isVerifiedEmployee(session) &&
+  session?.user?.featureFlags.dashboardBlockAuthoring === true;
 
 /**
  * Staff email domains and experimental deployments can use

@@ -110,4 +110,50 @@ describe("ControlledFeaturePreviewModal", () => {
       expect(toggle).toBeDisabled();
     }
   });
+
+  it("offers dashboard authoring as an explicit employee preference in experimental deployments", () => {
+    mocks.isV4 = false;
+    const session = {
+      user: {
+        email: "member@CLICKHOUSE.COM",
+        isVerifiedEmployee: true,
+        featureFlags: testFeatureFlags({ internalFeatures: true }),
+      },
+      environment: { enableExperimentalFeatures: true },
+    } as Session;
+    vi.mocked(useSession).mockReturnValue({
+      data: session,
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    const { rerender } = render(
+      <ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Dashboard block authoring/ }),
+    );
+    const toggle = screen.getByRole("switch", {
+      name: "Toggle Dashboard block authoring",
+    });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(mocks.mutate).toHaveBeenCalledWith({
+      flag: "dashboardBlockAuthoring",
+      enabled: true,
+    });
+
+    session.user!.featureFlags.dashboardBlockAuthoring = true;
+    session.user!.isVerifiedEmployee = false;
+    rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
+    expect(
+      screen.queryByRole("button", { name: /Dashboard block authoring/ }),
+    ).not.toBeInTheDocument();
+
+    session.user!.email = "member@example.com";
+    session.user!.isVerifiedEmployee = true;
+    rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
+    expect(
+      screen.queryByRole("button", { name: /Dashboard block authoring/ }),
+    ).not.toBeInTheDocument();
+  });
 });

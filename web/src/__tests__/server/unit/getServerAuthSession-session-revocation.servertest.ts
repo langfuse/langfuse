@@ -1,5 +1,5 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
-import type { Session } from "next-auth";
+import type { Account, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,6 +42,7 @@ vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
 }));
 
 import { getAuthOptions } from "@/src/server/auth";
+import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const loginAt = new Date("2026-09-09T12:00:00.000Z").getTime();
@@ -77,6 +78,8 @@ async function getCallbacks() {
     jwt: callbacks.jwt as (params: {
       token: JWT;
       user?: { id: string };
+      account?: Pick<Account, "provider" | "type">;
+      profile?: { email: string; email_verified: boolean; hd?: string };
     }) => JWT | Promise<JWT>,
     session: callbacks.session as (params: {
       session: Session;
@@ -127,6 +130,42 @@ describe("NextAuth JWT session revocation", () => {
 
     expect(result.user).toBeNull();
     expect(mockFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("binds employee OAuth evidence to the signed-in mailbox and its trusted provider", async () => {
+    const email = "member@clickhouse.com";
+    const profile = { email, email_verified: true, hd: "clickhouse.com" };
+    mockFindUnique.mockResolvedValue({ ...dbUser, email, emailVerified: null });
+    vi.mocked(getSsoAuthProviderIdForDomain).mockResolvedValue(
+      "clickhouse.com.okta",
+    );
+    const callbacks = await getCallbacks();
+    for (const [provider, claims, verified] of [
+      ["google", profile, true],
+      ["google", { ...profile, hd: "example.com" }, false],
+      ["google", { ...profile, email_verified: false }, false],
+      ["clickhouse-cloud", { email, email_verified: true }, true],
+      ["clickhouse.com.okta", { email, email_verified: true }, true],
+      ["other-provider", profile, false],
+      [
+        "clickhouse.com.okta",
+        { ...profile, email: "different@clickhouse.com" },
+        false,
+      ],
+    ] as const) {
+      const token = await callbacks.jwt({
+        token: { sub: dbUser.id, email },
+        user: { id: dbUser.id },
+        account: { provider, type: "oauth" },
+        profile: claims,
+      });
+      const refreshed = await callbacks.jwt({ token });
+      const result = await callbacks.session({
+        session: baseSession,
+        token: refreshed,
+      });
+      expect(result.user?.isVerifiedEmployee).toBe(verified);
+    }
   });
 
   it.each([

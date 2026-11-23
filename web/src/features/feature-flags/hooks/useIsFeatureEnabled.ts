@@ -5,7 +5,11 @@ import {
   isRestrictedFlag,
 } from "../available-flags";
 import type { Flag } from "../types";
-import { getContextualFeatureFlags, isInternalViewEnabled } from "../utils";
+import {
+  canAuthorDashboardBlocks,
+  getContextualFeatureFlags,
+  isInternalViewEnabled,
+} from "../utils";
 
 export default function useIsFeatureEnabled(
   feature: Flag,
@@ -18,6 +22,10 @@ export default function useIsFeatureEnabled(
   } = {},
 ): boolean {
   const session = useSession();
+
+  if (feature === "dashboardBlockAuthoring") {
+    return canAuthorDashboardBlocks(session.data);
+  }
 
   const isExperimentalFeaturesEnabled =
     session.data?.environment.enableExperimentalFeatures ?? false;

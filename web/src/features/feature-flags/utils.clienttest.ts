@@ -56,16 +56,18 @@ describe("parseFlags", () => {
     ).toEqual([]);
   });
 
-  it("requires personal Topics opt-in and ignores organization defaults", () => {
-    const context = {
-      v4BetaEnabled: true,
-    };
-    expect(
-      parseFlagsWithOrganizationDefaults([], ["langfuseTopics"], context)
-        .langfuseTopics,
-    ).toBe(false);
-    expect(parseFlags(["langfuseTopics"], context).langfuseTopics).toBe(true);
-  });
+  it.each(["langfuseTopics", "dashboardBlockAuthoring"] as const)(
+    "requires personal opt-in for %s and ignores organization defaults",
+    (flag) => {
+      const context = {
+        v4BetaEnabled: true,
+      };
+      expect(
+        parseFlagsWithOrganizationDefaults([], [flag], context)[flag],
+      ).toBe(false);
+      expect(parseFlags([flag], context)[flag]).toBe(true);
+    },
+  );
 
   it("enables both session previews by default for every user", () => {
     const flags = parseFlags([], {

@@ -37,16 +37,6 @@ const zIdTokenAlg = z
   ])
   .optional();
 
-const dashboardProjectAllowlist = z
-  .string()
-  .default("")
-  .transform((value) =>
-    value
-      .split(",")
-      .map((id) => id.trim())
-      .filter(Boolean),
-  );
-
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -793,9 +783,6 @@ export const env = createEnv({
               .filter(Boolean)
           : [],
       ),
-    LANGFUSE_DASHBOARD_MULTI_QUERY_ENABLED_PROJECT_IDS:
-      dashboardProjectAllowlist,
-    LANGFUSE_DASHBOARD_MARKDOWN_ENABLED_PROJECT_IDS: dashboardProjectAllowlist,
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
     // router, so it works as a runtime env var on prebuilt Docker images.
@@ -1428,10 +1415,6 @@ export const env = createEnv({
     LANGFUSE_V4_CUTOFF_PUBLIC_API: process.env.LANGFUSE_V4_CUTOFF_PUBLIC_API,
     LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS:
       process.env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
-    LANGFUSE_DASHBOARD_MULTI_QUERY_ENABLED_PROJECT_IDS:
-      process.env.LANGFUSE_DASHBOARD_MULTI_QUERY_ENABLED_PROJECT_IDS,
-    LANGFUSE_DASHBOARD_MARKDOWN_ENABLED_PROJECT_IDS:
-      process.env.LANGFUSE_DASHBOARD_MARKDOWN_ENABLED_PROJECT_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,

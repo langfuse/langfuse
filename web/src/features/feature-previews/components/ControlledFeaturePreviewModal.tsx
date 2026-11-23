@@ -6,6 +6,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import {
+  canAuthorDashboardBlocks,
+  isVerifiedEmployee,
+} from "@/src/features/feature-flags/utils";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { belongsToTraceEvalsProject } from "@/src/features/evals/transcriptEvalsAccess";
 import { api } from "@/src/utils/api";
@@ -90,6 +94,15 @@ export function ControlledFeaturePreviewModal({
   })();
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
+    ...(isVerifiedEmployee(authSession.data)
+      ? {
+          dashboardBlockAuthoring: {
+            enabled: canAuthorDashboardBlocks(authSession.data),
+            onToggle: onToggle("dashboardBlockAuthoring"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
     unifiedTraceSessionView: {
       enabled:
         isV4 &&

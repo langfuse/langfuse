@@ -91,6 +91,13 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     details:
       "Switch between Trace and Session scope without leaving the trace UI. Requires the events-backed read path and a trace belonging to a session.",
   },
+  {
+    flag: "dashboardBlockAuthoring",
+    description:
+      "Create and edit multi-query charts and Markdown blocks on dashboards.",
+    details:
+      "Choose Add widget on a dashboard you can edit. Anyone with read access to that dashboard can view its saved blocks.",
+  },
 ];
 
 const FEATURE_PREVIEW_MODAL_TITLE = "Feature preview";

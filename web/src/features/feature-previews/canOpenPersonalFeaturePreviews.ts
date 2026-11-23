@@ -1,5 +1,8 @@
 import type { Session } from "next-auth";
-import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
+import {
+  isVerifiedEmployee,
+  isInternalViewEnabled,
+} from "@/src/features/feature-flags/utils";
 
 /** Account menu and organization settings share this gate for the personal preview modal. */
 export function canOpenPersonalFeaturePreviews({
@@ -12,6 +15,7 @@ export function canOpenPersonalFeaturePreviews({
   return (
     isLangfuseCloud ||
     session?.user?.v4BetaEnabled === true ||
+    isVerifiedEmployee(session) ||
     isInternalViewEnabled(session) ||
     session?.user?.featureFlags.langfuseTopics === true ||
     session?.user?.featureFlags.traceTranscriptEvals === true

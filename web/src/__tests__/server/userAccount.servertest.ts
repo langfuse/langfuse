@@ -90,6 +90,69 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     ).toEqual(["templateFlag", getFeaturePreviewOptOutFlag("langfuseTopics")]);
   });
 
+  it("persists dashboard authoring only when an employee personally opts in", async () => {
+    const external = await createCaller({ emailDomain: "example.com" });
+    external.session.environment.enableExperimentalFeatures = true;
+    await expect(
+      external.caller.userAccount.setFeaturePreviewEnabled({
+        flag: "dashboardBlockAuthoring",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const employee = await createCaller({
+      emailDomain: "clickhouse.com",
+      featureFlags: [getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG)],
+    });
+    const sessionCallback = await getSessionCallback();
+    const employeeCaller = async () =>
+      appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: await sessionCallback({
+            session: employee.session,
+            token: {
+              sub: employee.userId,
+              email: employee.session.user!.email,
+              loginAt: Date.now(),
+            },
+          }),
+          headers: {},
+        }),
+        prisma,
+      });
+    await prisma.user.update({
+      where: { id: employee.userId },
+      data: { password: "test-password-hash" },
+    });
+    const unverifiedAccount = (await employeeCaller()).userAccount;
+    await expect(
+      unverifiedAccount.setFeaturePreviewEnabled({
+        flag: "dashboardBlockAuthoring",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await prisma.user.update({
+      where: { id: employee.userId },
+      data: { emailVerified: new Date() },
+    });
+    const verifiedAccount = (await employeeCaller()).userAccount;
+    await verifiedAccount.setFeaturePreviewEnabled({
+      flag: "dashboardBlockAuthoring",
+      enabled: true,
+    });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: employee.userId } }))
+        .featureFlags,
+    ).toContain("dashboardBlockAuthoring");
+    await verifiedAccount.setFeaturePreviewEnabled({
+      flag: "dashboardBlockAuthoring",
+      enabled: false,
+    });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: employee.userId } }))
+        .featureFlags,
+    ).not.toContain("dashboardBlockAuthoring");
+  });
+
   it("enables a preview, leaving other flags intact", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag"],

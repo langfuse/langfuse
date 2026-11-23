@@ -25,6 +25,8 @@ Internal view is available to users with an account email ending exactly in `@la
 
 Internal personal previews are registered in `internalFeaturePreviewFlags`; the personal modal and self-toggle mutation use `personalFeaturePreviewFlags`. Keep `featurePreviewFlags` limited to previews organizations may manage.
 
+`dashboardBlockAuthoring` lets employees opt in to creating and editing multi-query charts and Markdown on dashboards they can edit. The account's **Feature preview** menu offers it in either view mode once the employee mailbox is verified. The server accepts the account's confirmed email or a matching verified email claim from Google Workspace, ClickHouse Cloud, or the SSO provider configured for the employee domain. Experimental deployments also require this personal opt-in. Anyone with read access to the dashboard can view its saved blocks.
+
 Unified Trace and Session View uses the same Internal view or existing personal grant access for its preview toggle. It remains an explicit opt-in, including in Internal view and experimental deployments, and requires the events-backed read path.
 
 Organization defaults are evaluated only for the active project or

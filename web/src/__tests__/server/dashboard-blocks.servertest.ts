@@ -1,29 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
-
-const allowlists = vi.hoisted(() => ({
-  markdown: [] as string[],
-  multiQuery: [] as string[],
-}));
-
-vi.mock(import("@/src/env.mjs"), async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    env: new Proxy(actual.env, {
-      get(target, property, receiver) {
-        if (property === "LANGFUSE_DASHBOARD_MARKDOWN_ENABLED_PROJECT_IDS")
-          return allowlists.markdown;
-        if (property === "LANGFUSE_DASHBOARD_MULTI_QUERY_ENABLED_PROJECT_IDS")
-          return allowlists.multiQuery;
-        return Reflect.get(target, property, receiver);
-      },
-    }),
-  };
-});
 
 describe("project dashboard blocks", () => {
   const orgId = randomUUID();
@@ -51,9 +31,24 @@ describe("project dashboard blocks", () => {
     display: { chartType: "NUMBER" as const },
   };
 
-  function caller(project: string, role: "ADMIN" | "VIEWER" = "ADMIN") {
+  function caller(
+    project: string,
+    role: "ADMIN" | "VIEWER" = "ADMIN",
+    {
+      email = "author@langfuse.com",
+      optedIn = true,
+      experimental = false,
+      verifiedEmployee = true,
+    } = {},
+  ) {
     const session = createSession({
-      user: { id: userId },
+      user: {
+        id: userId,
+        email,
+        isVerifiedEmployee: verifiedEmployee,
+        featureFlags: testFeatureFlags({ dashboardBlockAuthoring: optedIn }),
+      },
+      environment: { enableExperimentalFeatures: experimental },
       organizations: [
         { id: orgId, role: "NONE", projects: [{ id: project, role }] },
       ],
@@ -85,18 +80,13 @@ describe("project dashboard blocks", () => {
     });
   });
 
-  beforeEach(() => {
-    allowlists.markdown.length = 0;
-    allowlists.multiQuery.length = 0;
-  });
-
   afterAll(async () => {
     await prisma.organization.delete({ where: { id: orgId } });
     await prisma.dashboard.delete({ where: { id: managedId } });
     await prisma.user.delete({ where: { id: userId } });
   });
 
-  it("preserves anchored blocks across legacy saves and flag rollback, then clones and cascades them", async () => {
+  it("preserves blocks across legacy saves and lets a non-author read and clone them", async () => {
     const owner = caller(projectId);
     const dashboard = await owner.dashboard.createDashboard({
       projectId,
@@ -128,13 +118,19 @@ describe("project dashboard blocks", () => {
       config,
       beforePlacementId: placement.id,
     };
+    const regular = caller(projectId, "ADMIN", {
+      email: "reader@example.com",
+      optedIn: false,
+    });
     await expect(
-      owner.dashboardBlocks.capabilities({ projectId }),
+      regular.dashboardBlocks.capabilities({ projectId }),
     ).resolves.toEqual({ markdown: false, multiQuery: false });
     await expect(
-      owner.dashboardBlocks.save({ ...create, beforePlacementId: null }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    allowlists.markdown.push(projectId);
+      owner.dashboardBlocks.capabilities({ projectId }),
+    ).resolves.toEqual({ markdown: true, multiQuery: true });
+    await expect(regular.dashboardBlocks.save(create)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
     const block = await owner.dashboardBlocks.save(create);
     expect(block).toMatchObject({
       id: create.id,
@@ -165,17 +161,18 @@ describe("project dashboard blocks", () => {
       }),
     ).resolves.toEqual({ definition: legacy.definition });
 
-    allowlists.markdown.length = 0;
-    await expect(owner.dashboardBlocks.getAll(target)).resolves.toEqual([]);
-    const clone = await owner.dashboard.cloneDashboard(target);
+    await expect(regular.dashboardBlocks.getAll(target)).resolves.toEqual([
+      edited,
+      second,
+    ]);
+    const clone = await regular.dashboard.cloneDashboard(target);
     const cloneTarget = { projectId, dashboardId: clone.id };
     await owner.dashboard.updateDashboardDefinition({
       ...target,
       definition: { widgets: [] },
     });
 
-    allowlists.markdown.push(projectId);
-    await expect(owner.dashboardBlocks.getAll(cloneTarget)).resolves.toEqual([
+    await expect(regular.dashboardBlocks.getAll(cloneTarget)).resolves.toEqual([
       { ...edited, revision: 1 },
       second,
     ]);
@@ -189,9 +186,12 @@ describe("project dashboard blocks", () => {
     expect(await owner.dashboardBlocks.getAll(target)).toHaveLength(2);
   });
 
-  it("enforces kind gates, tenant and role scopes, and atomic per-block revisions", async () => {
+  it("requires employee opt-in and dashboard permissions for writes and preserves tenant boundaries and revisions", async () => {
     const owner = caller(projectId);
-    const viewer = caller(projectId, "VIEWER");
+    const viewer = caller(projectId, "VIEWER", {
+      email: "viewer@example.com",
+      optedIn: false,
+    });
     const outsider = caller(otherProjectId);
     const dashboard = await owner.dashboard.createDashboard({
       projectId,
@@ -213,10 +213,37 @@ describe("project dashboard blocks", () => {
       expectedRevision: 0,
       config: multiQueryConfig,
     };
-    allowlists.markdown.push(projectId, otherProjectId);
-    await expect(owner.dashboardBlocks.save(chart)).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
+    const nonAuthors = [
+      caller(projectId, "ADMIN", {
+        verifiedEmployee: false,
+        experimental: true,
+      }),
+      caller(projectId, "ADMIN", { optedIn: false, experimental: true }),
+      caller(projectId, "ADMIN", {
+        email: "user@example.com",
+        optedIn: true,
+        experimental: true,
+      }),
+      caller(projectId, "ADMIN", {
+        email: "user@sub.langfuse.com",
+        optedIn: true,
+      }),
+    ];
+    for (const client of nonAuthors) {
+      await expect(
+        client.dashboardBlocks.capabilities({ projectId }),
+      ).resolves.toEqual({ markdown: false, multiQuery: false });
+      await expect(client.dashboardBlocks.save(chart)).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+    }
+    const optedInViewer = caller(projectId, "VIEWER");
+    await expect(
+      optedInViewer.dashboardBlocks.capabilities({ projectId }),
+    ).resolves.toEqual({ markdown: false, multiQuery: false });
+    await expect(
+      optedInViewer.dashboardBlocks.save(write),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(viewer.dashboardBlocks.save(write)).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
@@ -233,6 +260,22 @@ describe("project dashboard blocks", () => {
     await expect(viewer.dashboardBlocks.getAll(target)).resolves.toEqual([
       first,
     ]);
+
+    for (const client of nonAuthors) {
+      await expect(client.dashboardBlocks.getAll(target)).resolves.toEqual([
+        first,
+      ]);
+      await expect(
+        client.dashboardBlocks.save({ ...write, expectedRevision: 1 }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        client.dashboardBlocks.remove({
+          ...target,
+          id: first.id,
+          expectedRevision: 1,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
 
     const foreign = { projectId: otherProjectId, dashboardId: dashboard.id };
     await expect(
@@ -273,8 +316,7 @@ describe("project dashboard blocks", () => {
       }),
     ).rejects.toMatchObject({ code: "CONFLICT" });
 
-    allowlists.markdown.length = 0;
-    allowlists.multiQuery.push(projectId);
+    const [updatedNote] = await viewer.dashboardBlocks.getAll(target);
     await expect(
       owner.dashboardBlocks.save({ ...chart, id: first.id }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
@@ -283,24 +325,18 @@ describe("project dashboard blocks", () => {
       owner.dashboardBlocks.getAll({ ...target, kinds: [] }),
     ).resolves.toEqual([]);
     await expect(
-      owner.dashboardBlocks.getAll({ ...target, kinds: ["markdown"] }),
-    ).resolves.toEqual([]);
+      viewer.dashboardBlocks.getAll({ ...target, kinds: ["markdown"] }),
+    ).resolves.toEqual([updatedNote]);
     await expect(
-      owner.dashboardBlocks.getAll({
+      viewer.dashboardBlocks.getAll({
         ...target,
         kinds: ["markdown", "multiQuery"],
       }),
-    ).resolves.toEqual([savedChart]);
-    await expect(owner.dashboardBlocks.getAll(target)).resolves.toEqual([
+    ).resolves.toEqual([updatedNote, savedChart]);
+    await expect(viewer.dashboardBlocks.getAll(target)).resolves.toEqual([
+      updatedNote,
       savedChart,
     ]);
-    await expect(
-      owner.dashboardBlocks.remove({
-        ...target,
-        id: first.id,
-        expectedRevision: 2,
-      }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(
       owner.dashboardBlocks.save({
         ...chart,
@@ -308,7 +344,6 @@ describe("project dashboard blocks", () => {
         expectedRevision: 2,
       }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    allowlists.markdown.push(projectId);
     await expect(
       owner.dashboardBlocks.getAll({ ...target, kinds: ["multiQuery"] }),
     ).resolves.toEqual([savedChart]);
@@ -325,8 +360,6 @@ describe("project dashboard blocks", () => {
   });
 
   it("keeps future block formats opaque across reads, revision-checked writes, deletion, and cloning", async () => {
-    allowlists.markdown.push(projectId);
-    allowlists.multiQuery.push(projectId);
     const owner = caller(projectId);
     const { id: dashboardId } = await owner.dashboard.createDashboard({
       projectId,
@@ -408,7 +441,11 @@ describe("project dashboard blocks", () => {
       ).rejects.toMatchObject({ code: "CONFLICT" });
     }
 
-    const clone = await owner.dashboard.cloneDashboard(target);
+    const ordinaryAdmin = caller(projectId, "ADMIN", {
+      email: "reader@example.com",
+      optedIn: false,
+    });
+    const clone = await ordinaryAdmin.dashboard.cloneDashboard(target);
     await expect(storedBytes(dashboardId)).resolves.toEqual(before);
     await expect(storedBytes(clone.id)).resolves.toEqual(
       before.map((row) => ({ ...row, revision: 1 })),

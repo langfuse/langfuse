@@ -12,6 +12,7 @@ export type Flags = {
       | "aiGateway"
       | "unifiedTraceSessionView"
       | "traceTranscriptEvals"
+      | "dashboardBlockAuthoring"
       | "sessionViewV2Timeline"
       | typeof INTERNAL_FEATURE_FLAG
     >
@@ -22,6 +23,7 @@ export type Flags = {
   aiGateway?: boolean;
   unifiedTraceSessionView?: boolean;
   traceTranscriptEvals?: boolean;
+  dashboardBlockAuthoring?: boolean;
   sessionViewV2Timeline?: boolean;
   [INTERNAL_FEATURE_FLAG]?: boolean;
 };

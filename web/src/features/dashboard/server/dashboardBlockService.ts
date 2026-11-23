@@ -1,9 +1,7 @@
 import { z } from "zod";
-import { env } from "@/src/env.mjs";
 import {
   dashboardBlockContentSchema,
   dashboardMarkdownConfigVersion,
-  ForbiddenError,
   LangfuseConflictError,
   LangfuseNotFoundError,
   multiQueryConfigVersion,
@@ -48,22 +46,6 @@ const blockWithDashboard = {
   ...blockFields,
   dashboard: { select: { definition: true } },
 } as const;
-
-export function getDashboardBlockCapabilities(projectId: string) {
-  const hasProject = (ids: string[]) =>
-    Array.isArray(ids) && ids.includes(projectId);
-  return {
-    multiQuery: hasProject(
-      env.LANGFUSE_DASHBOARD_MULTI_QUERY_ENABLED_PROJECT_IDS,
-    ),
-    markdown: hasProject(env.LANGFUSE_DASHBOARD_MARKDOWN_ENABLED_PROJECT_IDS),
-  };
-}
-
-function enabledKinds(projectId: string) {
-  const capabilities = getDashboardBlockCapabilities(projectId);
-  return blockKinds.filter((kind) => capabilities[kind]);
-}
 
 /** The database checks the stored format in the same statement that edits or removes a block. */
 function supportedFormat(
@@ -123,9 +105,7 @@ export async function getDashboardBlocks({
   dashboardId,
   kinds: requestedKinds,
 }: z.infer<typeof getDashboardBlocksSchema>): Promise<SavedDashboardBlock[]> {
-  const kinds = enabledKinds(projectId).filter(
-    (kind) => requestedKinds === undefined || requestedKinds.includes(kind),
-  );
+  const kinds = requestedKinds ?? blockKinds;
   if (kinds.length === 0) return [];
   const dashboard = await prisma.dashboard.findFirst({
     where: { id: dashboardId, OR: [{ projectId }, { projectId: null }] },
@@ -175,12 +155,6 @@ export async function saveDashboardBlock(
     expectedRevision,
     beforePlacementId,
   } = input;
-  if (!getDashboardBlockCapabilities(projectId)[kind]) {
-    throw new ForbiddenError(
-      "This dashboard block type is disabled for the project",
-    );
-  }
-
   const where = { dashboardId, id, dashboard: { projectId }, kind };
   try {
     const block =
@@ -230,19 +204,15 @@ export async function removeDashboardBlock({
   id,
   expectedRevision,
 }: z.infer<typeof removeDashboardBlockSchema>) {
-  const kinds = enabledKinds(projectId);
-  if (kinds.length === 0)
-    throw new ForbiddenError("Dashboard blocks are disabled for the project");
   const where = {
     dashboardId,
     id,
     dashboard: { projectId },
-    kind: { in: kinds },
   };
   const deleted = await prisma.dashboardBlock.deleteMany({
     where: {
       ...where,
-      OR: kinds.map(supportedFormat),
+      OR: blockKinds.map(supportedFormat),
       revision: expectedRevision,
     },
   });
