@@ -3,16 +3,16 @@ import {
   EvalTemplateType,
   JobConfigState,
   TopicsTargetObject,
+  TRACE_TRANSCRIPT_EVAL_TYPES,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueJobs,
   TopicsTraceQueue,
-  type TraceBatchInputReference,
+  type TraceTranscriptReference,
 } from "@langfuse/shared/src/server";
 import {
   TRACE_TRANSCRIPT_EVAL_CONSUMER,
-  TRACE_TRANSCRIPT_EVAL_TYPES,
   enqueueTraceTranscriptEvals,
 } from "./traceTranscriptEval";
 
@@ -29,7 +29,7 @@ type EventsDispatchConsumer = {
   name: string;
   evaluatorTypes: readonly EvalTemplateType[];
   enqueue: (
-    reference: TraceBatchInputReference,
+    reference: TraceTranscriptReference,
     ruleIds: string[],
     context: EventsDispatchEnqueueContext,
   ) => Promise<void>;

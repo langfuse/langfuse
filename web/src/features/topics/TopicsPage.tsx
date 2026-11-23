@@ -13,7 +13,7 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekV
 import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import Page from "@/src/components/layouts/Page";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 import {
   Sheet,
   SheetContent,
@@ -76,6 +76,10 @@ import { TopicMapStrip, topicRuleStatus } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { TopicAnalysisState } from "./TopicAnalysisState";
 import { TopicSliceDialogController } from "./TopicSliceDialogController";
+import { type TopicsPageState } from "./topicsAnalytics";
+import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
+
+const COST_POLL_INTERVAL_MS = 30_000;
 
 const loadingPage = (
   <Page headerProps={{ title: "Topics" }}>
@@ -223,7 +227,7 @@ function TopicsWorkspaceContent({
   const [tracePanel, setTracePanel] = useState<HTMLElement | null>(null);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
-    isV4: false,
+    isV4: true,
     queryParams: ["observation", "display", "timestamp", "traceId"],
     expandConfig: { basePath: `/project/${projectId}/traces`, reader: "trace" },
   });
@@ -312,6 +316,17 @@ function TopicsWorkspaceContent({
     mapSelection?.kind === "rule"
       ? maps.data?.rules.find((rule) => rule.id === mapSelection.id)
       : undefined;
+  const refreshHistory = api.topics.ruleRefreshHistory.useQuery(
+    { projectId, ruleId: selectedRule?.id ?? "" },
+    {
+      enabled: Boolean(selectedRule),
+      refetchInterval: (query) =>
+        selectedRule?.refresh.running ||
+        query.state.data?.some((refresh) => refresh.status === "running")
+          ? COST_POLL_INTERVAL_MS
+          : false,
+    },
+  );
   // A refit (refresh or nightly) is no execution; its completion shows as a new lastRefitAt.
   const lastRefitAt = selectedRule?.lastRefitAt
     ? Date.parse(selectedRule.lastRefitAt)
@@ -447,6 +462,7 @@ function TopicsWorkspaceContent({
     shownResults.data?.facets ?? [],
   );
   const { selectedFacetId } = traceFilters;
+  const capture = useTopicsCapture();
   const openExecution = (id: string) => {
     router.push(
       {
@@ -474,10 +490,66 @@ function TopicsWorkspaceContent({
     openAutomaticProcessing(true);
   }
 
+  const mapCount =
+    (maps.data?.rules.length ?? 0) + (maps.data?.analyses.length ?? 0);
   const mapLimitReason =
     (maps.data?.rules.length ?? 0) >= TOPICS_MAX_RULES
       ? `A project can have at most ${TOPICS_MAX_RULES} maps.`
       : undefined;
+  const hasStoredSummaries = Boolean(results.data?.hasStoredSummaries);
+  const shownFacets = shownResults.data?.facets ?? [];
+  const showLanding =
+    !analysisId &&
+    results.data !== undefined &&
+    !results.isLoading &&
+    !results.error &&
+    !hasStoredSummaries;
+  // Without a tracked setup run, automatic processing still shows progress.
+  const waitingForTraces =
+    showLanding &&
+    !showSetupProgress &&
+    modelSettings.automaticProcessing.state.status === "on";
+  // A setup keeps the header while other maps exist, so they stay reachable.
+  const setupInline =
+    showSetupProgress &&
+    Boolean(
+      (maps.data?.analyses.length ?? 0) > 0 ||
+      maps.data?.rules.some(
+        (rule) => rule.id !== setupRuleId && rule.lastRefitAt,
+      ),
+    );
+  const showOnboarding = (showSetupProgress && !setupInline) || showLanding;
+  // Only once results loaded; loading and errors stay with CurrentTopics.
+  // Setup's outcome decides the copy, so it waits for the status.
+  const showBuilding =
+    shownResults.data !== undefined &&
+    ruleSetup.data !== undefined &&
+    !shownResults.error &&
+    !showOnboarding &&
+    !showSetupProgress &&
+    selectedRule !== undefined &&
+    selectedRule.enabled !== false &&
+    !selectedRule.lastRefitAt &&
+    !shownFacets.some((facet) => facet.map);
+  const landingShown = showLanding && !showSetupProgress && !waitingForTraces;
+  const pageResolved =
+    maps.data !== undefined &&
+    shownResults.data !== undefined &&
+    !ruleSetup.isLoading;
+  const setupStage = (showSetupProgress && setup?.stage) || null;
+  const pageState = pageResolved
+    ? topicsPageState({
+        snapshot: analysisId !== null,
+        setup: setupStage,
+        waitingForTraces,
+        landing: showLanding,
+        building: showBuilding,
+      })
+    : null;
+  useTopicsViewCapture(pageState === null ? null : "page", () => {
+    if (pageState)
+      capture("topics:page_viewed", { pageState, canWrite, mapCount });
+  });
   const workspace = (
     <TopicSliceDialogController
       projectId={projectId}
@@ -489,31 +561,7 @@ function TopicsWorkspaceContent({
       onRuleCreated={(ruleId) => selectMap({ kind: "rule", id: ruleId })}
     >
       {({ openSliceDialog }) => {
-        const hasStoredSummaries = Boolean(results.data?.hasStoredSummaries);
-        const shownFacets = shownResults.data?.facets ?? [];
         const headerFacetId = resolveTopicFacetId(shownFacets, selectedFacetId);
-        const showLanding =
-          !analysisId &&
-          results.data !== undefined &&
-          !results.isLoading &&
-          !results.error &&
-          !hasStoredSummaries;
-        // Without a tracked setup run, automatic processing still shows progress.
-        const waitingForTraces =
-          showLanding &&
-          !showSetupProgress &&
-          modelSettings.automaticProcessing.state.status === "on";
-        // A setup keeps the header while other maps exist, so they stay reachable.
-        const setupInline =
-          showSetupProgress &&
-          Boolean(
-            (maps.data?.analyses.length ?? 0) > 0 ||
-            maps.data?.rules.some(
-              (rule) => rule.id !== setupRuleId && rule.lastRefitAt,
-            ),
-          );
-        const showOnboarding =
-          (showSetupProgress && !setupInline) || showLanding;
         const hasStrip =
           (!showOnboarding && selectedRule !== undefined) ||
           selectedAnalysis !== undefined;
@@ -552,18 +600,6 @@ function TopicsWorkspaceContent({
             )}
           </>
         );
-        // Only once results loaded; loading and errors stay with CurrentTopics.
-        // Setup's outcome decides the copy, so it waits for the status.
-        const showBuilding =
-          shownResults.data !== undefined &&
-          ruleSetup.data !== undefined &&
-          !shownResults.error &&
-          !showOnboarding &&
-          !showSetupProgress &&
-          selectedRule !== undefined &&
-          selectedRule.enabled !== false &&
-          !selectedRule.lastRefitAt &&
-          !shownFacets.some((facet) => facet.map);
         // A scan's question without topics shows where the scan stands, not the live-map empty state;
         // a no-topics result still has a completed map with no topics.
         const analysisFacet = shownFacets.find(
@@ -622,7 +658,13 @@ function TopicsWorkspaceContent({
               overview={maps.data}
               selection={mapSelection}
               facetId={selectedFacetId}
-              onSelect={selectMap}
+              onSelect={(selection) => {
+                capture("topics:map_selected", {
+                  mapKind: selection.kind,
+                  mapCount,
+                });
+                selectMap(selection);
+              }}
               usePreviewTopics={usePreviewTopics}
               processingOn={automaticProcessing.state.status === "on"}
               create={{
@@ -665,15 +707,19 @@ function TopicsWorkspaceContent({
             }}
           >
             <div className="ph-no-capture flex min-h-0 flex-1 flex-col overflow-hidden">
-              {!showOnboarding && selectedRule ? (
+              {!showOnboarding && selectedRule && (
                 <TopicMapStrip.Rule
                   rule={selectedRule}
+                  refreshes={
+                    refreshHistory.data ??
+                    (refreshHistory.isError ? null : undefined)
+                  }
                   now={now}
                   mapShown={mapShown}
                   controls={viewControls}
                   options={unassignedSwitch}
                 />
-              ) : null}
+              )}
               <div
                 className={cn(
                   "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
@@ -709,9 +755,7 @@ function TopicsWorkspaceContent({
                   startBlockedReason={setupBlockedReason}
                   onKeepOff={automaticProcessing.clearPause}
                   onTurnBackOn={turnAutomaticProcessingBackOn}
-                  showOnboarding={
-                    showLanding && !showSetupProgress && !waitingForTraces
-                  }
+                  showOnboarding={landingShown}
                 />
                 {waitingForTraces ? (
                   <TopicSetupProgressView
@@ -864,7 +908,7 @@ type RunCostStatus = Pick<TopicRunWithCost, "id" | "status" | "updatedAt"> & {
   input: Parameters<typeof createsSummaries>[0];
 };
 
-/** Only visible estimates read ClickHouse. Each terminal revision fetches a final estimate, including after a retry. */
+/** Batch visible cost reads. A snapshot can publish before all of its traces report. */
 function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
   const utils = api.useUtils();
   const queryClient = useQueryClient();
@@ -880,7 +924,6 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
     executionIds,
     summaryExecutionIds: executionIds.filter((id) => summaryIds.has(id)),
   };
-  const pollInterval = 30_000;
   const staleTime = 60_000;
   const runKey = (id: string) =>
     ["topics-run-cost-breakdown", projectId, id, revisions[id]] as const;
@@ -896,7 +939,8 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
         const cached = queryClient.getQueryState<TopicRunCost | null>(
           runKey(id),
         );
-        const maxAge = revisions[id] === null ? pollInterval : staleTime;
+        const maxAge =
+          revisions[id] === null ? COST_POLL_INTERVAL_MS : staleTime;
         if (
           cached?.data !== undefined &&
           Date.now() - cached.dataUpdatedAt < maxAge
@@ -926,9 +970,21 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
     enabled: executionIds.length > 0,
     placeholderData: keepPreviousData,
     staleTime,
-    refetchInterval: Object.values(revisions).includes(null)
-      ? pollInterval
-      : false,
+    refetchInterval: (query) => {
+      if (Object.values(revisions).includes(null)) return COST_POLL_INTERVAL_MS;
+      // Some dispatched traces never reach a worker. Reopening history still refreshes older totals.
+      const recent = Date.now() - 60 * 60_000;
+      return executionIds.some((id) => {
+        const finishedAt = revisions[id];
+        return (
+          finishedAt &&
+          Date.parse(finishedAt) > recent &&
+          query.state.data?.estimates[id]?.summaryCheckpoint?.awaitingTraces
+        );
+      })
+        ? staleTime
+        : false;
+    },
     meta: { silentAllErrors: true },
   });
   return (id: string) => {
@@ -1005,6 +1061,22 @@ function ExecutionPanel({
       onBack={onBack}
     />
   );
+}
+
+function topicsPageState(shown: {
+  snapshot: boolean;
+  setup: TopicSetupStage | null;
+  waitingForTraces: boolean;
+  landing: boolean;
+  building: boolean;
+}): TopicsPageState {
+  if (shown.snapshot) return "snapshot";
+  if (shown.setup === "failed") return "setup_failed";
+  if (shown.setup) return "setup_running";
+  if (shown.waitingForTraces) return "waiting_for_traces";
+  if (shown.landing) return "landing";
+  if (shown.building) return "building";
+  return "results";
 }
 
 function startBlockedReason(running: boolean, automaticOn: boolean) {

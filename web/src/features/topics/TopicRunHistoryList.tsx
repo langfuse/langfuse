@@ -9,6 +9,7 @@ import {
   executionLabels,
   formatTopicRunCost,
   runLabel,
+  topicRunCostLabel,
   type TopicRunWithCost as Run,
 } from "./topic-run-labels";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
@@ -138,9 +139,11 @@ function ActiveRun({
         </div>
       )}
       <div className="flex items-center justify-between gap-2.5 text-xs">
-        <span className="text-muted-foreground">Estimated model cost</span>
+        <span className="text-muted-foreground">
+          {topicRunCostLabel(run.status)}
+        </span>
         <span className="font-mono">
-          {formatTopicRunCost(run.input, run.costBreakdown)}
+          {formatTopicRunCost(run.input, run.costBreakdown, run.status)}
         </span>
       </div>
     </div>
@@ -169,9 +172,9 @@ function RunRow({ run, onOpen }: { run: Run; onOpen: (id: string) => void }) {
         <span className="text-muted-foreground text-xs">
           {run.input.operation === "process" &&
             `${formatCount(traceCount(run))} traces · `}
-          Estimated model cost ·{" "}
+          {topicRunCostLabel(run.status)} ·{" "}
           <span className="whitespace-nowrap">
-            {formatTopicRunCost(run.input, run.costBreakdown)}
+            {formatTopicRunCost(run.input, run.costBreakdown, run.status)}
           </span>
         </span>
         {problem && (

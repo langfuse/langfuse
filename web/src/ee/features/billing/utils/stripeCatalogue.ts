@@ -1,5 +1,9 @@
 import { env } from "@/src/env.mjs";
-import { type Plan } from "@langfuse/shared";
+import {
+  mapStripeProductIdToPlan,
+  stripeProductIdByPlan,
+  type Plan,
+} from "@langfuse/shared";
 
 const isTestEnvironment =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
@@ -26,9 +30,7 @@ type StripeProduct = {
 // Backward-compatible export: same name and shape as before
 export const stripeProducts: StripeProduct[] = [
   {
-    stripeProductId: isTestEnvironment
-      ? "prod_RoYirvRQ4Kc6po" // sandbox
-      : "prod_RoYirvRQ4Kc6po", // live
+    stripeProductId: stripeProductIdByPlan["cloud:core"],
     mappedPlan: "cloud:core",
     orderKey: 29,
     checkout: {
@@ -46,9 +48,7 @@ export const stripeProducts: StripeProduct[] = [
     },
   },
   {
-    stripeProductId: isTestEnvironment
-      ? "prod_QhK7UMhrkVeF6R" // sandbox
-      : "prod_QhK7UMhrkVeF6R", // live
+    stripeProductId: stripeProductIdByPlan["cloud:pro"],
     mappedPlan: "cloud:pro",
     orderKey: 199,
     checkout: {
@@ -68,9 +68,7 @@ export const stripeProducts: StripeProduct[] = [
     },
   },
   {
-    stripeProductId: isTestEnvironment
-      ? "prod_QhK9qKGH25BTcS" // sandbox
-      : "prod_QhK9qKGH25BTcS", // live
+    stripeProductId: stripeProductIdByPlan["cloud:team"],
     mappedPlan: "cloud:team",
     orderKey: 499,
     checkout: {
@@ -88,9 +86,7 @@ export const stripeProducts: StripeProduct[] = [
     },
   },
   {
-    stripeProductId: isTestEnvironment
-      ? "prod_STnXok7GSSDmyF" // sandbox
-      : "prod_STnXok7GSSDmyF", // live
+    stripeProductId: stripeProductIdByPlan["cloud:enterprise"],
     mappedPlan: "cloud:enterprise",
     orderKey: 2499,
     checkout: {
@@ -121,10 +117,6 @@ const stripeUsageProduct = {
     ? "prod_T2DaIcLiiR78rs" // sandbox
     : "prod_T4nLLI2vn876J2",
 };
-
-export const mapStripeProductIdToPlan = (productId: string): Plan | null =>
-  stripeProducts.find((product) => product.stripeProductId === productId)
-    ?.mappedPlan ?? null;
 
 export const isUpgrade = (
   oldProductId: string,

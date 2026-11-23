@@ -53,6 +53,7 @@ const overview: TopicMapsOverview = {
       ],
       sampling: 1,
       lastRefitAt: hoursAgo(26),
+      refresh: { availableAt: null, running: true },
     }),
     rule({
       id: "rule-checkout",
@@ -142,6 +143,7 @@ function MapSwitcher({
     selection.kind === "analysis"
       ? overview.analyses.find((item) => item.id === selection.id)
       : undefined;
+  const manualStatus = selectedRule?.refresh.running ? "running" : "completed";
   return (
     <div className="flex h-[420px] w-[min(760px,calc(100vw-2rem))] flex-col rounded-md border">
       <div className="flex items-center gap-3 border-b p-2">
@@ -163,10 +165,43 @@ function MapSwitcher({
           })}
         />
       </div>
-      {selectedRule ? (
-        <TopicMapStrip.Rule rule={selectedRule} now={now} />
-      ) : null}
-      {selectedAnalysis ? (
+      {selectedRule && (
+        <TopicMapStrip.Rule
+          rule={selectedRule}
+          now={now}
+          refreshes={
+            selectedRule.lastRefitAt && selectedRule.enabled
+              ? [
+                  {
+                    id: "manual",
+                    trigger: "manual",
+                    status: manualStatus,
+                    startedAt: hoursAgo(3),
+                    cost: 0.08,
+                    partial: false,
+                  },
+                  {
+                    id: "nightly",
+                    trigger: "nightly",
+                    status: "completed_with_errors",
+                    startedAt: hoursAgo(25),
+                    cost: 0.02,
+                    partial: true,
+                  },
+                  {
+                    id: "old",
+                    trigger: "nightly",
+                    status: "failed",
+                    startedAt: hoursAgo(49),
+                    cost: null,
+                    partial: false,
+                  },
+                ]
+              : []
+          }
+        />
+      )}
+      {selectedAnalysis && (
         <TopicMapStrip.Analysis
           analysis={selectedAnalysis}
           costBreakdown={{
@@ -175,7 +210,7 @@ function MapSwitcher({
           }}
           onViewRun={() => onViewRun(selectedAnalysis.id)}
         />
-      ) : null}
+      )}
       {selectedRule?.enabled !== false && selectedRule?.lastRefitAt === null ? (
         <TopicRuleBuildingState rule={selectedRule} mapBuilt={false} />
       ) : (

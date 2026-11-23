@@ -11,7 +11,7 @@ import { OrganizationId } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
 import { getPoliciesForApiKey } from "@/src/features/auth/policy/contextResolver";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@langfuse/shared/src/server";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -23,6 +23,7 @@ import {
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {
@@ -271,6 +272,7 @@ type ResolvedSpendLimit = {
   scope: GatewaySpendLimitScope;
   interval: GatewaySpendLimitInterval;
   limitUsd: Prisma.Decimal;
+  alertThresholds: number[];
   countingStartedAt: Date;
 };
 
@@ -311,6 +313,9 @@ function toResolveSpendLimit(
     interval: limit.interval.toLowerCase() as Lowercase<typeof limit.interval>,
     limit_usd: limit.limitUsd.toNumber(),
     counting_started_at: limit.countingStartedAt.getTime(),
+    alert_thresholds: normalizeGatewaySpendBudgetAlertThresholds(
+      limit.alertThresholds,
+    ),
   };
 }
 

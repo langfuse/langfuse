@@ -6,7 +6,9 @@ use super::encoding::{
     base64_unpadded_prefix_len, has_data_uri_boundary, is_base64_character, is_data_uri_terminator,
     is_valid_content_type, is_valid_data_uri_parameters,
 };
-use super::rules::{is_supported_content_type, BASE64_MARKER, DATA_URI_PREFIX};
+use super::rules::{
+    find_data_uri_prefix, is_supported_content_type, BASE64_MARKER, DATA_URI_PREFIX,
+};
 
 pub(super) struct ParsedDataUri<'a> {
     pub(super) start: usize,
@@ -91,7 +93,7 @@ pub(super) fn parse_data_uri(value: &str, mut start: usize) -> Option<ParsedData
 pub(super) fn find_data_uri_candidates(value: &str) -> Vec<(Range<usize>, &str)> {
     let mut candidates = Vec::new();
     let mut cursor = 0;
-    while let Some(relative) = value[cursor..].find(DATA_URI_PREFIX) {
+    while let Some(relative) = find_data_uri_prefix(&value[cursor..]) {
         let start = cursor + relative;
         if !has_data_uri_boundary(value, start) {
             cursor = start + DATA_URI_PREFIX.len();

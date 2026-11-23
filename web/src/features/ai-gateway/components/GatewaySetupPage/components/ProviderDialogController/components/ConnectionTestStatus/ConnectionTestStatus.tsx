@@ -21,7 +21,7 @@ const STATUS_DISPLAY = {
   error: {
     label: "Connection test failed",
     text: "text-dark-red",
-    dot: "bg-dark-red",
+    dot: "bg-destructive",
   },
 } satisfies Record<TestStatus, { label: string; text: string; dot: string }>;
 

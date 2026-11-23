@@ -29,46 +29,75 @@ type FacetVersionRow = Prisma.EvaluatorVersionGetPayload<object>;
 type FacetRow = Prisma.EvaluatorGetPayload<{ include: { versions: true } }>;
 type RunRow = Prisma.TopicClusteringRunGetPayload<object>;
 
-/** Reserve one provider call before inference. Replaying the write preserves any recorded price. */
-export async function startTopicNamingCall(runId: string, callId: string) {
-  await prisma.topicNamingCall.createMany({
-    data: [{ id: callId, runId }],
-    skipDuplicates: true,
-  });
+/** Reserve one provider invocation. An existing receipt wins if the write is replayed. */
+export async function startTopicNamingCall(
+  projectId: string,
+  runId: string,
+  callId: string,
+) {
+  const changed = await prisma.$executeRaw`
+    UPDATE topic_clustering_runs
+    SET config = jsonb_set(config, '{namingCallCosts}',
+      jsonb_build_object(${callId}::text, NULL) || COALESCE(config->'namingCallCosts', '{}'::jsonb))
+    WHERE project_id = ${projectId} AND id = ${runId}
+  `;
+  if (!changed) throw new Error("Topics naming run not found.");
 }
 
-export async function finishTopicNamingCall(callId: string, cost: number) {
-  await prisma.topicNamingCall.updateMany({
-    where: { id: callId, costUsd: null },
-    data: { costUsd: cost },
-  });
+export async function finishTopicNamingCall(
+  projectId: string,
+  runId: string,
+  callId: string,
+  cost: number,
+) {
+  // Only a reserved, unpriced invocation can acquire a price, including zero.
+  await prisma.$executeRaw`
+    UPDATE topic_clustering_runs
+    SET config = jsonb_set(config, ARRAY['namingCallCosts', ${callId}], to_jsonb(${cost.toString()}::numeric), false)
+    WHERE project_id = ${projectId} AND id = ${runId}
+      AND config->'namingCallCosts'->${callId}::text = 'null'::jsonb
+  `;
 }
 
 /** Naming spend across every clustering attempt of each execution, including failed attempts. */
-export async function getTopicExecutionNamingCosts(
+export function getTopicExecutionNamingCosts(
   projectId: string,
   executionIds: string[],
+) {
+  return getTopicNamingCosts(projectId, executionIds, "execution");
+}
+
+export function getTopicRunNamingCosts(projectId: string, runIds: string[]) {
+  return getTopicNamingCosts(projectId, runIds, "run");
+}
+
+async function getTopicNamingCosts(
+  projectId: string,
+  ids: string[],
+  groupBy: "run" | "execution",
 ): Promise<Record<string, { cost: number | null; partial: boolean }>> {
-  if (!executionIds.length) return {};
+  if (!ids.length) return {};
+  const id =
+    groupBy === "run" ? Prisma.sql`r.id` : Prisma.sql`r.batch_action_id`;
   try {
-    // A tracked attempt without calls incurred zero naming cost. Untracked attempts
-    // (including preallocated runs) and calls without a price have unknown cost.
+    // A tracked run without calls incurred zero. A missing price or tracking flag
+    // makes the sum incomplete, even when another call has a known price.
     const rows = await prisma.$queryRaw<
-      { executionId: string; cost: Prisma.Decimal | null; unknown: boolean }[]
+      { id: string; cost: Prisma.Decimal | null; unknown: boolean }[]
     >`
-      SELECT r.batch_action_id AS "executionId",
-             SUM(CASE WHEN c.id IS NULL AND r.config->'namingCostTracked' = 'true'::jsonb
-                      THEN 0 ELSE c.cost_usd END) AS cost,
+      SELECT ${id} AS id,
+             SUM(CASE WHEN c.key IS NULL AND r.config->'namingCostTracked' = 'true'::jsonb
+                      THEN 0 ELSE c.value::numeric END) AS cost,
              BOOL_OR(r.config->'namingCostTracked' IS DISTINCT FROM 'true'::jsonb
-                     OR (c.id IS NOT NULL AND c.cost_usd IS NULL)) AS unknown
+                     OR (c.key IS NOT NULL AND c.value IS NULL)) AS unknown
       FROM topic_clustering_runs r
-      LEFT JOIN topic_naming_calls c ON c.run_id = r.id
-      WHERE r.project_id = ${projectId} AND r.batch_action_id IN (${Prisma.join(executionIds)})
-      GROUP BY r.batch_action_id
+      LEFT JOIN LATERAL jsonb_each_text(r.config->'namingCallCosts') c ON true
+      WHERE r.project_id = ${projectId} AND ${id} IN (${Prisma.join(ids)})
+      GROUP BY ${id}
     `;
     return Object.fromEntries(
-      rows.map(({ executionId, cost, unknown }) => [
-        executionId,
+      rows.map(({ id, cost, unknown }) => [
+        id,
         { cost: cost?.toNumber() ?? null, partial: cost !== null && unknown },
       ]),
     );
@@ -77,6 +106,15 @@ export async function getTopicExecutionNamingCosts(
     logger.warn("Failed to read Topics naming costs", { projectId, error });
     return {};
   }
+}
+
+// Only the receipt writers own this part of a run's config.
+function runConfig(
+  config: Prisma.JsonValue | Record<string, unknown>,
+): Prisma.JsonObject {
+  const result = { ...(config as Prisma.JsonObject) };
+  delete result.namingCallCosts;
+  return result;
 }
 
 function facetVersion(
@@ -415,7 +453,7 @@ function runResult(
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
     startedAt: row.startedAt?.toISOString() ?? null,
-    config: row.config as Record<string, unknown>,
+    config: runConfig(row.config),
     error: row.error,
     ruleId: row.ruleId,
     batchActionId: row.batchActionId,
@@ -566,7 +604,10 @@ export async function getCurrentTopicMapRows(
   );
   const unique = new Map<string, CurrentTopicMap>();
   for (const map of maps) if (map) unique.set(map.run.id, map);
-  return [...unique.values()];
+  return [...unique.values()].map(({ ruleId, run }) => ({
+    ruleId,
+    run: { ...run, config: runConfig(run.config) },
+  }));
 }
 
 /** Current map IDs of the facets; current results count only these runs' assignments. */
@@ -584,9 +625,8 @@ export async function getPublishedTopicMaps(
   projectId: string,
   facetIds: string[],
 ) {
-  const unique = (await getCurrentTopicMapRows(projectId, facetIds)).map(
-    ({ run }) => run,
-  );
+  const current = await getCurrentTopicMapRows(projectId, facetIds);
+  const unique = current.map(({ run }) => run);
   const ids = unique.flatMap((run) => run.topicVersionIds);
   // Only names and ids: these reads run on every tracing request with topics.
   const names = new Map(
@@ -597,11 +637,34 @@ export async function getPublishedTopicMaps(
   );
   return {
     runIds: unique.map(({ id }) => id),
-    maps: unique.map((run) => ({
+    ruleIds: [
+      ...new Set(current.flatMap(({ ruleId }) => (ruleId ? [ruleId] : []))),
+    ],
+    maps: current.map(({ ruleId, run }) => ({
       facetId: run.facetId,
+      runId: run.id,
+      ruleId,
       topics: run.topicVersionIds.flatMap((id) => names.get(id) ?? []),
     })),
   };
+}
+
+/** Every completed run of the rules, outside analyses: a pending or failed refit's assignments never show. */
+export async function getCompletedTopicRuleRunIds(
+  projectId: string,
+  ruleIds: string[],
+): Promise<string[]> {
+  if (!ruleIds.length) return [];
+  const runs = await prisma.topicClusteringRun.findMany({
+    where: {
+      projectId,
+      ruleId: { in: ruleIds },
+      status: "completed",
+      config: { path: ["analysis"], equals: Prisma.DbNull },
+    },
+    select: { id: true },
+  });
+  return runs.map(({ id }) => id);
 }
 
 export async function createTopicRun(input: {
@@ -628,7 +691,7 @@ export async function createTopicRun(input: {
       projectId: input.projectId,
       facetId: input.facetId,
       facetVersion: input.facetVersion,
-      config: input.config as Prisma.InputJsonValue,
+      config: runConfig(input.config),
       status: input.status ?? "pending",
       ruleId: input.ruleId ?? null,
       batchActionId: input.batchActionId ?? null,
@@ -662,7 +725,7 @@ export async function getTopicRuleMapRow(
   ruleId: string,
   facetId: string,
 ) {
-  return prisma.topicClusteringRun.findFirst({
+  const row = await prisma.topicClusteringRun.findFirst({
     where: {
       projectId,
       facetId,
@@ -671,6 +734,7 @@ export async function getTopicRuleMapRow(
     },
     orderBy: servingMapOrder,
   });
+  return row && { ...row, config: runConfig(row.config) };
 }
 
 /** The rule's published map of a facet, at any facet version. */
@@ -721,7 +785,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
         to: new Date(Math.max(...definitionTimes) + 1),
       })
     : null;
-  const config = { ...run.config };
+  const config = runConfig(run.config);
   if (definitionTimeRange)
     config.definitionTimeRange = {
       from: definitionTimeRange.from.toISOString(),
@@ -776,6 +840,12 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       throw new Error("Run not found or facet version mismatch.");
     if (existing.status === "completed" || existing.status === "skipped")
       return existing;
+    // A stale run save can follow a naming write or the fit that enabled tracking.
+    const storedConfig = existing.config as Prisma.JsonObject;
+    if (storedConfig.namingCallCosts !== undefined)
+      config.namingCallCosts = storedConfig.namingCallCosts;
+    if (storedConfig.namingCostTracked === true)
+      config.namingCostTracked = true;
     return tx.topicClusteringRun.update({
       where: { id: run.id, projectId: run.projectId },
       data: {

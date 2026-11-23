@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   env: {
     LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: ["project"],
   },
+  workerEnv: { LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS: 500_000 },
   call: vi.fn(),
   startNamingCall: vi.fn(),
   finishNamingCall: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("tiktoken", async (importOriginal) => {
   };
 });
 vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
+vi.mock("../../env", () => ({ env: state.workerEnv }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
@@ -132,6 +134,7 @@ beforeEach(() => {
   state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [
     "project",
   ];
+  state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 500_000;
   state.call.mockReset();
   state.startNamingCall.mockReset();
   state.finishNamingCall.mockReset();
@@ -188,12 +191,15 @@ const summarizeOne = (
   models: TopicsModels,
   text: string,
   config: TopicProcessingConfig,
+  onCost?: (cost: number | null) => void,
 ) =>
   summarizeTopicTraceFacets(
     models,
     [{ key: "intent", facet, builtIn: true }],
     text,
     config,
+    undefined,
+    onCost,
   );
 const keyed = (output: Record<string, unknown>) => ({
   intent: { notes: "Evidence.", ...output },
@@ -229,13 +235,16 @@ describe("Topics naming boundary", () => {
       JSON.stringify({ accessKeyId: "AKIATOPICS", secretAccessKey: "test" }),
     );
 
+    const costs: (number | null)[] = [];
     await expect(
       summarizeOne(
         models,
         "Trace evidence.",
         topicProcessingConfigSchema.parse({}),
+        (cost) => costs.push(cost),
       ),
     ).rejects.toMatchObject({ name: "ZodError" });
+    expect(costs).toEqual([null, expect.closeTo(0.000032, 12)]);
     expect(state.increment).toHaveBeenCalledWith("langfuse.topics.tokens", 12, {
       stage: "summary",
       direction: "input",
@@ -448,6 +457,7 @@ describe("Topics naming boundary", () => {
   ])(
     "pauses Topics like evaluators for HTTP %i provider errors",
     async (statusCode, blockReason) => {
+      state.startNamingCall.mockRejectedValueOnce(new Error("connection lost"));
       state.call.mockRejectedValue(
         Object.assign(new Error("provider error"), {
           [Symbol.for("vercel.ai.error")]: true,
@@ -460,6 +470,12 @@ describe("Topics naming boundary", () => {
       await expect(
         nameTopicGroup(topicsModels(), evidence),
       ).rejects.toMatchObject({ blockReason });
+      expect(state.call).toHaveBeenCalledOnce();
+      expect(state.startNamingCall.mock.calls).toHaveLength(2);
+      expect(state.startNamingCall.mock.calls[0]).toEqual(
+        state.startNamingCall.mock.calls[1],
+      );
+      expect(state.finishNamingCall).not.toHaveBeenCalled();
     },
   );
 
@@ -588,16 +604,15 @@ describe("Topics naming boundary", () => {
     });
   });
   it("rejects an oversized shared transcript before calling the provider", async () => {
+    state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 256;
     await expect(
       summarizeOne(
         topicsModels(),
         "Trace evidence. ".repeat(1000),
-        topicProcessingConfigSchema.parse({
-          maxInputTokens: 256,
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
     ).rejects.toThrow(
-      /are \d+ tokens, above this run's 256-token input limit\. No model call was made; the transcript is never shortened per facet\./,
+      /is 16000 characters, above the 256-character input limit\. No model call was made; the transcript is never shortened per facet\./,
     );
     expect(state.call).not.toHaveBeenCalled();
   });
@@ -716,16 +731,15 @@ describe("Topics naming boundary", () => {
     ).toBe(false);
 
     state.call.mockClear();
+    state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 256;
     await expect(
       summarizeTopicTraceFacets(
         topicsModels(),
         facets,
         "Trace evidence. ".repeat(1000),
-        topicProcessingConfigSchema.parse({
-          maxInputTokens: 256,
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
-    ).rejects.toThrow(/above this run's 256-token input limit/);
+    ).rejects.toThrow(/above the 256-character input limit/);
     expect(state.call).not.toHaveBeenCalled();
   });
 
@@ -735,6 +749,7 @@ describe("Topics naming boundary", () => {
       summary: `Request ${index}: ${"Invoice request details. ".repeat(60)} END-${index}`,
     }));
     const summaries = members.map(({ summary }) => summary);
+    state.startNamingCall.mockRejectedValueOnce(new Error("connection lost"));
     state.finishNamingCall.mockRejectedValueOnce(
       new Error("database unavailable"),
     );
@@ -757,6 +772,14 @@ describe("Topics naming boundary", () => {
       evidenceSummaryIds: ["m400"],
     });
     expect(state.call).toHaveBeenCalledOnce();
+    expect(state.startNamingCall.mock.calls).toHaveLength(2);
+    expect(state.startNamingCall.mock.calls[0]).toEqual(
+      state.startNamingCall.mock.calls[1],
+    );
+    expect(state.finishNamingCall).toHaveBeenCalledExactlyOnceWith(
+      ...state.startNamingCall.mock.calls[0],
+      expect.closeTo(0.01615, 10),
+    );
     expect(state.call.mock.calls[0][0].trace).toMatchObject({
       traceName: "topics-naming",
       environment: "langfuse-topics",
@@ -838,10 +861,10 @@ describe("Topics naming boundary", () => {
       ],
     };
     await namePreparedTopicGroup(topicsModels(), prepared, metadata, conflict);
-    const callIds = state.startNamingCall.mock.calls.map(([, id]) => id);
+    const callIds = state.startNamingCall.mock.calls.map(([, , id]) => id);
     expect(new Set(callIds).size).toBe(2);
     expect(state.finishNamingCall.mock.calls).toEqual(
-      callIds.map((id) => [id, 0]),
+      callIds.map((id) => ["project", "naming-run", id, 0]),
     );
     const [initialCall, renameCall] = state.call.mock.calls.map(
       ([call]) => call,
@@ -865,6 +888,27 @@ describe("Topics naming boundary", () => {
     ).toBeGreaterThan(initialCall.trace.metadata.naming_input_tokens_estimated);
     expect(
       renameCall.trace.metadata.naming_input_tokens_estimated,
+    ).toBeLessThanOrEqual(900_000);
+    const previousTopic = {
+      name: "Invoice questions",
+      description: "Questions about invoices.",
+    };
+    await namePreparedTopicGroup(
+      topicsModels(),
+      { ...prepared, previousTopic },
+      metadata,
+      conflict,
+    );
+    const contextCall = state.call.mock.calls[2][0];
+    const contextRequest = JSON.parse(contextCall.input);
+    expect(contextRequest.members).toEqual(initialRequest.members);
+    expect(contextRequest.previousTopic).toEqual(previousTopic);
+    expect(contextRequest.conflictingTopic).toEqual(
+      renameRequest.conflictingTopic,
+    );
+    expect(contextCall.system[0].text).toContain("previousTopic");
+    expect(
+      contextCall.trace.metadata.naming_input_tokens_estimated,
     ).toBeLessThanOrEqual(900_000);
 
     const omittedId = Array.from(
@@ -1015,11 +1059,14 @@ describe("Topics naming boundary", () => {
       await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
       expect(state.startNamingCall).toHaveBeenCalledExactlyOnceWith(
+        "project",
         "naming-run",
         expect.any(String),
       );
       expect(state.finishNamingCall).toHaveBeenCalledExactlyOnceWith(
-        state.startNamingCall.mock.calls[0][1],
+        "project",
+        "naming-run",
+        state.startNamingCall.mock.calls[0][2],
         0.00025,
       );
       expect(tokenCalls()).toEqual([
@@ -1150,16 +1197,19 @@ describe("Topics naming boundary", () => {
 
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embeddings: [[]], tokens: 12 });
+    const costs: (number | null)[] = [];
     await expect(
       embedTopicSummaries(
         topicsModels().embedding,
         ["An invoice request."],
         256,
         "project",
+        (cost) => costs.push(cost),
       ),
     ).rejects.toMatchObject({
       reason: "invalid_output",
     });
+    expect(costs).toEqual([null, 0.000012]);
     expect(tokenCalls()).toEqual([
       [
         "langfuse.topics.tokens",

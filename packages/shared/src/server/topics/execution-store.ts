@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { prisma, type Prisma } from "../../db";
+import { prisma, Prisma } from "../../db";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { BatchActionStatus } from "../../features/batchAction/types";
 import {
@@ -41,7 +41,7 @@ export type TopicSnapshotSummarizing = {
   /** Consecutive failed ticks; the snapshot fails after a few. */
   failedTicks: number;
 };
-type BatchRow = Prisma.BatchActionGetPayload<object>;
+type BatchRow = Omit<Prisma.BatchActionGetPayload<object>, "cursor">;
 const statuses = {
   queued: BatchActionStatus.Queued,
   running: BatchActionStatus.Processing,
@@ -78,6 +78,7 @@ async function storedExecution(
   topicIdSchema.parse(projectId);
   topicIdSchema.parse(executionId);
   return db.batchAction.findFirst({
+    omit: { cursor: true },
     where: { projectId, id: executionId, actionType: TOPICS_ACTION },
   });
 }
@@ -220,6 +221,10 @@ export async function createTopicExecution(
         tableName: "traces",
         status: BatchActionStatus.Queued,
         query: {},
+        // Each dispatched trace can have multiple attempts. Keep their receipts out of status reads.
+        ...(input.analysis?.summarize && {
+          cursor: { processingCost: { reports: {} } },
+        }),
         config: json({
           inputSettings: {
             ...input,
@@ -256,6 +261,7 @@ export async function listTopicExecutions(
 ): Promise<TopicExecutionSummary[]> {
   topicIdSchema.parse(projectId);
   const batches = await prisma.batchAction.findMany({
+    omit: { cursor: true },
     where: { projectId, actionType: TOPICS_ACTION },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -269,6 +275,7 @@ export async function listTopicAnalysisExecutions(
 ): Promise<TopicExecutionSummary[]> {
   topicIdSchema.parse(projectId);
   const batches = await prisma.batchAction.findMany({
+    omit: { cursor: true },
     where: {
       projectId,
       actionType: TOPICS_ACTION,
@@ -312,6 +319,7 @@ export async function writeTopicExecution(
       (facet) => facet.outcome === "failed",
     ).length;
     await tx.batchAction.update({
+      select: { id: true },
       where: { projectId, id },
       data: {
         config: json({
@@ -327,6 +335,68 @@ export async function writeTopicExecution(
       },
     });
   });
+}
+
+/** Keep one report per actual trace attempt. Late workers may finish after the map is published. */
+export async function recordTopicSnapshotProcessingCost(report: {
+  projectId: string;
+  executionId: string;
+  revision: string;
+  reportId: string;
+  cost: number | null;
+  partial: boolean;
+}): Promise<void> {
+  const { projectId, executionId, revision, reportId, cost, partial } = report;
+  await prisma.$executeRaw`
+    UPDATE batch_actions
+    SET cursor = jsonb_set(cursor, '{processingCost}', jsonb_build_object(
+      'reports', jsonb_set(cursor #> '{processingCost,reports}', ARRAY[${revision}::text],
+        COALESCE(cursor #> ARRAY['processingCost','reports',${revision}::text], '{}'::jsonb)
+          || jsonb_build_object(${reportId}::text, ${cost?.toString() ?? null}::numeric)),
+      'partial', COALESCE((cursor #>> '{processingCost,partial}')::boolean, false) OR ${partial},
+      'asOf', clock_timestamp()
+    ))
+    WHERE project_id = ${projectId} AND id = ${executionId} AND action_type = ${TOPICS_ACTION}
+      AND cursor ? 'processingCost'
+      AND cursor #> ARRAY['processingCost','reports',${revision}::text,${reportId}::text] IS NULL
+  `;
+}
+
+type ProcessingCost = {
+  awaitingTraces: boolean;
+  cost: number | null;
+  partial: boolean;
+  asOf: string | null;
+};
+/** Untracked executions fall back to retained summary costs in ClickHouse. */
+export async function getTopicSnapshotProcessingCosts(
+  projectId: string,
+  executionIds: string[],
+): Promise<Record<string, ProcessingCost>> {
+  if (!executionIds.length) return {};
+  const rows = await prisma.$queryRaw<(ProcessingCost & { id: string })[]>`
+    SELECT b.id,
+      CASE WHEN jsonb_typeof(b.config #> '{summarizing,traceIds}') = 'array'
+                AND (b.config #>> '{summarizing,seededCount}')::int = 0 AND costs.traces = 0
+           THEN 0 ELSE costs.usd END::double precision AS cost,
+      COALESCE((b.cursor #>> '{processingCost,partial}')::boolean, false) AS partial,
+      costs.traces < COALESCE((b.config #>> '{summarizing,seededCount}')::int, 0) AS "awaitingTraces",
+      b.cursor #>> '{processingCost,asOf}' AS "asOf"
+    FROM batch_actions b
+    CROSS JOIN LATERAL (
+      SELECT sum(report.value::numeric) AS usd, count(DISTINCT trace.key) AS traces
+      FROM jsonb_each(b.cursor #> '{processingCost,reports}') trace
+      CROSS JOIN LATERAL jsonb_each_text(trace.value) report
+    ) costs
+    WHERE b.project_id = ${projectId} AND b.action_type = ${TOPICS_ACTION}
+      AND b.id IN (${Prisma.join(executionIds)}) AND b.cursor ? 'processingCost'
+  `;
+  return Object.fromEntries(
+    rows.map(({ id, ...cost }) => [
+      id,
+      { ...cost, partial: cost.partial || cost.awaitingTraces },
+    ]),
+  );
 }
 
 export async function readTopicSnapshotSummarizing(
@@ -348,6 +418,7 @@ export async function writeTopicSnapshotSummarizing(
     const current = await storedExecution(projectId, executionId, tx);
     if (!current) throw new Error("Topics execution does not exist.");
     await tx.batchAction.update({
+      select: { id: true },
       where: { projectId, id: executionId },
       data: {
         config: json({

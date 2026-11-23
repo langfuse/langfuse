@@ -124,7 +124,11 @@ function summarizingSnapshot(id: string, createdAt: string): Run {
   return {
     ...run,
     phase: "summarizing",
-    costBreakdown: { summaries: 0.31, naming: { cost: null, partial: true } },
+    costBreakdown: {
+      summaries: 0.31,
+      summaryCheckpoint: { partial: true, asOf: createdAt },
+      naming: { cost: 0, partial: false },
+    },
     input: {
       ...run.input,
       analysis: {
@@ -144,7 +148,17 @@ function summarizingSnapshot(id: string, createdAt: string): Run {
 
 const runs: Run[] = [
   summarizingSnapshot("run-9", hoursAgo(0.4)),
-  updateRun("run-8", "queued", hoursAgo(0.3)),
+  {
+    ...summarizingSnapshot("run-8", hoursAgo(0.3)),
+    status: "queued",
+    phase: "queued",
+    facets: [],
+    costBreakdown: {
+      summaries: null,
+      summaryCheckpoint: { partial: true, asOf: null },
+      naming: { cost: null, partial: false },
+    },
+  },
   processRun("run-7", "completed", hoursAgo(17), 4.2, { requested: 1_412 }),
   processRun("run-6", "completed_with_errors", hoursAgo(46), 3.95, {
     requested: 1_330,
@@ -216,7 +230,7 @@ export const PinsRunningAndGroupsByDay = meta.story({
     const active = canvas.getByRole("status");
     await expect(active).toHaveTextContent("Snapshot · Checkout");
     await expect(active).toHaveTextContent("640 / 1,280");
-    await expect(active).toHaveTextContent("Estimated model cost");
+    await expect(active).toHaveTextContent("Estimated model cost so far");
     await expect(active).toHaveTextContent("~$0.31 (partial)");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
@@ -257,7 +271,7 @@ export const PinsRunningAndGroupsByDay = meta.story({
 export const ShowsRefetchErrorAboveRuns = meta.story({
   name: "(Test) A refetch error shows above the cached runs",
   args: {
-    executions: runs.slice(2, 4),
+    executions: runs.slice(1, 3),
     errorMessage: "Request timed out.",
   },
   play: async ({ canvasElement }) => {
@@ -266,6 +280,9 @@ export const ShowsRefetchErrorAboveRuns = meta.story({
       "Request timed out.",
     );
     await expect(canvas.getAllByRole("button")).toHaveLength(2);
+    await expect(
+      canvas.getByRole("button", { name: /Snapshot · Checkout.*Queued/ }),
+    ).toHaveTextContent("Estimated model cost so far · Not recorded yet");
   },
 });
 

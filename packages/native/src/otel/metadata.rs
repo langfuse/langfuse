@@ -168,7 +168,6 @@ fn extract_prefixed_metadata<const N: usize>(
     prefixes: [(&str, bool); N],
     parse_cache: &mut JsonParseCache,
 ) -> JsonObject {
-    let markers = prefixes.map(|(prefix, decode)| (format!("{prefix}."), decode));
     for (key, value) in attributes {
         let key_text = key.as_str();
         if matches!(
@@ -180,8 +179,8 @@ fn extract_prefixed_metadata<const N: usize>(
         ) {
             continue;
         }
-        for (marker, decode) in &markers {
-            let Some(metadata_key) = key.strip_prefix(marker) else {
+        for (prefix, decode) in &prefixes {
+            let Some(metadata_key) = key.strip_dotted_prefix(prefix) else {
                 continue;
             };
             // The TypeScript accumulator skips this reserved dotted key. The JSON parser

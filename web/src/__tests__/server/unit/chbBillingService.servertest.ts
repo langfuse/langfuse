@@ -38,6 +38,7 @@ import {
 import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBillingService";
 import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const ORG_ID = "org-1";
 const CH_ORG_ID = "6dd6ab1d-9e8d-4c1a-8b4f-9a3d1e2c4b5a";
@@ -75,9 +76,11 @@ const ctx = {
     $executeRaw: executeRaw,
   },
   session: {
+    ...createSession({
+      user: { id: "user-1", email: "user@example.com" },
+      organizations: [{ id: ORG_ID, role: "OWNER" }],
+    }),
     orgId: ORG_ID,
-    orgRole: "OWNER",
-    user: { id: "user-1", email: "user@example.com" },
   },
 } as unknown as OrgAuthedContext;
 

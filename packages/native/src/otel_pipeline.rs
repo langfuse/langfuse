@@ -8,7 +8,8 @@
 //!
 //! `media` collects media requests and applies upload results. `rows` collects
 //! lookup requests, builds storage rows, and requests uploads for oversized
-//! fields. This file defines the N-API methods and batch states.
+//! fields. `lookups` reads the lookup results Node hands back. This file defines
+//! the N-API methods and batch states.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -16,6 +17,7 @@ use std::sync::{Arc, Mutex};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
+use crate::native_memory::{retained_size, NativeMemory, RetainedSize};
 use crate::native_schema::OtelStorageRow;
 use crate::native_task::{to_js_error, NativeResult, OwnedTask};
 use crate::otel::{process_to_events, EventBuildConfig, OwnedEvent, StorageContext};
@@ -23,6 +25,7 @@ use crate::otel_input::{EarlyOtelBatch, ExtractedBatch};
 use crate::otel_media::ExtractedMedia;
 use crate::PreparedEvent;
 
+mod lookups;
 mod media;
 mod rows;
 
@@ -47,11 +50,13 @@ impl OtelProcessingContext {
             is_langfuse_internal: self.is_langfuse_internal,
             ..EventBuildConfig::default()
         };
+        // Every row stores these three timestamps, so convert the shared value once.
+        let stored_at = crate::otel::types::to_clickhouse_datetime(&self.now);
         let storage = StorageContext {
             blob_storage_file_path: self.file_key,
-            created_at: self.now.clone(),
-            updated_at: self.now.clone(),
-            event_ts: self.now,
+            created_at: stored_at.clone(),
+            updated_at: stored_at.clone(),
+            event_ts: stored_at,
         };
         (build, storage)
     }
@@ -59,7 +64,9 @@ impl OtelProcessingContext {
 
 struct Pipeline {
     source: Arc<ExtractedBatch>,
+    memory: Arc<NativeMemory>,
     rows: BatchRows,
+    lookups: rows::LookupPlan,
     context: StorageContext,
     media_requests: Vec<u32>,
     late_media: Vec<ExtractedMedia>,
@@ -67,10 +74,17 @@ struct Pipeline {
 }
 
 impl Pipeline {
-    fn new(source: Arc<ExtractedBatch>, events: Vec<OwnedEvent>, context: StorageContext) -> Self {
+    fn new(
+        source: Arc<ExtractedBatch>,
+        events: Vec<OwnedEvent>,
+        context: StorageContext,
+        memory: Arc<NativeMemory>,
+    ) -> Self {
         Self {
             source,
+            memory,
             rows: BatchRows::Prepared(events),
+            lookups: rows::LookupPlan::default(),
             context,
             media_requests: Vec::new(),
             late_media: Vec::new(),
@@ -98,6 +112,63 @@ struct EnrichedStorageRow {
     row: OtelStorageRow,
     start_time_iso: String,
     evaluation_fields: Option<Box<crate::otel::types::JsonObject>>,
+}
+
+impl RetainedSize for EnrichedStorageRow {
+    fn retained_bytes(&self) -> usize {
+        let Self {
+            row,
+            start_time_iso,
+            evaluation_fields,
+        } = self;
+        retained_size(row) + retained_size(start_time_iso) + retained_size(evaluation_fields)
+    }
+}
+
+impl Pipeline {
+    fn refresh_memory(&self) {
+        self.memory.resize(self.retained_bytes());
+    }
+
+    fn retained_bytes(&self) -> usize {
+        let Self {
+            source: _, // The source batch has its own tracker.
+            memory: _,
+            rows,
+            lookups,
+            context,
+            media_requests,
+            late_media,
+            overflow_requests,
+        } = self;
+        let row_bytes = match rows {
+            BatchRows::Prepared(rows) => retained_size(rows),
+            BatchRows::Ready(rows) => retained_size(rows),
+            // Finalized rows carry the shared tracker through PreparedEvent handles.
+            BatchRows::Finalized => return 0,
+        };
+        let mut media_seen = std::collections::HashSet::new();
+        let mut late_sources = HashSet::new();
+        let late_source_bytes = late_media
+            .iter()
+            .filter_map(ExtractedMedia::source_allocation)
+            .filter(|(source, _)| late_sources.insert(*source))
+            .map(|(_, bytes)| bytes)
+            .sum::<usize>();
+        let late_media_bytes = late_media.capacity() * std::mem::size_of::<ExtractedMedia>()
+            + late_media
+                .iter()
+                .map(|media| media.retained_bytes(&mut media_seen))
+                .sum::<usize>()
+            + late_source_bytes;
+        std::mem::size_of::<Self>()
+            + row_bytes
+            + retained_size(&lookups.request_of)
+            + retained_size(media_requests)
+            + late_media_bytes
+            + retained_size(overflow_requests)
+            + retained_size(context)
+    }
 }
 
 #[napi]
@@ -139,6 +210,22 @@ pub struct OtelSkillResourceLoaded {
     pub skill_version: Option<u32>,
 }
 
+/// Lookup results in the flat form written by the worker's `encodeOtelLookups`.
+///
+/// `lengths` and `numbers` are typed arrays because a typed array is handed to Rust as a
+/// whole, while a plain array is read one element at a time on Node's main thread.
+#[napi(object, object_to_js = false)]
+pub struct EncodedOtelLookups {
+    /// Every text field in a fixed order, each followed by a line feed.
+    pub text: String,
+    /// The length of each text field in UTF-16 code units.
+    pub lengths: Uint32Array,
+    /// Counts, flags and numeric fields in the order they are read.
+    pub numbers: Float64Array,
+}
+
+/// One lookup the worker resolves. Events that would make the same request share it;
+/// `span_id` names the first of them.
 #[napi(object)]
 pub struct OtelLookupRequest {
     pub span_id: String,
@@ -169,7 +256,7 @@ pub struct FinalizedOtelEvent {
     pub trace_id: String,
     pub start_time_iso: String,
     pub environment: String,
-    /// JSON byte size after applying oversized-field upload results, for selected traces.
+    /// Estimated dispatch weight after field overflow, present only for sampled traces.
     pub serialized_event_bytes: Option<f64>,
 }
 
@@ -204,15 +291,18 @@ impl EarlyOtelBatch {
         env: Env,
         context: OtelProcessingContext,
     ) -> napi::Result<AsyncTask<OwnedTask<PreparedOtelBatch>>> {
+        let pipeline_memory = Arc::new(NativeMemory::new(&env, 0)?);
         let source = self.take_data().map_err(|error| to_js_error(env, error))?;
         Ok(AsyncTask::new(OwnedTask::new(move || {
             let (build_config, storage_context) = context.into_configs();
             let mut events = parse_events(&source, &build_config)?;
             media::restore_lookup_fields(&mut events, &source.media)?;
             let trace_ids = unique_trace_ids(&events);
-            let mut pipeline = Pipeline::new(source, events, storage_context);
+            let mut pipeline = Pipeline::new(source, events, storage_context, pipeline_memory);
             let media_requests = media::collect_media_requests(&mut pipeline)?;
-            let lookup_requests = rows::collect_lookup_requests(&pipeline);
+            let (lookup_requests, lookups) = rows::collect_lookup_requests(&pipeline);
+            pipeline.lookups = lookups;
+            pipeline.refresh_memory();
             let batch = RustOtelBatch {
                 state: Arc::new(Mutex::new(Some(pipeline))),
             };
@@ -268,7 +358,7 @@ impl RustOtelBatch {
         Ok(Either::A(AsyncTask::new(OwnedTask::new(move || {
             state
                 .lock()
-                .map_err(|_| failure("OTEL processing lock poisoned"))?
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take();
             Ok(())
         }))))
@@ -284,23 +374,32 @@ impl RustOtelBatch {
         })
     }
 
-    /// Apply media and lookup results; return final handles or oversized-field upload requests.
+    /// Apply media results and one lookup result per lookup request; return final handles or
+    /// oversized-field upload requests.
     #[napi(
-        ts_args_type = "mediaResults: OtelMediaResolution[], lookups: object[], overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]",
+        ts_args_type = "mediaResults: OtelMediaResolution[], lookups: EncodedOtelLookups, overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]",
         ts_return_type = "Promise<OtelCompletion>"
     )]
     pub fn complete(
         &self,
         media_results: Vec<OtelMediaResolution>,
-        lookups: Vec<serde_json::Value>,
+        lookups: EncodedOtelLookups,
         overflow_limit_bytes: Option<f64>,
         include_evaluation_rows: bool,
         trace_activity_ids: Option<Vec<String>>,
     ) -> AsyncTask<OwnedTask<OtelCompletion>> {
+        // The typed arrays in `lookups` remain JavaScript's memory, which it can write to while
+        // the task runs off the main thread. The task therefore gets its own copy of them.
+        let lookups = lookups::EncodedLookups {
+            text: lookups.text,
+            lengths: lookups.lengths.to_vec(),
+            numbers: lookups.numbers.to_vec(),
+        };
         self.run(move |state| {
+            let lookups = lookups::decode(&lookups)?;
             validate_completion(state, &media_results, lookups.len(), overflow_limit_bytes)?;
             media::resolve_media_inner(state, media_results)?;
-            rows::enrich_inner(state, lookups)?;
+            rows::enrich_inner(state, &lookups)?;
             rows::finalize_or_request_overflow(
                 state,
                 overflow_limit_bytes,
@@ -369,13 +468,16 @@ fn validate_completion(
         state.media_requests.len(),
         "incomplete OTEL media results",
     )?;
-    if lookup_count
+    if lookup_count != state.lookups.requests {
+        return Err(failure("incomplete OTEL lookup results"));
+    }
+    if state.lookups.request_of.len()
         != events
             .iter()
             .filter(|event| rows::needs_lookup(event))
             .count()
     {
-        return Err(failure("incomplete OTEL lookup results"));
+        return Err(failure("OTEL lookup requests changed after processing"));
     }
     if overflow_limit_bytes
         .is_some_and(|limit| !limit.is_finite() || limit <= 0.0 || limit.fract() != 0.0)

@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import Header from "@/src/components/layouts/header";
-import { SettingsTableCard } from "@/src/components/layouts/SettingsTableCard";
+import { TableCardContainer } from "@/src/components/layouts/TableCardContainer";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 
@@ -142,7 +142,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                     <Button
                       type="button"
                       variant="outline"
-                      className="border-light-red flex items-center"
+                      className="border-dark-red/30 flex items-center"
                       disabled={disabled !== undefined}
                       onClick={openDialog}
                     >
@@ -177,13 +177,13 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
               </Tabs.List>
 
               <Tabs.Content value="executions">
-                <div className="mt-6">
-                  <SettingsTableCard>
+                <div className="mt-6 mb-4">
+                  <TableCardContainer>
                     <AutomationExecutionsTable
                       projectId={projectId}
                       automationId={automationId}
                     />
-                  </SettingsTableCard>
+                  </TableCardContainer>
                 </div>
               </Tabs.Content>
 

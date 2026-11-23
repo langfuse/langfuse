@@ -7,6 +7,7 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
 import { type TopicFacet } from "@langfuse/shared/topics";
 import { type TopicRunCost } from "./topic-run-labels";
+import { type RouterOutputs } from "@/src/utils/api";
 
 const state = vi.hoisted(() => ({
   canViewTopics: true,
@@ -37,8 +38,24 @@ const state = vi.hoisted(() => ({
   rulesError: null as Error | null,
   configurationFailure: null as "settings" | "readiness" | "connections" | null,
   settings: {} as Record<string, unknown>,
-  rules: [] as Array<{ id?: string; facetIds: string[] }>,
+  rules: [] as Array<{
+    id?: string;
+    facetIds: string[];
+    refresh?: { running: boolean; availableAt: string | null };
+  }>,
+  refreshes: [] as RouterOutputs["topics"]["ruleRefreshHistory"],
   maps: undefined as unknown,
+  capture: vi.fn(),
+}));
+
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProject: () => ({
+    project: { id: "project" },
+    organization: { id: "org" },
+  }),
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => state.capture,
 }));
 
 vi.mock("./useOpenTopicsFeedback", () => ({
@@ -86,7 +103,7 @@ vi.mock("@/src/components/table/peek/TablePeekViewTraceDetail", () => ({
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
-vi.mock("@/src/components/error-page", () => ({
+vi.mock("@/src/components/ErrorPage", () => ({
   ErrorPage: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 vi.mock("@/src/features/topics/topicsAccess", () => ({
@@ -238,6 +255,7 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
+      ruleRefreshHistory: { useQuery: () => ({ data: state.refreshes }) },
       startRuleSetup: {
         useMutation: () => ({
           isPending: false,
@@ -343,6 +361,7 @@ beforeEach(() => {
     blockMessage: null,
   };
   state.rules = [];
+  state.refreshes = [];
   state.setQueryParams.mockImplementation(
     ({ dateRange }: { dateRange: string }) => {
       state.dateRange = dateRange;
@@ -435,6 +454,34 @@ function withSummaries() {
   ];
   state.rules = [{ facetIds: ["intent", "outcome"] }];
 }
+
+it("waits for current refresh costs when status arrives ahead of its pricing", () => {
+  withSummaries();
+  state.refreshes = [
+    {
+      id: "previous",
+      trigger: "nightly",
+      status: "completed",
+      startedAt: "2026-10-08T12:00:00Z",
+      cost: 0.12,
+      partial: false,
+    },
+  ];
+  const view = renderTopicsPage();
+  expect(screen.getByText("Last refresh cost · ~$0.12")).toBeVisible();
+
+  state.rules[0].refresh = { running: true, availableAt: null };
+  view.rerender(<TopicsPage />);
+  expect(screen.getByText("Refresh cost so far · Pending")).toBeVisible();
+  state.refreshes.unshift({
+    ...state.refreshes[0],
+    id: "active",
+    status: "running",
+    cost: 0.04,
+  });
+  view.rerender(<TopicsPage />);
+  expect(screen.getByText("Refresh cost so far · ~$0.04")).toBeVisible();
+});
 
 it("keeps settled costs visible while fetching the final cost of a completed run", async () => {
   withSummaries();
@@ -604,4 +651,14 @@ it("shows the setup landing until the project's first stored summary exists", ()
   view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Set up topics" })).toBeNull();
+  // The page view keeps the state it first showed, once per mount.
+  const context = { projectId: "project", orgId: "org", isV4: true };
+  const events = state.capture.mock.calls.map(([event]) => event);
+  expect(events.filter((event) => event === "topics:page_viewed")).toHaveLength(
+    1,
+  );
+  expect(state.capture).toHaveBeenCalledWith(
+    "topics:page_viewed",
+    expect.objectContaining({ ...context, pageState: "landing" }),
+  );
 });

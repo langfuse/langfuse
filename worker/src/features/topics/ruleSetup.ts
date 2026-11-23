@@ -11,6 +11,7 @@ import {
 import {
   countTopicTraceSummaries,
   createTopicRun,
+  topicRuleOperation,
   enqueueTopicRuleRefit,
   getEnabledTopicsModels,
   getTopicRule,
@@ -33,8 +34,8 @@ import type {
   TopicRule,
   TopicRun,
 } from "@langfuse/shared/topics";
-import { resolveTraceIdleMs } from "../traceBatching/traceBatchReadiness";
-import { seedTraceDispatch } from "../traceBatching/traceRuleRecording";
+import { resolveTraceIdleMs } from "../traceDispatch/traceReadiness";
+import { seedTraceDispatch } from "../traceDispatch/traceRuleRecording";
 import { currentRuleMap } from "./nightlyRefit";
 
 export const TOPIC_RULE_SETUP_TICK_MS = 15_000;
@@ -229,7 +230,6 @@ async function selectAndSeed(
       idleMs: await resolveTraceIdleMs(projectId),
       now,
       days,
-      sampling: rule.sampling,
       limit: shortfall,
       seed: rule.id,
       matching,
@@ -374,9 +374,14 @@ async function startFit(
       facetVersion: facet.facetVersion,
       ruleId: setup.ruleId,
       config: {
+        ruleOperation: topicRuleOperation(
+          setup.ruleId,
+          "setup",
+          setup.startedAt,
+        ),
         embeddingModel: embeddingConfig.embeddingModel,
         dimensions: embeddingConfig.embeddingDimensions,
-        // The fit loads the newest of the rule's summaries in this window.
+        // The fit loads a stable sample of the rule's summaries in this window.
         timeRange: {
           from: fitFrom(setup, now).toISOString(),
           to: now.toISOString(),

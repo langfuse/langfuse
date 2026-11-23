@@ -1,15 +1,17 @@
+import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
 import {
-  createTraceBatchInputStorage,
+  createTraceTranscriptStorage,
   logger,
   recordIncrement,
   type TopicsTraceEventType,
-  type TraceBatchInputData,
+  type TraceTranscriptData,
 } from "@langfuse/shared/src/server";
 import {
   getEnabledTopicsModels,
   isTopicsProjectEnabled,
   readTopicExecutionSummary,
+  recordTopicSnapshotProcessingCost,
   isValidTopicSummary,
   listTopicFacets,
   listTopicRules,
@@ -36,7 +38,7 @@ import {
   type TopicsFailedStage,
 } from "./summarizeAssembledTrace";
 
-const inputStorage = createTraceBatchInputStorage();
+const inputStorage = createTraceTranscriptStorage();
 
 export type TopicsTraceOutcome =
   | { outcome: "disabled" | "stale" | "summarized" }
@@ -144,7 +146,7 @@ function pendingFacetIds(facets: TopicFacet[], rows: TopicSummary[]): string[] {
 /** Unreadable objects are retried; a stored object that does not parse never will. */
 async function readInputs(
   event: TopicsTraceEventType,
-): Promise<TraceBatchInputData | null> {
+): Promise<TraceTranscriptData | null> {
   try {
     return await inputStorage.get(event.transcriptS3Path);
   } catch (error) {
@@ -213,6 +215,7 @@ async function assignSummaries(
           embeddingConfig,
           summaries: [row],
           run,
+          ruleId: rule.id,
           origin: "online",
           assignedAt,
         }))
@@ -247,9 +250,9 @@ function isRetryableProviderError(error: unknown): boolean {
 async function processEvent(
   event: TopicsTraceEventType,
   deps: TopicsTraceDeps,
+  onModelCost?: (stage: TopicsFailedStage, cost: number | null) => void,
 ): Promise<TopicsTraceOutcome> {
   const { projectId, traceId } = event;
-  if (!isTopicsProjectEnabled(projectId)) return { outcome: "disabled" };
   const settings = await projectSettings(projectId);
   const models = settings.models;
   if (!models) return { outcome: "disabled" };
@@ -278,8 +281,11 @@ async function processEvent(
       executionIssues: inputs.executionIssues,
       models,
       facets,
+      revision: event.revision,
       attempt: deps.attempt ? "retry" : "first",
+      rules,
       executionId: event.batchActionId,
+      onModelCost,
     });
     if (result.outcome === "disabled") return { outcome: "disabled" };
     rows = result.rows;
@@ -326,6 +332,47 @@ async function processEvent(
   throw failure;
 }
 
+async function processSnapshotTrace(
+  event: TopicsTraceEventType,
+  deps: TopicsTraceDeps,
+  executionId: string,
+): Promise<TopicsTraceOutcome> {
+  const stages = new Map<TopicsFailedStage, number | null>();
+  try {
+    return await processEvent(event, deps, (stage, cost) =>
+      stages.set(stage, cost),
+    );
+  } finally {
+    // Each revision may be processed several times. Retry only the same receipt on a write error.
+    const costs = [...stages.values()];
+    const priced = costs.filter((cost) => cost !== null);
+    const partial = priced.length < costs.length;
+    const report = {
+      projectId: event.projectId,
+      executionId,
+      revision: event.revision,
+      reportId: randomUUID(),
+      cost:
+        partial && !priced.length
+          ? null
+          : priced.reduce((sum, cost) => sum + cost, 0),
+      partial,
+    };
+    try {
+      await recordTopicSnapshotProcessingCost(report).catch(() =>
+        recordTopicSnapshotProcessingCost(report),
+      );
+    } catch (error) {
+      logger.warn("Failed to save Topics snapshot processing cost", {
+        projectId: event.projectId,
+        executionId,
+        revision: event.revision,
+        error,
+      });
+    }
+  }
+}
+
 /**
  * Summarizes the current facets of the rules that selected one stored transcript,
  * queues the rows for ClickHouse, and assigns complete summaries to each matched
@@ -335,7 +382,11 @@ export async function processTopicsTrace(
   event: TopicsTraceEventType,
   deps: TopicsTraceDeps,
 ): Promise<TopicsTraceOutcome> {
-  const result = await processEvent(event, deps);
+  let result: TopicsTraceOutcome = { outcome: "disabled" };
+  if (isTopicsProjectEnabled(event.projectId))
+    result = event.batchActionId
+      ? await processSnapshotTrace(event, deps, event.batchActionId)
+      : await processEvent(event, deps);
   recordIncrement("langfuse.topics.trace_outcomes", 1, {
     source: "trace_queue",
     outcome: result.outcome,

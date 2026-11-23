@@ -1,7 +1,6 @@
 import { format } from "date-fns";
-import { ChevronLeft, CircleAlert } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { ChevronLeft } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { cn } from "@/src/utils/tailwind";
@@ -17,7 +16,9 @@ import {
   executionLabels,
   formatTopicCost,
   formatTopicRunCost,
+  formatTopicSummaryCost,
   runLabel,
+  topicRunCostLabel,
   type TopicRunWithCost as Run,
 } from "./topic-run-labels";
 
@@ -59,7 +60,7 @@ const questionStatuses: Record<
     label: "No topics found",
     dot: "bg-muted-foreground",
   },
-  failed: { label: "Stopped", dot: "bg-dark-red" },
+  failed: { label: "Stopped", dot: "bg-destructive" },
 };
 
 function formatCount(count: number) {
@@ -191,20 +192,24 @@ export function TopicRunDetails({
     : counts.reduce((sum, c) => sum + c.complete, 0);
   const isBusy = busy(execution.status);
   const costs = execution.costBreakdown;
-  const summaryCost = createsSummaries(execution.input)
-    ? formatTopicCost(costs ? costs.summaries : costs)
+  const expectsSummaries = createsSummaries(execution.input);
+  const checkpoint = expectsSummaries ? costs?.summaryCheckpoint : undefined;
+  const summaryCost = expectsSummaries
+    ? formatTopicSummaryCost(costs, execution.status)
     : "No new summaries";
-  const namingCost = costs?.naming.cost;
+  const namingCost = costs == null ? costs : costs.naming.cost;
   const namingValue =
     !isUpdate && namingCost == null
       ? "Not part of this run"
-      : formatTopicCost(costs ? namingCost : costs, costs?.naming.partial);
+      : formatTopicCost(namingCost, costs?.naming.partial);
   const failed = execution.status === "failed";
   const resumable = canWrite && !isBusy && canResume(execution);
+  const exploratory =
+    execution.input.operation === "update" && execution.input.exploratory;
+  const defaultMinimum = exploratory ? 10 : 100;
   const minimum =
     execution.input.operation === "update"
-      ? (execution.input.minimumTraceCount ??
-        (execution.input.exploratory ? 10 : 100))
+      ? (execution.input.minimumTraceCount ?? defaultMinimum)
       : null;
   const name = runLabel(execution.input);
   const meta = [
@@ -212,9 +217,7 @@ export function TopicRunDetails({
     isUpdate
       ? `${formatCount(total)} summaries`
       : `${formatCount(total)} traces`,
-    ...(execution.input.operation === "update" && execution.input.exploratory
-      ? ["small sample"]
-      : []),
+    ...(exploratory ? ["small sample"] : []),
   ].join(" · ");
   const showBar = perTrace && total > 0 && (isBusy || failed);
   const summaryLabel = (() => {
@@ -261,32 +264,33 @@ export function TopicRunDetails({
       </header>
       {(failed || resumable) && (
         <div className="px-4 pt-4">
-          <Alert variant="destructive" icon={CircleAlert}>
-            <Alert.Title>Run stopped</Alert.Title>
-            <Alert.Description>
-              <div className="text-foreground-secondary flex flex-col gap-0.5">
-                {execution.error && (
-                  <p className="break-words">{execution.error}</p>
-                )}
-                {!isUpdate && complete > 0 && (
-                  <p>
-                    {formatCount(complete)} traces are already summarized and
-                    will be kept.
-                  </p>
-                )}
-              </div>
-              {resumable && (
-                <div className="pt-2.5">
-                  <Button
-                    text="Resume run"
-                    size="sm"
-                    loading={retry.isPending}
-                    onClick={() => retry.onRetry()}
-                  />
-                </div>
+          <Banner
+            variant="error"
+            title="Run stopped"
+            actions={
+              resumable
+                ? [
+                    {
+                      text: "Resume run",
+                      disabled: retry.isPending,
+                      onClick: () => retry.onRetry(),
+                    },
+                  ]
+                : undefined
+            }
+          >
+            <div className="flex flex-col gap-0.5">
+              {execution.error && (
+                <p className="break-words">{execution.error}</p>
               )}
-            </Alert.Description>
-          </Alert>
+              {!isUpdate && complete > 0 && (
+                <p>
+                  {formatCount(complete)} traces are already summarized and will
+                  be kept.
+                </p>
+              )}
+            </div>
+          </Banner>
         </div>
       )}
       {retry.errorMessage && (
@@ -303,7 +307,7 @@ export function TopicRunDetails({
             <div
               className={cn(
                 "h-full rounded-sm",
-                failed ? "bg-dark-red" : "bg-foreground",
+                failed ? "bg-destructive" : "bg-foreground",
               )}
               style={{ width: `${(complete / total) * 100}%` }}
             />
@@ -316,19 +320,32 @@ export function TopicRunDetails({
           )}
         </div>
         <dl className="grid grid-cols-[1fr_auto] gap-x-2.5 gap-y-1 text-xs">
-          <dt className="font-medium">Estimated model cost</dt>
+          <dt className="font-medium">{topicRunCostLabel(execution.status)}</dt>
           <dd className="text-right font-mono font-medium">
-            {formatTopicRunCost(execution.input, costs)}
+            {formatTopicRunCost(execution.input, costs, execution.status)}
           </dd>
           <dt className="text-muted-foreground">Summaries and embeddings</dt>
-          <dd className="text-right font-mono">{summaryCost}</dd>
+          <dd className="text-right">
+            <span className="font-mono">{summaryCost}</span>
+            {checkpoint?.asOf && (
+              <span className="text-muted-foreground block">
+                As of{" "}
+                <time dateTime={checkpoint.asOf}>
+                  {format(new Date(checkpoint.asOf), "MMM d, yyyy, HH:mm")}
+                </time>
+              </span>
+            )}
+          </dd>
           <dt className="text-muted-foreground">Topic naming</dt>
           <dd className="text-right font-mono">{namingValue}</dd>
         </dl>
         <p className="text-muted-foreground text-xs">
           Estimates use recorded provider costs and model prices. Unpriced or
-          unsaved calls can be missing. Summary and embedding costs can change
-          when summaries are retried, replaced or deleted.
+          unsaved calls can be missing.
+          {expectsSummaries &&
+            costs &&
+            !checkpoint &&
+            " This run’s summary and embedding costs can change when summaries are retried, replaced or deleted."}
         </p>
       </div>
       <div className="flex flex-col">

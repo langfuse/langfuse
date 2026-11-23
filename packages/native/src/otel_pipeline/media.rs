@@ -11,8 +11,9 @@ use crate::otel::value::{JsString, Value};
 use crate::otel::OwnedEvent;
 use crate::otel_input::ExtractedBatch;
 use crate::otel_media::{
-    collect_media_references, extract_normalized_media, rewrite_known_references,
-    validate_media_registry, EarlyMediaError, ExtractedMedia, MediaReferenceCollector,
+    collect_media_references, extract_normalized_media, find_media_reference_prefix,
+    rewrite_known_references, validate_media_registry, EarlyMediaError, ExtractedMedia,
+    MediaReferenceCollector,
 };
 
 use super::{failure, BatchRows, OtelMediaRequest, OtelMediaResolution, Pipeline};
@@ -253,7 +254,7 @@ pub(super) fn restore_value(value: &mut Value, registry: &[ExtractedMedia]) -> N
 }
 
 pub(super) fn restore_text(text: &mut String, registry: &[ExtractedMedia]) -> NativeResult<()> {
-    if !text.contains("@@@langfuseMedia:") {
+    if find_media_reference_prefix(text).is_none() {
         return Ok(());
     }
     let mut owned = JsString::from(std::mem::take(text));
@@ -263,7 +264,7 @@ pub(super) fn restore_text(text: &mut String, registry: &[ExtractedMedia]) -> Na
 }
 
 fn restore_js_text(text: &mut JsString, registry: &[ExtractedMedia]) -> NativeResult<()> {
-    if !text.as_str().contains("@@@langfuseMedia:") {
+    if find_media_reference_prefix(text.as_str()).is_none() {
         return Ok(());
     }
     rewrite_known_references(

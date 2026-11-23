@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { Mock } from "vitest";
 import { TRPCError } from "@trpc/server";
@@ -22,6 +21,7 @@ import {
   getTracesIdentifierForSessionFromEvents,
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@langfuse/shared/encryption", async () => {
   const actual = await vi.importActual("@langfuse/shared/encryption");
@@ -67,41 +67,17 @@ const buildSession = ({
   projectId: string;
   projectRole?: "ADMIN" | "MEMBER" | "NONE" | "OWNER" | "VIEWER";
   v4BetaEnabled?: boolean;
-}): Session => ({
-  expires: "1",
-  user: {
-    id: "user-1",
-    name: "Demo User",
-    canCreateOrganizations: true,
+}): Session =>
+  createSession({
+    user: { v4BetaEnabled },
     organizations: [
       {
         id: orgId,
-        name: "Test Organization",
         role: "OWNER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: false,
-        projects: [
-          {
-            id: projectId,
-            role: projectRole,
-            name: "Test Project",
-            deletedAt: null,
-            retentionDays: null,
-            hasTraces: false,
-            metadata: {},
-            createdAt: new Date().toISOString(),
-          },
-        ],
+        projects: [{ id: projectId, role: projectRole, retentionDays: null }],
       },
     ],
-    featureFlags: testFeatureFlags(),
-    v4BetaEnabled,
-  },
-  environment: {} as any,
-});
+  });
 
 type StoredEndpoint = {
   id: string;

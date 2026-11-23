@@ -202,7 +202,7 @@ const ensureKey = async (params: {
         scope: params.userId
           ? UserId(params.userId)
           : OrganizationId(params.organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: params.userId ? UserId(params.userId) : "system",
         name: params.name,
         predefinedKeys: {

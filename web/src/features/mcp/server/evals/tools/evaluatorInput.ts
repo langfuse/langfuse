@@ -7,6 +7,7 @@ import {
   DecisionModelStateKeySchema,
   EvalOutputDataTypeSchema,
   EvalTemplateType,
+  getEvalVariableColumnIds,
   observationVariableMapping,
 } from "@langfuse/shared";
 import { z } from "zod";
@@ -34,6 +35,9 @@ export const McpEvaluatorModelConfigSchema = EvaluatorModelConfigSchema.extend({
 });
 
 const McpObservationVariableMappingSchema = observationVariableMapping.extend({
+  selectedColumnId: observationVariableMapping.shape.selectedColumnId.describe(
+    `Column the variable reads from. One of: ${getEvalVariableColumnIds().join(", ")}. Use threads only for trace transcript evaluators.`,
+  ),
   jsonSelector: z.string().optional(),
 });
 

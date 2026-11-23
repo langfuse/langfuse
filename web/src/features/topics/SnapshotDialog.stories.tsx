@@ -18,6 +18,8 @@ import {
   type SnapshotSummarize,
 } from "./SnapshotDialogView";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
+import { TopicCostEstimateView } from "./TopicCostEstimateView";
+import { costEstimateFixture } from "./topicCostEstimateFixture";
 import {
   topicsFilterRegistry,
   useTopicTraceFilterState,
@@ -53,11 +55,13 @@ function SnapshotStory({
   counts = { summarizedCount: 1_284, unsummarizedCount: 3_410 },
   initialName = "",
   initialSummarize = SNAPSHOT_DEFAULT_SUMMARIZE,
+  perTraceUsd = 0.0042,
   errors = [],
 }: {
   counts?: Counts | null;
   initialName?: string;
   initialSummarize?: SnapshotSummarize;
+  perTraceUsd?: number | null;
   errors?: string[];
 }) {
   const [name, setName] = useState(initialName);
@@ -122,6 +126,18 @@ function SnapshotStory({
       preview={shown}
       summarize={summarize}
       onSummarizeChange={setSummarize}
+      renderCostEstimate={(newTraces) => (
+        <TopicCostEstimateView
+          estimate={costEstimateFixture({}, perTraceUsd)}
+          newTraces={newTraces}
+          canAddModelPrice
+          onAddModelPrice={fn()}
+          starting={false}
+          disabled={false}
+          error={null}
+          onStart={fn()}
+        />
+      )}
       canStart={
         name.trim().length > 0 &&
         Boolean(shown) &&
@@ -163,6 +179,9 @@ export const Summarizing = meta.story({
 export const FewSummaries = meta.story({
   name: "Few summaries turns summarizing on",
   args: { counts: { summarizedCount: 42, unsummarizedCount: 880 } },
+});
+export const MissingModelPrice = meta.story({
+  args: { ...Summarizing.input.args, perTraceUsd: null },
 });
 
 export const NothingToSummarize = meta.story({
@@ -208,9 +227,16 @@ export const StartRules = meta.story({
       "Billing questions",
     );
     await expect(create).toBeEnabled();
+    await expect(body.getByText("~$2.10")).toBeVisible();
     // 42 summaries alone still start; the fit clusters them as a small sample.
     await userEvent.click(toggle);
     await expect(create).toBeEnabled();
+    await expect(
+      body.getByText(/\$0 for new summaries and embeddings/),
+    ).toBeVisible();
+    await expect(
+      body.queryByRole("button", { name: "Estimate cost" }),
+    ).toBeNull();
     // Off, the count still shows what turning it on would summarize.
     await expect(traces).toHaveTextContent("500");
   },

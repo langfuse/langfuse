@@ -61,9 +61,20 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
-  // Internal Topics PoC controls; not a supported self-hosting configuration.
+  // Topics deployment switch, read by web and worker. Processing also needs the
+  // worker's events dispatch (LANGFUSE_EVENTS_DISPATCH_ENABLED).
   LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  // Internal trace evals beta control; not a supported self-hosting configuration.
+  LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS: z
     .string()
     .default("")
     .transform((value) =>
@@ -369,6 +380,12 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
+  LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(2_147_483_647)
+    .default(2_000),
   LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z
     .enum(["true", "false"])
     .default("false"),
@@ -495,8 +512,6 @@ const EnvSchema = z.object({
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_S3_CORE_DATA_EXPORT_SSE: z.enum(["AES256", "aws:kms"]).optional(),
-  LANGFUSE_S3_CORE_DATA_EXPORT_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

@@ -1,5 +1,5 @@
 import dns from "node:dns";
-import { Agent as HttpAgent } from "node:http";
+import { Agent as HttpAgent, type AgentOptions } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
 import type { LookupFunction } from "node:net";
 import { Agent as UndiciAgent, type Dispatcher, ProxyAgent } from "undici";
@@ -138,29 +138,27 @@ export function createSecureOutboundLookup(
 
 export function getSecureOutboundHttpAgents(
   validationOptions: OutboundUrlConnectionValidationOptions,
-  options: { maxSockets?: number } = {},
+  { maxSockets, timeout }: Pick<AgentOptions, "maxSockets" | "timeout"> = {},
 ) {
   const policyKey = JSON.stringify({
     validation: getConnectionValidationPolicyKey(validationOptions),
-    maxSockets: options.maxSockets,
+    maxSockets,
+    timeout,
   });
   return getOrCreatePolicyResource(
     secureOutboundHttpAgentsByPolicy,
     policyKey,
     "HTTP agent",
     () => {
-      const lookup = createSecureOutboundLookup(validationOptions);
+      const agentOptions = {
+        keepAlive: true,
+        lookup: createSecureOutboundLookup(validationOptions),
+        maxSockets,
+        timeout,
+      };
       return {
-        httpAgent: new HttpAgent({
-          keepAlive: true,
-          lookup,
-          maxSockets: options.maxSockets,
-        }),
-        httpsAgent: new HttpsAgent({
-          keepAlive: true,
-          lookup,
-          maxSockets: options.maxSockets,
-        }),
+        httpAgent: new HttpAgent(agentOptions),
+        httpsAgent: new HttpsAgent(agentOptions),
       };
     },
   );

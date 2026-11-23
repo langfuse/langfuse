@@ -2,8 +2,8 @@ import {
   getS3EventStorageClient,
   logger,
   recordIncrement,
-  TRACE_BATCH_INPUT_PREFIX,
-  TRACE_BATCH_INPUT_RETENTION_MS,
+  TRACE_TRANSCRIPT_PREFIX,
+  TRACE_TRANSCRIPT_RETENTION_MS,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
@@ -47,7 +47,7 @@ export class EventsDispatchTranscriptCleaner extends PeriodicExclusiveRunner {
     logger.info(`Starting ${this.instanceName}`, {
       intervalMs: INTERVAL_MS,
       maxDeletesPerRun: MAX_DELETES_PER_RUN,
-      retentionMs: TRACE_BATCH_INPUT_RETENTION_MS,
+      retentionMs: TRACE_TRANSCRIPT_RETENTION_MS,
     });
     super.start();
   }
@@ -75,8 +75,8 @@ export class EventsDispatchTranscriptCleaner extends PeriodicExclusiveRunner {
     const storage = getS3EventStorageClient(
       env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
     );
-    const prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${TRACE_BATCH_INPUT_PREFIX}`;
-    const cutoff = Date.now() - TRACE_BATCH_INPUT_RETENTION_MS;
+    const prefix = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${TRACE_TRANSCRIPT_PREFIX}`;
+    const cutoff = Date.now() - TRACE_TRANSCRIPT_RETENTION_MS;
     let deleted = 0;
 
     for (

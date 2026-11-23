@@ -8,6 +8,8 @@ import { api } from "@/src/utils/api";
 import { dayWindow, latestFacetRefs } from "./topic-maps";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
+import { useTopicsCapture } from "./useTopicsCapture";
+import { TopicCostEstimate } from "./TopicCostEstimate";
 import {
   SNAPSHOT_DEFAULT_SUMMARIZE,
   SnapshotDialogView,
@@ -63,6 +65,7 @@ export function SnapshotDialog({
   const range = dayWindow(windowDays, now);
   const facetRefs = latestFacetRefs(facets, facetIds);
   const utils = api.useUtils();
+  const capture = useTopicsCapture();
 
   const traceFilter = useTopicTraceFilter({
     projectId,
@@ -113,18 +116,23 @@ export function SnapshotDialog({
           }
         : {}),
     });
+    capture("topics:snapshot_started", {
+      filterCount: values.filter.length,
+      facetCount: facetRefs.length,
+      windowDays: values.windowDays,
+      summarizeCount: extra,
+    });
     closeDialog();
     onStarted(result.id);
   }
 
+  const selectionReady =
+    traceFilter.ready && !filterError && facetRefs.length > 0 && !previewStale;
   const canStart =
     name.trim().length > 0 &&
-    traceFilter.ready &&
-    !filterError &&
-    facetRefs.length > 0 &&
+    selectionReady &&
     preview !== null &&
     !counts.isFetching &&
-    !previewStale &&
     preview.summarizedCount + extra >= preview.smallSampleMinimumTraceCount;
 
   return (
@@ -154,6 +162,19 @@ export function SnapshotDialog({
       preview={preview}
       summarize={summarize}
       onSummarizeChange={(next) => form.setValue("summarize", next)}
+      renderCostEstimate={
+        selectionReady && !counts.isPlaceholderData && !counts.error
+          ? (newTraces) => (
+              <TopicCostEstimate
+                projectId={projectId}
+                filter={previewInput.filter}
+                facetIds={facetRefs.map(({ facetId }) => facetId)}
+                newTraces={newTraces}
+                source="snapshot"
+              />
+            )
+          : undefined
+      }
       canStart={canStart}
       starting={start.isPending}
       errors={[

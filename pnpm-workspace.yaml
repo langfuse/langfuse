@@ -229,6 +229,10 @@ overrides:
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^10.
   "next-auth>nodemailer": "^10.4.1"
+  # CVE-2026-121707: Schema.TemplateLiteral ReDoS, fixed in 3.22.1.
+  # @prisma/config pins effect to exactly 3.21.0 (3.20.0 at its latest 7.x
+  # release), so only an override moves it within the same major.
+  "@prisma/config>effect": 3.22.1
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
@@ -240,11 +244,15 @@ patchedDependencies:
   # Fixed upstream in 2.3.7; remove this patch when we bump.
   "@radix-ui/react-select@2.2.6": patches/@radix-ui__react-select@2.2.6.patch
   next-auth@4.24.15: patches/next-auth@4.24.15.patch
-  # The document-level drag handlers crash when a panel group unmounts
-  # mid-drag: setPointerCapture on the detached separator throws
-  # InvalidStateError on every pointermove, and the pointerup teardown throws
-  # "Could not find data for Group with id ...". Guard both (skip detached
-  # elements / unmounted groups). Still unfixed upstream as of 4.12.2.
+  # Document pointer handlers throw while a group is mid-drag or mid-hover:
+  # setPointerCapture on a detached separator (InvalidStateError), pointerup
+  # looking up a group that is already gone, and stacking-order comparison
+  # when the event target or the group element is detached or lives in
+  # another document ("Stacking order can only be calculated for elements
+  # with a common ancestor"). Skip those hit regions instead of asserting.
+  # Upstream fixed the drag teardown in 4.12.3/4.12.4 and the stacking-order
+  # throw in 4.14.4/4.14.8. Staying on 4.8.0: 4.14.1 persists the requested
+  # layout from useDefaultLayout instead of the constrained one.
   react-resizable-panels@4.8.0: patches/react-resizable-panels@4.8.0.patch
 publicHoistPattern:
   - "*prisma*"

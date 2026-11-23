@@ -67,7 +67,7 @@ function LoadedTraceTree() {
     roots,
     comments,
     metricEmphasis,
-    sessionTraces,
+    scope: traceScope,
     nodeMap,
     trace,
     isNavigationReady,
@@ -76,12 +76,12 @@ function LoadedTraceTree() {
     useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
-  const scope = sessionTraces ? "session" : "trace";
+  const scope = traceScope.type;
   const previousScope = useRef(scope);
   const selectedTreeNodeId = resolveTreeNodeId(
     nodeMap,
     selectedNodeId,
-    trace.id,
+    trace?.id ?? "",
   );
 
   useLayoutEffect(() => {

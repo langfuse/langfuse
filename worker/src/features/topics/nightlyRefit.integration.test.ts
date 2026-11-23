@@ -5,8 +5,11 @@ import {
   createTopicFacet,
   createTopicRun,
   enqueueTopicRuleRefit,
+  finishTopicNamingCall,
   getEnabledTopicsModels,
+  listTopicRuleRefreshes,
   saveTopicRule,
+  startTopicNamingCall,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
@@ -45,7 +48,9 @@ describe("nightly Topics refits against storage", () => {
     facetVersion: 1,
     traceId: randomUUID(),
     sessionId: null,
-    triggerType: "manual_poc",
+    triggerType: "rule",
+    ruleIds: [],
+    executionId: null,
     environment: "default",
     traceName: "trace",
     unitStartTime,
@@ -54,6 +59,7 @@ describe("nightly Topics refits against storage", () => {
     embedding,
     transcriptId: "transcript",
     transcriptVersion: "v1",
+    transcriptBytes: 0,
     summaryModel: "summary",
     embeddingModel: embeddingConfig.embeddingModel,
     providedUsageDetails: {},
@@ -95,9 +101,15 @@ describe("nightly Topics refits against storage", () => {
       description: "",
       prompt: "Describe the request.",
     });
+    const secondFacet = await createTopicFacet({
+      projectId,
+      name: "Second question",
+      description: "",
+      prompt: "Describe the issue.",
+    });
     const rule = await saveTopicRule({
       projectId,
-      facetIds: [facet.id],
+      facetIds: [facet.id, secondFacet.id],
       filter: [],
     });
     const now = new Date();
@@ -141,11 +153,16 @@ describe("nightly Topics refits against storage", () => {
     await setStatus("INACTIVE");
     await expect(schedule(later)).resolves.toBe(0);
     await setStatus("ACTIVE");
-    await expect(schedule(later)).resolves.toBe(1);
+    await expect(schedule(later)).resolves.toBe(2);
     await expect(schedule(later)).resolves.toBe(0);
     const [first, ...others] = await runs("pending");
     expect(others).toEqual([]);
     expect(first).toMatchObject({ ruleId: rule.id, batchActionId: null });
+    await expect(
+      listTopicRuleRefreshes(projectId, rule.id),
+    ).resolves.toMatchObject([
+      { trigger: "nightly", status: "running", cost: null },
+    ]);
     // Nightly fits queue behind a setup's first fit.
     expect(enqueueTopicRuleRefit).toHaveBeenCalledWith(
       projectId,
@@ -153,16 +170,34 @@ describe("nightly Topics refits against storage", () => {
       expect.any(Number),
     );
 
-    await prisma.topicClusteringRun.update({
-      where: { id: first.id },
-      data: { status: "completed", finishedAt: now },
+    const second = await prisma.topicClusteringRun.findFirstOrThrow({
+      where: { projectId, facetId: secondFacet.id, status: "pending" },
     });
+    // Both questions share this nightly refresh. One naming response had no price.
+    for (const row of [first, second]) {
+      await prisma.topicClusteringRun.update({
+        where: { id: row.id },
+        data: {
+          status: "completed",
+          finishedAt: now,
+          config: { ...(row.config as object), namingCostTracked: true },
+        },
+      });
+      await startTopicNamingCall(projectId, row.id, "name");
+    }
+    await finishTopicNamingCall(projectId, first.id, "name", 0.08);
     await expect(
       schedule(new Date(later.getTime() + 86_400_000)),
     ).resolves.toBe(0);
     expect(await runs("skipped")).toEqual([
       expect.objectContaining({ ruleId: rule.id, batchActionId: null }),
     ]);
+    const history = await listTopicRuleRefreshes(projectId, rule.id);
+    expect(history).toMatchObject([
+      { trigger: "nightly", status: "skipped", cost: 0, partial: false },
+      { trigger: "nightly", status: "completed", cost: 0.08, partial: true },
+    ]);
+    expect(history[0].id).not.toEqual(history[1].id);
   });
 
   it("skips the slot after a fit started from an hour before it, such as a manual refresh", async () => {

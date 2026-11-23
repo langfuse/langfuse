@@ -337,6 +337,30 @@ export const organizationsRouter = createTRPCRouter({
 
       return true;
     }),
+  // Session projects omit soft-deleted rows, so the delete dialog cannot tell
+  // "no projects" from "projects are still being purged" without this count.
+  projectsPendingDeletion: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:delete",
+      });
+
+      const deletingProjectCount = await ctx.prisma.project.count({
+        where: {
+          orgId: input.orgId,
+          deletedAt: { not: null },
+        },
+      });
+
+      return deletingProjectCount > 0;
+    }),
   delete: protectedOrganizationProcedure
     .input(
       z.object({
@@ -374,8 +398,9 @@ export const organizationsRouter = createTRPCRouter({
       }
 
       if (countAllProjects > 0) {
+        // The dialog matches PRECONDITION_FAILED and explains the purge inline.
         throw new TRPCError({
-          code: "FORBIDDEN",
+          code: "PRECONDITION_FAILED",
           message:
             "Deletion of your projects is still being processed, please try deleting the organization later",
         });

@@ -6,7 +6,6 @@ import {
   logger,
   parseEventKey,
   QueueJobs,
-  rawEventBucketPrefix,
   SecondaryIngestionQueue,
   OtelIngestionQueue,
   UNKNOWN_INGESTION_SDK_VALUE,
@@ -162,7 +161,8 @@ export default async function handler(
       }
 
       if (parsed?.kind === "standard") {
-        const { projectId, entityType, eventBodyId, eventId } = parsed;
+        const { projectId, entityType, eventBodyId, eventId, bucketPrefix } =
+          parsed;
         const replayEventType = getStandardReplayEventType(entityType);
 
         if (!replayEventType) {
@@ -170,17 +170,6 @@ export default async function handler(
           errors.push(`Unsupported replay type: ${entityType}`);
           continue;
         }
-
-        // The parsed eventBodyId is the literal segment as it sits in S3 —
-        // could be sanitized + hashed (newer producer), raw SDK id (older
-        // producer), or any future shape. Pass it through verbatim via
-        // rawEventBucketPrefix so the worker reads from the same key the
-        // original write produced, regardless of which producer wrote it.
-        const bucketPrefix = rawEventBucketPrefix({
-          projectId,
-          entityType,
-          rawEntityIdSegment: eventBodyId,
-        });
 
         standardJobs.push({
           timestamp: new Date(),

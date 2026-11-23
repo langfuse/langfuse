@@ -14,6 +14,7 @@ import {
   createTopicRun,
   getTopicRule,
   getTopicRuleMapRow,
+  getTopicRunNamingCosts,
   listTopicFacets,
 } from "./postgres";
 import { enqueueTopicRuleRefit } from "./queue";
@@ -25,6 +26,75 @@ export type TopicRuleRefreshStatus = {
   /** Whether a fit of the rule's map is open, whichever started it. */
   running: boolean;
 };
+
+/** Shared by the fits of every question in a single map operation, including scheduler retries. */
+export function topicRuleOperation(
+  ruleId: string,
+  trigger: "manual" | "nightly" | "setup",
+  occurrence: string,
+) {
+  const id = createHash("sha256")
+    .update(JSON.stringify([ruleId, trigger, occurrence]))
+    .digest("hex")
+    .slice(0, 48);
+  return { id, trigger };
+}
+
+type RefreshGroup = {
+  id: string;
+  trigger: "manual" | "nightly";
+  startedAt: Date;
+  status:
+    | "running"
+    | "completed"
+    | "completed_with_errors"
+    | "skipped"
+    | "failed";
+  runIds: string[];
+};
+
+/** The selected map's ten most recent tracked refreshes, with every facet in each total. */
+export async function listTopicRuleRefreshes(
+  projectId: string,
+  ruleId: string,
+) {
+  const groups = await prisma.$queryRaw<RefreshGroup[]>`
+    SELECT config->'ruleOperation'->>'id' AS id,
+           config->'ruleOperation'->>'trigger' AS trigger,
+           min(created_at) AS "startedAt",
+           CASE WHEN bool_or(status IN ('pending', 'running')) THEN 'running'
+                WHEN bool_and(status = 'failed') THEN 'failed'
+                WHEN bool_or(status = 'failed') THEN 'completed_with_errors'
+                WHEN bool_and(status = 'skipped') THEN 'skipped'
+                ELSE 'completed' END AS status,
+           array_agg(topic_clustering_runs.id) AS "runIds"
+    FROM topic_clustering_runs
+    WHERE project_id = ${projectId} AND rule_id = ${ruleId}
+      AND config->'ruleOperation'->>'trigger' IN ('manual', 'nightly')
+    GROUP BY 1, 2
+    ORDER BY 3 DESC, 1 DESC
+    LIMIT 10
+  `;
+  const costs = await getTopicRunNamingCosts(
+    projectId,
+    groups.flatMap((group) => group.runIds),
+  );
+  return groups.map(({ runIds, ...group }) => {
+    let cost: number | null = null;
+    let missing = false;
+    for (const id of runIds) {
+      const run = costs[id];
+      if (run?.cost != null) cost = (cost ?? 0) + run.cost;
+      if (run?.cost == null || run.partial) missing = true;
+    }
+    return {
+      ...group,
+      startedAt: group.startedAt.toISOString(),
+      cost,
+      partial: cost !== null && missing,
+    };
+  });
+}
 
 // Holds no data: it exists for the cooldown after a manual refresh started, then expires.
 const cooldownKey = (projectId: string, ruleId: string) =>
@@ -83,7 +153,7 @@ export async function startTopicRuleRefresh({
   projectId: string;
   ruleId: string;
   now?: Date;
-}): Promise<TopicRuleRefreshStatus> {
+}): Promise<TopicRuleRefreshStatus & { operationId: string }> {
   if (!redis) throw new Error("Refreshing a map requires Redis.");
   const rule = await getTopicRule(projectId, ruleId);
   if (!rule) throw new LangfuseNotFoundError("Topic rule not found.");
@@ -109,6 +179,7 @@ export async function startTopicRuleRefresh({
     dimensions: models.embedding.dimensions,
   };
   const startedAt = now.toISOString();
+  const ruleOperation = topicRuleOperation(ruleId, "manual", startedAt);
   const facets = (await listTopicFacets(projectId)).flatMap((facet) => {
     const version = facet.versions[0]?.version;
     return version && rule.facetIds.includes(facet.id)
@@ -147,6 +218,7 @@ export async function startTopicRuleRefresh({
         ruleId,
         config: {
           ...embedding,
+          ruleOperation,
           timeRange: {
             from: new Date(
               now.getTime() - TOPICS_MAX_SELECTION_RANGE_MS,
@@ -180,6 +252,7 @@ export async function startTopicRuleRefresh({
     throw error;
   }
   return {
+    operationId: ruleOperation.id,
     availableAt: new Date(
       now.getTime() + TOPIC_RULE_REFRESH_COOLDOWN_MS,
     ).toISOString(),

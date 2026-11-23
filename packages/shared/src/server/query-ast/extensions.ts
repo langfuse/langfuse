@@ -350,18 +350,12 @@ export function typedValue<T>(value: unknown, type: string): ChExpression<T> {
 /**
  * A constant inlined into the SQL text rather than bound, so code-defined
  * constants (`level = 'ERROR'`, `span_id != ''`) render as literals. Never
- * pass user input; bind it instead.
+ * pass user input; bind it instead. A string with a backslash throws when
+ * compiled, as ClickHouse would read it as an escape.
  */
 export function literal<T extends string | number | boolean | null>(
   value: T,
 ): ChExpression<T> {
-  // Kysely doubles single quotes but leaves backslashes, which ClickHouse
-  // reads as escapes.
-  if (typeof value === "string" && value.includes("\\")) {
-    throw new QueryCompileError(
-      `literal does not accept backslashes, got ${value}.`,
-    );
-  }
   return new ExpressionWrapper(ValueNode.createImmediate(value));
 }
 
@@ -1049,6 +1043,11 @@ export function mapFromArrays<V>(
   values: Expression<V[]>,
 ): ChExpression<Record<string, V>> {
   return functionCall("mapFromArrays", [keys, values]);
+}
+
+/** ClickHouse `map()`: an empty map. */
+export function emptyMap<V>(): ChExpression<Record<string, V>> {
+  return functionCall("map", []);
 }
 
 /**

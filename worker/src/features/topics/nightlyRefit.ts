@@ -6,12 +6,13 @@ import {
   createTopicRun,
   enqueueTopicRuleRefit,
   getEnabledTopicsModels,
-  getTopicSummaryCounts,
+  hasCompatibleTopicSummaries,
   getTopicRuleMap,
   isTopicRuleSetupActive,
   listTopicFacets,
   listTopicRules,
   readTopicRuleSetup,
+  topicRuleOperation,
 } from "@langfuse/shared/topics/server";
 import {
   TOPICS_MAX_SELECTION_RANGE_MS,
@@ -202,9 +203,10 @@ async function refitRuleFacet({
     facetVersion: facet.version,
     ruleId,
   };
-  const embedding = {
+  const config = {
     embeddingModel: embeddingConfig.embeddingModel,
     dimensions: embeddingConfig.embeddingDimensions,
+    ruleOperation: topicRuleOperation(ruleId, "nightly", slot.toISOString()),
   };
   const previous = await currentRuleMap(
     projectId,
@@ -218,7 +220,11 @@ async function refitRuleFacet({
     !previous.config.provisional &&
     !(await hasNewSummaries(projectId, facet, embeddingConfig, previous, now))
   ) {
-    await createTopicRun({ ...run, status: "skipped", config: embedding });
+    await createTopicRun({
+      ...run,
+      status: "skipped",
+      config: { ...config, namingCostTracked: true },
+    });
     recordIncrement("langfuse.topics.nightly_refits", 1, {
       outcome: "skipped",
     });
@@ -227,8 +233,8 @@ async function refitRuleFacet({
   await createTopicRun({
     ...run,
     config: {
-      ...embedding,
-      // The fit loads the newest of the rule's summaries in this window.
+      ...config,
+      // The fit loads a stable sample of the rule's summaries in this window.
       timeRange: {
         from: new Date(
           now.getTime() - TOPICS_MAX_SELECTION_RANGE_MS,
@@ -279,13 +285,10 @@ async function hasNewSummaries(
     now.getTime() - TOPICS_MAX_TIME_RANGE_MS,
   );
   if (from >= now.getTime()) return false;
-  const [{ count }] = await getTopicSummaryCounts(
-    projectId,
-    [facet],
-    embeddingConfig,
-    { from: new Date(from), to: now },
-  );
-  return count > 0;
+  return hasCompatibleTopicSummaries(projectId, facet, embeddingConfig, {
+    from: new Date(from),
+    to: now,
+  });
 }
 
 export class TopicsNightlyRefitRunner extends PeriodicExclusiveRunner {

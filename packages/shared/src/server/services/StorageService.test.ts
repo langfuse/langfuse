@@ -1,7 +1,14 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { createHash, getFips } from "crypto";
+import { createHash, generateKeyPairSync, getFips } from "crypto";
+import { subscribe, unsubscribe } from "node:diagnostics_channel";
+import { once } from "events";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
-import { createServer } from "http";
+import {
+  createServer,
+  type ClientRequest,
+  type Server,
+  type ServerResponse,
+} from "http";
 import { tmpdir } from "os";
 import { join } from "path";
 import { PassThrough, Readable } from "stream";
@@ -14,6 +21,7 @@ import type { NodeHttpHandler } from "@smithy/node-http-handler";
 import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
 import { logger } from "../logger";
+import type { OutboundUrlConnectionValidationOptions } from "../outbound-url/connection";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory, storageKeys } from "./StorageService";
 
@@ -521,6 +529,40 @@ describe("StorageServiceFactory GCS credentials", () => {
     ).toThrow("Failed to initialize Google Cloud Storage");
   });
 
+  it("creates v4 signed URLs locally from a service-account key", async () => {
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const service = StorageServiceFactory.getInstance({
+      credentials: storageKeys(undefined, undefined),
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      googleCloudCredentials: JSON.stringify({
+        type: "service_account",
+        project_id: "test-project",
+        private_key_id: "test-key-id",
+        private_key: privateKey.export({ type: "pkcs8", format: "pem" }),
+        client_email: serviceAccountEmail,
+        client_id: "1234567890",
+        auth_uri: "https://accounts.google.com/o/oauth2/auth",
+        token_uri: "https://oauth2.googleapis.com/token",
+        auth_provider_x509_cert_url:
+          "https://www.googleapis.com/oauth2/v1/certs",
+        client_x509_cert_url:
+          "https://www.googleapis.com/robot/v1/metadata/x509/test",
+      }),
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    const signedUrl = new URL(await service.getSignedUrl("f.json", 60));
+
+    expect(signedUrl.searchParams.get("X-Goog-Credential")).toMatch(
+      new RegExp(`^${serviceAccountEmail}/`),
+    );
+  });
+
   it("uses the deployment storage key when GCS is selected by env", () => {
     env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS = deploymentKeyPath;
     const originalUseGcs = env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE;
@@ -1007,17 +1049,14 @@ describe("S3StorageService SlowDown logging", () => {
   });
 });
 
-describe("S3StorageService request handler socket limit", () => {
-  const originalConcurrentWrites = env.LANGFUSE_S3_CONCURRENT_WRITES;
-
-  const setConcurrentWrites = (value: number) => {
-    (
-      env as { LANGFUSE_S3_CONCURRENT_WRITES: number }
-    ).LANGFUSE_S3_CONCURRENT_WRITES = value;
+describe("S3StorageService request handler socket pool", () => {
+  const idleTimeoutMs = 25;
+  const originalPoolSettings = {
+    LANGFUSE_S3_CONCURRENT_WRITES: env.LANGFUSE_S3_CONCURRENT_WRITES,
+    LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: env.LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS,
   };
-
   afterEach(() => {
-    setConcurrentWrites(originalConcurrentWrites);
+    Object.assign(env, originalPoolSettings);
   });
 
   type ResolvedHandlerConfig = {
@@ -1025,11 +1064,146 @@ describe("S3StorageService request handler socket limit", () => {
     httpsAgent: { maxSockets: number };
   };
 
-  const resolveHandlerConfig = (endpoint: string) => {
-    const service = StorageServiceFactory.getInstance({
+  const makeService = (
+    endpoint: string,
+    connectionValidation?: OutboundUrlConnectionValidationOptions,
+  ) =>
+    StorageServiceFactory.getInstance({
       credentials: storageKeys("test-access-key", "test-secret-key"),
       bucketName: "test-bucket",
       endpoint,
+      region: "us-east-1",
+      forcePathStyle: true,
+      connectionValidation,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+      maxAttempts: 1,
+    });
+
+  const withLocalS3 = async (
+    server: Server,
+    run: (service: ReturnType<typeof makeService>) => Promise<void>,
+    connectionValidation?: OutboundUrlConnectionValidationOptions,
+  ) => {
+    Object.assign(env, {
+      LANGFUSE_S3_CONCURRENT_WRITES: 1,
+      LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: idleTimeoutMs,
+    });
+    // Only the client can retire the free socket in these tests.
+    server.keepAliveTimeout = 0;
+    await new Promise<void>((resolve) =>
+      server.listen(0, "localhost", resolve),
+    );
+    try {
+      const address = server.address();
+      if (!address || typeof address === "string")
+        throw new Error("Expected a local HTTP port");
+      await run(
+        makeService(`http://localhost:${address.port}`, connectionValidation),
+      );
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  };
+
+  it("applies LANGFUSE_S3_CONCURRENT_WRITES to plain-HTTP endpoints such as MinIO", async () => {
+    Object.assign(env, { LANGFUSE_S3_CONCURRENT_WRITES: 123 });
+
+    const service = makeService("http://127.0.0.1:9000");
+    const client = (service as unknown as { client: S3Client }).client;
+    const handler = client.config.requestHandler as unknown as {
+      configProvider: Promise<ResolvedHandlerConfig>;
+    };
+    const config = await handler.configProvider;
+
+    // The HTTP agent is created lazily on the first non-TLS request.
+    const httpAgent = await config.httpAgentProvider();
+    expect(httpAgent.maxSockets).toBe(123);
+    expect(config.httpsAgent.maxSockets).toBe(123);
+  });
+
+  it("reuses a validated connection for queued downloads and closes it once idle", async () => {
+    const server = createServer((_req, res) => {
+      res.write("first ");
+      setTimeout(() => res.end("last"), 3 * idleTimeoutMs);
+    });
+    let connections = 0;
+    let closedConnections = 0;
+    server.on("connection", (socket) => {
+      connections++;
+      socket.once("close", () => closedConnections++);
+    });
+    await withLocalS3(
+      server,
+      async (service) => {
+        const started = once(server, "request");
+        const first = service.download("a");
+        await started;
+        const downloads = await Promise.all([first, service.download("b")]);
+        expect(downloads).toEqual(["first last", "first last"]);
+        expect(connections).toBe(1);
+        await expect.poll(() => closedConnections, { timeout: 1000 }).toBe(1);
+      },
+      { whitelist: { hosts: ["localhost"], ips: [], ip_ranges: [] } },
+    );
+  });
+
+  it("keeps a queued download alive when its replacement socket signals a timeout", async ({
+    onTestFinished,
+  }) => {
+    const server = createServer((request, response) => {
+      if (request.url?.includes("/first")) {
+        response.setHeader("Connection", "close");
+      } else {
+        response.end("second");
+      }
+    });
+    await withLocalS3(server, async (service) => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const started = new Promise<ServerResponse>((resolve) =>
+        server.once("request", (_req, res) => resolve(res)),
+      );
+      const first = service.download("first");
+      const held = await started;
+      const queued = new Promise<ClientRequest>((resolve) => {
+        const requestCreated = "http.client.request.created";
+        const capture = (message: unknown) => {
+          const { request } = message as { request: ClientRequest };
+          if (request.path.includes("/second")) resolve(request);
+        };
+        subscribe(requestCreated, capture);
+        onTestFinished(() => {
+          unsubscribe(requestCreated, capture);
+        });
+      });
+      const downloads = Promise.all([first, service.download("second")]);
+      const request = await queued;
+      expect(request.socket).toBeNull();
+      vi.runOnlyPendingTimers();
+      const assigned = once(request, "socket");
+      held.end("first");
+      const [socket] = await assigned;
+      // A connecting socket can signal inactivity while its DNS lookup is pending.
+      expect(socket.connecting).toBe(true);
+      socket.emit("timeout");
+      await expect(downloads).resolves.toEqual(["first", "second"]);
+    });
+  });
+});
+
+describe("S3StorageService attachment URLs", () => {
+  it("signs a header-safe disposition for keys outside ISO-8859-1", async () => {
+    const service = StorageServiceFactory.getInstance({
+      credentials: storageKeys("test-access-key", "test-secret-key"),
+      bucketName: "test-bucket",
+      endpoint: "http://localhost:9090",
       region: "us-east-1",
       forcePathStyle: true,
       useAzureBlob: false,
@@ -1039,22 +1213,10 @@ describe("S3StorageService request handler socket limit", () => {
       awsSseKmsKeyId: undefined,
     });
 
-    const client = (service as unknown as { client: S3Client }).client;
-    const handler = client.config.requestHandler as unknown as {
-      configProvider: Promise<ResolvedHandlerConfig>;
-    };
+    const url = await service.getSignedUrl('customer/图片 "1".png', 60, true);
 
-    return handler.configProvider;
-  };
-
-  it("applies LANGFUSE_S3_CONCURRENT_WRITES to plain-HTTP endpoints such as MinIO", async () => {
-    setConcurrentWrites(123);
-
-    const config = await resolveHandlerConfig("http://127.0.0.1:9000");
-
-    // The HTTP agent is created lazily on the first non-TLS request.
-    const httpAgent = await config.httpAgentProvider();
-    expect(httpAgent.maxSockets).toBe(123);
-    expect(config.httpsAgent.maxSockets).toBe(123);
+    expect(new URL(url).searchParams.get("response-content-disposition")).toBe(
+      `attachment; filename="customer/__ _1_.png"; filename*=UTF-8''customer%2F%E5%9B%BE%E7%89%87%20%221%22.png`,
+    );
   });
 });

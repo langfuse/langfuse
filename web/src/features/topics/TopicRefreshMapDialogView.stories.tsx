@@ -13,7 +13,7 @@ const meta = preview.meta({
     rule: {
       name: "Halo only",
       enabled: true,
-      lastRefitAt: new Date(now - 3 * 3_600_000).toISOString(),
+      lastRefitAt: new Date(now - 8 * 3_600_000).toISOString(),
     },
     now,
     refreshing: false,
@@ -31,6 +31,11 @@ const meta = preview.meta({
   ],
 });
 
-export const Default = meta.story({ name: "Refresh map" });
+export const Default = meta.story({
+  name: "Refresh map",
+  args: { previousRefresh: { cost: 0.08, partial: true } },
+});
 
-export const Refreshing = meta.story({ args: { refreshing: true } });
+export const Refreshing = meta.story({
+  args: { refreshing: true, previousRefresh: { cost: 0, partial: false } },
+});

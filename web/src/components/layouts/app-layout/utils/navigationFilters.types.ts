@@ -3,7 +3,7 @@
  */
 
 import type { Session } from "next-auth";
-import type { Entitlement } from "@/src/features/entitlements/constants/entitlements";
+import type { Entitlement } from "@langfuse/shared";
 
 /**
  * Context object containing all data needed for navigation filtering

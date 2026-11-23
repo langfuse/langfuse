@@ -9,6 +9,9 @@ import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createTopicExecution,
+  getTopicSnapshotProcessingCosts,
+  recordTopicSnapshotProcessingCost,
+  writeTopicExecution,
   createTopicFacet,
   enqueueTopicExecution,
   readTopicExecutionSummary,
@@ -83,6 +86,97 @@ describe("Topics snapshot summarizing", () => {
       clickhouse_settings: { mutations_sync: "1" },
     });
     await prisma.organization.deleteMany({ where: { id: orgId } });
+  });
+
+  it("keeps late model costs after publication and counts a replay only once", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Cost",
+      description: "",
+      prompt: "Summarize.",
+    });
+    const execution = await createTopicExecution(
+      {
+        operation: "update",
+        projectId,
+        requestId: randomUUID(),
+        facets: [{ facetId: facet.id, version: 1 }],
+        embeddingConfig: {
+          embeddingModel: "embed",
+          embeddingDimensions: DIMENSIONS,
+        },
+        timeRange: { from: new Date(Date.now() - 86_400_000), to: new Date() },
+        exploratory: false,
+        analysis: {
+          label: "Cost",
+          filter: [],
+          seed: "test",
+          summarize: { limit: 10, selection: "random" },
+        },
+      },
+      undefined,
+      "user",
+    );
+    const id = execution.id;
+    const read = async () =>
+      (await getTopicSnapshotProcessingCosts(projectId, [id]))[id];
+    expect(await read()).toMatchObject({ cost: null, asOf: null });
+    const seeding = {
+      startedAt: new Date().toISOString(),
+      from: new Date().toISOString(),
+      grewAt: null,
+      settled: 0,
+      failedTicks: 0,
+    };
+    await writeTopicSnapshotSummarizing(projectId, id, {
+      ...seeding,
+      traceIds: [],
+      seededCount: 0,
+    });
+    expect(await read()).toMatchObject({ cost: 0, partial: false });
+    await writeTopicSnapshotSummarizing(projectId, id, {
+      ...seeding,
+      traceIds: [],
+      seededCount: 2,
+    });
+    await writeTopicExecution({
+      ...execution,
+      phase: "completed",
+      status: "completed",
+    });
+    const report = {
+      projectId,
+      executionId: id,
+      revision: "first-trace",
+      reportId: randomUUID(),
+      cost: 0.1,
+      partial: false,
+    };
+    await Promise.all([
+      recordTopicSnapshotProcessingCost(report),
+      recordTopicSnapshotProcessingCost(report),
+    ]);
+    expect(await read()).toMatchObject({
+      cost: 0.1,
+      partial: true,
+      awaitingTraces: true,
+    });
+    await recordTopicSnapshotProcessingCost({
+      ...report,
+      revision: "late-trace",
+      reportId: randomUUID(),
+      cost: 0.2,
+      partial: true,
+    });
+    expect(await read()).toMatchObject({
+      cost: 0.3,
+      partial: true,
+      awaitingTraces: false,
+      asOf: expect.any(String),
+    });
+    expect(await getTopicSnapshotProcessingCosts(randomUUID(), [id])).toEqual(
+      {},
+    );
   });
 
   it("dispatches unsummarized traces with its ID, then enqueues its fit once they settle", async () => {
@@ -191,7 +285,9 @@ describe("Topics snapshot summarizing", () => {
         facetVersion: 1,
         traceId,
         sessionId: null,
-        triggerType: "automatic" as const,
+        triggerType: "snapshot" as const,
+        ruleIds: [],
+        executionId: execution.id,
         environment: "default",
         traceName: "trace",
         unitStartTime: start.toISOString(),
@@ -200,6 +296,7 @@ describe("Topics snapshot summarizing", () => {
         embedding: Array<number>(DIMENSIONS).fill(1),
         transcriptId: "transcript",
         transcriptVersion: "v1",
+        transcriptBytes: 0,
         summaryModel: "summary",
         embeddingModel: "embed",
         providedUsageDetails: {},
@@ -207,7 +304,7 @@ describe("Topics snapshot summarizing", () => {
         providedCostDetails: {},
         costDetails: {},
         processedAt: new Date().toISOString(),
-        metadata: { executionId: execution.id },
+        metadata: {},
       })),
     );
     expect(await tickTopicSnapshotSetup(projectId, execution.id)).toBe(false);
