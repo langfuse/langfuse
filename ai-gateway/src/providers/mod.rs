@@ -104,6 +104,8 @@ pub(crate) struct RequestBody {
     pub reservation: Option<BodyReservation>,
     /// Grows the capacity when a response charged to spend limits needs a larger parse.
     pub parse_growth: Option<crate::capture::ResponseParseGrowth>,
+    /// The parsed members a generation records; `None` when the route records none.
+    pub input: Option<crate::capture::RequestInput>,
 }
 
 pub(crate) type BodyReservation = Box<dyn Send + Sync>;
@@ -177,6 +179,7 @@ impl ProviderTransport {
         body: Bytes,
     ) -> Result<Response<Body>, ProviderError> {
         let model_range = model_range(&body)?;
+        let input = Some(crate::capture::RequestInput::from_body(&body));
         self.forward_route(
             permit,
             context,
@@ -187,6 +190,7 @@ impl ProviderTransport {
                 streaming: true,
                 reservation: None,
                 parse_growth: None,
+                input,
             },
             Route::OpenAiResponses,
             &mut RequestCorrelation::from_headers(headers),
@@ -209,14 +213,15 @@ impl ProviderTransport {
             streaming,
             reservation,
             parse_growth,
+            input,
         } = request;
         let api_format = route.api_format();
         let provider_model = context.connection().provider_model();
         // A rejected destination returns before any generation is recorded.
         let upstream = self.post(route, context.connection())?;
         let provider_headers = connection_headers(&context)?;
-        let mut capture = if route.captures_generation() {
-            let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
+        let mut capture = if let Some(input) = input.filter(|_| route.captures_generation()) {
+            let mut capture = ExecutionCapture::for_request(api_format, &context, headers, input);
             if let Some(telemetry) = &self.telemetry
                 && context.ingestion_mode() != IngestionMode::None
             {

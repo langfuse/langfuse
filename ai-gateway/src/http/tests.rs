@@ -1949,7 +1949,7 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
         (r#"{"model":"m","stream":null}"#, false),
         (r#"{"model":"m"}"#, false),
     ] {
-        let request = request_body_and_model(Bytes::from_static(body.as_bytes()))
+        let request = parse_request_body(Bytes::from_static(body.as_bytes()), false)
             .ok()
             .unwrap();
         assert_eq!(request.streaming, streaming, "{body}");
@@ -1959,9 +1959,10 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
         r#"{"model":"m","model":"n"}"#,
         r#"{"model":"m","stream":true,"stream":true}"#,
         r#"{"stream":true}"#,
+        r#"["m"]"#,
     ] {
         assert!(
-            request_body_and_model(Bytes::from_static(body.as_bytes())).is_err(),
+            parse_request_body(Bytes::from_static(body.as_bytes()), false).is_err(),
             "{body}"
         );
     }

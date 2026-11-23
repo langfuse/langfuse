@@ -15,7 +15,7 @@ use tower_http::timeout::{RequestBodyDeadlineLayer, TimeoutError};
 use tracing::Instrument;
 
 use crate::{
-    capture::{GatewayRejection, MAX_OUTPUT_CAPTURE_BYTES, MAX_RESPONSE_PARSE_BYTES},
+    capture::{GatewayRejection, MAX_OUTPUT_CAPTURE_BYTES, MAX_RESPONSE_PARSE_BYTES, RequestInput},
     correlation::{RequestCorrelation, assign_request_id},
     inference::{
         InferenceService, MemoryReservation, provider_origin, rate_limited_reason,
@@ -238,14 +238,22 @@ async fn relay(
     correlation
         .observation()
         .record_request_bytes(request_bytes);
-    let request_body = request_body_and_model(bytes)?;
+    let capture = route.captures_generation();
+    let mut request_body = inference
+        .run_cpu(request_bytes, move || parse_request_body(bytes, capture))
+        .instrument(tracing::info_span!(
+            "request.parse",
+            otel.kind = "internal",
+            http.request.body.size = byte_count(request_bytes)
+        ))
+        .await
+        .map_err(InferenceHttpError::Resolution)??;
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
             route,
-            &request_body.model,
             &parts.headers,
-            &request_body.bytes,
+            &mut request_body,
             correlation,
         )
         .await
@@ -264,6 +272,7 @@ async fn relay(
                 streaming: request_body.streaming,
                 reservation: Some(Box::new(reservation)),
                 parse_growth,
+                input: request_body.input,
             },
             route,
             correlation,
@@ -272,26 +281,79 @@ async fn relay(
         .map_err(InferenceHttpError::Provider)
 }
 
-struct InferenceRequestBody {
+/// The caller body, parsed once on arrival.
+pub(crate) struct ParsedRequest {
     bytes: Bytes,
-    model: String,
+    pub(crate) model: String,
     model_range: Range<usize>,
     streaming: bool,
+    /// The top-level members for capture; `None` on routes that record no generation.
+    pub(crate) input: Option<RequestInput>,
 }
 
-#[derive(Deserialize)]
-struct InferenceRequest<'a> {
-    #[serde(borrow)]
-    model: &'a RawValue,
+impl ParsedRequest {
+    pub(crate) fn body_bytes(&self) -> usize {
+        self.bytes.len()
+    }
+}
+
+/// The top-level members of a request body, borrowed from it. `model` and `stream`
+/// must appear at most once: a duplicate could route one model and send another.
+struct Members<'a> {
+    model: Option<&'a RawValue>,
     /// Kept raw so a non-boolean value is left for the provider to reject.
-    #[serde(borrow, default)]
     stream: Option<&'a RawValue>,
+    all: Vec<(String, &'a RawValue)>,
 }
 
-fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, InferenceHttpError> {
-    let request = serde_json::from_slice::<InferenceRequest<'_>>(&bytes)
+impl<'de> Deserialize<'de> for Members<'de> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct MembersVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for MembersVisitor {
+            type Value = Members<'de>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a JSON object")
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Self::Value, A::Error> {
+                let mut members = Members {
+                    model: None,
+                    stream: None,
+                    all: Vec::new(),
+                };
+                while let Some(key) = map.next_key::<String>()? {
+                    let value: &'de RawValue = map.next_value()?;
+                    let slot = match key.as_str() {
+                        "model" => Some(&mut members.model),
+                        "stream" => Some(&mut members.stream),
+                        _ => None,
+                    };
+                    if let Some(slot) = slot
+                        && slot.replace(value).is_some()
+                    {
+                        return Err(serde::de::Error::custom("duplicate member"));
+                    }
+                    members.all.push((key, value));
+                }
+                Ok(members)
+            }
+        }
+
+        deserializer.deserialize_map(MembersVisitor)
+    }
+}
+
+/// Parses the body in one pass: the model and its byte range for the upstream
+/// rewrite, the stream flag, and, when `capture` is set, the members capture records.
+fn parse_request_body(bytes: Bytes, capture: bool) -> Result<ParsedRequest, InferenceHttpError> {
+    let members = serde_json::from_slice::<Members<'_>>(&bytes)
         .map_err(|_| InferenceHttpError::InvalidBody)?;
-    let raw_model = request.model.get();
+    let raw_model = members.model.ok_or(InferenceHttpError::InvalidBody)?.get();
     let model =
         serde_json::from_str::<String>(raw_model).map_err(|_| InferenceHttpError::InvalidBody)?;
     if model.is_empty() {
@@ -306,12 +368,15 @@ fn request_body_and_model(bytes: Bytes) -> Result<InferenceRequestBody, Inferenc
         .checked_add(raw_model.len())
         .filter(|end| *end <= bytes.len())
         .ok_or(InferenceHttpError::InvalidBody)?;
-    let streaming = request.stream.is_some_and(|stream| stream.get() == "true");
-    Ok(InferenceRequestBody {
+    let streaming = members.stream.is_some_and(|stream| stream.get() == "true");
+    // Later members replace earlier ones of the same name, as in the recorded input.
+    let input = capture.then(|| RequestInput::from_members(members.all, bytes.len()));
+    Ok(ParsedRequest {
         bytes,
         model,
         model_range: start..end,
         streaming,
+        input,
     })
 }
 
