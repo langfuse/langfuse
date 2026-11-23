@@ -22,7 +22,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         },
       }}
       {...props}
-      className={cn("toaster group ph-no-capture", props.className)}
+      className={cn("toaster group ph-no-capture font-sans", props.className)}
     />
   );
 };
