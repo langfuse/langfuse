@@ -34,6 +34,14 @@ const resolveBodySchema = z
   );
 /** Bounds a report; a key has at most one limit per interval today. */
 const MAX_REPORTED_SPEND_LIMITS = 20;
+/**
+ * Shared cap for signed control-plane POST bodies. Must fit a
+ * `spendLimitAlertBodySchema` report of `MAX_REPORTED_SPEND_LIMITS` limits
+ * with default-limit IDs (`{defaultId}:{subjectId}`) and optional
+ * `thresholdPercent` (~3 KiB). 1024 bytes is too small: 10 compact
+ * 25-character cuid IDs already occupy 1032 bytes.
+ */
+const MAX_GATEWAY_CONTROL_PLANE_BODY_BYTES = 16 * 1024;
 const spendLimitAlertBodySchema = z
   .object({
     limits: z
@@ -349,7 +357,8 @@ async function readRequestBody(req: NextApiRequest): Promise<string> {
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > 1024) throw new Error("Gateway request body is too large");
+    if (size > MAX_GATEWAY_CONTROL_PLANE_BODY_BYTES)
+      throw new Error("Gateway request body is too large");
     chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString("utf8");

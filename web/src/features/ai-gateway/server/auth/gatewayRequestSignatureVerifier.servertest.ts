@@ -12,6 +12,7 @@ import {
   contextWithGatewayRequestId,
   withGatewayModelsSignatureVerification,
   withGatewayResolveSignatureVerification,
+  withGatewaySpendLimitAlertSignatureVerification,
 } from "./gatewayRequestSignatureVerifier";
 
 vi.mock("@/src/env.mjs", () => ({
@@ -245,6 +246,68 @@ describe("withGatewayResolveSignatureVerification", () => {
       expect(res.status).toHaveBeenCalledWith(401);
       expect(handler).not.toHaveBeenCalled();
     }
+  });
+});
+
+describe("withGatewaySpendLimitAlertSignatureVerification", () => {
+  const defaultLimitIdPrefix = `c${"a".repeat(24)}:c${"b".repeat(24)}`;
+
+  function spendLimitAlertBody(count: number) {
+    return JSON.stringify({
+      limits: Array.from({ length: count }, (_, index) => ({
+        limitId: `${defaultLimitIdPrefix}-${index}`,
+        countingStartedAt: 1_700_000_000_123,
+        windowStart: 1_767_225_600_000,
+        thresholdPercent: 85,
+      })),
+    });
+  }
+
+  it("accepts a 20-limit alert body with default-limit IDs", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const body = spendLimitAlertBody(20);
+    expect(body.length).toBeGreaterThan(1024);
+    const req = request({
+      authorization: "Bearer sk-gateway",
+      gatewayAuthorization: gatewayAuthorization({
+        secret: "current-service-secret",
+      }),
+      body,
+    });
+    const res = response();
+    const handler = vi.fn().mockResolvedValue(undefined);
+
+    await withGatewaySpendLimitAlertSignatureVerification(handler)(req, res);
+
+    expect(handler).toHaveBeenCalledWith({
+      req,
+      res,
+      fastHashedSecretKey: createShaHash("sk-gateway", "test-salt"),
+      limits: JSON.parse(body).limits,
+    });
+  });
+
+  it("still rejects a truly huge control-plane body", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const handler = vi.fn();
+    const res = response();
+
+    await withGatewaySpendLimitAlertSignatureVerification(handler)(
+      request({
+        authorization: "Bearer sk-gateway",
+        gatewayAuthorization: gatewayAuthorization({
+          secret: "current-service-secret",
+        }),
+        body: "x".repeat(64 * 1024),
+      }),
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "Invalid request" });
+    expect(handler).not.toHaveBeenCalled();
   });
 });
 
