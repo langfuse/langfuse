@@ -25,6 +25,7 @@ import {
 import {
   mapWidgetUiTableFilterToView,
   partitionWidgetQueryFiltersToView,
+  UNSUPPORTED_NUMERIC_METADATA_REASON,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import React, { useMemo, useRef } from "react";
 import {
@@ -1800,8 +1801,7 @@ export function useWidgetFormState({
   const queryValidation = useMemo(() => {
     if (unsupportedFilters.length > 0) {
       const reasons = [
-        hasUnsupportedNumericMetadata &&
-          "Numeric metadata filters are only supported on observations view (v4).",
+        hasUnsupportedNumericMetadata && UNSUPPORTED_NUMERIC_METADATA_REASON,
         unsupportedFilterColumns &&
           `Unsupported legacy filter column(s): ${unsupportedFilterColumns}.`,
       ].filter(Boolean);
