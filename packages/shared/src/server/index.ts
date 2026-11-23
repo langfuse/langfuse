@@ -953,7 +953,6 @@ export const getTracesIdentifierForSession =
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
   getTracesIdentifierForSessionRoutingWrapper;
 
-export * from "./billing/billingLedgerShadow";
 export * from "./entitlements/getPlan";
 
 export { isDnsCompatibleBucketName } from "./outbound-url/validation";
