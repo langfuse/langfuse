@@ -67,6 +67,31 @@ describe("createEvaluatorSetupStore", () => {
     });
   });
 
+  it("initializes a cloned decision-model evaluator without throwing when vars are missing", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: {
+        name: "JEV evaluator",
+        description: null,
+        definition: {
+          type: "DECISION_MODEL",
+          questions: [],
+          provider: "typesafe",
+          model: "jev-latest",
+          vars: undefined as unknown as string[],
+          variableMapping: null,
+        },
+      },
+      mode: "create",
+    });
+
+    expect(store.getState()).toMatchObject({
+      type: "DECISION_MODEL",
+      name: "JEV evaluator",
+      stateKeys: [],
+      variableFields: {},
+    });
+  });
+
   it("initializes an existing code evaluator", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: {
