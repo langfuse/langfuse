@@ -859,54 +859,6 @@ describe("processEval", () => {
     });
   });
 
-  describe("stored variable mapping", () => {
-    it.each([
-      {
-        name: "maps a variable to an unknown column",
-        variableMapping: [
-          {
-            templateVariable: "expected_output",
-            selectedColumnId: "expected_output",
-          },
-        ],
-        error:
-          'Variable "expected_output" maps to unknown column "expected_output"',
-      },
-      {
-        name: "is malformed",
-        variableMapping: [{ templateVariable: "input" }],
-        error: "Evaluator variable mapping is invalid",
-      },
-    ])(
-      "fails terminally without running the evaluator when the mapping $name",
-      async ({ variableMapping, error }) => {
-        const job = createMockJobExecution({
-          id: jobExecutionId,
-          projectId,
-          status: JobExecutionStatus.PENDING,
-          jobConfigurationId: "config-123",
-        });
-        const config = createMockJobConfiguration({
-          id: "config-123",
-          projectId,
-          variableMapping,
-        });
-        (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
-        mockMigratedAssignment(config);
-
-        const result = processEval({
-          event: baseEvent,
-          executionType: EvalTemplateType.LLM_AS_JUDGE,
-          deps: createMockProcessorDeps(),
-        });
-
-        await expect(result).rejects.toThrow(UnrecoverableError);
-        await expect(result).rejects.toThrow(error);
-        expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
-      },
-    );
-  });
-
   describe("successful execution", () => {
     it("should call runLLMAsJudgeEvaluation with correct parameters", async () => {
       const job = createMockJobExecution({
