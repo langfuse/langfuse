@@ -81,13 +81,9 @@ fn definition_data(value: &Value) -> Option<&JsonObject> {
     }
 }
 
-fn is_definition_like(
-    value: &Value,
-    allow_provider_without_name: bool,
-    parse_cache: &mut JsonParseCache,
-) -> bool {
-    let parsed = parse_if_string(value, parse_cache);
-    definition_data(&parsed)
+/// Whether `parsed`, a definition already parsed from any JSON text, describes a tool.
+fn is_definition_like(parsed: &Value, allow_provider_without_name: bool) -> bool {
+    definition_data(parsed)
         .and_then(|data| data.get("name"))
         .is_some_and(is_js_truthy)
         || (allow_provider_without_name
@@ -107,8 +103,9 @@ fn parse_definition_array(
     let values = parsed.as_array()?;
     let mut valid = Vec::new();
     for value in values {
-        if is_definition_like(value, allow_provider_without_name, parse_cache) {
-            valid.push(parse_if_string(value, parse_cache).into_owned());
+        let definition = parse_if_string(value, parse_cache);
+        if is_definition_like(&definition, allow_provider_without_name) {
+            valid.push(definition.into_owned());
         }
     }
     if require_every_item && valid.len() != values.len() {
@@ -301,8 +298,9 @@ fn collect_indexed_tools(
     indexed.sort_by_key(|(index, _)| *index);
     for (_, key) in indexed {
         if let Some(value) = attributes.get(&key) {
-            if is_definition_like(value, false, cache) {
-                tools.push(parse_if_string(value, cache).into_owned());
+            let definition = parse_if_string(value, cache);
+            if is_definition_like(&definition, false) {
+                tools.push(definition.into_owned());
                 cleanup.attribute_keys.push(key);
             }
         }
