@@ -35,7 +35,6 @@ const summarizedTraceIdsSql = (days: TopicSetupDays) => `
 // trace dispatch uses). Grouped by trace_id, so traces without a root observation count.
 const topicSetupTracesSql = (
   days: TopicSetupDays,
-  sampled: boolean,
   matching?: TopicSetupMatching,
   summarized?: TopicSetupSummarized,
 ) => `
@@ -49,12 +48,6 @@ const topicSetupTracesSql = (
     AND environment != {publicLlmJudgeEnvironment: String}
     ${matching ? `AND trace_id IN (${matching.query})` : ""}
     ${summarized ? `AND trace_id NOT IN (${summarizedTraceIdsSql(days)})` : ""}
-    ${
-      sampled
-        ? // Mirrors worker deterministicSampling: sha256(domain + traceId), top 53 bits.
-          "AND bitShiftRight(reinterpretAsUInt64(reverse(substring(SHA256(concat('langfuse:evaluation-sampling:v1', char(0), trace_id)), 1, 8))), 11) < {sampling: Float64} * 9007199254740992"
-        : ""
-    }
   GROUP BY trace_id
   HAVING last_ts < {now: DateTime64(3)} - toIntervalMillisecond({idleMs: UInt32})`;
 
@@ -90,7 +83,7 @@ export async function getTopicSetupTraceCount(input: {
   const rows = await queryClickhouse<{ count: string }>({
     query: `
       SELECT count() AS count
-      FROM (${topicSetupTracesSql(input.days, false, input.matching, input.summarized)})`,
+      FROM (${topicSetupTracesSql(input.days, input.matching, input.summarized)})`,
     params: {
       ...input.matching?.params,
       ...topicSetupParams(input.projectId, input.idleMs, input.now),
@@ -108,14 +101,13 @@ export async function getTopicSetupTraceCount(input: {
 /**
  * Finished traces in one window for the Topics setup backfill: every match up to
  * the limit, and a random sample of that size, seeded and repeatable, beyond it.
+ * The rule's sampling rate does not apply, so a low rate still fills the first map.
  */
 export async function getTopicSetupTraceIds(input: {
   projectId: string;
   idleMs: number;
   now: Date;
   days: TopicSetupDays;
-  /** The rule's sampling rate, applied with the ingestion hash. */
-  sampling: number;
   limit: number;
   /** Seeds the sample beyond the limit. */
   seed: string;
@@ -126,14 +118,13 @@ export async function getTopicSetupTraceIds(input: {
   summarized?: TopicSetupSummarized;
 }): Promise<string[]> {
   const rows = await queryClickhouse<{ trace_id: string }>({
-    query: `${topicSetupTracesSql(input.days, input.sampling < 1, input.matching, input.summarized)}
+    query: `${topicSetupTracesSql(input.days, input.matching, input.summarized)}
       ORDER BY ${input.order === "latest" ? "last_ts DESC" : "cityHash64(trace_id, {seed: String})"}, trace_id
       LIMIT {limit: UInt32}`,
     params: {
       ...input.matching?.params,
       ...topicSetupParams(input.projectId, input.idleMs, input.now),
       ...summarizedParams(input.summarized),
-      sampling: input.sampling,
       limit: input.limit,
       seed: input.seed,
     },
