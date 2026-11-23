@@ -11,12 +11,14 @@ import {
   buildWidgetOrderBy,
   dimension,
   getResultUnit,
+  getViewDeclaration,
   isV2BreakdownChart,
   metric,
   resolveWidgetRenderVersion,
   toQueryChartConfig,
   validateQuery,
-  views,
+  type views,
+  viewsV2,
   type QueryType,
   type ViewVersion,
 } from "@langfuse/shared/query";
@@ -65,7 +67,8 @@ const RenderWidgetBaseSchema = z.object({
     .string()
     .optional()
     .describe("Title shown above the chart. Defaults to the metric name."),
-  view: views
+  // The views queryMetrics offers; trace charts exist only as saved widgets.
+  view: viewsV2
     .optional()
     .describe(
       "Ad-hoc chart: data view to query. Field names follow getMetricsSchema.",
@@ -264,12 +267,30 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
           throw new InvalidRequestError("The widget has no metrics");
         }
         const isTimeSeries = isTimeSeriesChart(spec.chartType);
+        const hasDimension = spec.dimensions.length > 0;
+        // Every result goes into one MCP response, so breakdowns are bounded
+        // on any query version, not only where v2 validation requires it:
+        // the top rows by the first metric, and no high-cardinality series.
         const needsTopN = isV2BreakdownChart({
-          version: spec.version,
-          hasDimension: spec.dimensions.length > 0,
+          version: "v2",
+          hasDimension,
           isTimeSeries,
           chartType: spec.chartType,
         });
+        const viewDimensions = getViewDeclaration(
+          spec.view,
+          spec.version,
+        ).dimensions;
+        const unboundedSeries = isTimeSeries
+          ? spec.dimensions.find(
+              (d) => viewDimensions[d.field]?.highCardinality,
+            )
+          : undefined;
+        if (unboundedSeries) {
+          throw new InvalidRequestError(
+            `${unboundedSeries.field} has too many values to chart over time. Use a breakdown chart such as HORIZONTAL_BAR for its top values.`,
+          );
+        }
 
         const buildQuery = (overrides: Partial<QueryType>): QueryType => ({
           view: spec.view,
@@ -296,7 +317,7 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
             firstMetric,
           }),
           chartConfig: toQueryChartConfig(spec.chartConfig, {
-            defaultRowLimit: needsTopN ? 100 : undefined,
+            defaultRowLimit: hasDimension && !isTimeSeries ? 100 : undefined,
           }),
           ...overrides,
         });

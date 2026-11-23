@@ -146,7 +146,9 @@ export function createMcpServer(context: ServerContext): Server {
       if (isAppToolResult(result)) {
         return {
           content: [{ type: "text", text: result.text }],
-          _meta: result.meta,
+          // MCP App hosts hand `_meta` to the app, not the model. The in-app
+          // agent passes the whole result to its model and renders no apps.
+          ...(context.inAppAgent ? {} : { _meta: result.meta }),
         };
       }
 

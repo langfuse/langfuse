@@ -1,4 +1,4 @@
-import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { type DashboardWidgetChartType } from "@langfuse/shared";
 
 /**
  * A widget definition with its query rows: what `renderWidget` sends in the

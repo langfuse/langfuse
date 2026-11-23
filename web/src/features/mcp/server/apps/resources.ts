@@ -7,7 +7,7 @@ export const WIDGET_APP_RESOURCE_URI = "ui://langfuse/widget.html";
 
 /**
  * The `ui://` document is the HTML of the Next.js page `/mcp-apps/widget`
- * (`src/app/mcp-apps`), fetched from this server. Hosts write it into a
+ * (`src/app/mcp-apps`), fetched from this server process. Hosts write it into a
  * sandboxed iframe on their own origin, so its root-relative `/_next/` URLs
  * would load from the host; they are made absolute instead. A `<base>` would
  * be shorter, but hosts default to `base-uri 'self'`.
@@ -17,6 +17,19 @@ const WIDGET_PAGE = "mcp-apps/widget";
 const UNAVAILABLE = `<!doctype html><html><body><p style="font-family:sans-serif;color:#888">The Langfuse widget could not be loaded.</p></body></html>`;
 
 const isDev = env.NODE_ENV === "development";
+
+/**
+ * The page on this process itself, not behind the public URL: a load
+ * balancer could answer from a pod on another build, whose chunks this
+ * deployment stops serving once that pod is gone. Next.js listens on PORT
+ * and, in the standalone server, on HOSTNAME.
+ */
+const ownPageUrl = () => {
+  const host = process.env.HOSTNAME;
+  const hostname =
+    !host || host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
+  return `http://${hostname}:${process.env.PORT ?? "3000"}${env.NEXT_PUBLIC_BASE_PATH ?? ""}/${WIDGET_PAGE}`;
+};
 
 /** Where the page lives and where its `/_next/` assets load from. */
 const origins = () => {
@@ -95,7 +108,7 @@ let cachedPage: string | undefined;
 
 const loadPage = async (): Promise<string> => {
   if (cachedPage) return cachedPage;
-  const url = new URL(WIDGET_PAGE, getProductBaseUrl());
+  const url = ownPageUrl();
   try {
     const response = await fetch(url, {
       headers: { accept: "text/html" },
@@ -108,7 +121,7 @@ const loadPage = async (): Promise<string> => {
     if (env.NODE_ENV === "production") cachedPage = page;
     return page;
   } catch (error) {
-    logger.error("MCP App page could not be loaded", { error, url: `${url}` });
+    logger.error("MCP App page could not be loaded", { error, url });
     return UNAVAILABLE;
   }
 };
