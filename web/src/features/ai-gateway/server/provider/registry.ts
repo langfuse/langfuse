@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { gatewayApiFormats } from "@langfuse/shared/src/server/auth/apiKeyCache";
 import {
   PricingTierAttributeConditionSchema,
   PricingTierUsageConditionSchema,
@@ -14,13 +15,7 @@ import {
   vertexOpenAICompatibleBaseUrl,
 } from "@/src/features/ai-gateway/server/provider/vertex";
 
-export const gatewayApiFormats = [
-  "openai.responses",
-  "openai.chat-completions",
-  "openai.decisions",
-  "openai.embeddings",
-  "anthropic.messages",
-] as const;
+export { gatewayApiFormats };
 
 export const gatewayProviders = [
   "OPENAI",

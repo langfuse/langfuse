@@ -12,6 +12,8 @@ import {
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createApiKeyCacheKey,
   createAuthzContextCacheKey,
+  createGatewayResolveContextCacheKey,
+  gatewayApiFormats,
 } from "./apiKeyCache";
 import { createShaHash } from "./apiKeys";
 
@@ -38,13 +40,16 @@ function cacheKeysForRows(apiKeys: CachedApiKeyIdentity[]): string[] {
   return keys;
 }
 
-/** invalidateCachedApiKeys replaces every cached credential presentation with a short-lived marker that readers treat as a miss and cache writers cannot overwrite */
+/** invalidateCachedApiKeys replaces every cached credential and gateway resolve entry with a short-lived marker that readers treat as a miss and cache writers cannot overwrite, logging Redis failures instead of throwing */
 export async function invalidateCachedApiKeys(
   apiKeys: CachedApiKeyIdentity[],
   identifier: string,
   redisClient: Redis | Cluster | null = redis,
 ) {
-  const keysToInvalidate = cacheKeysForRows(apiKeys);
+  const keysToInvalidate = [
+    ...cacheKeysForRows(apiKeys),
+    ...gatewayResolveCacheKeysForRows(apiKeys),
+  ];
   if (keysToInvalidate.length === 0) {
     logger.info("No valid keys to invalidate");
     return;
@@ -54,11 +59,29 @@ export async function invalidateCachedApiKeys(
   logger.info(`Invalidating API keys in redis for ${identifier}`);
   const marker = JSON.stringify(apiKeyCacheInvalidated);
   // each key may sit in a different cluster slot, so the writes stay separate
-  await Promise.all(
+  const results = await Promise.allSettled(
     keysToInvalidate.map((key) =>
       redisClient.set(key, marker, "EX", invalidatedApiKeyMarkerTtlSeconds),
     ),
   );
+  const failure = results.find((result) => result.status === "rejected");
+  if (failure) {
+    logger.error(`Failed to invalidate API keys in redis for ${identifier}`, {
+      error: failure.reason,
+    });
+  }
+}
+
+/** gatewayResolveCacheKeysForRows lists each key's gateway resolve cache entry for every API format */
+function gatewayResolveCacheKeysForRows(
+  apiKeys: CachedApiKeyIdentity[],
+): string[] {
+  return apiKeys.flatMap(({ fastHashedSecretKey }) => {
+    if (!fastHashedSecretKey) return [];
+    return gatewayApiFormats.map((apiFormat) =>
+      createGatewayResolveContextCacheKey(apiFormat, fastHashedSecretKey),
+    );
+  });
 }
 
 /** invalidateCachedUserApiKeys removes the cached credentials of the user's USER keys in orgId, whose policies include the user's roles. */

@@ -24,7 +24,7 @@ import {
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { evictDeletedApiKeys } from "@/src/features/apiKey/evictDeletedApiKeys";
+import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 import { findGatewayKeyMetadata } from "@/src/features/ai-gateway/server/apiKey/findGatewayKeyMetadata";
 
 // Deleting a user fires a foreign-key action on every table that references
@@ -274,7 +274,7 @@ export const userAccountRouter = createTRPCRouter({
       },
     );
 
-    await evictDeletedApiKeys(revokedKeys, `user ${userId}`);
+    await invalidateCachedApiKeys(revokedKeys, `user ${userId}`);
 
     // SFDC: remove every org-member bridge the cascade just deleted. After
     // commit so a rolled-back delete never desyncs SFDC; removeUser never

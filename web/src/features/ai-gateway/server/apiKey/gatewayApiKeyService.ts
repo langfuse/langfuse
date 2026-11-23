@@ -237,9 +237,6 @@ export class GatewayApiKeyService {
     }
 
     await invalidateCachedApiKeys([deleted], `key ${deleted.id}`, this.redis);
-    if (deleted.fastHashedSecretKey) {
-      await invalidateGatewayResolveCacheForApiKey(deleted.fastHashedSecretKey);
-    }
   }
 }
 

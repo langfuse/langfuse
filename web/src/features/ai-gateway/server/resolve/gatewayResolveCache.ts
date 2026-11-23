@@ -1,5 +1,6 @@
 import {
   apiKeyCacheInvalidated,
+  createGatewayResolveContextCacheKey,
   logger,
   recordIncrement,
   redis as defaultRedis,
@@ -78,7 +79,7 @@ const CachedResolveEntry = z.union([
 ]);
 
 const contextCacheKey = (fastHashedSecretKey: string, apiFormat: string) =>
-  `${CACHE_PREFIX}:context:${apiFormat}:${fastHashedSecretKey}`;
+  createGatewayResolveContextCacheKey(apiFormat, fastHashedSecretKey);
 
 /**
  * Index of the cache keys written for one organization. Entries are keyed by

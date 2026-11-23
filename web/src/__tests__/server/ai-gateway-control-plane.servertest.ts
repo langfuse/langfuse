@@ -76,10 +76,7 @@ import {
   type GatewayResolveError,
   GatewayResolveService,
 } from "@/src/features/ai-gateway/server/resolve/resolveService";
-import {
-  GatewayResolveCache,
-  invalidateGatewayResolveCacheForApiKey,
-} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { GatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayModelsResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
@@ -4858,24 +4855,19 @@ describe("AI gateway control plane", () => {
       });
     });
 
-    it("serves an out-of-band demotion from cache until the entry expires", async () => {
+    it("rejects a cached user-bound key as soon as its owner is demoted through the membership repository", async () => {
       const { caller, org, user } = await prepare();
       const key = await caller.aiGateway.createApiKey({
         orgId: org.id,
         name: "User key",
         metadata: {},
       });
-      const fastHashedSecretKey = createShaHash(key.secretKey, env.SALT);
       await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
         apiKeyId: key.id,
       });
+
       await setOwnerRole(org.id, user.id, Role.VIEWER);
 
-      // The resolve cache TTL bounds how long the cached grant survives.
-      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
-        apiKeyId: key.id,
-      });
-      await invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey);
       await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
         keyNotAllowed,
       );

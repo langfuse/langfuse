@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { evictUserGatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import { evictDeletedApiKeys } from "@/src/features/apiKey/evictDeletedApiKeys";
+import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 import { findGatewayKeyMetadata } from "@/src/features/ai-gateway/server/apiKey/findGatewayKeyMetadata";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -217,7 +217,10 @@ export async function handleDeleteMembership(
     });
     return { deleted: true, revokedKeys };
   });
-  await evictDeletedApiKeys(revokedKeys, `user ${validatedBody.data.userId}`);
+  await invalidateCachedApiKeys(
+    revokedKeys,
+    `user ${validatedBody.data.userId}`,
+  );
 
   if (deleted) {
     const user = await prisma.user.findUnique({

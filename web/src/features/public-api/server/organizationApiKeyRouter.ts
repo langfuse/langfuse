@@ -241,13 +241,6 @@ export const organizationApiKeysRouter = createTRPCRouter({
       }
 
       await invalidateCachedApiKeys([deleted], `key ${deleted.id}`);
-      // Any organization key whose role grants gateway:invoke may sit in the
-      // gateway resolve cache, which would otherwise keep it usable until the TTL.
-      if (deleted.fastHashedSecretKey) {
-        await invalidateGatewayResolveCacheForApiKey(
-          deleted.fastHashedSecretKey,
-        );
-      }
       return true;
     }),
 });
