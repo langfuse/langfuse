@@ -495,7 +495,7 @@ describe("evaluator configuration validation", () => {
         definition: definitionWithColumn("expected_output"),
       }),
     ).rejects.toThrow(
-      "Mappings reference unknown columns: expected_output -> expected_output",
+      'Variable "expected_output" maps to unknown column "expected_output"',
     );
     await expect(
       assertEvaluatorConfigurationValid({
@@ -517,13 +517,13 @@ describe("evaluator configuration validation", () => {
         ...mapping("threads"),
         targetObject: EvalTargetObject.EVENT,
       }),
-    ).toThrow("Mappings reference unknown columns: conversation -> threads");
+    ).toThrow('Variable "conversation" maps to unknown column "threads"');
     expect(() =>
       assertCompleteEvaluatorVariableMapping({
         ...mapping("input"),
         targetObject: TopicsTargetObject,
       }),
-    ).toThrow("Mappings reference unknown columns: conversation -> input");
+    ).toThrow('Variable "conversation" maps to unknown column "input"');
     expect(() =>
       assertCompleteEvaluatorVariableMapping({
         ...mapping("threads"),

@@ -1,13 +1,17 @@
 import type {
-  CodeEvalTemplateVariable,
   DecisionModelQuestions,
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
   EvaluatorPromptMessage,
+  experimentTargetEvalVariableColumns,
   PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
 
 import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+
+/** Observation column a managed template variable maps to by default. */
+type ObservationColumnId =
+  (typeof experimentTargetEvalVariableColumns)[number]["id"];
 
 export type EvaluatorSetupDraft = {
   name: string;
@@ -30,7 +34,7 @@ export type ManagedTemplate = {
         promptMessages: EvaluatorPromptMessage[];
         variables: Array<{
           name: string;
-          defaultMapping: { field: CodeEvalTemplateVariable };
+          defaultMapping: { field: ObservationColumnId };
         }>;
         outputDefinition: PersistedEvalOutputDefinition;
       }
@@ -44,7 +48,7 @@ export type ManagedTemplate = {
         questions: DecisionModelQuestions;
         state: Array<{
           key: string;
-          defaultMapping: { field: CodeEvalTemplateVariable };
+          defaultMapping: { field: ObservationColumnId };
         }>;
       };
 };

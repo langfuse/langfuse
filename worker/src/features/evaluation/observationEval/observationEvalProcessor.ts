@@ -14,8 +14,9 @@ import {
 import { extractTranscriptEvalVariables } from "../../eventsDispatch/traceTranscriptEval";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
+  EvalTargetObject,
+  evalVariableMappingListSchema,
   getCodeEvalVariableMapping,
-  observationEvalVariableColumns,
   observationForEvalSchema,
   observationVariableMappingList,
   type EvalTemplateWithType,
@@ -50,10 +51,6 @@ import { executeCodeBasedEvaluation } from "../codeBased/executeCodeBasedEvaluat
 import { runDecisionModelEvaluation } from "../decisionModel/runDecisionModelEvaluation";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
-
-const OBSERVATION_VARIABLE_COLUMN_IDS = new Set(
-  observationEvalVariableColumns.map(({ id }) => id),
-);
 
 /**
  * Dependencies for processing observation evals.
@@ -420,21 +417,15 @@ function observationTarget(params: {
  * unmapped placeholders and resolve to no value.
  */
 function parseObservationVariableMapping(variableMapping: Prisma.JsonValue) {
-  const parsed = observationVariableMappingList.safeParse(variableMapping);
+  const parsed = evalVariableMappingListSchema(
+    EvalTargetObject.EVENT,
+  ).safeParse(variableMapping);
   if (!parsed.success) {
-    throw new UnrecoverableEvalFailureError(
-      "Evaluator variable mapping is invalid. Update the variable mapping of this evaluator.",
-      EvalFailureReason.InvalidObservationData,
+    const unknownColumnIssue = parsed.error.issues.find(
+      ({ code }) => code === "custom",
     );
-  }
-  const unknownColumnMapping = parsed.data.find(
-    ({ selectedColumnId }) =>
-      selectedColumnId !== "" &&
-      !OBSERVATION_VARIABLE_COLUMN_IDS.has(selectedColumnId),
-  );
-  if (unknownColumnMapping) {
     throw new UnrecoverableEvalFailureError(
-      `Variable "${unknownColumnMapping.templateVariable}" maps to unknown column "${unknownColumnMapping.selectedColumnId}". Update the variable mapping of this evaluator.`,
+      `${unknownColumnIssue?.message ?? "Evaluator variable mapping is invalid."} Update the variable mapping of this evaluator.`,
       EvalFailureReason.InvalidObservationData,
     );
   }

@@ -1,11 +1,8 @@
 import {
   EvalTemplateType,
   extractVariables,
+  evalVariableMappingListSchema,
   InvalidRequestError,
-  observationEvalVariableColumns,
-  observationVariableMappingList,
-  TopicsTargetObject,
-  TRACE_TRANSCRIPT_EVAL_VARIABLE_COLUMN_ID,
 } from "@langfuse/shared";
 import {
   DECISION_MODEL_CONNECTIONS_HINT,
@@ -55,20 +52,6 @@ export function assertEvaluatorVariablesMatchPrompt(params: {
   }
 }
 
-const OBSERVATION_VARIABLE_COLUMN_IDS = observationEvalVariableColumns.map(
-  ({ id }) => id,
-);
-
-/**
- * Columns an evaluator definition can map variables to. Definitions are not
- * bound to a target, so they accept observation columns and the transcript
- * column; rule assignments narrow this by their rule target.
- */
-export const EVALUATOR_VARIABLE_COLUMN_IDS = [
-  ...OBSERVATION_VARIABLE_COLUMN_IDS,
-  TRACE_TRANSCRIPT_EVAL_VARIABLE_COLUMN_ID,
-];
-
 /**
  * Pass `targetObject` when the mapping runs against a known target (a rule or
  * an observation); omit it for target-agnostic evaluator definitions.
@@ -78,26 +61,15 @@ export function assertCompleteEvaluatorVariableMapping(params: {
   variableMapping: unknown;
   targetObject?: string;
 }) {
-  const parsed = observationVariableMappingList.safeParse(
+  const parsed = evalVariableMappingListSchema(params.targetObject).safeParse(
     params.variableMapping,
   );
   if (!parsed.success) {
-    throw new InvalidRequestError("Evaluator variable mapping is invalid");
-  }
-
-  const allowedColumnIds = getAllowedVariableColumnIds(params.targetObject);
-  const unknownColumnMappings = parsed.data.filter(
-    // An empty column id is an unmapped placeholder, not a column reference.
-    ({ selectedColumnId }) =>
-      selectedColumnId !== "" && !allowedColumnIds.includes(selectedColumnId),
-  );
-  if (unknownColumnMappings.length > 0) {
-    const references = unknownColumnMappings.map(
-      ({ templateVariable, selectedColumnId }) =>
-        `${templateVariable} -> ${selectedColumnId}`,
+    const unknownColumnIssue = parsed.error.issues.find(
+      ({ code }) => code === "custom",
     );
     throw new InvalidRequestError(
-      `Mappings reference unknown columns: ${references.join(", ")}. Allowed columns: ${allowedColumnIds.join(", ")}`,
+      unknownColumnIssue?.message ?? "Evaluator variable mapping is invalid",
     );
   }
 
@@ -139,14 +111,6 @@ export function assertCompleteEvaluatorVariableMapping(params: {
       `Missing mappings for evaluator variables: ${missingVariables.join(", ")}`,
     );
   }
-}
-
-function getAllowedVariableColumnIds(targetObject: string | undefined) {
-  if (targetObject === undefined) return EVALUATOR_VARIABLE_COLUMN_IDS;
-  if (targetObject === TopicsTargetObject) {
-    return [TRACE_TRANSCRIPT_EVAL_VARIABLE_COLUMN_ID];
-  }
-  return OBSERVATION_VARIABLE_COLUMN_IDS;
 }
 
 export async function assertEvaluatorConfigurationValid(params: {
