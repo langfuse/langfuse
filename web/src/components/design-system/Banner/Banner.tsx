@@ -129,12 +129,12 @@ function BannerActionItem({ action }: { action: BannerAction }) {
       rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
     >
       {action.text}
-      {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
+      {/* Half a pixel is off the scale on purpose: 0 sits high, 1px sits low. */}
       <ExternalLink
         size="sm"
         color="inherit"
         aria-hidden="true"
-        __rawClassName="-translate-y-px"
+        __rawClassName="translate-y-[0.5px]"
       />
     </a>
   );
