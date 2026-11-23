@@ -1,5 +1,4 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 const loadErrorCopy = {
   setup: {
@@ -29,12 +28,12 @@ export function GatewayLoadError({ kind, onRetry }: GatewayLoadErrorProps) {
   const copy = loadErrorCopy[kind];
 
   return (
-    <div className="flex flex-col items-start gap-4">
-      <Alert variant="destructive">
-        <Alert.Title>{copy.title}</Alert.Title>
-        <Alert.Description>{copy.description}</Alert.Description>
-      </Alert>
-      <Button text="Retry" variant="secondary" onClick={onRetry} />
-    </div>
+    <Banner
+      variant="error"
+      title={copy.title}
+      actions={[{ text: "Retry", onClick: onRetry }]}
+    >
+      {copy.description}
+    </Banner>
   );
 }

@@ -1012,6 +1012,7 @@ export default function ObservationsEventsTable({
     handleAddToAnnotationQueue,
     isFetching,
     isIoPending,
+    error: observationsError,
     isSilencedError,
     usedAppRootFallback,
   } = useEventsTableData({
@@ -2505,7 +2506,8 @@ export default function ObservationsEventsTable({
                 noResultsMessage={
                   isSilencedError ? (
                     <span className="text-muted-foreground">
-                      {RESOURCE_LIMIT_ERROR_MESSAGE}
+                      {observationsError?.message ||
+                        RESOURCE_LIMIT_ERROR_MESSAGE}
                     </span>
                   ) : undefined
                 }

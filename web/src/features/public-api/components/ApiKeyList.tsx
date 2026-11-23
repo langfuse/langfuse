@@ -1,6 +1,6 @@
 import startCase from "lodash/startCase";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import Header from "@/src/components/layouts/header";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
@@ -43,12 +43,9 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
     return (
       <div>
         <Header title="API Keys" />
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            You do not have permission to view API keys for this {scope}.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          You do not have permission to view API keys for this {scope}.
+        </Banner>
       </div>
     );
   }

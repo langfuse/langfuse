@@ -208,7 +208,7 @@ export const eventsRouter = createTRPCRouter({
     protectedGetSessionProcedure.input(GetSessionEventsInput),
     { resourceType: "observation", action: "list" },
     async ({ input, ctx, audit }) => {
-      const filter = isProjectMember(ctx.session.user, input.projectId)
+      const filter = isProjectMember(ctx.session?.user, input.projectId)
         ? (input.filter ?? [])
         : (input.filter ?? []).filter(
             ({ column }) =>

@@ -32,12 +32,6 @@ export declare class EarlyOtelBatch {
 
 /** A snapshot of one finalized event row, retained until its JS handle and any encoder tasks drop it. */
 export declare class PreparedEvent {
-  /**
-   * Read a storage-ready row into owned Rust fields. JSON-valued String columns such as
-   * `model_parameters` must already be serialized by TypeScript. ClickHouse computes
-   * `event_bytes` after insertion. This constructor never serializes the JS row.
-   */
-  constructor(row: object)
   get ids(): PreparedEventIds
   static columns(): Array<PreparedEventColumn>
 }
@@ -110,7 +104,7 @@ export interface FinalizedOtelEvent {
   traceId: string
   startTimeIso: string
   environment: string
-  /** JSON byte size after applying oversized-field upload results, for selected traces. */
+  /** Estimated dispatch weight after field overflow, present only for sampled traces. */
   serializedEventBytes?: number
 }
 

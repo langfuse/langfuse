@@ -15,6 +15,7 @@ export const BATCH_DELETION_TABLES = [
   "dataset_run_items_rmt",
   "topic_facet_summaries",
   "topic_assignments",
+  "topic_assignments_by_trace",
   "topics",
 ] as const;
 import { env } from "../../env";
@@ -327,11 +328,6 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       clickhouseConfigs: {
         request_timeout: env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS,
       },
-      // Patch parts disable the summary projection until they are materialized.
-      clickhouseSettings:
-        this.tableName === "topic_facet_summaries"
-          ? { lightweight_delete_mode: "alter_update" }
-          : undefined,
     });
   }
 }

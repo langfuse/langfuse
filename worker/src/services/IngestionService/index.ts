@@ -64,7 +64,10 @@ import {
   convertRecordValuesToString,
   overwriteObject,
 } from "./utils";
-import { resolveAiGatewayAttribution } from "./aiGatewayAttribution";
+import {
+  isAiGatewayCalculatedCost,
+  resolveAiGatewayAttribution,
+} from "./aiGatewayAttribution";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
@@ -395,7 +398,12 @@ export class IngestionService {
       provided_usage_details: eventData.providedUsageDetails ?? {},
       usage_details:
         generationUsage?.usage_details ?? eventData.usageDetails ?? {},
-      provided_cost_details: eventData.providedCostDetails ?? {},
+      provided_cost_details: isAiGatewayCalculatedCost({
+        ingestionApiKey: eventData.ingestionApiKey,
+        metadata,
+      })
+        ? {}
+        : (eventData.providedCostDetails ?? {}),
       cost_details:
         generationUsage?.cost_details ?? eventData.costDetails ?? {},
 
@@ -472,10 +480,10 @@ export class IngestionService {
    * Use ClickHouse's sizing DEFAULT when detected, otherwise retain the legacy
    * JSON byte estimate. The supplied record is not mutated, and its raw OTEL
    * size is not sent to ClickHouse. Legacy estimates are returned with the row
-   * for reuse by trace batching.
+   * for reuse by trace dispatch.
    *
    * @param eventRecord - The event record to write
-   * @returns The accepted post-overflow row, for trace-batch capacity estimates
+   * @returns The accepted post-overflow row, for trace dispatch capacity estimates
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,

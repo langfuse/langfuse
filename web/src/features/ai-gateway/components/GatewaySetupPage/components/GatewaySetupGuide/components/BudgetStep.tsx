@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -123,10 +123,9 @@ function BudgetStepForm({
         <p className="text-destructive text-sm">{amountError}</p>
       ) : null}
       {errorMessage !== null ? (
-        <Alert variant="destructive">
-          <Alert.Title>Budgets could not be saved</Alert.Title>
-          <Alert.Description>{errorMessage}</Alert.Description>
-        </Alert>
+        <Banner variant="error" title="Budgets could not be saved">
+          {errorMessage}
+        </Banner>
       ) : null}
       <div className="flex items-center gap-2">
         <Button

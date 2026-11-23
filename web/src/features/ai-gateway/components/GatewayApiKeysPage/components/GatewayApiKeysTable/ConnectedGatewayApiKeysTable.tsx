@@ -1,8 +1,7 @@
 import { type ReactNode, useState } from "react";
 import type { OrderByState } from "@langfuse/shared";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -58,21 +57,13 @@ export function ConnectedGatewayApiKeysTable({
 
   if (apiKeysQuery.isError) {
     return (
-      <div className="flex flex-col gap-4">
-        <Alert variant="destructive">
-          <Alert.Title>Gateway keys could not be loaded</Alert.Title>
-          <Alert.Description>
-            Retry to manage keys for this organization.
-          </Alert.Description>
-        </Alert>
-        <Button
-          className="w-fit"
-          variant="secondary"
-          onClick={() => apiKeysQuery.refetch()}
-        >
-          Retry
-        </Button>
-      </div>
+      <Banner
+        variant="error"
+        title="Gateway keys could not be loaded"
+        actions={[{ text: "Retry", onClick: () => apiKeysQuery.refetch() }]}
+      >
+        Retry to manage keys for this organization.
+      </Banner>
     );
   }
 

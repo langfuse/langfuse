@@ -65,7 +65,7 @@ const definition = (topicId: string, name: string, runId: string) => ({
   topicId,
   createdByRunId: runId,
   createdAt: "2026-10-18T00:00:00.000Z",
-  tags: [],
+  labels: [],
   name,
   description: `${name} description`,
   centroid: [],

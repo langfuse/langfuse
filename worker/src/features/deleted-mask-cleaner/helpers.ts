@@ -11,6 +11,9 @@ export const DELETED_MASK_CLEANER_TABLES = [
   "traces",
   "observations",
   "scores",
+  "topic_facet_summaries",
+  "topic_assignments",
+  "topic_assignments_by_trace",
 ] as const;
 
 const DELETED_MASK_CLEANER_TABLE_SET = new Set<string>(

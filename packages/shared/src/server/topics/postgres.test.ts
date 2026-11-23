@@ -154,7 +154,7 @@ describe("Topics immutable definitions and run membership", () => {
     projectId: "project-a",
     createdByRunId: "run-a",
     createdAt: "2026-09-16T00:00:00.000Z",
-    tags: [],
+    labels: [],
     name: "Billing",
     description: "Invoice requests",
     centroid: [1, 0],

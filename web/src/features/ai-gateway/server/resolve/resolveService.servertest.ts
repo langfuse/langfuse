@@ -39,7 +39,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
     roleAssignment: {
       findMany: () =>
         Promise.resolve([
-          { systemRole: "AI_GATEWAY", orgId: keyOrgId, projectId: null },
+          {
+            systemRole: "AI_GATEWAY_INFERENCE",
+            orgId: keyOrgId,
+            projectId: null,
+          },
         ]),
     },
   } as unknown as PrismaClient;
