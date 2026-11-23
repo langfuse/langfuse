@@ -2,10 +2,8 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
-import {
-  evictUserGatewayResolveCache,
-  invalidateGatewayResolveCacheForApiKey,
-} from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { evictUserGatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { evictDeletedApiKeys } from "@/src/features/apiKey/evictDeletedApiKeys";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
@@ -19,7 +17,6 @@ import { assertValidOrgOwnershipChange } from "@/src/features/rbac/server/owners
 import { Role } from "@langfuse/shared";
 import { OrganizationId } from "@langfuse/shared/rbac";
 import { prisma } from "@langfuse/shared/src/db";
-import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 
 // Schema for request body validation
@@ -215,17 +212,7 @@ export async function handleDeleteMembership(
     });
     return { deleted: true, revokedKeys };
   });
-  await invalidateCachedApiKeys(
-    revokedKeys,
-    `user ${validatedBody.data.userId}`,
-  );
-  await Promise.all(
-    revokedKeys.map(
-      ({ fastHashedSecretKey }) =>
-        fastHashedSecretKey &&
-        invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey),
-    ),
-  );
+  await evictDeletedApiKeys(revokedKeys, `user ${validatedBody.data.userId}`);
 
   if (deleted) {
     const user = await prisma.user.findUnique({

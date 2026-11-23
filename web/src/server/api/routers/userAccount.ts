@@ -22,10 +22,9 @@ import {
   isInternalViewEnabled,
 } from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
-import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { evictDeletedApiKeys } from "@/src/features/apiKey/evictDeletedApiKeys";
 
 // Deleting a user fires a foreign-key action on every table that references
 // users, and many of those columns are unindexed, so the delete scans those
@@ -273,14 +272,7 @@ export const userAccountRouter = createTRPCRouter({
       },
     );
 
-    await invalidateCachedApiKeys(revokedKeys, `user ${userId}`);
-    await Promise.all(
-      revokedKeys.map(
-        ({ fastHashedSecretKey }) =>
-          fastHashedSecretKey &&
-          invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey),
-      ),
-    );
+    await evictDeletedApiKeys(revokedKeys, `user ${userId}`);
 
     // SFDC: remove every org-member bridge the cascade just deleted. After
     // commit so a rolled-back delete never desyncs SFDC; removeUser never
