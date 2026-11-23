@@ -302,18 +302,42 @@ impl ParsedRequest {
     }
 }
 
-/// The top-level members of a request body, borrowed from it. `model` and `stream`
-/// must appear at most once: a duplicate could route one model and send another.
+/// The top-level members of a request body, borrowed from it.
 struct Members<'a> {
-    model: Option<&'a RawValue>,
+    model: Seen<'a>,
     /// Kept raw so a non-boolean value is left for the provider to reject.
-    stream: Option<&'a RawValue>,
-    stream_options: Option<&'a RawValue>,
-    /// More than one `stream_options`: the body is forwarded without opting into usage.
-    stream_options_duplicated: bool,
+    stream: Seen<'a>,
+    stream_options: Seen<'a>,
     /// Every member, for capture; later members replace earlier ones of the same
     /// name, as in the recorded input. `None` when capture does not apply.
     all: Option<BTreeMap<String, &'a RawValue>>,
+}
+
+/// How often a member the gateway reads appeared. Parsers disagree on which
+/// duplicate wins, so the gateway never picks one.
+#[derive(Clone, Copy)]
+enum Seen<'a> {
+    Absent,
+    Once(&'a RawValue),
+    Duplicated,
+}
+
+impl<'a> Seen<'a> {
+    fn record(&mut self, value: &'a RawValue) {
+        *self = match self {
+            Self::Absent => Self::Once(value),
+            Self::Once(_) | Self::Duplicated => Self::Duplicated,
+        };
+    }
+
+    /// The single value; a duplicate could route one model and send another.
+    fn unique(self) -> Result<Option<&'a RawValue>, InferenceHttpError> {
+        match self {
+            Self::Absent => Ok(None),
+            Self::Once(value) => Ok(Some(value)),
+            Self::Duplicated => Err(InferenceHttpError::InvalidBody),
+        }
+    }
 }
 
 /// Collects `Members::all` only when set, so a body with millions of members
@@ -342,27 +366,18 @@ impl<'de> serde::de::Visitor<'de> for MembersSeed {
 
     fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
         let mut members = Members {
-            model: None,
-            stream: None,
-            stream_options: None,
-            stream_options_duplicated: false,
+            model: Seen::Absent,
+            stream: Seen::Absent,
+            stream_options: Seen::Absent,
             all: self.collect.then(BTreeMap::new),
         };
         while let Some(key) = map.next_key::<std::borrow::Cow<'de, str>>()? {
             let value: &'de RawValue = map.next_value()?;
-            let slot = match key.as_ref() {
-                "model" => Some(&mut members.model),
-                "stream" => Some(&mut members.stream),
-                _ => None,
-            };
-            if let Some(slot) = slot
-                && slot.replace(value).is_some()
-            {
-                return Err(serde::de::Error::custom("duplicate member"));
-            }
-            if key == "stream_options" {
-                members.stream_options_duplicated |=
-                    members.stream_options.replace(value).is_some();
+            match key.as_ref() {
+                "model" => members.model.record(value),
+                "stream" => members.stream.record(value),
+                "stream_options" => members.stream_options.record(value),
+                _ => {}
             }
             if let Some(all) = &mut members.all {
                 all.insert(key.into_owned(), value);
@@ -381,21 +396,28 @@ fn parse_request_body(bytes: Bytes, capture: bool) -> Result<ParsedRequest, Infe
         serde::de::DeserializeSeed::deserialize(MembersSeed { collect }, &mut deserializer)
             .and_then(|members| deserializer.end().map(|()| members))
             .map_err(|_| InferenceHttpError::InvalidBody)?;
-    let raw_model = members.model.ok_or(InferenceHttpError::InvalidBody)?;
+    let raw_model = members
+        .model
+        .unique()?
+        .ok_or(InferenceHttpError::InvalidBody)?;
     let model = serde_json::from_str::<String>(raw_model.get())
         .map_err(|_| InferenceHttpError::InvalidBody)?;
     if model.is_empty() {
         return Err(InferenceHttpError::InvalidBody);
     }
     let model_range = value_range(&bytes, raw_model).ok_or(InferenceHttpError::InvalidBody)?;
+    let streaming = members
+        .stream
+        .unique()?
+        .is_some_and(|stream| stream.get() == "true");
+    // A duplicate is forwarded as sent, without opting into usage.
     let stream_options = match members.stream_options {
-        _ if members.stream_options_duplicated => StreamOptions::Duplicated,
-        None => StreamOptions::Absent,
-        Some(raw) => {
+        Seen::Absent => StreamOptions::Absent,
+        Seen::Once(raw) => {
             StreamOptions::At(value_range(&bytes, raw).ok_or(InferenceHttpError::InvalidBody)?)
         }
+        Seen::Duplicated => StreamOptions::Duplicated,
     };
-    let streaming = members.stream.is_some_and(|stream| stream.get() == "true");
     let input =
         capture.then(|| RequestInput::from_members(members.all.into_iter().flatten(), bytes.len()));
     Ok(ParsedRequest {
