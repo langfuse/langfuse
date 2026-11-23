@@ -83,7 +83,7 @@ export function TopicCostEstimateView({
   return (
     <div className="flex flex-col gap-2 rounded-md border px-3.5 py-3">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-semibold">Cost estimate</span>
+        <span className="text-sm font-medium">Cost estimate</span>
         {running ? (
           <span className="text-muted-foreground flex items-center gap-2 text-xs">
             <Spinner size="sm" />
@@ -114,13 +114,13 @@ export function TopicCostEstimateView({
         <>
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <span>
-              <span className="text-lg font-semibold tabular-nums">
+              <span className="text-lg font-medium tabular-nums">
                 {approxUsd(perTraceUsd)}
               </span>{" "}
               <span className="text-muted-foreground text-sm">per trace</span>
             </span>
             <span>
-              <span className="text-lg font-semibold tabular-nums">
+              <span className="text-lg font-medium tabular-nums">
                 {approxUsd(perTraceUsd * 1000)}
               </span>{" "}
               <span className="text-muted-foreground text-sm">
