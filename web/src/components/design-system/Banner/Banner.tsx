@@ -65,19 +65,13 @@ const icons: Record<BannerVariant, IconComponent> = {
   error: CircleAlert,
 };
 
-/** Banner adds the external link icon to links that open a new tab, and ignores it as `icon`. */
+/** External links get the external link icon from Banner, in place of `icon`. */
 export type BannerAction = {
   text: string;
   icon?: IconComponent;
 } & (
-  | { onClick: () => void; disabled?: boolean; href?: never; newTab?: never }
-  | {
-      href: string;
-      /** Opens an in-app link in a new tab. External URLs always do. */
-      newTab?: boolean;
-      onClick?: never;
-      disabled?: never;
-    }
+  | { onClick: () => void; disabled?: boolean; href?: never }
+  | { href: string; onClick?: never; disabled?: never }
 );
 
 type BannerProps = {
@@ -92,8 +86,7 @@ type BannerProps = {
 };
 
 function BannerActionItem({ action }: { action: BannerAction }) {
-  // The external link icon is Banner's own: it marks links that open a new tab.
-  const Icon = action.icon === ExternalLink ? undefined : action.icon;
+  const Icon = action.icon;
   const icon = Icon ? (
     <Icon size="base" color="inherit" aria-hidden="true" />
   ) : null;
@@ -117,14 +110,9 @@ function BannerActionItem({ action }: { action: BannerAction }) {
 
   if (!isExternal) {
     return (
-      <Link
-        className={actionClassName}
-        href={action.href}
-        {...(action.newTab ? { target: "_blank", rel: "noopener" } : {})}
-      >
+      <Link className={actionClassName} href={action.href}>
         {icon}
         {action.text}
-        {action.newTab ? <NewTabIcon /> : null}
       </Link>
     );
   }
@@ -140,22 +128,15 @@ function BannerActionItem({ action }: { action: BannerAction }) {
       target="_blank"
       rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
     >
-      {icon}
       {action.text}
-      <NewTabIcon />
+      {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
+      <ExternalLink
+        size="sm"
+        color="inherit"
+        aria-hidden="true"
+        __rawClassName="-translate-y-px"
+      />
     </a>
-  );
-}
-
-// The glyph reaches the bottom of its box, so centered it dips below the text baseline.
-function NewTabIcon() {
-  return (
-    <ExternalLink
-      size="sm"
-      color="inherit"
-      aria-hidden="true"
-      __rawClassName="-translate-y-px"
-    />
   );
 }
 

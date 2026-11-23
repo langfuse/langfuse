@@ -1,7 +1,7 @@
 import React from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import { ExternalLink } from "@langfuse/icons";
+import { Settings } from "@langfuse/icons";
 
 import preview from "../../../../.storybook/preview";
 import { Banner } from "./Banner";
@@ -81,16 +81,22 @@ export const LinkActions = meta.story({
         Stays in the same tab, so it has no icon.
       </Banner>
       <Banner
-        title="In-app link in a new tab"
-        actions={[{ text: "Open LLM connections", href: "#", newTab: true }]}
-      >
-        Keeps a dialog or form open behind it. Banner adds the icon.
-      </Banner>
-      <Banner
         title="External link"
         actions={[{ text: "Read the docs", href: "https://langfuse.com/docs" }]}
       >
-        Always opens a new tab. Banner adds the icon.
+        Opens a new tab. Banner adds the icon.
+      </Banner>
+      <Banner
+        title="External link with an icon passed"
+        actions={[
+          {
+            text: "Read the docs",
+            href: "https://langfuse.com/docs",
+            icon: Settings,
+          },
+        ]}
+      >
+        The external link icon replaces the passed icon.
       </Banner>
     </div>
   ),
@@ -141,21 +147,5 @@ export const DismissAction = meta.story({
 
     await userEvent.click(canvas.getByRole("button", { name: "Dismiss" }));
     await expect(args.onDismiss).toHaveBeenCalledOnce();
-  },
-});
-
-export const IgnoresHandPassedExternalLinkIcon = meta.story({
-  name: "(Test) Ignores a hand-passed external link icon",
-  args: {
-    variant: "warning",
-    title: "Evaluator paused",
-    children: "Add or restore the LLM connection, then reactivate it.",
-    actions: [{ text: "Open LLM connections", href: "#", icon: ExternalLink }],
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const link = canvas.getByRole("link", { name: "Open LLM connections" });
-
-    await expect(link.querySelector("svg")).toBeNull();
   },
 });

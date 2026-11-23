@@ -48,7 +48,6 @@ type ConfigureTopicsDialogProps = {
   draft: ConfigureTopicsDraft;
   closeDialog: () => void;
   onConfigureProviders: () => void;
-  llmConnectionsHref: string;
   onSave: (draft: ConfigureTopicsSaveDraft) => void | Promise<void>;
   onSlotCommit?: (
     slot: "summary" | "embedding" | "clustering",
@@ -99,7 +98,6 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
     draft,
     canWrite = true,
     onConfigureProviders,
-    llmConnectionsHref,
     onSave,
     onSlotCommit,
     providerGroups,
@@ -212,7 +210,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
               shortLabel={paused.shortLabel}
               pausedAgo={paused.pausedAgo}
               message={paused.message}
-              llmConnectionsHref={llmConnectionsHref}
+              onConfigureProviders={onConfigureProviders}
             />
           ) : null}
           <SettingsSection
@@ -414,13 +412,13 @@ function SlotStatus({
 }
 
 function PausedNotice({
-  llmConnectionsHref,
   message,
+  onConfigureProviders,
   pausedAgo,
   shortLabel,
 }: {
-  llmConnectionsHref: string;
   message: string;
+  onConfigureProviders: () => void;
   pausedAgo: string;
   shortLabel: string;
 }) {
@@ -431,8 +429,7 @@ function PausedNotice({
       actions={[
         {
           text: "Open LLM connections",
-          href: llmConnectionsHref,
-          newTab: true,
+          onClick: onConfigureProviders,
         },
       ]}
     >
