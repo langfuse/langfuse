@@ -1,11 +1,14 @@
 import {
   EvalTargetObject,
   EvalTemplateType,
+  extractTranscriptEvalVariables,
   InvalidRequestError,
+  isTraceTranscriptEvalType,
   isExperimentEvaluationRule,
   LangfuseConflictError,
   LangfuseNotFoundError,
   normalizeEvaluationRuleTarget,
+  TopicsTargetObject,
   validateEvaluatorFiltersForTarget,
   type FilterState,
   type ObservationVariableMapping,
@@ -28,6 +31,7 @@ import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features
 import type {
   CreateOrAttachFromEvaluatorFiltersInput,
   CreateRuleInput,
+  CreateTraceTranscriptRuleInput,
   ListRulesInput,
   RuleAssignmentInput,
   RuleSelectionInput,
@@ -56,20 +60,27 @@ export type RuleAuditEvent = {
   ruleId: string;
 };
 
-type RuleServiceUpdateInput = UpdateRuleInput & {
-  targetObject?: EvalTargetObject;
+type RuleServiceUpdateInput = Omit<UpdateRuleInput, "targetObject"> & {
+  targetObject?: EvalTargetObject | typeof TopicsTargetObject;
 };
 
 export class RuleService {
+  /**
+   * `visibility` opts into trace transcript rules. The rule router passes it
+   * behind the trace transcript evals gate; the public API and MCP leave it
+   * off, so their reads and writes never reach a trace transcript rule.
+   */
   constructor(
     private readonly prisma: PrismaClient,
     private readonly audit: (event: RuleAuditEvent) => Promise<void>,
+    private readonly visibility: repository.RuleVisibility = {},
   ) {}
 
   async list(input: ListRulesInput) {
     const { rules, totalItems } = await repository.listRules({
       prisma: this.prisma,
       input,
+      visibility: this.visibility,
     });
     return { rules: rules.map(toRuleResponse), totalItems };
   }
@@ -90,6 +101,7 @@ export class RuleService {
     return repository.listRuleFilterOptions({
       prisma: this.prisma,
       projectId,
+      visibility: this.visibility,
     });
   }
 
@@ -98,6 +110,7 @@ export class RuleService {
       prisma: this.prisma,
       projectId,
       ruleId,
+      visibility: this.visibility,
     });
     if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
     return toRuleResponse(rule);
@@ -183,6 +196,7 @@ export class RuleService {
       prisma: this.prisma,
       projectId,
       evaluatorId,
+      visibility: this.visibility,
     });
   }
 
@@ -191,6 +205,7 @@ export class RuleService {
       prisma: this.prisma,
       projectId,
       evaluatorIds,
+      visibility: this.visibility,
     });
   }
 
@@ -280,6 +295,43 @@ export class RuleService {
             normalized.targetObject as CreateRuleInput["targetObject"],
           filter,
         },
+        createdByUserId,
+      });
+    });
+    await invalidateProjectEvalConfigCaches(input.projectId);
+    const response = toRuleResponse(rule);
+    await this.audit({
+      action: "create",
+      projectId: input.projectId,
+      ruleId: response.id,
+    });
+    return response;
+  }
+
+  /**
+   * The only writer of trace transcript rules. The rule router calls it behind
+   * the trace transcript evals gate; the public API and MCP never do.
+   */
+  async createTraceTranscriptRule(
+    input: CreateTraceTranscriptRuleInput,
+    createdByUserId: string | null,
+  ) {
+    const filter = this.validateRuleFilters(TopicsTargetObject, input.filter);
+    this.assertUniqueAssignments(input.evaluatorAssignments);
+    const rule = await this.prisma.$transaction(async (prisma) => {
+      await assertActiveRuleLimitNotExceeded({
+        prisma,
+        projectId: input.projectId,
+        additionalActiveRules: input.enabled ? 1 : 0,
+      });
+      await this.assertTraceTranscriptAssignments({
+        prisma,
+        projectId: input.projectId,
+        assignments: input.evaluatorAssignments,
+      });
+      return repository.createRule({
+        prisma,
+        input: { ...input, filter },
         createdByUserId,
       });
     });
@@ -396,10 +448,17 @@ export class RuleService {
         })
           ? EvalTargetObject.EXPERIMENT
           : currentTargetObject;
-      const normalized = normalizeEvaluationRuleTarget({
-        targetObject: input.targetObject ?? inheritedTargetObject,
-        filter: effectiveFilter,
-      });
+      const explicitTarget = input.targetObject;
+      // An update that names no target keeps a trace transcript rule one.
+      const normalized =
+        explicitTarget === TopicsTargetObject ||
+        (explicitTarget === undefined &&
+          current.targetObject === TopicsTargetObject)
+          ? { targetObject: TopicsTargetObject, filter: effectiveFilter }
+          : normalizeEvaluationRuleTarget({
+              targetObject: explicitTarget ?? inheritedTargetObject,
+              filter: effectiveFilter,
+            });
       const filter = isLegacyEvalTarget(currentTargetObject)
         ? currentFilter
         : this.validateRuleFilters(normalized.targetObject, normalized.filter);
@@ -413,17 +472,29 @@ export class RuleService {
       });
       if (input.evaluatorMappings) {
         this.assertLegacyRuleAssignmentsWritable(current.targetObject);
-        input.evaluatorMappings = await this.prepareModernAssignments({
-          prisma,
-          projectId: input.projectId,
-          assignments: input.evaluatorMappings,
-        });
+        if (normalized.targetObject === TopicsTargetObject) {
+          await this.assertTraceTranscriptAssignments({
+            prisma,
+            projectId: input.projectId,
+            assignments: input.evaluatorMappings.map((assignment) => ({
+              evaluatorId: assignment.evaluatorId,
+              variableMapping: assignment.variableMapping ?? [],
+            })),
+          });
+        } else {
+          input.evaluatorMappings = await this.prepareModernAssignments({
+            prisma,
+            projectId: input.projectId,
+            assignments: input.evaluatorMappings,
+          });
+        }
       }
       await repository.updateRule({
         prisma,
         input,
         targetObject: normalized.targetObject,
         filter: filter as Prisma.InputJsonValue,
+        visibility: this.visibility,
       });
       if (input.evaluatorMappings) {
         await repository.replaceAssignments({
@@ -431,13 +502,22 @@ export class RuleService {
           projectId: input.projectId,
           ruleId: input.ruleId,
           assignments: input.evaluatorMappings,
+          visibility: this.visibility,
         });
       }
-      const updated = await repository.findRule({
-        prisma,
-        projectId: input.projectId,
-        ruleId: input.ruleId,
-      });
+      const updated =
+        normalized.targetObject === TopicsTargetObject
+          ? await repository.findWrittenRule({
+              prisma,
+              projectId: input.projectId,
+              ruleId: input.ruleId,
+            })
+          : await repository.findRule({
+              prisma,
+              projectId: input.projectId,
+              ruleId: input.ruleId,
+              visibility: this.visibility,
+            });
       if (!updated)
         throw new LangfuseNotFoundError("Evaluation rule not found");
       return updated;
@@ -481,11 +561,13 @@ export class RuleService {
         ruleIds: [params.ruleId],
         enabled: params.enabled,
         sampling: params.sampling,
+        visibility: this.visibility,
       });
       const updated = await repository.findRule({
         prisma,
         projectId: params.projectId,
         ruleId: params.ruleId,
+        visibility: this.visibility,
       });
       if (!updated)
         throw new LangfuseNotFoundError("Evaluation rule not found");
@@ -503,7 +585,12 @@ export class RuleService {
 
   async delete(projectId: string, ruleId: string) {
     const deleted = await this.prisma.$transaction((prisma) =>
-      repository.deleteRule({ prisma, projectId, ruleId }),
+      repository.deleteRule({
+        prisma,
+        projectId,
+        ruleId,
+        visibility: this.visibility,
+      }),
     );
     if (!deleted) throw new LangfuseNotFoundError("Evaluation rule not found");
     await invalidateProjectEvalConfigCaches(projectId);
@@ -512,11 +599,16 @@ export class RuleService {
 
   async deleteMany(input: RuleSelectionInput) {
     const ruleIds = await this.prisma.$transaction(async (prisma) => {
-      const ids = await repository.listSelectedRuleIds({ prisma, input });
+      const ids = await repository.listSelectedRuleIds({
+        prisma,
+        input,
+        visibility: this.visibility,
+      });
       await repository.deleteRules({
         prisma,
         projectId: input.projectId,
         ruleIds: ids,
+        visibility: this.visibility,
       });
       return ids;
     });
@@ -547,6 +639,7 @@ export class RuleService {
       const ids = await repository.listSelectedRuleIds({
         prisma,
         input: selection,
+        visibility: this.visibility,
       });
       const legacyRuleCount = await prisma.evaluationRule.count({
         where: {
@@ -619,11 +712,23 @@ export class RuleService {
         params.ruleId,
       );
       this.assertLegacyRuleAssignmentsWritable(rule.targetObject);
-      const [assignment] = await this.prepareModernAssignments({
-        prisma,
-        projectId: params.projectId,
-        assignments: [params.assignment],
-      });
+      const [assignment] =
+        rule.targetObject === TopicsTargetObject
+          ? await this.assertTraceTranscriptAssignments({
+              prisma,
+              projectId: params.projectId,
+              assignments: [
+                {
+                  evaluatorId: params.assignment.evaluatorId,
+                  variableMapping: params.assignment.variableMapping ?? [],
+                },
+              ],
+            })
+          : await this.prepareModernAssignments({
+              prisma,
+              projectId: params.projectId,
+              assignments: [params.assignment],
+            });
       await repository.attachEvaluator({
         prisma,
         projectId: params.projectId,
@@ -642,6 +747,7 @@ export class RuleService {
           projectId: params.projectId,
           ruleIds: [params.ruleId],
           enabled: true,
+          visibility: this.visibility,
         });
       }
     });
@@ -662,7 +768,11 @@ export class RuleService {
   }) {
     const deleted = await this.prisma.$transaction(async (prisma) => {
       await this.requireRule(prisma, params.projectId, params.ruleId);
-      return repository.detachEvaluator({ prisma, ...params });
+      return repository.detachEvaluator({
+        prisma,
+        ...params,
+        visibility: this.visibility,
+      });
     });
     if (!deleted) throw new LangfuseNotFoundError("Assignment not found");
     await invalidateProjectEvalConfigCaches(params.projectId);
@@ -675,7 +785,10 @@ export class RuleService {
     return rule;
   }
 
-  private validateRuleFilters(targetObject: EvalTargetObject, filter: unknown) {
+  private validateRuleFilters(
+    targetObject: EvalTargetObject | typeof TopicsTargetObject,
+    filter: unknown,
+  ) {
     const result = validateEvaluatorFiltersForTarget({
       targetObject,
       filter,
@@ -693,7 +806,12 @@ export class RuleService {
     projectId: string,
     ruleId: string,
   ) {
-    const rule = await repository.findRule({ prisma, projectId, ruleId });
+    const rule = await repository.findRule({
+      prisma,
+      projectId,
+      ruleId,
+      visibility: this.visibility,
+    });
     if (!rule) throw new LangfuseNotFoundError("Evaluation rule not found");
     return rule;
   }
@@ -744,6 +862,49 @@ export class RuleService {
     }
   }
 
+  private async assertTraceTranscriptAssignments(params: {
+    prisma: Prisma.TransactionClient;
+    projectId: string;
+    assignments: CreateTraceTranscriptRuleInput["evaluatorAssignments"];
+  }) {
+    const evaluators = await evaluatorRepository.findEvaluatorsByIds({
+      prisma: params.prisma,
+      projectId: params.projectId,
+      evaluatorIds: params.assignments.map(({ evaluatorId }) => evaluatorId),
+    });
+    if (evaluators.length !== params.assignments.length) {
+      throw new LangfuseNotFoundError("Evaluator not found");
+    }
+    const evaluatorById = new Map(
+      evaluators.map((evaluator) => [evaluator.id, evaluator]),
+    );
+    for (const assignment of params.assignments) {
+      const evaluator = evaluatorById.get(assignment.evaluatorId)!;
+      if (!isTraceTranscriptEvalType(evaluator.type)) {
+        throw new InvalidRequestError(
+          "Trace evaluations support LLM-as-a-judge and decision-model evaluators.",
+        );
+      }
+      const latestVersion = evaluator.versions[0];
+      if (!latestVersion) {
+        throw new LangfuseNotFoundError("Evaluator version not found");
+      }
+      const extracted = extractTranscriptEvalVariables(
+        null,
+        assignment.variableMapping,
+      );
+      if (!extracted.ok) throw new InvalidRequestError(extracted.error);
+      assertCompleteEvaluatorVariableMapping({
+        promptVariables: requiredEvaluatorVariables(
+          evaluator.type,
+          latestVersion,
+        ),
+        variableMapping: assignment.variableMapping,
+      });
+    }
+    return params.assignments;
+  }
+
   private async prepareModernAssignments(params: {
     prisma: Prisma.TransactionClient;
     projectId: string;
@@ -786,17 +947,11 @@ export class RuleService {
       );
       const storedVariableMapping =
         assignment.variableMapping ?? prepared.initialVariableMapping;
-      const requiredVariables =
-        evaluator.type === EvalTemplateType.DECISION_MODEL
-          ? latestVersion.vars
-          : extractEvaluatorPromptVariables(
-              reconcileEvaluatorPromptMessages({
-                prompt: latestVersion.prompt,
-                promptMessages: latestVersion.promptMessages,
-              }),
-            );
       assertCompleteEvaluatorVariableMapping({
-        promptVariables: requiredVariables,
+        promptVariables: requiredEvaluatorVariables(
+          evaluator.type,
+          latestVersion,
+        ),
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
       });
@@ -809,6 +964,24 @@ export class RuleService {
 }
 
 type StoredRule = NonNullable<Awaited<ReturnType<typeof repository.findRule>>>;
+
+type EvaluatorWithVersions = Awaited<
+  ReturnType<typeof evaluatorRepository.findEvaluatorsByIds>
+>[number];
+
+function requiredEvaluatorVariables(
+  type: EvalTemplateType,
+  latestVersion: EvaluatorWithVersions["versions"][number],
+) {
+  return type === EvalTemplateType.DECISION_MODEL
+    ? latestVersion.vars
+    : extractEvaluatorPromptVariables(
+        reconcileEvaluatorPromptMessages({
+          prompt: latestVersion.prompt,
+          promptMessages: latestVersion.promptMessages,
+        }),
+      );
+}
 
 function toRuleResponse(rule: StoredRule) {
   const { status, assignments, filter, sampling, ...rest } = rule;

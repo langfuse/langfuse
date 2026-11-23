@@ -14,6 +14,7 @@ import { EvaluatorVersionConflictError } from "./evaluatorErrors";
 import { setRuleStatus } from "../rules/ruleRepository";
 import {
   EvalTargetObject,
+  TopicsTargetObject,
   eventsEvalFilterColumns,
   validateEvaluatorFiltersForTarget,
   type FilterState,
@@ -51,9 +52,13 @@ const visibleEvaluatorWhere = {
   type: { not: EvalTemplateType.FACET },
 } as const satisfies Prisma.EvaluatorWhereInput;
 
+/** Trace transcript rules map `threads`, which the public mapping contract cannot express. */
 const publicEvaluationRuleAssignments = (projectId: string) =>
   ({
-    where: { projectId },
+    where: {
+      projectId,
+      evaluationRule: { targetObject: { not: TopicsTargetObject } },
+    },
     orderBy: { createdAt: "desc" },
     select: {
       variableMapping: true,
