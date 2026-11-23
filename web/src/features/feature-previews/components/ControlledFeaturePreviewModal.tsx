@@ -63,6 +63,10 @@ export function ControlledFeaturePreviewModal({
     internalViewEnabled ||
     authSession.data?.user?.featureFlags.traceTranscriptEvals === true;
 
+  const traceEvalsWarningReason = internalViewEnabled
+    ? "Trace transcript evals are enabled by Internal view. Switching to External view hides them unless they have been enabled for you separately."
+    : undefined;
+
   const isModernSessionEnabled =
     isV4 &&
     (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
@@ -104,9 +108,7 @@ export function ControlledFeaturePreviewModal({
           traceTranscriptEvals: {
             enabled: isTraceEvalsEnabled,
             disabled: internalViewEnabled,
-            warningReason: internalViewEnabled
-              ? "Trace transcript evals are enabled by Internal view. Switching to External view hides them unless they have been enabled for you separately."
-              : undefined,
+            warningReason: traceEvalsWarningReason,
             onToggle: onToggle("traceTranscriptEvals"),
             isToggling: setFeaturePreviewEnabled.isPending,
           },
