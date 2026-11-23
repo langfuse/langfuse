@@ -3370,6 +3370,23 @@ export class OtelIngestionProcessor {
       {},
     );
 
+    // Claude Platform reports the cache-write TTL split outside gen_ai.usage.*.
+    for (const ttl of ["5m", "1h"]) {
+      const usageDetailKey = `cache_creation.${ttl}_input_tokens`;
+      const attribute =
+        attributes[
+          `anthropic.usage.cache_creation.ephemeral_${ttl}_input_tokens`
+        ];
+      const value = Number(attribute);
+      if (
+        rawUsageDetails[usageDetailKey] === undefined &&
+        attribute !== undefined &&
+        !Number.isNaN(value)
+      ) {
+        rawUsageDetails[usageDetailKey] = value;
+      }
+    }
+
     const inputTokens =
       rawUsageDetails["prompt_tokens"] ??
       rawUsageDetails["input_tokens"] ??
