@@ -1,11 +1,22 @@
 import { useState, type ReactNode } from "react";
+import { Context as ResponsiveContext } from "react-responsive";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
-import { type TopicFacet } from "@langfuse/shared/topics";
+import {
+  TOPICS_COST_ESTIMATE_MAX_FACETS,
+  type TopicFacet,
+} from "@langfuse/shared/topics";
+import { TopicCostEstimate } from "./TopicCostEstimate";
+import { type TopicRunCost } from "./topic-run-labels";
+import { type RouterOutputs } from "@/src/utils/api";
 
 const state = vi.hoisted(() => ({
   canViewTopics: true,
@@ -14,9 +25,10 @@ const state = vi.hoisted(() => ({
   updatedAt: "2026-09-23T12:00:00Z",
   retry: vi.fn(),
   refetchExecution: vi.fn(),
-  queryCosts: vi.fn<() => Promise<Record<string, number>>>(),
+  queryCosts: vi.fn<() => Promise<Record<string, TopicRunCost>>>(),
   dateRange: undefined as string | undefined,
   executionId: undefined as string | undefined,
+  map: undefined as string | undefined,
   setQueryParams: vi.fn(),
   currentTopics: vi.fn(),
   hasStoredSummaries: true,
@@ -36,7 +48,17 @@ const state = vi.hoisted(() => ({
   rulesError: null as Error | null,
   configurationFailure: null as "settings" | "readiness" | "connections" | null,
   settings: {} as Record<string, unknown>,
-  rules: [] as Array<{ id?: string; facetIds: string[] }>,
+  rules: [] as Array<{
+    id?: string;
+    facetIds: string[];
+    name?: string;
+  }>,
+  queryMapCosts:
+    vi.fn<
+      (input: {
+        projectId: string;
+      }) => Promise<RouterOutputs["topics"]["ruleMapCosts"]>
+    >(),
   maps: undefined as unknown,
   capture: vi.fn(),
 }));
@@ -64,7 +86,11 @@ vi.mock("@/src/components/layouts/page-header-controls-slot", () => ({
 }));
 vi.mock("next/router", () => ({
   useRouter: () => ({
-    query: { projectId: "project", executionId: state.executionId },
+    query: {
+      projectId: "project",
+      executionId: state.executionId,
+      map: state.map,
+    },
     push: state.push,
   }),
 }));
@@ -157,7 +183,9 @@ vi.mock("./CurrentTopics", () => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
-      executionCosts: { _def: () => ({ path: ["topics", "executionCosts"] }) },
+      executionCostBreakdown: {
+        _def: () => ({ path: ["topics", "executionCostBreakdown"] }),
+      },
       facets: {
         useQuery: () => ({
           data: state.facetsLoading ? undefined : state.facets,
@@ -246,6 +274,17 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
+      ruleMapCosts: {
+        useQuery: (
+          input: { projectId: string },
+          options: { enabled: boolean; staleTime: number },
+        ) =>
+          useQuery({
+            queryKey: ["topics.ruleMapCosts", input],
+            queryFn: () => state.queryMapCosts(input),
+            ...options,
+          }),
+      },
       startRuleSetup: {
         useMutation: () => ({
           isPending: false,
@@ -282,7 +321,11 @@ vi.mock("@/src/utils/api", () => ({
       },
     },
     useUtils: () => ({
-      client: { topics: { executionCosts: { query: state.queryCosts } } },
+      client: {
+        topics: {
+          executionCostBreakdown: { query: state.queryCosts },
+        },
+      },
       topics: {
         modelSettings: { invalidate: vi.fn() },
         maps: { invalidate: vi.fn() },
@@ -292,11 +335,11 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-function renderTopicsPage() {
+function renderTopicsPage(page = <TopicsPage />) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(<TopicsPage />, {
+  return render(page, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={client}>
         <LayerProvider>{children}</LayerProvider>
@@ -329,6 +372,7 @@ beforeEach(() => {
   state.updatedAt = "2026-09-23T12:00:00Z";
   state.dateRange = undefined;
   state.executionId = undefined;
+  state.map = undefined;
   state.canWrite = true;
   state.facets = [];
   state.facetsLoading = false;
@@ -347,6 +391,7 @@ beforeEach(() => {
     blockMessage: null,
   };
   state.rules = [];
+  state.queryMapCosts.mockReset().mockResolvedValue({});
   state.setQueryParams.mockImplementation(
     ({ dateRange }: { dateRange: string }) => {
       state.dateRange = dateRange;
@@ -440,15 +485,96 @@ function withSummaries() {
   state.rules = [{ facetIds: ["intent", "outcome"] }];
 }
 
+it("explains the forecast limit without requesting an estimate for an oversized selection", () => {
+  const facetIds = Array.from(
+    { length: TOPICS_COST_ESTIMATE_MAX_FACETS + 1 },
+    (_, i) => `facet-${i}`,
+  );
+  render(
+    <TopicCostEstimate
+      projectId="project"
+      source="snapshot"
+      filter={[]}
+      facetIds={facetIds}
+      newTraces={10}
+    />,
+  );
+  expect(screen.getByText(/cost estimates support up to/i)).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Estimate cost" })).toBeNull();
+});
+
+it("shows the selected map’s cost while browsing other maps on a phone", async () => {
+  withSummaries();
+  state.rules.push({ name: "Support agent", facetIds: ["intent"] });
+  const costs =
+    Promise.withResolvers<RouterOutputs["topics"]["ruleMapCosts"]>();
+  state.queryMapCosts.mockReturnValueOnce(costs.promise);
+  renderTopicsPage(
+    <ResponsiveContext.Provider value={{ width: 390 }}>
+      <TopicsPage />
+    </ResponsiveContext.Provider>,
+  );
+  expect(state.queryMapCosts).not.toHaveBeenCalled();
+  const trigger = screen.getByRole("button", { name: "Topic map: Rule" });
+  fireEvent.click(trigger);
+  const picker = within(
+    await screen.findByRole("dialog", { name: "Topic maps" }),
+  );
+  expect(picker.getByText("Loading…")).toBeVisible();
+  expect(state.queryMapCosts).toHaveBeenCalledWith({ projectId: "project" });
+  costs.resolve({ "rule-0": 0, "rule-1": 0.14 });
+  expect(await picker.findByText("~$0.00")).toBeVisible();
+  fireEvent.focus(picker.getByRole("button", { name: /^Support agent/ }));
+  expect(picker.getByText("~$0.00")).toBeVisible();
+  expect(picker.queryByText("~$0.14")).toBeNull();
+  fireEvent.click(trigger);
+  expect(screen.queryByRole("dialog", { name: "Topic maps" })).toBeNull();
+  fireEvent.click(trigger);
+  const reopened = await screen.findByRole("dialog", { name: "Topic maps" });
+  expect(within(reopened).getByText("~$0.00")).toBeVisible();
+  expect(state.queryMapCosts).toHaveBeenCalledOnce();
+});
+
+it("waits for the picker to open before fetching a deep-linked snapshot’s cost", async () => {
+  withSummaries();
+  const snapshot = {
+    id: "snapshot",
+    label: "Checkout snapshot",
+    facetIds: ["intent"],
+    filter: [],
+    status: "completed",
+    createdAt: state.updatedAt,
+    updatedAt: state.updatedAt,
+    timeRange: { from: new Date("2026-09-22"), to: new Date("2026-09-23") },
+    traceCount: 20,
+  };
+  state.maps = { rules: [], analyses: [snapshot] };
+  state.map = "analysis:snapshot";
+  state.queryCosts.mockResolvedValue({
+    snapshot: { summaries: null, naming: 0.13 },
+  });
+  renderTopicsPage();
+  expect(state.queryCosts).not.toHaveBeenCalled();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Topic map: Checkout snapshot" }),
+  );
+  const picker = await screen.findByRole("dialog", { name: "Topic maps" });
+  expect(await within(picker).findByText("~$0.13")).toBeVisible();
+  expect(state.queryMapCosts).not.toHaveBeenCalled();
+});
+
 it("keeps settled costs visible while fetching the final cost of a completed run", async () => {
   withSummaries();
   const settled = execution("completed", "process");
   const unpriced = { ...settled, id: "unpriced" };
-  const active = execution("running", "process");
+  const active = execution("running", "update");
   state.executions = [settled, unpriced, active];
-  const finalCosts = Promise.withResolvers<Record<string, number>>();
+  const finalCosts = Promise.withResolvers<Record<string, TopicRunCost>>();
   state.queryCosts
-    .mockResolvedValueOnce({ [settled.id]: 0, [active.id]: 0.12 })
+    .mockResolvedValueOnce({
+      [settled.id]: { summaries: 0, naming: null },
+      [active.id]: { summaries: null, naming: 0.12 },
+    })
     .mockReturnValueOnce(finalCosts.promise);
   const view = renderTopicsPage();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
@@ -461,10 +587,16 @@ it("keeps settled costs visible while fetching the final cost of a completed run
   expect(screen.getByText("Unavailable")).toBeVisible();
   expect(screen.getByText("Loading…")).toBeVisible();
   expect(state.queryCosts).toHaveBeenLastCalledWith(
-    { projectId: "project", executionIds: [active.id] },
+    {
+      projectId: "project",
+      executionIds: [active.id],
+      includeSummaryCosts: false,
+    },
     expect.anything(),
   );
-  finalCosts.resolve({ [active.id]: 0.34 });
+  finalCosts.resolve({
+    [active.id]: { summaries: null, naming: 0.34 },
+  });
   expect(await screen.findByText("~$0.34")).toBeVisible();
 });
 

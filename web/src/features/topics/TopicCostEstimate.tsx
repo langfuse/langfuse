@@ -1,31 +1,39 @@
 import type { FilterState } from "@langfuse/shared";
+import { TOPICS_COST_ESTIMATE_MAX_FACETS } from "@langfuse/shared/topics";
 import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { TopicCostEstimateView } from "./TopicCostEstimateView";
+import {
+  TopicCostEstimateView,
+  type TopicEstimateVolume,
+} from "./TopicCostEstimateView";
 import { useTopicsCapture } from "./useTopicsCapture";
 
-type TopicCostEstimateProps = {
+type TopicCostEstimateProps = TopicEstimateVolume & {
   projectId: string;
   filter: FilterState;
   facetIds: string[];
-  samplingPercent: number;
-  /** Finished matching traces a day, before sampling. */
-  dailyTraces: number | null;
-  /** Traces the first backfill would summarize, up to its limit. */
-  backfillTraces: number | null;
-  source: "setup" | "new_map";
+  source: "setup" | "new_map" | "snapshot";
 };
 
 /** Starts a background cost estimate and follows it until its result. */
-export function TopicCostEstimate({
+export function TopicCostEstimate(props: TopicCostEstimateProps) {
+  if (props.facetIds.length > TOPICS_COST_ESTIMATE_MAX_FACETS)
+    return (
+      <p className="text-muted-foreground text-sm">
+        Cost estimates support up to {TOPICS_COST_ESTIMATE_MAX_FACETS} selected
+        questions.
+      </p>
+    );
+  return <TopicCostEstimateQuery {...props} />;
+}
+
+function TopicCostEstimateQuery({
   projectId,
   filter,
   facetIds,
-  samplingPercent,
-  dailyTraces,
-  backfillTraces,
   source,
+  ...volume
 }: TopicCostEstimateProps) {
   const capture = useTopicsCapture();
   const utils = api.useUtils();
@@ -60,9 +68,7 @@ export function TopicCostEstimate({
       {({ openDialog }) => (
         <TopicCostEstimateView
           estimate={current}
-          samplingPercent={samplingPercent}
-          dailyTraces={dailyTraces}
-          backfillTraces={backfillTraces}
+          {...volume}
           canAddModelPrice={canAddModelPrice}
           onAddModelPrice={openDialog}
           // Also while the started estimate loads, so a second click cannot slip in.
