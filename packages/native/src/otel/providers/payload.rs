@@ -5,9 +5,9 @@
 //! functions here decode and combine each provider's values. `flattened` reconstructs dotted
 //! attributes such as `gen_ai.prompt.0.role` into arrays and objects.
 //!
-//! The result contains input/output values copied from attributes or built from events,
-//! plus a filtered attribute map for metadata. The exclusions in `rules` apply regardless
-//! of which provider supplies the payload.
+//! The result contains input/output values copied from attributes or built from events.
+//! `filter_attributes` returns the attribute remainder for metadata; the exclusions in
+//! `rules` apply regardless of which provider supplies the payload.
 
 mod flattened;
 mod rules;
@@ -36,7 +36,6 @@ use crate::otel::value::{JsString, Value};
 pub struct ProviderIO {
     pub input: Option<Value>,
     pub output: Option<Value>,
-    pub filtered_attributes: JsonObject,
 }
 
 type Payload = [Option<Value>; 2];
@@ -59,7 +58,7 @@ fn truthy_pair(attributes: &JsonObject, keys: [&str; 2]) -> Option<Payload> {
     accepted_payload(io_values(attributes, keys), is_js_truthy)
 }
 
-/// Extract provider payloads and the legacy diagnostic attribute remainder.
+/// Extract provider payloads.
 pub fn extract_input_output(
     scope_name: &str,
     attributes: &JsonObject,
@@ -68,11 +67,7 @@ pub fn extract_input_output(
     parse_cache: &mut JsonParseCache,
 ) -> ProviderIO {
     let [input, output] = provider_payload(scope_name, attributes, events, domain, parse_cache);
-    ProviderIO {
-        input,
-        output,
-        filtered_attributes: filter_attributes(attributes, scope_name),
-    }
+    ProviderIO { input, output }
 }
 
 /// Steps return `None` to try the next provider and `Some(payload)` to stop.
@@ -345,22 +340,25 @@ fn livekit_io(attributes: &JsonObject) -> Payload {
 /// Return attributes after removing payload and metadata carriers; callers store the remainder
 /// under `metadata.attributes`.
 pub fn filter_attributes(attributes: &JsonObject, scope_name: &str) -> JsonObject {
-    attributes
-        .iter()
-        .filter(|(key, _)| {
-            let key = key.as_str();
-            !PAYLOAD_GROUPS.iter().any(|keys| keys.contains(&key))
-                && !PREFIXES.iter().any(|prefix| key.starts_with(prefix))
-                && !(scope_name == "langfuse-ai-gateway" && GATEWAY_ATTRIBUTES.contains(&key))
-        })
-        .map(|(key, value)| {
-            let value = match value {
-                Value::String(_) => value.clone(),
-                _ => Value::String(javascript_json_stringify(value).into()),
-            };
-            (key.clone(), value)
-        })
-        .collect()
+    let mut filtered = JsonObject::with_capacity(attributes.len());
+    filtered.extend(
+        attributes
+            .iter()
+            .filter(|(key, _)| {
+                let key = key.as_str();
+                !PAYLOAD_GROUPS.iter().any(|keys| keys.contains(&key))
+                    && !PREFIXES.iter().any(|prefix| key.starts_with(prefix))
+                    && !(scope_name == "langfuse-ai-gateway" && GATEWAY_ATTRIBUTES.contains(&key))
+            })
+            .map(|(key, value)| {
+                let value = match value {
+                    Value::String(_) => value.clone(),
+                    _ => Value::String(javascript_json_stringify(value).into()),
+                };
+                (key.clone(), value)
+            }),
+    );
+    filtered
 }
 fn ai_output(attributes: &JsonObject) -> Option<Value> {
     if let (Some(text), Some(calls)) = (
@@ -597,7 +595,8 @@ mod tests {
                     None,
                     &mut JsonParseCache::default(),
                 );
-                let actual = (io.input, io.output, io.filtered_attributes);
+                let filtered = filter_attributes(attributes.as_object().unwrap(), scope);
+                let actual = (io.input, io.output, filtered);
                 let expected = (input, output, JsonObject::new());
                 (actual != expected)
                     .then(|| format!("{name}: expected {expected:?}, got {actual:?}"))
@@ -666,11 +665,9 @@ mod tests {
             Some(json!({"messages": null, "config": {"temperature": 1}}))
         );
         assert_eq!(io.output, Some(json!("null")));
-        assert_eq!(io.filtered_attributes["tool_arguments"], json!("args"));
-        assert_eq!(
-            io.filtered_attributes["custom"],
-            json!(r#"{"nested":true}"#)
-        );
+        let filtered = filter_attributes(attributes.as_object().unwrap(), "genkit-tracer");
+        assert_eq!(filtered["tool_arguments"], json!("args"));
+        assert_eq!(filtered["custom"], json!(r#"{"nested":true}"#));
 
         let gateway = json!({
             "langfuse.trace.name": "trace",

@@ -259,7 +259,7 @@ export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
 
 /**
  * Decision models that text adapters serve, in default-preference order. These
- * APIs take one `input` and plain-text questions, unlike TypeSafe's keyed state.
+ * APIs receive the keyed state as one JSON text input with plain-text questions.
  */
 export const TEXT_ADAPTER_DECISION_MODEL_IDS: Partial<
   Record<LLMAdapter, readonly string[]>
@@ -469,6 +469,9 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-4-carbon",
+  "gemini-4-neon",
+  "gemini-4-hydrogen",
   "gemini-4-argon",
   "gemini-3.8-flash",
   "gemini-3.7-flash",

@@ -7,7 +7,9 @@ import { decodeAndNormalizeFilters } from "@/src/features/filters/hooks/useSideb
 import { createTopicTraceRegistry } from "./topic-trace-filters";
 import { resolveTopicFacetId } from "./topic-facet-selection";
 
-const columns = [...createTopicTraceRegistry([]).columns];
+const columns = [
+  ...createTopicTraceRegistry([], [], { traceFields: true }).columns,
+];
 const snapshotSchema = z.object({
   filter: z.string(),
   search: z.string().nullable(),

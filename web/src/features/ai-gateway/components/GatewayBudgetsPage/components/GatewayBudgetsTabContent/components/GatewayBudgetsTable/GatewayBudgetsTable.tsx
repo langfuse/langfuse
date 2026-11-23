@@ -1,6 +1,9 @@
 import { Pencil } from "@langfuse/icons";
 
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import {
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -46,6 +49,8 @@ type GatewayBudgetsTableProps = Pick<
   selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
   multiSelect: MultiSelect;
   onEditBudget: (row: GatewayBudgetRow) => void;
+  /** Right of the search and filter, e.g. the default budget. */
+  toolbarActions?: TableCardProps<GatewayBudgetRow>["toolbarActions"];
 };
 
 const statusOptions: { value: GatewayBudgetStatus; label: string }[] = [
@@ -55,6 +60,9 @@ const statusOptions: { value: GatewayBudgetStatus; label: string }[] = [
   { value: "unlimited", label: "Unlimited" },
   { value: "exceeded", label: "Exceeded" },
 ];
+
+/** Fits "Default budget" next to its radio dot in the open menu, which is as wide as the trigger. */
+const STATUS_FILTER_MIN_WIDTH_PX = 160;
 
 const budgetSkeleton = <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />;
 
@@ -173,12 +181,13 @@ export function GatewayBudgetsTable({
   selectColumn,
   multiSelect,
   onEditBudget,
+  toolbarActions,
 }: GatewayBudgetsTableProps) {
   const copy = copyByTab[tab];
   const isFiltered = search.value.trim().length > 0 || status.value !== "all";
 
   return (
-    <SettingsTable
+    <TableCard
       tableName={GATEWAY_SPEND_TABS[tab].tableName}
       columns={[selectColumn, ...columnsByTab[tab]]}
       data={data}
@@ -208,8 +217,10 @@ export function GatewayBudgetsTable({
           value: status.value,
           onChange: (value) => status.onChange(toGatewayBudgetStatus(value)),
           muted: status.value === "all",
+          minWidth: STATUS_FILTER_MIN_WIDTH_PX,
         },
       ]}
+      toolbarActions={toolbarActions}
       noResultsMessage={isFiltered ? copy.noMatches : copy.noBudgets}
     />
   );

@@ -16,6 +16,7 @@ import {
   Server,
   ProtocolError,
   ProtocolErrorCode,
+  isInputRequiredResult,
 } from "@modelcontextprotocol/server";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
@@ -79,6 +80,9 @@ export function createMcpServer(context: ServerContext): Server {
         extensions: { "io.modelcontextprotocol/skills": {} },
       },
       instructions: getMcpServerInstructions(),
+      // 2025-era requests get JSON responses, which cannot carry the SDK's
+      // server-to-client prompts, so tools never ask for input there.
+      inputRequired: { legacyShim: false },
     },
   );
 
@@ -98,7 +102,7 @@ export function createMcpServer(context: ServerContext): Server {
   });
 
   // CallTool handler - route to registered tool handlers
-  server.setRequestHandler("tools/call", async (request) => {
+  server.setRequestHandler("tools/call", async (request, ctx) => {
     const { name, arguments: args } = request.params;
 
     logger.debug("MCP CallTool", {
@@ -131,8 +135,10 @@ export function createMcpServer(context: ServerContext): Server {
     });
     try {
       const result = await otelContext.with(clickHouseCtx, () =>
-        registeredTool.handler(args, context),
+        registeredTool.handler(args, context, ctx),
       );
+
+      if (isInputRequiredResult(result)) return result;
 
       return {
         content: [

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
@@ -13,6 +14,7 @@ const state = vi.hoisted(() => ({
   updatedAt: "2026-09-23T12:00:00Z",
   retry: vi.fn(),
   refetchExecution: vi.fn(),
+  queryCosts: vi.fn<() => Promise<Record<string, number>>>(),
   dateRange: undefined as string | undefined,
   executionId: undefined as string | undefined,
   setQueryParams: vi.fn(),
@@ -36,8 +38,22 @@ const state = vi.hoisted(() => ({
   settings: {} as Record<string, unknown>,
   rules: [] as Array<{ id?: string; facetIds: string[] }>,
   maps: undefined as unknown,
+  capture: vi.fn(),
 }));
 
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProject: () => ({
+    project: { id: "project" },
+    organization: { id: "org" },
+  }),
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => state.capture,
+}));
+
+vi.mock("./useOpenTopicsFeedback", () => ({
+  useOpenTopicsFeedback: () => vi.fn(),
+}));
 vi.mock("use-query-params", () => ({
   StringParam: {},
   useQueryParam: () => [undefined, vi.fn()],
@@ -80,7 +96,7 @@ vi.mock("@/src/components/table/peek/TablePeekViewTraceDetail", () => ({
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
-vi.mock("@/src/components/error-page", () => ({
+vi.mock("@/src/components/ErrorPage", () => ({
   ErrorPage: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 vi.mock("@/src/features/topics/topicsAccess", () => ({
@@ -141,6 +157,7 @@ vi.mock("./CurrentTopics", () => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
+      executionCosts: { _def: () => ({ path: ["topics", "executionCosts"] }) },
       facets: {
         useQuery: () => ({
           data: state.facetsLoading ? undefined : state.facets,
@@ -237,6 +254,8 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       analysisResults: { useQuery: () => ({}) },
+      // The map picker's preview pane.
+      currentResults: { useQuery: () => ({ isLoading: false }) },
       retry: {
         useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
           mutate: (input: unknown) => {
@@ -263,6 +282,7 @@ vi.mock("@/src/utils/api", () => ({
       },
     },
     useUtils: () => ({
+      client: { topics: { executionCosts: { query: state.queryCosts } } },
       topics: {
         modelSettings: { invalidate: vi.fn() },
         maps: { invalidate: vi.fn() },
@@ -272,8 +292,22 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
+function renderTopicsPage() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(<TopicsPage />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>
+        <LayerProvider>{children}</LayerProvider>
+      </QueryClientProvider>
+    ),
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  state.queryCosts.mockReset().mockResolvedValue({});
   state.maps = undefined;
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-09T12:00:00Z"));
@@ -331,7 +365,7 @@ afterEach(() => {
 
 it("shows Not found instead of the workspace when the Topics gate is closed", () => {
   state.canViewTopics = false;
-  render(<TopicsPage />, { wrapper: LayerProvider });
+  renderTopicsPage();
   expect(screen.getByText("This page is not available.")).toBeTruthy();
   expect(state.currentTopics).not.toHaveBeenCalled();
 });
@@ -340,13 +374,13 @@ it("keeps the question picker reachable with the mobile header", () => {
   state.mobileHeader = true;
   state.resultFacets = [{ facetId: "intent", name: "Intent" }];
   state.rules = [{ facetIds: ["intent"] }];
-  render(<TopicsPage />);
+  renderTopicsPage();
   expect(screen.getByRole("combobox", { name: "Topics facet" })).toBeTruthy();
 });
 
 it("refreshes current results through retry and completion for a selected run outside history", () => {
   state.executionId = "execution";
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
+  const view = renderTopicsPage();
   const status = screen.getByRole("dialog", { name: "Regenerate topics" });
   fireEvent.click(within(status).getByRole("button", { name: "Resume run" }));
   expect(state.retry).toHaveBeenCalledWith({
@@ -406,6 +440,34 @@ function withSummaries() {
   state.rules = [{ facetIds: ["intent", "outcome"] }];
 }
 
+it("keeps settled costs visible while fetching the final cost of a completed run", async () => {
+  withSummaries();
+  const settled = execution("completed", "process");
+  const unpriced = { ...settled, id: "unpriced" };
+  const active = execution("running", "process");
+  state.executions = [settled, unpriced, active];
+  const finalCosts = Promise.withResolvers<Record<string, number>>();
+  state.queryCosts
+    .mockResolvedValueOnce({ [settled.id]: 0, [active.id]: 0.12 })
+    .mockReturnValueOnce(finalCosts.promise);
+  const view = renderTopicsPage();
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "History" }));
+  expect(await screen.findByText("~$0.12")).toBeVisible();
+
+  state.executions = [settled, unpriced, { ...active, status: "completed" }];
+  view.rerender(<TopicsPage />);
+  expect(screen.getByText("~$0.00")).toBeVisible();
+  expect(screen.getByText("Unavailable")).toBeVisible();
+  expect(screen.getByText("Loading…")).toBeVisible();
+  expect(state.queryCosts).toHaveBeenLastCalledWith(
+    { projectId: "project", executionIds: [active.id] },
+    expect.anything(),
+  );
+  finalCosts.resolve({ [active.id]: 0.34 });
+  expect(await screen.findByText("~$0.34")).toBeVisible();
+});
+
 it.each([
   ["no facets", () => []],
   ["facets", () => [facet("intent", [1])]],
@@ -415,7 +477,7 @@ it.each([
     state.facets = facets();
     state.facetsLoading = true;
     state.executions = undefined;
-    const view = render(<TopicsPage />, { wrapper: LayerProvider });
+    const view = renderTopicsPage();
     expect(screen.queryByTestId("current-topics")).toBeNull();
     expect(state.currentTopics).toHaveBeenCalled();
     const { refreshAfter } = state.currentTopics.mock.lastCall![0];
@@ -431,16 +493,12 @@ it.each([
   },
 );
 
-it("puts New live map and New snapshot first in the menu", async () => {
+it("leaves creating and refreshing maps to the map picker, not the menu", async () => {
   withSummaries();
-  render(<TopicsPage />, { wrapper: LayerProvider });
+  renderTopicsPage();
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
   const items = await screen.findAllByRole("menuitem");
-  // The selected live map adds Refresh map after the create entries.
   expect(items.map((item) => item.textContent)).toEqual([
-    "New live map",
-    "New snapshot",
-    expect.stringMatching(/^Refresh map/),
     "History",
     "Settings",
   ]);
@@ -469,7 +527,7 @@ it.each([
     ],
     analyses: [],
   };
-  render(<TopicsPage />, { wrapper: LayerProvider });
+  renderTopicsPage();
   const editMap = screen.getByRole("button", { name: "Edit map" });
   expect(editMap).toHaveProperty("disabled", !canWrite);
   fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
@@ -477,29 +535,78 @@ it.each([
   expect(items.some((item) => item.textContent?.startsWith("Edit map"))).toBe(
     false,
   );
-  // Every action stays visible; without write access it is disabled with a reason.
-  for (const label of ["New live map", "New snapshot"]) {
-    const item = items.find((candidate) =>
-      candidate.textContent?.startsWith(label),
-    );
-    expect(item).toBeDefined();
-    expect(item!.getAttribute("aria-disabled")).toBe(canWrite ? null : "true");
-    expect(item!.getAttribute("title")).toBe(
-      canWrite ? null : "You need permission to edit Topics.",
-    );
-    expect(item!.textContent).toBe(
-      canWrite ? label : `${label}You need permission to edit Topics.`,
-    );
-  }
 });
+
+it("offers creating maps in the menu while onboarding hides the map picker", async () => {
+  withSummaries();
+  // Configured but off, and no summaries stored yet.
+  state.settings = { ...state.settings, enabled: false };
+  state.hasStoredSummaries = false;
+  renderTopicsPage();
+  expect(screen.queryByRole("button", { name: /Topic map:/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Topics actions" }));
+  const items = await screen.findAllByRole("menuitem");
+  expect(items.map((item) => item.textContent)).toEqual([
+    "New live map",
+    "New snapshot",
+    "History",
+    "Settings",
+  ]);
+});
+
+it.each([
+  { access: "with topics:CUD", canWrite: true },
+  { access: "without topics:CUD", canWrite: false },
+])(
+  "offers refreshing and creating maps in the map picker $access",
+  async ({ canWrite }) => {
+    withSummaries();
+    state.canWrite = canWrite;
+    // A refresh needs automatic processing on.
+    state.settings = { ...state.settings, enabled: true };
+    renderTopicsPage();
+    fireEvent.click(screen.getByRole("button", { name: "Topic map: Rule" }));
+    const picker = within(
+      await screen.findByRole("dialog", { name: "Topic maps" }),
+    );
+    // Every entry stays visible; without write access it is disabled and says why on screen.
+    for (const name of [/^New live map/, /^New snapshot/]) {
+      const entry = picker.getByRole("button", { name });
+      expect(entry).toHaveProperty("disabled", !canWrite);
+      expect(
+        entry.textContent?.includes("You need permission to edit Topics."),
+      ).toBe(!canWrite);
+    }
+    // The preview card's Refresh, at its top right.
+    expect(picker.getByRole("button", { name: "Refresh" })).toHaveProperty(
+      "disabled",
+      !canWrite,
+    );
+    expect(
+      picker
+        .queryAllByText("You need permission to edit Topics.")
+        .some((element) => element.tagName === "P"),
+    ).toBe(!canWrite);
+  },
+);
 
 it("shows the setup landing until the project's first stored summary exists", () => {
   state.hasStoredSummaries = false;
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
+  const view = renderTopicsPage();
   expect(screen.getByRole("button", { name: "Set up topics" })).toBeEnabled();
   expect(screen.queryByTestId("current-topics")).toBeNull();
   state.hasStoredSummaries = true;
   view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Set up topics" })).toBeNull();
+  // The page view keeps the state it first showed, once per mount.
+  const context = { projectId: "project", orgId: "org", isV4: true };
+  const events = state.capture.mock.calls.map(([event]) => event);
+  expect(events.filter((event) => event === "topics:page_viewed")).toHaveLength(
+    1,
+  );
+  expect(state.capture).toHaveBeenCalledWith(
+    "topics:page_viewed",
+    expect.objectContaining({ ...context, pageState: "landing" }),
+  );
 });

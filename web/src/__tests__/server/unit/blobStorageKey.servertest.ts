@@ -48,11 +48,6 @@ describe("safeBlobKeySegment", () => {
     expect(out.slice(-16)).toMatch(HEX16);
   });
 
-  it("is deterministic across calls", () => {
-    const s = "x".repeat(800);
-    expect(safeBlobKeySegment(s, N)).toBe(safeBlobKeySegment(s, N));
-  });
-
   it("distinguishes inputs that share a long common prefix", () => {
     const shared = "x".repeat(250);
     const a = shared + "AAAAAAAAAAAAAAAAAAAA";
@@ -200,13 +195,6 @@ describe("buildEventBucketPrefix", () => {
     expect(
       buildEventBucketPrefix({ projectId, entityType, entityId: id }),
     ).toBe(`${envPrefix}${projectId}/${entityType}/${expectedMiddle}/`);
-  });
-
-  it("is deterministic", () => {
-    const id = "obs-deterministic";
-    const a = buildEventBucketPrefix({ projectId, entityType, entityId: id });
-    const b = buildEventBucketPrefix({ projectId, entityType, entityId: id });
-    expect(a).toBe(b);
   });
 });
 

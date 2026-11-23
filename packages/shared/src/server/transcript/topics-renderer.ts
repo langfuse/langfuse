@@ -631,9 +631,16 @@ export function renderTranscript(
     let activeThread: number | null = null;
     for (const { event, text } of events) {
       const thread = event.thread;
-      if (threads.length > 1 && thread !== null && thread !== activeThread) {
+      // An error without a thread (run-level, or placed by time across threads) belongs to no thread block.
+      // Operation markers without a thread stay inside the active thread.
+      const leavesThread = thread === null && event.kind === "error";
+      if (
+        threads.length > 1 &&
+        thread !== activeThread &&
+        (thread !== null || leavesThread)
+      ) {
         if (activeThread !== null) header("</thread>");
-        header(`<thread n="${thread + 1}">`);
+        if (thread !== null) header(`<thread n="${thread + 1}">`);
         activeThread = thread;
       }
       lines.push({
@@ -677,8 +684,30 @@ export function renderTranscript(
       lastAction = "assistant text";
     else lastAction = `${lastPart.message.role} message`;
   }
+  // Reasoning and tool calls are not shown to end users; only non-blank text, spoken audio or the root output is.
+  const assistantParts = current.flatMap(({ event }) =>
+    event.kind === "part" && event.message.role === "assistant"
+      ? [event.part]
+      : [],
+  );
+  let visibleReply = "none";
+  if (assistantParts.some((part) => part.type === "text" && part.text.trim()))
+    visibleReply = "assistant text";
+  else if (
+    assistantParts.some(
+      (part) =>
+        part.type === "file" &&
+        !part.reasoning &&
+        typeof part.providerMetadata?.transcript === "string" &&
+        part.providerMetadata.transcript.trim() !== "",
+    )
+  )
+    visibleReply = "assistant audio";
+  // The root output reached the user even when it repeats the final message.
+  else if (rootOutput) visibleReply = "application output";
   header("<end_of_run>");
   header(`last action: ${lastAction}`);
+  header(`visible reply: ${visibleReply}`);
   if (rootOutputLine) header("final output: application output");
   else if (outputMatchesMessage)
     header(

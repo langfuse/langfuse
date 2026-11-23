@@ -1,4 +1,4 @@
-import { ForbiddenError } from "@langfuse/shared";
+import { ForbiddenError, hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { ProjectService } from "@/src/features/projects/server/projectService";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -10,7 +10,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { writeProjectError } from "@/src/features/public-api/server/writeError";

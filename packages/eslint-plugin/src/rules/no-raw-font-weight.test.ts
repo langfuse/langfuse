@@ -61,6 +61,11 @@ ruleTester.run("no-raw-font-weight", rule, {
       code: `<div className="font-black" />`,
       errors: [{ messageId: "unexpected", data: { utility: "font-black" } }],
     },
+    // Not a utility: the regular role is `font-normal`.
+    {
+      code: `<div className="font-regular" />`,
+      errors: [{ messageId: "unexpected", data: { utility: "font-regular" } }],
+    },
     // Arbitrary numeric weights.
     {
       code: `<div className="font-[550]" />`,

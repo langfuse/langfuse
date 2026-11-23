@@ -6,10 +6,16 @@ import type {
 } from "@langfuse/shared/src/db";
 import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
 import {
+  DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+  type GatewaySpendBudgetAlertThreshold,
+} from "@/src/features/ai-gateway/constants/gatewaySpendBudgetAlertThresholds";
+import {
   gatewayApiKeySearch,
   gatewayApiKeyWhere,
 } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "./gatewayDefaultSpendLimits";
+import type { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
+import { GATEWAY_SPEND_LIMIT_DTO_SELECT } from "./gatewaySpendLimitDto";
 import {
   type GatewaySpendLimitScope,
   toScopeColumns,
@@ -20,20 +26,24 @@ const GATEWAY_SPEND_LIMIT_SELECT = {
   scope: true,
   apiKeyId: true,
   userId: true,
-  interval: true,
-  limitUsd: true,
+  ...GATEWAY_SPEND_LIMIT_DTO_SELECT,
   countingStartedAt: true,
   ownerUserId: true,
   createdAt: true,
   updatedAt: true,
 } as const;
 
-/** Defaults have no subject; filtering on it lets Postgres use their partial unique index. */
+/** Defaults and organization limits have no subject; filtering on it lets Postgres use their partial unique index. */
 const DEFAULT_SPEND_LIMIT_SUBJECT = { apiKeyId: null, userId: null } as const;
 
 const BUDGET_USER_SELECT = {
   select: { id: true, name: true, email: true, image: true },
 } as const;
+
+/** The scopes without a subject column, each with at most one limit per organization. */
+export type GatewaySubjectlessSpendLimitScope =
+  | (typeof GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES)[keyof typeof GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES]
+  | typeof GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE;
 
 export type GatewaySpendLimitRecord = Prisma.GatewaySpendLimitGetPayload<{
   select: typeof GATEWAY_SPEND_LIMIT_SELECT;
@@ -68,12 +78,19 @@ export class GatewaySpendLimitRepository {
     organizationId: string;
     scope: GatewaySpendLimitScope["type"];
   }) {
+    return this.findSubjectless({
+      organizationId: params.organizationId,
+      scope: GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[params.scope],
+    });
+  }
+
+  /** The organization's one limit of a scope without a subject: a default, or its own limit. */
+  findSubjectless(params: {
+    organizationId: string;
+    scope: GatewaySubjectlessSpendLimitScope;
+  }) {
     return this.prisma.gatewaySpendLimit.findFirst({
-      where: {
-        organizationId: params.organizationId,
-        scope: GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[params.scope],
-        ...DEFAULT_SPEND_LIMIT_SUBJECT,
-      },
+      where: { ...params, ...DEFAULT_SPEND_LIMIT_SUBJECT },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }
@@ -235,49 +252,67 @@ export class GatewaySpendLimitRepository {
 
   create({
     scope,
+    alertThresholds = [...DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS],
     ...params
   }: {
     organizationId: string;
     scope: GatewaySpendLimitScope;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
+    alertThresholds?: GatewaySpendBudgetAlertThreshold[];
     countingStartedAt: Date;
     ownerUserId: string;
   }) {
     return this.prisma.gatewaySpendLimit.create({
-      data: { ...params, ...toScopeColumns(scope) },
+      data: { ...params, alertThresholds, ...toScopeColumns(scope) },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }
 
-  createDefault({
-    scope,
-    ...params
-  }: {
+  createSubjectless(data: {
     organizationId: string;
-    scope: GatewaySpendLimitScope["type"];
+    scope: GatewaySubjectlessSpendLimitScope;
     interval: GatewaySpendLimitInterval;
     limitUsd: number;
+    alertThresholds?: GatewaySpendBudgetAlertThreshold[];
     countingStartedAt: Date;
     ownerUserId: string;
   }) {
     return this.prisma.gatewaySpendLimit.create({
-      data: { ...params, scope: GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[scope] },
+      data: {
+        ...data,
+        alertThresholds: data.alertThresholds ?? [
+          ...DEFAULT_GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
+        ],
+      },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }
 
   /**
    * A new amount can be reached again in the same window, so its alerts are
-   * cleared. Run it in a transaction so both writes land together.
+   * cleared. Changing only alert thresholds keeps existing alerts so already
+   * sent ones are not repeated. Run it in a transaction so writes land together.
    */
-  async updateLimit(params: { id: string; limitUsd: number; userId: string }) {
-    await this.prisma.gatewaySpendLimitAlert.deleteMany({
-      where: { spendLimitId: params.id },
-    });
+  async updateLimit(params: {
+    id: string;
+    limitUsd: number;
+    alertThresholds: GatewaySpendBudgetAlertThreshold[];
+    clearAlerts: boolean;
+    userId: string;
+  }) {
+    if (params.clearAlerts) {
+      await this.prisma.gatewaySpendLimitAlert.deleteMany({
+        where: { spendLimitId: params.id },
+      });
+    }
     return this.prisma.gatewaySpendLimit.update({
       where: { id: params.id },
-      data: { limitUsd: params.limitUsd, ownerUserId: params.userId },
+      data: {
+        limitUsd: params.limitUsd,
+        alertThresholds: params.alertThresholds,
+        ownerUserId: params.userId,
+      },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }

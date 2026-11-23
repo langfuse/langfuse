@@ -74,12 +74,14 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   results disagree.
 - **`ai.google.dev` now 301-redirects to `aistudio.google.com`** — every
   `ai.google.dev` pricing, models, and deprecations URL in this file redirects
-  to the equivalent `aistudio.google.com` path, which is outside the allowed
-  WebFetch domain list. Do not follow the redirect or add `aistudio.google.com`
-  to the workflow's allowed domains yourself; leave every Gemini pricing and
-  selectable-array entry unchanged and report the required domain change as
-  unresolved so the workflow's `--allowedTools` list and this table can be
-  updated together by a human.
+  to the equivalent `aistudio.google.com` path. `aistudio.google.com` is in the
+  workflow's allowed WebFetch domains; follow the redirect and fetch it
+  directly. A first prose-summary fetch tends to merge tiers, dates, and
+  per-modality rows into ranges (for example "$0.75–$1.50") — re-fetch asking
+  for the literal Markdown table for one model section verbatim when that
+  happens. `aistudio.google.com/gemini-api/docs/models` redirects to a Google
+  sign-in wall and cannot be fetched; use `aistudio.google.com/docs/models`
+  instead.
 - **Deprecation dates** — Summaries misjudge whether a date is past or future.
   Compare the literal shutdown date with `date -u +%Y-%m-%dT00:00:00.000Z`
   yourself. Ask for the complete list of batch headings on the deprecations
@@ -213,9 +215,16 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   multiplier. These are Developer API rates; do not infer Vertex reserved or
   regional pricing from them.
 - **Flex (Vertex AI Flex PayGo)** — Enabled by the `X-Vertex-AI-LLM-Shared-Request-Type: flex` header; responses report `trafficType: ON_DEMAND_FLEX`, recorded unchanged as `service_tier`. Flex tiers match `modelParameters.service_tier in ["flex", "ON_DEMAND_FLEX"]` (the Gemini API reports `serviceTier: "flex"`), and every Gemini Priority tier lists `["priority", "ON_DEMAND_PRIORITY"]`, because a Vertex `trafficType` overrides `gen_ai.request.service_tier`. When the two pricing pages list different Flex prices, split the tier: `Flex` matches `["flex"]` at the Gemini API price and `Flex (Vertex AI)` matches `["ON_DEMAND_FLEX"]` at the Vertex price (gemini-3.5-flash-lite cached input: $0.02 vs $0.015). Usually 0.5x every Standard token rate (global endpoint only); grounding fees are unchanged. Copy each published Flex value instead of halving: where the Gemini API page says cached input is "Same as Standard" (gemini-3.1-pro-preview, gemini-3-flash-preview), use the Standard cached rate. Only models on the [Flex PayGo page](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/flex-paygo) get a tier: not Gemini 4 or 2.5. For Pro models, Flex + >200K and Flex evaluate after the Priority tiers and before Large Context.
-- **Gemini 4 Argon** — Implicit caching only (no cache-write keys), thinking
-  billed at the output rate, flat pricing across the full context. It is in
-  `googleAIStudioModels` only, pending Vertex AI lifecycle confirmation.
+- **Gemini 4 family** — `gemini-4-argon`, `gemini-4-carbon`, `gemini-4-neon`,
+  and `gemini-4-hydrogen` are GA text-generation models with a Standard and a
+  Priority tier (Priority at 1.8x Standard on every price). Implicit caching
+  only (no cache-write keys); the published "context caching price" is the
+  cache-read rate, not always 10% of input (Argon/Carbon price it at 5%).
+  Thinking is billed at the output rate; pricing is flat across the full 1M
+  context (no Large Context tier). All four are in `googleAIStudioModels`
+  only, pending Vertex AI lifecycle confirmation. Argon and Carbon share one
+  introductory-pricing schedule (see Scheduled Changes); Neon and Hydrogen
+  have no announced step.
 - **Auto-routed IDs** — The deprecations page lists `gemini-3.5-flash` and
   `gemini-3.7-flash` with shutdown date `N/A`; requests auto-route to
   `gemini-3.6-flash` and `gemini-3.8-flash`, and neither ID has its own pricing
@@ -286,7 +295,7 @@ need action.
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-11-21 | `gpt-5.6-sol` promotional pricing is guaranteed only through this date. Re-check its price.                                                                                                                                                                                      |
 | 2026-11-30 | `claude-sonnet-4-5-20250929` retires. Remove it from `anthropicModels`.                                                                                                                                                                                                          |
-| 2026-12-01 | `gemini-4-argon` introductory pricing ($2/$10/$0.10 Standard) steps up to $4/$20/$0.20, with Priority doubling in step.                                                                                                                                                          |
+| 2026-12-01 | `gemini-4-argon` and `gemini-4-carbon` introductory pricing ($2/$10/$0.10 Standard, $3.60/$18/$0.18 Priority) step up to $4/$20/$0.20 Standard, $7.20/$36/$0.36 Priority.                                                                                                        |
 | 2026-12-11 | OpenAI "GPT-5 and o3" batch shuts down. Remove `gpt-5`, `gpt-5-2025-08-07`, `gpt-5-mini`, `gpt-5-mini-2025-08-07`, `gpt-5-nano`, `gpt-5-nano-2025-08-07`, `o3`, and `o3-2025-04-16` from `openAIModels`.                                                                         |
 | 2027-01-01 | `gemini-3.6-flash`, `gemini-3.7-flash`, and `gemini-3.8-flash` introductory pricing ($0.75/$3.75/$0.075) steps up to $1.50/$7.50/$0.15. Re-check their Priority and Flex rates too.                                                                                              |
 | 2027-01-14 | OpenAI "GPT-4 series" batch shuts down (`gpt-4o-2024-08-06`, `gpt-4o-2024-11-20`, `gpt-4o-mini-2024-07-18`, `gpt-4.1-2025-04-14`, `gpt-4.1-mini-2025-04-14`). Remove those snapshots and their aliases (`gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`) from `openAIModels`. |

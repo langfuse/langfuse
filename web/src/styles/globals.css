@@ -33,11 +33,12 @@
 
   /* Weight ROLES — three weights exist in this app: regular, medium and bold.
      All are font-relative, so components never hardcode numbers.
-     `--font-weight-bold` deliberately overrides Tailwind's built-in bold
-     (700): the `font-bold` utility IS the bold role. Medium is for names that
+     Each role uses Tailwind's built-in name, so the `font-normal`,
+     `font-medium` and `font-bold` utilities ARE the roles; `--font-weight-bold`
+     deliberately overrides the built-in 700. Medium is for names that
      identify an entity, e.g. the org and project switchers. font-semibold /
      raw numbers are drift. */
-  --font-weight-regular: 400;
+  --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 600;
 }
@@ -242,28 +243,28 @@
      complete style. Heavier text opts in via `font-bold`, never a raw number. */
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: calc(16 / 11);
-  --text-2xs--font-weight: var(--font-weight-regular);
+  --text-2xs--font-weight: var(--font-weight-normal);
   --text-xs: 0.75rem;
   --text-xs--line-height: calc(18 / 12);
-  --text-xs--font-weight: var(--font-weight-regular);
+  --text-xs--font-weight: var(--font-weight-normal);
   --text-sm: 0.8125rem;
   --text-sm--line-height: calc(20 / 13);
-  --text-sm--font-weight: var(--font-weight-regular);
+  --text-sm--font-weight: var(--font-weight-normal);
   --text-base: 0.875rem;
   --text-base--line-height: 1.5;
-  --text-base--font-weight: var(--font-weight-regular);
+  --text-base--font-weight: var(--font-weight-normal);
   --text-lg: 1rem;
   --text-lg--line-height: 1.35;
-  --text-lg--font-weight: var(--font-weight-regular);
+  --text-lg--font-weight: var(--font-weight-normal);
   --text-xl: 1.25rem;
   --text-xl--line-height: 1.3;
-  --text-xl--font-weight: var(--font-weight-regular);
+  --text-xl--font-weight: var(--font-weight-normal);
   --text-2xl: 1.375rem;
   --text-2xl--line-height: 1.25;
-  --text-2xl--font-weight: var(--font-weight-regular);
+  --text-2xl--font-weight: var(--font-weight-normal);
   --text-3xl: 1.5rem;
   --text-3xl--line-height: 1.25;
-  --text-3xl--font-weight: var(--font-weight-regular);
+  --text-3xl--font-weight: var(--font-weight-normal);
 
   --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   --animate-accordion-down: accordion-down 0.2s ease-out;
@@ -518,7 +519,7 @@
     /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
        readable text/icon color on them. */
     --light-red: oklch(93.6% 0.032 17.717 / 0.7);
-    --dark-red: oklch(63.7% 0.237 25.331);
+    --dark-red: oklch(44.4% 0.177 26.899);
 
     --light-yellow: oklch(97.3% 0.071 103.193 / 0.7);
     --dark-yellow: oklch(47.6% 0.114 61.907);
@@ -767,16 +768,15 @@
 
     /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
        dark-* the readable text/icon color on them. */
-    --light-red: oklch(39.6% 0.141 25.723 / 0.7);
-    /* Lightened for dark mode like its green and yellow siblings below — left
-       at the light-mode step it was darker than the fill it sits on (2.74:1;
-       5.35:1 here, against green's 6.49 and yellow's 6.43). */
+    --light-red: oklch(39.6% 0.141 25.723 / 0.42);
+    /* Lightened for dark mode like green and yellow below: 6.5:1 on its fill,
+       against green's 8.0 and yellow's 6.4. */
     --dark-red: oklch(76.5% 0.177 27.325);
 
     --light-yellow: oklch(55.4% 0.135 66.442 / 0.4);
     --dark-yellow: oklch(79.5% 0.184 86.047);
 
-    --light-green: oklch(37.8% 0.077 168.94 / 0.7);
+    --light-green: oklch(37.8% 0.077 168.94 / 0.42);
     --dark-green: oklch(76.5% 0.177 163.223);
 
     --light-blue: 209 45% 15%;

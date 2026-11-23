@@ -6,6 +6,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import type { Session } from "next-auth";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const llmMocks = vi.hoisted(() => ({
   generateLLMText: vi.fn(async () => ({ text: "[]" })),
@@ -35,43 +36,21 @@ async function prepare(projectRole: Role) {
   const { project, org } = await createOrgProjectAndApiKey();
   __orgIds.push(org.id);
 
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
-      id: "user-1",
       canCreateOrganizations: false,
-      name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "MEMBER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags({ templateFlag: false }),
     },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  };
+    organizations: [
+      {
+        id: org.id,
+        role: "MEMBER",
+        name: org.name,
+        projects: [{ id: project.id, role: projectRole, name: project.name }],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return { project, org, caller: appRouter.createCaller({ ...ctx, prisma }) };

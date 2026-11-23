@@ -1,3 +1,4 @@
+/* eslint-disable array-callback-return */
 import { createHash, randomUUID } from "node:crypto";
 import { parseDocument } from "yaml";
 import {

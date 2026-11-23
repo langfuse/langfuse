@@ -28,7 +28,7 @@ import { countRows, escapeLike } from "./verify";
  * --days with a growth trend, quiet weekends and a few heavy users, so daily,
  * weekly and monthly spend all differ. A handful of the busiest keys and
  * users get spend limits sized from their seeded spend, from barely used to
- * over the limit.
+ * over the limit, and the organization gets a limit sized from all of it.
  */
 
 const DAY_MS = 86_400_000;
@@ -118,6 +118,12 @@ const USER_BUDGETS: ReadonlyArray<{
   { rank: 8, interval: "TOTAL", usage: 0.2 },
 ];
 
+/** The organization's own limit, sized from all seeded spend in its window. */
+const ORGANIZATION_BUDGET: {
+  interval: GatewaySpendLimitInterval;
+  usage: number;
+} = { interval: "MONTHLY", usage: 0.92 };
+
 /** Limit for a key whose window has no spend yet, e.g. on the first day of a month. */
 const FALLBACK_LIMIT_USD = 100;
 
@@ -196,7 +202,7 @@ const ensureKey = async (params: {
         scope: params.userId
           ? UserId(params.userId)
           : OrganizationId(params.organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: params.userId ? UserId(params.userId) : "system",
         name: params.name,
         predefinedKeys: {
@@ -339,7 +345,7 @@ const run = async (
     counts: {
       users: userCount,
       keys: userCount + 1,
-      spendLimits: BUDGETS.length + USER_BUDGETS.length,
+      spendLimits: BUDGETS.length + USER_BUDGETS.length + 1,
       events,
     },
     links: [`${ctx.baseUrl}/organization/${project.orgId}/ai-gateway/budgets`],
@@ -416,11 +422,12 @@ const run = async (
   const now = new Date();
   const limitUsdFor = (
     budget: { interval: GatewaySpendLimitInterval; usage: number },
-    keyId: string,
+    /** Undefined sizes the limit from every key's spend. */
+    keyId: string | undefined,
   ) => {
     const since = windowStartMs(budget.interval, now);
     const spendUsd = spendRecords
-      .filter((record) => record.keyId === keyId)
+      .filter((record) => keyId === undefined || record.keyId === keyId)
       .filter((record) => record.startTime >= since)
       .reduce((sum, record) => sum + record.costUsd, 0);
     return spendUsd > 0
@@ -487,6 +494,20 @@ const run = async (
     });
   }
 
+  // One per organization by a partial unique index, which Prisma cannot upsert on.
+  await prisma.gatewaySpendLimit.deleteMany({
+    where: { organizationId: project.orgId, scope: "ORGANIZATION" },
+  });
+  await prisma.gatewaySpendLimit.create({
+    data: {
+      organizationId: project.orgId,
+      scope: "ORGANIZATION",
+      interval: ORGANIZATION_BUDGET.interval,
+      limitUsd: limitUsdFor(ORGANIZATION_BUDGET, undefined),
+      countingStartedAt,
+    },
+  });
+
   const verified = {
     events: await countRows(
       "events_core",
@@ -513,6 +534,7 @@ const run = async (
               ),
             },
           },
+          { organizationId: project.orgId, scope: "ORGANIZATION" },
         ],
       },
     }),

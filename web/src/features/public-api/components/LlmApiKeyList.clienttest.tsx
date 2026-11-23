@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
+import { QueryParamProvider } from "use-query-params";
+import { WindowHistoryAdapter } from "use-query-params/adapters/window";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
@@ -75,9 +77,11 @@ vi.mock("@/src/utils/api", () => ({
 
 function TestProvider({ children }: PropsWithChildren) {
   return (
-    <TooltipProvider>
-      <LayerProvider>{children}</LayerProvider>
-    </TooltipProvider>
+    <QueryParamProvider adapter={WindowHistoryAdapter}>
+      <TooltipProvider>
+        <LayerProvider>{children}</LayerProvider>
+      </TooltipProvider>
+    </QueryParamProvider>
   );
 }
 

@@ -6,6 +6,7 @@ import { useSaveGatewayModelAccess } from "@/src/features/ai-gateway/components/
 import type { GatewayModelAccessChange } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/types/gatewayModelAccessChange";
 import { gatewayConnectionsPageSize } from "@/src/features/ai-gateway/constants/gatewayConnectionsPageSize";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 
 export function useGatewayConnectionModels({
@@ -16,6 +17,7 @@ export function useGatewayConnectionModels({
   connectionId: string;
 }) {
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const input = useMemo(
     () => ({ orgId: organizationId, id: connectionId }),
     [organizationId, connectionId],
@@ -55,6 +57,13 @@ export function useGatewayConnectionModels({
   // connection's `updatedAt` only when their turn comes.
   const addCustomModelMutation = useMutation({
     ...customModelMutationOptions,
+    onSuccess: async (connection: GatewayConnection) => {
+      capture("ai_gateway:custom_model_added", {
+        orgId: organizationId,
+        provider: connection.provider,
+      });
+      await customModelMutationOptions.onSuccess(connection);
+    },
     mutationFn: async (model: string) => {
       const connection = await utils.aiGateway.getConnection.ensureData(input);
       return utils.client.aiGateway.addConnectionCustomModel.mutate({
@@ -66,6 +75,13 @@ export function useGatewayConnectionModels({
   });
   const removeCustomModelMutation = useMutation({
     ...customModelMutationOptions,
+    onSuccess: async (connection: GatewayConnection) => {
+      capture("ai_gateway:custom_model_removed", {
+        orgId: organizationId,
+        provider: connection.provider,
+      });
+      await customModelMutationOptions.onSuccess(connection);
+    },
     mutationFn: async (model: string) => {
       const connection = await utils.aiGateway.getConnection.ensureData(input);
       return utils.client.aiGateway.removeConnectionCustomModel.mutate({

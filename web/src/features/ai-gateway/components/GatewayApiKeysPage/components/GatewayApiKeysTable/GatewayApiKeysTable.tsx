@@ -1,7 +1,7 @@
 import { Pencil, Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
@@ -68,6 +68,7 @@ export function GatewayApiKeysTable({
   spend,
   onEdit,
   onRevoke,
+  onCreateKey,
   pagination,
   search,
   orderBy,
@@ -78,6 +79,7 @@ export function GatewayApiKeysTable({
   spend: GatewayApiKeysSpendState;
   onEdit: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
+  onCreateKey: () => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
 }) {
@@ -203,7 +205,7 @@ export function GatewayApiKeysTable({
   ];
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="gatewayApiKeys"
       columns={columns}
       data={data}
@@ -237,7 +239,11 @@ export function GatewayApiKeysTable({
           ? "No gateway keys match the current search."
           : "No gateway keys created."
       }
-      emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}
+      emptyState={
+        hasNoKeys ? (
+          <GatewayApiKeysEmptyState onCreateKey={onCreateKey} />
+        ) : undefined
+      }
     />
   );
 }

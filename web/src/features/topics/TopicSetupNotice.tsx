@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupNoticeState } from "./useTopicSettings";
 import { TopicPilesIllustration } from "./TopicPilesIllustration";
@@ -31,28 +31,20 @@ export function TopicSetupNotice({
   return (
     <>
       {status?.kind === "paused" ? (
-        <Alert variant="warning">
-          <Alert.Title>Automatic Topics processing is paused</Alert.Title>
-          <Alert.Description>
-            <p className="break-words">{status.message}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button
-                text="Turn back on"
-                variant="secondary"
-                size="sm"
-                disabled={!canWrite}
-                onClick={onTurnBackOn}
-              />
-              <Button
-                text="Keep off"
-                variant="secondary"
-                size="sm"
-                disabled={!canWrite}
-                onClick={onKeepOff}
-              />
-            </div>
-          </Alert.Description>
-        </Alert>
+        <Banner
+          variant="warning"
+          title="Automatic Topics processing is paused"
+          actions={[
+            {
+              text: "Turn back on",
+              disabled: !canWrite,
+              onClick: onTurnBackOn,
+            },
+            { text: "Keep off", disabled: !canWrite, onClick: onKeepOff },
+          ]}
+        >
+          <p className="break-words">{status.message}</p>
+        </Banner>
       ) : null}
       {showOnboarding ? (
         <div className="flex flex-1 flex-col items-center-safe justify-center-safe gap-7 overflow-y-auto px-4 pb-24">

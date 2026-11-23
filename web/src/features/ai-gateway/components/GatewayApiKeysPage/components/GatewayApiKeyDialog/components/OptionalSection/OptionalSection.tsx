@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { X } from "@langfuse/icons";
+import { Trash2 } from "@langfuse/icons";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 
@@ -15,12 +15,12 @@ type OptionalSectionProps = {
 /** A boxed optional setting of the key form, removable from its top corner. */
 export function OptionalSection({ remove, children }: OptionalSectionProps) {
   return (
-    <section className="bg-surface-section relative rounded-lg border p-3">
+    <section className="relative rounded-lg border p-3">
       {children}
       {remove ? (
         <div className="absolute top-1.5 right-1.5">
           <IconButton
-            icon={X}
+            icon={Trash2}
             label={remove.label}
             size="sm"
             onClick={remove.onRemove}

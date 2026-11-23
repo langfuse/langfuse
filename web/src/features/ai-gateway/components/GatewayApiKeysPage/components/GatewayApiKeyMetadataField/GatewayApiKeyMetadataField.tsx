@@ -1,4 +1,4 @@
-import { Plus, X } from "@langfuse/icons";
+import { Plus, Trash2 } from "@langfuse/icons";
 import { useController, useFieldArray, type Control } from "react-hook-form";
 
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -115,7 +115,7 @@ function MetadataRow({
         ref={valueField.ref}
       />
       <IconButton
-        icon={X}
+        icon={Trash2}
         label="Remove metadata field"
         size="sm"
         onClick={handleRemove}

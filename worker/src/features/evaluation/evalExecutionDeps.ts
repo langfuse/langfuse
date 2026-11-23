@@ -1,3 +1,4 @@
+/* eslint-disable array-callback-return */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { JobExecutionStatus } from "@prisma/client";

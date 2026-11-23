@@ -130,10 +130,12 @@ import {
   getSfdcService,
   toSfdcPlan,
 } from "@/src/ee/features/sfdc-sync/server/sfdcService";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import {
+  getOrganizationPlanServerSide,
+  logger,
+} from "@langfuse/shared/src/server";
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
 
 type Cli = {
   execute: boolean;

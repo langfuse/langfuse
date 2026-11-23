@@ -5,7 +5,7 @@ import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeOrgError } from "@/src/features/public-api/server/writeError";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,

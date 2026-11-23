@@ -25,7 +25,7 @@ export function canViewTopics(
 }
 
 /** Resolves the project like the rest of the app. */
-export function useCanViewTopics(projectId: string) {
+export function useCanViewTopics(projectId: string | null) {
   const session = useSession().data;
   const { project } = useProject(projectId);
   return canViewTopics(session, project);

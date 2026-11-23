@@ -13,7 +13,18 @@ import {
   type EventSessionTrace,
 } from "@/src/features/sessions/sessionDetailPageTypes";
 
+export type SessionWorkspaceNavigation = {
+  activeView: "trace" | "messages";
+  onViewChange: (value: "trace" | "messages") => void;
+  onOpenTrace?: (
+    id: string,
+    row: EventSessionTrace & { observationId?: string },
+  ) => void;
+};
+
 type ModernSessionProps = {
+  navigation?: SessionWorkspaceNavigation;
+  treeContent?: React.ReactNode;
   viewMode: "conversational" | "list";
   viewTabs: ComponentProps<typeof SessionViewTabs>;
   onSaveView?: () => void;
@@ -65,6 +76,8 @@ export function ModernSession({
   showSystemPrompt,
   filterControlsProps,
   onFilterObservationByName,
+  navigation,
+  treeContent,
 }: ModernSessionProps) {
   const sharedBodyProps = {
     tracesState,
@@ -90,10 +103,10 @@ export function ModernSession({
     return "You are viewing a custom session view.";
   })();
 
-  return (
-    <>
-      {isTimelineEnabled && <SessionViewTabs {...viewTabs} />}
-      {isTimelineEnabled && viewTabs.value === "" ? (
+  const content = (() => {
+    if (navigation?.activeView === "trace") return treeContent;
+    if (isTimelineEnabled && viewTabs.value === "") {
+      return (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
           <h2 className="text-lg font-bold">{emptyViewHeading}</h2>
           <p className="text-muted-foreground text-sm">
@@ -106,63 +119,90 @@ export function ModernSession({
             onClick={viewTabs.onManageViews}
           />
         </div>
-      ) : (
-        <>
-          {customization &&
-            (customization.activeFilterCount > 0 ||
-              viewTabs.value !== "messages") && (
-              <SessionFiltersBanner
-                onEdit={customization.onCustomizeView}
-                onClear={
-                  viewTabs.value === "unsaved"
-                    ? customization.onClearFilters
-                    : undefined
-                }
-                onSave={onSaveView}
-                message={filterBannerMessage}
+      );
+    }
+    return (
+      <>
+        {customization &&
+          (customization.activeFilterCount > 0 ||
+            viewTabs.value !== "messages") && (
+            <SessionFiltersBanner
+              onEdit={customization.onCustomizeView}
+              onClear={
+                viewTabs.value === "unsaved"
+                  ? customization.onClearFilters
+                  : undefined
+              }
+              onSave={onSaveView}
+              message={filterBannerMessage}
+            />
+          )}
+        {isTimelineEnabled && viewMode === "list" && (
+          <ConnectedSessionListBody
+            {...sharedBodyProps}
+            traceCommentCounts={traceCommentCounts}
+            filterState={filterState.filter(
+              (filter) => filter.column !== "traceName",
+            )}
+            viewLabel={null}
+            showInlineToolCalls={true}
+            showSystemPrompt={true}
+            onCustomizeView={customization?.onCustomizeView}
+            activeFilterCount={
+              customization?.activeFilterCount ?? filterState.length
+            }
+          />
+        )}
+        {isTimelineEnabled && viewMode === "conversational" && (
+          <ConnectedModernSessionBodyTimeline
+            sidebarMode="fixed"
+            customization={customization}
+            tracesState={tracesState}
+            projectId={projectId}
+            sessionId={sessionId}
+            openPeek={openPeek}
+            filterState={filterState}
+          />
+        )}
+        {!isTimelineEnabled && (
+          <ModernSessionFilterControls {...filterControlsProps}>
+            {(sidebarFilterControls) => (
+              <ConnectedModernSessionBodyLegacy
+                {...sharedBodyProps}
+                traceCommentCounts={traceCommentCounts}
+                showInlineToolCalls={showInlineToolCalls}
+                showSystemPrompt={showSystemPrompt}
+                sidebarFilterControls={sidebarFilterControls}
               />
             )}
-          {isTimelineEnabled && viewMode === "list" && (
-            <ConnectedSessionListBody
-              {...sharedBodyProps}
-              traceCommentCounts={traceCommentCounts}
-              filterState={filterState.filter(
-                (filter) => filter.column !== "traceName",
-              )}
-              viewLabel={null}
-              showInlineToolCalls={true}
-              showSystemPrompt={true}
-              onCustomizeView={customization?.onCustomizeView}
-              activeFilterCount={
-                customization?.activeFilterCount ?? filterState.length
-              }
-            />
-          )}
-          {isTimelineEnabled && viewMode === "conversational" && (
-            <ConnectedModernSessionBodyTimeline
-              customization={customization}
-              tracesState={tracesState}
-              projectId={projectId}
-              sessionId={sessionId}
-              openPeek={openPeek}
-              filterState={filterState}
-            />
-          )}
-          {!isTimelineEnabled && (
-            <ModernSessionFilterControls {...filterControlsProps}>
-              {(sidebarFilterControls) => (
-                <ConnectedModernSessionBodyLegacy
-                  {...sharedBodyProps}
-                  traceCommentCounts={traceCommentCounts}
-                  showInlineToolCalls={showInlineToolCalls}
-                  showSystemPrompt={showSystemPrompt}
-                  sidebarFilterControls={sidebarFilterControls}
-                />
-              )}
-            </ModernSessionFilterControls>
-          )}
-        </>
+          </ModernSessionFilterControls>
+        )}
+      </>
+    );
+  })();
+
+  return (
+    <>
+      {isTimelineEnabled && (
+        <SessionViewTabs
+          {...viewTabs}
+          leadingTab={
+            navigation ? { value: "session-tree", label: "Session" } : undefined
+          }
+          value={
+            navigation?.activeView === "trace" ? "session-tree" : viewTabs.value
+          }
+          onValueChange={(value) => {
+            if (navigation && value === "session-tree") {
+              navigation.onViewChange("trace");
+              return;
+            }
+            viewTabs.onValueChange(value);
+            navigation?.onViewChange("messages");
+          }}
+        />
       )}
+      {content}
     </>
   );
 }

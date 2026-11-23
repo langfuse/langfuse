@@ -7,6 +7,7 @@
 
 import { randomUUID } from "crypto";
 import { prisma, type Role } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
@@ -86,12 +87,10 @@ export async function createUserWithOrgRole(params: {
     },
   });
 
-  await prisma.organizationMembership.create({
-    data: {
-      orgId: params.orgId,
-      userId: user.id,
-      role: params.role,
-    },
+  await createOrgMembership(prisma, {
+    orgId: params.orgId,
+    userId: user.id,
+    role: params.role,
   });
 
   return { userId: user.id };

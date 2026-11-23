@@ -10,22 +10,24 @@ use super::{is_meaningful, parse_javascript_number, select_first, trim_javascrip
 
 use crate::native_codec::parse_datetime_text;
 use crate::otel::attributes::{
-    is_js_truthy, javascript_string, value_as_f64, value_as_string, JsonParseCache,
+    is_js_truthy, javascript_string, retain_evaluation_value, value_as_f64, value_as_string,
+    JsonParseCache,
 };
 use crate::otel::types::{to_clickhouse_datetime, JsonObject};
 use crate::otel::value::{JsString, Value};
 
 mod rules;
 use rules::{
-    AI_PARAM_RULES, DECLARED_OBSERVATION_TYPES, FIRST_CHUNK_MS_KEYS, GENERATION_MODEL_KEYS,
+    AI_PARAM_RULES, EXPLICIT_OBSERVATION_TYPES, FIRST_CHUNK_MS_KEYS, GENERATION_MODEL_KEYS,
     GENKIT_CONFIG_SOURCES, GOOGLE_METADATA_KEYS, INFERRED_OBSERVATION_TYPES,
     LEGACY_GENERATION_KEYS, LEGACY_PARAM_KEYS, MODEL_NAME_KEYS, NAME_RULES, PARAM_PREFIXES,
-    PROMPT_VERSION_KEYS, PUBLIC_KEYS, TAG_RULES, VERCEL_MODEL_KEYS, VERCEL_MODEL_OPERATIONS,
+    PROMPT_VERSION_KEYS, PROVIDER_OBSERVATION_TYPES, PUBLIC_KEYS, TAG_RULES, VERCEL_MODEL_KEYS,
+    VERCEL_MODEL_OPERATIONS,
 };
 
-struct NameRule {
-    key: &'static str,
-    require_truthy: bool,
+enum NameRule {
+    StringifyIfTruthy(&'static str),
+    RawIfPresent(&'static str),
 }
 
 struct TagRule {
@@ -35,29 +37,40 @@ struct TagRule {
 }
 
 pub fn extract_name(
-    span_name: &str,
+    span_name: Option<&Value>,
     attributes: &JsonObject,
     observation_type: &str,
     scope_name: &str,
+    evaluation_fields: &mut Option<Box<JsonObject>>,
 ) -> String {
+    let mut raw_name = |value: &Value| {
+        // Evaluation sees the provider's value before ClickHouse coerces it to text.
+        retain_evaluation_value(evaluation_fields, "name", value);
+        value_as_string(value).unwrap_or_default()
+    };
     for rule in NAME_RULES {
-        if let Some(value) = attributes
-            .get(rule.key)
-            .filter(|value| !rule.require_truthy || is_js_truthy(value))
-        {
-            return value_as_string(value).unwrap_or_default();
+        match rule {
+            NameRule::StringifyIfTruthy(key) => {
+                if let Some(value) = attributes.get(*key).filter(|v| is_js_truthy(v)) {
+                    return value_as_string(value).unwrap_or_default();
+                }
+            }
+            NameRule::RawIfPresent(key) => {
+                if let Some(value) = attributes.get(*key) {
+                    return raw_name(value);
+                }
+            }
         }
     }
     if let Some(operation) = attributes.get("ai.operationId") {
         let prefix = attributes
             .get("ai.telemetry.functionId")
             .filter(|value| is_js_truthy(value))
-            .and_then(value_as_string)
-            .map(|value| format!("{value}:"))
+            .map(|value| format!("{}:", javascript_string(value)))
             .unwrap_or_default();
-        return format!("{prefix}{}", value_as_string(operation).unwrap_or_default());
+        return format!("{prefix}{}", javascript_string(operation));
     }
-    if span_name == "anthropic.session.turn"
+    if span_name.and_then(Value::as_str) == Some("anthropic.session.turn")
         && observation_type == "AGENT"
         && scope_name == "com.anthropic.claude-platform"
         && attributes
@@ -74,7 +87,7 @@ pub fn extract_name(
             return name.to_owned();
         }
     }
-    span_name.to_owned()
+    span_name.map(raw_name).unwrap_or_default()
 }
 
 pub fn extract_model_name(attributes: &JsonObject) -> Option<String> {
@@ -289,6 +302,12 @@ fn is_claude_session_creation(attributes: &JsonObject, scope_name: &str, span_na
         && claude_managed_agent_session_id(attributes, scope_name).is_some()
 }
 
+/// Claude Platform repeats the usage of each anthropic.model_request child on the
+/// anthropic.messages.create request span, so only the child is priced.
+fn is_claude_platform_request_span(scope_name: &str, span_name: &str) -> bool {
+    scope_name == "com.anthropic.claude-platform" && span_name == "anthropic.messages.create"
+}
+
 pub fn should_skip_model_usage_and_cost(
     attributes: &JsonObject,
     scope_name: &str,
@@ -300,19 +319,30 @@ pub fn should_skip_model_usage_and_cost(
             .get("gen_ai.operation.name")
             .and_then(Value::as_str),
         Some("invoke_agent" | "agent_step")
-    ) || (observation_type == "SPAN"
-        && is_claude_session_creation(attributes, scope_name, span_name))
+    ) || is_claude_platform_request_span(scope_name, span_name)
+        || (observation_type == "SPAN"
+            && is_claude_session_creation(attributes, scope_name, span_name))
 }
 
-fn declared_observation_type(attributes: &JsonObject) -> Option<&'static str> {
-    DECLARED_OBSERVATION_TYPES
-        .iter()
-        .find_map(|(key, aliases)| {
-            let value = attributes.get(*key)?.as_str()?;
-            aliases
-                .iter()
-                .find_map(|(alias, kind)| (*alias == value).then_some(*kind))
-        })
+fn declared_observation_type(
+    attributes: &JsonObject,
+    rules: &[(&str, &[(&str, &'static str)])],
+) -> Option<&'static str> {
+    rules.iter().find_map(|(key, aliases)| {
+        let mut value = attributes.get(*key)?;
+        // JS uses this value as a property key: ["chat"] maps to "chat".
+        // Joining multiple entries inserts commas, which no type alias contains.
+        while let Value::Array(items) = value {
+            let [only] = items.as_slice() else {
+                return None;
+            };
+            value = only;
+        }
+        let value = value.as_str()?;
+        aliases
+            .iter()
+            .find_map(|(alias, kind)| (*alias == value).then_some(*kind))
+    })
 }
 
 fn legacy_python_generation(
@@ -384,7 +414,9 @@ pub fn observation_type(
 ) -> String {
     legacy_python_generation(attributes, resource, scope_name, scope_version)
         .then_some("GENERATION")
-        .or_else(|| declared_observation_type(attributes))
+        .or_else(|| declared_observation_type(attributes, EXPLICIT_OBSERVATION_TYPES))
+        .or_else(|| is_claude_platform_request_span(scope_name, span_name).then_some("SPAN"))
+        .or_else(|| declared_observation_type(attributes, PROVIDER_OBSERVATION_TYPES))
         .or_else(|| vercel_observation_type(attributes))
         .or_else(|| {
             INFERRED_OBSERVATION_TYPES.iter().find_map(|(keys, kind)| {
@@ -713,7 +745,7 @@ mod tests {
                 .map(|name| ((*name).into(), json!(name)))
                 .collect();
             assert_eq!(
-                extract_name("span", &attributes, "SPAN", "ai"),
+                extract_name(Some(&json!("span")), &attributes, "SPAN", "ai", &mut None),
                 names[first]
             );
         }
@@ -729,10 +761,14 @@ mod tests {
                 if provider == "openai" && metadata.get("serviceTier").is_none() {
                     continue;
                 }
-                let attributes = json!({
+                let mut attributes = json!({
                     "ai.response.providerMetadata": json!({provider: metadata}).to_string(),
                     "gen_ai.request.service_tier": "standard",
                 });
+                attributes
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("gen_ai.system".into(), Value::parse(r#""\ud800""#).unwrap());
                 let params = extract_model_parameters(
                     attributes.as_object().unwrap(),
                     "ai",
@@ -740,6 +776,7 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(params["service_tier"], json!("flex"), "{attributes:?}");
+                assert_eq!(params["system"].to_json_string(), r#""\ud800""#);
             }
         }
     }
