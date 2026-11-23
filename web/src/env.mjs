@@ -93,9 +93,11 @@ export const env = createEnv({
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.url().optional(),
     LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK: z.url().optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
-    LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
+    LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS: z
+      .enum(["true", "false"])
+      .default("false"),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -537,15 +539,29 @@ export const env = createEnv({
           .map((id) => id.trim())
           .filter(Boolean),
       ),
+    // Coupon codes for the self-serve credit programs (Langfuse Cloud only), as
+    // a JSON object from code to the program name ClickHouse's credit-request
+    // form expects, e.g. {"CODE-1":"Startup"}. Codes are shared per program, so
+    // they live only here, never in the repo.
+    LANGFUSE_CLOUD_COUPON_CODES: z
+      .string()
+      .optional()
+      .transform((value, ctx) => {
+        if (value == null || value.trim() === "") return {};
+        try {
+          return z.record(z.string(), z.string()).parse(JSON.parse(value));
+        } catch {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "LANGFUSE_CLOUD_COUPON_CODES must be a JSON object mapping coupon codes to program names",
+          });
+          return z.NEVER;
+        }
+      }),
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
-    // Compares each GET /api/billing/metrics poll with the billable_events
-    // ledger and reports the gap. Requires the ledger table, which only
-    // Langfuse Cloud has; keep in sync with worker/src/env.ts.
-    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
     // ARN of CHB's cross-account EventBridge bus we publish project lifecycle
     // events to. Unset = no events are emitted. The ARN carries the bus region,
     // so it is the only input needed; authentication is SigV4 from the task
@@ -595,8 +611,6 @@ export const env = createEnv({
       .number()
       .positive()
       .default(50_000),
-    PLAIN_AUTHENTICATION_SECRET: z.string().optional(),
-    PLAIN_CARDS_API_TOKEN: z.string().optional(),
     PYLON_API_KEY: z.string().optional(),
 
     // UI customization - comma-separated list of visible product modules
@@ -734,19 +748,41 @@ export const env = createEnv({
     LANGFUSE_V4_BANNER_SEVERITY: z
       .enum(["off", "warning", "critical"])
       .default("off"),
-    // Comma-separated organization ids that never see the banner.
-    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: z
+    // Comma-separated project ids whose deadline is December 31, 2026.
+    // The December sentence shows only when every actionable project is on
+    // this list. These projects also belong on the cutoff-exempt list so the
+    // v3 cutoff stays off until then.
+    LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS: z
       .string()
       .optional()
       .transform((value) =>
         value
           ? value
               .split(",")
-              .map((organizationId) => organizationId.trim())
+              .map((projectId) => projectId.trim())
               .filter(Boolean)
           : [],
       ),
-
+    // Langfuse Cloud only, temporary. v3 cutoff switches, flipped by hand.
+    // Ignored on self-hosted deployments.
+    // INGESTION: legacy batch events except score-create, and legacy trace writes.
+    LANGFUSE_V4_CUTOFF_INGESTION: z.enum(["true", "false"]).default("false"),
+    // PUBLIC_API: public API handlers that carry a v3 deprecation.
+    LANGFUSE_V4_CUTOFF_PUBLIC_API: z.enum(["true", "false"]).default("false"),
+    // Comma-separated project ids that skip every cutoff. The same list is the
+    // one-week banner extension: November 23 shows only when every actionable
+    // project is on it. Keep in sync with worker/src/env.ts.
+    LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((projectId) => projectId.trim())
+              .filter(Boolean)
+          : [],
+      ),
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
     // router, so it works as a runtime env var on prebuilt Docker images.
@@ -763,11 +799,7 @@ export const env = createEnv({
       .int()
       .positive()
       .default(1_000_000),
-    LANGFUSE_SKILL_MAX_FILES: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(200),
+    LANGFUSE_SKILL_MAX_FILES: z.coerce.number().int().positive().default(200),
 
     // Reverse proxies in front of the web container that append the client
     // address to X-Forwarded-For. Audit events take the client IP from the
@@ -780,7 +812,9 @@ export const env = createEnv({
       .default(0),
 
     // Kill switch for staging audit events for the ClickHouse audit_logs table
-    // (EE). The Postgres audit_logs row is written either way.
+    // (EE). The Postgres audit_logs row is written either way, but the
+    // audit-log viewer and export read ClickHouse only, so change events
+    // written while it is off do not show there.
     // Read-access events have no Postgres row, so turning it off stops
     // recording them; reads still succeed.
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
@@ -815,19 +849,6 @@ export const env = createEnv({
     LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED: z
       .enum(["true", "false"])
       .default("true"),
-
-    // Temporary kill-switch for the observations v2 subquery-IN rewrite.
-    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE: z.coerce
-      .number()
-      .min(0)
-      .max(1)
-      .default(0.01),
 
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
@@ -892,7 +913,6 @@ export const env = createEnv({
       .default("false"),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
-    NEXT_PUBLIC_PLAIN_APP_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
     NEXT_PUBLIC_BASE_PATH: z.string().optional(),
     // Origin that serves this build's `/_next/static/*` output, when it is
@@ -947,6 +967,8 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS:
+      process.env.LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
@@ -958,7 +980,6 @@ export const env = createEnv({
       process.env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
-    LANGFUSE_ADMIN_ACCESS_WEBHOOK: process.env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,
     MULESOFT_SFDC_USER_URL: process.env.MULESOFT_SFDC_USER_URL,
     MULESOFT_SFDC_ORG_URL: process.env.MULESOFT_SFDC_ORG_URL,
     MULESOFT_SFDC_BASIC_AUTH_USER: process.env.MULESOFT_SFDC_BASIC_AUTH_USER,
@@ -1211,9 +1232,6 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     // Other
-    NEXT_PUBLIC_PLAIN_APP_ID: process.env.NEXT_PUBLIC_PLAIN_APP_ID,
-    PLAIN_AUTHENTICATION_SECRET: process.env.PLAIN_AUTHENTICATION_SECRET,
-    PLAIN_CARDS_API_TOKEN: process.env.PLAIN_CARDS_API_TOKEN,
     PYLON_API_KEY: process.env.PYLON_API_KEY,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
@@ -1296,10 +1314,9 @@ export const env = createEnv({
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
     LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
+    LANGFUSE_CLOUD_COUPON_CODES: process.env.LANGFUSE_CLOUD_COUPON_CODES,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
-    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED:
-      process.env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
     CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
@@ -1392,8 +1409,12 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
-    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
-      process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
+    LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS:
+      process.env.LANGFUSE_V4_BANNER_DECEMBER_PROJECT_IDS,
+    LANGFUSE_V4_CUTOFF_INGESTION: process.env.LANGFUSE_V4_CUTOFF_INGESTION,
+    LANGFUSE_V4_CUTOFF_PUBLIC_API: process.env.LANGFUSE_V4_CUTOFF_PUBLIC_API,
+    LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS:
+      process.env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_SKILL_MAX_BYTES: process.env.LANGFUSE_SKILL_MAX_BYTES,
@@ -1412,12 +1433,6 @@ export const env = createEnv({
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
     LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED:
       process.env.LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED,
-    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
-      process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY:
-      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY,
-    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE:
-      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },

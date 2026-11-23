@@ -125,33 +125,11 @@ export async function buildTopicPrototypes(
       const pause = checkpoint();
       if (pause) await pause;
     }
-    let rival: (typeof groups)[number] | undefined;
-    let rivalDistance = Infinity;
-    for (const candidate of groups) {
-      if (candidate === group) continue;
-      const distance = cosineDistance(group.centroid, candidate.centroid);
-      if (distance < rivalDistance) {
-        rival = candidate;
-        rivalDistance = distance;
-      }
-      const pause = checkpoint();
-      if (pause) await pause;
-    }
-    const rivalDistances: number[] = [];
-    if (rival)
-      for (const index of rival.indices) {
-        normalizeInto(summaries[index].embedding, vector);
-        rivalDistances.push(cosineDistance(vector, group.centroid));
-        const pause = checkpoint();
-        if (pause) await pause;
-      }
+    // Own members only: clipping by the nearest topic's members left 20 to 67 points of coverage unassigned.
     prototypes.push({
       id: `cluster_${group.label}`,
       centroid: group.centroid,
-      radius: Math.min(
-        quantile(positives, 0.95),
-        rival ? quantile(rivalDistances, 0.05) : 2,
-      ),
+      radius: quantile(positives, 0.95),
     });
   }
   return prototypes;

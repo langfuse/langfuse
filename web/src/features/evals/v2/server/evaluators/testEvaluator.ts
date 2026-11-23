@@ -1,4 +1,5 @@
 import {
+  EvalTargetObject,
   getCodeEvalVariableMapping,
   observationVariableMappingList,
 } from "@langfuse/shared";
@@ -15,12 +16,11 @@ import {
   findModel,
   generateLlmEvaluatorOutput,
   isAllowedDecisionModel,
-  LLMAdapter,
-  OPENAI_DECISION_MODEL_IDS,
   LangfuseInternalTraceEnvironment,
   matchPricingTier,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
+  unsupportedDecisionModelMessage,
   type DecisionModelRequest,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
@@ -57,6 +57,7 @@ export async function testEvaluator(params: {
     assertCompleteEvaluatorVariableMapping({
       promptVariables: params.definition.vars,
       variableMapping: params.definition.variableMapping,
+      targetObject: EvalTargetObject.EVENT,
     });
     variableMapping = observationVariableMappingList.parse(
       params.definition.variableMapping,
@@ -68,6 +69,7 @@ export async function testEvaluator(params: {
         params.definition.promptMessages,
       ),
       variableMapping: llmVariableMapping,
+      targetObject: EvalTargetObject.EVENT,
     });
     variableMapping = observationVariableMappingList.parse(llmVariableMapping);
   }
@@ -144,9 +146,11 @@ async function testDecisionModelEvaluator(params: {
     return {
       success: false as const,
       error:
-        modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI
-          ? `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`
-          : `Connection "${params.definition.provider}" is not a decision-model connection.`,
+        unsupportedDecisionModelMessage(
+          modelConfig.config.apiKey.adapter,
+          modelConfig.config.model,
+        ) ??
+        `Connection "${params.definition.provider}" is not a decision-model connection.`,
     };
   }
 

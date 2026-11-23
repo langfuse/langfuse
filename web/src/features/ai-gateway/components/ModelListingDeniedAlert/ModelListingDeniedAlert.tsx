@@ -1,6 +1,4 @@
-import { TriangleAlert } from "@langfuse/icons";
-
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
 export function ModelListingDeniedAlert({
@@ -9,13 +7,28 @@ export function ModelListingDeniedAlert({
   provider: GatewayProvider;
 }) {
   return (
-    <Alert variant="warning" icon={TriangleAlert}>
-      <Alert.Title>Models can&apos;t be listed</Alert.Title>
-      <Alert.Description>
-        This key may call models but can&apos;t list all of them, so some models
-        may be missing here. {listingHint(provider)}
-      </Alert.Description>
-    </Alert>
+    <Banner variant="warning" title="Models can't be listed">
+      {listingDescription(provider)}
+    </Banner>
+  );
+}
+
+function listingDescription(provider: GatewayProvider) {
+  if (provider === "AZURE") {
+    return (
+      <>
+        Deployments are listed per Foundry project. Check that the connection
+        names the right project; without one, only a default project is listed.
+        The key may also not be allowed to list deployments. Deployments can
+        still be added as custom models by their deployment name.
+      </>
+    );
+  }
+  return (
+    <>
+      This key may call models but can&apos;t list all of them, so some models
+      may be missing here. {listingHint(provider)}
+    </>
   );
 }
 

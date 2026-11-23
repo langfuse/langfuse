@@ -12,13 +12,12 @@
  * - Server discarded after request completes
  */
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
-  ListToolsRequestSchema,
-  CallToolRequestSchema,
-  McpError,
-  ErrorCode,
-} from "@modelcontextprotocol/sdk/types.js";
+  Server,
+  ProtocolError,
+  ProtocolErrorCode,
+  isInputRequiredResult,
+} from "@modelcontextprotocol/server";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { formatErrorForUser } from "../core/error-formatting";
@@ -81,13 +80,16 @@ export function createMcpServer(context: ServerContext): Server {
         extensions: { "io.modelcontextprotocol/skills": {} },
       },
       instructions: getMcpServerInstructions(),
+      // 2025-era requests get JSON responses, which cannot carry the SDK's
+      // server-to-client prompts, so tools never ask for input there.
+      inputRequired: { legacyShim: false },
     },
   );
 
   registerSkillResources(server);
 
   // ListTools handler - dynamically load from registry
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
+  server.setRequestHandler("tools/list", async () => {
     const tools = await toolRegistry.getToolDefinitions(context);
 
     logger.debug("MCP ListTools", {
@@ -100,7 +102,7 @@ export function createMcpServer(context: ServerContext): Server {
   });
 
   // CallTool handler - route to registered tool handlers
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler("tools/call", async (request, ctx) => {
     const { name, arguments: args } = request.params;
 
     logger.debug("MCP CallTool", {
@@ -113,7 +115,10 @@ export function createMcpServer(context: ServerContext): Server {
     const registeredTool = await toolRegistry.getEnabledTool(name, context);
 
     if (!registeredTool) {
-      throw new McpError(ErrorCode.InvalidParams, `Unknown tool: ${name}`);
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        `Unknown tool: ${name}`,
+      );
     }
 
     assertToolAuthorized(registeredTool.definition, context);
@@ -130,8 +135,10 @@ export function createMcpServer(context: ServerContext): Server {
     });
     try {
       const result = await otelContext.with(clickHouseCtx, () =>
-        registeredTool.handler(args, context),
+        registeredTool.handler(args, context, ctx),
       );
+
+      if (isInputRequiredResult(result)) return result;
 
       return {
         content: [
@@ -172,7 +179,7 @@ function assertToolAuthorized(
   });
   if (!decision.success) {
     const { code, message } = formatErrorForUser(decision.error);
-    throw new McpError(code, message);
+    throw new ProtocolError(code, message);
   }
 }
 

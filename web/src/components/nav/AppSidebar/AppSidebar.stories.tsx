@@ -2,7 +2,6 @@
 import type { ComponentProps } from "react";
 import {
   Activity,
-  ArrowUpRight,
   BookOpen,
   ListTree,
   Grid2X2,
@@ -341,7 +340,6 @@ const cloudEnterpriseOrg = (name: string): Partial<AppSidebarProps> => ({
     {
       id: "org-enterprise",
       name,
-      role: "OWNER",
       cloudConfig: undefined,
       plan: "cloud:enterprise",
       metadata: {},
@@ -488,7 +486,7 @@ export const AiGatewayNavigationSetUp = meta.story({
             title: "Tracing",
             url: "/project/project-gateway/traces",
             icon: ListTree,
-            label: <ArrowUpRight size="base" color="tertiary" aria-hidden />,
+            external: true,
           },
         ],
       },

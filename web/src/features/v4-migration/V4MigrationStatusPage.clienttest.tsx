@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import V4MigrationStatusPage from "./V4MigrationStatusPage";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -36,25 +37,16 @@ vi.mock("next/router", () => ({
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     status: "authenticated",
-    data: {
-      user: {
-        organizations: [
-          {
-            id: "org-1",
-            name: "Test organization",
-            role: "MEMBER",
-            projects: [
-              {
-                id: "project-1",
-                name: "Test project",
-                role: "MEMBER",
-                deletedAt: null,
-              },
-            ],
-          },
-        ],
-      },
-    },
+    data: createSession({
+      organizations: [
+        {
+          id: "org-1",
+          role: "MEMBER",
+          name: "Test organization",
+          projects: [{ id: "project-1", name: "Test project" }],
+        },
+      ],
+    }),
   }),
 }));
 
@@ -75,7 +67,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 }));
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
-  V4_MIGRATION_DEADLINE: "November 16, 2026",
+  V4_MIGRATION_DEADLINE: "November 19, 2026",
   useCopyMigrationPrompt: () => vi.fn(),
   useHasV4MigrationDeadline: () => mocks.hasDeadline,
   // Stand-ins for the shared sidebar copy: the real components are covered in
@@ -85,13 +77,13 @@ vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   ),
   V4MigrationDeadlineNote: () => (
     <p>
-      After November 16, 2026 some features may stop working if you don&apos;t
+      After November 19, 2026 some features may stop working if you don&apos;t
       update integrations.
     </p>
   ),
   useV4MigrationTitle: () =>
     mocks.hasDeadline
-      ? "Ensure compatibility after November 16"
+      ? "Ensure compatibility after November 19"
       : "Ensure compatibility",
 }));
 
@@ -237,7 +229,7 @@ describe("V4MigrationStatusPage", () => {
     render(<V4MigrationStatusPage />);
 
     expect(
-      screen.getByText("Ensure compatibility after November 16"),
+      screen.getByText("Ensure compatibility after November 19"),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
@@ -283,7 +275,7 @@ describe("V4MigrationStatusPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /The features powering the legacy v3 UI will be sunset on November 16, 2026\./,
+        /The features powering the legacy v3 UI will be sunset on November 19, 2026\./,
       ),
     ).toBeInTheDocument();
     expect(screen.getByTestId("v4-preview-toggle-row")).toBeInTheDocument();
@@ -302,11 +294,11 @@ describe("V4MigrationStatusPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("uses the November 16, 2026 deadline throughout the FAQ", () => {
+  it("uses the November 19, 2026 deadline throughout the FAQ", () => {
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("on November 16, 2026")).toBeInTheDocument();
-    expect(screen.getByText("On November 16, 2026")).toBeInTheDocument();
+    expect(screen.getByText("on November 19, 2026")).toBeInTheDocument();
+    expect(screen.getByText("On November 19, 2026")).toBeInTheDocument();
     expect(screen.queryByText(/Oct 9/)).not.toBeInTheDocument();
   });
 
@@ -323,8 +315,8 @@ describe("V4MigrationStatusPage", () => {
     expect(
       screen.getByText("Once your administrator disables the legacy mode"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/on November 16, 2026/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/On November 16, 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/on November 19, 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/On November 19, 2026/)).not.toBeInTheDocument();
   });
 
   it("drops the dated sunset from the switch-back warning when self-hosted", () => {

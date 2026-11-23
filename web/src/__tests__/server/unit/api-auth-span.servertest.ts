@@ -32,10 +32,6 @@ vi.mock("@/src/env.mjs", () => ({
   },
 }));
 
-vi.mock("@/src/features/entitlements/server/getPlan", () => ({
-  getOrganizationPlanServerSide: () => "oss",
-}));
-
 vi.mock("@/src/utils/exceptions", () => ({
   isPrismaException: () => false,
 }));
@@ -63,7 +59,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   addUserToSpan: addUserToSpanMock,
   createApiKeyCacheKey: vi.fn((hash: string) => `api-key:${hash}`),
   createShaHash: createShaHashMock,
-  deleteApiKeyFromDb: vi.fn(),
+  getOrganizationPlanServerSide: () => "oss",
   invalidateCachedApiKeys: vi.fn(),
   invalidateCachedOrgApiKeys: vi.fn(),
   invalidateCachedProjectApiKeys: vi.fn(),

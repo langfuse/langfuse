@@ -37,9 +37,10 @@ import {
   serializeTarget,
   targetReference,
 } from "./targeting";
-import type { ASTNode, FilterNode } from "./ast";
-import { validateQuery } from "./validate";
-import { rankFilter } from "./rank";
+import type { ASTNode, FilterNode, Span } from "./ast";
+import { semanticDiagnostics, validateQuery } from "./validate";
+import { filterRank, rankFilter } from "./rank";
+import { valueQueryRank } from "./value-match";
 import type { ObservedOptions } from "./observed-options";
 
 type CompletionStage = "empty" | "field" | "value" | "operator" | "recent";
@@ -61,6 +62,8 @@ export type CompletionOption =
       label: string;
       detail?: string;
       value: string;
+      /** Query syntax, when it differs from the displayed logical value. */
+      insert?: string;
       active?: boolean;
     }
   | {
@@ -283,7 +286,7 @@ function fieldOptions(
       },
     );
   }
-  if (includeVirtual) {
+  if (includeVirtual && registry.allowPresence !== false) {
     // Written per view where it matters (see FieldRegistry.hasExample); the
     // first nullable field is only the fallback. `has:endTime` on a view
     // without endTime advertises a filter that cannot resolve.
@@ -341,7 +344,9 @@ function querySuggestionOptions(
     if (registry.resolveField(fieldId) === null) continue;
     const top = observed[fieldId]?.[0];
     if (top === undefined) continue;
-    const insert = `${fieldId}:${serializeValue(top.value)}`;
+    const ref = registry.resolveField(fieldId);
+    const exact = ref?.type === "field" && ref.field.exactSuggestions;
+    const insert = `${fieldId}:${exact ? "=" : ""}${serializeValue(top.value)}`;
     out.push({
       id: `suggest:${insert}`,
       kind: "pattern",
@@ -361,56 +366,76 @@ function querySuggestionOptions(
 // scans the observed map — LOADED columns only, by design: suggestions mirror
 // what the facet sidebar can currently show, and typing must never fan out
 // on-demand option fetches (the lazy-column mechanism exists to avoid exactly
-// that) — and surfaces the best few as ready-to-run rewrites of the free-text
-// run, exactly parallel to the input:/output: scope switches.
+// that) — plus each field's closed enum (`knownValues`), which is known before
+// any facet loads. It surfaces the best few as ready-to-run rewrites of the
+// free-text run, exactly parallel to the input:/output: scope switches.
 
-/** Fields whose observed values are meaningful bare-term match targets: the
+/** Fields whose values are meaningful bare-term match targets: the
  *  option-backed columns plus textSearch fields that keep a value picker
  *  (id/name). Booleans/numbers/datetimes never match here — their observed
  *  lists are empty or non-enumerated. */
+function isValueMatchField(field: FieldDef): boolean {
+  return (
+    field.directFilter !== false &&
+    (field.syncMode === "exactOption" ||
+      field.syncMode === "arrayOption" ||
+      field.suggestObservedValues === true)
+  );
+}
+
 /** A 1-char term matches half the dataset; require a real prefix. */
 const MIN_VALUE_MATCH_LENGTH = 2;
 /** Popover budget: the section competes with fields + full-text, keep it tight. */
 const MAX_VALUE_MATCHES = 3;
 
 /**
- * Ready-to-run `field:value` rewrites of the free-text run, drawn from loaded
- * observed values. Exact value matches rank above prefix matches above
- * substring matches; ties prefer the higher observed count, then registry
- * order (sort is stable). Replaces the WHOLE run via replaceSpan, like the
- * scope switches — the suggestion converts the visual free-text block the user
- * sees, not one word of it.
+ * Ready-to-run `field:value` rewrites of the free-text run. Closed enum values
+ * match even while facets are still loading; other values come from loaded
+ * observed columns only. Exact matches rank above prefix matches above
+ * substring matches (a plural query matches its singular exactly). Closed
+ * enums skip the substring tier. Ties prefer
+ * a closed enum over a high-cardinality value, then the higher observed count.
+ * Replaces the WHOLE run via replaceSpan, like the scope switches.
  */
 function matchingFilterOptions(
   typed: string,
   observed: ObservedOptions | undefined,
   span: { from: number; to: number },
   registry: FieldRegistry,
-): CompletionOption[] {
-  if (observed === undefined || typed.length < MIN_VALUE_MATCH_LENGTH)
-    return [];
+): { options: CompletionOption[]; matchedClosedEnum: boolean } {
+  if (typed.length < MIN_VALUE_MATCH_LENGTH) {
+    return { options: [], matchedClosedEnum: false };
+  }
   const q = typed.toLowerCase();
   const ranked: Array<{
     rank: number;
     count: number;
+    catalog: boolean;
     option: CompletionOption;
   }> = [];
-  const valueMatchFields = registry.fields.filter(
-    (field) =>
-      field.directFilter !== false &&
-      (field.syncMode === "exactOption" ||
-        field.syncMode === "arrayOption" ||
-        field.suggestObservedValues === true),
-  );
+  const valueMatchFields = registry.fields.filter(isValueMatchField);
   for (const f of valueMatchFields) {
+    const byValue = new Map<string, { count: number; catalog: boolean }>();
+    for (const known of f.knownValues ?? []) {
+      byValue.set(known, { count: 0, catalog: true });
+    }
     for (const o of observedValues(observed, f.id)) {
-      const v = o.value.toLowerCase();
-      const rank = matchRank(v, q);
-      if (rank === null) continue;
-      const insert = `${f.id}:${serializeValue(o.value)}`;
+      const existing = byValue.get(o.value);
+      byValue.set(o.value, {
+        count: o.count ?? existing?.count ?? 0,
+        catalog: existing?.catalog ?? false,
+      });
+    }
+    for (const [value, meta] of byValue) {
+      const rank = valueQueryRank(value.toLowerCase(), q);
+      // Closed enums stay exact / prefix / plural. A substring would make a
+      // two-letter query (`er`) suggest half the observation types.
+      if (rank === null || (meta.catalog && rank > 1)) continue;
+      const insert = `${f.id}:${f.exactSuggestions ? "=" : ""}${serializeValue(value)}`;
       ranked.push({
         rank,
-        count: o.count ?? 0,
+        count: meta.count,
+        catalog: meta.catalog,
         option: {
           id: `match:${insert}`,
           kind: "pattern",
@@ -427,13 +452,13 @@ function matchingFilterOptions(
   )) {
     for (const key of observedValues(observed, column)) {
       for (const o of observedValues(observed, `${column}.${key.value}`)) {
-        const v = o.value.toLowerCase();
-        const rank = matchRank(v, q);
+        const rank = valueQueryRank(o.value.toLowerCase(), q);
         if (rank === null) continue;
         const insert = `${namespace}.${quoteIfNeeded(key.value)}:${serializeValue(o.value)}`;
         ranked.push({
           rank,
           count: o.count ?? 0,
+          catalog: false,
           option: {
             id: `match:${insert}`,
             kind: "pattern",
@@ -446,16 +471,17 @@ function matchingFilterOptions(
       }
     }
   }
-  ranked.sort((a, b) => a.rank - b.rank || b.count - a.count);
-  return ranked.slice(0, MAX_VALUE_MATCHES).map((m) => m.option);
-}
-
-/** Exact match first, then prefix, then substring; null when the value does not match. */
-function matchRank(value: string, query: string) {
-  if (value === query) return 0;
-  if (value.startsWith(query)) return 1;
-  if (value.includes(query)) return 2;
-  return null;
+  ranked.sort(
+    (a, b) =>
+      a.rank - b.rank ||
+      Number(b.catalog) - Number(a.catalog) ||
+      b.count - a.count,
+  );
+  const top = ranked.slice(0, MAX_VALUE_MATCHES);
+  return {
+    options: top.map((match) => match.option),
+    matchedClosedEnum: top.some((match) => match.catalog),
+  };
 }
 
 /**
@@ -477,7 +503,49 @@ function valueOptions(
     const exact = { ...all[exactIndex]!, active: true };
     return [exact, ...all.slice(0, exactIndex), ...all.slice(exactIndex + 1)];
   }
-  return rankFilter(all, typed);
+  const query = typed.toLowerCase();
+  return all
+    .map((option) => ({
+      option,
+      rank:
+        option.kind === "value"
+          ? valueQueryRank(option.value.toLowerCase(), query)
+          : filterRank(option.label, typed),
+    }))
+    .filter(
+      (entry): entry is { option: CompletionOption; rank: number } =>
+        entry.rank !== null,
+    )
+    .sort((a, b) => a.rank - b.rank)
+    .map((entry) => entry.option);
+}
+
+/** Closed-enum values that match a partial typed value and are not already
+ *  in the observed list. An empty typed value stays the observed list. */
+function knownValueOptions(
+  field: FieldDef,
+  typed: string,
+  present: ReadonlySet<string>,
+  grouped: boolean,
+): CompletionOption[] {
+  if (typed.length === 0) return [];
+  const query = typed.toLowerCase();
+  const options: CompletionOption[] = [];
+  for (const value of field.knownValues ?? []) {
+    if (present.has(value)) continue;
+    if (valueQueryRank(value.toLowerCase(), query) === null) continue;
+    options.push({
+      id: `value:${value}`,
+      kind: "value",
+      label: value,
+      value,
+      insert:
+        field.exactSuggestions && !grouped
+          ? `=${serializeValue(value)}`
+          : undefined,
+    });
+  }
+  return options;
 }
 
 function recentOptions(
@@ -514,6 +582,7 @@ function presenceOptions(
   negated: boolean,
   rankedFields: CompletionOption[],
 ): CompletionOption[] {
+  if (registry.allowPresence === false) return [];
   if (keyPart.length < 2) return [];
   const exact = registry.resolveField(keyPart);
   const candidate =
@@ -861,6 +930,7 @@ function keyPathOptions(
 // ---- value-stage planning per resolved field kind ----
 
 type ValueStageInput = {
+  grouped: boolean;
   ref: FieldRef;
   typed: string;
   valuePrefix: string;
@@ -1177,23 +1247,46 @@ function valueStageSections(input: ValueStageInput): {
       // fields flagged `suggestObservedValues` (id/name — they search as
       // substring but still suggest existing values).
       // Lazy mode: an option-backed field (exactOption/arrayOption) whose values
-      // have not loaded yet shows a loading row and requests its column. Its `id`
-      // IS the filter-options column id. textSearch fields (id/name) are not
-      // lazily loaded — `name` is eager and `id` has no server option list — so
-      // they fall through to the picker, which is empty when nothing is observed.
+      // have not loaded yet shows a loading row and requests its column, unless
+      // the typed text already matches its closed enum — those values are known
+      // without the facet. Its `id` IS the filter-options column id. textSearch
+      // fields (id/name) are not lazily loaded — `name` is eager and `id` has no
+      // server option list — so they fall through to the picker, which is empty
+      // when nothing is observed.
       const isOptionColumn =
         f.syncMode === "exactOption" || f.syncMode === "arrayOption";
-      if (isOptionColumn && columnPending(f.id)) {
+      const columnIsPending = isOptionColumn && columnPending(f.id);
+      if (columnIsPending && typed.length === 0) {
         return { sections: [], loading: true, requestColumns: [f.id] };
       }
-      if (observed === undefined) return { sections: [], loading: true };
-      const all = observedValues(observed, f.id).map((o) => ({
-        id: `value:${o.value}`,
-        kind: "value" as const,
-        label: o.value,
-        detail: o.count !== undefined ? String(o.count) : undefined,
-        value: o.value,
-      }));
+      if (observed === undefined && !columnIsPending) {
+        return { sections: [], loading: true };
+      }
+      const observedList =
+        observed === undefined ? [] : observedValues(observed, f.id);
+      const known = knownValueOptions(
+        f,
+        typed,
+        new Set(observedList.map((option) => option.value)),
+        input.grouped,
+      );
+      if (columnIsPending && known.length === 0) {
+        return { sections: [], loading: true, requestColumns: [f.id] };
+      }
+      const all = [
+        ...observedList.map((o) => ({
+          id: `value:${o.value}`,
+          kind: "value" as const,
+          label: o.value,
+          detail: o.count !== undefined ? String(o.count) : undefined,
+          value: o.value,
+          insert:
+            f.exactSuggestions && !input.grouped
+              ? `=${serializeValue(o.value)}`
+              : undefined,
+        })),
+        ...known,
+      ];
       const values = valueOptions(all, typed);
       // Array fields reject match operators — operatorIssue routes them to
       // value/any-of/all-of groups — so don't suggest them. For other option
@@ -1213,6 +1306,7 @@ function valueStageSections(input: ValueStageInput): {
           ...section(SECTION_MATCH_OPS, ops),
         ],
         loading: false,
+        ...(columnIsPending ? { requestColumns: [f.id] } : {}),
       };
     }
   }
@@ -1441,14 +1535,115 @@ function filterAt(node: ASTNode | null, caret: number): FilterNode | null {
     : null;
 }
 
+// AND siblings are independent; NOT and OR must be validated as a whole.
+function completionContext(node: ASTNode, edited: Span): ASTNode | null {
+  if (node.kind === "and" || node.kind === "or") {
+    const children = node.children.flatMap((child) => {
+      const context = completionContext(child, edited);
+      return context ? [context] : [];
+    });
+    if (children.length === 0) return null;
+    if (node.kind === "or") return node;
+    return { ...node, children };
+  }
+  if (node.kind === "not") {
+    return completionContext(node.child, edited) ? node : null;
+  }
+  const span = node.parenSpan ?? node.span;
+  if (!span || span.from >= edited.to || edited.from >= span.to) return null;
+  return node;
+}
+
+function completionHasErrors(
+  input: string,
+  edited: Span,
+  registry: FieldRegistry,
+) {
+  const parsed = parse(input, registry);
+  const context = parsed.ast ? completionContext(parsed.ast, edited) : null;
+  // Host schema errors can span the whole query, so scope semantic validation
+  // before collecting diagnostics rather than filtering whole-query errors.
+  const diagnostics = [
+    ...parsed.diagnostics,
+    ...semanticDiagnostics(context, input.length, undefined, registry),
+  ];
+  return diagnostics.some(
+    (diagnostic) =>
+      diagnostic.severity === "error" &&
+      diagnostic.from < edited.to &&
+      edited.from < diagnostic.to,
+  );
+}
+
+function restrictCompletions(
+  plan: CompletionPlan,
+  ctx: InputCompletionContext,
+  registry: FieldRegistry,
+): CompletionPlan {
+  // Validate the splice so NOT and grouped values retain their context, but
+  // unrelated invalid terms must not suppress suggestions for the edited term.
+  const restricted =
+    registry.allowPresence === false ||
+    registry.fields.some(
+      (field) =>
+        field.operators || field.negatedOperators || field.exactSuggestions,
+    );
+  if (!restricted) return plan;
+  return {
+    ...plan,
+    sections: plan.sections.flatMap((section) => {
+      const options = section.options.filter((option) => {
+        if (option.kind === "recent" || option.kind === "preset")
+          return validateQuery(option.query, undefined, registry).valid;
+        if (option.kind === "operator") return true;
+        const edit = applyPick(option, ctx.input, plan);
+        if (option.kind === "field") {
+          const ref = registry.resolveField(option.fieldId);
+          if (ref?.type !== "field") return true;
+          const term = termAt(edit.next, edit.caret);
+          if (!term) return false;
+          const colon = indexOfOutsideQuotes(term.raw, ":");
+          if (colon === -1) return false;
+          const value = ref.field.kind === "boolean" ? "true" : "=example";
+          const probe =
+            edit.next.slice(0, term.from + colon + 1) +
+            value +
+            edit.next.slice(term.to);
+          return !completionHasErrors(
+            probe,
+            { from: term.from, to: term.from + colon + 1 + value.length },
+            registry,
+          );
+        }
+        if (option.kind === "pattern" && option.requiresInput) return true;
+        const replaced =
+          option.kind === "pattern" && option.replaceSpan
+            ? option.replaceSpan
+            : plan;
+        return !completionHasErrors(
+          edit.next,
+          {
+            from: replaced.from,
+            to: replaced.to + edit.next.length - ctx.input.length,
+          },
+          registry,
+        );
+      });
+      return options.length > 0 ? [{ ...section, options }] : [];
+    }),
+  };
+}
+
 /** Field picks show the default scope immediately, including unfinished filters. */
 export function planInputCompletions(
   ctx: InputCompletionContext,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): CompletionPlan | null {
-  const plan = planTargetedInputCompletions(ctx, registry);
+  const targetedPlan = planTargetedInputCompletions(ctx, registry);
+  if (!targetedPlan) return null;
+  const plan = restrictCompletions(targetedPlan, ctx, registry);
   const capability = registry.targeting;
-  if (!plan || !capability) return plan;
+  if (!capability) return plan;
   const term = termAt(ctx.input, ctx.caret);
   const raw = term?.raw.replace(/^-/, "") ?? "";
   if (
@@ -1811,18 +2006,31 @@ function planUnscopedInputCompletions(
     // gate already excludes negated terms and existing `key:` tokens.
     // The default-text rewrite IS a matching filter (`id:chat`), not a full-text
     // scope, so it joins that section after the observed-value matches.
-    const matchingFilters: CompletionOption[] =
+    const valueMatches =
       run !== null
-        ? [
-            ...matchingFilterOptions(
-              run.text,
-              ctx.observed,
-              { from: run.from, to: run.to },
-              registry,
-            ),
-            ...defaultTextRewrite,
-          ]
-        : [];
+        ? matchingFilterOptions(
+            run.text,
+            ctx.observed,
+            { from: run.from, to: run.to },
+            registry,
+          )
+        : { options: [], matchedClosedEnum: false };
+    const matchingFilters: CompletionOption[] = [
+      ...valueMatches.options,
+      ...defaultTextRewrite,
+    ];
+    // Facet values that are not a closed enum can still arrive. Until they do,
+    // keep the loading row instead of a settled empty/"no suggestions" state.
+    // A closed-enum hit is already the answer, so it does not wait.
+    const awaitingObservedValues =
+      run !== null &&
+      ctx.observed === undefined &&
+      !valueMatches.matchedClosedEnum &&
+      run.text.length >= MIN_VALUE_MATCH_LENGTH &&
+      registry.fields.some(
+        (field) =>
+          isValueMatchField(field) && (field.knownValues?.length ?? 0) === 0,
+      );
     if (
       fields.length +
         operators.length +
@@ -1831,13 +2039,21 @@ function planUnscopedInputCompletions(
         searchScopes.length +
         presence.length ===
       0
-    )
-      return null;
+    ) {
+      if (!awaitingObservedValues) return null;
+      return {
+        stage: "field",
+        from: bodyStart,
+        to,
+        loading: true,
+        sections: [],
+      };
+    }
     return {
       stage: "field",
       from: bodyStart,
       to,
-      loading: false,
+      loading: awaitingObservedValues,
       // Arm Enter on a field only when a bare word EXACTLY names a field
       // (id/alias) — `name` → `name:`. A mere prefix/substring match (`n`,
       // `ess`) must NOT hijack Enter: the user is likely typing a free-text
@@ -1917,6 +2133,7 @@ function planUnscopedInputCompletions(
     grouped === null ? {} : { keepOpenOnPick: !grouped.completeGroup };
 
   const staged = valueStageSections({
+    grouped: grouped !== null,
     ref,
     typed,
     valuePrefix,
@@ -1948,12 +2165,13 @@ function planUnscopedInputCompletions(
     from: segFrom,
     to: segTo,
     loading: false,
-    // Partial typed values arm Enter-to-complete; an exact-complete value is
-    // a switcher (Enter commits, the list is for browsing alternatives).
+    // Exact suggestions still need completion to insert the exact-match operator.
+    // Otherwise a complete value leaves Enter to commit the typed query.
     autoHighlight:
       typed.length > 0 &&
       flatValues.length > 0 &&
-      !flatValues.some((o) => o.kind === "value" && o.value === typed),
+      ((ref.type === "field" && ref.field.exactSuggestions === true) ||
+        !flatValues.some((o) => o.kind === "value" && o.value === typed)),
     sections: staged.sections,
     ...groupedPlanAttrs,
   };
@@ -1992,14 +2210,8 @@ export function applyPick(
         ? option.fieldId
         : `${option.fieldId}:`;
     keepOpen = true;
-    // A dot-prefix field (`metadata.`/`scores.`/`traceScores.`) is itself a
-    // partial key. When an existing `:value` follows, consume the whole term so
-    // the user re-picks the key from observed options instead.
-    if (option.fieldId.endsWith(".") && colonFollows) {
-      replaceTo = termAt(current, plan.from)?.to ?? plan.to;
-    }
   } else if (option.kind === "value") {
-    insert = serializeValue(option.value);
+    insert = option.insert ?? serializeValue(option.value);
     keepOpen = plan.keepOpenOnPick ?? false;
   } else {
     insert = option.insert;

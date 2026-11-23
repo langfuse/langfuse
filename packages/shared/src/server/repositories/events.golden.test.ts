@@ -43,7 +43,10 @@ import {
   getObservationIOFieldByteLengthFromEventsTable,
   getObservationsBatchIOFromEventsTable,
   getObservationsTraceIdsFromEventsTable,
+  getObservationsCountFromEventsTableForPublicApi,
+  getObservationsFromEventsTableForPublicApi,
   getObservationsV2FromEventsTableForPublicApi,
+  getObservationsV2PageFromEventsTableForPublicApi,
   getObservationsWithPromptNameFromEvents,
   getSessionMetricsFromEvents,
   getTraceByIdFromEventsTable,
@@ -64,7 +67,7 @@ import {
 } from "./events";
 import { TRACE_AGGREGATION_SQL } from "./events-selects";
 import { getEventsStreamForEval } from "./events-stream";
-import { getTraceBatchEventStream } from "./trace-batch";
+import { getEventsDispatchEventStream } from "./events-dispatch";
 import { ALL_SESSION_EVENTS_FIELDS } from "../queries/clickhouse-sql/event-query-builder";
 import { buildEventsBlobExportStreamQuery } from "../queries/clickhouse-sql/events-stream-query";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
@@ -545,8 +548,8 @@ describeWithClickhouse(
       expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
     });
 
-    it("getTraceBatchEventStream", async () => {
-      for await (const _ of getTraceBatchEventStream({
+    it("getEventsDispatchEventStream", async () => {
+      for await (const _ of getEventsDispatchEventStream({
         traces: [
           {
             projectId: FIXED_PROJECT_ID,
@@ -562,6 +565,500 @@ describeWithClickhouse(
     });
   },
 );
+
+type PublicApiObservationsOpts = Parameters<
+  typeof getObservationsV2FromEventsTableForPublicApi
+>[0];
+type PublicApiObservationsOptions = Parameters<
+  typeof getObservationsV2FromEventsTableForPublicApi
+>[1];
+type PublicApiAdvancedFilters = NonNullable<
+  PublicApiObservationsOpts["advancedFilters"]
+>;
+
+const V2_BASE_OPTS = {
+  projectId: FIXED_PROJECT_ID,
+  page: 1,
+  limit: 50,
+  fields: ["core"],
+} satisfies PublicApiObservationsOpts;
+
+/**
+ * Captured SQL of one v2 list call, or the error it throws plus whatever it
+ * sent before throwing. Rejections snapshot the same way as reads, so a filter
+ * that turns from a 400 into SQL shows as a snapshot change.
+ */
+async function captureV2List(
+  opts: Partial<PublicApiObservationsOpts>,
+  options?: PublicApiObservationsOptions,
+) {
+  try {
+    await getObservationsV2FromEventsTableForPublicApi(
+      { ...V2_BASE_OPTS, ...opts },
+      options,
+    );
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    return {
+      error: `${error.constructor.name}: ${error.message}`,
+      queries: normalizeCapturedQueries(capturedQueries),
+    };
+  }
+  return normalizeCapturedQueries(capturedQueries);
+}
+
+describeWithClickhouse("golden: observations public API filters family", () => {
+  beforeEach(() => {
+    resetCaptures();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("getObservationsV2FromEventsTableForPublicApi simple=all", async () => {
+    expect(
+      await captureV2List({
+        traceId: FIXED_TRACE_ID,
+        name: "golden-name",
+        userId: "golden-user",
+        sessionId: "golden-session",
+        level: "ERROR",
+        type: "GENERATION",
+        version: "golden-version",
+        parentObservationId: FIXED_OBSERVATION_ID,
+        environment: ["production", "staging"],
+        fromStartTime: FIXED_FROM_TIMESTAMP.toISOString(),
+        toStartTime: FIXED_TO_TIMESTAMP.toISOString(),
+      }),
+    ).toMatchSnapshot();
+  });
+
+  // `parentObservationId: ""` renders `parent_span_id = ''`, not a null check.
+  it("getObservationsV2FromEventsTableForPublicApi simple=parentObservationId empty", async () => {
+    expect(await captureV2List({ parentObservationId: "" })).toMatchSnapshot();
+  });
+
+  // Oddity: an empty environment list renders `IN ([])` and matches nothing.
+  // Clients rely on that empty page, so the read must keep it.
+  it("getObservationsV2FromEventsTableForPublicApi simple=environment empty", async () => {
+    expect(await captureV2List({ environment: [] })).toMatchSnapshot();
+  });
+
+  // An advanced filter replaces the simple param on the same column.
+  it("getObservationsV2FromEventsTableForPublicApi precedence=advanced-overrides-simple", async () => {
+    expect(
+      await captureV2List({
+        sessionId: "golden-session-simple",
+        advancedFilters: [
+          {
+            column: "sessionId",
+            type: "string",
+            operator: "=",
+            value: "golden-session-advanced",
+          },
+        ],
+      }),
+    ).toMatchSnapshot();
+  });
+
+  // The route's data-access-window shape: advanced `startTime` bounds next to
+  // the simple `fromStartTime`/`toStartTime`, which they replace.
+  it("getObservationsV2FromEventsTableForPublicApi precedence=startTime-overrides-from+to", async () => {
+    expect(
+      await captureV2List({
+        fromStartTime: FIXED_FROM_TIMESTAMP.toISOString(),
+        toStartTime: FIXED_TO_TIMESTAMP.toISOString(),
+        advancedFilters: [
+          {
+            column: "startTime",
+            type: "datetime",
+            operator: ">=",
+            value: FIXED_START_TIME,
+          },
+          {
+            column: "startTime",
+            type: "datetime",
+            operator: "<",
+            value: FIXED_TO_TIMESTAMP,
+          },
+        ],
+      }),
+    ).toMatchSnapshot();
+  });
+
+  it.each([
+    [
+      "string",
+      { column: "name", type: "string", operator: "contains", value: "needle" },
+    ],
+    [
+      "stringOptions",
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION", "SPAN"],
+      },
+    ],
+    // Oddity: the schema refuses an empty list, but a caller that skips it
+    // renders `IN ([])`, which matches nothing. The route schema rejects it
+    // before the read, so the shape is harmless.
+    [
+      "stringOptions empty",
+      { column: "type", type: "stringOptions", operator: "any of", value: [] },
+    ],
+    [
+      "number",
+      { column: "latency", type: "number", operator: ">", value: 1.5 },
+    ],
+    [
+      "datetime",
+      {
+        column: "endTime",
+        type: "datetime",
+        operator: "<",
+        value: FIXED_TO_TIMESTAMP,
+      },
+    ],
+    [
+      "arrayOptions",
+      {
+        column: "traceTags",
+        type: "arrayOptions",
+        operator: "any of",
+        value: ["golden-tag"],
+      },
+    ],
+    [
+      "boolean",
+      { column: "hasInput", type: "boolean", operator: "=", value: true },
+    ],
+    [
+      "null",
+      {
+        column: "parentObservationId",
+        type: "null",
+        operator: "is null",
+        value: "",
+      },
+    ],
+    [
+      "metadata stringObject = (events_core)",
+      {
+        column: "metadata",
+        type: "stringObject",
+        key: "env",
+        operator: "=",
+        value: "short",
+      },
+    ],
+    [
+      "metadata stringObject contains (events_full)",
+      {
+        column: "metadata",
+        type: "stringObject",
+        key: "env",
+        operator: "contains",
+        value: "needle",
+      },
+    ],
+    // Numeric metadata is rejected with a 400: the native `metadata` column
+    // is typed `stringObject`.
+    [
+      "metadata numberObject",
+      {
+        column: "metadata",
+        type: "numberObject",
+        key: "attempt",
+        operator: ">",
+        value: 1,
+      },
+    ],
+  ] satisfies Array<[string, PublicApiAdvancedFilters[number]]>)(
+    "getObservationsV2FromEventsTableForPublicApi advanced=%s",
+    async (_name, filter) => {
+      expect(
+        await captureV2List({ advancedFilters: [filter] }),
+      ).toMatchSnapshot();
+    },
+  );
+
+  // Oddity: a `positionInTrace` filter is dropped without an error
+  // (`createFilterFromFilterState` skips the type), so the read is unfiltered.
+  // Clients receive unfiltered rows for it, so the read must keep that.
+  it("getObservationsV2FromEventsTableForPublicApi advanced=positionInTrace", async () => {
+    expect(
+      await captureV2List({
+        advancedFilters: [
+          {
+            column: "positionInTrace",
+            type: "positionInTrace",
+            operator: "=",
+            key: "root",
+          },
+        ],
+      }),
+    ).toMatchSnapshot();
+  });
+
+  // An input filter forces events_full, so the io lane does not split.
+  it("getObservationsV2FromEventsTableForPublicApi advanced=input matches fields=io", async () => {
+    expect(
+      await captureV2List({
+        fields: ["core", "io"],
+        advancedFilters: [
+          {
+            column: "input",
+            type: "string",
+            operator: "matches",
+            value: "needle",
+          },
+        ],
+      }),
+    ).toMatchSnapshot();
+  });
+
+  it("getObservationsV2FromEventsTableForPublicApi fields=io", async () => {
+    expect(await captureV2List({ fields: ["core", "io"] })).toMatchSnapshot();
+  });
+
+  // A core-safe metadata filter keeps base on events_core: split, filter on base.
+  it("getObservationsV2FromEventsTableForPublicApi fields=metadata expand advanced=metadata =", async () => {
+    expect(
+      await captureV2List({
+        fields: ["core", "metadata"],
+        expandMetadataKeys: ["golden-key"],
+        advancedFilters: [
+          {
+            column: "metadata",
+            type: "stringObject",
+            key: "env",
+            operator: "=",
+            value: "short",
+          },
+        ],
+      }),
+    ).toMatchSnapshot();
+  });
+
+  // A `contains` metadata filter forces events_full: no split.
+  it("getObservationsV2FromEventsTableForPublicApi fields=metadata expand advanced=metadata contains", async () => {
+    expect(
+      await captureV2List({
+        fields: ["core", "metadata"],
+        expandMetadataKeys: ["golden-key"],
+        advancedFilters: [
+          {
+            column: "metadata",
+            type: "stringObject",
+            key: "env",
+            operator: "contains",
+            value: "needle",
+          },
+        ],
+      }),
+    ).toMatchSnapshot();
+  });
+
+  it("getObservationsV2FromEventsTableForPublicApi cursor=set", async () => {
+    expect(
+      await captureV2List({
+        cursor: {
+          lastStartTimeTo: FIXED_START_TIME,
+          lastTraceId: FIXED_TRACE_ID,
+          lastId: FIXED_OBSERVATION_ID,
+        },
+      }),
+    ).toMatchSnapshot();
+  });
+
+  // MCP `getObservation`: one id inside a trace and time window, limit 1.
+  it("getObservationsV2FromEventsTableForPublicApi mcp=getObservation", async () => {
+    expect(
+      await captureV2List({
+        traceId: FIXED_TRACE_ID,
+        fromStartTime: FIXED_FROM_TIMESTAMP.toISOString(),
+        toStartTime: FIXED_TO_TIMESTAMP.toISOString(),
+        page: 0,
+        limit: 1,
+        fields: ["core", "basic", "io"],
+        advancedFilters: [
+          {
+            column: "id",
+            type: "stringOptions",
+            operator: "any of",
+            value: [FIXED_OBSERVATION_ID],
+          },
+        ],
+      }),
+    ).toMatchSnapshot();
+  });
+
+  it.each([
+    // Not in the native column definitions.
+    [
+      "unknown column",
+      { column: "doesNotExist", type: "string", operator: "=", value: "x" },
+    ],
+    // Score columns exist only in the UI planner, not the native definitions.
+    [
+      "scores_avg",
+      {
+        column: "scores_avg",
+        type: "numberObject",
+        key: "accuracy",
+        operator: ">",
+        value: 0.5,
+      },
+    ],
+    // Input/output filters must be type `string`.
+    [
+      "input non-string type",
+      { column: "input", type: "null", operator: "is not null", value: "" },
+    ],
+    // `validateIndexedInputOutputFilters`: an IO filter needs a `matches` or
+    // `=` IO filter next to it.
+    [
+      "input contains without matches",
+      {
+        column: "input",
+        type: "string",
+        operator: "contains",
+        value: "needle",
+      },
+    ],
+  ] satisfies Array<[string, PublicApiAdvancedFilters[number]]>)(
+    "getObservationsV2FromEventsTableForPublicApi rejects advanced=%s",
+    async (_name, filter) => {
+      expect(
+        await captureV2List({ advancedFilters: [filter] }),
+      ).toMatchSnapshot();
+    },
+  );
+
+  // `allowUnindexedIoFilters` skips both IO validators.
+  it("getObservationsV2FromEventsTableForPublicApi allowUnindexedIoFilters=true advanced=input contains", async () => {
+    expect(
+      await captureV2List(
+        {
+          advancedFilters: [
+            {
+              column: "input",
+              type: "string",
+              operator: "contains",
+              value: "needle",
+            },
+          ],
+        },
+        { allowUnindexedIoFilters: true },
+      ),
+    ).toMatchSnapshot();
+  });
+
+  // Ten days: a first window over the last seven (`<=` upper bound), then the
+  // remaining three (`<` upper bound).
+  it("getObservationsV2PageFromEventsTableForPublicApi from+to=10d", async () => {
+    await getObservationsV2PageFromEventsTableForPublicApi({
+      ...V2_BASE_OPTS,
+      fromStartTime: "2025-12-23T00:00:00.000Z",
+      toStartTime: FIXED_TO_TIMESTAMP.toISOString(),
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // No upper bound: the first window has only `>=`.
+  it("getObservationsV2PageFromEventsTableForPublicApi from=set to=open", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(FIXED_TO_TIMESTAMP);
+    await getObservationsV2PageFromEventsTableForPublicApi({
+      ...V2_BASE_OPTS,
+      fromStartTime: "2025-12-30T00:00:00.000Z",
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // Window bounds come from the advanced `startTime` filters and the cursor
+  // (`extractObservationsStartTimeBounds`); bounds go on base under the split.
+  it("getObservationsV2PageFromEventsTableForPublicApi advanced=startTime cursor=set fields=io", async () => {
+    await getObservationsV2PageFromEventsTableForPublicApi({
+      ...V2_BASE_OPTS,
+      fields: ["core", "io"],
+      advancedFilters: [
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: new Date("2025-12-30T00:00:00.000Z"),
+        },
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: "<=",
+          value: FIXED_TO_TIMESTAMP,
+        },
+      ],
+      cursor: {
+        lastStartTimeTo: FIXED_START_TIME,
+        lastTraceId: FIXED_TRACE_ID,
+        lastId: FIXED_OBSERVATION_ID,
+      },
+    });
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  it.each([
+    ["limit=0", { limit: 0 }],
+    [
+      "from>to",
+      {
+        fromStartTime: FIXED_TO_TIMESTAMP.toISOString(),
+        toStartTime: FIXED_FROM_TIMESTAMP.toISOString(),
+      },
+    ],
+  ] satisfies Array<[string, Partial<PublicApiObservationsOpts>]>)(
+    "getObservationsV2PageFromEventsTableForPublicApi %s sends no query",
+    async (_name, opts) => {
+      const page = await getObservationsV2PageFromEventsTableForPublicApi({
+        ...V2_BASE_OPTS,
+        ...opts,
+      });
+      expect(page).toEqual({ items: [], cursor: undefined });
+      expect(capturedQueries).toEqual([]);
+    },
+  );
+
+  const V1_FILTER_OPTS = {
+    projectId: FIXED_PROJECT_ID,
+    page: 2,
+    limit: 50,
+    traceId: FIXED_TRACE_ID,
+    type: "GENERATION",
+    fromStartTime: FIXED_FROM_TIMESTAMP.toISOString(),
+    // v1 skips the IO validators, so a lone `contains` IO filter is accepted.
+    advancedFilters: [
+      {
+        column: "input",
+        type: "string",
+        operator: "contains",
+        value: "needle",
+      },
+    ],
+  } satisfies PublicApiObservationsOpts;
+
+  it("getObservationsFromEventsTableForPublicApi filter=set", async () => {
+    await getObservationsFromEventsTableForPublicApi(V1_FILTER_OPTS);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+
+  // The count reads `countResult[0].count`, so the harness's empty result
+  // throws after the query is sent.
+  it("getObservationsCountFromEventsTableForPublicApi filter=set", async () => {
+    await expect(
+      getObservationsCountFromEventsTableForPublicApi(V1_FILTER_OPTS),
+    ).rejects.toThrow(TypeError);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
+  });
+});
 
 describe("public traces metadata contains reads untruncated values", () => {
   beforeEach(() => {
@@ -944,21 +1441,17 @@ describeWithClickhouse("golden: events row-selection planner family", () => {
     },
   );
 
-  // The legacy type check accepts only `stringObject` on `metadata`, so a
-  // numeric metadata leaf never reaches ClickHouse on this path.
-  it("planner filter=metadata numberObject throws before the read", async () => {
-    await expect(
-      captureRowSelection([
-        {
-          column: "metadata",
-          type: "numberObject",
-          key: "attempt",
-          operator: ">",
-          value: 1,
-        },
-      ]),
-    ).rejects.toThrow(InvalidRequestError);
-    expect(capturedQueries).toHaveLength(0);
+  it("planner filter=metadata numberObject", async () => {
+    await captureRowSelection([
+      {
+        column: "metadata",
+        type: "numberObject",
+        key: "attempt",
+        operator: ">",
+        value: 1,
+      },
+    ]);
+    expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });
 
   it("planner filter=obsScore", async () => {

@@ -148,12 +148,6 @@ describe("validateExportSource matrix", () => {
     if (!res.ok) expect(res.message).toContain("events_only");
   });
 
-  it("legacy on dual/legacy write modes: unaffected", () => {
-    expect(
-      reasonOf("TRACES_OBSERVATIONS", ctx({ legacyWritesActive: true })),
-    ).toBeUndefined();
-  });
-
   it("TRACES_OBSERVATIONS_EVENTS is both enriched and legacy; enriched-unavailable wins", () => {
     expect(
       reasonOf(

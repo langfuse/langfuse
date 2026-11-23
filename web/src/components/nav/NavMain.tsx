@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-margin-on-root-elements */
 "use client";
-import { type IconComponent } from "@langfuse/icons";
+import { ArrowUpRight, type IconComponent } from "@langfuse/icons";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -8,22 +8,26 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
 import { type ReactNode } from "react";
 import {
   ROUTE_GROUP_BADGES,
+  type Route,
   type RouteGroup,
 } from "@/src/components/layouts/routes";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export type NavMainItem = {
   title: string;
-  menuNode?: ReactNode;
+  menuNode?: Route["menuNode"];
   url: string;
   icon?: IconComponent;
   isActive?: boolean;
   label?: string | ReactNode;
+  /** Leaves the current app area; the title shows a trailing ↗. */
+  external?: boolean;
   newTab?: boolean;
   /** Renders the entry disabled, e.g. until a prerequisite is set up. */
   disabledReason?: string;
@@ -43,14 +47,16 @@ export function NavMain({
     ungrouped: NavMainItem[];
   };
 }) {
+  const { state, isMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
   return (
-    <>
+    <div className="contents [--sidebar-nav-leading-width:32px] [--sidebar-nav-row-height:32px]">
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
             {items.ungrouped.map((item) => (
               <SidebarMenuItem key={item.title}>
-                <NavMainEntry item={item} />
+                <NavMainEntry item={item} isCollapsed={isCollapsed} />
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
@@ -67,19 +73,25 @@ export function NavMain({
               <SidebarMenu>
                 {items.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <NavMainEntry item={item} />
+                    <NavMainEntry item={item} isCollapsed={isCollapsed} />
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-    </>
+    </div>
   );
 }
 
-function NavMainEntry({ item }: { item: NavMainItem }) {
-  if (item.menuNode) return item.menuNode;
+function NavMainEntry({
+  item,
+  isCollapsed,
+}: {
+  item: NavMainItem;
+  isCollapsed: boolean;
+}) {
+  if (item.menuNode) return item.menuNode({ isCollapsed });
   if (item.disabledReason) {
     // The disabled button takes no pointer or focus events, so a focusable
     // wrapper carries the reason in every sidebar state.
@@ -118,7 +130,16 @@ function NavItemContent({ item }: { item: NavMainItem }) {
   return (
     <>
       {item.icon && <item.icon size="base" />}
-      <span>{item.title}</span>
+      {item.external ? (
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate" title={item.title}>
+            {item.title}
+          </span>
+          <ArrowUpRight size="sm" color="tertiary" aria-hidden />
+        </span>
+      ) : (
+        <span>{item.title}</span>
+      )}
       {item.label &&
         (typeof item.label === "string" ? (
           <span className="-my-0.5 self-center rounded-sm border px-1 py-0.5 text-xs leading-none break-keep whitespace-nowrap">

@@ -981,6 +981,7 @@ export default function ExperimentsTable({
         <StickySearchableTableFilterLayout
           search={
             <TableSearchBar
+              spacing="page"
               size={showControlsInPageHeader ? "large" : "default"}
               key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               isV4={true}
@@ -994,6 +995,7 @@ export default function ExperimentsTable({
           }
           toolbar={
             <DataTableToolbar
+              className="px-3"
               rowClassName="my-1"
               columns={columns}
               filterState={queryFilter.filterState}

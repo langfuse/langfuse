@@ -32,6 +32,8 @@ function toExecutionIssue(
       ? observation.statusMessage.slice(0, STATUS_MESSAGE_MAX_CHARACTERS)
       : null,
     startTime: observation.startTime,
+    // ClickHouse stores a root's parent_span_id as an empty string.
+    parentObservationId: observation.parentObservationId || null,
   };
 }
 

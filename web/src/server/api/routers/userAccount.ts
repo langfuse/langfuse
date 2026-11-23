@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { ForbiddenError, StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import { belongsToTraceEvalsProject } from "@/src/features/evals/transcriptEvalsAccess";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
@@ -25,6 +26,11 @@ import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+
+// Deleting a user fires a foreign-key action on every table that references
+// users, and many of those columns are unindexed, so the delete scans those
+// tables. On a cold cache that exceeds Prisma's 5s interactive default.
+const DELETE_ACCOUNT_TRANSACTION_TIMEOUT_MS = 30_000;
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -156,7 +162,11 @@ export const userAccountRouter = createTRPCRouter({
       if (
         isInternalFeaturePreviewFlag(input.flag) &&
         !isInternalViewEnabled(ctx.session) &&
-        !ctx.session.user.featureFlags[input.flag]
+        !ctx.session.user.featureFlags[input.flag] &&
+        !(
+          input.flag === "traceTranscriptEvals" &&
+          belongsToTraceEvalsProject(ctx.session.user)
+        )
       ) {
         throw new ForbiddenError(
           "This feature preview requires Internal view or an existing feature grant.",
@@ -242,6 +252,9 @@ export const userAccountRouter = createTRPCRouter({
         }
 
         // Delete the user (cascade will handle related records)
+        await tx.sessionView.deleteMany({
+          where: { createdBy: userId, ownership: "PRIVATE" },
+        });
         await tx.user.delete({
           where: { id: userId },
         });
@@ -256,6 +269,7 @@ export const userAccountRouter = createTRPCRouter({
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        timeout: DELETE_ACCOUNT_TRANSACTION_TIMEOUT_MS,
       },
     );
 

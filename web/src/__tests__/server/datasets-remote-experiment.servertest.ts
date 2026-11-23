@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -6,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const orgIds: string[] = [];
 
@@ -13,40 +13,18 @@ const prepare = async (projectRole: "ADMIN" | "MEMBER" = "ADMIN") => {
   const setup = await createOrgProjectAndApiKey();
   orgIds.push(setup.orgId);
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      name: "Demo User",
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: setup.orgId,
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: setup.projectId,
-              role: projectRole,
-              name: "Test Project",
-              deletedAt: null,
-              retentionDays: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {} as any,
-  };
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: setup.orgId,
+        role: "OWNER",
+        aiTelemetryEnabled: true,
+        projects: [
+          { id: setup.projectId, role: projectRole, retentionDays: null },
+        ],
+      },
+    ],
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

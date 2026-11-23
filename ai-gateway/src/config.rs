@@ -26,6 +26,17 @@ pub struct GatewayConfig {
     pub outbound_policy: OutboundPolicy,
     /// LLM connection whitelist entries that do not parse and so exempt nothing.
     pub ignored_whitelist_entries: Vec<String>,
+    /// Where keys' spend is counted. Without it, requests on a key with a spend
+    /// limit are rejected, since the limit cannot be checked.
+    pub spend_counters: Option<SpendCountersConfig>,
+}
+
+/// The Redis that counts keys' spend against their limits.
+#[derive(Clone)]
+pub struct SpendCountersConfig {
+    /// A `redis://` or `rediss://` URL, or every cluster node's URL.
+    pub nodes: Vec<String>,
+    pub cluster: bool,
 }
 
 /// Where the memory budget came from, for the startup log.
@@ -183,6 +194,11 @@ impl GatewayConfig {
             read_env("LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS")?.as_deref(),
             read_env("LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS")?.as_deref(),
         )?;
+        config.spend_counters = spend_counters(
+            read_env("LANGFUSE_AI_GATEWAY_REDIS_URL")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_REDIS_CLUSTER_ENABLED")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_REDIS_AUTH")?.as_deref(),
+        )?;
         Ok(config)
     }
 
@@ -256,6 +272,7 @@ impl GatewayConfig {
             execution_limits: ExecutionLimits::default(),
             outbound_policy: OutboundPolicy::default(),
             ignored_whitelist_entries: Vec::new(),
+            spend_counters: None,
         })
     }
 }
@@ -516,6 +533,63 @@ fn integer_setting<T: FromStr + PartialOrd>(
         .map_or(Some(default), |value| value.parse().ok())
         .filter(|value| range.contains(value))
         .ok_or(GatewayConfigError(message))
+}
+
+/// In cluster mode the URL lists every node, comma-separated. `auth` is the password
+/// of every node, kept out of the URL so it can come from its own secret.
+fn spend_counters(
+    url: Option<&str>,
+    cluster: Option<&str>,
+    auth: Option<&str>,
+) -> Result<Option<SpendCountersConfig>, GatewayConfigError> {
+    let cluster = match cluster.filter(|value| is_set(value)) {
+        None => false,
+        Some(value) => parse_boolean(value.trim()).ok_or(GatewayConfigError(
+            "LANGFUSE_AI_GATEWAY_REDIS_CLUSTER_ENABLED must be true or false",
+        ))?,
+    };
+    let nodes: Vec<String> = url
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|node| !node.is_empty())
+        .map(str::to_owned)
+        .collect();
+    if nodes.is_empty() {
+        return Ok(None);
+    }
+    if !cluster && nodes.len() > 1 {
+        return Err(GatewayConfigError(
+            "LANGFUSE_AI_GATEWAY_REDIS_URL lists several nodes; set LANGFUSE_AI_GATEWAY_REDIS_CLUSTER_ENABLED=true",
+        ));
+    }
+    let nodes = match auth.filter(|auth| is_set(auth)) {
+        None => nodes,
+        Some(auth) => nodes
+            .iter()
+            .map(|node| node_with_password(node, auth))
+            .collect::<Option<_>>()
+            .ok_or(GatewayConfigError(
+                "LANGFUSE_AI_GATEWAY_REDIS_URL must be redis:// or rediss:// URLs when LANGFUSE_AI_GATEWAY_REDIS_AUTH is set",
+            ))?,
+    };
+    Ok(Some(SpendCountersConfig { nodes, cluster }))
+}
+
+/// The username stays as given: an empty one sends `AUTH <password>`, which
+/// AWS auth tokens and the `default` user both accept. A password already in
+/// the URL wins, since Compose always passes a default AUTH value.
+fn node_with_password(node: &str, password: &str) -> Option<String> {
+    let mut url = url::Url::parse(node)
+        .ok()
+        .filter(|url| matches!(url.scheme(), "redis" | "rediss"))?;
+    if url.password().is_some() {
+        return Some(node.to_owned());
+    }
+    // `set_password` encodes everything but `%`, so escape it first; the redis crate
+    // decodes the password again.
+    url.set_password(Some(&password.replace('%', "%25"))).ok()?;
+    Some(url.into())
 }
 
 fn is_set(value: &str) -> bool {
@@ -827,6 +901,48 @@ mod tests {
                 "LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL must be true or false"
             );
         }
+    }
+
+    #[test]
+    fn redis_auth_is_the_password_of_every_node_without_its_own() {
+        use redis::IntoConnectionInfo;
+        let auth = "tok#en@/:%40%!";
+        let credentials = |node: &str| {
+            let info = node.into_connection_info().unwrap();
+            let settings = info.redis_settings();
+            (
+                settings.username().map(str::to_owned),
+                settings.password().map(str::to_owned),
+            )
+        };
+
+        let config = spend_counters(
+            Some(
+                "rediss://a.cache:6379, rediss://default@b.cache:6379, rediss://:own@c.cache:6379",
+            ),
+            Some("true"),
+            Some(auth),
+        )
+        .unwrap()
+        .unwrap();
+        assert!(config.cluster);
+        assert_eq!(
+            config
+                .nodes
+                .iter()
+                .map(|node| credentials(node))
+                .collect::<Vec<_>>(),
+            [
+                (None, Some(auth.to_owned())),
+                (Some("default".to_owned()), Some(auth.to_owned())),
+                (None, Some("own".to_owned())),
+            ]
+        );
+
+        let error = spend_counters(Some("localhost:6379"), None, Some(auth))
+            .err()
+            .unwrap();
+        assert!(!error.to_string().contains(auth));
     }
 
     #[test]

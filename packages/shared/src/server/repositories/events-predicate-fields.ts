@@ -43,7 +43,7 @@ import {
 
 /** Facts every field compared through one expression carries. */
 type ScalarFacts = {
-  /** Bind type of a `number` condition's value; `Decimal64(12)` if unset. */
+  /** Bind type of a `number` condition's value; `Decimal128(12)` if unset. */
   numberBindType?: string;
   /** `''` and NULL count as one value. */
   emptyEqualsNull?: true;
@@ -84,7 +84,9 @@ export type ScalarFieldLowering =
 /** Value type of each kind without index facts. */
 type ValueOfKind = {
   nullableString: string | null;
-  array: string[];
+  // Elements may be NULL: tuple fields of `Array(Tuple(…))` columns can be
+  // `Nullable(String)`.
+  array: Array<string | null>;
   scalar: unknown;
 };
 

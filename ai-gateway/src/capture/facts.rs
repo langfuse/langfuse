@@ -45,6 +45,18 @@ pub(crate) struct InputOmission {
     pub body_bytes: usize,
 }
 
+/// A request the gateway refused before it reached the provider.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub(crate) struct GatewayRejection {
+    /// The HTTP status the caller received.
+    pub status: u16,
+    #[serde(skip)]
+    pub origin: crate::observability::ErrorOrigin,
+    /// The bounded `error.reason` of the gateway's own request telemetry.
+    pub reason: &'static str,
+    pub message: String,
+}
+
 #[derive(Serialize)]
 pub(crate) struct InferenceFacts {
     pub api_format: ApiFormat,
@@ -59,6 +71,10 @@ pub(crate) struct InferenceFacts {
     pub response_body_bytes: u64,
     pub metadata: Value,
     pub outcome: RelayOutcome,
+    /// What a spend-limited key was charged, priced from the model's tiers. The
+    /// generation carries it so Langfuse stores the amount the limit counted.
+    pub charged_cost_details: Option<crate::spend::UsageCostType>,
+    pub rejection: Option<GatewayRejection>,
     #[serde(flatten)]
     pub inference: ProviderFacts,
 }

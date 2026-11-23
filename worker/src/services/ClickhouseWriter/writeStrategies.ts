@@ -7,6 +7,7 @@ import {
 } from "@langfuse/native";
 import type { ClickhouseClientType } from "@langfuse/shared/src/server";
 
+import { env } from "../../env";
 import type { RecordInsertType, TableName } from "./types";
 import {
   clampDecimal64Fields,
@@ -45,7 +46,14 @@ const jsonWriteStrategy: ClickhouseWriteStrategy<RecordInsertType<TableName>> =
           table,
           format: "JSONEachRow",
           values: records,
-          clickhouse_settings,
+          clickhouse_settings: {
+            ...clickhouse_settings,
+            // Sent with the insert only: a read-only ClickHouse profile
+            // rejects a request that changes a setting.
+            ...(env.LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING === "true"
+              ? { date_time_input_format: "best_effort" as const }
+              : {}),
+          },
         })
         .then(() => {});
     },

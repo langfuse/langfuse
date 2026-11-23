@@ -39,6 +39,26 @@ beforeEach(() => {
   mocks.root.mockReset();
 });
 
+it("rejects unsupported position filters before fetching observations", async () => {
+  const filter = [
+    {
+      column: "positionInTrace",
+      type: "positionInTrace" as const,
+      operator: "=" as const,
+      key: "nthFromStart" as const,
+      value: 2,
+    },
+  ];
+  await expect(
+    loadTraceTranscript({
+      ...traceSource,
+      context: "session",
+      filter,
+    }),
+  ).rejects.toThrow();
+  expect(mocks.observations).not.toHaveBeenCalled();
+});
+
 it.each(
   ["ERROR", "WARNING"].flatMap((level) =>
     [null, "", []].map((output) => ({ level, output })),
@@ -404,6 +424,72 @@ it("leaves the transcript empty when the root has no input/output", async () => 
       .transcript,
   ).toBeNull();
 });
+
+it.each([true, false])(
+  "applies environment filters without transcript assembly or root fallback (matches: %s)",
+  async (hasMatches) => {
+    const filter = [
+      {
+        column: "environment",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "production",
+      },
+    ];
+    const observation = {
+      id: "production-observation",
+      environment: "production",
+      type: "SPAN",
+      startTime: new Date(0),
+      endTime: new Date(1),
+      input: null,
+      output: "Production response",
+      metadata: {},
+    };
+    mocks.observations.mockResolvedValue({
+      observations: hasMatches ? [observation] : [],
+      totalCount: hasMatches ? 1 : 0,
+    });
+
+    const result = await loadTraceTranscript({
+      ...traceSource,
+      context: "session",
+      filter,
+      fallbackToRootIO: true,
+    });
+
+    expect(mocks.observations).toHaveBeenCalledExactlyOnceWith({
+      ...traceSource,
+      fallbackToRootIO: true,
+      filter,
+      selectIOAndMetadata: true,
+      limit: 1000,
+    });
+    expect(mocks.assemble).not.toHaveBeenCalled();
+    expect(mocks.root).not.toHaveBeenCalled();
+    expect(result.cutoff).toBe(false);
+    if (!hasMatches) {
+      expect(result.transcript).toBeNull();
+      return;
+    }
+    expect(result.transcript?.threads).toEqual([
+      {
+        conversationHistory: [],
+        currentTurn: {
+          nestingLevel: 0,
+          observations: [{ id: observation.id, traceId: traceSource.traceId }],
+          messages: [
+            expect.objectContaining({
+              observationId: observation.id,
+              role: "assistant",
+              parts: [{ type: "text", text: "Production response" }],
+            }),
+          ],
+        },
+      },
+    ]);
+  },
+);
 
 it("loads and normalizes matching span I/O without assembly or ancestors", async () => {
   const message = {

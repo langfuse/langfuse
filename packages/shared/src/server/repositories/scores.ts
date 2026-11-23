@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
+import { subHours } from "date-fns";
 import {
   ScoreDataTypeType,
   ScoreDomain,
@@ -10,6 +11,7 @@ import {
   LISTABLE_SCORE_TYPES,
   ListableScoreDataType,
   ScoreDataTypeEnum,
+  CORRECTION_SCORES_BILLABLE_FROM,
 } from "../../domain/scores";
 import {
   SCORE_EXPORT_CORE_FIELDS,
@@ -62,7 +64,10 @@ import {
   convertClickhouseScoreToDomain,
   ScoreAggregation,
 } from "./scores_converters";
-import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
+import {
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
+} from "./constants";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -432,19 +437,26 @@ export const getTraceScoresForDatasetRuns = async (
   }));
 };
 
-const experimentItemEventsQuery = (experimentIds: string[]) =>
+const experimentItemEventsQuery = (
+  experimentIds: string[],
+  experimentsStartTime: Date,
+) =>
   getClickhouseKysely()
     .selectFrom("events as e")
     .select(["e.project_id", "e.experiment_id", "e.trace_id"])
     .where("e.experiment_id", "in", experimentIds)
-    .where("e.experiment_id", "!=", literal(""));
+    .where("e.experiment_id", "!=", literal(""))
+    .where("e.start_time", ">=", experimentsStartTime);
 
 const scoresForExperimentItemsQuery = (
   experimentIds: string[],
+  experimentsStartTime: Date,
   skipDedup: boolean,
 ) =>
   getClickhouseKysely()
-    .selectFrom(experimentItemEventsQuery(experimentIds).as("e"))
+    .selectFrom(
+      experimentItemEventsQuery(experimentIds, experimentsStartTime).as("e"),
+    )
     .innerJoin("scores as s", (join) =>
       join
         .onRef("e.trace_id", "=", "s.trace_id")
@@ -482,6 +494,15 @@ const scoresForExperimentItemsQuery = (
       "in",
       AGGREGATABLE_SCORE_TYPES.map((t) => literal(t)),
     )
+    // A score can't predate the experiment it scores.
+    .where(
+      "s.timestamp",
+      ">=",
+      subHours(
+        experimentsStartTime,
+        SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
+      ),
+    )
     .orderBy("s.event_ts", "desc")
     .$call(
       limitBy({
@@ -494,9 +515,15 @@ const scoresForExperimentItemsQuery = (
       }),
     );
 
+/**
+ * Item-level scores of the given experiments. `experimentsStartTime` is their
+ * earliest start (see getExperimentsStartTime); it bounds both the events and
+ * the scores read.
+ */
 export const getScoresForExperimentItems = async (
   projectId: string,
   experimentIds: string[],
+  experimentsStartTime: Date,
 ): Promise<
   Array<
     ScoreByDataType<AggregatableScoreDataType> & {
@@ -510,6 +537,7 @@ export const getScoresForExperimentItems = async (
   const compiled = compileClickhouseQuery(
     scoresForExperimentItemsQuery(
       experimentIds,
+      experimentsStartTime,
       shouldSkipScoresDedup(projectId),
     ),
     projectId,
@@ -2467,6 +2495,8 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   projectId?: string;
   projectIds?: string[];
 }) => {
+  // Listable types stay a raw row count. CORRECTION rows created at or after
+  // the billing cutoff are included in the same count.
   const query = `
     SELECT
       project_id,
@@ -2476,7 +2506,13 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     AND created_at < {end: DateTime64(3)}
     ${projectId ? "AND project_id = {projectId: String}" : ""}
     ${projectIds ? "AND project_id IN ({projectIds: Array(String)})" : ""}
-    AND data_type IN ({dataTypes: Array(String)})
+    AND (
+      data_type IN ({dataTypes: Array(String)})
+      OR (
+        data_type = 'CORRECTION'
+        AND created_at >= {correctionsFrom: DateTime64(3)}
+      )
+    )
     GROUP BY project_id
   `;
 
@@ -2486,6 +2522,9 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
       dataTypes: LISTABLE_SCORE_TYPES,
+      correctionsFrom: convertDateToClickhouseDateTime(
+        CORRECTION_SCORES_BILLABLE_FROM,
+      ),
       ...(projectId ? { projectId } : {}),
       ...(projectIds ? { projectIds } : {}),
     },
@@ -2988,6 +3027,8 @@ export const getScoreCountsByProjectAndDay = async ({
   startDate: Date;
   endDate: Date;
 }) => {
+  // Listable types stay a raw row count. CORRECTION rows created at or after
+  // the billing cutoff are included on the day of their timestamp.
   const query = `
     SELECT
       count(*) as count,
@@ -2996,7 +3037,13 @@ export const getScoreCountsByProjectAndDay = async ({
     FROM scores
     WHERE timestamp >= {startDate: DateTime64(3)}
     AND timestamp < {endDate: DateTime64(3)}
-    AND data_type IN ({dataTypes: Array(String)})
+    AND (
+      data_type IN ({dataTypes: Array(String)})
+      OR (
+        data_type = 'CORRECTION'
+        AND created_at >= {correctionsFrom: DateTime64(3)}
+      )
+    )
     GROUP BY project_id, toDate(timestamp)
   `;
 
@@ -3010,6 +3057,9 @@ export const getScoreCountsByProjectAndDay = async ({
       startDate: convertDateToClickhouseDateTime(startDate),
       endDate: convertDateToClickhouseDateTime(endDate),
       dataTypes: LISTABLE_SCORE_TYPES,
+      correctionsFrom: convertDateToClickhouseDateTime(
+        CORRECTION_SCORES_BILLABLE_FROM,
+      ),
     },
     clickhouseConfigs: { request_timeout: 120_000 },
   });

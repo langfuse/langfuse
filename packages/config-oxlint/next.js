@@ -180,8 +180,10 @@ export default {
             reportGlobalThis: false,
           },
         ],
+        "array-callback-return": "warn",
         "no-void": "warn",
         "no-else-return": "warn",
+        "default-case-last": "warn",
         "no-unneeded-ternary": "warn",
         "no-nested-ternary": "warn",
         "no-use-before-define": [

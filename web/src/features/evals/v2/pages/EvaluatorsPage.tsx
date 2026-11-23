@@ -8,7 +8,13 @@ import {
 } from "@langfuse/shared";
 import { Plus, Trash2 } from "@langfuse/icons";
 import { useRouter } from "next/router";
-import { type ComponentProps, useMemo, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { useStore } from "zustand";
 import Page from "@/src/components/layouts/Page";
@@ -30,7 +36,10 @@ import { EvaluatorsEmptyState } from "../components/EvaluatorsEmptyState/Evaluat
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EvaluatorActionsCell } from "../components/Evaluators/EvaluatorActionsCell/EvaluatorActionsCell";
-import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBulkDeleteDialog/EvaluatorBulkDeleteDialog";
+import {
+  EvaluatorBulkDeleteDialogController,
+  type EvaluatorDeleteSelection,
+} from "../components/Evaluators/EvaluatorBulkDeleteDialogController/EvaluatorBulkDeleteDialogController";
 import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
@@ -177,6 +186,20 @@ function EvaluatorsTableToolbar({
 }
 
 export default function EvaluatorsPage() {
+  return (
+    <EvaluatorBulkDeleteDialogController>
+      {(deleteDialog) => <EvaluatorsPageContent deleteDialog={deleteDialog} />}
+    </EvaluatorBulkDeleteDialogController>
+  );
+}
+
+function EvaluatorsPageContent({
+  deleteDialog,
+}: {
+  deleteDialog: Parameters<
+    ComponentProps<typeof EvaluatorBulkDeleteDialogController>["children"]
+  >[0];
+}) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
@@ -257,8 +280,6 @@ export default function EvaluatorsPage() {
     },
   });
   const filterState = queryFilter.filterState;
-  const [deleteIds, setDeleteIds] = useState<string[]>([]);
-  const [deleteAll, setDeleteAll] = useState(false);
   const [gallery, setGallery] = useQueryParam(
     "gallery",
     withDefault(StringParam, null),
@@ -336,13 +357,13 @@ export default function EvaluatorsPage() {
   const utils = api.useUtils();
   const deleteMany = api.evalsV2.deleteMany.useMutation({
     onError: (error) => trpcErrorToast(error, "evaluator.delete"),
-    onSuccess: async () => {
+    onSuccess: async (_result, variables) => {
       selectionStore.getState().actions.clearSelection();
-      setDeleteIds([]);
-      setDeleteAll(false);
-      const deletedCount = deleteAll
-        ? (evaluators.data?.totalItems ?? 0)
-        : deleteIds.length;
+      const deleteAll = !("evaluatorIds" in variables);
+      const deletedCount =
+        "evaluatorIds" in variables
+          ? variables.evaluatorIds.length
+          : (evaluators.data?.totalItems ?? 0);
       capture("evaluators:delete", {
         source: "overview",
         evaluatorCount: deletedCount,
@@ -359,6 +380,22 @@ export default function EvaluatorsPage() {
       ]);
     },
   });
+
+  const confirmDelete = useCallback(
+    async (selection: EvaluatorDeleteSelection) => {
+      await deleteMany.mutateAsync(
+        selection.scope === "allMatching"
+          ? {
+              projectId,
+              isBatchAction: true,
+              search: searchQuery ?? undefined,
+              filter: filterState,
+            }
+          : { projectId, evaluatorIds: selection.evaluatorIds },
+      );
+    },
+    [deleteMany, projectId, searchQuery, filterState],
+  );
 
   const { selectActionColumn } = TableSelectionManager<EvaluatorRow>({
     projectId,
@@ -531,7 +568,15 @@ export default function EvaluatorsPage() {
                   `/project/${projectId}/evals/new?evaluatorId=${encodeURIComponent(row.original.id)}`,
                 );
               }}
-              onDelete={() => setDeleteIds([row.original.id])}
+              onDelete={() =>
+                deleteDialog.openDialog(
+                  {
+                    scope: "selected",
+                    evaluatorIds: [row.original.id],
+                  },
+                  confirmDelete,
+                )
+              }
             />
           </div>
         ),
@@ -547,6 +592,8 @@ export default function EvaluatorsPage() {
       executionSummaries.isPending,
       router,
       selectActionColumn,
+      confirmDelete,
+      deleteDialog,
     ],
   );
   const [columnVisibility, setColumnVisibility] =
@@ -611,273 +658,254 @@ export default function EvaluatorsPage() {
   };
 
   return (
-    <Page
-      headerProps={{
-        title: "Evaluators",
-        titleBadges: <V4MigrationUpdateRequiredBadge />,
-        help: {
-          description:
-            "Create reusable evaluator definitions and test them before activation.",
-        },
-        mobileActionButtons: showOnboarding ? (
-          <Button size="sm" onClick={openGalleryFromNewEvaluatorButton}>
-            <Plus size="base" __rawClassName="mr-2" />
-            New evaluator
-          </Button>
-        ) : undefined,
-        actionButtonsRight: (
-          <div className="flex gap-2">
-            {showOnboarding ? null : (
-              <JudgeModelPicker
-                purpose="projectDefault"
-                open={defaultModelPickerOpen}
-                defaultModel={projectDefaultModel.defaultModel}
-                providerGroups={projectDefaultModel.providerGroups}
-                onOpenChange={setDefaultModelPickerOpen}
-                onSelectProjectDefault={(model) => {
-                  const connection = projectDefaultModel.connections.find(
-                    ({ provider }) => provider === model.provider,
-                  );
-                  if (!connection) return;
-                  projectDefaultModel.update.requestUpdate({
-                    ...model,
-                    adapter: connection.adapter,
-                    modelParams: {},
-                  });
-                }}
-                onConfigureProviders={projectDefaultModel.openProviderSettings}
-                onConfigureModel={() => setDefaultModelConfigurationOpen(true)}
-                hasModelConfiguration={Boolean(
-                  defaultModelConfig &&
-                  Object.keys(defaultModelConfig.modelParams).length > 0,
-                )}
-              >
-                <PopoverTrigger asChild>
-                  <JudgeModelPickerTrigger
-                    mode="default"
-                    defaultModel={projectDefaultModel.defaultModel}
-                    selectedModel={null}
-                    missingDefaultLabel="Set project default model"
-                    loading={projectDefaultModel.update.isPending}
-                    loadingText="Setting model..."
-                    disabled={
-                      !projectDefaultModel.canUpdate ||
-                      !projectDefaultModel.canRead ||
-                      projectDefaultModel.connectionsPending ||
-                      projectDefaultModel.update.isPending
-                    }
-                    borderVariant="contrast"
-                  />
-                </PopoverTrigger>
-              </JudgeModelPicker>
-            )}
-            {showOnboarding ? null : (
-              <EvaluatorAlertButton
-                scope="allEvaluators"
-                projectId={projectId}
-                {...evaluatorAlerts}
-              />
-            )}
-            <Button onClick={openGalleryFromNewEvaluatorButton}>
-              <Plus size="base" color="default" __rawClassName="mr-2" />
-              New evaluator
-            </Button>
-          </div>
-        ),
-        tabsProps: {
-          tabs: getEvalsV2Tabs(projectId),
-          activeTab: EVALS_V2_TABS.EVALUATORS,
-        },
-      }}
+    <DefaultModelChangeConfirmationDialog
+      currentModel={projectDefaultModel.defaultModel}
+      loading={projectDefaultModel.update.isPending}
+      onConfirm={projectDefaultModel.update.confirmUpdate}
     >
-      {showOnboarding ? (
-        <EvaluatorsEmptyState
-          onSelectTemplate={(template) => {
-            router.push(evaluatorCreateHref(projectId, template));
-          }}
-          onBrowseLibrary={() => setGalleryOpen(true)}
-        />
-      ) : (
-        <DataTableControlsProvider tableName={filterConfig.tableName}>
-          <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-            <SearchableTableFilterLayout
-              search={
-                <TableSearchBar
-                  size="large"
-                  key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-                  projectId={projectId}
-                  tableName={filterConfig.tableName}
-                  registry={EVALUATORS_LIST_FIELD_REGISTRY}
-                  filterState={queryFilter.searchBarFilterState}
-                  setFilterState={queryFilter.setFilterState}
-                  observed={toObservedOptions(
-                    filterOptions,
-                    filterOptionsQuery.isPending,
-                  )}
-                  search={{
-                    query: searchQuery ?? null,
-                    setQuery: handleSearchChange,
-                  }}
-                  isV4={false}
-                />
-              }
-              toolbar={
-                <EvaluatorsTableToolbar
-                  selectionStore={selectionStore}
-                  pageRowIds={evaluatorIds}
-                  pageSize={pagination.limit}
-                  pageIndex={pagination.page - 1}
-                  totalCount={evaluators.data?.totalItems ?? null}
-                  columns={columns}
-                  columnVisibility={columnVisibility}
-                  setColumnVisibility={handleColumnVisibilityChange}
-                  columnOrder={columnOrder}
-                  setColumnOrder={handleColumnOrderChange}
-                  rowHeight={rowHeight}
-                  setRowHeight={setRowHeight}
-                  customRowHeight={customRowHeightMenu(rowHeights)}
-                  filterState={filterState}
-                  orderByState={orderBy}
-                  currentSearchQuery={searchQuery ?? ""}
-                  viewConfig={{
-                    tableName: TableViewPresetTableName.Evaluators,
-                    projectId,
-                    controllers: viewControllers,
-                  }}
-                />
-              }
-            >
-              <DataTableControls
-                key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
-                queryFilter={queryFilter}
-              />
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <DataTable
-                  tableName="evaluators-v2-overview-v2"
-                  columns={columns}
-                  data={
-                    evaluators.isPending || isViewLoading
-                      ? { isLoading: true, isError: false }
-                      : evaluators.isError
-                        ? {
-                            isLoading: false,
-                            isError: true,
-                            error: evaluators.error.message,
-                          }
-                        : {
-                            isLoading: false,
-                            isError: false,
-                            data: evaluators.data.evaluators,
-                          }
-                  }
-                  pagination={{
-                    totalCount: evaluators.data?.totalItems ?? null,
-                    state: {
-                      pageIndex: pagination.page - 1,
-                      pageSize: pagination.limit,
-                    },
-                    onChange: (updater) => {
-                      const next =
-                        typeof updater === "function"
-                          ? updater({
-                              pageIndex: pagination.page - 1,
-                              pageSize: pagination.limit,
-                            })
-                          : updater;
-                      setPagination({
-                        page: next.pageIndex + 1,
-                        limit: next.pageSize,
-                      });
-                    },
-                  }}
-                  selectionStore={selectionStore}
-                  columnVisibility={columnVisibility}
-                  onColumnVisibilityChange={handleColumnVisibilityChange}
-                  columnOrder={columnOrder}
-                  onColumnOrderChange={handleColumnOrderChange}
-                  rowHeight={rowHeight}
-                  customRowHeightPx={rowHeights.activeHeightPx}
-                  onCustomRowHeightChange={rowHeights.setCustomPx}
-                  onSelectRowHeight={setRowHeight}
-                  orderBy={orderBy}
-                  setOrderBy={handleOrderByChange}
-                  onRowClick={(row) =>
-                    router.push(`/project/${projectId}/evals/${row.id}`)
-                  }
-                  noResultsMessage="No evaluators found."
-                />
+      {({ openDialog }) => (
+        <Page
+          headerProps={{
+            title: "Evaluators",
+            titleBadges: <V4MigrationUpdateRequiredBadge />,
+            help: {
+              description:
+                "Create reusable evaluator definitions and test them before activation.",
+            },
+            mobileActionButtons: showOnboarding ? (
+              <Button size="sm" onClick={openGalleryFromNewEvaluatorButton}>
+                <Plus size="base" __rawClassName="mr-2" />
+                New evaluator
+              </Button>
+            ) : undefined,
+            actionButtonsRight: (
+              <div className="flex gap-2">
+                {showOnboarding ? null : (
+                  <JudgeModelPicker
+                    purpose="projectDefault"
+                    open={defaultModelPickerOpen}
+                    defaultModel={projectDefaultModel.defaultModel}
+                    providerGroups={projectDefaultModel.providerGroups}
+                    onOpenChange={setDefaultModelPickerOpen}
+                    onSelectProjectDefault={(model) => {
+                      const connection = projectDefaultModel.connections.find(
+                        ({ provider }) => provider === model.provider,
+                      );
+                      if (!connection) return;
+                      projectDefaultModel.update.requestUpdate(
+                        {
+                          ...model,
+                          adapter: connection.adapter,
+                          modelParams: {},
+                        },
+                        openDialog,
+                      );
+                    }}
+                    onConfigureProviders={
+                      projectDefaultModel.openProviderSettings
+                    }
+                    onConfigureModel={() =>
+                      setDefaultModelConfigurationOpen(true)
+                    }
+                    hasModelConfiguration={Boolean(
+                      defaultModelConfig &&
+                      Object.keys(defaultModelConfig.modelParams).length > 0,
+                    )}
+                  >
+                    <PopoverTrigger asChild>
+                      <JudgeModelPickerTrigger
+                        mode="default"
+                        defaultModel={projectDefaultModel.defaultModel}
+                        selectedModel={null}
+                        missingDefaultLabel="Set project default model"
+                        loading={projectDefaultModel.update.isPending}
+                        loadingText="Setting model..."
+                        disabled={
+                          !projectDefaultModel.canUpdate ||
+                          !projectDefaultModel.canRead ||
+                          projectDefaultModel.connectionsPending ||
+                          projectDefaultModel.update.isPending
+                        }
+                        borderVariant="contrast"
+                      />
+                    </PopoverTrigger>
+                  </JudgeModelPicker>
+                )}
+                {showOnboarding ? null : (
+                  <EvaluatorAlertButton
+                    scope="allEvaluators"
+                    projectId={projectId}
+                    {...evaluatorAlerts}
+                  />
+                )}
+                <Button onClick={openGalleryFromNewEvaluatorButton}>
+                  <Plus size="base" color="default" __rawClassName="mr-2" />
+                  New evaluator
+                </Button>
               </div>
-            </SearchableTableFilterLayout>
-          </div>
-        </DataTableControlsProvider>
-      )}
-
-      <EvaluatorsOverviewSelectionBar
-        selectionStore={selectionStore}
-        totalCount={evaluators.data?.totalItems ?? null}
-        onDeleteSelection={({ selectAll, selectedIds }) => {
-          if (selectAll) setDeleteAll(true);
-          else setDeleteIds(selectedIds);
-        }}
-      />
-      <EvaluatorBulkDeleteDialog
-        open={deleteAll || deleteIds.length > 0}
-        scope={deleteAll ? "allMatching" : "selected"}
-        isDeleting={deleteMany.isPending}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeleteIds([]);
-            setDeleteAll(false);
-          }
-        }}
-        onConfirm={() =>
-          deleteMany.mutate(
-            deleteAll
-              ? {
-                  projectId,
-                  isBatchAction: true,
-                  search: searchQuery ?? undefined,
-                  filter: filterState,
-                }
-              : { projectId, evaluatorIds: deleteIds },
-          )
-        }
-      />
-      <EvaluatorGalleryDialog
-        projectId={projectId}
-        open={galleryOpen}
-        onOpenChange={setGalleryOpen}
-        onSelectTemplate={(template) => {
-          router.push(evaluatorCreateHref(projectId, template));
-        }}
-        onCreateFromScratch={(type) => {
-          router.push(
-            `/project/${projectId}/evals/new?type=${encodeURIComponent(type)}`,
-          );
-        }}
-      />
-      {projectDefaultModel.defaultModel &&
-      projectDefaultModel.update.pendingModel ? (
-        <DefaultModelChangeConfirmationDialog
-          open
-          currentModel={projectDefaultModel.defaultModel}
-          nextModel={projectDefaultModel.update.pendingModel}
-          loading={projectDefaultModel.update.isPending}
-          onOpenChange={(open) => {
-            if (!open) projectDefaultModel.update.dismissConfirmation();
+            ),
+            tabsProps: {
+              tabs: getEvalsV2Tabs(projectId),
+              activeTab: EVALS_V2_TABS.EVALUATORS,
+            },
           }}
-          onConfirm={projectDefaultModel.update.confirmUpdate}
-        />
-      ) : null}
-      {defaultModelConfig ? (
-        <JudgeModelConfigurationDialog
-          open={defaultModelConfigurationOpen}
-          projectId={projectId}
-          initialModel={defaultModelConfig}
-          onOpenChange={setDefaultModelConfigurationOpen}
-          onSave={projectDefaultModel.update.updateConfiguration}
-        />
-      ) : null}
-    </Page>
+        >
+          {showOnboarding ? (
+            <EvaluatorsEmptyState
+              onSelectTemplate={(template) => {
+                router.push(evaluatorCreateHref(projectId, template));
+              }}
+              onBrowseLibrary={() => setGalleryOpen(true)}
+            />
+          ) : (
+            <DataTableControlsProvider tableName={filterConfig.tableName}>
+              <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+                <SearchableTableFilterLayout
+                  search={
+                    <TableSearchBar
+                      size="large"
+                      key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+                      projectId={projectId}
+                      tableName={filterConfig.tableName}
+                      registry={EVALUATORS_LIST_FIELD_REGISTRY}
+                      filterState={queryFilter.searchBarFilterState}
+                      setFilterState={queryFilter.setFilterState}
+                      observed={toObservedOptions(
+                        filterOptions,
+                        filterOptionsQuery.isPending,
+                      )}
+                      search={{
+                        query: searchQuery ?? null,
+                        setQuery: handleSearchChange,
+                      }}
+                      isV4={false}
+                    />
+                  }
+                  toolbar={
+                    <EvaluatorsTableToolbar
+                      selectionStore={selectionStore}
+                      pageRowIds={evaluatorIds}
+                      pageSize={pagination.limit}
+                      pageIndex={pagination.page - 1}
+                      totalCount={evaluators.data?.totalItems ?? null}
+                      columns={columns}
+                      columnVisibility={columnVisibility}
+                      setColumnVisibility={handleColumnVisibilityChange}
+                      columnOrder={columnOrder}
+                      setColumnOrder={handleColumnOrderChange}
+                      rowHeight={rowHeight}
+                      setRowHeight={setRowHeight}
+                      customRowHeight={customRowHeightMenu(rowHeights)}
+                      filterState={filterState}
+                      orderByState={orderBy}
+                      currentSearchQuery={searchQuery ?? ""}
+                      viewConfig={{
+                        tableName: TableViewPresetTableName.Evaluators,
+                        projectId,
+                        controllers: viewControllers,
+                      }}
+                    />
+                  }
+                >
+                  <DataTableControls
+                    key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+                    queryFilter={queryFilter}
+                  />
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <DataTable
+                      tableName="evaluators-v2-overview-v2"
+                      columns={columns}
+                      data={
+                        evaluators.isPending || isViewLoading
+                          ? { isLoading: true, isError: false }
+                          : evaluators.isError
+                            ? {
+                                isLoading: false,
+                                isError: true,
+                                error: evaluators.error.message,
+                              }
+                            : {
+                                isLoading: false,
+                                isError: false,
+                                data: evaluators.data.evaluators,
+                              }
+                      }
+                      pagination={{
+                        totalCount: evaluators.data?.totalItems ?? null,
+                        state: {
+                          pageIndex: pagination.page - 1,
+                          pageSize: pagination.limit,
+                        },
+                        onChange: (updater) => {
+                          const next =
+                            typeof updater === "function"
+                              ? updater({
+                                  pageIndex: pagination.page - 1,
+                                  pageSize: pagination.limit,
+                                })
+                              : updater;
+                          setPagination({
+                            page: next.pageIndex + 1,
+                            limit: next.pageSize,
+                          });
+                        },
+                      }}
+                      selectionStore={selectionStore}
+                      columnVisibility={columnVisibility}
+                      onColumnVisibilityChange={handleColumnVisibilityChange}
+                      columnOrder={columnOrder}
+                      onColumnOrderChange={handleColumnOrderChange}
+                      rowHeight={rowHeight}
+                      customRowHeightPx={rowHeights.activeHeightPx}
+                      onCustomRowHeightChange={rowHeights.setCustomPx}
+                      onSelectRowHeight={setRowHeight}
+                      orderBy={orderBy}
+                      setOrderBy={handleOrderByChange}
+                      onRowClick={(row) =>
+                        router.push(`/project/${projectId}/evals/${row.id}`)
+                      }
+                      noResultsMessage="No evaluators found."
+                    />
+                  </div>
+                </SearchableTableFilterLayout>
+              </div>
+            </DataTableControlsProvider>
+          )}
+
+          <EvaluatorsOverviewSelectionBar
+            selectionStore={selectionStore}
+            totalCount={evaluators.data?.totalItems ?? null}
+            onDeleteSelection={({ selectAll, selectedIds }) => {
+              const selection: EvaluatorDeleteSelection = selectAll
+                ? { scope: "allMatching" }
+                : { scope: "selected", evaluatorIds: selectedIds };
+              deleteDialog.openDialog(selection, confirmDelete);
+            }}
+          />
+          <EvaluatorGalleryDialog
+            projectId={projectId}
+            open={galleryOpen}
+            onOpenChange={setGalleryOpen}
+            onSelectTemplate={(template) => {
+              router.push(evaluatorCreateHref(projectId, template));
+            }}
+            onCreateFromScratch={(type) => {
+              router.push(
+                `/project/${projectId}/evals/new?type=${encodeURIComponent(type)}`,
+              );
+            }}
+          />
+          {defaultModelConfig ? (
+            <JudgeModelConfigurationDialog
+              open={defaultModelConfigurationOpen}
+              projectId={projectId}
+              initialModel={defaultModelConfig}
+              onOpenChange={setDefaultModelConfigurationOpen}
+              onSave={projectDefaultModel.update.updateConfiguration}
+            />
+          ) : null}
+        </Page>
+      )}
+    </DefaultModelChangeConfirmationDialog>
   );
 }

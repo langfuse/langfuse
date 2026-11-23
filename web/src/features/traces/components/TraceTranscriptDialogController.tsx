@@ -1,47 +1,29 @@
-import { type ReactNode } from "react";
+import { type ComponentProps } from "react";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import {
+  InternalTranscriptDialogController,
+  type TranscriptSource,
+} from "@/src/features/traces/components/InternalTranscriptDialogController";
 import { api } from "@/src/utils/api";
 
-type TraceTranscriptSource = {
-  projectId: string;
-  traceId: string;
-  timestamp: Date;
-};
-
-export function TraceTranscriptDialogController({
-  children,
-  ...source
-}: TraceTranscriptSource & {
-  children: (control: { openDialog: (() => void) | undefined }) => ReactNode;
-}) {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  if (!internalFeaturesEnabled) {
-    return children({ openDialog: undefined });
-  }
-
+export function TraceTranscriptDialogController(
+  props: Omit<
+    ComponentProps<typeof InternalTranscriptDialogController>,
+    "title" | "renderInspector"
+  >,
+) {
   return (
-    <DialogController<TraceTranscriptSource>
-      renderDialog={({ state }) => (
-        <Dialog title="Trace transcript" size="lg" closeOnInteractionOutside>
-          <Dialog.Body>
-            <div className="ph-no-capture flex flex-col gap-4">
-              <TraceTranscriptInspector {...state} />
-            </div>
-          </Dialog.Body>
-        </Dialog>
-      )}
-    >
-      {({ openDialog }) => children({ openDialog: () => openDialog(source) })}
-    </DialogController>
+    <InternalTranscriptDialogController
+      {...props}
+      title="Trace transcript"
+      renderInspector={(source) => <TraceTranscriptInspector {...source} />}
+    />
   );
 }
 
-function TraceTranscriptInspector(source: TraceTranscriptSource) {
+function TraceTranscriptInspector(source: TranscriptSource) {
   const query = api.events.transcriptByTraceId.useQuery({
     ...source,
     context: "other",
@@ -49,11 +31,9 @@ function TraceTranscriptInspector(source: TraceTranscriptSource) {
 
   if (query.error) {
     return (
-      <Alert variant="destructive" size="sm">
-        <Alert.Description>
-          <p className="break-words">{query.error.message}</p>
-        </Alert.Description>
-      </Alert>
+      <Banner variant="error">
+        <p className="break-words">{query.error.message}</p>
+      </Banner>
     );
   }
   if (!query.data) return <p className="text-xs">Loading transcript…</p>;
@@ -61,12 +41,10 @@ function TraceTranscriptInspector(source: TraceTranscriptSource) {
   return (
     <>
       {query.data.cutoff && (
-        <Alert variant="warning" size="sm">
-          <Alert.Description>
-            This transcript is incomplete because the trace exceeds the
-            observation limit.
-          </Alert.Description>
-        </Alert>
+        <Banner variant="warning">
+          This transcript is incomplete because the trace exceeds the
+          observation limit.
+        </Banner>
       )}
       {query.data.transcript ? (
         <JSONView

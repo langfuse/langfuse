@@ -3,10 +3,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TopicAssignment, TopicSummary } from "@langfuse/shared/topics";
 import {
   ensureDefaultTopicFacets,
+  selectTopicMapMatches,
+  TRACE_SPAN_MARGIN_MS,
+  topicMatchingTraceIdsQuery,
   writeTopicAssignments,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import {
+  createEvent,
+  createEventsCh,
   getTopicResultCounts,
   listCurrentTopicAssignments,
   listCurrentTopicSummaries,
@@ -15,6 +20,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
+import { TopicsTargetObject } from "@langfuse/shared";
 
 describe("current Topics summaries and assignments", () => {
   const orgId = randomUUID();
@@ -46,7 +52,9 @@ describe("current Topics summaries and assignments", () => {
     facetVersion: 1,
     traceId,
     sessionId: null,
-    triggerType: "manual_poc",
+    triggerType: "rule",
+    ruleIds: [],
+    executionId: null,
     environment: "production",
     traceName: "checkout",
     unitStartTime: `2026-10-0${day}T12:00:00.000Z`,
@@ -55,6 +63,7 @@ describe("current Topics summaries and assignments", () => {
     embedding: [1, ...Array<number>(255).fill(0)],
     transcriptId: "t",
     transcriptVersion: "v",
+    transcriptBytes: 0,
     summaryModel: "test",
     embeddingModel: "test",
     providedUsageDetails: {},
@@ -352,6 +361,87 @@ describe("current Topics summaries and assignments", () => {
     expect(intentCounts).toMatchObject({ total: 1, notApplicable: 1 });
   });
 
+  it("keeps only traces a tracing filter matches in each batch", async () => {
+    await createEventsCh(
+      [
+        [traces.assigned, "2026-10-06T12:00:00.000Z", "session-a"],
+        [traces.outlier, "2026-10-04T12:00:00.000Z", "session-b"],
+      ].map(([traceId, startTime, sessionId]) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          session_id: sessionId,
+          start_time: new Date(startTime).getTime() * 1000,
+        }),
+      ),
+    );
+    const bySession = (sessionId: string) =>
+      summaries([], {
+        facetIds: [issues],
+        traceFilter: ({ from, to, traceIds: batchTraceIds }) =>
+          topicMatchingTraceIdsQuery(
+            {
+              projectId,
+              filter: [
+                {
+                  column: "sessionId",
+                  type: "string",
+                  operator: "=",
+                  value: sessionId,
+                },
+              ],
+              from,
+              to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
+              traceIds: batchTraceIds,
+            },
+            prisma,
+          ),
+      });
+
+    expect(traceIds(await bySession("session-a"))).toEqual([traces.assigned]);
+    expect(traceIds(await bySession("session-b"))).toEqual([traces.outlier]);
+    expect(traceIds(await bySession("session-none"))).toEqual([]);
+  });
+
+  it("highlights only the map's cohort traces a tracing filter matches", async () => {
+    const sessionId = `map-${randomUUID()}`;
+    await createEventsCh(
+      [
+        [traces.assigned, "2026-10-06T12:00:00.000Z", sessionId],
+        [traces.outlier, "2026-10-04T12:00:00.000Z", `other-${sessionId}`],
+        // Matches, but belongs to another run's map.
+        [traces.unpublished, "2026-10-02T12:00:00.000Z", sessionId],
+      ].map(([traceId, startTime, session]) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          session_id: session,
+          start_time: new Date(startTime).getTime() * 1000,
+        }),
+      ),
+    );
+
+    expect(
+      await selectTopicMapMatches(
+        {
+          projectId,
+          runId: publishedRunId,
+          facet: { facetId: issues, version: 1 },
+          timeRange: window,
+          filter: [
+            {
+              column: "sessionId",
+              type: "string",
+              operator: "=",
+              value: sessionId,
+            },
+          ],
+        },
+        prisma,
+      ),
+    ).toEqual([traces.assigned]);
+  });
+
   it("returns short pages with a cursor when the candidate budget runs out", async () => {
     const awaiting: TopicResultCondition[] = [
       {
@@ -373,5 +463,224 @@ describe("current Topics summaries and assignments", () => {
     // Budgeted pages can be empty, but together they list every row exactly once.
     expect(pages.some((page) => page.length === 0)).toBe(true);
     expect(pages.flat()).toEqual(keys(await summaries(awaiting)));
+  });
+});
+
+describe("current Topics results with several rules sharing a facet", () => {
+  const orgId = randomUUID();
+  const projectId = randomUUID();
+  const window = {
+    from: new Date("2026-10-01T00:00:00.000Z"),
+    to: new Date("2026-10-08T00:00:00.000Z"),
+  };
+  const [both, firstOnly] = [`t1-${randomUUID()}`, `t2-${randomUUID()}`];
+  let facetId = "";
+  const runIds: string[] = [];
+
+  beforeAll(async () => {
+    await prisma.organization.create({
+      data: {
+        id: orgId,
+        name: "Topic rules test",
+        projects: { create: [{ id: projectId, name: "Topic rules" }] },
+      },
+    });
+    facetId = (await ensureDefaultTopicFacets(projectId))[0].id;
+    for (const [index, name] of ["Support", "Billing"].entries()) {
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name,
+          targetObject: TopicsTargetObject,
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          createdAt: new Date(Date.UTC(2026, 9, 1 + index)),
+          assignments: { create: [{ projectId, evaluatorId: facetId }] },
+        },
+      });
+      const run = await prisma.topicClusteringRun.create({
+        data: {
+          projectId,
+          facetId,
+          facetVersion: 1,
+          status: "completed",
+          ruleId: rule.id,
+        },
+      });
+      runIds.push(run.id);
+    }
+    const summary = (traceId: string, day: number): TopicSummary => ({
+      projectId,
+      facetId,
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      triggerType: "rule",
+      ruleIds: [],
+      executionId: null,
+      environment: "production",
+      traceName: "checkout",
+      unitStartTime: `2026-10-0${day}T12:00:00.000Z`,
+      state: "complete",
+      summary: `Summary of ${traceId}`,
+      embedding: [1, ...Array<number>(255).fill(0)],
+      transcriptId: "t",
+      transcriptVersion: "v",
+      transcriptBytes: 0,
+      summaryModel: "test",
+      embeddingModel: "test",
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+      processedAt: `2026-10-0${day}T13:00:00.000Z`,
+      metadata: {},
+    });
+    const assign = (
+      source: TopicSummary,
+      runId: string,
+      topicId: string,
+    ): TopicAssignment => ({
+      projectId,
+      facetId,
+      facetVersion: 1,
+      traceId: source.traceId,
+      sessionId: null,
+      environment: source.environment,
+      traceName: source.traceName,
+      unitStartTime: source.unitStartTime,
+      summaryProcessedAt: source.processedAt,
+      runId,
+      topicId,
+      topicVersionId: `${topicId}-v1`,
+      distance: 0.1,
+      runnerUpDistance: 0.2,
+      origin: "initial",
+      coordinates: null,
+      assignedAt: "2026-10-07T00:00:00.000Z",
+    });
+    const [bothSummary, firstOnlySummary] = [
+      summary(both, 6),
+      summary(firstOnly, 5),
+    ];
+    await writeTopicSummaries([bothSummary, firstOnlySummary]);
+    await writeTopicAssignments([
+      assign(bothSummary, runIds[0], "topic-support"),
+      assign(bothSummary, runIds[1], "topic-billing"),
+      assign(firstOnlySummary, runIds[0], "topic-support"),
+      // Billing assigned an older summary of this trace: awaiting its map there.
+      {
+        ...assign(firstOnlySummary, runIds[1], "topic-billing"),
+        summaryProcessedAt: "2026-10-05T01:00:00.000Z",
+      },
+    ]);
+  });
+
+  afterAll(async () => {
+    for (const table of ["topic_facet_summaries", "topic_assignments"])
+      await clickhouseClient().command({
+        query: `DELETE FROM ${table} WHERE project_id = {projectId:String}`,
+        query_params: { projectId },
+        clickhouse_settings: { mutations_sync: "1" },
+      });
+    await prisma.organization.deleteMany({ where: { id: orgId } });
+  });
+
+  it("lists each rule's assignment and pages them one row at a time without gaps", async () => {
+    const input = {
+      projectId,
+      window,
+      facetIds: [facetId],
+      conditions: [],
+      orderBy: "timestamp.desc" as const,
+    };
+    const rows = (result: {
+      rows: { traceId: string; topicId: string | null }[];
+    }) => result.rows.map((row) => [row.traceId, row.topicId]);
+    const all = await listCurrentTopicAssignments({ ...input, limit: 50 });
+    expect(rows(all).sort()).toEqual(
+      [
+        [both, "topic-support"],
+        [both, "topic-billing"],
+        [firstOnly, "topic-support"],
+      ].sort(),
+    );
+    const paged: (string | null)[][] = [];
+    let cursor: TopicResultCursor | undefined;
+    do {
+      const page = await listCurrentTopicAssignments({
+        ...input,
+        limit: 1,
+        cursor,
+      });
+      paged.push(...rows(page));
+      cursor = page.next;
+    } while (cursor && paged.length < 10);
+    expect(paged).toEqual(rows(all));
+  });
+
+  it("matches a summary's topic filter in any rule's map", async () => {
+    const result = await listCurrentTopicSummaries({
+      projectId,
+      window,
+      facetIds: [facetId],
+      conditions: [
+        {
+          column: "topicId",
+          match: { operator: "any of", values: ["topic-billing"] },
+        },
+      ],
+      orderBy: "timestamp.desc",
+      limit: 50,
+      includeAssignment: true,
+      truncateSummaries: false,
+    });
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        traceId: both,
+        assignment: expect.objectContaining({ topicId: "topic-billing" }),
+      }),
+    ]);
+  });
+
+  it("filters summaries on every rule's assignment, not just the row it shows", async () => {
+    const list = (conditions: TopicResultCondition[]) =>
+      listCurrentTopicSummaries({
+        projectId,
+        window,
+        facetIds: [facetId],
+        conditions,
+        orderBy: "timestamp.desc",
+        limit: 50,
+        includeAssignment: true,
+        truncateSummaries: false,
+      }).then((result) => result.rows.map((row) => row.traceId));
+    // Excluding Billing's topic drops the trace Support also assigned.
+    expect(
+      await list([
+        {
+          column: "topicId",
+          match: { operator: "none of", values: ["topic-billing"] },
+        },
+      ]),
+    ).toEqual([firstOnly]);
+    // Unassigned rows add no topic id, so an empty id excludes nothing.
+    expect(
+      (
+        await list([
+          { column: "topicId", match: { operator: "none of", values: [""] } },
+        ])
+      ).sort(),
+    ).toEqual([both, firstOnly].sort());
+    // A stale assignment in one map doesn't make an assigned trace awaiting.
+    expect(
+      await list([
+        {
+          column: "assignmentStatus",
+          match: { operator: "any of", values: ["awaiting_map"] },
+        },
+      ]),
+    ).toEqual([]);
   });
 });

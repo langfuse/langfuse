@@ -8,15 +8,17 @@ import {
 } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import {
   deleteOrgMembership,
   saveOrgMembership,
 } from "@langfuse/shared/memberships";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
-import { ForbiddenError, Role } from "@langfuse/shared";
+import { assertValidOrgOwnershipChange } from "@/src/features/rbac/server/ownershipChange";
+import { Role } from "@langfuse/shared";
 import { OrganizationId } from "@langfuse/shared/rbac";
-import { prisma, type Prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 
@@ -96,7 +98,7 @@ export async function handleUpdateMembership(
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
     });
     assertAuthorizeMembershipChange(context, orgId);
-    await assertValidOwnershipChange({
+    await assertValidOrgOwnershipChange({
       tx,
       context,
       orgId,
@@ -123,6 +125,10 @@ export async function handleUpdateMembership(
       },
       tx,
     );
+    await deleteSessionViewsWithoutProjectAccess(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
     return after;
   });
   await evictUserGatewayResolveCache(prisma, {
@@ -167,7 +173,7 @@ export async function handleDeleteMembership(
     });
     assertAuthorizeMembershipChange(context, orgId);
     if (!before) return { deleted: false, revokedKeys: [] };
-    await assertValidOwnershipChange({
+    await assertValidOrgOwnershipChange({
       tx,
       context,
       orgId,
@@ -203,6 +209,10 @@ export async function handleDeleteMembership(
         tx,
       );
     }
+    await deleteSessionViewsWithoutProjectAccess(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
     return { deleted: true, revokedKeys };
   });
   await invalidateCachedApiKeys(
@@ -247,56 +257,4 @@ function assertAuthorizeMembershipChange(
     organization,
   );
   if (!membershipAccess.success) throw membershipAccess.error;
-}
-
-/** assertValidOwnershipChange checks ownership permission and keeps at least one owner. */
-export async function assertValidOwnershipChange({
-  tx,
-  context,
-  orgId,
-  from,
-  to,
-}: {
-  tx: Prisma.TransactionClient;
-  context: AuthorizationContext | undefined;
-  orgId: string;
-  from: Role | undefined;
-  to?: Role;
-}) {
-  if (from === Role.OWNER || to === Role.OWNER) {
-    assertAuthorizeOwnershipChange(context, orgId);
-  }
-  if (from === Role.OWNER && to !== Role.OWNER) {
-    await assertOtherOwners(tx, orgId);
-  }
-}
-
-/** assertAuthorizeOwnershipChange throws unless the context may grant, change, or remove the OWNER role. */
-function assertAuthorizeOwnershipChange(
-  context: AuthorizationContext | undefined,
-  orgId: string,
-) {
-  if (!context) throw new ForbiddenError();
-  const organization = OrganizationId(orgId);
-  const ownershipAccess = authorize(
-    context,
-    organization,
-    "organizationMembers:manageOwnership",
-    organization,
-  );
-  if (!ownershipAccess.success) throw ownershipAccess.error;
-}
-
-/** assertOtherOwners locks the organization's owner rows and requires another owner before removing ownership. */
-async function assertOtherOwners(tx: Prisma.TransactionClient, orgId: string) {
-  const owners = await tx.$queryRaw<{ id: string }[]>`
-    SELECT id FROM organization_memberships
-    WHERE org_id = ${orgId} AND role = 'OWNER'
-    FOR UPDATE
-  `;
-  if (owners.length < 2) {
-    throw new ForbiddenError(
-      "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
-    );
-  }
 }

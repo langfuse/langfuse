@@ -18,7 +18,7 @@ import {
   type ConfigureTopicsSaveDraft,
   type TopicSlotCheck,
 } from "./ConfigureTopicsDialog";
-import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
+import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import { topicsSetupPayload } from "./topics-setup";
 import { resolveTopicModelSlot } from "./topic-setup-flow";
 
@@ -277,7 +277,6 @@ function useSaveTopicsSetup(projectId: string) {
     onSuccess: () => {
       utils.topics.modelSettings.invalidate({ projectId });
       utils.topics.facets.invalidate({ projectId });
-      utils.topics.rules.invalidate({ projectId });
       utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
   });

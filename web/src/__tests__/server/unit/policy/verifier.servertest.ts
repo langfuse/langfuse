@@ -247,12 +247,10 @@ describe("admin key needs a set, non-empty configured key", () => {
 describe("infra failures surface as typed errors, not throws", () => {
   it("propagates an api key repo failure as an InternalServerError result", async () => {
     const store = stubStore({
-      findByFastHash: vi.fn(
-        async (): Promise<FindApiKeyResult> => ({
-          success: false,
-          error: new InternalServerError("db down"),
-        }),
-      ),
+      findByFastHash: vi.fn(async (): Promise<FindApiKeyResult> => ({
+        success: false,
+        error: new InternalServerError("db down"),
+      })),
     });
     const result = await verifier(store).verify(
       parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),

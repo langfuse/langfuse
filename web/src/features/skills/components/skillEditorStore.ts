@@ -34,6 +34,14 @@ export type SkillEditorInitialValue = {
   tags: string[];
 };
 
+/** Editor state beyond the initial value that a resumed draft restores. */
+export type SkillEditorDraftState = {
+  deletedFiles: SkillDraftFile[];
+  folders: string[];
+  activePath: string;
+  commitMessage: string;
+};
+
 type SkillEditorState = {
   name: string;
   baseVersion: number | null;
@@ -68,26 +76,36 @@ export type SkillEditorStore = StoreApi<SkillEditorState>;
 
 export function createSkillEditorStore(
   initialValue: SkillEditorInitialValue,
+  draft?: SkillEditorDraftState,
 ): SkillEditorStore {
   const files = Object.fromEntries(
     initialValue.files.map((file) => [file.path, file]),
   );
-  const folders = getParentFolderPaths(
-    initialValue.files.map(({ path }) => path),
-  );
+  const folders = [
+    ...new Set([
+      ...getParentFolderPaths(initialValue.files.map(({ path }) => path)),
+      ...(draft?.folders ?? []),
+    ]),
+  ].toSorted();
+  const defaultActivePath = files["SKILL.md"]
+    ? "SKILL.md"
+    : initialValue.files[0]!.path;
 
   const pendingHashes = new Map<string, Promise<void>>();
   const store = createStore<SkillEditorState>((set, get) => ({
     name: initialValue.name,
     baseVersion: initialValue.baseVersion,
     files,
-    deletedFiles: {},
+    deletedFiles: Object.fromEntries(
+      (draft?.deletedFiles ?? []).map((file) => [file.path, file]),
+    ),
     folders,
-    activePath: files["SKILL.md"] ? "SKILL.md" : initialValue.files[0]!.path,
+    activePath:
+      draft && files[draft.activePath] ? draft.activePath : defaultActivePath,
     labels: initialValue.labels.filter((label) => label !== "latest"),
     tags: initialValue.tags,
-    commitMessage: "",
-    dirty: false,
+    commitMessage: draft?.commitMessage ?? "",
+    dirty: draft !== undefined,
     isImporting: false,
     actions: {
       hashPendingFiles: async () => {

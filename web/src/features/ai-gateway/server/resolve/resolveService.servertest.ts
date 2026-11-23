@@ -39,7 +39,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
     roleAssignment: {
       findMany: () =>
         Promise.resolve([
-          { systemRole: "AI_GATEWAY", orgId: keyOrgId, projectId: null },
+          {
+            systemRole: "AI_GATEWAY_INFERENCE",
+            orgId: keyOrgId,
+            projectId: null,
+          },
         ]),
     },
   } as unknown as PrismaClient;
@@ -55,7 +59,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
         ...params,
         model: "Production OpenAI:gpt-4o",
       });
-      return service.resolve({ context, apiFormat: params.apiFormat });
+      return service.resolve({
+        context,
+        apiFormat: params.apiFormat,
+        pricing: service.findPricing(context),
+      });
     },
   };
 };
@@ -83,7 +91,9 @@ const row = (overrides: {
         },
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
+  gatewaySpendLimits: [],
   organization: {
+    gatewaySpendLimits: [],
     gatewayConfig: {
       defaultIngestionProjectId: overrides.withoutProject ? null : "project-1",
       ingestionMode: overrides.ingestionMode ?? "USAGE",
@@ -151,6 +161,8 @@ describe("GatewayResolveService", () => {
         token_type: "Bearer",
         expires_at: expect.any(Number),
       },
+      spend_limits: [],
+      pricing: null,
     });
   });
 
@@ -352,7 +364,12 @@ describe("GatewayResolveService", () => {
           orgId: "org-not-allowed",
           expiresAt: null,
           gatewayAssociation: null,
-          organization: { gatewayConfig: null, gatewayAiConnections: [] },
+          gatewaySpendLimits: [],
+          organization: {
+            gatewaySpendLimits: [],
+            gatewayConfig: null,
+            gatewayAiConnections: [],
+          },
         }),
       "org-not-allowed",
     );

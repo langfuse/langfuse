@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -15,6 +14,7 @@ import {
 } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: typeof env }>();
@@ -62,40 +62,16 @@ describe("project API keys trpc", () => {
   ) {
     const { projectId, orgId, publicKey } = await createOrgProjectAndApiKey();
 
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        canCreateOrganizations: true,
-        name: "Demo User",
-        organizations: [
-          {
-            id: orgId,
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                role: projectRole,
-                retentionDays: 30,
-                deletedAt: null,
-                hasTraces: false,
-                name: "Test Project",
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-      },
-      environment: {} as any,
-    };
+    const session: Session = createSession({
+      organizations: [
+        {
+          id: orgId,
+          role: "OWNER",
+          aiTelemetryEnabled: true,
+          projects: [{ id: projectId, role: projectRole }],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -204,7 +180,7 @@ describe("project API keys trpc", () => {
         caller.projectApiKeys.create({
           projectId,
           name: "org-only role on project key",
-          role: "AI_GATEWAY",
+          role: "AI_GATEWAY_INFERENCE",
         }),
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
@@ -215,7 +191,7 @@ describe("project API keys trpc", () => {
       ).resolves.toBe(0);
     });
 
-    it.each(["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST"] as const)(
+    it.each(["ADMIN", "VIEWER", "APPLICATION", "SCORES_INGEST"] as const)(
       "creates a project key with %s when role selection is enabled",
       async (role) => {
         Object.assign(env, { API_KEY_PROJECT_ROLES_ENABLE: "true" });
@@ -270,15 +246,22 @@ describe("project API keys trpc", () => {
           const { caller, projectId } = await createProjectCaller();
           const before = await prisma.apiKey.count({ where: { projectId } });
           const rejectedRoles = [
+            "INGEST",
             "LEGACY_PROJECT_API_KEY",
             "LEGACY_ORGANIZATION_API_KEY",
             "",
             "OWNER",
             "AI_GATEWAY",
+            "AI_GATEWAY_INFERENCE",
             "invalid",
           ];
           if (migration !== "enforce" || enabled === "false")
-            rejectedRoles.push("ADMIN", "VIEWER", "INGEST", "SCORES_INGEST");
+            rejectedRoles.push(
+              "ADMIN",
+              "VIEWER",
+              "APPLICATION",
+              "SCORES_INGEST",
+            );
           for (const role of rejectedRoles) {
             await expect(
               caller.projectApiKeys.create({ projectId, role: role as never }),

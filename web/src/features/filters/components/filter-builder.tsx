@@ -46,6 +46,11 @@ import { SingleSelect } from "@/src/features/filters/components/SingleSelect";
 import { FilterToken } from "@/src/features/filters/components/FilterToken";
 import { getColumnOptionsForFilterRow } from "@/src/features/filters/lib/filter-transform";
 import {
+  operatorSelectValue,
+  parseOperatorSelectValue,
+  textAndNumericOperatorOptions,
+} from "@/src/features/filters/lib/numeric-operator-select";
+import {
   type WipFilterState,
   type WipFilterCondition,
   type FilterState,
@@ -455,6 +460,7 @@ export function InlineFilterBuilder({
   onStringObjectKeyChange,
   compact = false,
   subtleAddButton = false,
+  operators,
 }: {
   columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
@@ -480,6 +486,8 @@ export function InlineFilterBuilder({
   compact?: boolean;
   /** Renders the add action like the subtle prompt-editor "Add message" action. */
   subtleAddButton?: boolean;
+  /** Operators offered per filter type; defaults to every operator. */
+  operators?: FilterOperators;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -530,17 +538,41 @@ export function InlineFilterBuilder({
         onStringObjectKeyChange={onStringObjectKeyChange}
         compact={compact}
         subtleAddButton={subtleAddButton}
+        operators={operators}
       />
     </div>
   );
 }
 
-const getOperator = (
-  type: NonNullable<WipFilterCondition["type"]>,
-): WipFilterCondition["operator"] => {
-  return filterOperators[type]?.length > 0
-    ? filterOperators[type][0]
-    : undefined;
+type FilterOperators = Partial<
+  Record<keyof typeof filterOperators, readonly string[]>
+>;
+
+// Operator select of a row on a `stringObject` column that also compares its
+// values as numbers (the column's `numericValues`). The row's type follows the
+// operator: a text operator makes it `stringObject`, a numeric one
+// `numberObject`.
+const symbolOptions = (operators: readonly string[]) =>
+  operators.map((operator) => ({ value: operator, label: operator }));
+
+/**
+ * `filter` with the type and operator the select value names, e.g.
+ * `number:>` → `{ type: "numberObject", operator: ">" }`. Switching between
+ * text and numeric clears the value, which the other type cannot read; the
+ * key stays.
+ */
+const withNumericObjectOperator = (
+  filter: WipFilterCondition,
+  value: string,
+): WipFilterCondition => {
+  const { numeric, operator } = parseOperatorSelectValue(value);
+  const type = numeric ? "numberObject" : "stringObject";
+  return {
+    ...filter,
+    type,
+    operator,
+    value: filter.type === type ? filter.value : undefined,
+  } as WipFilterCondition;
 };
 
 /**
@@ -580,6 +612,7 @@ function FilterBuilderForm({
   compact = false,
   subtleAddButton = false,
   aiFilter,
+  operators,
 }: {
   columnIdentifier: ColumnIdentifier;
   columns: ColumnDefinitionWithAlert[];
@@ -602,7 +635,11 @@ function FilterBuilderForm({
   compact?: boolean;
   subtleAddButton?: boolean;
   aiFilter?: AiFilterConfig;
+  operators?: FilterOperators;
 }) {
+  // A type missing from `operators` offers none, like the eval filter definitions.
+  const operatorsFor = (type: keyof typeof filterOperators) =>
+    operators ? (operators[type] ?? []) : filterOperators[type];
   const [showAiFilter, setShowAiFilter] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
@@ -683,6 +720,10 @@ function FilterBuilderForm({
     const stringObjectSuggest =
       column?.type === "stringObject" &&
       columnsWithCustomSelect.includes(column.id);
+    // Metadata is a stringObject column; with `numericValues` its rows switch
+    // between stringObject (text compare) and numberObject (numeric compare).
+    const numericObjectValues =
+      column?.type === "stringObject" && column.numericValues === true;
     const stringSuggest =
       column?.type === "string" &&
       columnsWithCustomSelect.includes(column.id) &&
@@ -729,7 +770,7 @@ function FilterBuilderForm({
                       onSelect={(value) => {
                         const col = columns.find((c) => c.id === value);
                         const defaultOperator = col?.type
-                          ? getOperator(col.type)
+                          ? operatorsFor(col.type)[0]
                           : undefined;
 
                         handleFilterChange(
@@ -901,16 +942,36 @@ function FilterBuilderForm({
     const keyPending =
       compact && keyControl !== null && !("key" in filter && filter.key);
 
+    const typeOperators =
+      filter.type !== undefined ? operatorsFor(filter.type) : [];
+    const keepNumericEquals =
+      filter.type === "numberObject" && filter.operator === "=";
+    const operatorOptions = numericObjectValues
+      ? textAndNumericOperatorOptions(
+          symbolOptions(operatorsFor("stringObject")),
+          symbolOptions(operatorsFor("numberObject")),
+          keepNumericEquals,
+        )
+      : symbolOptions(typeOperators);
+    const operatorValue = numericObjectValues
+      ? operatorSelectValue(
+          filter.type === "numberObject",
+          filter.operator ?? "",
+        )
+      : (filter.operator ?? "");
+
     const operatorSelect = (
       <Select
         disabled={!filter.column || disabled || keyPending}
         onValueChange={(value) => {
           // protect against invalid empty operator values
           if (value === "") return;
+          const next = numericObjectValues
+            ? withNumericObjectOperator(filter, value)
+            : { ...filter, operator: value as any };
           handleFilterChange(
             {
-              ...filter,
-              operator: value as any,
+              ...next,
               // Value-less operators keep an empty string for schema compatibility.
               value:
                 filter.type === "null" ||
@@ -918,24 +979,22 @@ function FilterBuilderForm({
                 value === "is set" ||
                 value === "is not set"
                   ? ""
-                  : (filter.value as any),
+                  : (next.value as any),
             },
             i,
           );
         }}
-        value={keyPending ? "" : (filter.operator ?? "")}
+        value={keyPending ? "" : operatorValue}
       >
         <SelectTrigger className={cn("min-w-[60px]", compact && "w-auto")}>
           <SelectValue placeholder="" />
         </SelectTrigger>
         <SelectContent className="ph-no-capture">
-          {filter.type !== undefined
-            ? filterOperators[filter.type].map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))
-            : null}
+          {operatorOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
     );

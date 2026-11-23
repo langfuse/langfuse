@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import { useWatch } from "react-hook-form";
 import { type z } from "zod";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { createForm } from "@/src/components/design-system/factories/createForm";
@@ -272,16 +272,12 @@ export function PostHogIntegrationForm({
             </CustomTooltip>
           ) : null}
           {!exportSourceValidation.ok ? (
-            <Alert variant="destructive">
-              <Alert.Title>
-                Saved export source is no longer available
-              </Alert.Title>
-              <Alert.Description>
-                {getExportSourceUnavailableMessage(
-                  exportSourceValidation.reason,
-                )}
-              </Alert.Description>
-            </Alert>
+            <Banner
+              variant="error"
+              title="Saved export source is no longer available"
+            >
+              {getExportSourceUnavailableMessage(exportSourceValidation.reason)}
+            </Banner>
           ) : null}
           <PostHogForm.Field name="enabled" label="Enabled">
             {(field) => (

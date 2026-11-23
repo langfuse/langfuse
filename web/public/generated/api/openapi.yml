@@ -3057,6 +3057,24 @@ paths:
         observation
 
 
+        **Trace dimensions** (`traceName`, `tags`, `userId`, `traceRelease`,
+        `traceVersion`) describe the score's whole trace, across all of its
+        observations in the query time range:
+
+        - `tags` is the union of the tags on every observation of the trace.
+        `traceName`, `userId`, `traceRelease` and `traceVersion` take the most
+        recent non-empty value.
+
+        - A `tags` filter matches if any observation of the trace carries the
+        tag; `none of` matches only when no observation does.
+
+        - Filters on the other trace dimensions compare the trace-level value;
+        `is null` matches when no observation has a value.
+
+        - Filters and groupings read the same trace-level values, so they agree
+        within one query.
+
+
         **Measures:**
 
         - `count` - Total number of scores
@@ -4888,12 +4906,19 @@ paths:
                   type: array
                   items:
                     type: string
+                  nullable: true
                   description: >-
                     New labels for the prompt version. Labels are unique across
                     versions. The "latest" label is reserved and managed by
                     Langfuse.
-              required:
-                - newLabels
+                removeLabels:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+                  description: >-
+                    Labels to remove from the prompt version. The "latest" label
+                    is reserved and managed by Langfuse.
   /api/public/v2/prompts/{promptName}:
     get:
       description: Get a prompt
@@ -6644,6 +6669,99 @@ paths:
                   description: List of trace IDs to delete
               required:
                 - traceIds
+  /api/public/unstable/organizations/billable-units:
+    get:
+      description: |-
+        Unstable: the shape may change without notice.
+
+        Billable units of the organization's projects, per UTC time bucket and
+        project. These are the numbers of the organization's Usage settings
+        tab. Requires an organization-scoped API key.
+
+        Units are counted by ingestion time in `[fromTimestamp, toTimestamp)`
+        as approximate distinct units per bucket (about 0.3% error on large
+        counts, small counts are exact). A unit counts once in every bucket it
+        appears in, so the counts stay close to, but are not exactly, what is
+        billed. Deployments still in the v3 `legacy` write mode count the rows
+        of the traces, observations and scores tables instead.
+
+        Buckets start at UTC hour, day, Monday or month boundaries. The first
+        and last bucket cover only the part inside the range, and a
+        `toTimestamp` in the future is cut off at now. Buckets and projects
+        without usage are left out, and so are deleted projects.
+      operationId: unstable_billableUnits_get
+      tags:
+        - UnstableBillableUnits
+      parameters:
+        - name: fromTimestamp
+          in: query
+          description: Start of the range (inclusive), ISO 8601 with a time zone.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: toTimestamp
+          in: query
+          description: >-
+            End of the range (exclusive), ISO 8601 with a time zone. At most 31
+            days after `fromTimestamp` for `hour` granularity, 366 days
+            otherwise.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: granularity
+          in: query
+          description: Bucket size. Defaults to `day`.
+          required: false
+          schema:
+            $ref: '#/components/schemas/unstableBillableUnitsGranularity'
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableBillableUnitsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
   /api/public/unstable/dashboard-widgets:
     get:
       description: |-
@@ -11013,11 +11131,13 @@ components:
         value:
           type: string
           const: ''
-          nullable: true
-          description: Optional. Defaults to an empty string.
+          description: >-
+            Empty-string placeholder. Can be omitted on servers newer than
+            v4.78.0.
       required:
         - column
         - operator
+        - value
     PromptVariableMappingInput:
       title: PromptVariableMappingInput
       type: object
@@ -14989,6 +15109,62 @@ components:
           type: string
       required:
         - message
+    unstableBillableUnitsGranularity:
+      title: unstableBillableUnitsGranularity
+      type: string
+      enum:
+        - hour
+        - day
+        - week
+        - month
+    unstableBillableUnitsRow:
+      title: unstableBillableUnitsRow
+      type: object
+      description: Billable units of one project in one bucket.
+      properties:
+        bucket:
+          type: string
+          format: date-time
+          description: Start of the UTC bucket.
+        projectId:
+          type: string
+        count:
+          type: integer
+          description: All billable units, the sum of the per-type counts.
+        traces:
+          type: integer
+        observations:
+          type: integer
+        scores:
+          type: integer
+        topicFacetSummaries:
+          type: integer
+      required:
+        - bucket
+        - projectId
+        - count
+        - traces
+        - observations
+        - scores
+        - topicFacetSummaries
+    unstableBillableUnitsResponse:
+      title: unstableBillableUnitsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableBillableUnitsRow'
+        usageRecordedFrom:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            When usage recording started on this deployment. Buckets before it
+            show no usage. Null while nothing has been recorded, and on
+            deployments that count the legacy tables.
+      required:
+        - data
     unstableDashboardWidgetView:
       title: unstableDashboardWidgetView
       type: string
@@ -15079,7 +15255,8 @@ components:
 
         | `boolean` | boolean | `=`, `<>` |
 
-        | `null` | omit, or `""` | `is null`, `is not null` |
+        | `null` | `""` (can be omitted on servers newer than v4.78.0) | `is
+        null`, `is not null` |
 
         | `stringOptions` | list of strings | `any of`, `none of` |
 

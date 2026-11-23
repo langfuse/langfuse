@@ -172,8 +172,8 @@ function getCrossAccountRoleCredentials(crossAccountRoleArn: string) {
 }
 
 // STS only accepts these characters in session names and source identities.
-function sessionName(projectId: string) {
-  return `langfuse-${projectId}`.replace(/[^\w+=,.@-]/g, "-").slice(0, 64);
+function sessionName(owner: string) {
+  return `langfuse-${owner}`.replace(/[^\w+=,.@-]/g, "-").slice(0, 64);
 }
 
 function sessionTagValue(value: string) {
@@ -202,19 +202,23 @@ export function getCustomerRoleCredentialsProvider({
   version: string;
   roleArn: string;
   externalId: string;
-  projectId: string;
+  /** Absent for organization-level sessions, which carry only the org tag. */
+  projectId?: string;
   orgId: string;
   sessionPolicy: string;
 }) {
+  const sessionOwner = projectId ?? `org-${orgId}`;
   const params = (externalId: string) => ({
     RoleArn: roleArn,
     ExternalId: externalId,
-    RoleSessionName: sessionName(projectId),
-    SourceIdentity: sessionName(projectId),
+    RoleSessionName: sessionName(sessionOwner),
+    SourceIdentity: sessionName(sessionOwner),
     DurationSeconds: SESSION_DURATION_SECONDS,
     Policy: sessionPolicy,
     Tags: [
-      { Key: "langfuse-project-id", Value: sessionTagValue(projectId) },
+      ...(projectId
+        ? [{ Key: "langfuse-project-id", Value: sessionTagValue(projectId) }]
+        : []),
       { Key: "langfuse-org-id", Value: sessionTagValue(orgId) },
     ],
   });

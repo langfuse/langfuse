@@ -1,0 +1,2 @@
+-- Parts written before scores.metadata existed have no metadata column on disk. Without a typed default, ClickHouse fills it with an untyped empty map, and the evaluator_id and evaluation_rule_id defaults fail to evaluate, so merges of those parts fail. Metadata-only: existing parts are not rewritten.
+ALTER TABLE scores {CLICKHOUSE_CLUSTER_CLAUSE} MODIFY COLUMN metadata DEFAULT CAST(map(), 'Map(LowCardinality(String), String)'){CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2};

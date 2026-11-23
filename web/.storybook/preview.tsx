@@ -22,6 +22,13 @@ import "./docs.css";
 import "react18-json-view/src/style.css";
 import "streamdown/styles.css";
 
+declare global {
+  interface ImportMetaEnv {
+    /** Set by @storybook/addon-vitest: "false" in a standalone Vitest run, "true" when the Storybook UI starts it. */
+    readonly VITEST_STORYBOOK?: "true" | "false";
+  }
+}
+
 function StorybookThemeProvider({
   children,
   fullHeight,
@@ -156,7 +163,11 @@ export default definePreview({
   ],
   parameters: {
     a11y: {
-      test: "todo",
+      // `todo` violations surface only in the Storybook UI. A standalone
+      // Vitest run (CI, `pnpm test-storybook`) attaches them to task metadata
+      // that nothing prints, so skip that axe pass there. Stories that set
+      // `test: "error"` keep running it everywhere.
+      test: import.meta.env.VITEST_STORYBOOK === "false" ? "off" : "todo",
       config: {
         rules: [{ id: "color-contrast", enabled: false }],
       },

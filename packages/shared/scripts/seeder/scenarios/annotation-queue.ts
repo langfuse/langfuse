@@ -3,6 +3,7 @@ import {
   createObservation,
   createObservationsCh,
   createScoresCh,
+  createSessionScore,
   createTrace,
   createTraceScore,
   createTracesCh,
@@ -146,6 +147,18 @@ const CORE_KEYS = [
   "feedback",
 ];
 
+// Attached to an item, never to a queue, so review can show an annotation
+// score the form does not edit.
+const OUTSIDE_QUEUE_KEY = "outside-queue";
+const OUTSIDE_QUEUE_CONFIG: ConfigDef = {
+  key: OUTSIDE_QUEUE_KEY,
+  name: "Outside queue",
+  dataType: "NUMERIC",
+  minValue: 0,
+  maxValue: 5,
+  description: "Annotation score for a config that is not on the queue.",
+};
+
 const TRACE_NAMES = [
   "rag-answer",
   "summarize-doc",
@@ -174,12 +187,20 @@ const ANSWERS = [
 const annotationQueueLink = (ctx: ScenarioContext, queueId: string): string =>
   `${ctx.baseUrl}/project/${ctx.projectId}/annotation-queues/${encodeURIComponent(queueId)}/items`;
 
+const annotationQueueItemLink = (
+  ctx: ScenarioContext,
+  queueId: string,
+  itemId: string,
+): string =>
+  `${annotationQueueLink(ctx, queueId)}/${encodeURIComponent(itemId)}`;
+
 const run = async (
   ctx: ScenarioContext,
   params: Record<string, string | number | boolean>,
 ): Promise<SeedSummary> => {
   const startedAt = Date.now();
   const setupDemo = params["setup-demo"] === true;
+  const reviewSources = params["review-sources"] === true;
   const scoreConfigCount = Number(
     params["score-config-count"] ?? CONFIG_DEFS.length,
   );
@@ -220,6 +241,13 @@ const run = async (
     annotationQueueLink(ctx, coreQueueId),
     annotationQueueLink(ctx, edgeQueueId),
     ...(setupDemo ? [annotationQueueLink(ctx, startQueueId)] : []),
+    ...(reviewSources
+      ? [
+          annotationQueueItemLink(ctx, coreQueueId, `${pfx}-core-i0`),
+          annotationQueueItemLink(ctx, edgeQueueId, `${pfx}-edge-i-obs0`),
+          annotationQueueItemLink(ctx, edgeQueueId, `${pfx}-edge-i-session`),
+        ]
+      : []),
   ];
 
   if (ctx.dryRun) {
@@ -235,12 +263,12 @@ const run = async (
         // Mirror the real-run counts: 8 edge items (partial1/2, stale, 2 obs,
         // session, missing, done), of which 8 have traces (missing has none),
         // 2 carry observations, and 9 pre-existing scores (2+3+1+3) are seeded.
-        scoreConfigs: scoreConfigCount,
+        scoreConfigs: scoreConfigCount + (reviewSources ? 1 : 0),
         queues: queueCount,
         items: coreItems + edgeItems + (setupDemo ? 4 : 0),
         traces: coreItems + 8,
         observations: 2,
-        scores: 9,
+        scores: 9 + (reviewSources ? 12 : 0),
         events: withV4 ? coreItems + 10 : 0,
       },
       verified: {},
@@ -254,7 +282,11 @@ const run = async (
   const extraConfigs = createExtraConfigDefinitions(
     scoreConfigCount - CONFIG_DEFS.length,
   );
-  const scoreConfigs = [...CONFIG_DEFS, ...extraConfigs];
+  const scoreConfigs = [
+    ...CONFIG_DEFS,
+    ...extraConfigs,
+    ...(reviewSources ? [OUTSIDE_QUEUE_CONFIG] : []),
+  ];
   const configId: Record<string, string> = {};
   for (const def of scoreConfigs) {
     const id = `${pfx}-cfg-${def.key}`;
@@ -283,17 +315,21 @@ const run = async (
       : CORE_KEYS),
     ...extraConfigs.slice(0, selectedExtraCount).map((def) => def.key),
   ].map((key) => configId[key]);
-  const edgeConfigIds = setupDemo
-    ? [
-        "toxicity",
-        "confidence",
-        "feedback",
-        ...extraConfigs
-          .slice(extraConfigs.length - selectedExtraCount)
-          .reverse()
-          .map((def) => def.key),
-      ].map((key) => configId[key])
-    : scoreConfigs.map((def) => configId[def.key]);
+  const edgeConfigIds = (
+    setupDemo
+      ? [
+          "toxicity",
+          "confidence",
+          "feedback",
+          ...extraConfigs
+            .slice(extraConfigs.length - selectedExtraCount)
+            .reverse()
+            .map((def) => def.key),
+        ]
+      : scoreConfigs.map((def) => def.key)
+  )
+    .filter((key) => key !== OUTSIDE_QUEUE_KEY)
+    .map((key) => configId[key]);
   const coreQueueName = setupDemo
     ? "Queue setup demo · Answer quality"
     : "Keyboard QA · core types";
@@ -449,7 +485,7 @@ const run = async (
     comment?: string | null;
     queueId: string;
   }) => {
-    const def = CONFIG_DEFS.find((d) => d.key === args.key);
+    const def = scoreConfigs.find((d) => d.key === args.key);
     if (!def) return;
     scores.push(
       createTraceScore({
@@ -501,10 +537,121 @@ const run = async (
     });
   };
 
+  const pushSourcedScore = (args: {
+    id: string;
+    timestamp: number;
+    name: string;
+    value: number;
+    dataType: ConfigDef["dataType"];
+    source: "ANNOTATION" | "EVAL" | "API";
+    stringValue?: string | null;
+    configId?: string | null;
+    queueId?: string | null;
+    comment?: string | null;
+    traceId?: string | null;
+    observationId?: string | null;
+    sessionId?: string | null;
+  }) => {
+    const fields = {
+      id: args.id,
+      project_id: ctx.projectId,
+      environment: ctx.environment,
+      name: args.name,
+      value: args.value,
+      string_value: args.stringValue ?? null,
+      data_type: args.dataType,
+      source: args.source,
+      config_id: args.configId ?? null,
+      queue_id: args.queueId ?? null,
+      comment: args.comment ?? null,
+      metadata: {},
+      timestamp: args.timestamp,
+    };
+    scores.push(
+      args.sessionId
+        ? createSessionScore({ ...fields, session_id: args.sessionId })
+        : createTraceScore({
+            ...fields,
+            trace_id: args.traceId ?? "",
+            observation_id: args.observationId ?? null,
+          }),
+    );
+  };
+
+  // Annotation for a queue config, plus eval, API, and an annotation whose
+  // config is not attached to the queue.
+  const pushReviewScores = (args: {
+    idPrefix: string;
+    timestamp: number;
+    queueId: string;
+    traceId?: string;
+    observationId?: string | null;
+    sessionId?: string;
+  }) => {
+    if (!reviewSources) return;
+    const target = {
+      traceId: args.traceId ?? null,
+      observationId: args.observationId ?? null,
+      sessionId: args.sessionId ?? null,
+    };
+    pushSourcedScore({
+      id: `${args.idPrefix}-review-ann`,
+      timestamp: args.timestamp,
+      name: "Accuracy",
+      value: 2,
+      stringValue: "Fully Correct",
+      dataType: "CATEGORICAL",
+      source: "ANNOTATION",
+      configId: configId.accuracy,
+      queueId: args.queueId,
+      comment: "Queue annotation.",
+      ...target,
+    });
+    pushSourcedScore({
+      id: `${args.idPrefix}-review-eval`,
+      timestamp: args.timestamp,
+      name: "Faithfulness",
+      value: 0.91,
+      dataType: "NUMERIC",
+      source: "EVAL",
+      comment: "LLM-as-a-judge.",
+      ...target,
+    });
+    pushSourcedScore({
+      id: `${args.idPrefix}-review-api`,
+      timestamp: args.timestamp,
+      name: "User rating",
+      value: 4,
+      dataType: "NUMERIC",
+      source: "API",
+      comment: "Submitted through the API.",
+      ...target,
+    });
+    pushSourcedScore({
+      id: `${args.idPrefix}-review-outside`,
+      timestamp: args.timestamp,
+      name: OUTSIDE_QUEUE_CONFIG.name,
+      value: 3,
+      dataType: "NUMERIC",
+      source: "ANNOTATION",
+      configId: configId[OUTSIDE_QUEUE_KEY],
+      comment: "Annotation for a config that is not on this queue.",
+      ...target,
+    });
+  };
+
   // 3a. Core queue — fresh trace items.
   for (let i = 0; i < coreItems; i++) {
     const traceId = `${pfx}-core-t${i}`;
-    newTrace(traceId);
+    const { timestamp } = newTrace(traceId);
+    if (i === 0) {
+      pushReviewScores({
+        idPrefix: traceId,
+        timestamp,
+        queueId: coreQueueId,
+        traceId,
+      });
+    }
     pushItem(`${pfx}-core-i${i}`, coreQueueId, traceId, "TRACE");
   }
 
@@ -587,6 +734,15 @@ const run = async (
     const obsId = `${traceId}-o0`;
     const { timestamp } = newTrace(traceId);
     newObservation(traceId, obsId, timestamp);
+    if (i === 0) {
+      pushReviewScores({
+        idPrefix: obsId,
+        timestamp,
+        queueId: edgeQueueId,
+        traceId,
+        observationId: obsId,
+      });
+    }
     pushItem(`${pfx}-edge-i-obs${i}`, edgeQueueId, obsId, "OBSERVATION");
   }
   // (iv) Session item (trace_sessions row + traces sharing the session).
@@ -603,6 +759,12 @@ const run = async (
         environment: ctx.environment,
         createdAt: new Date(startMs),
       },
+    });
+    pushReviewScores({
+      idPrefix: sessionId,
+      timestamp: startMs,
+      queueId: edgeQueueId,
+      sessionId,
     });
     pushItem(`${pfx}-edge-i-session`, edgeQueueId, sessionId, "SESSION");
   }
@@ -706,6 +868,17 @@ const run = async (
       "uniqExact(id)",
     ),
   };
+  const sessionScoreIds = scores
+    .filter((score) => score.session_id && !score.trace_id)
+    .map((score) => score.id);
+  if (sessionScoreIds.length > 0) {
+    verified.scores += await countRows(
+      "scores",
+      `project_id = {projectId: String} AND id IN {scoreIds: Array(String)}`,
+      { projectId: ctx.projectId, scoreIds: sessionScoreIds },
+      "uniqExact(id)",
+    );
+  }
   const pgItems = await prisma.annotationQueueItem.count({
     where: {
       projectId: ctx.projectId,
@@ -781,6 +954,13 @@ export const annotationQueueScenario: ScenarioDefinition = {
       default: CONFIG_DEFS.length,
       description:
         "total project score configs (9–500); extra varied fields are attached in different subsets and orders to exercise long queue editors",
+    },
+    {
+      flag: "review-sources",
+      type: "boolean",
+      default: false,
+      description:
+        "attach an annotation, an eval score, an API score, and an annotation for a config outside the queue to the first core trace, the first observation item, and the session item",
     },
     {
       flag: "v4",

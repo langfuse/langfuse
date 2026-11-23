@@ -3,7 +3,10 @@ import { Decimal } from "decimal.js";
 import { encrypt } from "@langfuse/shared/encryption";
 
 const state = vi.hoisted(() => ({
-  env: { LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: ["project"] },
+  env: {
+    LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: ["project"],
+  },
+  workerEnv: { LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS: 500_000 },
   call: vi.fn(),
   findModel: vi.fn(),
   embed: vi.fn(),
@@ -26,6 +29,7 @@ vi.mock("tiktoken", async (importOriginal) => {
   };
 });
 vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
+vi.mock("../../env", () => ({ env: state.workerEnv }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
@@ -122,7 +126,10 @@ const evidence = {
 };
 
 beforeEach(() => {
-  state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = ["project"];
+  state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [
+    "project",
+  ];
+  state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 500_000;
   state.call.mockReset();
   state.findModel.mockReset().mockResolvedValue({
     model: null,
@@ -194,7 +201,7 @@ describe("Topics naming boundary", () => {
       typeof import("@langfuse/shared/topics/server")
     >("@langfuse/shared/topics/server");
     state.call.mockImplementation(generateTopicText);
-    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = [];
+    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -222,9 +229,7 @@ describe("Topics naming boundary", () => {
       summarizeOne(
         models,
         "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: models.summary.model,
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
     ).rejects.toMatchObject({ name: "ZodError" });
     expect(state.increment).toHaveBeenCalledWith("langfuse.topics.tokens", 12, {
@@ -242,7 +247,7 @@ describe("Topics naming boundary", () => {
       typeof import("@langfuse/shared/topics/server")
     >("@langfuse/shared/topics/server");
     state.call.mockImplementation(generateTopicText);
-    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = [];
+    state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -268,9 +273,7 @@ describe("Topics naming boundary", () => {
       summarizeOne(
         models,
         "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: models.summary.model,
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
     ).rejects.toMatchObject({ reason: "invalid_output" });
   });
@@ -288,9 +291,7 @@ describe("Topics naming boundary", () => {
     const result = await summarizeOne(
       topicsModels(model),
       "RAW_TRANSCRIPT_SENTINEL",
-      topicProcessingConfigSchema.parse({
-        summaryModel: model,
-      }),
+      topicProcessingConfigSchema.parse({}),
     );
     expect(result.output).toEqual(
       keyed({ summary: "A billing request.", status: "applicable" }),
@@ -342,9 +343,7 @@ describe("Topics naming boundary", () => {
     const result = await summarizeOne(
       topicsModels(),
       "Trace evidence.",
-      topicProcessingConfigSchema.parse({
-        summaryModel: topicsModels().summary.model,
-      }),
+      topicProcessingConfigSchema.parse({}),
     );
     expect(result.costDetails).toEqual({ total: 0 });
     expect(result.providedCostDetails).toEqual({ total: 0 });
@@ -374,9 +373,7 @@ describe("Topics naming boundary", () => {
       const result = summarizeOne(
         topicsModels(),
         "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: topicsModels().summary.model,
-        }),
+        topicProcessingConfigSchema.parse({}),
       ).then(resolved);
       await vi.runAllTimersAsync();
       expect(resolved).toHaveBeenCalledWith(
@@ -387,19 +384,6 @@ describe("Topics naming boundary", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it("rejects a request frozen on another summary model before calling the provider", async () => {
-    await expect(
-      summarizeOne(
-        topicsModels("us.openai.gpt-6-luna"),
-        "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
-      ),
-    ).rejects.toMatchObject({ reason: "configuration" });
-    expect(state.call).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -565,9 +549,7 @@ describe("Topics naming boundary", () => {
       summarizeOne(
         topicsModels(),
         "Trace evidence.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
     ).rejects.toMatchObject({ reason: "invalid_input" });
     const [, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
@@ -582,9 +564,7 @@ describe("Topics naming boundary", () => {
       usageDetails: { input: 100 },
       providedCostDetails: {},
     });
-    const config = topicProcessingConfigSchema.parse({
-      summaryModel: "us.openai.gpt-5.6-luna",
-    });
+    const config = topicProcessingConfigSchema.parse({});
     const result = await summarizeOne(
       topicsModels(),
       "A request for an invoice.",
@@ -604,17 +584,15 @@ describe("Topics naming boundary", () => {
     });
   });
   it("rejects an oversized shared transcript before calling the provider", async () => {
+    state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 256;
     await expect(
       summarizeOne(
         topicsModels(),
         "Trace evidence. ".repeat(1000),
-        topicProcessingConfigSchema.parse({
-          maxInputTokens: 256,
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
     ).rejects.toThrow(
-      /are \d+ tokens, above this run's 256-token input limit\. No model call was made; the transcript is never shortened per facet\./,
+      /is 16000 characters, above the 256-character input limit\. No model call was made; the transcript is never shortened per facet\./,
     );
     expect(state.call).not.toHaveBeenCalled();
   });
@@ -641,9 +619,7 @@ describe("Topics naming boundary", () => {
     const result = await summarizeOne(
       topicsModels("us.openai.gpt-6-luna"),
       "RAW_TRANSCRIPT_SENTINEL",
-      topicProcessingConfigSchema.parse({
-        summaryModel: "us.openai.gpt-6-luna",
-      }),
+      topicProcessingConfigSchema.parse({}),
     );
     expect(result.usageDetails).toMatchObject({
       summary_input: 1060,
@@ -670,9 +646,7 @@ describe("Topics naming boundary", () => {
       usageDetails: { input: 100, output: 30 },
       providedCostDetails: {},
     });
-    const config = topicProcessingConfigSchema.parse({
-      summaryModel: "us.openai.gpt-5.6-luna",
-    });
+    const config = topicProcessingConfigSchema.parse({});
     const issues = {
       ...facet,
       facetId: "issues",
@@ -737,17 +711,15 @@ describe("Topics naming boundary", () => {
     ).toBe(false);
 
     state.call.mockClear();
+    state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 256;
     await expect(
       summarizeTopicTraceFacets(
         topicsModels(),
         facets,
         "Trace evidence. ".repeat(1000),
-        topicProcessingConfigSchema.parse({
-          maxInputTokens: 256,
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
+        topicProcessingConfigSchema.parse({}),
       ),
-    ).rejects.toThrow(/above this run's 256-token input limit/);
+    ).rejects.toThrow(/above the 256-character input limit/);
     expect(state.call).not.toHaveBeenCalled();
   });
 
@@ -874,6 +846,27 @@ describe("Topics naming boundary", () => {
     ).toBeGreaterThan(initialCall.trace.metadata.naming_input_tokens_estimated);
     expect(
       renameCall.trace.metadata.naming_input_tokens_estimated,
+    ).toBeLessThanOrEqual(900_000);
+    const previousTopic = {
+      name: "Invoice questions",
+      description: "Questions about invoices.",
+    };
+    await namePreparedTopicGroup(
+      topicsModels(),
+      { ...prepared, previousTopic },
+      undefined,
+      conflict,
+    );
+    const contextCall = state.call.mock.calls[2][0];
+    const contextRequest = JSON.parse(contextCall.input);
+    expect(contextRequest.members).toEqual(initialRequest.members);
+    expect(contextRequest.previousTopic).toEqual(previousTopic);
+    expect(contextRequest.conflictingTopic).toEqual(
+      renameRequest.conflictingTopic,
+    );
+    expect(contextCall.system[0].text).toContain("previousTopic");
+    expect(
+      contextCall.trace.metadata.naming_input_tokens_estimated,
     ).toBeLessThanOrEqual(900_000);
 
     const omittedId = Array.from(
@@ -1071,9 +1064,7 @@ describe("Topics naming boundary", () => {
       await summarizeOne(
         topicsModels(),
         "A billing request.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
+        topicProcessingConfigSchema.parse({}),
       );
       await nameTopicGroup(topicsModels(), evidence);
       state.call.mockResolvedValueOnce({
@@ -1092,9 +1083,7 @@ describe("Topics naming boundary", () => {
         topicsModels(),
         [{ key: "intent", facet, builtIn: true }],
         "Request invoice.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
+        topicProcessingConfigSchema.parse({}),
       );
       expect(state.call).toHaveBeenCalledTimes(3);
       for (const [request] of state.call.mock.calls)
@@ -1108,7 +1097,7 @@ describe("Topics naming boundary", () => {
       if (reason === "unconfigured destination")
         state.traceSink.mockReturnValue(undefined);
       else
-        state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS =
+        state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL =
           reason === "empty allowlist" ? [] : ["ai-features", "project-other"];
       state.call.mockResolvedValue({
         output: keyed({ summary: "A billing request.", status: "applicable" }),
@@ -1119,9 +1108,7 @@ describe("Topics naming boundary", () => {
       await summarizeOne(
         topicsModels(),
         "A billing request.",
-        topicProcessingConfigSchema.parse({
-          summaryModel: "us.openai.gpt-5.6-luna",
-        }),
+        topicProcessingConfigSchema.parse({}),
       );
       expect(state.project).not.toHaveBeenCalled();
       expect(state.call).toHaveBeenCalledOnce();

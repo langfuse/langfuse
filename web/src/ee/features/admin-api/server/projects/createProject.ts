@@ -7,7 +7,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 import { createDefaultScoreConfigs } from "@/src/features/projects/server/defaultScoreConfigs";
 

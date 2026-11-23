@@ -93,7 +93,7 @@ describe("saveTopicRule", () => {
     await saveTopicRule(input);
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ name: "All traces", status: "ACTIVE" }),
+        data: expect.objectContaining({ name: "Default", status: "ACTIVE" }),
       }),
     );
     expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(
