@@ -897,8 +897,8 @@ describeWithClickhouse("golden: observations public API filters family", () => {
       "unknown column",
       { column: "doesNotExist", type: "string", operator: "=", value: "x" },
     ],
-    // Score columns have no events lowering: they need the score CTEs only the
-    // UI planner adds.
+    // Score columns have no events lowering. Only the UI planner filters on
+    // scores, through its own score CTEs and join.
     [
       "scores_avg",
       {
