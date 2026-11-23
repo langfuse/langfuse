@@ -94,7 +94,7 @@ export type TopicTracePreview =
 
 /** Value suggestions for the trace fields a rule filters on. */
 // Most used trace names offered as one-click filters.
-const TRACE_NAME_SUGGESTIONS = 5;
+const TRACE_NAME_SUGGESTIONS = 3;
 
 function useTopicTraceSuggestions({
   projectId,
