@@ -430,3 +430,140 @@ it("pauses an unobserved SSE run without cancelling its enabled duplicate, then 
     fetchMock.mockRestore();
   }
 });
+
+it.each([
+  "disable",
+  "disable before failure",
+  "unmount",
+  "change key",
+] as const)(
+  "keeps the dashboard budget until a dispatched v3 query settles on %s",
+  async (transition) => {
+    const store = createDashboardQuerySchedulerStore({ maxConcurrent: 1 });
+    const failsAfterDisable = transition === "disable before failure";
+    const requests: { project: string; finish: () => void }[] = [];
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      (url, options) =>
+        new Promise<Response>((resolve) => {
+          const isStream = String(url).includes("execute-query-stream");
+          const project = isStream
+            ? JSON.parse(String(options?.body)).projectId
+            : JSON.parse(
+                new URL(String(url), "http://localhost").searchParams.get(
+                  "input",
+                )!,
+              ).json.projectId;
+          requests.push({
+            project,
+            finish: () => {
+              if (isStream) {
+                resolve(
+                  new Response("event: done\ndata: {}\n\n", {
+                    headers: { "content-type": "text/event-stream" },
+                  }),
+                );
+              } else if (failsAfterDisable) {
+                const error = {
+                  message: "Query failed",
+                  code: -32600,
+                  data: { code: "UNPROCESSABLE_CONTENT", httpStatus: 422 },
+                };
+                resolve(
+                  Response.json({ error: { json: error } }, { status: 422 }),
+                );
+              } else {
+                resolve(Response.json({ result: { data: { json: [] } } }));
+              }
+            },
+          });
+        }),
+    );
+    function Source({
+      id,
+      project,
+      enabled,
+      stream,
+    }: {
+      id: string;
+      project: string;
+      enabled: boolean;
+      stream?: boolean;
+    }) {
+      useScheduledDashboardExecuteQuery(
+        {
+          projectId: project,
+          version: stream ? "v2" : "v1",
+          query: {
+            view: "observations",
+            dimensions: [],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: "2026-01-01T00:00:00Z",
+            toTimestamp: "2026-01-02T00:00:00Z",
+            orderBy: null,
+          },
+        },
+        {
+          queryId: id,
+          priority: id === "first" ? 0 : 1,
+          enabled,
+          useSSE: stream,
+          trpc: { context: { skipBatch: true } },
+          retry: failsAfterDisable ? 1 : false,
+          retryDelay: 0,
+        },
+      );
+      return null;
+    }
+    const Page = api.withTRPC(() => {
+      const [changed, setChanged] = useState(false);
+      return (
+        <DashboardQuerySchedulerProvider store={store}>
+          <button onClick={() => setChanged(true)}>Change first</button>
+          {(!changed || transition !== "unmount") && (
+            <Source
+              id="first"
+              project={
+                changed && transition === "change key"
+                  ? "replacement"
+                  : "original"
+              }
+              enabled={!changed || transition === "change key"}
+            />
+          )}
+          <Source id="next" project="stream" enabled stream />
+        </DashboardQuerySchedulerProvider>
+      );
+    });
+    const view = render(<Page />);
+    try {
+      await waitFor(() =>
+        expect(requests.map((r) => r.project)).toEqual(["original"]),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Change first" }));
+      await act(async () => {});
+      expect(requests.map((r) => r.project)).toEqual(["original"]);
+      expect(store.getState().items.next?.status).toBe("queued");
+      act(() => requests[0]!.finish());
+      const expected = transition === "change key" ? "replacement" : "stream";
+      await waitFor(() =>
+        expect(requests.map((r) => r.project)).toEqual(["original", expected]),
+      );
+      act(() => requests[1]!.finish());
+      if (transition === "change key") {
+        await waitFor(() => expect(requests[2]?.project).toBe("stream"));
+        act(() => requests[2]!.finish());
+      }
+      await waitFor(() =>
+        expect(store.getState().items.next?.status).toBe("done"),
+      );
+      if (failsAfterDisable) {
+        expect(requests.map((r) => r.project)).toEqual(["original", "stream"]);
+      }
+    } finally {
+      view.unmount();
+      fetchMock.mockRestore();
+    }
+  },
+);

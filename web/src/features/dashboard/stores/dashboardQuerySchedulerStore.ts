@@ -23,6 +23,7 @@ type DashboardQuerySchedulerState = {
     ) => void;
     unregister: (id: string) => void;
     markDone: (id: string, runKey?: string) => void;
+    runNonAbortable: <T>(runKey: string, fetch: () => Promise<T>) => Promise<T>;
     /** Re-queues every item — only for genuine query-param changes (reset key). */
     resetQueue: () => void;
     setMaxConcurrent: (maxConcurrent: number) => void;
@@ -31,33 +32,6 @@ type DashboardQuerySchedulerState = {
 
 export type DashboardQuerySchedulerStore =
   StoreApi<DashboardQuerySchedulerState>;
-
-// Promote queued eligible items (by ascending priority) into free running
-// slots. Returns the same reference when nothing changed so subscribers
-// don't wake up.
-const promote = (
-  items: Record<string, SchedulerItem>,
-  maxConcurrent: number,
-): Record<string, SchedulerItem> => {
-  let running = 0;
-  for (const item of Object.values(items)) {
-    if (item.status === "running") running += 1;
-  }
-  if (running >= maxConcurrent) return items;
-
-  const candidates = Object.values(items)
-    .filter((item) => item.status === "queued" && item.isEligible)
-    .sort((a, b) => a.priority - b.priority);
-  if (candidates.length === 0) return items;
-
-  const next = { ...items };
-  for (const candidate of candidates) {
-    if (running >= maxConcurrent) break;
-    next[candidate.id] = { ...candidate, status: "running" };
-    running += 1;
-  }
-  return next;
-};
 
 /**
  * Per-mount scheduler for a dashboard's widget queries: widgets register,
@@ -71,6 +45,43 @@ export function createDashboardQuerySchedulerStore({
 }: {
   maxConcurrent: number;
 }): DashboardQuerySchedulerStore {
+  const pendingRequests = new Map<string, number>();
+  // Promote queued eligible items (by ascending priority) into free running
+  // slots. Returns the same reference when nothing changed so subscribers
+  // don't wake up.
+  const promote = (
+    items: Record<string, SchedulerItem>,
+    maxConcurrent: number,
+  ): Record<string, SchedulerItem> => {
+    const reserved = new Map<string, number>();
+    let running = 0;
+    for (const item of Object.values(items)) {
+      if (item.status !== "running") continue;
+      running += 1;
+      if (pendingRequests.has(item.runKey))
+        reserved.set(item.runKey, (reserved.get(item.runKey) ?? 0) + 1);
+    }
+    // A disabled or unmounted observer can leave an HTTP request running.
+    // Count only requests without a corresponding live reservation.
+    for (const [key, count] of pendingRequests) {
+      running += Math.max(0, count - (reserved.get(key) ?? 0));
+    }
+    if (running >= maxConcurrent) return items;
+
+    const candidates = Object.values(items)
+      .filter((item) => item.status === "queued" && item.isEligible)
+      .sort((a, b) => a.priority - b.priority);
+    if (candidates.length === 0) return items;
+
+    const next = { ...items };
+    for (const candidate of candidates) {
+      if (running >= maxConcurrent) break;
+      next[candidate.id] = { ...candidate, status: "running" };
+      running += 1;
+    }
+    return next;
+  };
+
   return createStore<DashboardQuerySchedulerState>((set) => ({
     items: {},
     maxConcurrent,
@@ -92,8 +103,8 @@ export function createDashboardQuerySchedulerStore({
           const didRunKeyChange = existing.runKey !== runKey;
           const shouldRequeue =
             (!isEligible && existing.status === "running") ||
-            (existing.status === "done" &&
-              (didRunKeyChange || (!existing.isEligible && isEligible)));
+            didRunKeyChange ||
+            (existing.status === "done" && !existing.isEligible && isEligible);
           const didChange =
             existing.priority !== priority ||
             existing.isEligible !== isEligible ||
@@ -143,6 +154,21 @@ export function createDashboardQuerySchedulerStore({
             ),
           };
         }),
+
+      runNonAbortable: async (runKey, fetch) => {
+        pendingRequests.set(runKey, (pendingRequests.get(runKey) ?? 0) + 1);
+        try {
+          return await fetch();
+        } finally {
+          const remaining = pendingRequests.get(runKey)! - 1;
+          if (remaining === 0) pendingRequests.delete(runKey);
+          else pendingRequests.set(runKey, remaining);
+          set((state) => {
+            const items = promote(state.items, state.maxConcurrent);
+            return items === state.items ? state : { items };
+          });
+        }
+      },
 
       resetQueue: () =>
         set((state) => {

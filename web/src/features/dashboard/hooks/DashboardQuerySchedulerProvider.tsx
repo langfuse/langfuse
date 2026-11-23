@@ -367,7 +367,9 @@ export const useScheduledDashboardExecuteQuery = (
   // opens — never the page or its siblings.
   const canFetch = useStore(
     store,
-    (state) => state.items[queryId]?.status === "running",
+    (state) =>
+      state.items[queryId]?.status === "running" &&
+      state.items[queryId].runKey === effectiveRunKey,
   );
 
   // tRPC path (default)
@@ -378,13 +380,15 @@ export const useScheduledDashboardExecuteQuery = (
   const trpcResult = useQuery<DashboardExecuteQueryOutput, Error>({
     ...reactQueryOptions,
     queryKey: queryCacheKey,
-    queryFn: async () =>
-      fetchQuery
-        ? fetchQuery.fetch(input.query)
-        : utils.dashboard.executeQuery.fetch(input, {
-            trpc,
-            meta: queryMeta,
-          }),
+    queryFn: () =>
+      actions.runNonAbortable(effectiveRunKey, () =>
+        fetchQuery
+          ? fetchQuery.fetch(input.query)
+          : utils.dashboard.executeQuery.fetch(input, {
+              trpc,
+              meta: queryMeta,
+            }),
+      ),
     staleTime: queryOptions.staleTime ?? cachePolicy.staleTime,
     gcTime: queryOptions.gcTime ?? cachePolicy.gcTime,
     refetchOnWindowFocus: queryOptions.refetchOnWindowFocus ?? false,
@@ -409,14 +413,14 @@ export const useScheduledDashboardExecuteQuery = (
 
   const activeResult = useSSE ? sseResult : trpcResult;
 
-  // Disabling an observer does not stop its stream. Abort only an inactive
-  // cache entry so an enabled widget sharing the same query keeps its stream.
+  // An inactive query can still retry. Cancel the shared entry only when its
+  // last enabled observer leaves. Non-abortable requests keep their own slots.
   useEffect(() => {
-    if (enabled || !useSSE) return;
+    if (enabled) return;
     const query = queryClient.getQueryCache().get(effectiveRunKey);
     if (query?.state.fetchStatus !== "fetching" || query.isActive()) return;
     query.cancel({ revert: true });
-  }, [effectiveRunKey, enabled, queryClient, useSSE]);
+  }, [effectiveRunKey, enabled, queryClient]);
 
   // Release the scheduler slot whenever this query stops fetching for ANY
   // reason — success, error, stall timeout, or abort. Holding a slot on a
