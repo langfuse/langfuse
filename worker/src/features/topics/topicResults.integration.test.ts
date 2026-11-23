@@ -147,8 +147,12 @@ describe("current Topics summaries and assignments", () => {
     );
     publishedRunId = runs[0].id;
 
-    const assigned = summary(traces.assigned, issues, 6);
-    const staleOld = summary(traces.stale, issues, 5);
+    const assigned = summary(traces.assigned, issues, 6, {
+      sessionId: "session-shared",
+    });
+    const staleOld = summary(traces.stale, issues, 5, {
+      sessionId: "session-shared",
+    });
     const stale = { ...staleOld, processedAt: "2026-10-06T00:00:00.000Z" };
     const outlier = summary(traces.outlier, issues, 4, {
       summary: "Long summary. ".repeat(50),
@@ -440,6 +444,19 @@ describe("current Topics summaries and assignments", () => {
         prisma,
       ),
     ).toEqual([traces.assigned]);
+  });
+
+  it("counts distinct sessions per topic when asked", async () => {
+    const [issuesCounts] = await getTopicResultCounts({
+      projectId,
+      window,
+      facets: [{ facetId: issues, version: 1, runId: publishedRunId }],
+      includeSessions: true,
+    });
+    // Both refund traces share one session.
+    expect(issuesCounts.topics).toEqual([
+      { topicId: "topic-refunds", count: 2, sessions: 1 },
+    ]);
   });
 
   it("returns short pages with a cursor when the candidate budget runs out", async () => {

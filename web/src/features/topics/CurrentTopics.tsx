@@ -231,6 +231,7 @@ export function useCurrentTopics({
   pollForSummaries = false,
   refreshAfter,
   ruleId,
+  includeSessionCounts,
   enabled = true,
 }: {
   projectId: string;
@@ -239,21 +240,23 @@ export function useCurrentTopics({
   refreshAfter: number;
   /** Scopes topics to one rule's map; omitted means every rule. */
   ruleId?: string;
+  /** Adds an approximate distinct session count to each topic. */
+  includeSessionCounts?: boolean;
   enabled?: boolean;
 }) {
   const utils = api.useUtils();
   const tracesResetFor = useRef(refreshAfter);
+  const input = { projectId, ruleId, includeSessionCounts };
   return useQuery({
     queryKey: [
-      ...getQueryKey(api.topics.currentResults, { projectId, ruleId }, "query"),
+      ...getQueryKey(api.topics.currentResults, input, "query"),
       // A completed status needs a new request, even if an older poll is in flight.
       running ? 0 : refreshAfter,
     ],
     queryFn: async ({ signal }) => {
-      const results = await utils.client.topics.currentResults.query(
-        { projectId, ruleId },
-        { signal },
-      );
+      const results = await utils.client.topics.currentResults.query(input, {
+        signal,
+      });
       // A completed run restarts trace lists at their first page; polls keep loaded pages.
       if (!running && tracesResetFor.current !== refreshAfter) {
         tracesResetFor.current = refreshAfter;

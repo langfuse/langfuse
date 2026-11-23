@@ -62,6 +62,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { isInternalViewEnabled } from "@/src/features/feature-flags/utils";
 import { createsSummaries } from "../topic-run-labels";
 import {
   previewTopicTraces,
@@ -89,6 +90,8 @@ import {
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
 const includeCosts = z.boolean().default(true);
+// Adds a distinct-session aggregate to the topic counts; ignored outside Internal view.
+const includeSessionCounts = z.boolean().optional();
 const mapInput = projectInput.extend({ runId: topicIdSchema });
 // Snapshots offer 7 or 14 days; longer windows risk an out-of-memory fit.
 const SNAPSHOT_MAX_WINDOW_MS = 14 * 86_400_000;
@@ -429,10 +432,17 @@ async function topicMapMatches(
 export const topicsRouter = createTRPCRouter({
   /** Counts per facet over its published map's window; the page has no time filter. */
   currentResults: topicsProcedure
-    .input(projectInput.extend({ ruleId: topicIdSchema.optional() }))
-    .query(({ input }) =>
+    .input(
+      projectInput.extend({
+        ruleId: topicIdSchema.optional(),
+        includeSessionCounts,
+      }),
+    )
+    .query(({ ctx, input }) =>
       currentTopicResults(input.projectId, undefined, {
         ruleId: input.ruleId,
+        includeSessionCounts:
+          input.includeSessionCounts && isInternalViewEnabled(ctx.session),
       }),
     ),
   /** One page of a facet's traces; filters and paging run in ClickHouse. */
@@ -462,9 +472,12 @@ export const topicsRouter = createTRPCRouter({
     topicMapsOverview(input.projectId),
   ),
   analysisResults: topicsProcedure
-    .input(executionInput)
-    .query(({ input }) =>
-      analysisTopicResults(input.projectId, input.executionId),
+    .input(executionInput.extend({ includeSessionCounts }))
+    .query(({ ctx, input }) =>
+      analysisTopicResults(input.projectId, input.executionId, {
+        includeSessionCounts:
+          input.includeSessionCounts && isInternalViewEnabled(ctx.session),
+      }),
     ),
   previewAnalysis: topicsProcedure
     .input(analysisFilterInput)

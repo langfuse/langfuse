@@ -38,6 +38,19 @@ export function TopicsHeaderActions({ actions }: { actions: TopicsActions }) {
             description: action.disabledReason,
             onClick: action.onSelect,
           })),
+          ...(actions.sessionCounts
+            ? [
+                {
+                  id: actions.sessionCounts.id,
+                  type: "checkbox" as const,
+                  title: actions.sessionCounts.label,
+                  icon: actions.sessionCounts.icon,
+                  internal: true,
+                  checked: actions.sessionCounts.checked,
+                  onCheckedChange: actions.sessionCounts.onCheckedChange,
+                },
+              ]
+            : []),
         ]}
       >
         {({ getTriggerProps }) => (
