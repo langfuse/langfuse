@@ -1,15 +1,27 @@
 import * as z from "zod";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
-import { GroupSource, Role, type prisma } from "@langfuse/shared/src/db";
+import {
+  GroupSource,
+  Role,
+  type Prisma,
+  type prisma,
+} from "@langfuse/shared/src/db";
 import { type OrganizationScope, groupRoleGrants } from "@langfuse/shared/rbac";
-import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
+import {
+  hasProjectAccessByRole,
+  projectRoleAccessRights,
+  type ProjectScope,
+} from "@langfuse/shared";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  hasOrganizationAccess,
+  throwIfNoOrganizationAccess,
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
@@ -118,6 +130,79 @@ function throwIfRoleNotCovered(
       message: "You cannot grant/edit a role higher than your own",
     });
   }
+}
+
+/** getProjectGroups lists a project's groups with their members and roles there: every group of the org, or only those with access to the project. */
+async function getProjectGroups(
+  db: typeof prisma,
+  query: { orgId: string; projectId: string },
+  showAllOrgGroups = true,
+) {
+  const conditions: Prisma.GroupWhereInput[] = [];
+
+  // restrict to only groups with a role in the project if showAllOrgGroups is false
+  if (!showAllOrgGroups) {
+    const rolesWithoutProjectRead = Object.values(Role).filter(
+      (role) => !hasProjectAccessByRole({ role, scope: "project:read" }),
+    );
+    conditions.push({
+      // either org level role or project level role
+      roleAssignments: {
+        some: {
+          OR: [{ projectId: null }, { projectId: query.projectId }],
+          systemRole: { notIn: rolesWithoutProjectRead },
+        },
+      },
+    });
+  }
+
+  const groups = await db.group.findMany({
+    where: { orgId: query.orgId, AND: conditions },
+    orderBy: [{ displayName: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      displayName: true,
+      externalId: true,
+      source: true,
+      _count: { select: { members: true } },
+      members: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          organizationMembership: {
+            select: {
+              user: {
+                select: { id: true, name: true, email: true, image: true },
+              },
+            },
+          },
+        },
+      },
+      roleAssignments: {
+        where: {
+          OR: [{ projectId: null }, { projectId: query.projectId }],
+        },
+        select: { projectId: true, systemRole: true },
+      },
+    },
+  });
+
+  return groups.map((group) => ({
+    id: group.id,
+    displayName: group.displayName,
+    externalId: group.externalId,
+    source: group.source,
+    memberCount: group._count.members,
+    members: group.members.map(({ organizationMembership: { user } }) => ({
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+    })),
+    orgRole: roleOf(group.roleAssignments.find((a) => a.projectId === null)),
+    projectRole: roleOf(
+      group.roleAssignments.find((a) => a.projectId === query.projectId),
+    ),
+  }));
 }
 
 export const groupsRouter = createTRPCRouter({
@@ -469,61 +554,36 @@ export const groupsRouter = createTRPCRouter({
   projectList: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoProjectGroupAccess(
-        ctx.session,
-        input.projectId,
-        "projectMembers:read",
-      );
-
-      const groups = await ctx.prisma.group.findMany({
-        where: { orgId: ctx.session.orgId },
-        orderBy: [{ displayName: "asc" }, { id: "asc" }],
-        select: {
-          id: true,
-          displayName: true,
-          externalId: true,
-          source: true,
-          _count: { select: { members: true } },
-          members: {
-            orderBy: { createdAt: "asc" },
-            select: {
-              organizationMembership: {
-                select: {
-                  user: {
-                    select: { id: true, name: true, email: true, image: true },
-                  },
-                },
-              },
-            },
-          },
-          roleAssignments: {
-            where: {
-              OR: [{ projectId: null }, { projectId: input.projectId }],
-            },
-            select: { projectId: true, systemRole: true },
-          },
-        },
+      const orgId = ctx.session.orgId;
+      const orgAccess = hasOrganizationAccess({
+        session: ctx.session,
+        organizationId: orgId,
+        scope: "organizationMembers:read",
       });
 
-      return groups.map((group) => ({
-        id: group.id,
-        displayName: group.displayName,
-        externalId: group.externalId,
-        source: group.source,
-        memberCount: group._count.members,
-        members: group.members.map(({ organizationMembership: { user } }) => ({
-          userId: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
-        })),
-        orgRole: roleOf(
-          group.roleAssignments.find((a) => a.projectId === null),
-        ),
-        projectRole: roleOf(
-          group.roleAssignments.find((a) => a.projectId === input.projectId),
-        ),
-      }));
+      const projectAccess = hasProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "projectMembers:read",
+      });
+
+      if (!orgAccess && !projectAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have the required access rights",
+        });
+      }
+      throwIfNoEntitlement({
+        entitlement: "admin-api",
+        sessionUser: ctx.session.user,
+        orgId,
+      });
+
+      return getProjectGroups(
+        ctx.prisma,
+        { orgId, projectId: input.projectId },
+        orgAccess,
+      );
     }),
 
   setProjectRole: protectedProjectProcedure

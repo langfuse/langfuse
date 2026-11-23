@@ -6,6 +6,14 @@ import { Role } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import { createOrgMembership } from "@langfuse/shared/memberships";
+import { assignRole } from "@langfuse/shared/rbac/server";
+import {
+  GroupId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "@langfuse/shared/rbac";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 async function prepare() {
   const org = await prisma.organization.create({
@@ -370,5 +378,120 @@ describe("groups CRUD from the UI", () => {
       caller.groups.delete({ orgId: org.id, groupId: foreign.id }),
     ).rejects.toThrow("Group not found");
     expect(await prisma.group.count({ where: { id: foreign.id } })).toBe(1);
+  });
+});
+
+describe("groups.projectList", () => {
+  /** projectCaller signs in a user who has `orgRole` on the org and `projectRole` on its project. */
+  const projectCaller = (
+    orgId: string,
+    projectId: string,
+    orgRole: Role,
+    projectRole?: Role,
+  ) => {
+    const session = createSession({
+      organizations: [
+        {
+          id: orgId,
+          role: orgRole,
+          plan: "cloud:enterprise",
+          projects: [{ id: projectId, role: projectRole }],
+        },
+      ],
+    });
+    const ctx = createInnerTRPCContext({ session, headers: {} });
+    return appRouter.createCaller({ ...ctx, prisma });
+  };
+
+  /** groupWithRole creates a group holding `role` on `ownerId`, or no role. */
+  const groupWithRole = async (
+    orgId: string,
+    displayName: string,
+    ownerId?: OrganizationId | ProjectId,
+    role?: Role,
+  ) => {
+    const group = await prisma.group.create({
+      data: { orgId, displayName, source: "MANUAL" },
+    });
+    if (ownerId && role)
+      await assignRole(prisma, {
+        tenantId: OrganizationId(orgId),
+        ownerId,
+        principalId: GroupId(group.id),
+        roleId: SystemRoleId(role),
+        tags: [],
+      });
+    return group.displayName;
+  };
+
+  const setup = async () => {
+    const { org, project } = await prepare();
+    const otherProject = await prisma.project.create({
+      data: { name: "other", orgId: org.id },
+    });
+    const names = [
+      "engineering",
+      await groupWithRole(
+        org.id,
+        "chatbot-team",
+        ProjectId(project.id),
+        Role.VIEWER,
+      ),
+      await groupWithRole(
+        org.id,
+        "everyone",
+        OrganizationId(org.id),
+        Role.VIEWER,
+      ),
+      await groupWithRole(
+        org.id,
+        "finance-team",
+        ProjectId(otherProject.id),
+        Role.ADMIN,
+      ),
+      await groupWithRole(
+        org.id,
+        "gateway-users",
+        OrganizationId(org.id),
+        Role.AI_GATEWAY,
+      ),
+    ];
+    return { org, project, names };
+  };
+
+  it("shows a project-only member just the groups with access to the project", async () => {
+    const { org, project } = await setup();
+    const caller = projectCaller(org.id, project.id, Role.NONE, Role.MEMBER);
+
+    const groups = await caller.groups.projectList({ projectId: project.id });
+    expect(groups.map((g) => g.displayName)).toEqual([
+      "chatbot-team",
+      "everyone",
+    ]);
+  });
+
+  it("shows an org member with no access to the project every group of the org", async () => {
+    const { org, project, names } = await setup();
+    const caller = projectCaller(org.id, project.id, Role.MEMBER, Role.NONE);
+
+    const groups = await caller.groups.projectList({ projectId: project.id });
+    expect(groups.map((g) => g.displayName)).toEqual(names.toSorted());
+  });
+
+  it("refuses a caller who can read neither the org's nor the project's members", async () => {
+    const { org, project } = await setup();
+    const caller = projectCaller(org.id, project.id, Role.NONE, Role.VIEWER);
+
+    await expect(
+      caller.groups.projectList({ projectId: project.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("shows an org member every group of the org", async () => {
+    const { org, project, names } = await setup();
+    const caller = projectCaller(org.id, project.id, Role.MEMBER);
+
+    const groups = await caller.groups.projectList({ projectId: project.id });
+    expect(groups.map((g) => g.displayName)).toEqual(names.toSorted());
   });
 });
