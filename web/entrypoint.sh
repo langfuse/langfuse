@@ -120,7 +120,7 @@ fi
 
 # Always execute the postgres migration, except when disabled.
 if [ "$LANGFUSE_AUTO_POSTGRES_MIGRATION_DISABLED" != "true" ]; then
-    prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
+    prisma db execute --schema=./packages/shared/prisma/schema.prisma --file "./packages/shared/scripts/cleanup.sql"
 
     # Apply migrations
     prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
