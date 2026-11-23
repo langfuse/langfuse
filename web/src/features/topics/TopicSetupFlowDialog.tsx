@@ -565,10 +565,10 @@ function AddConnectionCallout({ onAdd }: { onAdd: () => void }) {
   return (
     <Banner
       variant="warning"
-      title="No AI connection in this project yet."
       actions={[{ text: "Add connection", onClick: onAdd }]}
     >
-      Add one to choose models for analysis.
+      No AI connection in this project yet. Add one to choose models for
+      analysis.
     </Banner>
   );
 }
