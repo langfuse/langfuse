@@ -14,6 +14,8 @@ import {
 import { extractTranscriptEvalVariables } from "../../eventsDispatch/traceTranscriptEval";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
+  EvalTargetObject,
+  evalVariableMappingListSchema,
   getCodeEvalVariableMapping,
   observationForEvalSchema,
   observationVariableMappingList,
@@ -402,10 +404,32 @@ function observationTarget(params: {
     extract(observation, variableMapping) {
       return extractObservationVariables({
         observation,
-        variableMapping: observationVariableMappingList.parse(variableMapping),
+        variableMapping: parseObservationVariableMapping(variableMapping),
       });
     },
   };
+}
+
+/**
+ * A malformed stored mapping or one that names an unknown column cannot be
+ * evaluated, so the execution fails with a message the user can act on instead
+ * of running the evaluator with missing variables. Empty column ids are
+ * unmapped placeholders and resolve to no value.
+ */
+function parseObservationVariableMapping(variableMapping: Prisma.JsonValue) {
+  const parsed = evalVariableMappingListSchema(
+    EvalTargetObject.EVENT,
+  ).safeParse(variableMapping);
+  if (!parsed.success) {
+    const unknownColumnIssue = parsed.error.issues.find(
+      ({ code }) => code === "custom",
+    );
+    throw new UnrecoverableEvalFailureError(
+      `${unknownColumnIssue?.message ?? "Evaluator variable mapping is invalid."} Update the variable mapping of this evaluator.`,
+      EvalFailureReason.InvalidVariableMapping,
+    );
+  }
+  return parsed.data;
 }
 
 function transcriptTarget(
