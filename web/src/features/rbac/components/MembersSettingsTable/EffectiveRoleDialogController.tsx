@@ -10,15 +10,10 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { TagShell } from "@/src/components/design-system/Tag/Tag";
-import { memberCountLabel } from "@/src/features/groups/components/GroupMemberStack";
-import {
-  isScimManaged,
-  SCIM_SYNCED_LABEL,
-} from "@/src/features/groups/groupSource";
+import { GroupSummaryCard } from "@/src/features/groups/components/GroupSummaryCard/GroupSummaryCard";
 import { EffectiveRoleCard } from "@/src/features/rbac/components/EffectiveRoleCard";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
@@ -257,70 +252,23 @@ type EffectiveRoleSourceProps = {
   editor: DirectRoleEditor;
 };
 
-/** A group that gives a role: its chip links to the group and its card says whether the group is synced, what access it sets and who is in it. */
+/** A group that gives a role: its chip links to the group and its card summarizes the group. */
 function GroupChip({ group }: { group: GroupReason }) {
-  const onProject = group.level === "project";
-  const hiddenMembers = group.memberCount - group.memberPreview.length;
   return (
     <HoverCard
       openDelay={150}
       closeDelay={100}
       placement="bottom"
       content={
-        <div className="flex max-h-96 w-64 flex-col gap-2 overflow-y-auto p-3 text-xs">
-          <div className="flex flex-col gap-0.5">
-            <p className="flex items-start gap-1.5 font-medium">
-              <Users size="sm" aria-hidden="true" __rawClassName="mt-0.5" />
-              <span className="min-w-0 break-words">{group.label}</span>
-            </p>
-            {isScimManaged(group) && (
-              <p className="text-muted-foreground">{SCIM_SYNCED_LABEL}</p>
-            )}
-          </div>
-          <p className="flex items-center justify-between gap-2 border-t pt-2">
-            <span className="text-muted-foreground">
-              {onProject ? "Access on this project" : "Access level"}
-            </span>
-            <span className="font-medium">{roleName(group.role)}</span>
-          </p>
-          <div className="flex flex-col gap-1.5 border-t pt-2">
-            <p className="text-muted-foreground">
-              {memberCountLabel(group.memberCount)}
-            </p>
-            <ul className="flex flex-col gap-1.5">
-              {group.memberPreview.map((member) => {
-                const name = member.name ?? member.email ?? "";
-                return (
-                  <li key={member.userId} className="flex items-center gap-2">
-                    <Avatar
-                      aria-hidden
-                      size="sm"
-                      tone="tinted"
-                      displayName={name}
-                      src={member.image ?? undefined}
-                    />
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate" title={name}>
-                        {name}
-                      </span>
-                      {member.name && member.email && (
-                        <span
-                          className="text-muted-foreground truncate"
-                          title={member.email}
-                        >
-                          {member.email}
-                        </span>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-            {hiddenMembers > 0 && (
-              <p className="text-muted-foreground">+{hiddenMembers} more</p>
-            )}
-          </div>
-        </div>
+        <GroupSummaryCard
+          name={group.label}
+          level={group.level}
+          source={group.source}
+          role={group.role}
+          memberCount={group.memberCount}
+          memberPreview={group.memberPreview}
+          href={group.href}
+        />
       }
     >
       {({ getTriggerProps }) => (
@@ -331,7 +279,10 @@ function GroupChip({ group }: { group: GroupReason }) {
             {...getTriggerProps()}
           >
             <Users size="sm" color="tertiary" aria-hidden="true" />
-            <span className="truncate py-0.5" title={group.label}>
+            <span
+              className="decoration-muted-foreground truncate py-0.5 underline decoration-dotted underline-offset-4"
+              title={group.label}
+            >
               {group.label}
             </span>
             {group.levelNote && (
