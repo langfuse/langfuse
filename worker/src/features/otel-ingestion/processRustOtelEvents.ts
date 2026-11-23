@@ -9,8 +9,8 @@ import type {
   RustOtelBatch,
 } from "@langfuse/native";
 import {
+  completeObservationForEval,
   convertEventRecordToObservationEvalFilterFields,
-  convertEventRecordToObservationForEval,
   isMediaContentType,
   MediaAssociationOrigin,
   MediaContentType,
@@ -292,15 +292,23 @@ async function writeRecordsAndScheduleEvals(
         : undefined;
       const matchedRuleIds = schedulerDeps
         ? await scheduleEvals({
-            parseObservation: () => ({
-              observation: convertEventRecordToObservationEvalFilterFields(
-                filterRows[index],
-              ),
-              loadSnapshot: () =>
-                convertEventRecordToObservationForEval(
-                  processing.takeEvaluationRow(index) as EventRecordInsertType,
-                ),
-            }),
+            parseObservation: () => {
+              const filterFields =
+                convertEventRecordToObservationEvalFilterFields(
+                  filterRows[index],
+                );
+              return {
+                observation: filterFields,
+                // The taken row holds the columns the filter row lacks.
+                loadSnapshot: () =>
+                  completeObservationForEval(
+                    filterFields,
+                    processing.takeEvaluationRow(
+                      index,
+                    ) as EventRecordInsertType,
+                  ),
+              };
+            },
             environment: record.environment,
             traceActivity,
             rules: evalConfigs,

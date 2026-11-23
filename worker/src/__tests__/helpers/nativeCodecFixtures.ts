@@ -7,12 +7,17 @@ import {
 } from "@langfuse/native";
 import { encodeOtelLookups } from "../../features/otel-ingestion/encodeOtelLookups";
 
-/** Copy every evaluation row out of Rust; each row can be taken once. */
+/** Rebuild every evaluation row from its filter row and the columns Rust still holds; each row can be taken once. */
 export function takeEvaluationRows(
   batch: RustOtelBatch,
   finalized: FinalizedOtelBatch,
 ): object[] {
-  return finalized.events.map((_, index) => batch.takeEvaluationRow(index));
+  return finalized
+    .evaluationFilterRows!.flatMap((text): object[] => JSON.parse(text))
+    .map((filterRow, index) => ({
+      ...filterRow,
+      ...batch.takeEvaluationRow(index),
+    }));
 }
 
 export function constructPreparedEventFromJs() {

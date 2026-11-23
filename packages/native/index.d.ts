@@ -39,7 +39,10 @@ export declare class PreparedEvent {
 export declare class RustOtelBatch {
   /** Release the native batch and its retained event and media allocations. */
   dispose(): Promise<void>
-  /** Move one evaluation snapshot to JavaScript. Each row can be taken once, before disposal. */
+  /**
+   * Move one evaluation snapshot to JavaScript, without the columns its filter row already
+   * carries. Each row can be taken once, before disposal.
+   */
   takeEvaluationRow(index: number): object
   mediaBody(index: number): Promise<Buffer>
   /**

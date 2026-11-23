@@ -285,18 +285,24 @@ pub(super) fn finalize_inner(
             })
         })
         .collect::<NativeResult<Vec<_>>>()?;
+    let retained = evaluation_rows
+        .iter()
+        .flatten()
+        .map(retained_size)
+        .sum::<usize>();
     state.memory.resize(
         events
             .iter()
             .map(|event| event.event.row.retained_bytes())
-            .chain(evaluation_rows.iter().flatten().map(retained_size))
-            .sum(),
+            .sum::<usize>()
+            + retained,
     );
     if let (Some(store), Some(rows)) = (evaluation_store, evaluation_rows) {
         *store
             .lock()
             .map_err(|_| failure("OTEL processing lock poisoned"))? = EvaluationRows {
             rows,
+            retained,
             memory: Some(state.memory.clone()),
         };
     }
@@ -306,44 +312,50 @@ pub(super) fn finalize_inner(
     })
 }
 
-/// Columns that evaluation rule filters and job identifiers read.
-const EVALUATION_FILTER_COLUMNS: [&str; 26] = [
-    "project_id",
-    "trace_id",
-    "span_id",
-    "parent_span_id",
-    "type",
-    "name",
-    "environment",
-    "level",
-    "status_message",
-    "version",
-    "release",
-    "trace_name",
-    "user_id",
-    "session_id",
-    "is_app_root",
-    "tags",
-    "provided_model_name",
-    "prompt_name",
-    "prompt_version",
-    "tool_call_names",
-    "experiment_id",
-    "experiment_name",
-    "experiment_dataset_id",
-    "experiment_item_root_span_id",
-    "metadata_names",
-    "metadata_values",
-];
+/// Whether evaluation rule filters or job identifiers read this column. These columns go to
+/// Node in the filter rows; `takeEvaluationRow` hands over the others.
+pub(super) fn is_evaluation_filter_column(column: &str) -> bool {
+    matches!(
+        column,
+        "project_id"
+            | "trace_id"
+            | "span_id"
+            | "parent_span_id"
+            | "type"
+            | "name"
+            | "environment"
+            | "level"
+            | "status_message"
+            | "version"
+            | "release"
+            | "trace_name"
+            | "user_id"
+            | "session_id"
+            | "is_app_root"
+            | "tags"
+            | "provided_model_name"
+            | "prompt_name"
+            | "prompt_version"
+            | "tool_call_names"
+            | "experiment_id"
+            | "experiment_name"
+            | "experiment_dataset_id"
+            | "experiment_item_root_span_id"
+            | "metadata_names"
+            | "metadata_values"
+    )
+}
 
 struct EvaluationFilterRow<'a>(&'a serde_json::Value);
 
 impl serde::Serialize for EvaluationFilterRow<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.collect_map(
-            EVALUATION_FILTER_COLUMNS
-                .iter()
-                .filter_map(|column| Some((column, self.0.get(column)?))),
+            self.0
+                .as_object()
+                .into_iter()
+                .flatten()
+                .filter(|(column, _)| is_evaluation_filter_column(column)),
         )
     }
 }

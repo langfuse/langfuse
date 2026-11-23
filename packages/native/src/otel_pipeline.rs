@@ -276,13 +276,16 @@ pub struct FinalizedOtelBatch {
 #[derive(Default)]
 struct EvaluationRows {
     rows: Vec<serde_json::Value>,
+    /// Bytes reported for `rows` at finalization. They are released together when the rows are
+    /// dropped, so taking a row needs no accounting on Node's main thread.
+    retained: usize,
     memory: Option<Arc<NativeMemory>>,
 }
 
 impl Drop for EvaluationRows {
     fn drop(&mut self) {
         if let Some(memory) = &self.memory {
-            memory.release(self.rows.iter().map(retained_size).sum());
+            memory.release(self.retained);
         }
     }
 }
@@ -395,21 +398,22 @@ impl RustOtelBatch {
         }))))
     }
 
-    /// Move one evaluation snapshot to JavaScript. Each row can be taken once, before disposal.
+    /// Move one evaluation snapshot to JavaScript, without the columns its filter row already
+    /// carries. Each row can be taken once, before disposal.
     #[napi(ts_return_type = "object")]
     pub fn take_evaluation_row(&self, env: Env, index: u32) -> napi::Result<serde_json::Value> {
         let mut evaluation = self
             .evaluation_rows
             .lock()
             .map_err(|_| to_js_error(env, failure("OTEL processing lock poisoned")))?;
-        let row = evaluation
+        let mut row = evaluation
             .rows
             .get_mut(index as usize)
             .map(std::mem::take)
             .filter(|row| !row.is_null())
             .ok_or_else(|| to_js_error(env, failure("evaluation row is unavailable")))?;
-        if let Some(memory) = &evaluation.memory {
-            memory.release(retained_size(&row));
+        if let serde_json::Value::Object(columns) = &mut row {
+            columns.retain(|column, _| !rows::is_evaluation_filter_column(column));
         }
         Ok(row)
     }

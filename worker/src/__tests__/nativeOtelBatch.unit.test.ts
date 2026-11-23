@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { prepareOtelJson, validateOtelJson } from "@langfuse/native";
 import {
+  completeObservationForEval,
   convertEventRecordToObservationEvalFilterFields,
   convertEventRecordToObservationForEval,
   observationEvalFilterFieldsSchema,
@@ -108,18 +109,23 @@ describe("Native OTEL batch NAPI boundary", () => {
         undefined,
         true,
       );
-      const filterRows: Parameters<
-        typeof convertEventRecordToObservationEvalFilterFields
-      >[0][] = finalized!.evaluationFilterRows!.flatMap((text) =>
-        JSON.parse(text),
+      type EventRecord = Parameters<
+        typeof convertEventRecordToObservationForEval
+      >[0];
+      const filterRows: EventRecord[] =
+        finalized!.evaluationFilterRows!.flatMap((text) => JSON.parse(text));
+      const remaining = finalized!.events.map(
+        (_, index) => processing.takeEvaluationRow(index) as EventRecord,
       );
       expect(filterRows[1]).not.toHaveProperty("input");
+      expect(remaining[1]).toHaveProperty("input", "full input");
+      expect(remaining[1]).not.toHaveProperty("name");
 
-      const observations = takeEvaluationRows(processing, finalized!).map(
-        (row) =>
-          convertEventRecordToObservationForEval(
-            row as Parameters<typeof convertEventRecordToObservationForEval>[0],
-          ),
+      const observations = filterRows.map((filterRow, index) =>
+        convertEventRecordToObservationForEval({
+          ...filterRow,
+          ...remaining[index],
+        }),
       );
       expect(observations[1]).toMatchObject({
         input: "full input",
@@ -129,13 +135,20 @@ describe("Native OTEL batch NAPI boundary", () => {
         metadata: { tenant: "acme" },
         experiment_item_root_span_id: spanId(1),
       });
-      expect(
-        filterRows.map(convertEventRecordToObservationEvalFilterFields),
-      ).toEqual(
+      const filterFields = filterRows.map(
+        convertEventRecordToObservationEvalFilterFields,
+      );
+      expect(filterFields).toEqual(
         observations.map((observation) =>
           observationEvalFilterFieldsSchema.parse(observation),
         ),
       );
+      // Completing the filter fields gives what validating the whole row gives.
+      expect(
+        filterFields.map((fields, index) =>
+          completeObservationForEval(fields, remaining[index]),
+        ),
+      ).toEqual(observations);
       expect(() => processing.takeEvaluationRow(1)).toThrow("unavailable");
     } finally {
       await processing.dispose();
