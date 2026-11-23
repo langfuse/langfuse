@@ -14,6 +14,7 @@ export { type TransformMediaPayloadResult } from "./media/MediaPayloadProcessor"
 export { transformMediaPayload } from "./media/MediaPayloadProcessor";
 export { getMediaId } from "./media/mediaService";
 export { getMediaBucketPath } from "./media/mediaService";
+export { getMediaDownloadUrl } from "./media/getMediaDownloadUrl";
 export { upsertMediaRecord } from "./media/mediaService";
 export { linkMediaToTraceOrObservation } from "./media/mediaService";
 export { type UploadMediaForTraceResult } from "./media/mediaService";

@@ -1197,3 +1197,26 @@ describe("S3StorageService request handler socket pool", () => {
     });
   });
 });
+
+describe("S3StorageService attachment URLs", () => {
+  it("signs a header-safe disposition for keys outside ISO-8859-1", async () => {
+    const service = StorageServiceFactory.getInstance({
+      credentials: storageKeys("test-access-key", "test-secret-key"),
+      bucketName: "test-bucket",
+      endpoint: "http://localhost:9090",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    const url = await service.getSignedUrl('customer/图片 "1".png', 60, true);
+
+    expect(new URL(url).searchParams.get("response-content-disposition")).toBe(
+      `attachment; filename="customer/__ _1_.png"; filename*=UTF-8''customer%2F%E5%9B%BE%E7%89%87%20%221%22.png`,
+    );
+  });
+});
