@@ -66,6 +66,13 @@ export const WithLink = meta.story({
   },
 });
 
+export const ShortMessageWithAction = meta.story({
+  args: {
+    children: "2 nested threads are hidden.",
+    actions: [{ text: "Show nested threads", onClick: fn() }],
+  },
+});
+
 export const LinkActions = meta.story({
   parameters: {
     controls: {

@@ -41,7 +41,7 @@ const iconVariants = cva("flex h-lh shrink-0 items-center", {
   },
 });
 
-const actionsVariants = cva("mt-2 flex flex-wrap gap-x-4 gap-y-1", {
+const actionsVariants = cva("flex flex-wrap gap-x-4 gap-y-1", {
   variants: {
     variant: {
       neutral: "text-foreground",
@@ -159,9 +159,16 @@ export function Banner({
       <span className={iconVariants({ variant })}>
         <Icon size="base" aria-hidden="true" />
       </span>
-      <div className="min-w-0 flex-1">
-        {title ? <h5 className="font-medium">{title}</h5> : null}
-        {children}
+      {/* Actions share the row with a one-line message and wrap underneath anything longer. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-4 gap-y-2">
+        <div
+          className={
+            title && children ? "min-w-0 basis-full" : "min-w-0 flex-auto"
+          }
+        >
+          {title ? <h5 className="font-medium">{title}</h5> : null}
+          {children}
+        </div>
         {actions && actions.length > 0 ? (
           <div className={actionsVariants({ variant })}>
             {actions.map((action) => (
