@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -72,11 +71,15 @@ export const addToDatasetRouter = createTRPCRouter({
           limit: 1,
           offset: 0,
         };
-        const observationCount = commentFilterResult.hasNoMatches
-          ? 0
-          : useEventsTable
-            ? await getObservationsCountFromEventsTable(queryOpts)
-            : await getObservationsTableCount(queryOpts);
+        let observationCount = 0;
+        if (!commentFilterResult.hasNoMatches) {
+          if (useEventsTable) {
+            observationCount =
+              await getObservationsCountFromEventsTable(queryOpts);
+          } else {
+            observationCount = await getObservationsTableCount(queryOpts);
+          }
+        }
 
         if (observationCount > MAX_BATCH_ADD_TO_DATASET_ITEMS) {
           throw new TRPCError({
