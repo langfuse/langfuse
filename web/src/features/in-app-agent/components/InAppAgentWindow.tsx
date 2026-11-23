@@ -15,12 +15,10 @@ import {
   ArrowDown,
   ChevronRight,
   History,
-  Info,
   Maximize2,
-  MessageSquarePlus,
-  TriangleAlert,
   Minimize2,
   Minus,
+  Plus,
   Square,
   Trash2,
   X,
@@ -89,6 +87,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 import { InAppAgentAskButton } from "@/src/features/in-app-agent/components/InAppAgentAskButton";
+import { getDefaultConversationTitle } from "@/src/features/in-app-agent/lib/defaultConversationTitle";
 import { getInAppAgentPageContext } from "@/src/features/in-app-agent/pageContext";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
@@ -689,31 +688,19 @@ function InAppAgentRateLimitError({
 
   return (
     <InAppAgentNotice
-      icon={<Info aria-hidden="true" size="sm" />}
       isExpanded={isExpanded}
       role="alert"
       tone="neutral"
+      title="You've reached the Halo request limit"
     >
-      <span className="space-y-0.5">
-        <span className="block font-bold">
-          You&apos;ve reached the Halo request limit
-        </span>
-        <span className="block">
-          Try again in about {formatApproximateDuration(secondsRemaining)}.
-        </span>
-      </span>
+      Try again in about {formatApproximateDuration(secondsRemaining)}.
     </InAppAgentNotice>
   );
 }
 
 function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
   return (
-    <InAppAgentNotice
-      icon={<Info aria-hidden="true" size="sm" />}
-      isExpanded={isExpanded}
-      role="alert"
-      tone="danger"
-    >
+    <InAppAgentNotice isExpanded={isExpanded} role="alert" tone="danger">
       {IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
     </InAppAgentNotice>
   );
@@ -805,7 +792,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     selectedConversationId !== undefined ||
     messages.length > 0 ||
     isAssistantTurnInProgress;
-  const conversationTitle = selectedConversationTitle?.trim() || null;
+  const firstAskedAt = messages.find(
+    (message) => message.role === "user",
+  )?.timestamp;
+  // A started conversation has a name right away, before the server's arrives.
+  const conversationTitle =
+    selectedConversationTitle?.trim() ||
+    (firstAskedAt ? getDefaultConversationTitle(new Date(firstAskedAt)) : null);
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
       ? message.content.tools.filter((tool) => tool.approval)
@@ -966,12 +959,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   {...getTriggerProps()}
                   type="button"
                   variant="ghost"
-                  size="icon"
-                  className="size-6 shrink-0"
+                  size={isExpanded ? "sm" : "icon"}
+                  className={cn(
+                    "shrink-0",
+                    isExpanded ? "h-7 gap-1.5 px-2" : "size-7",
+                  )}
                   onClick={onNewConversation}
                   aria-label="Start new conversation"
                 >
-                  <MessageSquarePlus size="base" color="default" />
+                  <Plus size={isExpanded ? "base" : "lg"} color="default" />
+                  {isExpanded ? <span>New</span> : null}
                 </Button>
               )}
             </Tooltip>
@@ -997,13 +994,20 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     {...getTriggerProps()}
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="relative size-6 shrink-0"
+                    size={isExpanded ? "sm" : "icon"}
+                    className={cn(
+                      "relative shrink-0",
+                      isExpanded ? "h-7 gap-1.5 px-2" : "size-7",
+                    )}
                     // Count lives on the button name, as on the launcher — a
                     // nested badge aria-label is ignored once the parent has one.
                     aria-label={`Conversation history${historyAttentionSuffix}`}
                   >
-                    <History size="base" color="default" />
+                    <History
+                      size={isExpanded ? "base" : "lg"}
+                      color="default"
+                    />
+                    {isExpanded ? <span>History</span> : null}
                     {/* Conversations owed a look, kept quiet. Visual only —
                         accessible name is on the button. */}
                     {historyAttentionCount > 0 && (
@@ -1111,7 +1115,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-6"
+                  className="size-7"
                   aria-label={
                     isExpanded
                       ? expandToggleLabels.collapse
@@ -1122,9 +1126,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   }}
                 >
                   {isExpanded ? (
-                    <Minimize2 size="base" color="default" />
+                    <Minimize2 size="lg" color="default" />
                   ) : (
-                    <Maximize2 size="base" color="default" />
+                    <Maximize2 size="lg" color="default" />
                   )}
                 </Button>
               )}
@@ -1142,16 +1146,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-6"
+                  className="size-7"
                   // Full-screen has nothing to minimize into, and with no
                   // drag-to-dismiss this is the only way out.
                   aria-label={isHandheld ? "Close Halo" : "Minimize Halo"}
                   onClick={props.onClose}
                 >
                   {isHandheld ? (
-                    <X size="base" color="default" />
+                    <X size="lg" color="default" />
                   ) : (
-                    <Minus size="base" color="default" />
+                    <Minus size="lg" color="default" />
                   )}
                 </Button>
               )}
@@ -1208,8 +1212,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {displayItems.map((item, index) => {
                 if (item.type === "user") {
                   const askedFrom = item.message.askedFrom
-                    ? getInAppAgentPageContext(item.message.askedFrom)
-                    : null;
+                    ? getInAppAgentPageContext(item.message.askedFrom).chip
+                    : undefined;
 
                   return (
                     <li
@@ -1325,18 +1329,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         ) : null}
         {backgroundNotice ? (
           <InAppAgentNotice
-            icon={
-              backgroundNotice.tone === "warning" ? (
-                <TriangleAlert aria-hidden="true" size="sm" />
-              ) : (
-                <Info aria-hidden="true" size="sm" />
-              )
-            }
             isExpanded={isExpanded}
             role="status"
             tone={backgroundNotice.tone === "warning" ? "warning" : "neutral"}
           >
-            <span title={backgroundNotice.text}>{backgroundNotice.text}</span>
+            {backgroundNotice.text}
           </InAppAgentNotice>
         ) : null}
         {error?.type === "generic" && (
@@ -1421,7 +1418,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               className="placeholder:text-foreground-tertiary max-h-40 w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-base leading-normal shadow-none ring-0 outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-60"
             />
             <div className="flex w-full items-center justify-between gap-2">
-              <Tag text={pageContext.currentLabel} icon={pageContext.icon} />
+              {pageContext.chip ? (
+                <Tag
+                  text={pageContext.chip.currentLabel}
+                  icon={pageContext.chip.icon}
+                />
+              ) : (
+                <span />
+              )}
               {canStopRun ? (
                 <DsButton
                   text={isCancellingRun ? "Stopping" : "Stop"}

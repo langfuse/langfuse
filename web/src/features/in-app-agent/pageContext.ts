@@ -17,11 +17,14 @@ import {
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 
 export type InAppAgentPageContext = {
-  /** Names the page on a message that was sent from it. */
-  label: string;
-  /** Names the page while it is the one on screen. */
-  currentLabel: string;
-  icon: IconComponent;
+  /** Names the page. Absent where the page adds nothing beyond the project. */
+  chip?: {
+    /** On a message that was sent from the page. */
+    label: string;
+    /** While the page is the one on screen. */
+    currentLabel: string;
+    icon: IconComponent;
+  };
   /** What Halo reads from the page, for an empty conversation. */
   visibility: string;
   placeholder: string;
@@ -33,9 +36,7 @@ function capitalize(text: string) {
 
 function entityPage(noun: string, icon: IconComponent): InAppAgentPageContext {
   return {
-    label: capitalize(noun),
-    currentLabel: `This ${noun}`,
-    icon,
+    chip: { label: capitalize(noun), currentLabel: `This ${noun}`, icon },
     visibility: `Halo can see the ${noun} you have open.`,
     placeholder: `Ask about this ${noun}…`,
   };
@@ -43,18 +44,17 @@ function entityPage(noun: string, icon: IconComponent): InAppAgentPageContext {
 
 function listPage(plural: string, icon: IconComponent): InAppAgentPageContext {
   return {
-    label: capitalize(plural),
-    currentLabel: capitalize(plural),
-    icon,
+    chip: {
+      label: capitalize(plural),
+      currentLabel: capitalize(plural),
+      icon,
+    },
     visibility: `Halo can see the list of ${plural} you have open.`,
     placeholder: `Ask about these ${plural}…`,
   };
 }
 
 const HOME_PAGE: InAppAgentPageContext = {
-  label: "Langfuse Home",
-  currentLabel: "Langfuse Home",
-  icon: LayoutDashboard,
   visibility: "Halo can see the Home page you have open.",
   placeholder: "Ask about your traces, costs or scores…",
 };
@@ -76,9 +76,7 @@ const PAGES: Record<
   "prompts-list": listPage("prompts", FileJson),
   "datasets-list": listPage("datasets", Database),
   topics: {
-    label: "Topics",
-    currentLabel: "Topics",
-    icon: Waypoints,
+    chip: { label: "Topics", currentLabel: "Topics", icon: Waypoints },
     visibility: "Halo can see the topics you have open.",
     placeholder: "Ask about these topics…",
   },
@@ -129,9 +127,11 @@ export function getInAppAgentPageContext(
       : undefined;
 
   return {
-    label: sectionName ?? "Page",
-    currentLabel: sectionName ?? "This page",
-    icon: AppWindow,
+    chip: {
+      label: sectionName ?? "Page",
+      currentLabel: sectionName ?? "This page",
+      icon: AppWindow,
+    },
     visibility: "Halo can see the page you have open.",
     placeholder: "Ask about this page…",
   };
