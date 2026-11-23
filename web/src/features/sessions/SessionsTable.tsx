@@ -86,6 +86,9 @@ import { toObservedOptions } from "@/src/features/search-bar/lib/observed-option
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekViewSessionDetail } from "@/src/components/table/peek/TablePeekViewSessionDetail/TablePeekViewSessionDetail";
 
 export type SessionTableRow = {
   id: string;
@@ -141,6 +144,40 @@ export default function SessionsTable({
   showControlsInPageHeader = false,
 }: SessionTableProps) {
   const router = useRouter();
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { projectId },
+  );
+  const useSessionPeek = isV4 && unifiedTraceSessionViewEnabled;
+  const { openPeek, closePeek, expandPeek, resolveDetailNavigationPath } =
+    usePeekNavigation({
+      tableName: "sessions",
+      isV4,
+      expandConfig: { basePath: `/project/${projectId}/sessions` },
+      preserveOnDetailNavigation: [
+        "traceView",
+        "traceFilter",
+        "tracesWithoutMatches",
+        "sessionView",
+        "traceTab",
+      ],
+      queryParams: [
+        "sessionPeek",
+        "traceId",
+        "timestamp",
+        "aggregation",
+        "observation",
+        "traceView",
+        "traceFilter",
+        "tracesWithoutMatches",
+        "sessionView",
+        "traceTab",
+        "comments",
+        "commentObjectId",
+        "commentObjectType",
+        "annotation",
+      ],
+    });
   const capture = usePostHogClientCapture();
   const sessionsFilterConfig = useMemo(
     () => getSessionFilterConfig(omittedFilter, isV4),
@@ -579,6 +616,10 @@ export default function SessionsTable({
     // A row with an empty id has no detail page, and the ID cell renders no
     // link for it either.
     if (!row.id) return;
+    if (useSessionPeek) {
+      openPeek(row.id, undefined, { queryParams: { traceView: "messages" } });
+      return;
+    }
     router.push(sessionDetailPath(row.id));
   };
 
@@ -597,6 +638,21 @@ export default function SessionsTable({
           props: {
             path: sessionDetailPath(value),
             value,
+            onClick: useSessionPeek
+              ? (event) => {
+                  if (
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  )
+                    return;
+                  event.preventDefault();
+                  openPeek(value, undefined, {
+                    queryParams: { traceView: "messages" },
+                  });
+                }
+              : undefined,
           },
         };
       },
@@ -1030,6 +1086,17 @@ export default function SessionsTable({
           </div>
         </StickySearchableTableFilterLayout>
       </div>
+      {useSessionPeek && (
+        <TablePeekViewSessionDetail
+          projectId={projectId}
+          tableName="sessions"
+          isV4={isV4}
+          detailNavigationKey="sessions"
+          closePeek={closePeek}
+          expandPeek={expandPeek}
+          resolveDetailNavigationPath={resolveDetailNavigationPath}
+        />
+      )}
     </DataTableControlsProvider>
   );
 }

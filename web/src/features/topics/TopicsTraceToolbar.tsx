@@ -43,7 +43,7 @@ export function TopicsTraceToolbar({
         }}
         onRequestColumns={traceFields?.onRequestColumns}
         erroredColumns={traceFields?.erroredColumns}
-        isV4={false}
+        isV4
         inset
         search={{
           query: searchQuery,

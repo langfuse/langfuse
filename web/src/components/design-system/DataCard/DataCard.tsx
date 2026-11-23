@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
-import { useFittingCount } from "@/src/components/design-system/internal/useFittingCount";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 import {
   VisualizationFrame,
   type Visualization,
@@ -303,56 +303,34 @@ function FilterTags({
 }: {
   filter: NonNullable<ComponentProps<typeof DataCard>["filter"]>;
 }) {
-  const { listRef, probeRef, fittingCount } = useFittingCount({
-    itemCount: filter.items.length,
-    itemsKey: filter.items
-      .map(({ value, label }) => `${value}:${label}`)
-      .join("\u0000"),
-  });
-  const hiddenCount = filter.items.length - fittingCount;
-
   return (
     <div
-      ref={listRef}
-      className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)]"
+      role="group"
+      aria-label={filter.label}
+      className="flex h-6 min-w-0 flex-1 items-center"
     >
-      {/* Invisible copies give the row its natural width and each tag's width to measure. */}
-      <div
-        ref={probeRef}
-        aria-hidden
-        inert
-        className="invisible col-start-1 row-start-1 flex h-0 gap-1 overflow-hidden"
-      >
-        {filter.items.map((item) => (
-          <span key={item.value} className="flex max-w-48 min-w-10 shrink-0">
-            <FilterTag item={item} onRemove={filter.onRemove} />
-          </span>
-        ))}
-        <span className="flex shrink-0">
-          <Tag text={`+${filter.items.length}`} />
-        </span>
-      </div>
-      <div className="col-start-1 row-start-1 flex min-w-0 justify-end">
-        <div
-          role="group"
-          aria-label={filter.label}
-          // Same height as the toggle beside it so both center on one line.
-          className="flex h-6 min-w-0 items-center gap-1"
-        >
-          {filter.items.slice(0, fittingCount).map((item) => (
-            <span key={item.value} className="flex max-w-48 min-w-10 shrink">
+      <div className="flex w-full min-w-0 justify-end">
+        <OverflowList
+          alignment="end"
+          additionalOverflowCount={0}
+          spacing="tight"
+          minVisible={1}
+          items={filter.items}
+          getKey={(item) => item.value}
+          renderItem={(item, { getItemProps }) => (
+            <span {...getItemProps({ className: "max-w-48 min-w-10 shrink" })}>
               <FilterTag item={item} onRemove={filter.onRemove} />
             </span>
-          ))}
-          {hiddenCount > 0 && (
+          )}
+          renderOverflow={({ overflowItemCount }) => (
             <span
               className="flex shrink-0"
-              title={`${hiddenCount} more selected`}
+              title={`${overflowItemCount} more selected`}
             >
-              <Tag text={`+${hiddenCount}`} />
+              <Tag text={`+${overflowItemCount}`} />
             </span>
           )}
-        </div>
+        />
       </div>
     </div>
   );

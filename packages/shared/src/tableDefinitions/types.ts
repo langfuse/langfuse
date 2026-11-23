@@ -99,6 +99,8 @@ export type ColumnDefinition =
       type: "stringObject" | "numberObject" | "booleanObject";
       internal: string;
       keyOptions?: Array<string>;
+      /** A metadata column whose rows also offer numeric comparisons (`numberObject`). */
+      numericValues?: boolean;
       nullable?: boolean;
       aliases?: string[];
     }

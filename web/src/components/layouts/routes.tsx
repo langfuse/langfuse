@@ -238,7 +238,6 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    label: <FeatureReleaseStatus status="beta" />,
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],

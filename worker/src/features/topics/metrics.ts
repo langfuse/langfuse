@@ -72,6 +72,18 @@ export function recordTopicModelCall(
   recordIncrement("langfuse.topics.llm_calls", 1, { stage, adapter, status });
 }
 
+/** One cost estimate from the user's click to its end, queue wait included; the count per outcome is the success rate. */
+export function recordTopicCostEstimate(
+  outcome: "done" | "failed" | "superseded",
+  startedAt: number,
+): void {
+  recordDistribution(
+    "langfuse.topics.cost_estimate_duration_ms",
+    Date.now() - startedAt,
+    { outcome, unit: "milliseconds" },
+  );
+}
+
 /** One instance per execution attempt prevents nested catches counting an error twice. */
 export class TopicMetrics {
   private readonly reportedErrors = new WeakSet<object>();

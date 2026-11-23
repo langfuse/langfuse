@@ -284,6 +284,7 @@ export class RuleService {
       const evaluatorAssignments = await this.prepareModernAssignments({
         prisma,
         projectId: input.projectId,
+        targetObject: normalized.targetObject,
         assignments: input.evaluatorAssignments,
       });
       return repository.createRule({
@@ -575,6 +576,7 @@ export class RuleService {
     return this.prepareModernAssignments({
       prisma: params.prisma,
       projectId: params.projectId,
+      targetObject: params.targetObject,
       assignments: params.evaluatorMappings,
     });
   }
@@ -774,6 +776,7 @@ export class RuleService {
           : await this.prepareModernAssignments({
               prisma,
               projectId: params.projectId,
+              targetObject: rule.targetObject,
               assignments: [params.assignment],
             });
       await repository.attachEvaluator({
@@ -954,6 +957,7 @@ export class RuleService {
   private async prepareModernAssignments(params: {
     prisma: Prisma.TransactionClient;
     projectId: string;
+    targetObject: string;
     assignments: RuleAssignmentInput[];
   }) {
     const evaluatorIds = params.assignments.map(
@@ -1000,6 +1004,7 @@ export class RuleService {
         ),
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
+        targetObject: params.targetObject,
       });
       return {
         ...assignment,

@@ -14,6 +14,7 @@ import {
   topicsSetupSchema,
   topicRuleFilterError,
   topicSnapshotSummarizeSchema,
+  type TopicCostEstimate,
   type TopicExecutionSummary,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";
@@ -37,6 +38,7 @@ import {
   readTopicMapAssignments,
   selectTopicMapMatches,
   readTopicsModelSettings,
+  hasCurrentTopicEmbeddings,
   checkTopicsModelSettings,
   saveTopicsSetup,
   setTopicsAutomaticProcessing,
@@ -47,6 +49,10 @@ import {
   readTopicRuleSetup,
   startTopicRuleRefresh,
   startTopicRuleSetup,
+  priceTopicCostEstimate,
+  readTopicCostEstimate,
+  startTopicCostEstimate,
+  topicCostEstimateKey,
 } from "@langfuse/shared/topics/server";
 import {
   createTRPCRouter,
@@ -152,6 +158,32 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
   });
   return next();
 });
+
+const costEstimateInput = projectInput.extend({
+  filter: topicRuleConfigSchema.shape.filter,
+  facetIds: z.array(topicIdSchema).min(1).max(50),
+});
+
+/** The facets' current versions and the project's stored Topics models; null without a summary model. */
+async function costEstimateInputs(
+  input: z.infer<typeof costEstimateInput>,
+): Promise<TopicCostEstimate["inputs"] | null> {
+  const [models, facets] = await Promise.all([
+    readTopicsModelSettings(input.projectId),
+    listTopicFacets(input.projectId),
+  ]);
+  if (!models.summary) return null;
+  return {
+    filter: input.filter,
+    facets: input.facetIds.map((facetId) => {
+      const version = facets.find(({ id }) => id === facetId)?.versions[0];
+      if (!version) throw new LangfuseNotFoundError("Question not found.");
+      return { facetId, version: version.version };
+    }),
+    summaryModel: models.summary.model,
+    embeddingModel: models.embedding?.model ?? null,
+  };
+}
 
 function readTopicConfig(ctx: ProjectAuthedContext, projectId: string) {
   return ctx.prisma.topicConfig.findUnique({ where: { projectId } });
@@ -535,6 +567,9 @@ export const topicsRouter = createTRPCRouter({
   modelSettings: topicsProcedure.query(({ input }) =>
     readTopicsModelSettings(input.projectId),
   ),
+  hasCurrentEmbeddings: topicsProcedure.query(({ input }) =>
+    hasCurrentTopicEmbeddings(input.projectId),
+  ),
   tracingReadinessSettings: topicsProcedure.query(({ input }) =>
     getTracingReadinessSettings(input.projectId),
   ),
@@ -636,6 +671,34 @@ export const topicsRouter = createTRPCRouter({
         now: new Date(),
       }),
     ),
+  /** Measures a sample of matching traces in the background; no model is called. */
+  startCostEstimate: topicsWriteProcedure
+    .input(costEstimateInput)
+    .mutation(async ({ input }) => {
+      const inputs = await costEstimateInputs(input);
+      if (!inputs) throw new InvalidRequestError("Pick a summary model first.");
+      const estimate = await startTopicCostEstimate({
+        projectId: input.projectId,
+        ...inputs,
+      });
+      return { key: estimate.key };
+    }),
+  /** The estimate for these inputs, priced with current model prices; null before one starts. */
+  costEstimate: topicsWriteProcedure
+    .input(costEstimateInput)
+    .query(async ({ input }) => {
+      const inputs = await costEstimateInputs(input);
+      if (!inputs) return null;
+      const estimate = await readTopicCostEstimate(
+        input.projectId,
+        topicCostEstimateKey(inputs),
+      );
+      if (!estimate) return null;
+      return {
+        ...estimate,
+        prices: await priceTopicCostEstimate(input.projectId, estimate),
+      };
+    }),
   setupTraceNames: topicsProcedure.query(({ input }) =>
     getTopicSetupTraceNames({ projectId: input.projectId, now: new Date() }),
   ),

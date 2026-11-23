@@ -1,4 +1,5 @@
 import {
+  EvalTargetObject,
   extractTranscriptEvalVariables,
   getCodeEvalVariableMapping,
   InvalidRequestError,
@@ -57,7 +58,10 @@ export async function testEvaluator(params: {
   });
   const variables = extractObservationVariables({
     observation,
-    variableMapping: resolveTestVariableMapping(params.definition),
+    variableMapping: resolveTestVariableMapping(
+      params.definition,
+      EvalTargetObject.EVENT,
+    ),
   });
   const executionData = buildEvalExecutionData({
     type: "TEST",
@@ -166,12 +170,16 @@ export async function testEvaluatorOnTrace(params: {
   };
 }
 
-function resolveTestVariableMapping(definition: NormalizedEvaluatorDefinition) {
+function resolveTestVariableMapping(
+  definition: NormalizedEvaluatorDefinition,
+  targetObject?: string,
+) {
   if (definition.type === "CODE") return getCodeEvalVariableMapping();
   if (definition.type === "DECISION_MODEL") {
     assertCompleteEvaluatorVariableMapping({
       promptVariables: definition.vars,
       variableMapping: definition.variableMapping,
+      targetObject,
     });
     return observationVariableMappingList.parse(definition.variableMapping);
   }
@@ -179,6 +187,7 @@ function resolveTestVariableMapping(definition: NormalizedEvaluatorDefinition) {
   assertCompleteEvaluatorVariableMapping({
     promptVariables: extractEvaluatorPromptVariables(definition.promptMessages),
     variableMapping: llmVariableMapping,
+    targetObject,
   });
   return observationVariableMappingList.parse(llmVariableMapping);
 }

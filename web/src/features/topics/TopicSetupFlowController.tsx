@@ -9,10 +9,11 @@ import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
+import { useTopicsCapture } from "./useTopicsCapture";
 import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
+import { TopicCostEstimate } from "./TopicCostEstimate";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
@@ -50,7 +51,13 @@ export function TopicSetupFlowController({
 }) {
   // Opens only from Start analyzing, never on its own, so the landing shows first.
   const [open, setOpen] = useState(false);
+  const capture = useTopicsCapture();
   function openSetup() {
+    if (settings)
+      capture("topics:setup_flow_opened", {
+        hasConnection: settings.connections.length > 0,
+        isFirstSetup: !settings.rule,
+      });
     setOpen(true);
   }
   function closeSetup() {
@@ -99,7 +106,7 @@ function TopicSetupSession({
   }) => Promise<unknown>;
   closeDialog: () => void;
 }) {
-  const capture = usePostHogClientCapture();
+  const capture = useTopicsCapture();
   const utils = api.useUtils();
   const canAddConnection = useHasProjectAccess({
     projectId,
@@ -158,9 +165,6 @@ function TopicSetupSession({
   const mapName = topicSetupMapName(draft);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  useEffect(() => {
-    capture("topics:setup_opened", { source: "start_analyzing" });
-  }, [capture]);
   const changeFilter = (filter: FilterState) =>
     setDraft((current) => ({ ...current, filter }));
   const traceFilter = useTopicTraceFilter({
@@ -182,7 +186,6 @@ function TopicSetupSession({
   );
   const pastCount = pastTraceCount(
     counts.data,
-    draft.samplePercent,
     counts.error?.message ?? null,
     counts.isFetching,
   );
@@ -218,7 +221,7 @@ function TopicSetupSession({
     });
     const messages = Object.values(errors).filter(Boolean);
     if (messages.length > 0) throw new Error(messages.join(" "));
-    capture("topics:setup_step_saved", {
+    capture("topics:setup_flow_step_completed", {
       step: "questions",
       questionCount: draft.questions.filter((question) => question.enabled)
         .length,
@@ -280,7 +283,12 @@ function TopicSetupSession({
     await renameSavedRule(savedRule);
     await persistSampling(true);
     await startRuleSetup.mutateAsync({ projectId, ruleId: savedRule.id });
-    capture("topics:setup_started", { samplePercent: draft.samplePercent });
+    capture("topics:setup_flow_finished", {
+      samplePercent: draft.samplePercent,
+      questionCount: draft.questions.filter((question) => question.enabled)
+        .length,
+      filterCount: draft.filter.length,
+    });
     closeDialog();
   }
 
@@ -296,15 +304,17 @@ function TopicSetupSession({
       }
       if (draft.step === "traces") {
         await persistSampling(false, await saveSetup());
-        capture("topics:setup_step_saved", {
+        capture("topics:setup_flow_step_completed", {
           step: "traces",
           samplePercent: draft.samplePercent,
+          filterCount: draft.filter.length,
         });
         setDraft((current) => ({ ...current, step: "review" }));
         return;
       }
       await startAnalyzing();
     } catch (cause) {
+      capture("topics:setup_flow_error", { step: draft.step });
       setError(
         cause instanceof Error ? cause.message : "Could not save Topics.",
       );
@@ -344,6 +354,21 @@ function TopicSetupSession({
       onFilterChange={changeFilter}
       traceFilter={traceFilter}
       pastCount={pastCount}
+      costEstimate={
+        <TopicCostEstimate
+          projectId={projectId}
+          filter={draft.filter}
+          facetIds={savedRule?.facetIds ?? []}
+          samplingPercent={draft.samplePercent}
+          dailyTraces={
+            pastCount.status === "ready" ? pastCount.dailyTraces : null
+          }
+          backfillTraces={
+            pastCount.status === "ready" ? pastCount.matched : null
+          }
+          source="setup"
+        />
+      }
       onQuestionEnabled={(name, enabled) =>
         setDraft((current) => ({
           ...current,
@@ -384,18 +409,14 @@ function TopicSetupSession({
 
 function pastTraceCount(
   counts: { finished7d: number; finished30d: number } | undefined,
-  samplePercent: number,
   error: string | null,
   fetching: boolean,
 ): TopicSetupPastCount {
   if (counts) {
-    // Setup reads at most 30 days, so that bounds what it can find.
+    // Setup reads at most 30 days, so that bounds what it can find. Sampling does not apply to the backfill.
     return {
       status: "ready",
-      matched: Math.min(
-        TOPIC_SETUP_BACKFILL_LIMIT,
-        Math.round((counts.finished30d * samplePercent) / 100),
-      ),
+      matched: Math.min(TOPIC_SETUP_BACKFILL_LIMIT, counts.finished30d),
       dailyTraces: counts.finished7d / TOPIC_SETUP_BACKFILL_DAYS,
     };
   }
