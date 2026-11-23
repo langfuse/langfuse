@@ -120,7 +120,7 @@ export const belowGroupFloor =
     const names = joinNames(
       floorGrants(effective).map((grant) => grant.groupName),
     );
-    return `Can't go below ${roleName(floor)}: ${names} already gives ${roleName(floor)}, and groups only add access`;
+    return `${names} already gives ${roleName(floor)}`;
   };
 
 type GroupReason = {

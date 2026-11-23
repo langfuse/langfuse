@@ -3,7 +3,6 @@ import { type SystemRole } from "@langfuse/shared/src/db";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SelectItem } from "@/src/components/ui/select";
-import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import {
   roleDisplay,
   type RoleDisplay,
@@ -15,16 +14,14 @@ export const RoleSelectItem = ({
   display = roleDisplay,
   isProjectRole,
   disabledReason,
-  showPermissionCount,
   onViewPermissions,
 }: {
   role: SystemRole;
   /** display overrides how the role is presented. */
   display?: (role: SystemRole) => RoleDisplay;
   isProjectRole?: boolean;
-  /** disabledReason makes the option unselectable and explains why. */
+  /** disabledReason makes the option unselectable and replaces its description. */
   disabledReason?: string;
-  showPermissionCount?: boolean;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
   const { name: label, description } = display(role);
@@ -41,19 +38,10 @@ export const RoleSelectItem = ({
           <span className="font-bold">
             {label}
             {keepDefaultNote ? " (keep default role)" : ""}
-            {showPermissionCount && role !== "NONE" && (
-              <span className="text-muted-foreground text-xs font-normal">
-                {" "}
-                · {rolePermissionCountLabel(role)}
-              </span>
-            )}
           </span>
-          <span className="text-muted-foreground text-xs">{description}</span>
-          {disabledReason !== undefined && (
-            <span className="text-muted-foreground text-xs italic">
-              {disabledReason}
-            </span>
-          )}
+          <span className="text-muted-foreground text-xs">
+            {disabledReason ?? description}
+          </span>
         </div>
         <Tooltip label="View permissions" hoverableContent={false} delay={0}>
           {({ getTriggerProps }) => (
