@@ -248,7 +248,8 @@ cost.
 - `scenarios/` — one file per scenario plus `rng.ts` (Rng/jitter/anchor),
   `payload.ts`, `event-mirror.ts` (v3→v4 mapping), `verify.ts` (readbacks)
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing dx
-  seed path (the bulk builders in `utils/clickhouse-builder.ts` are shared)
+  seed path (the bulk builders in `utils/clickhouse-builder.ts` are shared;
+  `seed-clickhouse.ts` also runs the `gateway-budgets` scenario)
 
 ## What's next (deliberately not built yet)
 

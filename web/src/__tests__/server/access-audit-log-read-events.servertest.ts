@@ -1,4 +1,4 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { randomUUID } from "crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
@@ -105,42 +105,35 @@ type SessionParams = {
 };
 
 function userSession(params: SessionParams): Session {
-  const membership: NonNullable<Session["user"]>["organizations"][number] = {
-    id: params.orgId,
-    name: "Access Audit Org",
-    role: params.supportAccess ? Role.VIEWER : Role.MEMBER,
-    supportAccess: params.supportAccess,
-    plan: "cloud:enterprise",
-    cloudConfig: undefined,
-    metadata: {},
-    aiFeaturesEnabled: false,
-    aiTelemetryEnabled: false,
-    accessAuditLogEnabled: params.accessAuditLogEnabled,
-    projects: [
-      {
-        id: params.projectId,
-        name: "Access Audit Project",
-        role: params.projectRole ?? Role.VIEWER,
-        retentionDays: null,
-        deletedAt: null,
-        hasTraces: true,
-        metadata: {},
-        createdAt: new Date().toISOString(),
-      },
-    ],
-  };
-  return {
-    expires: "1",
+  return createSession({
     user: {
       id: params.userId,
       name: "Access Audit Reader",
       email: "reader@example.com",
-      canCreateOrganizations: true,
-      organizations: params.member === false ? [] : [membership],
-      featureFlags: testFeatureFlags(),
     },
-    environment: {} as any,
-  };
+    organizations:
+      params.member === false
+        ? []
+        : [
+            {
+              id: params.orgId,
+              name: "Access Audit Org",
+              role: params.supportAccess ? Role.VIEWER : Role.MEMBER,
+              supportAccess: params.supportAccess,
+              plan: "cloud:enterprise",
+              accessAuditLogEnabled: params.accessAuditLogEnabled,
+              projects: [
+                {
+                  id: params.projectId,
+                  name: "Access Audit Project",
+                  role: params.projectRole ?? Role.VIEWER,
+                  retentionDays: null,
+                  hasTraces: true,
+                },
+              ],
+            },
+          ],
+  });
 }
 
 function trpcCaller(params: SessionParams) {
@@ -833,8 +826,8 @@ maybe("access events on tRPC events.byTraceId", () => {
         actor: expect.objectContaining({
           type: "USER",
           userId,
-          orgRole: Role.MEMBER,
-          projectRole: Role.VIEWER,
+          orgRole: "system/MEMBER",
+          projectRole: "system/VIEWER",
         }),
       }),
     ]);
@@ -883,7 +876,7 @@ maybe("access events on tRPC events.byTraceId", () => {
         actor: expect.objectContaining({
           type: "USER",
           userId,
-          orgRole: Role.VIEWER,
+          orgRole: "system/VIEWER",
           supportAccess: true,
         }),
       }),

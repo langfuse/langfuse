@@ -37,6 +37,7 @@ export const SavedConfig = meta.story({
       createdAt: new Date("2026-10-01"),
       updatedAt: new Date("2026-10-01"),
     },
+    hasSpendLimits: false,
     projects,
     isSaving: false,
     onSave: fn(async () => true),
@@ -113,5 +114,16 @@ export const TestNoAccessWarningWithoutRecording = meta.story({
   play: async () => {
     const dialog = within(document.body).getByRole("dialog");
     await expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  },
+});
+
+export const TestSpendLimitsWarningWithoutRecording = meta.story({
+  name: "(Test) Warns that budgets stop applying when nothing is recorded",
+  args: { ...NotRecording.input.args, hasSpendLimits: true },
+  play: async () => {
+    const dialog = within(document.body).getByRole("dialog");
+    await expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Budgets stop applying",
+    );
   },
 });

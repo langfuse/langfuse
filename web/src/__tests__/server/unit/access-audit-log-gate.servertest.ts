@@ -33,6 +33,22 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   };
 });
 
+// The plan resolver in @langfuse/shared reads shared's own env.
+vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
+  const original = (await importOriginal()) as { env: Record<string, unknown> };
+  return {
+    ...original,
+    env: new Proxy(original.env, {
+      get: (target, prop) => {
+        if (prop === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")
+          return mocks.cloudRegion;
+        if (prop === "LANGFUSE_EE_LICENSE_KEY") return mocks.licenseKey;
+        return Reflect.get(target, prop);
+      },
+    }),
+  };
+});
+
 import { isAccessAuditLogEnabled } from "@/src/features/audit-logs/isAccessAuditLogEnabled";
 import { recordTrpcAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 
@@ -143,6 +159,7 @@ describe("recordTrpcAccess", () => {
   const nonMember = {
     session: {
       user: { id: "user", organizations: [] } as unknown as Session["user"],
+      policies: [],
     },
     headers: {},
   };

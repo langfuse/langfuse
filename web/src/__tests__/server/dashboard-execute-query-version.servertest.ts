@@ -8,13 +8,13 @@
  *   (events tables not written) rejects v2 — not covered here because the
  *   test env boots in dual mode.
  */
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type QueryType } from "@langfuse/shared/query";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 describe("dashboard.executeQuery version contract", () => {
   let projectId: string;
@@ -27,41 +27,17 @@ describe("dashboard.executeQuery version contract", () => {
   });
 
   function makeCaller(options: { v4BetaEnabled: boolean }) {
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        canCreateOrganizations: true,
-        name: "Test User",
-        v4BetaEnabled: options.v4BetaEnabled,
-        organizations: [
-          {
-            id: orgId,
-            name: "Test Organization",
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                retentionDays: 30,
-                deletedAt: null,
-                name: "Test Project",
-                hasTraces: true,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-      },
-      environment: {} as any,
-    };
+    const session: Session = createSession({
+      user: { name: "Test User", v4BetaEnabled: options.v4BetaEnabled },
+      organizations: [
+        {
+          id: orgId,
+          role: "OWNER",
+          aiTelemetryEnabled: true,
+          projects: [{ id: projectId, role: "ADMIN", hasTraces: true }],
+        },
+      ],
+    });
     const ctx = createInnerTRPCContext({ session, headers: {} });
     return appRouter.createCaller({ ...ctx, prisma });
   }

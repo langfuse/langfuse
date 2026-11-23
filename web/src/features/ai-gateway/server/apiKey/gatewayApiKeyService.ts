@@ -5,7 +5,7 @@ import {
   LangfuseNotFoundError,
   type OrderByState,
 } from "@langfuse/shared";
-import { Prisma, type PrismaClient, type Role } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   createApiKey,
   deleteApiKeyFromDb,
@@ -27,6 +27,7 @@ import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gatewa
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
+import { GATEWAY_ROLE } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import { GatewayConfigRepository } from "@/src/features/ai-gateway/server/config/gatewayConfigRepository";
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
 import { getGatewayApiKeysLastUsedAt } from "./gatewayApiKeyLastUsedRepository";
@@ -106,16 +107,16 @@ export class GatewayApiKeyService {
     issuedAs: GatewayApiKeyIssuedAs;
     session: OrgAuthedContext["session"];
   }) {
+    assertCreatorCanInvokeGateway(params);
     const key = await this.prisma.$transaction(
       async (tx) => {
-        await assertCreatorCanInvokeGateway(tx, params);
         const key = await createApiKey(tx, {
           tenant: OrganizationId(params.organizationId),
           scope:
             params.issuedAs === "serviceAccount"
               ? OrganizationId(params.organizationId)
               : UserId(params.session.user.id),
-          role: SystemRoleId("AI_GATEWAY"),
+          role: SystemRoleId(GATEWAY_ROLE),
           createdBy: UserId(params.session.user.id),
           name: params.name,
           expiresAt: params.expiresAt,
@@ -262,26 +263,19 @@ export function gatewayApiKeyCreatorScopes(
     : ["gateway:manage", "organization:CRUD_apiKeys"];
 }
 
-/** assertCreatorCanInvokeGateway share-locks the creator's membership so removal and demotion order after the key insert. */
-async function assertCreatorCanInvokeGateway(
-  tx: Prisma.TransactionClient,
-  params: {
-    organizationId: string;
-    issuedAs: GatewayApiKeyIssuedAs;
-    session: OrgAuthedContext["session"];
-  },
-) {
-  const [membership] = await tx.$queryRaw<{ role: Role }[]>`
-    SELECT role FROM organization_memberships
-    WHERE org_id = ${params.organizationId}
-      AND user_id = ${params.session.user.id}
-    FOR SHARE
-  `;
-  const allowed =
-    membership !== undefined &&
-    gatewayApiKeyCreatorScopes(params.issuedAs).every((scope) =>
-      hasOrganizationAccess({ role: membership.role, scope }),
-    );
+/** assertCreatorCanInvokeGateway checks that the session grants every scope the key's issuer needs. */
+function assertCreatorCanInvokeGateway(params: {
+  organizationId: string;
+  issuedAs: GatewayApiKeyIssuedAs;
+  session: OrgAuthedContext["session"];
+}) {
+  const allowed = gatewayApiKeyCreatorScopes(params.issuedAs).every((scope) =>
+    hasOrganizationAccess({
+      session: params.session,
+      organizationId: params.organizationId,
+      scope,
+    }),
+  );
   if (!allowed) {
     throw new ForbiddenError(
       params.issuedAs === "serviceAccount"

@@ -92,6 +92,10 @@ export async function deleteOrgMembership(
     const membership = await tx.organizationMembership.delete({
       where: { orgId_userId: { orgId, userId } },
     });
+    // A user budget caps the member's gateway keys here, which leave with the membership.
+    await tx.gatewaySpendLimit.deleteMany({
+      where: { organizationId: orgId, userId, scope: "USER" },
+    });
     await revokeRolesForPrincipal(tx, {
       tenantId: OrganizationId(orgId),
       principalId: UserId(userId),

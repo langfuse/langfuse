@@ -463,7 +463,9 @@ describe("Topics definition persistence", () => {
     facetVersion: 1,
     traceId: randomUUID(),
     sessionId: null,
-    triggerType: "manual_poc",
+    triggerType: "rule",
+    ruleIds: [],
+    executionId: null,
     environment: "default",
     traceName: "trace",
     unitStartTime: "2026-08-31T23:59:59.999Z",
@@ -472,6 +474,7 @@ describe("Topics definition persistence", () => {
     embedding: [1, ...Array<number>(255).fill(0)],
     transcriptId: "poc",
     transcriptVersion: "poc",
+    transcriptBytes: 0,
     summaryModel: "test",
     embeddingModel: "eu.cohere.embed-v4:0",
     providedUsageDetails: {},
@@ -493,6 +496,42 @@ describe("Topics definition persistence", () => {
         query_params: { projectIds: [projectId, otherProjectId] },
         clickhouse_settings: { mutations_sync: "1" },
       });
+  });
+
+  it("keeps a session and a trace with the same id apart after a merge", async () => {
+    // Its own month, so the forced merge stays small.
+    const unitStartTime = "2025-02-10T10:15:00.000Z";
+    const sharedId = randomUUID();
+    await writeTopicSummaries([
+      {
+        ...summary,
+        traceId: sharedId,
+        sessionId: "parent-session",
+        unitStartTime,
+      },
+      {
+        ...summary,
+        traceId: null,
+        sessionId: sharedId,
+        traceName: "",
+        unitStartTime,
+      },
+    ]);
+    await clickhouseClient().command({
+      query: "OPTIMIZE TABLE topic_facet_summaries PARTITION 202502 FINAL",
+      clickhouse_settings: { mutations_sync: "1" },
+    });
+    const rows = await clickhouseClient().query({
+      query: `SELECT unit_type FROM topic_facet_summaries
+        WHERE project_id = {projectId:String} AND unit_hash = cityHash64({sharedId:String})`,
+      query_params: { projectId, sharedId },
+      format: "JSONEachRow",
+    });
+    expect(
+      (await rows.json<{ unit_type: string }>())
+        .map((row) => row.unit_type)
+        .sort(),
+    ).toEqual(["session", "trace"]);
   });
 
   it("partitions by source time while preserving replacement and published map identities", async () => {
@@ -809,12 +848,12 @@ describe("Topics definition persistence", () => {
         embedding_input: 0.05,
         total: 0.2,
       },
-      metadata: { executionId: "priced" },
+      executionId: "priced",
     };
     await writeTopicSummaries([
       priced,
       { ...priced, projectId: otherProjectId },
-      { ...priced, traceId: "other-run", metadata: { executionId: "other" } },
+      { ...priced, traceId: "other-run", executionId: "other" },
       { ...priced, facetId: randomUUID() },
       {
         ...priced,
@@ -826,13 +865,13 @@ describe("Topics definition persistence", () => {
         ...priced,
         traceId: "unpriced",
         costDetails: { summary_input: 0.1 },
-        metadata: { executionId: "unpriced" },
+        executionId: "unpriced",
       },
       {
         ...priced,
         traceId: "zero",
         costDetails: { total: 0 },
-        metadata: { executionId: "zero" },
+        executionId: "zero",
       },
     ]);
     const requested = ["priced", "unpriced", "zero", "missing"];
@@ -856,7 +895,7 @@ describe("Topics definition persistence", () => {
         i === 847 ? -0.003662027125082599 : Math.sin(i) / 32,
       ),
       radius: 0.003662027125082599,
-      tags: ["billing", "請求書"],
+      labels: ["billing", "請求書"],
       representativeSummaries: [
         {
           facetId: "facet-a",
@@ -880,7 +919,7 @@ describe("Topics definition persistence", () => {
       createdAt: "2026-09-24T21:21:07.330Z",
       centroid: [1, 0, -1],
       radius: 0,
-      tags: [],
+      labels: [],
       representativeSummaries: [],
       metadata: {},
     };
@@ -915,14 +954,15 @@ describe("Topics definition persistence", () => {
     ).toEqual([]);
   });
 
-  it("resolves current topics for the column and the tracing filter from each rule's published map", async () => {
-    const [current, reassigned, retired] = [
+  it("resolves the column's latest topic per rule and the tracing filter's from each rule's published map", async () => {
+    const [current, reassigned, retired, earlier] = [
+      randomUUID(),
       randomUUID(),
       randomUUID(),
       randomUUID(),
     ];
     await writeTopicSummaries(
-      [current, reassigned, retired].map((traceId) => ({
+      [current, reassigned, retired, earlier].map((traceId) => ({
         ...summary,
         projectId: otherProjectId,
         traceId,
@@ -943,6 +983,7 @@ describe("Topics definition persistence", () => {
       unitStartTime: summary.unitStartTime,
       summaryProcessedAt: summary.processedAt,
       runId: "serving",
+      ruleId: "rule",
       topicId,
       topicVersionId: `${topicId}-v1`,
       distance: null,
@@ -956,10 +997,18 @@ describe("Topics definition persistence", () => {
       assign(current, "match"),
       assign(reassigned, "match"),
       assign(reassigned, "other", { assignedAt: "2026-09-03T00:00:00.000Z" }),
-      // An older map's or an analysis's assignment never serves.
-      assign(retired, "match", { runId: "retired" }),
+      // An analysis's assignment never serves.
+      assign(retired, "match", { runId: "analysis", ruleId: null }),
+      // The column keeps a placement from the rule's earlier map; the filter does not.
+      assign(earlier, "match", { runId: "previous" }),
       // Another rule's map keeps its own current topic for the same trace.
-      assign(reassigned, "match", { runId: "other-rule" }),
+      assign(reassigned, "match", { runId: "other-rule", ruleId: "other" }),
+      // A refit that wrote a batch and never completed does not replace the shown topic.
+      assign(current, "", {
+        runId: "unfinished",
+        topicVersionId: "",
+        assignedAt: "2026-09-05T00:00:00.000Z",
+      }),
     ]);
     const timeRange = {
       from: new Date("2026-08-31T00:00:00.000Z"),
@@ -972,12 +1021,14 @@ describe("Topics definition persistence", () => {
 
     // Column: one read across facets for a page of traces.
     const topics = await readCurrentTraceTopics(otherProjectId, {
-      traces: [current, reassigned, retired].map((traceId) => ({
+      traces: [current, reassigned, retired, earlier].map((traceId) => ({
         traceId,
         timestamp: rowStart,
       })),
       facetIds: [summary.facetId],
-      publishedRunIds: ["serving", "other-rule"],
+      // The completed runs of the rules; "unfinished" is not one of them.
+      runIds: ["serving", "previous", "other-rule"],
+      includeOutliers: true,
     });
     expect(
       topics.map(({ traceId, topicId }) => [traceId, topicId]).sort(),
@@ -986,6 +1037,7 @@ describe("Topics definition persistence", () => {
         [current, "match"],
         [reassigned, "other"],
         [reassigned, "match"],
+        [earlier, "match"],
       ].sort(),
     );
 

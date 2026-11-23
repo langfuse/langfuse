@@ -9,6 +9,8 @@ import {
   hasPricingTierUsageDetails,
   matchPricingTier,
   escapeSqlLikePattern,
+  modelScopeRankSql,
+  visibleModelsSql,
 } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
@@ -56,6 +58,7 @@ export const modelRouter = createTRPCRouter({
       const modelQueryResult = await ctx.prisma.$queryRaw`
           SELECT
             m.id,
+            m.scope as "scope",
             m.project_id as "projectId",
             m.model_name as "modelName",
             m.match_pattern as "matchPattern",
@@ -96,15 +99,12 @@ export const modelRouter = createTRPCRouter({
             models m
           WHERE
             m.id = ${input.modelId}
-            AND (
-              project_id IS NULL
-              OR project_id = ${input.projectId}
-            );
+            AND ${visibleModelsSql(input.projectId, "m")};
       `;
 
       const model = z.array(GetModelResultSchema).parse(modelQueryResult)[0];
 
-      if (!model || (model.projectId && model.projectId !== input.projectId)) {
+      if (!model) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Model not found",
@@ -127,8 +127,9 @@ export const modelRouter = createTRPCRouter({
       const [allModelsQueryResult, totalCountQuery] = await Promise.all([
         // All models
         ctx.prisma.$queryRaw`
-          SELECT DISTINCT ON (project_id, model_name)
+          SELECT DISTINCT ON (${modelScopeRankSql("m")}, m.model_name)
             m.id,
+            m.scope as "scope",
             m.project_id as "projectId",
             m.model_name as "modelName",
             m.match_pattern as "matchPattern",
@@ -168,12 +169,13 @@ export const modelRouter = createTRPCRouter({
           FROM
             models m
           WHERE
-            (project_id IS NULL OR project_id = ${projectId})
-			      ${searchStringCondition}
+            ${visibleModelsSql(projectId, "m")}
+            ${searchStringCondition}
           ORDER BY
-            project_id,
-            model_name,
-            m.created_at DESC NULLS LAST
+            ${modelScopeRankSql("m")},
+            m.model_name,
+            m.created_at DESC NULLS LAST,
+            m.id
           `,
 
         // Total count
@@ -182,9 +184,9 @@ export const modelRouter = createTRPCRouter({
             count: number;
           }[]
         >`
-          SELECT COUNT(DISTINCT (project_id, model_name))
+          SELECT COUNT(DISTINCT (scope, model_name))
           FROM models
-          WHERE (project_id IS NULL OR project_id = ${projectId})
+          WHERE ${visibleModelsSql(projectId)}
           ${searchStringCondition};
         `,
       ]);
@@ -318,6 +320,7 @@ export const modelRouter = createTRPCRouter({
           },
           create: {
             id: modelId,
+            scope: "PROJECT",
             projectId,
             modelName,
             matchPattern,
@@ -489,6 +492,7 @@ export const modelRouter = createTRPCRouter({
           id: model.id,
           modelName: model.modelName,
           matchPattern: model.matchPattern,
+          scope: model.scope,
           projectId: model.projectId,
         },
         matchedTier: {

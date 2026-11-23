@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle, AlertCircle, Unlink } from "@langfuse/icons";
+import { CheckCircle, Unlink } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import {
@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { api } from "@/src/utils/api";
 import { SlackConnectButton } from "@/src/features/slack/components/SlackConnectButton";
 import { SlackDisconnectDialogController } from "@/src/features/slack/components/SlackDisconnectDialogController";
@@ -110,11 +110,9 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
           <CardDescription>Error loading connection status</CardDescription>
         </CardHeader>
         <CardContent>
-          <Alert icon={AlertCircle}>
-            <Alert.Description>
-              Failed to load Slack integration status. Please try again.
-            </Alert.Description>
-          </Alert>
+          <Banner variant="error">
+            Failed to load Slack integration status. Please try again.
+          </Banner>
         </CardContent>
       </Card>
     );
@@ -134,9 +132,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
         </CardHeader>
         <CardContent className="space-y-4">
           {integrationStatus?.error && (
-            <Alert icon={AlertCircle}>
-              <Alert.Description>{integrationStatus.error}</Alert.Description>
-            </Alert>
+            <Banner variant="error">{integrationStatus.error}</Banner>
           )}
 
           <div className="space-y-2">

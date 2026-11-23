@@ -81,7 +81,7 @@ const assignmentsFor = (principalId: string) => {
   if (principalId === "apiKey/key_u")
     return [orgAssignment(principal, "ADMIN")];
   if (principalId === "apiKey/key_ug")
-    return [orgAssignment(principal, "AI_GATEWAY")];
+    return [orgAssignment(principal, "AI_GATEWAY_INFERENCE")];
   if (principalId === `user/${MEMBER_USER}`)
     return [orgAssignment(principal, "MEMBER")];
   if (principalId === `user/${ADMIN_USER}`)
@@ -346,6 +346,9 @@ describe("expansion table: scope USER, privateKey", () => {
     expect(
       authorize(ctx, TENANT, "gateway:invoke", OrganizationId(ORG)).success,
     ).toBe(true);
+    expect(
+      authorize(ctx, TENANT, "gateway:read", OrganizationId(ORG)).success,
+    ).toBe(false);
     expect(authorize(ctx, TENANT, "prompts:read", ProjectId(PRJ)).success).toBe(
       false,
     );
@@ -373,6 +376,30 @@ describe("expansion table: scope USER, privateKey", () => {
     expect(authorize(ctx, TENANT, "prompts:read", ProjectId(PRJ)).success).toBe(
       false,
     );
+  });
+
+  it("loads the user's and the key's roles concurrently", async () => {
+    const prisma = mockPrisma(orgRow());
+    let inFlight = 0;
+    let maxInFlight = 0;
+    Object.assign(prisma.roleAssignment, {
+      findMany: async ({ where }: { where: { principalId: string } }) => {
+        maxInFlight = Math.max(maxInFlight, ++inFlight);
+        await new Promise((resolve) => setImmediate(resolve));
+        inFlight--;
+        return assignmentsFor(where.principalId);
+      },
+    });
+    const resolved = await new ContextResolver(
+      new OrganizationRepository(prisma),
+      prisma,
+    ).resolve({ authorization: "privateKey", apiKey: userKey() });
+    if (!resolved.success) throw resolved.error;
+    expect(maxInFlight).toBe(2);
+    expect(resolved.context.policies.map((set) => set[0]?.roleId)).toEqual([
+      "system/MEMBER",
+      "system/ADMIN",
+    ]);
   });
 
   it("denies a user key without a user", async () => {

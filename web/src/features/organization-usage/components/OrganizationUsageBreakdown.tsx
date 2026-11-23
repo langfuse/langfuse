@@ -20,6 +20,7 @@ import {
 import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { USAGE_BREAKDOWN_MAX_RANGE_MS } from "@/src/features/organization-usage/constants/usageBreakdown";
 import { api } from "@/src/utils/api";
+import { formatLocalIsoDate } from "@/src/utils/dates";
 import { numberFormatter } from "@/src/utils/numbers";
 import {
   toAbsoluteTimeRange,
@@ -45,6 +46,7 @@ const UNIT_TYPE_LABELS: Record<
   traces: "Traces",
   observations: "Observations",
   scores: "Scores",
+  topicFacetSummaries: "Facet summaries",
 };
 
 const GRANULARITY_LABELS: Record<UsageBreakdown["granularity"], string> = {
@@ -246,6 +248,19 @@ export const OrganizationUsageBreakdown = ({ orgId }: { orgId: string }) => {
       <div className="h-80">
         <VisualizationFrame content={content} />
       </div>
+      {breakdown.data?.usageRecordedFrom &&
+        absoluteTimeRange &&
+        absoluteTimeRange.from < new Date(breakdown.data.usageRecordedFrom) && (
+          <p className="text-muted-foreground text-xs">
+            Usage is recorded from{" "}
+            {formatLocalIsoDate(
+              new Date(breakdown.data.usageRecordedFrom),
+              true,
+              "day",
+            )}{" "}
+            (UTC). Earlier periods show no usage.
+          </p>
+        )}
     </Card>
   );
 };

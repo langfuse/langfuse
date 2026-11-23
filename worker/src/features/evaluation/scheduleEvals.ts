@@ -12,21 +12,18 @@ import {
 } from "./observationEval/scheduleObservationEvals";
 import type { ObservationForEval } from "./observationEval/types";
 import type { EvalRules } from "./fetchEvalRules";
-import {
-  getTraceBatchExperimentRuleIds,
-  scheduleTraceTranscriptEvals,
-} from "./traceTranscriptEval/scheduleTraceTranscriptEvals";
-import { prepareTraceBatchRules } from "../traceBatching/traceBatchRules";
+import { scheduleTraceTranscriptEvals } from "./traceTranscriptEval/scheduleTraceTranscriptEvals";
+import { prepareTraceDispatchRules } from "../traceDispatch/traceDispatchRules";
 import {
   recordTraceActivity,
   type TraceSpanActivity,
-} from "../traceBatching/traceRuleRecording";
+} from "../traceDispatch/traceRuleRecording";
 
 /** Prepare rules and own the trace-activity buffer for one ingestion batch. */
 export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
   // The caller flushes this buffer before returning.
   const traceActivity: TraceSpanActivity[] = [];
-  const traceTranscriptRules = prepareTraceBatchRules(
+  const traceTranscriptRules = prepareTraceDispatchRules(
     projectId,
     rules.traceTranscriptRules,
   ).catch((error) => {
@@ -103,9 +100,7 @@ export async function scheduleEvals({
 }): Promise<readonly string[] | undefined> {
   if (isInternalEvalEnvironment(environment)) traceActivity = undefined;
   let matchedRuleIds: readonly string[] | undefined =
-    traceActivity && rules.traceTranscriptRules.length === 0
-      ? getTraceBatchExperimentRuleIds(traceActivity.traceId)
-      : undefined;
+    traceActivity && rules.traceTranscriptRules.length === 0 ? [] : undefined;
   if (
     rules.observationRules.length === 0 &&
     !(traceActivity && rules.traceTranscriptRules.length > 0)

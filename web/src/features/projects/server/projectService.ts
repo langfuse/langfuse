@@ -3,6 +3,7 @@ import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/
 import { ForbiddenError, InternalServerError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
+  clearModelCacheForProject,
   DefaultEvalModelService,
   ProjectDeleteQueue,
   QueueJobs,
@@ -142,6 +143,8 @@ export class ProjectService {
     await Promise.all([
       DefaultEvalModelService.reconcileConnectionForProject(projectId),
       reconcileTopicsConnectionsForProject(projectId),
+      // Cached model matches may hold the source organization's definitions.
+      clearModelCacheForProject(projectId),
     ]);
   }
 

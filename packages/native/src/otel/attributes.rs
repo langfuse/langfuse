@@ -48,6 +48,7 @@ pub struct EventAttributes<'a> {
     pub scope: &'a JsonObject,
     pub cache: &'a mut JsonParseCache,
     pub decode_metadata: bool,
+    pub evaluation_fields: &'a mut Option<Box<JsonObject>>,
 }
 
 impl EventAttributes<'_> {
@@ -59,10 +60,20 @@ impl EventAttributes<'_> {
         }
     }
 
-    pub fn text(&self, sources: &[AttributeSource]) -> Option<String> {
-        sources
-            .iter()
-            .find_map(|source| self.get(*source).and_then(value_as_string))
+    pub fn text(&mut self, column: &str, sources: &[AttributeSource]) -> Option<String> {
+        for source in sources {
+            let (map, key) = match *source {
+                AttributeSource::Span(key) => (self.span, key),
+                AttributeSource::Resource(key) => (self.resource, key),
+                AttributeSource::Scope(key) => (self.scope, key),
+            };
+            let Some(value) = map.get(key).filter(|value| !value.is_null()) else {
+                continue;
+            };
+            retain_evaluation_value(self.evaluation_fields, column, value);
+            return value_as_string(value);
+        }
+        None
     }
 
     pub fn truthy_text(&self, sources: &[AttributeSource]) -> Option<String> {
@@ -73,12 +84,9 @@ impl EventAttributes<'_> {
     }
 
     pub fn scope_name(&self, sources: &[AttributeSource]) -> Option<String> {
-        sources.iter().find_map(|source| {
-            self.get(*source)?
-                .as_str()
-                .filter(|text| !text.is_empty())
-                .map(str::to_owned)
-        })
+        sources
+            .iter()
+            .find_map(|source| self.get(*source)?.as_str().map(str::to_owned))
     }
 
     pub fn identity(&mut self, sources: &[AttributeSource]) -> Option<String> {
@@ -109,6 +117,20 @@ impl EventAttributes<'_> {
             }
         }
         None
+    }
+}
+
+/// Storage accepts coerced text, but evaluation validates the original field types.
+/// Retain only values whose types would otherwise be hidden by stringification.
+pub(crate) fn retain_evaluation_value(
+    fields: &mut Option<Box<JsonObject>>,
+    column: &str,
+    value: &Value,
+) {
+    if !matches!(value, Value::String(_) | Value::Null) {
+        fields
+            .get_or_insert_with(Default::default)
+            .insert(column.into(), value.clone());
     }
 }
 
@@ -800,6 +822,7 @@ mod tests {
                 scope: &JsonObject::new(),
                 cache: &mut cache,
                 decode_metadata: false,
+                evaluation_fields: &mut None,
             };
             assert_eq!(
                 attributes

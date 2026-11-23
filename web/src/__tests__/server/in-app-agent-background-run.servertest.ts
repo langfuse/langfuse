@@ -39,6 +39,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 import type * as SharedServerModule from "@langfuse/shared/src/server";
 import type * as PersistenceModule from "@langfuse/shared/in-app-agent/server/persistence";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const enqueuedJobs: Array<{ name: string; payload: unknown; jobId?: string }> =
   [];
@@ -170,40 +171,24 @@ describe("in-app agent background runs", () => {
       data: { id: userId, email: `${userId}@example.com` },
     });
 
-    const session: Session = {
-      expires: "1",
+    const session: Session = createSession({
       user: {
         id: userId,
         name: "Agent User",
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: setup.orgId,
-            role: "OWNER",
-            plan,
-            cloudConfig: undefined,
-            name: "Test Organization",
-            metadata: {},
-            aiFeaturesEnabled: true,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: setup.projectId,
-                role: "ADMIN",
-                name: "Test Project",
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags({ templateFlag: false, ...flags }),
       },
-      environment: {} as any,
-    };
+      organizations: [
+        {
+          id: setup.orgId,
+          role: "OWNER",
+          plan,
+          aiFeaturesEnabled: true,
+          projects: [
+            { id: setup.projectId, role: "ADMIN", retentionDays: null },
+          ],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
 
@@ -1534,40 +1519,23 @@ describe("in-app agent background runs", () => {
       data: { id: intruderId, email: `${intruderId}@example.com` },
     });
 
-    const intruderSession: Session = {
-      expires: "1",
+    const intruderSession: Session = createSession({
       user: {
         id: intruderId,
         name: "Intruder",
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: owner.orgId,
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            name: "Test Organization",
-            metadata: {},
-            aiFeaturesEnabled: true,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: owner.projectId,
-                role: "ADMIN",
-                name: "Test Project",
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags({ templateFlag: false }),
       },
-      environment: {} as any,
-    };
+      organizations: [
+        {
+          id: owner.orgId,
+          role: "OWNER",
+          aiFeaturesEnabled: true,
+          projects: [
+            { id: owner.projectId, role: "ADMIN", retentionDays: null },
+          ],
+        },
+      ],
+    });
 
     const intruder = inAppAgentRouter.createCaller({
       ...createInnerTRPCContext({ session: intruderSession, headers: {} }),

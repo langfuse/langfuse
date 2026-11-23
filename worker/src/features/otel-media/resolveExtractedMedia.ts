@@ -27,7 +27,7 @@ import {
 
 const MEDIA_PAGE_SIZE = 4_096;
 
-type CachedMediaUpload = {
+export type CachedMediaUpload = {
   mediaId: string;
   outcome: "uploaded" | "reused";
   byteLength: number;
@@ -293,7 +293,7 @@ export async function resolveExtractedMedia(params: {
 }
 
 /** Record outcomes for media discovered by the native extractor. */
-function recordExtractedMediaUpload(
+export function recordExtractedMediaUpload(
   outcome: "uploaded" | "reused" | "failed",
   kind: string,
   writePath: OtelMediaWritePath,

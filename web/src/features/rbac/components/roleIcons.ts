@@ -27,4 +27,5 @@ export const roleIcons: Record<SystemRole, IconComponent> = {
   INGEST: Radio,
   APPLICATION: BotMessageSquare,
   AI_GATEWAY: Network,
+  AI_GATEWAY_INFERENCE: Network,
 };

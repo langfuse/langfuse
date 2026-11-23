@@ -251,20 +251,18 @@ export function MobileTopicsView({
           </section>
         </Tabs.Content>
         <Tabs.Content value="visualization" layout="fill">
-          {view !== "grid" ? (
-            <div className="flex shrink-0 items-center border-b p-2">
-              <div className="w-40">
-                <SelectInput
-                  aria-label="Visualization"
-                  placeholder="Visualization"
-                  value={view}
-                  onValueChange={onViewChange}
-                  options={[...VISUALIZATIONS]}
-                  noCapture
-                />
-              </div>
+          <div className="flex shrink-0 items-center border-b p-2">
+            <div className="w-40">
+              <SelectInput
+                aria-label="Visualization"
+                placeholder="Visualization"
+                value={view}
+                onValueChange={onViewChange}
+                options={[...VISUALIZATIONS]}
+                noCapture
+              />
             </div>
-          ) : null}
+          </div>
           <MobileTopicVisualization
             facet={facet}
             treemapTopics={topics}

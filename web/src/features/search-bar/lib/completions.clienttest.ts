@@ -17,7 +17,11 @@ import {
   toObservedOptions,
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
-import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
+import {
+  createFieldRegistry,
+  EVENTS_FIELD_REGISTRY,
+  fieldRegistryFromColumns,
+} from "./fields";
 import { validateQuery } from "./validate";
 
 const OBSERVED: ObservedOptions = {
@@ -1112,6 +1116,115 @@ describe("planInputCompletions", () => {
       expect(r.next).toBe("toolNames:mcp ");
       expect(r.caret).toBe("toolNames:mcp ".length);
       expect(r.keepOpen).toBe(true);
+    });
+
+    it("suggests closed enum values from typed text before options load", () => {
+      // Observation type and level are closed enums, so `generation` must
+      // offer type:GENERATION even when the facet has not loaded (or the
+      // project has no generations yet). Plural and prefix forms count.
+      for (const typed of ["generation", "gen", "generations"]) {
+        const p = plan(typed, typed.length, { observed: undefined });
+        const labels =
+          p?.sections
+            .find((section) => section.title === SECTION_MATCHING_FILTERS)
+            ?.options.map((option) => option.label) ?? [];
+        expect(labels, typed).toContain("type:GENERATION");
+        expect(p?.loading, typed).toBe(false);
+      }
+
+      const errors = plan("errors", 6, { observed: undefined });
+      expect(flattenOptions(errors).map((option) => option.label)).toContain(
+        "level:ERROR",
+      );
+
+      const picked = plan("generation", 10, { observed: undefined });
+      const option = flattenOptions(picked).find(
+        (candidate) => candidate.label === "type:GENERATION",
+      );
+      expect(option).toBeDefined();
+      const applied = applyPick(
+        option as Exclude<CompletionOption, { kind: "recent" | "preset" }>,
+        "generation",
+        picked!,
+      );
+      expect(applied.next).toBe("type:GENERATION ");
+
+      // A value that is not a closed enum stays a loading row until the
+      // facet arrives, rather than an empty "no suggestions" popover.
+      const pending = plan("production", 10, { observed: undefined });
+      expect(pending?.loading).toBe(true);
+      expect(
+        pending?.sections.find(
+          (section) => section.title === SECTION_MATCHING_FILTERS,
+        ),
+      ).toBeUndefined();
+      const loaded = plan("productions", 11);
+      expect(
+        loaded?.sections
+          .find((section) => section.title === SECTION_MATCHING_FILTERS)
+          ?.options.map((option) => option.label),
+      ).toContain("environment:production");
+
+      // The same catalog is copied from a view's static column options, so
+      // a filter bar with no free-text lane (evaluator rule filters) offers
+      // the value too.
+      const registry = fieldRegistryFromColumns(
+        [
+          {
+            name: "Type",
+            id: "type",
+            type: "stringOptions",
+            internal: "type",
+            options: [{ value: "GENERATION" }, { value: "SPAN" }],
+          },
+          {
+            name: "Environment",
+            id: "environment",
+            type: "stringOptions",
+            internal: "environment",
+            options: [],
+          },
+        ],
+        { id: "evaluationRules", allowFreeText: false },
+      );
+      const fromColumns = planInputCompletions(
+        {
+          input: "generations",
+          caret: "generations".length,
+          observed: undefined,
+          recents: [],
+          currentQueryText: "generations",
+        },
+        registry,
+      );
+      expect(
+        flattenOptions(fromColumns).map((option) => option.label),
+      ).toContain("type:GENERATION");
+      expect(fromColumns?.loading).toBe(false);
+    });
+
+    it("ranks an observed value ahead of an unseen closed-enum value", () => {
+      // `type:G` prefix-matches both the rows that exist (GENERATION) and
+      // closed-enum values that do not (GUARDRAIL). Enter highlights the
+      // first value, so the observed one has to lead.
+      const p = plan("type:G", "type:G".length, {
+        observed: { type: [{ value: "GENERATION", count: 4 }] },
+      });
+      expect(p?.autoHighlight).toBe(true);
+      expect(flattenOptions(p)[0]).toMatchObject({
+        kind: "value",
+        value: "GENERATION",
+      });
+    });
+
+    it("settles a failed facet load instead of leaving a loading row", () => {
+      // A query that is no longer pending and returned no payload is settled
+      // empty, not still loading. A bare word must not spin forever.
+      expect(toObservedOptions(undefined, true)).toBeUndefined();
+      const settled = toObservedOptions(undefined, false);
+      expect(settled).toEqual({});
+      const p = plan("production", "production".length, { observed: settled });
+      expect(p?.loading).toBe(false);
     });
   });
 });

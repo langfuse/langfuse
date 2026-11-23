@@ -18,19 +18,17 @@ export function AgentToolsBanner() {
           <Callout
             variant="info"
             align="middle"
+            icon={Bot}
             actions={[{ type: "link", label: "Learn more", href: DOCS_HREF }]}
             onDismiss={onDismiss}
           >
-            <div className="flex items-start gap-2 sm:items-center">
-              <Bot size="base" __rawClassName="mt-0.5 sm:mt-0" />
-              <span>
-                <span className="font-bold">
-                  Langfuse works great with your AI coding agents.
-                </span>{" "}
-                Connect Claude Code, Codex, and other agents to your data with
-                the Langfuse Agent Skill, MCP server, and CLI.
-              </span>
-            </div>
+            <span>
+              <span className="font-bold">
+                Langfuse works great with your AI coding agents.
+              </span>{" "}
+              Connect Claude Code, Codex, and other agents to your data with the
+              Langfuse Agent Skill, MCP server, and CLI.
+            </span>
           </Callout>
         </div>
       )}

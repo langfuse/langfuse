@@ -1,9 +1,9 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { type RouterOutputs } from "@/src/utils/api";
 import { TopicMapExplorer } from "./TopicMapExplorer";
 import { ScatterMapLoading } from "./ScatterMapLoading";
 
-/** Scatter (new): the original map engine with the new colors, hover card and pinned selection. */
+/** The Scatter view's map, with its error, loading and no-projection states. */
 export function ScatterMap({
   query,
   topics,
@@ -18,13 +18,9 @@ export function ScatterMap({
 }: ScatterMapProps) {
   if (query.error)
     return (
-      <Alert variant="destructive" size="sm">
-        <Alert.Description>
-          <p className="break-words">
-            Map could not load: {query.error.message}
-          </p>
-        </Alert.Description>
-      </Alert>
+      <Banner variant="error">
+        <p className="break-words">Map could not load: {query.error.message}</p>
+      </Banner>
     );
   if (!query.data) return <ScatterMapLoading fillContainer={fillContainer} />;
   if (query.data.status !== "ready")
@@ -62,7 +58,7 @@ type ScatterMapProps = {
   matchingTraceIds?: ReadonlySet<string>;
   fillContainer?: boolean;
   previewOnSelect?: boolean;
-  /** Keeps the selected trace's summary card open after a click. */
+  /** Keeps the selected trace's summary card open, e.g. while its peek shows. */
   pinSelection?: boolean;
 };
 

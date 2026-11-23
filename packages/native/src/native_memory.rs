@@ -1,4 +1,14 @@
-//! V8 accounting that follows Rust ownership, including in-flight libuv tasks.
+//! Report Rust allocation estimates to V8's external-memory counter.
+//!
+//! `ExtractedBatch` and `Pipeline` use separate `NativeMemory` trackers.
+//! `PreparedEvent` handles share the pipeline tracker through `Arc`; dropping
+//! the final tracker reference subtracts its remaining estimate from V8's
+//! external-memory counter. `retained` estimates row and field allocations.
+//! Worker threads send adjustments through a weak callback on the JS thread.
+
+mod retained;
+
+pub(crate) use retained::{retained_size, RetainedSize};
 
 use std::sync::{
     atomic::{AtomicI64, Ordering},
@@ -9,6 +19,12 @@ use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi::{Env, Result, Status};
 
 type MemoryAdjuster = ThreadsafeFunction<i64, (), (), Status, false, true>;
+
+fn record_retained_bytes(delta: i64) {
+    metrics::gauge!("langfuse.native.otel.retained_bytes").increment(delta as f64);
+    // The OTEL rollout dashboard uses the original name for total accounted bytes.
+    metrics::gauge!("langfuse.native.otel_media.retained_bytes").increment(delta as f64);
+}
 
 pub(crate) struct NativeMemory {
     bytes: AtomicI64,
@@ -21,7 +37,7 @@ impl NativeMemory {
         let bytes = bytes as i64;
         let total = env.adjust_external_memory(bytes)?;
         tracing::trace!(delta = bytes, total, "V8 external memory adjusted");
-        metrics::gauge!("langfuse.native.otel_media.retained_bytes").increment(bytes as f64);
+        record_retained_bytes(bytes);
         Ok(Self {
             bytes: AtomicI64::new(bytes),
             adjust,
@@ -45,7 +61,7 @@ impl NativeMemory {
         if delta == 0 {
             return;
         }
-        metrics::gauge!("langfuse.native.otel_media.retained_bytes").increment(delta as f64);
+        record_retained_bytes(delta);
         // Closing is expected once the environment stops accepting callbacks.
         let status = self
             .adjust
