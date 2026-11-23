@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
+import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
@@ -24,17 +26,11 @@ const createUser = async () => {
 };
 
 const createKey = async (orgId: string, userId: string | null) => {
-  const id = randomUUID();
-  await prisma.apiKey.create({
-    data: {
-      id,
-      publicKey: `pk-lf-${id}`,
-      hashedSecretKey: `hashed-${id}`,
-      displaySecretKey: "sk-lf-...test",
-      scope: "ORGANIZATION",
-      orgId,
-      userId,
-    },
+  const { id } = await createApiKey(prisma, {
+    tenant: OrganizationId(orgId),
+    scope: userId ? UserId(userId) : OrganizationId(orgId),
+    role: SystemRoleId("AI_GATEWAY_INFERENCE"),
+    createdBy: "system",
   });
   return id;
 };

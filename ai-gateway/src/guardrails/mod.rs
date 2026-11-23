@@ -99,9 +99,10 @@ impl Outcome {
     }
 }
 
-/// Checks `body`'s last turn against `guardrails`. A request that cannot be
-/// scanned, because a conversation member appears twice or the rules failed to
-/// compile, counts as matching every guardrail, so `block` guardrails fail closed.
+/// Checks `body`'s last turn against `guardrails`. Guardrails fail open: if the
+/// rules failed to compile, nothing matches. A conversation member that appears
+/// twice is not a failure but a way to show the provider other text than the
+/// gateway scans, so it counts as matching every guardrail.
 pub(crate) fn check(
     guardrails: &[Guardrail],
     api_format: ApiFormat,
@@ -126,7 +127,7 @@ pub(crate) fn check(
                 wanted.union(*matches)
             });
         let texts = last_turn(api_format, body, scanned);
-        presets::scan(texts.iter().map(AsRef::as_ref), wanted).unwrap_or(Matches::ALL)
+        presets::scan(texts.iter().map(AsRef::as_ref), wanted).unwrap_or_default()
     };
     Outcome {
         findings: active
@@ -211,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn an_unscannable_request_matches_every_guardrail() {
+    fn a_duplicated_conversation_member_matches_every_guardrail() {
         let body = r#"{"messages":[{"role":"user","content":"hello"}]}"#;
         let mut members = scanned(body, &["messages"]);
         members.mark_duplicated();

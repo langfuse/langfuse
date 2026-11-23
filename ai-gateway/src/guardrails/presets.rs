@@ -143,7 +143,7 @@ static ENGINE: LazyLock<Option<Engine>> = LazyLock::new(|| {
 });
 
 /// The presets any of `texts` matches, stopping once all of `wanted` matched.
-/// `None` when the presets could not compile, so callers fail closed.
+/// `None` when the presets could not compile.
 pub(crate) fn scan<'a>(
     texts: impl IntoIterator<Item = &'a str>,
     wanted: Matches,
