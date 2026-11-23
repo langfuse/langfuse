@@ -3,6 +3,7 @@ import { assertUnreachable } from "@langfuse/shared";
 export const userFeaturePreviewFlags = [
   "sessionViewV2",
   "sessionViewV2Timeline",
+  "unifiedTraceSessionView",
 ] as const;
 
 export type UserFeaturePreviewFlag = (typeof userFeaturePreviewFlags)[number];
@@ -19,7 +20,6 @@ export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 const internalFeaturePreviewFlags = [
   "langfuseTopics",
   "traceTranscriptEvals",
-  "unifiedTraceSessionView",
 ] as const;
 
 export const personalFeaturePreviewFlags = [
@@ -81,7 +81,11 @@ export const isFeaturePreviewAvailable = (
   flag: FeaturePreviewFlag,
   context: FeaturePreviewAvailabilityContext,
 ) => {
-  if (flag === "sessionViewV2" || flag === "sessionViewV2Timeline") {
+  if (
+    flag === "sessionViewV2" ||
+    flag === "sessionViewV2Timeline" ||
+    flag === "unifiedTraceSessionView"
+  ) {
     return context.v4BetaEnabled;
   }
 
