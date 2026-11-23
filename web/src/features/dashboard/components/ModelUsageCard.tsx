@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-style-props */
+import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import {
   extractTimeSeriesData,
@@ -53,6 +54,7 @@ export const ModelUsageCard = ({
     onActiveKeyChange: (key: string | undefined) => void;
   };
 }) => {
+  const track = useDashboardStudioCapture(metricsVersion === "v2");
   const {
     allModels,
     selectedModels,
@@ -351,7 +353,10 @@ export const ModelUsageCard = ({
     },
   ] as const;
 
-  const { selectedItem: item, tabs } = useDashboardCardTabs(data);
+  const { selectedItem: item, tabs } = useDashboardCardTabs(data, {
+    presetId: "home-model-usage",
+    isV4: metricsVersion === "v2",
+  });
   const chartData = useMemo(
     () => timeSeriesToDataPoints(item.data),
     [item.data],
@@ -360,6 +365,15 @@ export const ModelUsageCard = ({
   return (
     <div className={className}>
       <WidgetChartCard
+        onLegendInteraction={(event) =>
+          track("legend_interacted", {
+            widgetKind: "preset",
+            presetId: "home-model-usage",
+            scope: "display",
+            interaction: event.action,
+            selectedCount: event.selectedCount,
+          })
+        }
         chartType="LINE_TIME_SERIES"
         actions={actions}
         title="Model Usage"
@@ -381,7 +395,21 @@ export const ModelUsageCard = ({
               value: model,
               label: model || "none",
             })),
-            onValueChange: setSelectedModels,
+            onValueChange: (values) => {
+              if (
+                values.length === selectedModels.length &&
+                values.every((value, index) => value === selectedModels[index])
+              )
+                return;
+              setSelectedModels(values);
+              track("filter_applied", {
+                widgetKind: "preset",
+                presetId: "home-model-usage",
+                controlId: "models",
+                selectedCount: values.length,
+                scope: "widget",
+              });
+            },
             placeholder: "Select models",
             searchPlaceholder: "Search models...",
             emptyMessage: "No model found.",

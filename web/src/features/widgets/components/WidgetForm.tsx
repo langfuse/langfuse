@@ -25,7 +25,7 @@ import {
   mapWidgetUiTableFilterToView,
   partitionWidgetUiTableFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   useController,
   useForm,
@@ -1566,11 +1566,13 @@ export function useWidgetFormState({
   projectId,
   onSave,
   widgetId,
+  initialDateRange,
 }: {
   initialValues: WidgetInitialValues;
   projectId: string;
   onSave: (widgetData: WidgetSavePayload) => void;
   widgetId?: string;
+  initialDateRange?: { from: Date; to: Date };
 }) {
   const { isV4 } = useReadPath();
 
@@ -1667,18 +1669,21 @@ export function useWidgetFormState({
     defaultRelativeAggregation: "last7Days",
     persistAsDefault: false,
   });
+  const [initialRange, setInitialRange] = useState(initialDateRange);
   const dateRange = useMemo(
-    () => toAbsoluteTimeRange(timeRange) ?? undefined,
-    [timeRange],
+    () => initialRange ?? toAbsoluteTimeRange(timeRange) ?? undefined,
+    [initialRange, timeRange],
   );
   const selectedOption = useMemo(() => {
+    if (initialRange) return "custom" as const;
     if ("range" in timeRange) return timeRange.range;
     return "custom" as const;
-  }, [timeRange]);
+  }, [initialRange, timeRange]);
   const setDateRangeAndOption = (
     option: DashboardDateRangeOptions,
     range?: { from: Date; to: Date },
   ) => {
+    setInitialRange(undefined);
     if (option === "custom") {
       if (range) setTimeRange({ from: range.from, to: range.to });
     } else {

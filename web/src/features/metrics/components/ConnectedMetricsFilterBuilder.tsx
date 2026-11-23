@@ -79,6 +79,8 @@ type MetricsFilterFetcherProps = {
 
 type ConnectedMetricsFilterBuilderProps = MetricsFilterFetcherProps & {
   version: ViewVersion;
+  compact?: boolean;
+  onValidityChange?: (valid: boolean) => void;
 };
 
 /** Connected filter builder for existing callers. */
@@ -89,6 +91,8 @@ export function ConnectedMetricsFilterBuilder({
   dateRange,
   filters,
   onChange,
+  onValidityChange,
+  compact = true,
 }: ConnectedMetricsFilterBuilderProps) {
   const data = useMetricsFilterBuilderData({
     version,
@@ -102,6 +106,8 @@ export function ConnectedMetricsFilterBuilder({
       view={view}
       filters={filters}
       onChange={onChange}
+      onValidityChange={onValidityChange}
+      compact={compact}
       {...data}
     />
   );

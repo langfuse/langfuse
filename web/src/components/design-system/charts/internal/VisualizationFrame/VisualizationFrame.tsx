@@ -19,6 +19,14 @@ import { Button } from "../../../Button/Button";
 import { Spinner } from "../../../Spinner/Spinner";
 import { CartesianChart } from "../../../internal/charts/CartesianChart";
 
+type PanelChartVisualization =
+  | ({ type: "line" } & SeriesOverflowProps & ComponentProps<typeof LineChart>)
+  | ({ type: "area" } & SeriesOverflowProps & ComponentProps<typeof AreaChart>)
+  | ({ type: "stacked-bar" } & SeriesOverflowProps &
+      ComponentProps<typeof StackedBarChart>)
+  | ({ type: "bar" } & ComponentProps<typeof BarChart>)
+  | ({ type: "horizontal-bar" } & ComponentProps<typeof HorizontalBarChart>);
+
 export type Visualization =
   | ({ type: "loading" } & ChartLoadingStateProps)
   | { type: "empty"; message?: string; description?: string; href?: string }
@@ -33,12 +41,11 @@ export type Visualization =
       actionLabel: string;
       onConfirm: () => void;
     }
-  | ({ type: "line" } & SeriesOverflowProps & ComponentProps<typeof LineChart>)
-  | ({ type: "area" } & SeriesOverflowProps & ComponentProps<typeof AreaChart>)
-  | ({ type: "bar" } & ComponentProps<typeof BarChart>)
-  | ({ type: "horizontal-bar" } & ComponentProps<typeof HorizontalBarChart>)
-  | ({ type: "stacked-bar" } & SeriesOverflowProps &
-      ComponentProps<typeof StackedBarChart>)
+  | PanelChartVisualization
+  | {
+      type: "panels";
+      panels: { id: string; label: string; content: PanelChartVisualization }[];
+    }
   | ({ type: "grouped-bar" } & SeriesOverflowProps &
       ComponentProps<typeof GroupedBarChart>)
   | ({ type: "pie" } & ComponentProps<typeof PieChart>)
@@ -66,6 +73,8 @@ export function VisualizationFrame({ content }: { content: Visualization }) {
     )
       return <ChartStatusState content={content} />;
     if (content.type === "loading") return <ChartLoadingState {...content} />;
+    if (content.type === "panels")
+      return <ChartPanels panels={content.panels} />;
     if (content.type === "line") return <LineChart {...content} />;
     if (content.type === "area") return <AreaChart {...content} />;
     if (content.type === "bar") return <BarChart {...content} />;
@@ -89,6 +98,42 @@ export function VisualizationFrame({ content }: { content: Visualization }) {
           </p>
         )}
       <div className="flex min-h-0 flex-1 flex-col">{renderedContent}</div>
+    </div>
+  );
+}
+
+function ChartPanels({
+  panels,
+}: Pick<Extract<Visualization, { type: "panels" }>, "panels">) {
+  const [activeKey, setActiveKey] = useState<string>();
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto"
+      aria-label="Charts by unit"
+    >
+      {panels.map((panel) => (
+        <section
+          key={panel.id}
+          className="flex min-h-48 flex-1 flex-col gap-1"
+          aria-label={panel.label}
+        >
+          <h4 className="text-muted-foreground shrink-0 text-xs font-medium">
+            {panel.label}
+          </h4>
+          <VisualizationFrame
+            content={
+              panel.content.type === "line" ||
+              panel.content.type === "area" ||
+              panel.content.type === "stacked-bar"
+                ? {
+                    ...panel.content,
+                    sync: { activeKey, onActiveKeyChange: setActiveKey },
+                  }
+                : panel.content
+            }
+          />
+        </section>
+      ))}
     </div>
   );
 }

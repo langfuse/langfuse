@@ -129,9 +129,15 @@ export interface ChartProps {
   accessibilityLayer?: boolean;
   metricFormatter?: MetricFormatterFunction;
   legendPosition?: LegendPosition;
+  /** Opt in to wrapping short legends; single-row overflow remains the default. */
+  legendLayout?: "overflow" | "wrap";
   legendSummary?: LegendSummaryMode;
   /** How a legend click behaves (focus-vs-toggle). Defaults to `"highlight"`. */
   legendInteraction?: LegendInteraction;
+  onLegendInteraction?: (event: {
+    action: "show" | "hide" | "isolate" | "reset";
+    selectedCount: number;
+  }) => void;
   /**
    * Cap the number of series drawn by default (top-N by magnitude); the rest
    * start hidden but remain toggleable from the legend. Only meaningful with

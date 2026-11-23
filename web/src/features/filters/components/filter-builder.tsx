@@ -445,6 +445,7 @@ export function InlineFilterBuilder({
   columns,
   filterState,
   onChange,
+  onValidityChange,
   columnIdentifier = "name",
   disabled,
   columnsWithCustomSelect,
@@ -462,6 +463,8 @@ export function InlineFilterBuilder({
   onChange:
     | Dispatch<SetStateAction<FilterState>>
     | ((newState: FilterState) => void);
+  /** Reports unfinished draft rows to editors that require complete conditions before applying. */
+  onValidityChange?: (valid: boolean) => void;
   /** Which column field to persist in filter.column: 'id' for stable refs, 'name' for legacy compatibility */
   columnIdentifier?: ColumnIdentifier;
   disabled?: boolean;
@@ -514,6 +517,20 @@ export function InlineFilterBuilder({
       (f) => singleFilter.safeParse(f).success,
     ) as FilterState;
     _setWipFilterState(newState);
+    onValidityChange?.(
+      newState.every(
+        (filter) =>
+          singleFilter.safeParse(filter).success &&
+          Boolean(filter.column) &&
+          (![
+            "stringObject",
+            "numberObject",
+            "booleanObject",
+            "categoryOptions",
+          ].includes(filter.type ?? "") ||
+            ("key" in filter && Boolean(filter.key))),
+      ),
+    );
     onChange(validFilters);
   };
 

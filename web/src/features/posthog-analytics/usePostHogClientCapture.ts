@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
 import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
+import type { DashboardStudioEventMap } from "@/src/features/dashboard-studio/analytics";
 import type {
   ToastInteractionEventProperties,
   ToastShownEventProperties,
@@ -322,6 +323,41 @@ const events = {
     "delete_dashboard_form_open",
     "delete_dashboard_button_click",
   ],
+  dashboard_studio: [
+    "report_section",
+    "report_open_editor",
+    "report_edit_note",
+    "report_run",
+    "opened",
+    "add_menu_opened",
+    "template_selected",
+    "chart_added",
+    "text_added",
+    "editor_opened",
+    "editor_cancelled",
+    "configuration_changed",
+    "series_added",
+    "series_removed",
+    "view_changed",
+    "legend_interacted",
+    "filter_applied",
+    "widget_saved",
+    "save_failed",
+    "widget_deleted",
+    "widget_duplicated",
+    "widget_copied",
+    "widget_pasted",
+    "widget_moved",
+    "widget_resized",
+    "migration_previewed",
+    "migration_applied",
+    "migration_undone",
+    "query_inspected",
+    "date_range_changed",
+    "changes_saved",
+    "changes_undone",
+    "changes_discarded",
+  ],
   monitors: ["create", "delete_form_open", "delete_monitor_button_click"],
   datasets: [
     "delete_form_open",
@@ -576,6 +612,7 @@ type EventName = {
 type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
   AiGatewayEventMap &
+  DashboardStudioEventMap &
   ToastEventMap;
 
 type EventProperties = TypedEventMap & {

@@ -1,6 +1,7 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
 import { singleFilterList } from "../../../";
+import { StudioWidgetConfigSchema } from "../../../domain/dashboard-studio";
 import {
   persistedWidgetViewToQueryView,
   type views,
@@ -118,9 +119,34 @@ export const DashboardDefinitionPresetWidgetSchema = z.object({
   y_size: z.number().int().positive(),
 });
 
+const DashboardDefinitionQueryWidgetSchema = z.object({
+  type: z.literal("query"),
+  id: z.string(),
+  /** A report can compare one or more saved queries with the referenced preset placement. */
+  compareWith: z.string().optional(),
+  config: StudioWidgetConfigSchema,
+  x: z.number().int().gte(0),
+  y: z.number().int().gte(0),
+  x_size: z.number().int().positive(),
+  y_size: z.number().int().positive(),
+});
+
+const DashboardDefinitionTextWidgetSchema = z.object({
+  type: z.literal("text"),
+  id: z.string(),
+  title: z.string().max(200),
+  content: z.string().max(10000),
+  x: z.number().int().gte(0),
+  y: z.number().int().gte(0),
+  x_size: z.number().int().positive(),
+  y_size: z.number().int().positive(),
+});
+
 export const DashboardDefinitionWidgetSchema = z.discriminatedUnion("type", [
   DashboardDefinitionWidgetWidgetSchema,
   DashboardDefinitionPresetWidgetSchema,
+  DashboardDefinitionQueryWidgetSchema,
+  DashboardDefinitionTextWidgetSchema,
 ]);
 
 export const DashboardDefinitionSchema = z.object({

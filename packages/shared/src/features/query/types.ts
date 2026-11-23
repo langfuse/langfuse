@@ -189,10 +189,20 @@ export function getValidAggregationsForMeasureType(
   return ["count", "uniq"];
 }
 
-export const metric = z.object({
-  measure: z.string(),
-  aggregation: metricAggregations,
-});
+export const metric = z
+  .object({
+    measure: z.string(),
+    aggregation: metricAggregations,
+    // A parameterized percentile retains the metric's stable output alias.
+    percentile: z.number().positive().lt(100).optional(),
+  })
+  .refine(
+    (metric) =>
+      metric.percentile === undefined || /^p\d+$/.test(metric.aggregation),
+    {
+      message: "A percentile parameter requires a percentile aggregation",
+    },
+  );
 
 /** granularities is the superset of time-bucket tokens: the 6 base options plus the 10 Monitor window increments. */
 export const granularities = z.enum([
@@ -259,6 +269,18 @@ export const query = z
         type: z.string(),
         bins: z.number().int().min(1).max(100).optional(),
         row_limit: z.number().int().positive().lte(1000).optional(),
+        histogramEdges: z
+          .array(z.number())
+          .min(2)
+          .max(51)
+          .refine(
+            (edges) =>
+              edges.every(
+                (edge, index) => index === 0 || edge > edges[index - 1],
+              ),
+            "Histogram edges must be strictly increasing",
+          )
+          .optional(),
       })
       .optional(),
   })

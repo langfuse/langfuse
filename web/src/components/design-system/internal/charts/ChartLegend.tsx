@@ -26,6 +26,18 @@ export type ChartLegendItem = {
   };
 };
 
+export type ChartLegendLayout = "overflow" | "wrap";
+
+type ChartLegendProps = {
+  items: ChartLegendItem[];
+  layout?: ChartLegendLayout;
+  selectionActions?: {
+    allSelected: boolean;
+    onSelectAll: () => void;
+    onDeselectAll: () => void;
+  };
+};
+
 const LEGEND_ITEM_GAP = 16;
 const LEGEND_PADDING = "min-w-0 shrink-0 px-4 py-2";
 
@@ -89,16 +101,30 @@ function LegendItem({ item }: { item: ChartLegendItem }) {
 }
 
 export function ChartLegend({
+  layout = "overflow",
+  ...props
+}: ChartLegendProps) {
+  if (layout === "wrap")
+    return (
+      <div className={LEGEND_PADDING}>
+        <div
+          role="group"
+          aria-label="Chart legend"
+          className="flex min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-1"
+        >
+          {props.items.map((item) => (
+            <LegendItem key={item.id} item={item} />
+          ))}
+        </div>
+      </div>
+    );
+  return <OverflowChartLegend {...props} />;
+}
+
+function OverflowChartLegend({
   items,
   selectionActions,
-}: {
-  items: ChartLegendItem[];
-  selectionActions?: {
-    allSelected: boolean;
-    onSelectAll: () => void;
-    onDeselectAll: () => void;
-  };
-}) {
+}: Omit<ChartLegendProps, "layout">) {
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
   const overflowTriggerRefs = useRef<Array<HTMLSpanElement | null>>([]);

@@ -9,7 +9,10 @@ import { ChartContainer } from "@/src/components/design-system/internal/charts/C
 import { CHART_TRANSITION_DURATION } from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
-import { ChartLegend } from "@/src/components/design-system/internal/charts/ChartLegend";
+import {
+  ChartLegend,
+  type ChartLegendLayout,
+} from "@/src/components/design-system/internal/charts/ChartLegend";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 
 type LineChartValues = {
@@ -36,6 +39,11 @@ export type LineChartLegend =
   | ({
       visibility: "auto" | "visible";
       summary: "none" | "sum";
+      layout?: ChartLegendLayout;
+      onInteraction?: (event: {
+        action: "show" | "hide" | "isolate" | "reset";
+        selectedCount: number;
+      }) => void;
     } & (
       | { interaction: "highlight" }
       | { interaction: "toggle"; maxVisibleSeries?: number }
@@ -325,12 +333,27 @@ export function SeriesChartCore(
       </div>
       {showLegend ? (
         <ChartLegend
+          layout={legend.layout}
           selectionActions={
             legend.interaction === "toggle"
               ? {
                   allSelected: hiddenSeriesIds.size === 0,
-                  onSelectAll: () => setAllSeriesHidden(false),
-                  onDeselectAll: () => setAllSeriesHidden(true),
+                  onSelectAll: () => {
+                    if (hiddenSeriesIds.size === 0) return;
+                    setAllSeriesHidden(false);
+                    legend.onInteraction?.({
+                      action: "show",
+                      selectedCount: series.length,
+                    });
+                  },
+                  onDeselectAll: () => {
+                    if (hiddenSeriesIds.size === series.length) return;
+                    setAllSeriesHidden(true);
+                    legend.onInteraction?.({
+                      action: "hide",
+                      selectedCount: 0,
+                    });
+                  },
                 }
               : undefined
           }
@@ -371,9 +394,20 @@ export function SeriesChartCore(
                 onClick: () => {
                   if (legend.interaction === "toggle") {
                     toggleSeries(item.id);
+                    legend.onInteraction?.({
+                      action: hidden ? "show" : "hide",
+                      selectedCount:
+                        series.length -
+                        hiddenSeriesIds.size +
+                        (hidden ? 1 : -1),
+                    });
                     return;
                   }
                   highlightSeries(item.id);
+                  legend.onInteraction?.({
+                    action: focused ? "reset" : "isolate",
+                    selectedCount: focused ? series.length : 1,
+                  });
                 },
               },
             };

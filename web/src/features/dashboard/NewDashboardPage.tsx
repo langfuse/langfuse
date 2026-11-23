@@ -16,8 +16,12 @@ export default function NewDashboardPage() {
   const { projectId } = router.query as { projectId: string };
 
   // State for new dashboard
-  const [dashboardName, setDashboardName] = useState("New Dashboard");
+  const [dashboardName, setDashboardName] = useState("New dashboard");
   const [dashboardDescription, setDashboardDescription] = useState("");
+  const editorCapability = api.dashboardStudio.isEnabled.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId), staleTime: 60_000 },
+  );
 
   // Check project access
   const hasCUDAccess = useHasProjectAccess({
@@ -27,14 +31,16 @@ export default function NewDashboardPage() {
 
   // Mutation for creating a new dashboard
   const createDashboard = api.dashboard.createDashboard.useMutation({
-    onSuccess: (data) => {
-      showSuccessToast({
-        operation: "dashboard.create",
-        title: "Dashboard created",
-        description: "Your new dashboard has been created successfully",
-      });
-      // Navigate to the newly created dashboard
-      router.push(`/project/${projectId}/dashboards/${data.id}`);
+    onSuccess: async (data) => {
+      if (editorCapability.data !== true)
+        showSuccessToast({
+          operation: "dashboard.create",
+          title: "Dashboard created",
+          description: "Your new dashboard has been created successfully",
+        });
+      await router.push(
+        `/project/${projectId}/dashboards/${data.id}${editorCapability.data === true ? "/studio" : ""}`,
+      );
     },
     onError: (error) => {
       showErrorToast(
@@ -66,7 +72,7 @@ export default function NewDashboardPage() {
     <Page
       withPadding
       headerProps={{
-        title: "Create Dashboard",
+        title: "Create dashboard",
         help: {
           description: "Create a new dashboard for your project",
         },
@@ -83,6 +89,7 @@ export default function NewDashboardPage() {
               disabled={
                 !dashboardName.trim() ||
                 createDashboard.isPending ||
+                editorCapability.isPending ||
                 !hasCUDAccess
               }
               loading={createDashboard.isPending}
@@ -95,7 +102,7 @@ export default function NewDashboardPage() {
     >
       <div className="mx-auto my-8 max-w-xl space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="dashboard-name">Dashboard Name</Label>
+          <Label htmlFor="dashboard-name">Dashboard name</Label>
           <Input
             id="dashboard-name"
             value={dashboardName}
@@ -115,7 +122,7 @@ export default function NewDashboardPage() {
             onChange={(e) => {
               setDashboardDescription(e.target.value);
             }}
-            placeholder="Describe the purpose of this dashboard. Optional, but very helpful."
+            placeholder="Describe this dashboard (optional)"
             rows={4}
           />
         </div>

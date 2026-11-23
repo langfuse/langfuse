@@ -884,24 +884,37 @@ function MultiSeriesBarChart({
       </div>
       {showLegend ? (
         <ChartLegend
+          layout={legend.layout}
           selectionActions={
             legend.interaction === "toggle"
               ? {
                   allSelected: hiddenIds.size === 0,
-                  onSelectAll: () =>
+                  onSelectAll: () => {
+                    if (hiddenIds.size === 0) return;
                     setLegendState({
                       ...effectiveState,
                       visibilityOverrides: new Map(
                         series.map((item) => [item.id, false]),
                       ),
-                    }),
-                  onDeselectAll: () =>
+                    });
+                    legend.onInteraction?.({
+                      action: "show",
+                      selectedCount: series.length,
+                    });
+                  },
+                  onDeselectAll: () => {
+                    if (hiddenIds.size === series.length) return;
                     setLegendState({
                       ...effectiveState,
                       visibilityOverrides: new Map(
                         series.map((item) => [item.id, true]),
                       ),
-                    }),
+                    });
+                    legend.onInteraction?.({
+                      action: "hide",
+                      selectedCount: 0,
+                    });
+                  },
                 }
               : undefined
           }
@@ -939,11 +952,20 @@ function MultiSeriesBarChart({
                       ...effectiveState,
                       visibilityOverrides: next,
                     });
+                    legend.onInteraction?.({
+                      action: hidden ? "show" : "hide",
+                      selectedCount:
+                        series.length - hiddenIds.size + (hidden ? 1 : -1),
+                    });
                     return;
                   }
                   setLegendState({
                     ...effectiveState,
                     highlightedId: focused ? undefined : item.id,
+                  });
+                  legend.onInteraction?.({
+                    action: focused ? "reset" : "isolate",
+                    selectedCount: focused ? series.length : 1,
                   });
                 },
               },

@@ -67,8 +67,10 @@ export function useLineChartTimeSeries({
   config = defaultConfig,
   metricFormatter = formatMetric,
   legendPosition = "auto",
+  legendLayout,
   legendSummary = "none",
   legendInteraction = "highlight",
+  onLegendInteraction,
   maxVisibleSeries,
   sync,
   showDataPointDots = false,
@@ -160,16 +162,27 @@ export function useLineChartTimeSeries({
       return {
         visibility: legendPosition === "auto" ? "auto" : "visible",
         interaction: "toggle",
+        layout: legendLayout,
         summary: legendSummary,
+        onInteraction: onLegendInteraction,
         maxVisibleSeries,
       };
     }
     return {
       visibility: legendPosition === "auto" ? "auto" : "visible",
       interaction: "highlight",
+      layout: legendLayout,
       summary: legendSummary,
+      onInteraction: onLegendInteraction,
     };
-  }, [legendPosition, legendInteraction, legendSummary, maxVisibleSeries]);
+  }, [
+    legendPosition,
+    legendLayout,
+    legendInteraction,
+    legendSummary,
+    maxVisibleSeries,
+    onLegendInteraction,
+  ]);
   const axisProps: ComponentProps<typeof DesignSystemLineChart> =
     timeAxis.mode === "category" || hasNonTimestampBucket
       ? {

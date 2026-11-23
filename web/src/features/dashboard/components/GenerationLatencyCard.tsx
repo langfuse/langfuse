@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-style-props */
+import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
@@ -49,6 +50,7 @@ export const GenerationLatencyCard = ({
     onActiveKeyChange: (key: string | undefined) => void;
   };
 }) => {
+  const track = useDashboardStudioCapture(metricsVersion === "v2");
   const {
     allModels,
     selectedModels,
@@ -151,7 +153,10 @@ export const GenerationLatencyCard = ({
     ] as const;
   }, [latencies.data, selectedModels]);
 
-  const { selectedItem: item, tabs } = useDashboardCardTabs(data);
+  const { selectedItem: item, tabs } = useDashboardCardTabs(data, {
+    presetId: "home-generation-latency",
+    isV4: metricsVersion === "v2",
+  });
   const chartData = useMemo(
     () => timeSeriesToDataPoints(item?.data ?? []),
     [item?.data],
@@ -160,6 +165,15 @@ export const GenerationLatencyCard = ({
   return (
     <div className={className}>
       <WidgetChartCard
+        onLegendInteraction={(event) =>
+          track("legend_interacted", {
+            widgetKind: "preset",
+            presetId: "home-generation-latency",
+            scope: "display",
+            interaction: event.action,
+            selectedCount: event.selectedCount,
+          })
+        }
         chartType="LINE_TIME_SERIES"
         actions={actions}
         title="Model latencies"
@@ -182,7 +196,21 @@ export const GenerationLatencyCard = ({
               value: model,
               label: model || "none",
             })),
-            onValueChange: setSelectedModels,
+            onValueChange: (values) => {
+              if (
+                values.length === selectedModels.length &&
+                values.every((value, index) => value === selectedModels[index])
+              )
+                return;
+              setSelectedModels(values);
+              track("filter_applied", {
+                widgetKind: "preset",
+                presetId: "home-generation-latency",
+                controlId: "models",
+                selectedCount: values.length,
+                scope: "widget",
+              });
+            },
             placeholder: "Select models",
             searchPlaceholder: "Search models...",
             emptyMessage: "No model found.",

@@ -19,8 +19,10 @@ import {
   type FilterState,
   LANGFUSE_HOME_DASHBOARD_ID,
   type HomeDashboardPresetId,
+  DashboardDefinitionSchema,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import {
   PlusIcon,
   Copy,
@@ -64,9 +66,11 @@ import {
 import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
 import { DialogController } from "@/src/components/ui/dialog";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import { buildDashboardEditorHref } from "@/src/features/dashboard/lib/dashboardEditorHref";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
+  rangeToString,
 } from "@/src/utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
@@ -95,6 +99,7 @@ import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useD
 import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { useDashboardStudioEnabled } from "@/src/features/dashboard-studio/useDashboardStudioEnabled";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -155,21 +160,35 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const isV4 = readPath === "v4";
 
   // Fetch dashboard data
-  const dashboard = api.dashboard.getDashboard.useQuery({
-    projectId,
-    dashboardId,
-  });
+  const dashboard = api.dashboard.getDashboard.useQuery(
+    { projectId, dashboardId },
+    {
+      select: (data) => ({
+        ...data,
+        definition: DashboardDefinitionSchema.parse(data.definition),
+      }),
+    },
+  );
+  const studioCapability = useDashboardStudioEnabled(projectId);
+  const hasStudioPlacements =
+    dashboard.data?.definition.widgets.some(
+      (placement) => placement.type === "query" || placement.type === "text",
+    ) ?? false;
+  const isStudioReadOnly =
+    hasStudioPlacements && studioCapability.data !== true;
 
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",
   });
   const isLockedDashboard = dashboard.data?.owner === "LANGFUSE";
-  const hasCUDAccess = hasRbacCUDAccess && !isLockedDashboard;
+  const hasCUDAccess =
+    hasRbacCUDAccess && !isLockedDashboard && !isStudioReadOnly;
 
   // Langfuse-managed dashboards keep full edit affordances; edit attempts
   // route through the clone-first flow instead of mutating.
-  const isLockedEditable = hasRbacCUDAccess && isLockedDashboard;
+  const isLockedEditable =
+    hasRbacCUDAccess && isLockedDashboard && !isStudioReadOnly;
 
   // PostHog is the external system: report one view per dashboard once the
   // owner is known ("do the Langfuse-maintained templates get used?"). The
@@ -185,7 +204,8 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   }, [capture, dashboardId, dashboardOwner]);
 
   // Access for cloning (independent of dashboard owner)
-  const hasCloneAccess = hasRbacCUDAccess && isLockedDashboard;
+  const hasCloneAccess =
+    hasRbacCUDAccess && isLockedDashboard && !isStudioReadOnly;
 
   // gridResetKey remounts the grid to revert an attempted drag/resize when the
   // user cancels the clone-first flow.
@@ -197,6 +217,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
 
   // Date range state - use the hook for all date range logic
   const { timeRange, setTimeRange } = useDashboardDateRange();
+  const dashboardEditorHref = buildDashboardEditorHref({
+    projectId,
+    dashboardId,
+    query: router.query,
+    fallbackDateRange: rangeToString(timeRange),
+  });
   const absoluteTimeRange = useMemo(
     () => toAbsoluteTimeRange(timeRange) ?? undefined,
     [timeRange],
@@ -303,6 +329,10 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     (definition: { widgets: DashboardPlacement[] }) => {
       if (!hasCUDAccess) return;
       updateDashboardDefinition.mutate({
+        supportedPlacementTypes:
+          studioCapability.data === true
+            ? ["widget", "preset", "query", "text"]
+            : ["widget", "preset"],
         projectId,
         dashboardId,
         definition,
@@ -1324,6 +1354,23 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                     ),
                     actionButtonsRight: (
                       <>
+                        {studioCapability.data === true &&
+                          dashboardDefinition?.widgets.some(
+                            (cell) => cell.type === "text",
+                          ) && (
+                            <DesignSystemButton
+                              text="Read as report"
+                              variant="outline"
+                              href={`/project/${projectId}/dashboards/${dashboardId}/report?dateRange=${encodeURIComponent(rangeToString(timeRange))}`}
+                            />
+                          )}
+                        {studioCapability.data === true && hasCUDAccess && (
+                          <DesignSystemButton
+                            text="Edit dashboard"
+                            variant="outline"
+                            href={dashboardEditorHref}
+                          />
+                        )}
                         {(updateDashboardDefinition.isPending ||
                           updateDashboardMetadata.isPending ||
                           updateDashboardFilters.isPending ||
@@ -1352,7 +1399,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                               : "Save Filters"}
                           </Button>
                         )}
-                        {hasRbacCUDAccess && (
+                        {hasRbacCUDAccess && studioCapability.data !== true && (
                           <Button onClick={handleAddWidget}>
                             <PlusIcon
                               size="base"
@@ -1507,44 +1554,66 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                     dashboardDefinition &&
                     !dashboard.isError && (
                       <div>
-                        <DashboardGrid
-                          key={gridResetKey}
-                          readPath={readPath}
-                          widgets={dashboardDefinition.widgets}
-                          onChange={(updatedWidgets) => {
-                            if (isLockedEditable) {
-                              // Carry the attempted layout change into the clone.
-                              openCloneFirst("layout_change", {
+                        {studioCapability.data === true &&
+                        hasCUDAccess &&
+                        !dashboardDefinition.widgets.length ? (
+                          <section
+                            aria-label="Empty dashboard"
+                            className="flex min-h-80 flex-col items-center justify-center gap-4 rounded-lg border border-dashed p-8 text-center"
+                          >
+                            <div className="flex flex-col gap-2">
+                              <h2 className="text-lg font-bold">
+                                This dashboard is empty
+                              </h2>
+                              <p className="text-muted-foreground text-sm">
+                                Add charts and text to your dashboard.
+                              </p>
+                            </div>
+                            <DesignSystemButton
+                              text="Edit dashboard"
+                              href={dashboardEditorHref}
+                            />
+                          </section>
+                        ) : (
+                          <DashboardGrid
+                            key={gridResetKey}
+                            readPath={readPath}
+                            widgets={dashboardDefinition.widgets}
+                            onChange={(updatedWidgets) => {
+                              if (isLockedEditable) {
+                                // Carry the attempted layout change into the clone.
+                                openCloneFirst("layout_change", {
+                                  ...dashboardDefinition,
+                                  widgets: updatedWidgets,
+                                });
+                                return;
+                              }
+                              applyDashboardDefinition({
                                 ...dashboardDefinition,
                                 widgets: updatedWidgets,
                               });
-                              return;
+                            }}
+                            canEdit={hasRbacCUDAccess}
+                            dashboardId={dashboardId}
+                            projectId={projectId}
+                            dateRange={absoluteTimeRange}
+                            filterState={gridFilterState}
+                            onDeleteWidget={handleDeleteWidget}
+                            dashboardOwner={dashboard.data?.owner}
+                            getWidgetSchedulerId={getWidgetSchedulerId}
+                            onLockedEditAttempt={
+                              isLockedEditable
+                                ? () => openCloneFirst("widget_pencil")
+                                : undefined
                             }
-                            applyDashboardDefinition({
-                              ...dashboardDefinition,
-                              widgets: updatedWidgets,
-                            });
-                          }}
-                          canEdit={hasRbacCUDAccess}
-                          dashboardId={dashboardId}
-                          projectId={projectId}
-                          dateRange={absoluteTimeRange}
-                          filterState={gridFilterState}
-                          onDeleteWidget={handleDeleteWidget}
-                          dashboardOwner={dashboard.data?.owner}
-                          getWidgetSchedulerId={getWidgetSchedulerId}
-                          onLockedEditAttempt={
-                            isLockedEditable
-                              ? () => openCloneFirst("widget_pencil")
-                              : undefined
-                          }
-                          onDuplicateWidget={
-                            hasCUDAccess ? handleDuplicateWidget : undefined
-                          }
-                          onDuplicatePreset={
-                            hasCUDAccess ? handleDuplicatePreset : undefined
-                          }
-                        />
+                            onDuplicateWidget={
+                              hasCUDAccess ? handleDuplicateWidget : undefined
+                            }
+                            onDuplicatePreset={
+                              hasCUDAccess ? handleDuplicatePreset : undefined
+                            }
+                          />
+                        )}
                       </div>
                     )}
                 </Page>

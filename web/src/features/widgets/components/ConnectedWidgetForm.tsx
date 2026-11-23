@@ -11,6 +11,8 @@ type ConnectedWidgetFormProps = {
   projectId: string;
   onSave: (widgetData: WidgetSavePayload) => void;
   widgetId?: string;
+  previewEnabled?: boolean;
+  initialDateRange?: { from: Date; to: Date };
 };
 
 export function ConnectedWidgetForm(props: ConnectedWidgetFormProps) {
@@ -27,7 +29,7 @@ export function ConnectedWidgetForm(props: ConnectedWidgetFormProps) {
       <div className="h-full w-1/3 min-w-[430px]">
         <WidgetForm {...formProps} filterData={filterData} />
       </div>
-      <ConnectedWidgetPreview {...formProps} />
+      <ConnectedWidgetPreview {...formProps} enabled={props.previewEnabled} />
     </div>
   );
 }

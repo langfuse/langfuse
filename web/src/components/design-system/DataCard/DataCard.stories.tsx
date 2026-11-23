@@ -616,3 +616,46 @@ export const Table = meta.story({
     );
   },
 });
+
+export const PrivateSelection = meta.story({
+  name: "(Test) Private selection across portal",
+  args: {
+    metric: undefined,
+    descriptionBehavior: "expandable",
+    description: "Read the full population definition. ".repeat(30),
+    descriptor: <span>Independent period summary</span>,
+    controls: [
+      {
+        id: "displayed-series",
+        type: "multiselect",
+        label: "Displayed series",
+        noCapture: true,
+        value: ["selected"],
+        options: [
+          { value: "selected", label: "Selected series" },
+          { value: "another", label: "Another series" },
+        ],
+        onValueChange: fn(),
+        placeholder: "Choose series",
+        searchPlaceholder: "Find series",
+        emptyMessage: "No series found",
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("combobox", { name: "Displayed series" });
+    await expect(trigger.closest(".ph-no-capture")).not.toBeNull();
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    const option = await body.findByRole("option", { name: "Another series" });
+    await expect(option.closest(".ph-no-capture")).not.toBeNull();
+    await userEvent.keyboard("{Escape}");
+    const expand = canvas.getByRole("button", { name: "Read more" });
+    await userEvent.click(expand);
+    await expect(
+      canvas.getByRole("region", { name: "Full widget description" }),
+    ).toBeVisible();
+  },
+});

@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-style-props */
+import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
 import { type FilterState } from "@langfuse/shared";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -45,6 +46,7 @@ export const TracesAndObservationsTimeSeriesCard = ({
     onActiveKeyChange: (key: string | undefined) => void;
   };
 }) => {
+  const track = useDashboardStudioCapture(metricsVersion === "v2");
   const isV2 = metricsVersion === "v2";
 
   const tracesQuery: QueryType = {
@@ -179,12 +181,24 @@ export const TracesAndObservationsTimeSeriesCard = ({
         },
       ] as const);
 
-  const { selectedItem: item, tabs } = useDashboardCardTabs(data);
+  const { selectedItem: item, tabs } = useDashboardCardTabs(data, {
+    presetId: "home-traces-obs-time-series",
+    isV4: metricsVersion === "v2",
+  });
   const chartData = item.data;
 
   return (
     <div className={className}>
       <WidgetChartCard
+        onLegendInteraction={(event) =>
+          track("legend_interacted", {
+            widgetKind: "preset",
+            presetId: "home-traces-obs-time-series",
+            scope: "display",
+            interaction: event.action,
+            selectedCount: event.selectedCount,
+          })
+        }
         chartType="LINE_TIME_SERIES"
         actions={actions}
         title={isV2 ? "Observations by time" : "Traces by time"}
