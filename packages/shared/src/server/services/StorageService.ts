@@ -23,7 +23,7 @@ import {
   type RequestPolicyFactory,
 } from "@azure/storage-blob";
 import { Storage, Bucket, GetSignedUrlConfig } from "@google-cloud/storage";
-import { JWT } from "google-auth-library";
+import { GoogleAuth, JWT } from "google-auth-library";
 import { logger } from "../logger";
 import { env } from "../../env";
 import { GCPServiceAccountKeySchema } from "../../interfaces/customLLMProviderConfigSchemas";
@@ -59,9 +59,16 @@ const GOOGLE_CLOUD_STORAGE_AUTH_SCOPES = [
 ];
 
 /**
- * Build a Storage `authClient` from a service-account JSON string or file path.
+ * Build a Storage authClient from a service-account JSON string or file path.
  * Parses and validates the key before constructing the JWT so unexpected
  * credential types are rejected at initialization.
+ *
+ * V4 signed URLs call GoogleAuth.getCredentials(), which only returns key
+ * material from jsonContent (or the GCE metadata server). Passing a JWT as
+ * authClient alone is not enough off GCE: signing then fails with
+ * "Unable to find credentials in current environment." The credentials /
+ * keyFilename constructor options are deprecated and fail lint, so set
+ * jsonContent after validating the key ourselves.
  */
 function createGoogleCloudStorageAuthClient(googleCloudCredentials: string) {
   const trimmed = googleCloudCredentials.trim();
@@ -70,12 +77,23 @@ function createGoogleCloudStorageAuthClient(googleCloudCredentials: string) {
     : JSON.parse(readFileSync(trimmed, "utf8"));
   const key = GCPServiceAccountKeySchema.parse(raw);
 
-  return new JWT({
-    email: key.client_email,
-    key: key.private_key,
+  const auth = new GoogleAuth({
+    authClient: new JWT({
+      email: key.client_email,
+      key: key.private_key,
+      projectId: key.project_id,
+      scopes: GOOGLE_CLOUD_STORAGE_AUTH_SCOPES,
+    }),
     projectId: key.project_id,
     scopes: GOOGLE_CLOUD_STORAGE_AUTH_SCOPES,
   });
+  auth.jsonContent = {
+    type: "service_account",
+    client_email: key.client_email,
+    private_key: key.private_key,
+    project_id: key.project_id,
+  };
+  return auth;
 }
 
 export interface S3SseConfig {

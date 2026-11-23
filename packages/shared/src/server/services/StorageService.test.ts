@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { createHash, getFips } from "crypto";
+import { createHash, generateKeyPairSync, getFips } from "crypto";
 import { subscribe, unsubscribe } from "node:diagnostics_channel";
 import { once } from "events";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
@@ -547,6 +547,93 @@ describe("StorageServiceFactory GCS credentials", () => {
       expect(credentialEmailOf(service)).toBe(serviceAccountEmail);
     } finally {
       env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE = originalUseGcs;
+    }
+  });
+});
+
+function serviceAccountKeyWithRealPrivateKey(clientEmail: string) {
+  const { privateKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" },
+  });
+  return {
+    type: "service_account" as const,
+    project_id: "test-project",
+    private_key_id: "test-key-id",
+    private_key: privateKey,
+    client_email: clientEmail,
+    client_id: "1234567890",
+    auth_uri: "https://accounts.google.com/o/oauth2/auth",
+    token_uri: "https://oauth2.googleapis.com/token",
+    auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+    client_x509_cert_url:
+      "https://www.googleapis.com/robot/v1/metadata/x509/test",
+  };
+}
+
+/**
+ * Regression for signed-URL generation with an explicit service-account key
+ * (LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS) on a host that is not GCE/GKE.
+ * V4 signing calls GoogleAuth.getCredentials(); a JWT passed only as
+ * authClient does not populate jsonContent, so signing throws
+ * "Unable to find credentials in current environment."
+ */
+describe("GoogleCloudStorageService signed-URL credentials", () => {
+  const clientEmail = "gcs-sign-test@example.iam.gserviceaccount.com";
+
+  const gcsService = (googleCloudCredentials: string) =>
+    StorageServiceFactory.getInstance({
+      credentials: storageKeys(undefined, undefined),
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      googleCloudCredentials,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+  it("signs a v4 URL from an inline service-account key without ADC or GCE", async () => {
+    const service = gcsService(
+      JSON.stringify(serviceAccountKeyWithRealPrivateKey(clientEmail)),
+    );
+
+    const url = await service.getSignedUrl("media/test.png", 60);
+
+    expect(url).toContain(
+      "https://storage.googleapis.com/test-bucket/media/test.png",
+    );
+    expect(url).toContain("X-Goog-Algorithm=GOOG4-RSA-SHA256");
+    expect(url).toContain("X-Goog-Signature=");
+    expect(url).toContain(encodeURIComponent(clientEmail));
+  });
+
+  it("signs a v4 URL from a service-account key file path", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "langfuse-gcs-sign-"));
+    try {
+      const keyPath = join(tempDir, "key.json");
+      writeFileSync(
+        keyPath,
+        JSON.stringify(serviceAccountKeyWithRealPrivateKey(clientEmail)),
+      );
+      const service = gcsService(keyPath);
+      const url = await service.getSignedUploadUrl({
+        path: "media/upload.png",
+        ttlSeconds: 60,
+        sha256Hash: "abc",
+        contentType: "image/png",
+        contentLength: 12,
+      });
+
+      expect(url).toContain(
+        "https://storage.googleapis.com/test-bucket/media/upload.png",
+      );
+      expect(url).toContain("X-Goog-Algorithm=GOOG4-RSA-SHA256");
+      expect(url).toContain("X-Goog-Signature=");
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
     }
   });
 });
