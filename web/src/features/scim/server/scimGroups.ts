@@ -65,10 +65,7 @@ export async function authorizeScimGroupsRequest(
 
   const authCheck = await shadowAuth({
     req,
-    action:
-      req.method === "GET"
-        ? "organizationMembers:read"
-        : "organizationMembers:CUD",
+    action: req.method === "GET" ? "groups:read" : "groups:CUD",
     allowedAccessLevels: ["organization"],
   });
   if (!authCheck.success) {

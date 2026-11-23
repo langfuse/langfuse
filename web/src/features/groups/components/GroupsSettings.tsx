@@ -89,11 +89,11 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
   const hasEntitlement = useHasEntitlement("admin-api");
   const hasAccess = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "organizationMembers:read",
+    scope: "groups:read",
   });
   const canEdit = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "organizationMembers:CUD",
+    scope: "groups:CUD",
   });
 
   const header = (
@@ -122,7 +122,7 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
       <div>
         {header}
         <Banner title="Access denied">
-          You do not have permission to view the members of this organization.
+          You do not have permission to view the groups of this organization.
         </Banner>
       </div>
     );

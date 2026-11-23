@@ -102,13 +102,13 @@ function projectGroupColumns({
 
 function projectRolesBlockedReason({
   hasProjectRoles,
-  canEditProjectMembers,
+  canEditProjectGroups,
 }: {
   hasProjectRoles: boolean;
-  canEditProjectMembers: boolean;
+  canEditProjectGroups: boolean;
 }) {
   if (!hasProjectRoles) return "Project roles are not available on your plan.";
-  if (!canEditProjectMembers)
+  if (!canEditProjectGroups)
     return "You do not have permission to change roles on this project.";
   return undefined;
 }
@@ -120,19 +120,19 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
   const { organization } = useQueryProject();
   const canManageOrgGroups = useHasOrganizationAccess({
     organizationId: organization?.id,
-    scope: "organizationMembers:CUD",
+    scope: "groups:CUD",
   });
   const canRead = useHasProjectAccess({
     projectId,
-    scope: "projectMembers:read",
+    scope: "projectGroups:read",
   });
-  const canEditProjectMembers = useHasProjectAccess({
+  const canEditProjectGroups = useHasProjectAccess({
     projectId,
-    scope: "projectMembers:CUD",
+    scope: "projectGroups:CUD",
   });
   const editBlockedReason = projectRolesBlockedReason({
     hasProjectRoles,
-    canEditProjectMembers,
+    canEditProjectGroups,
   });
   const [search, setSearch] = useState("");
 

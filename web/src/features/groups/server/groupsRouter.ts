@@ -59,7 +59,7 @@ type AuthedSession = Session & { user: NonNullable<Session["user"]> };
 function throwIfNoOrgGroupAccess(
   session: AuthedSession,
   orgId: string,
-  scope: OrganizationScope = "organizationMembers:CUD",
+  scope: OrganizationScope = "groups:CUD",
 ) {
   throwIfNoOrganizationAccess({ session, organizationId: orgId, scope });
   throwIfNoEntitlement({
@@ -303,7 +303,7 @@ export const groupsRouter = createTRPCRouter({
       });
     }),
 
-  /** Group roles are capped at ADMIN and this needs organizationMembers:CUD, so it grants no more than the caller could directly. */
+  /** Group roles are capped at ADMIN and this needs groups:CUD, so it grants no more than the caller could directly. */
   addMembers: protectedOrganizationProcedure
     .input(
       z.object({
@@ -371,11 +371,7 @@ export const groupsRouter = createTRPCRouter({
   list: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoOrgGroupAccess(
-        ctx.session,
-        input.orgId,
-        "organizationMembers:read",
-      );
+      throwIfNoOrgGroupAccess(ctx.session, input.orgId, "groups:read");
 
       const groups = await ctx.prisma.group.findMany({
         where: { orgId: input.orgId },
@@ -554,13 +550,13 @@ export const groupsRouter = createTRPCRouter({
       const orgAccess = hasOrganizationAccess({
         session: ctx.session,
         organizationId: orgId,
-        scope: "organizationMembers:read",
+        scope: "groups:read",
       });
 
       const projectAccess = hasProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "projectMembers:read",
+        scope: "projectGroups:read",
       });
 
       if (!orgAccess && !projectAccess) {
@@ -591,7 +587,7 @@ export const groupsRouter = createTRPCRouter({
       throwIfNoProjectGroupAccess(
         ctx.session,
         input.projectId,
-        "projectMembers:CUD",
+        "projectGroups:CUD",
       );
       throwIfNoEntitlement({
         entitlement: "rbac-project-roles",

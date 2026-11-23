@@ -75,11 +75,11 @@ export function useProjectSettingsPages(): ProjectSettingsPageEntry[] {
   });
   const showV4Migration = useV4UpgradeUiFlag();
   const hasAdminApiEntitlement = useHasEntitlement("admin-api");
-  const canReadProjectMembers = useHasProjectAccess({
+  const canReadGroups = useHasProjectAccess({
     projectId: project?.id,
-    scope: "projectMembers:read",
+    scope: "projectGroups:read",
   });
-  const showGroups = hasAdminApiEntitlement && canReadProjectMembers;
+  const showGroups = hasAdminApiEntitlement && canReadGroups;
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
