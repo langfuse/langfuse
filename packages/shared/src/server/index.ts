@@ -189,6 +189,7 @@ export { type Turn } from "./transcript/types";
 export { type Thread } from "./transcript/types";
 export { type Transcript } from "./transcript/types";
 export { createTraceTranscriptStorage } from "./eventsDispatch/storage";
+export { serializeTraceTranscriptInputs } from "./eventsDispatch/storage";
 export { TRACE_TRANSCRIPT_MAX_CHARACTERS } from "./eventsDispatch/storage";
 export { TRACE_TRANSCRIPT_PREFIX } from "./eventsDispatch/storage";
 export { TRACE_TRANSCRIPT_RETENTION_MS } from "./eventsDispatch/storage";
