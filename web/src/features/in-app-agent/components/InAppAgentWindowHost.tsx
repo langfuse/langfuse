@@ -2,7 +2,10 @@
 "use client";
 
 import { useLayoutEffect, useRef } from "react";
+import { ArrowLeft } from "@langfuse/icons";
+import { useRouter } from "next/router";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow";
@@ -15,18 +18,58 @@ import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import {
+  PROJECT_HOME_PATHNAME,
+  type InAppAgentLayoutMode,
+} from "@/src/features/in-app-agent/layoutMode";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import { cn } from "@/src/utils/tailwind";
 
 /**
- * Hosts the floating assistant window and its drag/resize geometry. Must be
- * rendered from a scope that survives route changes (the authenticated
+ * The layout mode the window currently renders inline with the page content,
+ * or null while it is closed or floating. A phone has one presentation (the
+ * drawer), so the layout mode only applies on desktop.
+ */
+export function useInAppAgentInlinePresentation(): Exclude<
+  InAppAgentLayoutMode,
+  "floating"
+> | null {
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
+  const { open, layoutMode } = useInAppAiAgent();
+  const isHandheld = useIsHandheld();
+
+  if (
+    !isInAppAgentLauncherVisible ||
+    !open ||
+    isHandheld ||
+    layoutMode === "floating"
+  ) {
+    return null;
+  }
+
+  return layoutMode;
+}
+
+/**
+ * Hosts the assistant window: floating (with its drag/resize geometry) in the
+ * `agent` layer, or inline beside the page content when docked or full page.
+ * Must be rendered from a scope that survives route changes (the authenticated
  * layout), NOT from per-page chrome like PageHeader — otherwise the open
  * window unmounts and its geometry resets on every navigation.
  */
 export function InAppAgentWindowHost() {
+  const router = useRouter();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
-  const { deleteConversation, open, setOpen, isExpanded, setIsExpanded } =
-    useInAppAiAgent();
+  const inlinePresentation = useInAppAgentInlinePresentation();
+  const {
+    deleteConversation,
+    open,
+    setOpen,
+    isExpanded,
+    setIsExpanded,
+    setLayoutMode,
+  } = useInAppAiAgent();
   const [deleteConversationWithLoading, isDeletingConversation] =
     useWatchedPromiseCallback(deleteConversation, [deleteConversation]);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -100,40 +143,82 @@ export function InAppAgentWindowHost() {
         deleteConversationWithLoading(conversation.id)
       }
     >
-      {(deleteConversationDialog) => (
-        // The assistant window lives in the `agent` overlay layer — a
-        // <body>-level layer container that floats above page content and
-        // panel surfaces, but below true modals and transient overlays by DOM
-        // order alone. No z-index: layer ORDER stacks it (see
-        // context/LayerContext/LayerContext.tsx). This replaces the old body portal + z-51,
-        // which fought the nav-user dropdown's z-60 at <body> level.
-        <Layer name="agent">
-          <InAppAgentWindowShell
-            floatingPanelHandle={floatingPanelHandle}
-            isExpanded={isExpanded}
-            onClose={() => {
-              setOpen(false);
-            }}
-            onExpandedChange={handleExpandedChange}
-            open={open}
-            panelRef={panelRef}
-          >
-            {({ isHeaderDragHandleEnabled }) => (
-              <ControlledInAppAgentWindow
-                isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
-                isExpanded={isExpanded}
-                onDeleteConversation={(conversation) => {
-                  deleteConversationDialog.openDialog(conversation);
-                }}
-                onExpandedChange={handleExpandedChange}
-                onClose={() => {
-                  setOpen(false);
-                }}
-              />
+      {(deleteConversationDialog) =>
+        inlinePresentation ? (
+          <aside
+            className={cn(
+              "bg-background flex min-h-0 flex-col",
+              inlinePresentation === "full" && "min-w-0 flex-1",
+              inlinePresentation === "dock-right" && "w-105 shrink-0 border-l",
             )}
-          </InAppAgentWindowShell>
-        </Layer>
-      )}
+          >
+            <ControlledInAppAgentWindow
+              isFlush
+              isExpanded={inlinePresentation === "full"}
+              expandToggleLabels={{
+                expand: "Open full page",
+                collapse: "Dock to side",
+              }}
+              headerLeading={
+                inlinePresentation === "full" &&
+                router.pathname === PROJECT_HOME_PATHNAME ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={ArrowLeft}
+                    text="Home"
+                    onClick={() => {
+                      setOpen(false);
+                    }}
+                  />
+                ) : undefined
+              }
+              onDeleteConversation={(conversation) => {
+                deleteConversationDialog.openDialog(conversation);
+              }}
+              onExpandedChange={(nextIsExpanded) => {
+                setLayoutMode(nextIsExpanded ? "full" : "dock-right");
+              }}
+              onClose={() => {
+                setOpen(false);
+              }}
+            />
+          </aside>
+        ) : (
+          // The assistant window lives in the `agent` overlay layer — a
+          // <body>-level layer container that floats above page content and
+          // panel surfaces, but below true modals and transient overlays by DOM
+          // order alone. No z-index: layer ORDER stacks it (see
+          // context/LayerContext/LayerContext.tsx). This replaces the old body portal + z-51,
+          // which fought the nav-user dropdown's z-60 at <body> level.
+          <Layer name="agent">
+            <InAppAgentWindowShell
+              floatingPanelHandle={floatingPanelHandle}
+              isExpanded={isExpanded}
+              onClose={() => {
+                setOpen(false);
+              }}
+              onExpandedChange={handleExpandedChange}
+              open={open}
+              panelRef={panelRef}
+            >
+              {({ isHeaderDragHandleEnabled }) => (
+                <ControlledInAppAgentWindow
+                  isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+                  isExpanded={isExpanded}
+                  onDeleteConversation={(conversation) => {
+                    deleteConversationDialog.openDialog(conversation);
+                  }}
+                  onExpandedChange={handleExpandedChange}
+                  onClose={() => {
+                    setOpen(false);
+                  }}
+                />
+              )}
+            </InAppAgentWindowShell>
+          </Layer>
+        )
+      }
     </ConfirmationDialogController>
   );
 }

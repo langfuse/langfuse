@@ -4,7 +4,7 @@ import {
   ArrowRight,
   Ban,
   Check,
-  ChevronDown,
+  ChevronRight,
   CircleX,
   Copy,
   BookOpenText,
@@ -16,7 +16,6 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { Streamdown } from "streamdown";
 import { Button } from "@/src/components/ui/button";
-import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { stripBasePath } from "@/src/utils/redirect";
 import { cn } from "@/src/utils/tailwind";
@@ -227,13 +226,9 @@ const MessageCard = forwardRef<
     <div
       ref={ref}
       className={cn(
-        "max-w-full overflow-hidden wrap-break-word",
-        isCompact ? "text-[0.775rem]" : "text-sm",
+        "max-w-full overflow-hidden text-base wrap-break-word",
         isUser
-          ? cn(
-              "bg-muted text-foreground rounded-2xl",
-              isCompact ? "px-2.5 py-1" : "px-3 py-1.5",
-            )
+          ? "bg-muted text-foreground rounded-2xl rounded-br-sm px-3.5 py-2.5"
           : "text-foreground",
       )}
     >
@@ -418,28 +413,18 @@ function InAppAgentReasoningBlock({
           setUserToggled(event.currentTarget.open);
         }
       }}
-      className={cn(
-        "text-muted-foreground max-w-full",
-        isCompact ? "text-[0.775rem]" : "text-sm",
-      )}
+      className="max-w-full text-sm"
     >
-      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-        <span
-          className={cn(
-            "min-w-0 flex-1",
-            content.isStreaming && textShimmerStyles.textShimmer,
-          )}
-        >
+      <summary
+        className={cn(
+          "hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
+          content.isStreaming ? "text-foreground" : "text-foreground-secondary",
+        )}
+      >
+        <StepIcon status={content.isStreaming ? "running" : "succeeded"} />
+        <span className="min-w-0 flex-1">
           {content.isStreaming ? "Thinking" : "Thought"}
         </span>
-        <ChevronDown
-          size="base"
-          color="tertiary"
-          __rawClassName={cn(
-            "translate-y-px transition-transform",
-            !isOpen && "-rotate-90",
-          )}
-        />
       </summary>
       {isOpen ? (
         // The block grows with its content instead of scrolling internally;
@@ -451,7 +436,7 @@ function InAppAgentReasoningBlock({
           className={cn(
             // Vertical spacing is margin, not padding, so the left border
             // hugs the text instead of extending past it.
-            "border-border/70 mt-2 mb-1 border-l px-3 wrap-break-word whitespace-pre-wrap",
+            "border-border/70 text-muted-foreground mt-2 mb-1 border-l px-3 wrap-break-word whitespace-pre-wrap",
             isCompact && "px-2.5 leading-4",
           )}
         >
@@ -775,12 +760,7 @@ function ToolCallGroup({
   isCompact?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "text-muted-foreground flex max-w-full flex-col gap-0",
-        isCompact ? "text-[0.775rem]" : "text-sm",
-      )}
-    >
+    <div className="flex max-w-full flex-col gap-2.5 text-sm">
       {tools.map((tool, index) => (
         <ToolCallDisclosure
           key={`${tool.name}-${index}`}
@@ -807,14 +787,16 @@ function ToolCallDisclosure({
       <summary
         aria-label={`${toolName}: ${status}`}
         className={cn(
-          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
-          isCompact && "px-0.5",
+          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
+          status === "running"
+            ? "text-foreground"
+            : "text-foreground-secondary",
         )}
       >
-        <ToolCallStatusIcon status={status} />
+        <StepIcon status={status} />
         <span
           className={cn(
-            "min-w-0 flex-1 truncate py-0.5",
+            "min-w-0 flex-1 truncate",
             status === "failed" && "text-destructive",
             status === "denied" && "text-dark-yellow",
           )}
@@ -823,31 +805,33 @@ function ToolCallDisclosure({
           {toolName}
         </span>
       </summary>
-      <div className={cn("mt-1.5 mb-1 ml-3 px-3", isCompact && "px-2.5")}>
+      <div
+        className={cn(
+          "text-muted-foreground mt-1.5 mb-1 ml-1.5 px-3",
+          isCompact && "px-2.5",
+        )}
+      >
         <InAppAgentToolCallDetails tool={tool} />
       </div>
     </details>
   );
 }
 
-function ToolCallStatusIcon({
-  status,
-}: {
-  status: InAppAgentToolCallContent["status"];
-}) {
+/** Leading mark of a step row: a check once done, a chevron while it runs. */
+function StepIcon({ status }: { status: InAppAgentToolCallContent["status"] }) {
   if (status === "running") {
-    return <Loader2 size="base" __rawClassName="animate-spin" />;
+    return <ChevronRight size="sm" color="default" aria-hidden />;
   }
 
   if (status === "succeeded") {
-    return <Check size="base" __rawClassName="text-dark-green" />;
+    return <Check size="sm" color="muted" aria-hidden />;
   }
 
   if (status === "failed") {
-    return <CircleX size="base" color="destructive" />;
+    return <CircleX size="sm" color="destructive" aria-hidden />;
   }
 
-  return <Ban size="base" __rawClassName="text-dark-yellow" />;
+  return <Ban size="sm" __rawClassName="text-dark-yellow" aria-hidden />;
 }
 
 function MessageText({
@@ -863,10 +847,7 @@ function MessageText({
     return (
       <p
         data-in-app-agent-message-content
-        className={cn(
-          "whitespace-pre-wrap",
-          isCompact ? "leading-4" : "leading-4.5",
-        )}
+        className="leading-normal whitespace-pre-wrap"
       >
         {text}
       </p>
@@ -895,7 +876,7 @@ function MessageText({
         event.clipboardData.setData("text/plain", result.markdown);
         event.clipboardData.setData("text/html", result.html);
       }}
-      className={cn(styles.Streamdown, isCompact && styles.compact)}
+      className={styles.Streamdown}
     >
       <Streamdown
         disallowedElements={[
@@ -1214,7 +1195,7 @@ function TableBlock({ children }: { children: ReactNode }) {
           />
         </div>
       </div>
-      <div className="overflow-x-auto rounded">
+      <div className="overflow-x-auto rounded-lg">
         <table ref={tableRef}>{children}</table>
       </div>
     </div>

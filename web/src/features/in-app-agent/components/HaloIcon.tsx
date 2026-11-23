@@ -1,10 +1,11 @@
 const haloIconClassNames = {
   launcher: "size-3.5",
   launcherActive: "size-3.5 text-primary-accent",
-  emptyState: "text-muted-foreground size-7 mx-auto",
+  intro: "size-7 shrink-0",
+  heading: "size-7 shrink-0",
+  header: "size-3.5 shrink-0",
   activityAccent: "text-primary-accent size-3.5 mt-0.5 shrink-0",
   activityDestructive: "text-destructive size-3.5 mt-0.5 shrink-0",
-  notice: "size-3 shrink-0",
 } as const;
 
 /** Brand icon for Halo, based on the supplied 24px artwork. */

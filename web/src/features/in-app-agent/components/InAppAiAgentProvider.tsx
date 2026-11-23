@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
   type PropsWithChildren,
   type Dispatch,
+  type RefObject,
   type SetStateAction,
 } from "react";
 import type { AgentSubscriber } from "@ag-ui/client";
@@ -69,6 +70,10 @@ import {
   createInAppAgentUserContext,
 } from "@/src/features/in-app-agent/context";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
+import {
+  PROJECT_HOME_PATHNAME,
+  type InAppAgentLayoutMode,
+} from "@/src/features/in-app-agent/layoutMode";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
@@ -82,6 +87,8 @@ const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
+const FULL_PAGE_QUERY_PARAM = "halo";
+const FULL_PAGE_QUERY_VALUE = "full";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   messages: EMPTY_MESSAGES,
@@ -101,7 +108,9 @@ export type InAppAgentEntryPoint =
   | "dashboard_widget"
   | "v4_migration"
   | "evaluators_empty_state"
-  | "skill_editor";
+  | "skill_editor"
+  | "home_composer"
+  | "home_continue";
 
 function useBackgroundExecutionView(
   session: BackgroundExecutionSession | null,
@@ -127,6 +136,9 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   openAssistant: () => false,
   isExpanded: false,
   setIsExpanded: () => undefined,
+  layoutMode: "dock-right",
+  setLayoutMode: () => undefined,
+  homeAskInputRef: { current: null },
   isRunning: false,
   isSubmitting: false,
   pendingToolApprovals: [],
@@ -187,6 +199,12 @@ type InAppAiAgentContextType = {
   openAssistant: (source: InAppAgentEntryPoint) => boolean;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
+  /** Where the window sits: full page, or docked right of the content. */
+  layoutMode: InAppAgentLayoutMode;
+  setLayoutMode: (layoutMode: InAppAgentLayoutMode) => void;
+  /** Home's Ask box while it is mounted. On Home it is the assistant's entry
+   * point, so the launcher focuses it instead of opening a second one. */
+  homeAskInputRef: RefObject<HTMLTextAreaElement | null>;
   isRunning: boolean;
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
@@ -305,6 +323,7 @@ function InAppAiAgentProviderInner({
   setOpen,
 }: InAppAiAgentProviderInnerProps) {
   const utils = api.useUtils();
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const session = useSession();
   const canUseAssistant = useCanUseInAppAgent();
@@ -321,6 +340,72 @@ function InAppAiAgentProviderInner({
       {},
     );
   const [isExpanded, setIsExpanded] = useState(false);
+  // Full page is a view of one page, not a stored preference. It needs both
+  // a request made in this page session and the marker in the URL: a fresh
+  // load never restores it, and any navigation to a URL without the marker
+  // (nav item, link in an answer, browser Back) leaves it.
+  const [isFullPageRequested, setIsFullPageRequested] = useState(false);
+  const homeAskInputRef = useRef<HTMLTextAreaElement>(null);
+  const hasFullPageMarker =
+    router.query[FULL_PAGE_QUERY_PARAM] === FULL_PAGE_QUERY_VALUE;
+  const isFullPage = isFullPageRequested && hasFullPageMarker;
+  // Whether leaving full page should pop the history entry entering it pushed.
+  const didPushFullPageEntryRef = useRef(false);
+  // Outside the full page the window is always docked right. Nothing is
+  // stored, so layout values an earlier build wrote are ignored.
+  const layoutMode: InAppAgentLayoutMode = isFullPage ? "full" : "dock-right";
+  const leaveFullPage = useCallback(() => {
+    setIsFullPageRequested(false);
+
+    if (!isFullPage) {
+      return;
+    }
+
+    if (didPushFullPageEntryRef.current) {
+      didPushFullPageEntryRef.current = false;
+      router.back();
+      return;
+    }
+
+    const { [FULL_PAGE_QUERY_PARAM]: _marker, ...query } = router.query;
+    router
+      .replace({ pathname: router.pathname, query }, undefined, {
+        shallow: true,
+      })
+      .catch(() => undefined);
+  }, [isFullPage, router]);
+  const setLayoutMode = useCallback(
+    (nextLayoutMode: InAppAgentLayoutMode) => {
+      // Expanded is a variant of the floating window only.
+      setIsExpanded(false);
+
+      if (nextLayoutMode === "full") {
+        setIsFullPageRequested(true);
+
+        if (!hasFullPageMarker) {
+          didPushFullPageEntryRef.current = true;
+          router
+            .push(
+              {
+                pathname: router.pathname,
+                query: {
+                  ...router.query,
+                  [FULL_PAGE_QUERY_PARAM]: FULL_PAGE_QUERY_VALUE,
+                },
+              },
+              undefined,
+              { shallow: true },
+            )
+            .catch(() => undefined);
+        }
+
+        return;
+      }
+
+      leaveFullPage();
+    },
+    [hasFullPageMarker, leaveFullPage, router],
+  );
   // Key by conversation so another conversation cannot release its submit lock.
   const [submittingConversationId, setSubmittingConversationId] = useState<
     string | null
@@ -343,7 +428,11 @@ function InAppAiAgentProviderInner({
     api.inAppAgent.listConversations.useInfiniteQuery(
       { projectId },
       {
-        enabled: open,
+        // Home lists the most recent conversation while the assistant is
+        // closed.
+        enabled:
+          open ||
+          (canUseAssistant && router.pathname === PROJECT_HOME_PATHNAME),
         getNextPageParam: (lastPage) => lastPage.nextCursor,
       },
     );
@@ -967,6 +1056,13 @@ function InAppAiAgentProviderInner({
       resetAgent();
       setSelectedConversationId(conversationId);
 
+      // On Home a new conversation starts from the Ask box.
+      const homeAskInput = homeAskInputRef.current;
+      if (conversationId === null && homeAskInput && !isFullPage) {
+        setOpen(false);
+        homeAskInput.focus();
+      }
+
       if (conversationId && open) {
         const entry = activityByConversationId.get(conversationId);
         if (entry?.needsAttention) {
@@ -977,10 +1073,12 @@ function InAppAiAgentProviderInner({
     [
       _selectedConversationId,
       activityByConversationId,
+      isFullPage,
       markConversationHandled,
       open,
       releaseSubmitLock,
       resetAgent,
+      setOpen,
       setSelectedConversationId,
     ],
   );
@@ -1253,6 +1351,8 @@ function InAppAiAgentProviderInner({
       if (!nextOpen) {
         // Collapse the drawer when closing
         setIsExpanded(false);
+        // Full page does not outlive the conversation view it was opened for.
+        leaveFullPage();
 
         backgroundSessionRef.current?.detach();
         releaseSubmitLock(selectedConversationId);
@@ -1266,6 +1366,7 @@ function InAppAiAgentProviderInner({
     },
     [
       attachToConversation,
+      leaveFullPage,
       open,
       releaseSubmitLock,
       selectedConversationId,
@@ -1282,11 +1383,71 @@ function InAppAiAgentProviderInner({
         return false;
       }
 
+      // On Home the launcher and its shortcut put the cursor in the Ask box
+      // instead of opening the assistant beside it.
+      const homeAskInput = homeAskInputRef.current;
+      if (
+        (source === "top_nav" || source === "keyboard_shortcut") &&
+        homeAskInput &&
+        !isFullPage
+      ) {
+        homeAskInput.focus();
+        return false;
+      }
+
       setAgentOpen(true);
       return true;
     },
-    [capture, organization, setAgentOpen],
+    [capture, isFullPage, organization, setAgentOpen],
   );
+
+  // Home has its own Ask box and a link back to the latest conversation, so
+  // the assistant never shows beside it. A conversation that was open is only
+  // hidden there and docks again on the next page.
+  const isOpen =
+    open &&
+    !(
+      router.pathname === PROJECT_HOME_PATHNAME &&
+      canUseAssistant &&
+      !isFullPage
+    );
+  const closesOnHomeArrival = open && !selectedConversationId;
+
+  // External system: the Next router's event emitter. Arriving on Home
+  // refreshes the conversation list for its "Continue" link, and closes an
+  // assistant that had nothing in it so it does not come back on the next
+  // page either.
+  useEffect(() => {
+    if (!canUseAssistant) {
+      return;
+    }
+
+    const handleRouteChangeComplete = (url: string) => {
+      if (!url.replace(/[?#].*$/, "").endsWith(`/project/${projectId}`)) {
+        return;
+      }
+
+      Promise.resolve(
+        utils.inAppAgent.listConversations.invalidate({ projectId }),
+      ).catch(() => undefined);
+      if (closesOnHomeArrival) {
+        setAgentOpen(false);
+      }
+    };
+
+    router.events.on("routeChangeComplete", handleRouteChangeComplete);
+
+    return () => {
+      router.events.off("routeChangeComplete", handleRouteChangeComplete);
+    };
+  }, [
+    canUseAssistant,
+    closesOnHomeArrival,
+    projectId,
+    router.events,
+    setAgentOpen,
+    utils.inAppAgent.listConversations,
+  ]);
 
   const isCancellingRun = Boolean(
     backgroundExecutionView.cancelStatus === "submitting" ||
@@ -1474,11 +1635,14 @@ function InAppAiAgentProviderInner({
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
       isAvailable: true,
-      open,
+      open: isOpen,
       setOpen: setAgentOpen,
       openAssistant,
       isExpanded,
       setIsExpanded,
+      layoutMode,
+      setLayoutMode,
+      homeAskInputRef,
       isRunning,
       isSubmitting,
       pendingToolApprovals: isSelectedConversationNotFound
@@ -1517,6 +1681,8 @@ function InAppAiAgentProviderInner({
       attentionCount,
       alwaysAllowToolCall,
       isExpanded,
+      layoutMode,
+      setLayoutMode,
       conversations,
       effectiveError,
       hasMoreConversations,
@@ -1530,7 +1696,7 @@ function InAppAiAgentProviderInner({
       loadMoreConversations,
       liveMessageVersion,
       messagesWithUiState,
-      open,
+      isOpen,
       openAssistant,
       execution,
       effectivePendingToolApprovals,
@@ -1643,7 +1809,7 @@ export function useInAppAiAgent() {
  * Features. Use this for polling and other paths that must not hit the
  * server when org AI Features is off. More restrictive than
  * useIsInAppAgentLauncherVisible. */
-function useCanUseInAppAgent() {
+export function useCanUseInAppAgent() {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { organization } = useQueryProjectOrOrganization();
   const session = useSession();

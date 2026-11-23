@@ -302,6 +302,8 @@ type DropdownMenuProps = {
   /** Marks an internal-only menu with the Internal badge in the header. */
   internal?: boolean;
   description?: string;
+  /** Reports the item under the pointer or keyboard focus; null when none. */
+  onActiveItemChange?: (itemId: string | null) => void;
 };
 
 /**
@@ -355,12 +357,25 @@ function DropdownMenuNode({
   placement = "bottom-start",
   search,
   title,
+  onActiveItemChange,
   onOpenChange,
   open: isOpen,
 }: React.ComponentProps<typeof ControlledDropdownMenu>) {
   const hasHeader = Boolean(title) || internal || Boolean(headerAction);
   const HeaderActionIcon = headerAction?.icon;
-  const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
+  const [activeIndex, setActiveIndexState] = React.useState<number | null>(
+    null,
+  );
+  const itemIdsRef = React.useRef<Array<string | null>>([]);
+  const setActiveIndex = React.useCallback(
+    (index: number | null) => {
+      setActiveIndexState(index);
+      onActiveItemChange?.(
+        index === null ? null : (itemIdsRef.current[index] ?? null),
+      );
+    },
+    [onActiveItemChange],
+  );
   const [searchQuery, setSearchQuery] = React.useState("");
   const parentId = useFloatingParentNodeId();
   const nodeId = useFloatingNodeId();
@@ -521,6 +536,7 @@ function DropdownMenuNode({
   const renderItem = (item: DropdownMenuItemDefinition, index: number) => {
     if (item.type === "separator") {
       labelsRef.current[index] = null;
+      itemIdsRef.current[index] = null;
       listRef.current[index] = null;
       return (
         <div
@@ -533,6 +549,7 @@ function DropdownMenuNode({
 
     if (item.type === "loading") {
       labelsRef.current[index] = null;
+      itemIdsRef.current[index] = null;
       listRef.current[index] = null;
       return (
         <div
@@ -550,6 +567,7 @@ function DropdownMenuNode({
     if (item.type === "submenu") {
       const ItemIcon = item.icon;
       labelsRef.current[index] = item.title;
+      itemIdsRef.current[index] = item.id;
 
       return (
         <DropdownSubmenu
@@ -612,6 +630,7 @@ function DropdownMenuNode({
     if (item.type === "checkbox") {
       const ItemIcon = item.icon;
       labelsRef.current[index] = item.title;
+      itemIdsRef.current[index] = item.id;
       const handleCheckedChange = (checked: boolean) => {
         if (item.disabled) return;
         if (item.closeOnCheckedChange) {
@@ -676,6 +695,7 @@ function DropdownMenuNode({
     const ItemIcon = item.icon;
     const variant = item.type === "item" ? item.variant : undefined;
     labelsRef.current[index] = item.title;
+    itemIdsRef.current[index] = item.id;
     const itemIconNode = ItemIcon ? (
       <ItemIcon
         color={variant === "destructive" ? "inherit" : "default"}

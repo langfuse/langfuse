@@ -7,6 +7,7 @@ import {
   deserializeInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
   recordInAppAgentMessagesForDisplay,
+  recordInAppAgentRunStartForDisplay,
   recordInAppAgentToolCallForDisplay,
 } from "@/src/features/in-app-agent/lib/display";
 
@@ -314,5 +315,44 @@ describe("in-app agent display projection", () => {
       },
     ]);
     expect(canonicalMessages[1]?.content).toBe("First answer. Second answer.");
+  });
+
+  it("carries the page a persisted run started on onto its user message", () => {
+    const messages = [
+      { id: "user", role: "user", content: "Why is this slow?" },
+      { id: "assistant", role: "assistant", content: "The reranker." },
+    ] satisfies AgUiMessage[];
+    const state = recordInAppAgentRunStartForDisplay(
+      recordInAppAgentMessagesForDisplay(
+        createInAppAgentDisplayState(),
+        messages,
+      ),
+      {
+        type: "RUN_STARTED",
+        input: {
+          messages: [messages[0]],
+          context: [
+            {
+              description: "current_url",
+              value: JSON.stringify({
+                pathname: "/project/project-1/traces/trace-1",
+                searchParams: [{ key: "observation", value: "span-1" }],
+                hash: "",
+              }),
+            },
+          ],
+        },
+      },
+    );
+
+    expect(
+      projectInAppAgentMessagesForDisplay(
+        messages,
+        deserializeInAppAgentDisplayState(JSON.parse(JSON.stringify(state))),
+      ).map((message) => message.askedFrom),
+    ).toEqual([
+      "/project/project-1/traces/trace-1?observation=span-1",
+      undefined,
+    ]);
   });
 });

@@ -82,6 +82,8 @@ type BannerProps = {
   onDismiss?: () => void;
   /** Replaces the variant's icon. */
   icon?: IconComponent;
+  /** "status" for updates that should not interrupt the reader. */
+  role?: "alert" | "status";
 };
 
 function BannerActionItem({ action }: { action: BannerAction }) {
@@ -147,12 +149,13 @@ export function Banner({
   actions,
   onDismiss,
   icon,
+  role = "alert",
 }: BannerProps) {
   const Icon = icon ?? icons[variant];
 
   return (
     <div
-      role="alert"
+      role={role}
       data-variant={variant}
       className={bannerVariants({ variant })}
     >

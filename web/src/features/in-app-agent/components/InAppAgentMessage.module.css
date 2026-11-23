@@ -1,15 +1,7 @@
 @reference "../../../styles/globals.css";
 
 .Streamdown {
-  @apply prose prose-sm text-foreground prose-headings:text-inherit prose-headings:text-sm max-w-none;
-}
-
-.Streamdown.compact {
-  @apply prose-headings:my-2 text-[0.775rem] leading-4;
-}
-
-.Streamdown:not(.compact) {
-  @apply prose-headings:my-2.5 text-sm leading-4.5;
+  @apply prose prose-sm text-foreground prose-headings:text-inherit prose-headings:text-base prose-headings:my-3 max-w-none text-base leading-relaxed;
 }
 
 .Streamdown blockquote {
@@ -42,19 +34,23 @@
 }
 
 .Streamdown table {
-  @apply bg-muted dark:bg-card m-0! overflow-hidden rounded border;
+  @apply m-0! overflow-hidden rounded-lg border;
 }
 
 .Streamdown td {
-  @apply p-2;
+  @apply px-3 py-2;
 }
 
 .Streamdown th {
-  @apply p-2;
+  @apply bg-muted text-muted-foreground px-3 py-2 font-normal;
 }
 
 .Streamdown tr {
-  @apply border-border dark:border-border border-b;
+  @apply border-border border-b;
+}
+
+.Streamdown tbody tr:last-child {
+  @apply border-b-0;
 }
 
 .Streamdown hr {
@@ -65,50 +61,27 @@
   @apply p-0;
 }
 
-.Streamdown.compact ul,
-.Streamdown.compact ol,
-.Streamdown.compact p {
-  @apply my-1;
-}
-
-.Streamdown.compact li {
-  @apply my-0.5;
-}
-
-.Streamdown.compact th {
-  @apply text-xs;
-}
-
-.Streamdown.compact hr {
+.Streamdown ul,
+.Streamdown ol,
+.Streamdown p {
   @apply my-3;
 }
 
-.Streamdown.compact blockquote,
-.Streamdown.compact pre,
-.Streamdown.compact table {
-  @apply my-2;
-}
-
-.Streamdown:not(.compact) ul,
-.Streamdown:not(.compact) ol,
-.Streamdown:not(.compact) p {
+.Streamdown li {
   @apply my-1.5;
 }
 
-.Streamdown:not(.compact) li {
-  @apply my-1;
+.Streamdown th,
+.Streamdown td {
+  @apply text-sm leading-snug;
 }
 
-.Streamdown:not(.compact) th {
-  @apply text-sm;
-}
-
-.Streamdown:not(.compact) hr {
+.Streamdown hr {
   @apply my-5;
 }
 
-.Streamdown:not(.compact) blockquote,
-.Streamdown:not(.compact) pre,
-.Streamdown:not(.compact) table {
-  @apply my-2.5;
+.Streamdown blockquote,
+.Streamdown pre,
+.Streamdown table {
+  @apply my-3;
 }
