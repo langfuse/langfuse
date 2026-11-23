@@ -1,4 +1,4 @@
-import { InvalidRequestError } from "@langfuse/shared";
+import { type FilterState, InvalidRequestError } from "@langfuse/shared";
 import {
   TOPICS_MAX_TIME_RANGE_MS,
   topicTimeRangeSchema,
@@ -29,7 +29,10 @@ import {
   listTopicFacets,
   listTopicRules,
   readLatestTopicAssignments,
+  topicMatchingTraceIdsQuery,
+  TRACE_SPAN_MARGIN_MS,
 } from "@langfuse/shared/topics/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { requireAnalysis } from "./slices";
 
 function resolveTopicResult(
@@ -459,6 +462,8 @@ export async function listTopicTraces(input: {
   };
   assigned?: boolean;
   traceId?: string;
+  /** Tracing filters on the trace, as a rule filter takes them. */
+  filter?: FilterState;
   cursor?: TopicResultCursor;
 }) {
   const conditions: TopicResultCondition[] = [];
@@ -498,6 +503,20 @@ export async function listTopicTraces(input: {
     cursor: input.cursor,
     includeAssignment: true,
     truncateSummaries: false,
+    // Same matching as a rule filter: any observation that starts within the margin after the trace.
+    traceFilter: input.filter?.length
+      ? ({ from, to, traceIds }) =>
+          topicMatchingTraceIdsQuery(
+            {
+              projectId: input.projectId,
+              filter: input.filter!,
+              from,
+              to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
+              traceIds,
+            },
+            prisma,
+          )
+      : undefined,
   });
   const names = new Map(
     run?.topics.map((topic) => [topic.topicVersionId, topic.name]),

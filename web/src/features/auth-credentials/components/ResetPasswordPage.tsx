@@ -22,7 +22,7 @@ import { useRouter } from "next/router";
 import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/RequestResetPasswordEmailButton";
 import { TRPCClientError } from "@trpc/client";
 import Link from "next/link";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";

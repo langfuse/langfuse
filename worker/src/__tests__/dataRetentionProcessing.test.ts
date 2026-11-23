@@ -21,6 +21,7 @@ import {
   getObservationById,
   getScoreById,
   getTraceById,
+  queryClickhouse,
   StorageService,
   StorageServiceFactory,
   storageKeys,
@@ -897,6 +898,78 @@ describe("DataRetentionProcessingJob", () => {
       where: { id: projectId },
       data: { retentionDays: null },
     });
+  });
+
+  it("should delete Topics summaries and assignments older than retention days", async ({
+    onTestFinished,
+  }) => {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { retentionDays: 7 },
+    });
+    onTestFinished(async () => {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: null },
+      });
+    });
+    const now = Date.now();
+    const oldTraceId = randomUUID();
+    const recentTraceId = randomUUID();
+    const sources = [
+      { traceId: oldTraceId, unitStartTime: now - 30 * 86_400_000 },
+      { traceId: recentTraceId, unitStartTime: now - 86_400_000 },
+    ].map(({ traceId, unitStartTime }) => ({
+      project_id: projectId,
+      facet_id: "intent",
+      facet_version: 1,
+      trace_id: traceId,
+      environment: "default",
+      unit_start_time: toClickhouseDateTime(unitStartTime),
+      created_at: toClickhouseDateTime(now),
+    }));
+    await Promise.all([
+      clickhouseClient().insert({
+        table: "topic_facet_summaries",
+        format: "JSONEachRow",
+        values: sources.map((source) => ({
+          ...source,
+          processing_state: "complete",
+          summary: "A trace summary.",
+        })),
+      }),
+      clickhouseClient().insert({
+        table: "topic_assignments",
+        format: "JSONEachRow",
+        values: sources.map((source) => ({
+          ...source,
+          clustering_run_id: "run",
+          summary_processed_at: toClickhouseDateTime(now),
+          origin: "online",
+        })),
+      }),
+    ]);
+
+    await handleDataRetentionProcessingJob({
+      data: { payload: { projectId, retention: 7 } },
+    } as Job);
+
+    for (const table of [
+      "topic_facet_summaries",
+      "topic_assignments",
+      "topic_assignments_by_trace",
+    ]) {
+      const rows = await queryClickhouse<{ trace_id: string }>({
+        query: `SELECT trace_id FROM ${table}
+          WHERE project_id = {projectId: String}
+            AND trace_id IN {traceIds: Array(String)}`,
+        params: { projectId, traceIds: [oldTraceId, recentTraceId] },
+      });
+      expect(
+        rows.map((row) => row.trace_id),
+        table,
+      ).toEqual([recentTraceId]);
+    }
   });
 
   it("should skip deletion when retention is changed to 0 (indefinite) after job was queued", async () => {

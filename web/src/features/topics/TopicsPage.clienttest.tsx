@@ -85,7 +85,7 @@ vi.mock("@/src/components/table/peek/TablePeekViewTraceDetail", () => ({
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => state.canWrite,
 }));
-vi.mock("@/src/components/error-page", () => ({
+vi.mock("@/src/components/ErrorPage", () => ({
   ErrorPage: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 vi.mock("@/src/features/topics/topicsAccess", () => ({

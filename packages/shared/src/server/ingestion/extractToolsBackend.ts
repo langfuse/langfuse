@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defineOwnValue } from "../../utils/objects";
 
 type IngestionJsonValue = string | object | number | boolean | null | undefined;
 
@@ -861,11 +862,16 @@ export function convertDefinitionsToMap(
 ): Record<string, string> {
   const map: Record<string, string> = {};
   for (const def of definitions) {
-    // Last definition wins if duplicate names (shouldn't happen after dedup)
-    map[def.name] = JSON.stringify({
-      description: def.description ?? "",
-      parameters: def.parameters ?? "",
-    });
+    // Last definition wins if duplicate names (shouldn't happen after dedup).
+    // Bracket assignment drops a tool named `__proto__`.
+    defineOwnValue(
+      map,
+      def.name,
+      JSON.stringify({
+        description: def.description ?? "",
+        parameters: def.parameters ?? "",
+      }),
+    );
   }
   return map;
 }
