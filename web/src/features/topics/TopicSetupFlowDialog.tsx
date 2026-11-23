@@ -22,6 +22,7 @@ import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import {
+  TOPIC_SETUP_BACKFILL_LIMIT,
   TOPIC_SETUP_WAIT_MINUTES,
   canLeaveTopicQuestions,
   isRecommendedTopicModel,
@@ -336,7 +337,7 @@ export function TopicSetupFlowDialog({
                   pastCount.status === "ready" ? pastCount.dailyTraces : null
                 }
                 disabled={!canWrite}
-                tooltip="Share of matching traces Topics analyzes. Applies to the first backfill and to new traces once automatic processing is on."
+                tooltip={`Share of new matching traces Topics analyzes once automatic processing is on. The first backfill runs on up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} traces at any rate.`}
               />
             </div>
           ) : null}

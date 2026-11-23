@@ -186,7 +186,6 @@ function TopicSetupSession({
   );
   const pastCount = pastTraceCount(
     counts.data,
-    draft.samplePercent,
     counts.error?.message ?? null,
     counts.isFetching,
   );
@@ -410,18 +409,14 @@ function TopicSetupSession({
 
 function pastTraceCount(
   counts: { finished7d: number; finished30d: number } | undefined,
-  samplePercent: number,
   error: string | null,
   fetching: boolean,
 ): TopicSetupPastCount {
   if (counts) {
-    // Setup reads at most 30 days, so that bounds what it can find.
+    // Setup reads at most 30 days, so that bounds what it can find. Sampling does not apply to the backfill.
     return {
       status: "ready",
-      matched: Math.min(
-        TOPIC_SETUP_BACKFILL_LIMIT,
-        Math.round((counts.finished30d * samplePercent) / 100),
-      ),
+      matched: Math.min(TOPIC_SETUP_BACKFILL_LIMIT, counts.finished30d),
       dailyTraces: counts.finished7d / TOPIC_SETUP_BACKFILL_DAYS,
     };
   }

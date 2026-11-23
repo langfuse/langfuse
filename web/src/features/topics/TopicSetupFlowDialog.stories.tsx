@@ -71,7 +71,7 @@ function SetupStory({
           estimate={costEstimateFixture()}
           samplingPercent={samplePercent}
           dailyTraces={180}
-          backfillTraces={Math.round((412 * samplePercent) / 100)}
+          backfillTraces={412}
           canAddModelPrice
           onAddModelPrice={fn()}
           starting={false}

@@ -508,6 +508,9 @@ export const viewLowersNumericMetadata = (
   viewVersion: ViewVersion,
 ): boolean => viewVersion === "v2" && view === "observations";
 
+export const UNSUPPORTED_NUMERIC_METADATA_REASON =
+  "Numeric metadata filters are only supported on observations view (v4).";
+
 /**
  * partitionWidgetQueryFiltersToView partitions editor rows for a query on the
  * view, like partitionWidgetUiTableFiltersToView, and also counts a numeric

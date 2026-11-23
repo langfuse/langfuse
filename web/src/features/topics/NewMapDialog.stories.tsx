@@ -115,7 +115,7 @@ function NewMapStory({
           estimate={costEstimateFixture()}
           samplingPercent={samplingPercent}
           dailyTraces={180}
-          backfillTraces={Math.round((412 * samplingPercent) / 100)}
+          backfillTraces={412}
           canAddModelPrice
           onAddModelPrice={fn()}
           starting={false}

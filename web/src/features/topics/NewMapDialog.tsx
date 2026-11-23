@@ -130,9 +130,7 @@ export function NewMapDialog({
             traceCounts.data
               ? Math.min(
                   TOPIC_SETUP_BACKFILL_LIMIT,
-                  Math.round(
-                    (traceCounts.data.finished30d * samplingPercent) / 100,
-                  ),
+                  traceCounts.data.finished30d,
                 )
               : null
           }
