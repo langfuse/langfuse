@@ -1,7 +1,6 @@
 import { prisma } from "../../../src/db";
 import {
   createTopicExecution,
-  recordTopicNamingCost,
   getTopicExecutionNamingCosts,
   getTopicExecutionCosts,
   writeTopicSummaries,
@@ -85,12 +84,20 @@ export async function seedTopicCostSnapshots(
     );
     const progress = execution.facets[0]!;
     const runId = progress.runId!;
-    await recordTopicNamingCost(projectId, runId, "seed-name", 0.08);
+    // The snapshot renames the billing topic and reuses every other live definition.
+    const billing = {
+      ...sourceRun.topics[0]!,
+      createdByRunId: runId,
+      topicVersionId: `${runId}-billing`,
+      name: "Billing and payment questions",
+      costDetails: { naming_input: 0.08, total: 0.08 },
+    };
     await saveTopicRun({
       ...sourceRun,
       id: runId,
       ruleId: null,
       batchActionId: execution.id,
+      topics: [billing, ...sourceRun.topics.slice(1)],
       config: {
         ...geometry,
         timeRange,
@@ -98,7 +105,15 @@ export async function seedTopicCostSnapshots(
       },
     });
     await writeTopicAssignments(
-      assignments.map((row) => ({ ...row, ruleId: null, runId })),
+      assignments.map((row) => ({
+        ...row,
+        ruleId: null,
+        runId,
+        topicVersionId:
+          row.topicId === billing.topicId
+            ? billing.topicVersionId
+            : row.topicVersionId,
+      })),
     );
     const pricedRows = partial ? summaries.slice(2, 4) : summaries.slice(0, 2);
     const processingCosts = [0.2, partial ? null : 0.22];

@@ -5,6 +5,7 @@ import type {
   TopicDefinition,
   TopicSummary,
 } from "../../topics";
+import { normalizeTopicDefinitionCosts } from "../../topics";
 import {
   readTopicAssignments,
   readTopicMapAssignments,
@@ -473,6 +474,16 @@ describe("Topics definition storage", () => {
           query.query.includes("project_id = {projectId:String}"),
       ),
     ).toBe(true);
+  });
+
+  it("retains known naming prices at the stored precision, including zero", () => {
+    expect(
+      normalizeTopicDefinitionCosts({
+        naming_input: 0,
+        naming_output: 0.0000000000015,
+        total: 1_000_000,
+      }),
+    ).toEqual({ naming_input: 0, naming_output: 0.000000000002 });
   });
 
   it("rejects invalid classifier values before sending any definitions", async () => {

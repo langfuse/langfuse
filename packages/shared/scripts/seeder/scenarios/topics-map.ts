@@ -8,7 +8,6 @@ import {
 } from "../../../src/server";
 import {
   createTopicRun,
-  recordTopicNamingCost,
   getTopicRuleMapCosts,
   ensureDefaultTopicFacets,
   listTopicRules,
@@ -485,6 +484,11 @@ export const topicsMapScenario: ScenarioDefinition = {
         representativeSummaries: [],
         metadata: {},
       }));
+      if (withCosts && map === maps[0]) {
+        const billing = definitions[0]!;
+        billing.topicVersionId = `${billing.topicId}-priced`;
+        billing.costDetails = { naming_input: 0.1, total: 0.1 };
+      }
       await createTopicRun({
         id: map.runId,
         projectId: ctx.projectId,
@@ -493,8 +497,6 @@ export const topicsMapScenario: ScenarioDefinition = {
         ruleId: map.rule.id,
         config,
       });
-      if (withCosts && map === maps[0])
-        await recordTopicNamingCost(ctx.projectId, map.runId, "seed-name", 0.1);
       const assignments: TopicAssignment[] = traceIds.flatMap((_, index) => {
         if (!map.members(index)) return [];
         const k = map.topicOf(index);

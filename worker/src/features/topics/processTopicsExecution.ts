@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import {
   getCurrentSpan,
@@ -466,6 +467,7 @@ async function clusterFacet(
         topics.push(retained);
         continue;
       }
+      const costDetails: Record<string, number> = {};
       const label = await instrumentAsync(
         { name: "topics.naming", traceScope: "topics" },
         (span) => {
@@ -504,6 +506,13 @@ async function clusterFacet(
                 effective_member_count: group.count,
                 selected_member_count: prepared.members.length,
               },
+              (attemptCost) => {
+                for (const [key, value] of Object.entries(attemptCost))
+                  costDetails[key] = Decimal.add(
+                    costDetails[key] ?? 0,
+                    value,
+                  ).toNumber();
+              },
             );
             return {
               ...label,
@@ -538,6 +547,7 @@ async function clusterFacet(
         projectId: scope.projectId,
         createdByRunId: run.id,
         createdAt: run.createdAt,
+        costDetails,
         labels: [],
         name: label?.name ?? `Unnamed topic ${topics.length + 1}`,
         description:
@@ -606,13 +616,26 @@ async function nameGroupAvoidingConflicts(
   named: NamedTopics,
   group: Parameters<typeof nameTopicGroup>[1],
   metadata: Record<string, unknown> & { run_id: string },
+  onCost: (costDetails: Record<string, number>) => void,
 ) {
-  let { output: label } = await nameTopicGroup(models, group, metadata);
+  let { output: label } = await nameTopicGroup(
+    models,
+    group,
+    metadata,
+    undefined,
+    onCost,
+  );
   const conflict = named.get(label.name.toLowerCase());
   if (conflict) {
     metrics.result("naming", "name_conflict");
     // The first name is valid, so a failed rename keeps it.
-    label = await nameTopicGroup(models, group, metadata, conflict).then(
+    label = await nameTopicGroup(
+      models,
+      group,
+      metadata,
+      conflict,
+      onCost,
+    ).then(
       ({ output }) => output,
       (error: unknown) => {
         metrics.error("naming", error);

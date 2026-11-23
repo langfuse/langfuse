@@ -1,5 +1,5 @@
 import { get_encoding } from "tiktoken";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@langfuse/shared/src/env";
@@ -16,7 +16,6 @@ import {
   generateTopicEmbeddings,
   generateTopicText,
   getTopicTextResponseMetadata,
-  recordTopicNamingCost,
   topicMessages,
   type TopicPromptPart,
   type TopicTextUsageDetails,
@@ -183,7 +182,7 @@ async function structuredCall<T>(
   projectId: string,
   metadata?: TopicCallMetadata,
   traceName = `topics-${stage}`,
-  onCost?: (cost: number) => Promise<void>,
+  onCost?: (costDetails: Record<string, number>) => void,
 ): Promise<ModelResult<T>> {
   async function priceResponse(response: TopicTextUsageDetails) {
     const priced = await priceTopicUsage(
@@ -193,8 +192,8 @@ async function structuredCall<T>(
       response.usageDetails,
       response.providedCostDetails,
     );
-    const cost = priced.costDetails.total;
-    if (cost !== undefined) await onCost?.(cost);
+    if (onCost && Object.keys(priced.costDetails).length > 0)
+      onCost(priced.costDetails);
     return priced;
   }
   const trace = await topicTraceSink(traceName, projectId, metadata);
@@ -223,6 +222,7 @@ async function structuredCall<T>(
     input: result.usage.inputTokens,
     output: result.usage.outputTokens,
   });
+  // A paid response can fail local validation during a naming retry.
   const priced = await priceResponse(result);
   return { output: schema.parse(result.output), ...priced };
 }
@@ -677,6 +677,7 @@ export async function nameTopicGroup(
   },
   metadata: TopicCallMetadata & { run_id: string },
   conflict?: NamingConflict,
+  onCost?: (costDetails: Record<string, number>) => void,
 ) {
   const memberIds = new Set(group.members.map((member) => member.id));
   const schema = namingSchema.extend({
@@ -711,7 +712,6 @@ export async function nameTopicGroup(
       (conflictingTopic?.tokens ?? 0) +
       (previousTopic?.tokens ?? 0),
   );
-  const callId = randomUUID();
   return structuredCall(
     [
       {
@@ -736,22 +736,7 @@ export async function nameTopicGroup(
       naming_input_tokens_estimated: inputLimit,
     },
     conflict ? "topics-naming-conflict" : undefined,
-    async (cost) => {
-      try {
-        await recordTopicNamingCost(
-          models.projectId,
-          metadata.run_id,
-          callId,
-          cost,
-        );
-      } catch (error) {
-        logger.warn("Failed to save Topics naming cost", {
-          projectId: models.projectId,
-          callId,
-          error,
-        });
-      }
-    },
+    onCost,
   );
 }
 

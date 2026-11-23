@@ -18,7 +18,12 @@ import type {
   TopicSummary,
   TopicTimeRange,
 } from "../../topics";
-import { topicSourceSchema, topicTimeRangeSchema } from "../../topics";
+import {
+  normalizeTopicDefinitionCosts,
+  topicSourceSchema,
+  topicTimeRangeSchema,
+} from "../../topics";
+import { Decimal } from "decimal.js";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { redis } from "../redis/redis";
@@ -138,6 +143,11 @@ async function insertTopicRows<T extends { projectId: string }>(
   await flush();
 }
 
+const numberMap = (values: Record<string, number | string>) =>
+  Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [key, Number(value)]),
+  );
+
 export async function getTopicDefinitions(
   projectId: string,
   topicVersionIds: string[],
@@ -148,10 +158,11 @@ export async function getTopicDefinitions(
     const rows = await queryClickhouse<
       Omit<
         TopicDefinition,
-        "createdAt" | "metadata" | "representativeSummaries"
+        "createdAt" | "metadata" | "representativeSummaries" | "costDetails"
       > & {
         createdAtMs: string;
         metadataJson: string;
+        costDetails: Record<string, string | number>;
         representativeSummaries: {
           facet_id: string;
           facet_version: number;
@@ -164,7 +175,7 @@ export async function getTopicDefinitions(
         stable_id AS topicId, created_by_run_id AS createdByRunId,
         toUnixTimestamp64Milli(created_at) AS createdAtMs, name, description,
         centroid, radius, labels, representative_summaries AS representativeSummaries,
-        metadata AS metadataJson
+        metadata AS metadataJson, cost_details AS costDetails
         FROM topics
         WHERE project_id = {projectId:String} AND id IN {ids:Array(String)}
           AND created_at >= {from:DateTime64(3)} AND created_at < {to:DateTime64(3)}
@@ -173,8 +184,11 @@ export async function getTopicDefinitions(
       tags: { route: "topics-definitions", projectId },
     });
     definitions.push(
-      ...rows.map(({ createdAtMs, metadataJson, ...row }) => ({
+      ...rows.map(({ createdAtMs, metadataJson, costDetails, ...row }) => ({
         ...row,
+        ...(Object.keys(costDetails).length > 0 && {
+          costDetails: numberMap(costDetails),
+        }),
         createdAt: new Date(Number(createdAtMs)).toISOString(),
         representativeSummaries: row.representativeSummaries.map((source) => ({
           facetId: source.facet_id,
@@ -261,6 +275,14 @@ function encodeTopicDefinition(row: TopicDefinition): Buffer {
     string(source.traceId === null ? source.sessionId! : "");
   }
   string(JSON.stringify(row.metadata));
+  const costs = Object.entries(normalizeTopicDefinitionCosts(row.costDetails));
+  length(costs.length);
+  for (const [key, cost] of costs) {
+    string(key);
+    const scaled = Buffer.allocUnsafe(8);
+    scaled.writeBigInt64LE(BigInt(new Decimal(cost).mul(1e12).toFixed(0)));
+    parts.push(scaled);
+  }
   return Buffer.concat(parts);
 }
 
@@ -289,7 +311,7 @@ export async function writeTopicDefinitions(
     const result = await clickhouseClient().exec({
       query: `INSERT INTO topics (project_id, id, stable_id, created_by_run_id,
         created_at, name, description, centroid, radius, labels,
-        representative_summaries, metadata) FORMAT RowBinary`,
+        representative_summaries, metadata, cost_details) FORMAT RowBinary`,
       values: Readable.from(values),
       clickhouse_settings: {
         async_insert: 1,
@@ -341,10 +363,6 @@ type SummaryRow = Omit<
   processedAtMs: string;
   executionId: string;
 };
-const numberMap = (values: Record<string, number>) =>
-  Object.fromEntries(
-    Object.entries(values).map(([key, value]) => [key, Number(value)]),
-  );
 function summarySourceAndTimestamps(
   row: Pick<
     SummaryRow,
@@ -797,7 +815,7 @@ async function readRetainedTopicCosts(
   kind: "snapshot" | "rule",
   ids: string[],
 ): Promise<Record<string, number>> {
-  if (!ids.length) return {};
+  if (ids.length === 0) return {};
   const owners =
     kind === "snapshot"
       ? "[execution_id]"
@@ -860,6 +878,34 @@ export function getTopicRuleProcessingCosts(
   ruleIds: string[],
 ) {
   return readRetainedTopicCosts(projectId, "rule", ruleIds);
+}
+
+/** Reusing a definition adds no naming cost. Its version belongs to the run that created it. */
+export async function getTopicRunNamingCosts(
+  projectId: string,
+  runIds: string[],
+): Promise<Record<string, number>> {
+  const costs: Record<string, number> = {};
+  for (const ids of chunk([...new Set(runIds)], LOOKUP_BATCH_SIZE)) {
+    const rows = await queryClickhouse<{ runId: string; cost: string }>({
+      query: `SELECT runId, sum(price.2) AS cost FROM (
+          SELECT created_by_run_id AS runId,
+            argMax(tuple(mapContains(cost_details, 'total'), cost_details['total']),
+                   tuple(created_at, _block_number, _block_offset)) AS price
+          FROM topics
+          PREWHERE project_id = {projectId:String} AND created_by_run_id IN {ids:Array(String)}
+          GROUP BY runId, id
+        )
+        WHERE price.1
+        GROUP BY runId`,
+      params: { projectId, ids },
+      preferredClickhouseService: "EventsReadOnly",
+      clickhouseSettings: { max_threads: 2, max_execution_time: 30 },
+      tags: { route: "topics-run-naming-costs", projectId },
+    });
+    for (const row of rows) costs[row.runId] = Number(row.cost);
+  }
+  return costs;
 }
 
 // Bounds the preview count; a 14-day cohort takes about 10 s on the largest tenants.

@@ -112,7 +112,7 @@ const useMapCosts: UseMapCosts = (projectId, ruleIds) => {
     {
       enabled: ruleIds.length > 0,
       staleTime: MAP_COST_POLL_INTERVAL_MS,
-      refetchInterval: ruleIds.length ? MAP_COST_POLL_INTERVAL_MS : false,
+      refetchInterval: ruleIds.length > 0 ? MAP_COST_POLL_INTERVAL_MS : false,
     },
   );
   return query.data ?? (query.isError ? null : undefined);

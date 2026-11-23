@@ -16,7 +16,6 @@ import {
   getTopicSummaryCounts,
   getTopicExecutionCosts,
   getTopicRuleProcessingCosts,
-  recordTopicNamingCost,
   getTopicExecutionNamingCosts,
   getTopicRuleMapCosts,
   getTopicTraceUnitTimeRange,
@@ -104,12 +103,13 @@ describe("Topics eval-backed configuration", () => {
   });
 
   afterAll(async () => {
-    await clickhouseClient().command({
-      query:
-        "DELETE FROM topic_facet_summaries WHERE project_id = {projectId:String}",
-      query_params: { projectId },
-      clickhouse_settings: { mutations_sync: "1" },
-    });
+    for (const table of ["topics", "topic_facet_summaries"]) {
+      await clickhouseClient().command({
+        query: `DELETE FROM ${table} WHERE project_id = {projectId:String}`,
+        query_params: { projectId },
+        clickhouse_settings: { mutations_sync: "1" },
+      });
+    }
     await prisma.organization.deleteMany({ where: { id: orgId } });
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   });
@@ -453,32 +453,77 @@ describe("Topics eval-backed configuration", () => {
     ).toEqual(completed);
   });
 
-  it("adds retained processing to the naming costs of every fit owned by one map", async () => {
+  it("attributes each stored topic version's naming cost only to the run that created it", async () => {
     const facet = await createTopicFacet({
       projectId,
-      name: "Map naming",
+      name: "Naming costs",
       description: "",
       prompt: "Summarize.",
     });
-    const input = { projectId, facetIds: [facet.id], filter: [] };
-    const { id: ruleId } = await saveTopicRule(input);
-    const { id: unpricedRuleId } = await saveTopicRule({
-      ...input,
-      name: "Unpriced",
+    const rule = await saveTopicRule({
+      projectId,
+      facetIds: [facet.id],
+      filter: [],
     });
-    const run = { projectId, ruleId, facetId: facet.id, facetVersion: 1 };
-    const priced = { namingCallCosts: { name: 0.06 } };
-    await prisma.topicClusteringRun.createMany({
-      data: [
-        { ...run, status: "completed", config: priced },
-        { ...run, status: "failed", config: priced },
-        { ...run, ruleId: unpricedRuleId, status: "failed", config: {} },
+    const run = { projectId, facetId: facet.id, facetVersion: 1, config: {} };
+    const original = await createTopicRun({ ...run, ruleId: rule.id });
+    const snapshot = await createTopicRun({
+      ...run,
+      batchActionId: "snapshot",
+    });
+    const rename = await createTopicRun({ ...run, batchActionId: "snapshot" });
+    const free = await createTopicRun({ ...run, batchActionId: "free" });
+
+    const topic: TopicDefinition = {
+      projectId,
+      topicId: randomUUID(),
+      topicVersionId: randomUUID(),
+      createdByRunId: original.id,
+      createdAt: original.createdAt,
+      name: "Billing",
+      description: "",
+      labels: [],
+      centroid: [1, 0],
+      radius: 0.2,
+      representativeSummaries: [],
+      metadata: {},
+      costDetails: { naming_input: 0.02, naming_output: 0.01, total: 0.05 },
+    };
+    const published = await saveTopicRun({
+      ...original,
+      topics: [topic],
+      status: "completed",
+    });
+    await saveTopicRun({
+      ...snapshot,
+      topics: published.topics,
+      status: "completed",
+    });
+    expect(await getTopicExecutionNamingCosts(projectId, ["snapshot"])).toEqual(
+      {},
+    );
+
+    const renamed = {
+      ...topic,
+      topicVersionId: randomUUID(),
+      name: "Invoices",
+      createdByRunId: rename.id,
+      createdAt: rename.createdAt,
+      costDetails: { total: 0.1 + 0.2 },
+    };
+    await saveTopicRun({ ...rename, topics: [renamed], status: "completed" });
+    // A duplicate delivery of the same immutable version contributes once, even before a merge.
+    await writeTopicDefinitions([renamed]);
+    await saveTopicRun({
+      ...free,
+      status: "completed",
+      topics: [
         {
-          ...run,
-          ruleId: null,
-          batchActionId: randomUUID(),
-          status: "completed",
-          config: priced,
+          ...topic,
+          topicVersionId: randomUUID(),
+          createdByRunId: free.id,
+          createdAt: free.createdAt,
+          costDetails: { total: 0 },
         },
       ],
     });
@@ -486,72 +531,25 @@ describe("Topics eval-backed configuration", () => {
       {
         ...exampleSummary(projectId),
         facetId: facet.id,
-        ruleIds: [ruleId],
+        ruleIds: [rule.id],
         costDetails: { total: 0.04 },
       },
     ]);
-    await expect(
-      getTopicRuleMapCosts(projectId, [ruleId, unpricedRuleId]),
-    ).resolves.toEqual({
-      [ruleId]: 0.16,
-      [unpricedRuleId]: null,
-    });
-    await expect(
-      getTopicRuleMapCosts(otherProjectId, [ruleId]),
-    ).resolves.toEqual({});
-  });
 
-  it("records priced naming responses once across retries and concurrent run saves", async () => {
-    const facet = await createTopicFacet({
-      projectId,
-      name: "Naming costs",
-      description: "",
-      prompt: "Summarize.",
+    expect(await getTopicRuleMapCosts(projectId, [rule.id])).toEqual({
+      [rule.id]: 0.09,
     });
-    const run = { projectId, facetId: facet.id, facetVersion: 1 };
-    const first = await prisma.topicClusteringRun.create({
-      data: {
-        ...run,
-        batchActionId: "retried",
-        status: "failed",
-        config: { namingCallCosts: { first: null } },
-      },
-    });
-    const retry = await prisma.topicClusteringRun.create({
-      data: {
-        ...run,
-        batchActionId: "retried",
-        status: "completed",
-        config: {},
-      },
-    });
-    const free = await prisma.topicClusteringRun.create({
-      data: { ...run, batchActionId: "free", status: "completed", config: {} },
-    });
-    const inputs = ["retried", "free", "missing"];
-    expect(await getTopicExecutionNamingCosts(projectId, inputs)).toEqual({});
-
-    const stale = (await getTopicRun(projectId, first.id))!;
-    await Promise.all([
-      recordTopicNamingCost(projectId, first.id, "first", 0.08),
-      recordTopicNamingCost(projectId, first.id, "second", 0.02),
-      saveTopicRun({ ...stale, config: { saved: true } }),
-    ]);
-    await recordTopicNamingCost(projectId, first.id, "first", 1);
-    await recordTopicNamingCost(otherProjectId, first.id, "foreign", 9);
-    await recordTopicNamingCost(projectId, retry.id, "retry", 0.2);
-    await recordTopicNamingCost(projectId, free.id, "free", 0);
-
-    expect((await getTopicRun(projectId, first.id))?.config).toEqual({
-      saved: true,
-    });
-    expect(await getTopicExecutionNamingCosts(projectId, inputs)).toEqual({
-      retried: 0.3,
-      free: 0,
-    });
-    expect(await getTopicExecutionNamingCosts(otherProjectId, inputs)).toEqual(
-      {},
-    );
+    expect(
+      await getTopicExecutionNamingCosts(projectId, [
+        "snapshot",
+        "free",
+        "absent",
+      ]),
+    ).toEqual({ snapshot: 0.3, free: 0 });
+    expect(await getTopicRuleMapCosts(otherProjectId, [rule.id])).toEqual({});
+    expect(
+      await getTopicExecutionNamingCosts(otherProjectId, ["snapshot"]),
+    ).toEqual({});
   });
 
   it("never serves an analysis, even as the facet's newest snapshot", async () => {
