@@ -50,6 +50,7 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Button } from "@/src/components/ui/button";
+import { DashboardBlocksHomeCanvas } from "@/src/features/dashboard-blocks/DashboardBlocksHomeCanvas";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -552,20 +553,42 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
             <Skeleton className="h-full w-full" />
           </div>
         ) : (
-          <DashboardGrid
-            widgets={definition.widgets}
-            onChange={() => undefined}
-            canEdit={false}
-            dashboardId={dashboardId}
-            projectId={projectId}
-            readPath={readPath}
-            dateRange={absoluteTimeRange}
-            filterState={gridFilterState}
-            onDeleteWidget={() => undefined}
-            dashboardOwner={dashboardOwner}
-            getWidgetSchedulerId={getWidgetSchedulerId}
-            readOnly
-          />
+          <>
+            {dashboardOwner === "PROJECT" && (
+              <DashboardBlocksHomeCanvas
+                gridProps={{
+                  widgets: definition.widgets,
+                  onChange: () => undefined,
+                  canEdit: false,
+                  dashboardId,
+                  projectId,
+                  readPath,
+                  dateRange: absoluteTimeRange,
+                  filterState: gridFilterState,
+                  onDeleteWidget: () => undefined,
+                  dashboardOwner,
+                  getWidgetSchedulerId,
+                  readOnly: true,
+                }}
+              />
+            )}
+            {dashboardOwner !== "PROJECT" && (
+              <DashboardGrid
+                widgets={definition.widgets}
+                onChange={() => undefined}
+                canEdit={false}
+                dashboardId={dashboardId}
+                projectId={projectId}
+                readPath={readPath}
+                dateRange={absoluteTimeRange}
+                filterState={gridFilterState}
+                onDeleteWidget={() => undefined}
+                dashboardOwner={dashboardOwner}
+                getWidgetSchedulerId={getWidgetSchedulerId}
+                readOnly
+              />
+            )}
+          </>
         )}
       </Page>
     </DashboardQuerySchedulerProvider>

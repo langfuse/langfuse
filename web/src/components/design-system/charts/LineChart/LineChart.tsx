@@ -4,6 +4,7 @@ import { type ComponentProps } from "react";
 
 import { SeriesChartCore } from "@/src/components/design-system/internal/charts/SeriesChartCore";
 
+export type { ChartLegendInteraction } from "@/src/components/design-system/internal/charts/ChartLegend";
 export type {
   LineChartLegend,
   LineChartSeries,

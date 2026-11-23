@@ -1,0 +1,48 @@
+import { createContext, useContext } from "react";
+import { type SavedDashboardBlock, type FilterState } from "@langfuse/shared";
+import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
+import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+
+export type BlockEditorRequest =
+  | { kind: "multiQuery" | "markdown"; block?: never }
+  | { kind: "multiQuery" | "markdown"; block: SavedDashboardBlock };
+
+export type DashboardBlocksContextValue = {
+  projectId: string;
+  dashboardId: string;
+  canEdit: boolean;
+  readPath: ResolvedReadPath;
+  dateRange: { from: Date; to: Date } | undefined;
+  filterState: FilterState;
+  capabilitiesPending: boolean;
+  capabilities: { multiQuery: boolean; markdown: boolean };
+  blocks: SavedDashboardBlock[];
+  widgets: DashboardPlacement[];
+  placementOptions: { value: string | null; label: string }[];
+  loadError: boolean;
+  openEditor: (request: BlockEditorRequest) => void;
+  track: (
+    action:
+      | "preview"
+      | "add"
+      | "edit"
+      | "save"
+      | "cancel"
+      | "remove"
+      | "placement"
+      | "layout_open"
+      | "layout_close",
+    kind?: "multiQuery" | "markdown",
+    isNew?: boolean,
+  ) => void;
+};
+
+export const DashboardBlocksContext = createContext<
+  DashboardBlocksContextValue | undefined
+>(undefined);
+
+export function useDashboardBlocks() {
+  const context = useContext(DashboardBlocksContext);
+  if (!context) throw new Error("Dashboard blocks require their provider");
+  return context;
+}

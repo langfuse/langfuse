@@ -884,6 +884,7 @@ function MultiSeriesBarChart({
       </div>
       {showLegend ? (
         <ChartLegend
+          onInteraction={legend.onInteraction}
           selectionActions={
             legend.interaction === "toggle"
               ? {

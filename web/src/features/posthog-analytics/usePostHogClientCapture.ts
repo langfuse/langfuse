@@ -291,6 +291,7 @@ const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "block_interaction",
     "view",
     "widget_saved",
     "clone_dashboard",

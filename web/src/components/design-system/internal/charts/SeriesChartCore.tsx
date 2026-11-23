@@ -9,7 +9,10 @@ import { ChartContainer } from "@/src/components/design-system/internal/charts/C
 import { CHART_TRANSITION_DURATION } from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
-import { ChartLegend } from "@/src/components/design-system/internal/charts/ChartLegend";
+import {
+  ChartLegend,
+  type ChartLegendInteraction,
+} from "@/src/components/design-system/internal/charts/ChartLegend";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 
 type LineChartValues = {
@@ -36,6 +39,7 @@ export type LineChartLegend =
   | ({
       visibility: "auto" | "visible";
       summary: "none" | "sum";
+      onInteraction?: (action: ChartLegendInteraction) => void;
     } & (
       | { interaction: "highlight" }
       | { interaction: "toggle"; maxVisibleSeries?: number }
@@ -325,6 +329,7 @@ export function SeriesChartCore(
       </div>
       {showLegend ? (
         <ChartLegend
+          onInteraction={legend.onInteraction}
           selectionActions={
             legend.interaction === "toggle"
               ? {
