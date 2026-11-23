@@ -1,4 +1,3 @@
-import { logger } from "../logger";
 import type { StorageService } from "../services/StorageService";
 
 // Types a browser can open from the storage origin without running script.
@@ -29,8 +28,8 @@ const SAFE_INLINE_MEDIA_TYPE_PREFIXES = ["audio/", "video/"];
  * Returns `null` when the provider cannot pin response headers and either the
  * recorded or the stored type is outside the safe-inline allowlist: any link
  * would let its holder render the object inline on the storage origin. The
- * stored type is checked because such providers do not bind it at upload, and
- * a stored type that cannot be read also gets no link.
+ * stored type is checked because such providers do not bind it at upload; a
+ * missing object also gets no link.
  */
 export async function getMediaDownloadUrl(params: {
   storageService: StorageService;
@@ -42,14 +41,8 @@ export async function getMediaDownloadUrl(params: {
   const isSafeInline = isSafeInlineMediaType(contentType);
   if (!storageService.canOverrideResponseHeaders) {
     if (!isSafeInline) return null;
-    const storedContentType = await storageService
-      .getObjectContentType(bucketPath)
-      .catch((error: unknown) => {
-        logger.warn(`Failed to read the stored type of media ${bucketPath}`, {
-          error,
-        });
-        return undefined;
-      });
+    const storedContentType =
+      await storageService.getObjectContentType(bucketPath);
     // Browsers render the last type of a comma-separated list, so only a
     // single stored type can be trusted.
     if (

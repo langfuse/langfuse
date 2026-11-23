@@ -139,6 +139,23 @@ type UploadWithSignedUrl = UploadFile & {
 };
 
 /**
+ * Whether a provider error says the object does not exist. Azure and OCI set
+ * `statusCode`, GCS sets `code` and the S3 SDK sets `$metadata.httpStatusCode`.
+ */
+function isObjectNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const status =
+    ("statusCode" in err && err.statusCode) ||
+    ("code" in err && err.code) ||
+    ("$metadata" in err &&
+      err.$metadata &&
+      typeof err.$metadata === "object" &&
+      "httpStatusCode" in err.$metadata &&
+      err.$metadata.httpStatusCode);
+  return status === 404;
+}
+
+/**
  * Check if an error is a DNS lookup failure (EAI_AGAIN)
  * and throw ServiceUnavailableError if so, otherwise rethrow the original error
  */
@@ -409,7 +426,10 @@ export interface StorageService {
 
   getObjectContentLength(path: string): Promise<number | undefined>;
 
-  /** The Content-Type the provider serves the stored object with. */
+  /**
+   * The Content-Type the provider serves the stored object with, or
+   * `undefined` when the object does not exist.
+   */
   getObjectContentType(path: string): Promise<string | undefined>;
 
   getSignedUploadUrl(params: {
@@ -884,6 +904,7 @@ class AzureBlobStorageService implements StorageService {
       const properties = await this.client.getBlobClient(path).getProperties();
       return properties.contentType;
     } catch (err) {
+      if (isObjectNotFoundError(err)) return undefined;
       logger.error(`Failed to read Azure Blob Storage metadata ${path}`, err);
       handleStorageError(err, "read Azure Blob Storage metadata");
     }
@@ -1321,6 +1342,7 @@ class S3StorageService implements StorageService {
       );
       return response.ContentType;
     } catch (err) {
+      if (isObjectNotFoundError(err)) return undefined;
       this.logClientFailure(`Failed to read S3 object metadata ${path}`, err);
       handleStorageError(err, "read S3 object metadata");
     }
@@ -1662,6 +1684,7 @@ class GoogleCloudStorageService implements StorageService {
       const [metadata] = await this.bucket.file(path).getMetadata();
       return metadata.contentType;
     } catch (err) {
+      if (isObjectNotFoundError(err)) return undefined;
       logger.error(`Failed to read Google Cloud Storage metadata ${path}`, err);
       handleStorageError(err, "read Google Cloud Storage metadata");
     }
@@ -2263,6 +2286,7 @@ class OCIObjectStorageService implements StorageService {
       });
       return response.contentType;
     } catch (err) {
+      if (isObjectNotFoundError(err)) return undefined;
       logger.error(`Failed to read OCI Object Storage metadata ${path}`, err);
       handleStorageError(err, "read OCI Object Storage metadata");
     }
