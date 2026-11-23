@@ -3,7 +3,7 @@ import {
   getEvaluatorBlockMetadata,
   type EvaluatorBlockReason,
 } from "@langfuse/shared";
-import { ExternalLinkIcon, RefreshCcw } from "@langfuse/icons";
+import { RefreshCcw } from "@langfuse/icons";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 
@@ -69,7 +69,6 @@ export function EvaluatorBlockedBanner({
         {
           text: resolutionAction.label,
           href: resolutionAction.href,
-          icon: ExternalLinkIcon,
         },
         ...(canReactivate
           ? [

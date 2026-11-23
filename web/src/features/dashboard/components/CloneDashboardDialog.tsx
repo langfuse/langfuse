@@ -1,4 +1,3 @@
-import { ExternalLinkIcon } from "@langfuse/icons";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 
@@ -50,7 +49,6 @@ export function CloneDashboardDialog({
             actions={[
               {
                 text: "Open existing clone",
-                icon: ExternalLinkIcon,
                 disabled: isPending,
                 onClick: onOpenExisting,
               },
