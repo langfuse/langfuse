@@ -1414,50 +1414,16 @@ describe(
         expect(comparison.earlyTs.sideEffects).toEqual(
           comparison.originalTs.sideEffects,
         );
-        // The Rust path resolves each distinct lookup once and shares the
-        // result, and tries a failed one again.
-        expect([
-          ...new Set(comparison.earlyRust.sideEffects as string[]),
-        ]).toEqual([...new Set(expectedLookups)]);
+        // The Rust path resolves each distinct lookup once and shares the result.
+        expect(comparison.earlyRust.sideEffects).toEqual([
+          ...new Set(expectedLookups),
+        ]);
         expect(comparison.originalTs.storedRows).toHaveLength(
           failLookup ? 9 : 18,
         );
         expectRawNativeParity(comparison);
       },
     );
-
-    it("retries a failed lookup before giving up the rows that share it", async () => {
-      const resource = buildFocusedResourceSpans({})[0]!;
-      const scope = resource.scopeSpans![0]!;
-      const template = scope.spans![0]!;
-      scope.spans = [1, 2].map((index) => ({
-        ...template,
-        spanId: createBufferId(index.toString(16).padStart(16, "0")),
-        attributes: [
-          stringAttribute("langfuse.observation.type", "generation"),
-          stringAttribute("langfuse.observation.prompt.name", "shared-prompt"),
-          intAttribute("langfuse.observation.prompt.version", 4),
-        ],
-      }));
-      const callsBefore = otelReplayMocks.getPrompt.mock.calls.length;
-      otelReplayMocks.getPrompt.mockRejectedValueOnce(
-        new Error("simulated prompt lookup failure"),
-      );
-
-      const result = await runOneOtelReplay({
-        mode: "early-rust",
-        bytes: Buffer.from(JSON.stringify([resource])),
-        projectId: PROJECT_ID,
-        fileKey: FILE_KEY,
-      });
-
-      // One request for both spans: it fails once, then succeeds.
-      expect(otelReplayMocks.getPrompt.mock.calls.length - callsBefore).toBe(2);
-      expect(result.storedRows.map((row) => row.prompt_id)).toEqual([
-        "replay-prompt-id",
-        "replay-prompt-id",
-      ]);
-    });
 
     it("writes both enriched observations and preserves accounting through readback", async () => {
       const comparison = await runOtelReplayComparison({
