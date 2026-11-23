@@ -24,8 +24,8 @@ export function datasetItemMediaReferenceKey(item: DatasetItemVersionKey) {
  * present in the map (empty array if it has no references), so callers look up
  * by key rather than relying on positional alignment with the input. One media
  * lookup and one signed URL is generated per distinct mediaId per call.
- * References whose media cannot be resolved are dropped, so every returned
- * reference has a resolved media.
+ * References whose media cannot be resolved or downloaded are dropped, so
+ * every returned reference has a download URL.
  */
 export async function resolveDatasetItemMediaReferences(props: {
   projectId: string;
@@ -81,6 +81,7 @@ export async function resolveDatasetItemMediaReferences(props: {
           contentType: media.contentType,
           ttlSeconds,
         });
+        if (!url) return [media.id, null] as const;
 
         return [
           media.id,
@@ -100,6 +101,8 @@ export async function resolveDatasetItemMediaReferences(props: {
   // preserves it per item.
   for (const row of claimedRows) {
     const media = mediaById.get(row.mediaId);
+    // The storage provider cannot serve this media type safely.
+    if (media === null) continue;
     if (!media) {
       // A linked reference should always resolve; log the drift, drop the row.
       logger.warn(

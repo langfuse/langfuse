@@ -390,6 +390,13 @@ export interface StorageService {
   }): Promise<StorageFilePage>;
 
   /**
+   * Whether signed URLs can pin response headers such as Content-Type and
+   * Content-Disposition. Without it, a URL holder controls how a browser
+   * renders the object.
+   */
+  readonly canOverrideResponseHeaders: boolean;
+
+  /**
    * `responseContentType` overrides the stored Content-Type for this URL only.
    * Providers that cannot override it serve the object as an attachment instead.
    */
@@ -519,6 +526,7 @@ export class StorageServiceFactory {
 
 let azureContainersExists: Record<string, boolean> = {};
 class AzureBlobStorageService implements StorageService {
+  readonly canOverrideResponseHeaders = true;
   private client: ContainerClient;
   private container: string;
   private externalEndpoint: string | undefined;
@@ -905,6 +913,7 @@ class AzureBlobStorageService implements StorageService {
 }
 
 class S3StorageService implements StorageService {
+  readonly canOverrideResponseHeaders = true;
   private client: S3Client;
   private signedUrlClient: S3Client;
   private bucketName: string;
@@ -1364,6 +1373,7 @@ class S3StorageService implements StorageService {
 }
 
 class GoogleCloudStorageService implements StorageService {
+  readonly canOverrideResponseHeaders = true;
   private storage: Storage;
   private bucket: Bucket;
 
@@ -1682,6 +1692,9 @@ class GoogleCloudStorageService implements StorageService {
 }
 
 class OCIObjectStorageService implements StorageService {
+  // Pre-authenticated requests cannot set response headers, and their
+  // `download=1` parameter is not signed, so a URL holder can remove it.
+  readonly canOverrideResponseHeaders = false;
   private client?: objectstorage.ObjectStorageClient;
   private clientInit: Promise<void>;
   private bucketName: string;

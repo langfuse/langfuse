@@ -123,6 +123,7 @@ export const resolveProjectMedia: EvaluatorMediaResolver = async ({
     contentType: media.contentType,
     ttlSeconds: EVALUATOR_MEDIA_SIGNED_URL_TTL_SECONDS,
   });
+  if (!url) return null;
   return {
     url,
     mediaType: storedMediaType,

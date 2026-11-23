@@ -45,6 +45,11 @@ export function getSignedUrlState(
       refreshIfNeeded,
     };
   }
+  // The server withholds the URL for types the storage provider cannot serve
+  // safely, so refetching cannot help.
+  if (query.data?.url === null) {
+    return { status: "unavailable", refreshIfNeeded };
+  }
   if (query.data?.url) {
     return {
       status: "ready",
@@ -58,7 +63,7 @@ export function getSignedUrlState(
 
 type SignedUrlQuery = Pick<
   UseQueryResult<
-    { url: string; contentLength?: number; urlTtlSeconds: number },
+    { url: string | null; contentLength?: number; urlTtlSeconds: number },
     unknown
   >,
   "data" | "dataUpdatedAt" | "isError" | "isFetching" | "refetch"
