@@ -29,7 +29,7 @@ vi.mock("tiktoken", async (importOriginal) => {
   };
 });
 vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
-vi.mock("../../env", () => ({ env: state.workerEnv }));
+vi.mock("../../../env", () => ({ env: state.workerEnv }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,

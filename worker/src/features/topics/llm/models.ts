@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@langfuse/shared/src/env";
-import { env as workerEnv } from "../../env";
+import { env as workerEnv } from "../../../env";
 import {
   calculateModelUsageCosts,
   findModel,
