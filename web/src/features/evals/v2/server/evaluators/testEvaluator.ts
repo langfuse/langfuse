@@ -24,7 +24,7 @@ import {
   matchPricingTier,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
-  TRACE_TRANSCRIPT_MAX_CHARACTERS,
+  serializeTraceTranscriptInputs,
   unsupportedDecisionModelMessage,
   type DecisionModelRequest,
   type ExtractedVariable,
@@ -123,9 +123,11 @@ export async function testEvaluatorOnTrace(params: {
       variables: [],
     };
   }
-  // A scheduled rule skips traces whose transcript exceeds the size cap and
-  // reads a bounded set of observations, so testing a cut-off or oversized
-  // transcript would score something the rule never evaluates.
+  // A scheduled rule reads every observation and skips traces whose stored
+  // transcript exceeds the size cap, so testing a cut-off or oversized
+  // transcript would score something the rule never evaluates. The test loader
+  // caps observations, so `cutoff` means the test cannot see the full
+  // transcript the rule would.
   if (cutoff) {
     return {
       success: false as const,
@@ -135,7 +137,19 @@ export async function testEvaluatorOnTrace(params: {
       variables: [],
     };
   }
-  if (JSON.stringify(transcript).length > TRACE_TRANSCRIPT_MAX_CHARACTERS) {
+  // Measure the stored envelope with the same serializer the scheduled path
+  // uses, so the test rejects exactly what the rule would skip as too large.
+  const { tooLarge } = serializeTraceTranscriptInputs({
+    transcript,
+    executionIssues: [],
+    traceContext: {
+      sessionId: trace?.sessionId ?? null,
+      traceTimestamp: (trace?.timestamp ?? params.timestamp).toISOString(),
+      environment: trace?.environment ?? "default",
+      traceName: trace?.name ?? null,
+    },
+  });
+  if (tooLarge) {
     return {
       success: false as const,
       error: "This trace transcript is too large to evaluate.",
