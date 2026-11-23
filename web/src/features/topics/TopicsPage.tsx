@@ -71,7 +71,11 @@ import {
   type TopicMapSelection,
 } from "./topic-maps";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
+import {
+  TopicsMapPicker,
+  type UseMapCost,
+  type UsePreviewTopics,
+} from "./TopicsMapPicker";
 import { TopicMapStrip, topicRuleStatus } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { TopicAnalysisState } from "./TopicAnalysisState";
@@ -80,6 +84,8 @@ import { type TopicsPageState } from "./topicsAnalytics";
 import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
 
 const COST_POLL_INTERVAL_MS = 30_000;
+// Live processing costs are published in five-minute batches.
+const MAP_COST_POLL_INTERVAL_MS = 5 * 60_000;
 
 const loadingPage = (
   <Page headerProps={{ title: "Topics" }}>
@@ -99,6 +105,23 @@ const usePreviewTopics: UsePreviewTopics = (projectId, map) => {
   );
   const query = map?.kind === "analysis" ? analysis : rule;
   return { facets: query.data?.facets, loading: query.isLoading };
+};
+
+const useMapCost: UseMapCost = (projectId, ruleId) => {
+  const query = api.topics.ruleMapCost.useQuery(
+    { projectId, ruleId: ruleId ?? "" },
+    {
+      enabled: Boolean(ruleId),
+      staleTime: MAP_COST_POLL_INTERVAL_MS,
+      refetchInterval: ruleId ? MAP_COST_POLL_INTERVAL_MS : false,
+    },
+  );
+  return (
+    query.data ??
+    (query.isError
+      ? { cost: null, partial: false, updatedAt: null }
+      : undefined)
+  );
 };
 
 export default function TopicsPage() {
@@ -316,17 +339,6 @@ function TopicsWorkspaceContent({
     mapSelection?.kind === "rule"
       ? maps.data?.rules.find((rule) => rule.id === mapSelection.id)
       : undefined;
-  const refreshHistory = api.topics.ruleRefreshHistory.useQuery(
-    { projectId, ruleId: selectedRule?.id ?? "" },
-    {
-      enabled: Boolean(selectedRule),
-      refetchInterval: (query) =>
-        selectedRule?.refresh.running ||
-        query.state.data?.some((refresh) => refresh.status === "running")
-          ? COST_POLL_INTERVAL_MS
-          : false,
-    },
-  );
   // A refit (refresh or nightly) is no execution; its completion shows as a new lastRefitAt.
   const lastRefitAt = selectedRule?.lastRefitAt
     ? Date.parse(selectedRule.lastRefitAt)
@@ -666,6 +678,7 @@ function TopicsWorkspaceContent({
                 selectMap(selection);
               }}
               usePreviewTopics={usePreviewTopics}
+              useMapCost={useMapCost}
               processingOn={automaticProcessing.state.status === "on"}
               create={{
                 map: actions.newMap,
@@ -710,10 +723,6 @@ function TopicsWorkspaceContent({
               {!showOnboarding && selectedRule && (
                 <TopicMapStrip.Rule
                   rule={selectedRule}
-                  refreshes={
-                    refreshHistory.data ??
-                    (refreshHistory.isError ? null : undefined)
-                  }
                   now={now}
                   mapShown={mapShown}
                   controls={viewControls}

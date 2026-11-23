@@ -19,6 +19,8 @@ import {
   finishTopicNamingCall,
   getTopicExecutionNamingCosts,
   getTopicRunNamingCosts,
+  getTopicRuleMapCost,
+  applyTopicRuleProcessingCostBatch,
   getTopicTraceUnitTimeRange,
   createTopicFacet,
   createTopicFacetVersion,
@@ -415,6 +417,234 @@ describe("Topics eval-backed configuration", () => {
     expect(
       await saveTopicRun({ ...run, status: "failed", error: "Late retry" }),
     ).toEqual(completed);
+  });
+
+  it("applies ordered map cost batches exactly once across replays, edits and legacy rows", async () => {
+    const [facet] = await ensureDefaultTopicFacets(otherProjectId);
+    const input = { projectId: otherProjectId, facetIds: [facet.id] };
+    const rule = await saveTopicRule(input);
+    const legacy = await saveTopicRule({ ...input, name: "Legacy" });
+    const unpriced = await saveTopicRule({ ...input, name: "Unpriced" });
+    const prior = await saveTopicRule({ ...input, name: "Existing total" });
+    const priorUpdate = new Date("2026-01-02T12:15:00.000Z");
+    await prisma.$executeRaw`UPDATE evaluation_rules SET topics_processing_cost = NULL WHERE id = ${legacy.id}`;
+    await prisma.$executeRaw`UPDATE evaluation_rules SET topics_processing_cost =
+      '{"cost":0.37,"partial":true,"current":{"ids":["old"]}}'::jsonb ||
+      jsonb_build_object('minute', ${priorUpdate.getTime() / 60_000}::integer) WHERE id = ${prior.id}`;
+    await prisma.topicClusteringRun.create({
+      data: {
+        projectId: otherProjectId,
+        ruleId: prior.id,
+        facetId: facet.id,
+        facetVersion: 1,
+        status: "completed",
+        config: { namingCostTracked: true },
+        finishedAt: new Date("2026-01-01"),
+      },
+    });
+    const read = (ruleId = rule.id) =>
+      getTopicRuleMapCost(otherProjectId, ruleId);
+    const missing = { cost: null, partial: false, updatedAt: null };
+    expect(await read()).toEqual({ cost: 0, partial: false, updatedAt: null });
+    expect(await read(legacy.id)).toEqual(missing);
+    expect(await read(prior.id)).toEqual({
+      cost: 0.37,
+      partial: true,
+      updatedAt: priorUpdate.toISOString(),
+    });
+    await prisma.$executeRaw`UPDATE evaluation_rules SET topics_processing_cost =
+      topics_processing_cost - 'minute' WHERE id = ${prior.id}`;
+    expect(await read(prior.id)).toEqual({
+      cost: 0.37,
+      partial: true,
+      updatedAt: null,
+    });
+
+    const first = {
+      projectId: otherProjectId,
+      sequence: 1000,
+      shares: [
+        { ruleId: rule.id, cost: 0.09, partial: false },
+        { ruleId: legacy.id, cost: 0.03, partial: false },
+        { ruleId: unpriced.id, cost: null, partial: true },
+        { ruleId: prior.id, cost: 0.03, partial: false },
+      ],
+    };
+    await Promise.all([
+      applyTopicRuleProcessingCostBatch(first),
+      applyTopicRuleProcessingCostBatch({
+        ...first,
+        shares: [...first.shares].reverse(),
+      }),
+    ]);
+    const recorded = await read();
+    expect(recorded).toEqual({
+      cost: 0.09,
+      partial: false,
+      updatedAt: expect.any(String),
+    });
+    expect(await read(legacy.id)).toEqual({
+      cost: 0.03,
+      partial: true,
+      updatedAt: recorded.updatedAt,
+    });
+    expect(await read(unpriced.id)).toEqual({
+      cost: null,
+      partial: false,
+      updatedAt: recorded.updatedAt,
+    });
+    expect(await read(prior.id)).toEqual({
+      cost: 0.4,
+      partial: true,
+      updatedAt: recorded.updatedAt,
+    });
+
+    const second = {
+      ...first,
+      sequence: 1001,
+      shares: [
+        { ruleId: rule.id, cost: 0.02, partial: false },
+        { ruleId: unpriced.id, cost: 0, partial: false },
+      ],
+    };
+    await applyTopicRuleProcessingCostBatch(second);
+    const latest = await read();
+    expect(latest).toEqual({
+      cost: 0.11,
+      partial: false,
+      updatedAt: expect.any(String),
+    });
+    expect(await read(unpriced.id)).toEqual({
+      cost: 0,
+      partial: true,
+      updatedAt: latest.updatedAt,
+    });
+    await saveTopicRule({ ...input, id: rule.id, name: "Renamed" });
+    await Promise.all([
+      applyTopicRuleProcessingCostBatch(first),
+      applyTopicRuleProcessingCostBatch(second),
+    ]);
+    await applyTopicRuleProcessingCostBatch({
+      ...first,
+      sequence: 1002,
+      projectId,
+    });
+    expect(await getTopicRuleMapCost(projectId, rule.id)).toEqual(missing);
+    expect(await read()).toEqual(latest);
+
+    const run = await createTopicRun({
+      projectId: otherProjectId,
+      ruleId: rule.id,
+      facetId: facet.id,
+      facetVersion: 1,
+      config: { namingCostTracked: true },
+    });
+    await startTopicNamingCall(otherProjectId, run.id, "name");
+    expect(await read()).toEqual({
+      cost: 0.11,
+      partial: true,
+      updatedAt: expect.any(String),
+    });
+    await finishTopicNamingCall(otherProjectId, run.id, "name", 0.02);
+    const withName = await read();
+    expect(withName).toEqual({
+      cost: 0.13,
+      partial: false,
+      updatedAt: expect.any(String),
+    });
+    expect(Date.parse(withName.updatedAt!)).toBeGreaterThan(
+      Date.parse(latest.updatedAt!),
+    );
+    await finishTopicNamingCall(otherProjectId, run.id, "name", 0.01);
+    await startTopicNamingCall(otherProjectId, run.id, "name");
+    await saveTopicRun({ ...run, status: "running" });
+    expect(await read()).toEqual(withName);
+  });
+
+  it("sums all naming work owned by one map, including its first build and failed refreshes", async () => {
+    const facet = await createTopicFacet({
+      projectId,
+      name: "Map naming",
+      description: "",
+      prompt: "Summarize.",
+    });
+    const input = { projectId, facetIds: [facet.id], filter: [] };
+    const { id: ruleId } = await saveTopicRule(input);
+    const { id: unpricedRuleId } = await saveTopicRule({
+      ...input,
+      name: "Unpriced",
+    });
+    const run = { projectId, ruleId, facetId: facet.id, facetVersion: 1 };
+    const tracked = { namingCostTracked: true };
+    const priced = { ...tracked, namingCallCosts: { name: 0.01 } };
+    const read = () => getTopicRuleMapCost(projectId, ruleId);
+    const unknown = { cost: null, partial: false, updatedAt: null };
+
+    await prisma.topicClusteringRun.createMany({
+      data: [
+        { ...run, ruleId: randomUUID(), status: "completed", config: priced },
+        {
+          ...run,
+          ruleId: unpricedRuleId,
+          status: "failed",
+          config: { ...tracked, namingCallCosts: { name: null } },
+        },
+        {
+          ...run,
+          ruleId: null,
+          batchActionId: randomUUID(),
+          status: "completed",
+          config: priced,
+        },
+      ],
+    });
+    await expect(read()).resolves.toEqual({
+      cost: 0,
+      partial: false,
+      updatedAt: null,
+    });
+    await expect(
+      getTopicRuleMapCost(projectId, unpricedRuleId),
+    ).resolves.toEqual(unknown);
+    await prisma.topicClusteringRun.create({
+      data: { ...run, status: "skipped", config: tracked },
+    });
+    await expect(read()).resolves.toEqual({
+      cost: 0,
+      partial: false,
+      updatedAt: null,
+    });
+
+    // Totals include fits without an operation ID.
+    const triggers = ["setup", "manual", ...Array<string>(10).fill("nightly")];
+    await prisma.topicClusteringRun.createMany({
+      data: triggers.map((trigger, index) => ({
+        ...run,
+        status: trigger === "manual" ? "failed" : "completed",
+        config: {
+          ...priced,
+          ...(index < triggers.length - 1 && {
+            ruleOperation: { trigger, id: randomUUID() },
+          }),
+        },
+      })),
+    });
+    await expect(read()).resolves.toEqual({
+      cost: 0.12,
+      partial: false,
+      updatedAt: null,
+    });
+    await prisma.topicClusteringRun.create({
+      data: { ...run, status: "completed", config: {} },
+    });
+    await expect(read()).resolves.toEqual({
+      cost: 0.12,
+      partial: true,
+      updatedAt: null,
+    });
+    await expect(getTopicRuleMapCost(otherProjectId, ruleId)).resolves.toEqual(
+      unknown,
+    );
   });
 
   it("counts each naming call once across attempts and preserves incomplete pricing", async () => {

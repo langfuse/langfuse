@@ -1,4 +1,4 @@
-import { prisma } from "../../../src/db";
+import { prisma, Prisma } from "../../../src/db";
 import {
   createTrace,
   createObservation,
@@ -8,6 +8,13 @@ import {
 } from "../../../src/server";
 import {
   createTopicRun,
+  finishTopicNamingCall,
+  startTopicNamingCall,
+  topicRuleOperation,
+  getPreviousTopicRuleRefreshCost,
+  getTopicRuleMapCost,
+  applyTopicRuleProcessingCostBatch,
+  getTopicRunNamingCosts,
   ensureDefaultTopicFacets,
   listTopicRules,
   saveTopicRule,
@@ -21,6 +28,9 @@ import type {
   TopicRule,
   TopicSummary,
 } from "../../../src/topics";
+import { TOPICS_MIN_EMBEDDING_DIMENSIONS } from "../../../src/topics";
+import { prepareTopicsCostEstimate } from "./topics-cost-estimate";
+import { seedTopicCostSnapshots } from "./topics-cost-snapshots";
 import type { FilterState } from "../../../src/types";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { jitter, Rng, utcDayStartMs } from "./rng";
@@ -160,10 +170,23 @@ export const topicsMapScenario: ScenarioDefinition = {
   description:
     "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, a second Intent map with its own topic names, long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project.",
   supportsV4: true,
-  flags: [],
+  flags: [
+    {
+      flag: "costs",
+      type: "boolean",
+      default: false,
+      description:
+        "Include priced and partially priced snapshots, live map costs and a local processing forecast.",
+    },
+  ],
   run: async (ctx, params) => {
     const startedAt = Date.now();
     const rng = new Rng(ctx.seed);
+    const withCosts = params.costs === true;
+    const dimensions = withCosts ? TOPICS_MIN_EMBEDDING_DIMENSIONS : DIMENSIONS;
+    const embeddingModel = withCosts
+      ? "text-embedding-3-small"
+      : "seed-embedding";
     const assignedCount =
       INTENT_TOPICS.reduce((sum, topic) => sum + topic.count, 0) + OUTLIERS;
     const traceCount = assignedCount + AWAITING;
@@ -188,8 +211,17 @@ export const topicsMapScenario: ScenarioDefinition = {
       events: traceCount * 2,
       rules: RULE_NAMES.length,
       maps: 3,
+      ...(withCosts && {
+        costSnapshots: 2,
+        refreshes: 2,
+        pricedLiveMaps: RULE_NAMES.length,
+      }),
       summaries: traceCount * 2,
-      assignments: assignedCount + ISSUES_APPLICABLE + SECOND_RULE_TRACES,
+      assignments:
+        assignedCount +
+        ISSUES_APPLICABLE +
+        SECOND_RULE_TRACES +
+        (withCosts ? assignedCount * 2 : 0),
     };
     const summary = {
       scenario: "topics-map",
@@ -293,6 +325,11 @@ export const topicsMapScenario: ScenarioDefinition = {
         throw new SeedError(`Built-in "${name}" facet not found.`);
       return { id: found.id, version: found.versions[0].version };
     };
+    if (withCosts)
+      await prepareTopicsCostEstimate(ctx.projectId, {
+        embeddingModel,
+        dimensions,
+      });
     const intent = facet("Intent");
     const issues = facet("Issues");
     const existingRules = await listTopicRules(ctx.projectId);
@@ -343,13 +380,13 @@ export const topicsMapScenario: ScenarioDefinition = {
           state: complete ? "complete" : "not_applicable",
           summary: complete ? summaryText(topic, requests[index]!) : "",
           embedding: complete
-            ? embedding(topicOf(index) ?? topics.length, rng)
+            ? embedding(topicOf(index) ?? topics.length, rng, dimensions)
             : [],
           transcriptId: traceIds[index]!,
           transcriptVersion: "seed",
           transcriptBytes: 0,
           summaryModel: "seed-summary",
-          embeddingModel: "seed-embedding",
+          embeddingModel,
           providedUsageDetails: {},
           usageDetails: {},
           providedCostDetails: {},
@@ -405,30 +442,50 @@ export const topicsMapScenario: ScenarioDefinition = {
         summaries: intentSummaries,
       },
     ];
+    const setupId = `${runPrefix}-setup`;
+    const nightlyId = `${runPrefix}-nightly`;
+    const manual = topicRuleOperation(rules[0]!.id, "manual", runPrefix);
+    const nightly = topicRuleOperation(rules[0]!.id, "nightly", runPrefix);
     // Completed runs never change, so a re-run replaces them.
     await prisma.topicClusteringRun.deleteMany({
       where: {
         projectId: ctx.projectId,
-        id: { in: maps.map((map) => map.runId) },
+        id: {
+          in: [
+            ...maps.map((map) => map.runId),
+            ...(withCosts ? [setupId, nightlyId] : []),
+          ],
+        },
       },
     });
+    const mapCostsBeforeFits = withCosts
+      ? await seedSharedProcessingCost(ctx.projectId, rules)
+      : [];
+    if (withCosts) {
+      await createTopicRun({
+        id: nightlyId,
+        projectId: ctx.projectId,
+        facetId: intent.id,
+        facetVersion: intent.version,
+        ruleId: rules[0]!.id,
+        status: "skipped",
+        config: { ruleOperation: nightly, namingCostTracked: true },
+      });
+      summary.links.push(`${summary.links[0]}?map=rule:${rules[0]!.id}`);
+    }
+    const snapshotRunIds: string[] = [];
     for (const map of maps) {
+      const trackedRefresh = withCosts && map.rule.id === rules[0]!.id;
       const config = {
+        ...(withCosts && { namingCostTracked: true }),
+        ...(trackedRefresh && { ruleOperation: manual }),
         timeRange: {
           from: new Date(cohortFrom).toISOString(),
           to: new Date(cohortTo).toISOString(),
         },
-        embeddingModel: "seed-embedding",
-        dimensions: DIMENSIONS,
+        embeddingModel,
+        dimensions,
       };
-      await createTopicRun({
-        id: map.runId,
-        projectId: ctx.projectId,
-        facetId: map.facet.id,
-        facetVersion: map.facet.version,
-        ruleId: map.rule.id,
-        config,
-      });
       const definitions: TopicDefinition[] = map.topics.map((topic, k) => ({
         topicVersionId: `${map.runId}-topic-${k}`,
         projectId: ctx.projectId,
@@ -438,11 +495,55 @@ export const topicsMapScenario: ScenarioDefinition = {
         labels: [],
         name: topic.name,
         description: topic.description,
-        centroid: unit(k),
+        centroid: unit(k, dimensions),
         radius: 0.4,
         representativeSummaries: [],
         metadata: {},
       }));
+      if (withCosts && map === maps[0]) {
+        const firstFit = await createTopicRun({
+          id: setupId,
+          projectId: ctx.projectId,
+          facetId: map.facet.id,
+          facetVersion: map.facet.version,
+          ruleId: map.rule.id,
+          config: {
+            ...config,
+            ruleOperation: topicRuleOperation(map.rule.id, "setup", runPrefix),
+          },
+        });
+        await startTopicNamingCall(ctx.projectId, setupId, "seed-name");
+        await finishTopicNamingCall(ctx.projectId, setupId, "seed-name", 0.02);
+        await saveTopicRun({
+          ...firstFit,
+          status: "completed",
+          finishedAt: processedAt,
+          topics: [
+            {
+              ...definitions[0]!,
+              topicVersionId: `${setupId}-topic-0`,
+              createdByRunId: setupId,
+            },
+          ],
+        });
+      }
+      await createTopicRun({
+        id: map.runId,
+        projectId: ctx.projectId,
+        facetId: map.facet.id,
+        facetVersion: map.facet.version,
+        ruleId: map.rule.id,
+        config,
+      });
+      if (trackedRefresh) {
+        await startTopicNamingCall(ctx.projectId, map.runId, "seed-name");
+        await finishTopicNamingCall(
+          ctx.projectId,
+          map.runId,
+          "seed-name",
+          map.facet.id === intent.id ? 0.05 : 0.03,
+        );
+      }
       const assignments: TopicAssignment[] = traceIds.flatMap((_, index) => {
         if (!map.members(index)) return [];
         const k = map.topicOf(index);
@@ -466,7 +567,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         ];
       });
       ctx.log(`publishing ${map.runId} (${assignments.length} traces)`);
-      await saveTopicRun({
+      const published = await saveTopicRun({
         id: map.runId,
         projectId: ctx.projectId,
         facetId: map.facet.id,
@@ -481,12 +582,28 @@ export const topicsMapScenario: ScenarioDefinition = {
         ruleId: map.rule.id,
       });
       await writeTopicAssignments(assignments);
+      if (withCosts && map === maps[0]) {
+        const snapshots = await seedTopicCostSnapshots(
+          ctx,
+          published,
+          assignments,
+          config.timeRange,
+          { embeddingModel, dimensions },
+        );
+        snapshotRunIds.push(...snapshots.map(({ runId }) => runId));
+        summary.links.push(
+          ...snapshots.map(
+            ({ id }) =>
+              `${summary.links[0]}?map=analysis:${id}&executionId=${id}`,
+          ),
+        );
+      }
     }
 
     const queryParams = {
       projectId: ctx.projectId,
       traceIds,
-      runIds: maps.map((map) => map.runId),
+      runIds: [...maps.map((map) => map.runId), ...snapshotRunIds],
     };
     const verified: Record<string, number> = {
       traces: await countRows(
@@ -530,6 +647,30 @@ export const topicsMapScenario: ScenarioDefinition = {
         "uniqExact(clustering_run_id, trace_id)",
       ),
     };
+    if (withCosts) {
+      const ruleId = rules[0]!.id;
+      const [previous, nightlyCost, lifetime] = await Promise.all([
+        getPreviousTopicRuleRefreshCost(ctx.projectId, ruleId),
+        getTopicRunNamingCosts(ctx.projectId, [nightlyId]),
+        Promise.all(
+          rules.map((rule) => getTopicRuleMapCost(ctx.projectId, rule.id)),
+        ),
+      ]);
+      verified.refreshes =
+        Number(previous?.cost === 0.08 && !previous.partial) +
+        Number(
+          nightlyCost[nightlyId]?.cost === 0 && !nightlyCost[nightlyId].partial,
+        );
+      // The first fit and manual refresh add $0.10 to the first map. Existing work stays in each map's total.
+      verified.pricedLiveMaps = lifetime.filter(
+        ({ cost }, index) =>
+          cost !== null &&
+          Math.abs(
+            cost - mapCostsBeforeFits[index]! - (index === 0 ? 0.1 : 0),
+          ) < 1e-12,
+      ).length;
+      verified.costSnapshots = snapshotRunIds.length;
+    }
     for (const [entity, expected] of Object.entries(counts)) {
       if (verified[entity] !== expected) {
         throw new SeedError(
@@ -541,6 +682,35 @@ export const topicsMapScenario: ScenarioDefinition = {
   },
 };
 
+/** One $0.12 processing attempt serves both seed maps. Never add it again over an existing receipt. */
+async function seedSharedProcessingCost(projectId: string, rules: TopicRule[]) {
+  const [baseline, untouched] = await Promise.all([
+    Promise.all(rules.map((rule) => getTopicRuleMapCost(projectId, rule.id))),
+    prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM evaluation_rules
+      WHERE project_id = ${projectId} AND id IN (${Prisma.join(rules.map((rule) => rule.id))})
+        AND NOT COALESCE(topics_processing_cost ? 'cost', false)
+    `,
+  ]);
+  const share = 0.12 / rules.length;
+  if (untouched.length)
+    await applyTopicRuleProcessingCostBatch({
+      projectId,
+      // Before the live processor's epoch-based sequences, and stable on seed replay.
+      sequence: 1,
+      shares: untouched.map(({ id }) => ({
+        ruleId: id,
+        cost: share,
+        partial: false,
+      })),
+    });
+  return baseline.map(
+    ({ cost }, index) =>
+      (cost ?? 0) +
+      (untouched.some(({ id }) => id === rules[index]!.id) ? share : 0),
+  );
+}
+
 /** Trace index → topic index, largest topic first; outliers map to undefined. */
 function topicIndexes(topics: SeedTopic[], outliers: number) {
   const order = topics.flatMap((topic, k) =>
@@ -549,14 +719,14 @@ function topicIndexes(topics: SeedTopic[], outliers: number) {
   return [...order, ...Array.from({ length: outliers }, () => undefined)];
 }
 
-function unit(k: number) {
-  return Array.from({ length: DIMENSIONS }, (_, i) =>
-    i === k % DIMENSIONS ? 1 : 0,
+function unit(k: number, dimensions: number) {
+  return Array.from({ length: dimensions }, (_, i) =>
+    i === k % dimensions ? 1 : 0,
   );
 }
 
-function embedding(k: number, rng: Rng) {
-  const vector = unit(k).map((value) => value + rng.next() * 0.15);
+function embedding(k: number, rng: Rng, dimensions: number) {
+  const vector = unit(k, dimensions).map((value) => value + rng.next() * 0.15);
   const norm = Math.hypot(...vector);
   return vector.map((value) => value / norm);
 }

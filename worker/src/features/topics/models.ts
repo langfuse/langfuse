@@ -99,26 +99,41 @@ export class TopicInputTooLarge extends Error {
   readonly name = "TopicInputTooLarge";
 }
 
+type TopicCallMetadata = Record<string, unknown> & {
+  source_trace_id?: string;
+  execution_id?: string | null;
+  rule_ids?: string[];
+  rule_id?: string | null;
+  run_id?: string;
+};
+
 /** One span, call counter and failure log per provider request. */
 async function topicModelCall<T>(
   stage: "summary" | "embedding" | "naming",
   model: TopicsModel,
   projectId: string,
   requestBytes: number,
-  context: Record<string, unknown>,
+  metadata: TopicCallMetadata | undefined,
   call: () => Promise<T>,
 ): Promise<T> {
   return instrumentAsync(
     { name: `topics.llm.${stage}`, traceScope: "topics" },
     async (span) => {
-      const fields: Record<string, string | number> = {
+      const fields: Record<string, string | number | string[]> = {
         "langfuse.topics.stage": stage,
         "langfuse.topics.model": model.model,
         "langfuse.topics.adapter": model.adapter,
         "langfuse.topics.request_bytes": requestBytes,
       };
-      for (const [key, value] of Object.entries(context))
-        if (typeof value === "string") fields[`langfuse.topics.${key}`] = value;
+      const identifiers = {
+        trace_id: metadata?.source_trace_id,
+        execution_id: metadata?.execution_id,
+        rule_ids: metadata?.rule_ids,
+        rule_id: metadata?.rule_id,
+        run_id: metadata?.run_id,
+      };
+      for (const [key, value] of Object.entries(identifiers))
+        if (value != null) fields[`langfuse.topics.${key}`] = value;
       span.setAttributes(fields);
       try {
         const result = await call();
@@ -167,7 +182,7 @@ async function structuredCall<T>(
   stage: "summary" | "naming",
   model: TopicsModel,
   projectId: string,
-  metadata?: Record<string, unknown>,
+  metadata?: TopicCallMetadata,
   traceName = `topics-${stage}`,
   onCost?: (cost: number | null) => void | Promise<void>,
 ): Promise<ModelResult<T>> {
@@ -189,10 +204,7 @@ async function structuredCall<T>(
     model,
     projectId,
     llmRequestEgressBytes(topicMessages({ system, input }), schema),
-    {
-      trace_id: metadata?.source_trace_id,
-      execution_id: metadata?.execution_id,
-    },
+    metadata,
     async () => {
       await onCost?.(null);
       return generateTopicText({
@@ -352,7 +364,7 @@ export async function summarizeTopicTraceFacets(
   facets: KeyedTopicFacet[],
   text: string,
   config: TopicProcessingConfig,
-  metadata?: Record<string, unknown>,
+  metadata?: TopicCallMetadata,
   onCost?: (cost: number | null) => void,
 ) {
   const { system, input, schema, maxOutputTokens } = buildTopicSummaryRequest(
@@ -669,7 +681,7 @@ export async function nameTopicGroup(
     facetName?: string;
     previousTopic?: { name: string; description: string };
   },
-  metadata: Record<string, unknown> & { run_id: string },
+  metadata: TopicCallMetadata & { run_id: string },
   conflict?: NamingConflict,
 ) {
   const memberIds = new Set(group.members.map((member) => member.id));
@@ -777,7 +789,13 @@ export async function embedTopicSummaries(
   summaries: string[],
   dimensions: number,
   projectId: string,
-  onCost?: (cost: number | null) => void,
+  {
+    metadata,
+    onCost,
+  }: {
+    metadata?: TopicCallMetadata;
+    onCost?: (cost: number | null) => void;
+  } = {},
 ): Promise<TopicModelUsage & { embeddings: number[][] }> {
   if (
     summaries.length === 0 ||
@@ -794,7 +812,7 @@ export async function embedTopicSummaries(
     model,
     projectId,
     llmRequestEgressBytes(summaries),
-    {},
+    metadata,
     () => {
       onCost?.(null);
       return generateTopicEmbeddings({ model, summaries, dimensions });

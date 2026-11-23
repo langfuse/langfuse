@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Context as ResponsiveContext } from "react-responsive";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -41,9 +42,9 @@ const state = vi.hoisted(() => ({
   rules: [] as Array<{
     id?: string;
     facetIds: string[];
-    refresh?: { running: boolean; availableAt: string | null };
+    name?: string;
   }>,
-  refreshes: [] as RouterOutputs["topics"]["ruleRefreshHistory"],
+  mapCosts: {} as Record<string, RouterOutputs["topics"]["ruleMapCost"]>,
   maps: undefined as unknown,
   capture: vi.fn(),
 }));
@@ -255,7 +256,11 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
-      ruleRefreshHistory: { useQuery: () => ({ data: state.refreshes }) },
+      ruleMapCost: {
+        useQuery: ({ ruleId }: { ruleId: string }) => ({
+          data: state.mapCosts[ruleId],
+        }),
+      },
       startRuleSetup: {
         useMutation: () => ({
           isPending: false,
@@ -306,11 +311,11 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-function renderTopicsPage() {
+function renderTopicsPage(page = <TopicsPage />) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(<TopicsPage />, {
+  return render(page, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={client}>
         <LayerProvider>{children}</LayerProvider>
@@ -361,7 +366,7 @@ beforeEach(() => {
     blockMessage: null,
   };
   state.rules = [];
-  state.refreshes = [];
+  state.mapCosts = {};
   state.setQueryParams.mockImplementation(
     ({ dateRange }: { dateRange: string }) => {
       state.dateRange = dateRange;
@@ -455,32 +460,28 @@ function withSummaries() {
   state.rules = [{ facetIds: ["intent", "outcome"] }];
 }
 
-it("waits for current refresh costs when status arrives ahead of its pricing", () => {
+it("shows the selected map’s cost while browsing other maps on a phone", async () => {
   withSummaries();
-  state.refreshes = [
-    {
-      id: "previous",
-      trigger: "nightly",
-      status: "completed",
-      startedAt: "2026-10-08T12:00:00Z",
-      cost: 0.12,
-      partial: false,
-    },
-  ];
-  const view = renderTopicsPage();
-  expect(screen.getByText("Last refresh cost · ~$0.12")).toBeVisible();
-
-  state.rules[0].refresh = { running: true, availableAt: null };
-  view.rerender(<TopicsPage />);
-  expect(screen.getByText("Refresh cost so far · Pending")).toBeVisible();
-  state.refreshes.unshift({
-    ...state.refreshes[0],
-    id: "active",
-    status: "running",
-    cost: 0.04,
-  });
-  view.rerender(<TopicsPage />);
-  expect(screen.getByText("Refresh cost so far · ~$0.04")).toBeVisible();
+  state.rules.push({ name: "Support agent", facetIds: ["intent"] });
+  state.mapCosts = {
+    "rule-0": { cost: 0, partial: false, updatedAt: "2026-10-09T11:55:00Z" },
+    "rule-1": { cost: 0.14, partial: true, updatedAt: "2026-10-08T12:00:00Z" },
+  };
+  renderTopicsPage(
+    <ResponsiveContext.Provider value={{ width: 390 }}>
+      <TopicsPage />
+    </ResponsiveContext.Provider>,
+  );
+  expect(screen.queryByText("Map cost")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Topic map: Rule" }));
+  const picker = within(
+    await screen.findByRole("dialog", { name: "Topic maps" }),
+  );
+  expect(picker.getByText("~$0.00")).toBeVisible();
+  fireEvent.focus(picker.getByRole("button", { name: /^Support agent/ }));
+  expect(picker.getByText("~$0.00")).toBeVisible();
+  expect(picker.getByText("(updated 5m ago)")).toBeVisible();
+  expect(picker.queryByText("~$0.14 (partial)")).toBeNull();
 });
 
 it("keeps settled costs visible while fetching the final cost of a completed run", async () => {

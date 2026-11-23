@@ -681,6 +681,7 @@ describe("Topics naming boundary", () => {
       facets,
       "RAW_TRANSCRIPT_SENTINEL",
       config,
+      { source_trace_id: "trace", rule_ids: ["rule-a", "rule-b"] },
     );
     expect(state.call).toHaveBeenCalledOnce();
     const request = state.call.mock.calls[0][0];
@@ -705,12 +706,20 @@ describe("Topics naming boundary", () => {
       environment: "langfuse-topics",
       metadata: {
         langfuse_project_id: "project",
+        source_trace_id: "trace",
+        rule_ids: ["rule-a", "rule-b"],
         facets: [
           { key: "intent_1", facet_id: "facet", facet_version: 1 },
           { key: "issues_2", facet_id: "issues", facet_version: 1 },
         ],
       },
     });
+    expect(state.spanAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "langfuse.topics.trace_id": "trace",
+        "langfuse.topics.rule_ids": ["rule-a", "rule-b"],
+      }),
+    );
     expect(state.project).toHaveBeenCalledWith({
       where: { id: "project", deletedAt: null },
       select: {
@@ -850,8 +859,14 @@ describe("Topics naming boundary", () => {
       usageDetails: {},
       providedCostDetails: { total: 0 },
     }));
-    const metadata = { run_id: "naming-run" };
+    const metadata = { run_id: "naming-run", rule_id: "rule" };
     await namePreparedTopicGroup(topicsModels(), prepared, metadata);
+    expect(state.spanAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "langfuse.topics.run_id": "naming-run",
+        "langfuse.topics.rule_id": "rule",
+      }),
+    );
     const conflict = {
       name: "Billing support",
       description: "Support for billing problems.",
@@ -1183,7 +1198,15 @@ describe("Topics naming boundary", () => {
       ["An invoice request.", "A billing question."],
       256,
       "project",
+      { metadata: { source_trace_id: "trace", execution_id: "snapshot" } },
     );
+    expect(state.spanAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "langfuse.topics.trace_id": "trace",
+        "langfuse.topics.execution_id": "snapshot",
+      }),
+    );
+    expect(state.traceSink).not.toHaveBeenCalled();
     expect(result.costDetails).toEqual({
       embedding_input: 0.00012,
       total: 0.00012,
@@ -1204,7 +1227,7 @@ describe("Topics naming boundary", () => {
         ["An invoice request."],
         256,
         "project",
-        (cost) => costs.push(cost),
+        { onCost: (cost) => costs.push(cost) },
       ),
     ).rejects.toMatchObject({
       reason: "invalid_output",

@@ -88,10 +88,15 @@ type AssembledTraceInput = {
   /** The snapshot that seeded the trace; stored on its summaries. */
   executionId?: string;
   /** A dispatched stage starts unpriced and acquires its cost when the provider reports usage. */
-  onModelCost?: (stage: TopicsFailedStage, cost: number | null) => void;
+  onModelCost?: OnTopicsModelCost;
 };
 
 export type TopicsFailedStage = "summary" | "embedding";
+export type OnTopicsModelCost = (
+  stage: TopicsFailedStage,
+  cost: number | null,
+  ruleIds: string[],
+) => void;
 
 type AssembledTraceResult = {
   outcome: "disabled" | "unchanged" | "summarized";
@@ -188,17 +193,30 @@ async function summarizeEnabledTrace(
       metadata: { input: "topics-text" },
     }),
   );
+  const stageContext = (stage: TopicsFailedStage, rows: TopicSummary[]) => {
+    const ruleIds = input.executionId
+      ? []
+      : [...new Set(rows.flatMap((row) => row.ruleIds))];
+    return {
+      metadata: {
+        source_trace_id: input.traceId,
+        source_environment: input.environment,
+        ...(input.executionId
+          ? { execution_id: input.executionId }
+          : { rule_ids: ruleIds }),
+      },
+      onCost:
+        onModelCost &&
+        ((cost: number | null) => onModelCost(stage, cost, ruleIds)),
+    };
+  };
   const summarized = await summarizeTraceFacets({
     models,
     facets: pending,
-    onCost: onModelCost && ((cost) => onModelCost("summary", cost)),
+    ...stageContext("summary", bases),
     transcript: input.transcript,
     executionIssues: input.executionIssues,
     config,
-    metadata: {
-      source_trace_id: input.traceId,
-      source_environment: input.environment,
-    },
     metrics,
   });
   let rows = bases;
@@ -216,19 +234,22 @@ async function summarizeEnabledTrace(
       }
       return [{ base: bases[index], output: result.output }];
     });
-    const applicable = accepted
-      .filter(({ output }) => output.status === "applicable")
-      .map(({ output }) => output.summary.trim());
+    const applicable = accepted.filter(
+      ({ output }) => output.status === "applicable",
+    );
     let embedded: Awaited<ReturnType<typeof embedTopicSummaries>> | undefined;
     if (applicable.length > 0) {
       try {
         embedded = await metrics.measure("embedding", () =>
           embedTopicSummaries(
             models.embedding,
-            applicable,
+            applicable.map(({ output }) => output.summary.trim()),
             models.embedding.dimensions,
             models.projectId,
-            onModelCost && ((cost) => onModelCost("embedding", cost)),
+            stageContext(
+              "embedding",
+              applicable.map(({ base }) => base),
+            ),
           ),
         );
       } catch (error) {

@@ -13,21 +13,13 @@ export function TopicRefreshMapDialog({
   closeDialog: () => void;
 }) {
   const utils = api.useUtils();
-  const history = api.topics.ruleRefreshHistory.useQuery({
-    projectId,
-    ruleId: rule.id,
-  });
-  const previousRefresh = history.data?.find(
-    ({ status }) => status !== "running" && status !== "failed",
-  );
+  const input = { projectId, ruleId: rule.id };
+  const previousRefresh = api.topics.previousRuleRefreshCost.useQuery(input);
   const refresh = api.topics.refreshRuleMap.useMutation({
     onSuccess: async () => {
       await Promise.all([
         utils.topics.maps.invalidate({ projectId }),
-        utils.topics.ruleRefreshHistory.invalidate({
-          projectId,
-          ruleId: rule.id,
-        }),
+        utils.topics.ruleMapCost.invalidate(input, { refetchType: "none" }),
       ]);
       closeDialog();
     },
@@ -35,10 +27,10 @@ export function TopicRefreshMapDialog({
   return (
     <TopicRefreshMapDialogView
       rule={rule}
-      previousRefresh={previousRefresh}
+      previousRefresh={previousRefresh.data ?? undefined}
       now={Date.now()}
       refreshing={refresh.isPending}
-      onRefresh={() => refresh.mutate({ projectId, ruleId: rule.id })}
+      onRefresh={() => refresh.mutate(input)}
     />
   );
 }

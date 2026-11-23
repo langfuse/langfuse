@@ -20,6 +20,7 @@ import {
 } from "./clickhouse";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { TopicsTargetObject } from "../../features/evals/types";
+import { topicRuleCostScope } from "./rule-processing-cost";
 import { topicRuleWhere } from "./processing-gate";
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 import { traceException } from "../instrumentation";
@@ -37,8 +38,10 @@ export async function startTopicNamingCall(
 ) {
   const changed = await prisma.$executeRaw`
     UPDATE topic_clustering_runs
-    SET config = jsonb_set(config, '{namingCallCosts}',
-      jsonb_build_object(${callId}::text, NULL) || COALESCE(config->'namingCallCosts', '{}'::jsonb))
+    SET config = CASE WHEN COALESCE(config->'namingCallCosts', '{}'::jsonb) ? ${callId}::text THEN config
+      ELSE config || jsonb_build_object(
+        'namingCallCosts', jsonb_build_object(${callId}::text, NULL) || COALESCE(config->'namingCallCosts', '{}'::jsonb),
+        'namingCostUpdatedAt', statement_timestamp()) END
     WHERE project_id = ${projectId} AND id = ${runId}
   `;
   if (!changed) throw new Error("Topics naming run not found.");
@@ -54,6 +57,7 @@ export async function finishTopicNamingCall(
   await prisma.$executeRaw`
     UPDATE topic_clustering_runs
     SET config = jsonb_set(config, ARRAY['namingCallCosts', ${callId}], to_jsonb(${cost.toString()}::numeric), false)
+      || jsonb_build_object('namingCostUpdatedAt', statement_timestamp())
     WHERE project_id = ${projectId} AND id = ${runId}
       AND config->'namingCallCosts'->${callId}::text = 'null'::jsonb
   `;
@@ -64,37 +68,104 @@ export function getTopicExecutionNamingCosts(
   projectId: string,
   executionIds: string[],
 ) {
-  return getTopicNamingCosts(projectId, executionIds, "execution");
+  return getTopicNamingCosts(
+    projectId,
+    executionIds,
+    Prisma.sql`r.batch_action_id`,
+  );
 }
 
 export function getTopicRunNamingCosts(projectId: string, runIds: string[]) {
-  return getTopicNamingCosts(projectId, runIds, "run");
+  return getTopicNamingCosts(projectId, runIds, Prisma.sql`r.id`);
+}
+
+// A tracked fit without calls incurred zero. A missing price or tracking flag
+// makes the sum incomplete, even when another call has a known price.
+function topicNamingCostQuery(
+  projectId: string,
+  ids: string[],
+  id: Prisma.Sql,
+  updatedAt = Prisma.empty,
+) {
+  return Prisma.sql`
+      SELECT ${id} AS id,
+             SUM(CASE WHEN calls.count = 0 AND r.config->'namingCostTracked' = 'true'::jsonb
+                      THEN 0 ELSE calls.cost END) AS cost,
+             BOOL_OR(r.config->'namingCostTracked' IS DISTINCT FROM 'true'::jsonb
+                     OR COALESCE(calls.missing, false)) AS unknown ${updatedAt}
+      FROM topic_clustering_runs r
+      CROSS JOIN LATERAL (
+        SELECT count(*) AS count, SUM(c.value::numeric) AS cost, BOOL_OR(c.value IS NULL) AS missing
+        FROM jsonb_each_text(r.config->'namingCallCosts') c
+      ) calls
+      WHERE r.project_id = ${projectId} AND ${id} IN (${Prisma.join(ids)})
+      GROUP BY ${id}
+  `;
+}
+
+/** Processing attributable to this live map plus every retained fit it owns. */
+export async function getTopicRuleMapCost(projectId: string, ruleId: string) {
+  const unavailable = { cost: null, partial: false, updatedAt: null };
+  try {
+    const namingUpdatedAt = Prisma.sql`GREATEST((r.config->>'namingCostUpdatedAt')::timestamptz,
+        CASE WHEN r.config->'namingCostTracked' = 'true'::jsonb THEN r.finished_at END)`;
+    const naming = topicNamingCostQuery(
+      projectId,
+      [ruleId],
+      Prisma.sql`r.rule_id`,
+      Prisma.sql`, MAX(${namingUpdatedAt}) AS updated_at,
+        BOOL_OR(calls.cost IS NOT NULL AND ${namingUpdatedAt} IS NULL) AS undated_price`,
+    );
+    const [row] = await prisma.$queryRaw<
+      {
+        cost: Prisma.Decimal | null;
+        unknown: boolean;
+        updatedAt: Date | null;
+      }[]
+    >`
+      WITH costs AS (
+        SELECT (e.topics_processing_cost->>'cost')::numeric AS processing,
+               n.cost AS naming,
+               COALESCE((e.topics_processing_cost->>'updatedAt')::timestamptz,
+                        to_timestamp((e.topics_processing_cost->>'minute')::double precision * 60)) AS processing_at,
+               n.updated_at AS naming_at, n.undated_price,
+               n.id IS NULL AND e.topics_processing_cost = '{}'::jsonb AS untouched,
+               e.topics_processing_cost IS NULL OR
+                 COALESCE((e.topics_processing_cost->>'partial')::boolean, false) OR
+                 COALESCE(n.unknown, false) AS unknown
+        FROM evaluation_rules e
+        LEFT JOIN (${naming}) n ON n.id = e.id
+        WHERE e.id = ${ruleId} AND ${topicRuleCostScope(projectId)}
+      )
+      SELECT CASE WHEN processing IS NOT NULL OR naming IS NOT NULL THEN COALESCE(processing, 0) + COALESCE(naming, 0)
+                  WHEN untouched THEN 0 END AS cost, unknown,
+             CASE WHEN (processing IS NOT NULL AND processing_at IS NULL) OR undated_price THEN NULL
+                  ELSE GREATEST(processing_at, naming_at) END AS "updatedAt"
+      FROM costs
+    `;
+    if (!row) return unavailable;
+    return {
+      cost: row.cost?.toNumber() ?? null,
+      partial: row.cost !== null && row.unknown,
+      updatedAt: row.updatedAt?.toISOString() ?? null,
+    };
+  } catch (error) {
+    traceException(error);
+    logger.warn("Failed to read Topics map cost", { projectId, ruleId, error });
+    return unavailable;
+  }
 }
 
 async function getTopicNamingCosts(
   projectId: string,
   ids: string[],
-  groupBy: "run" | "execution",
+  id: Prisma.Sql,
 ): Promise<Record<string, { cost: number | null; partial: boolean }>> {
   if (!ids.length) return {};
-  const id =
-    groupBy === "run" ? Prisma.sql`r.id` : Prisma.sql`r.batch_action_id`;
   try {
-    // A tracked run without calls incurred zero. A missing price or tracking flag
-    // makes the sum incomplete, even when another call has a known price.
     const rows = await prisma.$queryRaw<
       { id: string; cost: Prisma.Decimal | null; unknown: boolean }[]
-    >`
-      SELECT ${id} AS id,
-             SUM(CASE WHEN c.key IS NULL AND r.config->'namingCostTracked' = 'true'::jsonb
-                      THEN 0 ELSE c.value::numeric END) AS cost,
-             BOOL_OR(r.config->'namingCostTracked' IS DISTINCT FROM 'true'::jsonb
-                     OR (c.key IS NOT NULL AND c.value IS NULL)) AS unknown
-      FROM topic_clustering_runs r
-      LEFT JOIN LATERAL jsonb_each_text(r.config->'namingCallCosts') c ON true
-      WHERE r.project_id = ${projectId} AND ${id} IN (${Prisma.join(ids)})
-      GROUP BY ${id}
-    `;
+    >(topicNamingCostQuery(projectId, ids, id));
     return Object.fromEntries(
       rows.map(({ id, cost, unknown }) => [
         id,
@@ -114,6 +185,7 @@ function runConfig(
 ): Prisma.JsonObject {
   const result = { ...(config as Prisma.JsonObject) };
   delete result.namingCallCosts;
+  delete result.namingCostUpdatedAt;
   return result;
 }
 
@@ -437,6 +509,10 @@ export async function writeTopicRule(
         },
         include: { assignments: true },
       });
+  if (!ruleId) {
+    await tx.$executeRaw`UPDATE evaluation_rules SET topics_processing_cost = '{}'::jsonb
+      WHERE project_id = ${input.projectId} AND id = ${row.id}`;
+  }
   return topicRule(row);
 }
 
@@ -844,6 +920,8 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
     const storedConfig = existing.config as Prisma.JsonObject;
     if (storedConfig.namingCallCosts !== undefined)
       config.namingCallCosts = storedConfig.namingCallCosts;
+    if (storedConfig.namingCostUpdatedAt !== undefined)
+      config.namingCostUpdatedAt = storedConfig.namingCostUpdatedAt;
     if (storedConfig.namingCostTracked === true)
       config.namingCostTracked = true;
     return tx.topicClusteringRun.update({

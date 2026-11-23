@@ -7,7 +7,7 @@ import {
   enqueueTopicRuleRefit,
   finishTopicNamingCall,
   getEnabledTopicsModels,
-  listTopicRuleRefreshes,
+  getPreviousTopicRuleRefreshCost,
   saveTopicRule,
   startTopicNamingCall,
   writeTopicSummaries,
@@ -159,10 +159,8 @@ describe("nightly Topics refits against storage", () => {
     expect(others).toEqual([]);
     expect(first).toMatchObject({ ruleId: rule.id, batchActionId: null });
     await expect(
-      listTopicRuleRefreshes(projectId, rule.id),
-    ).resolves.toMatchObject([
-      { trigger: "nightly", status: "running", cost: null },
-    ]);
+      getPreviousTopicRuleRefreshCost(projectId, rule.id),
+    ).resolves.toBeNull();
     // Nightly fits queue behind a setup's first fit.
     expect(enqueueTopicRuleRefit).toHaveBeenCalledWith(
       projectId,
@@ -192,12 +190,26 @@ describe("nightly Topics refits against storage", () => {
     expect(await runs("skipped")).toEqual([
       expect.objectContaining({ ruleId: rule.id, batchActionId: null }),
     ]);
-    const history = await listTopicRuleRefreshes(projectId, rule.id);
-    expect(history).toMatchObject([
-      { trigger: "nightly", status: "skipped", cost: 0, partial: false },
-      { trigger: "nightly", status: "completed", cost: 0.08, partial: true },
-    ]);
-    expect(history[0].id).not.toEqual(history[1].id);
+    // A quiet night cannot replace the last refresh that actually fit the map.
+    const previousRefresh = () =>
+      getPreviousTopicRuleRefreshCost(projectId, rule.id);
+    await expect(previousRefresh()).resolves.toEqual({
+      cost: 0.08,
+      partial: true,
+    });
+    await prisma.topicClusteringRun.update({
+      where: { id: second.id },
+      data: { status: "failed" },
+    });
+    await expect(previousRefresh()).resolves.toEqual({
+      cost: 0.08,
+      partial: true,
+    });
+    await prisma.topicClusteringRun.update({
+      where: { id: first.id },
+      data: { status: "failed" },
+    });
+    await expect(previousRefresh()).resolves.toBeNull();
   });
 
   it("skips the slot after a fit started from an hour before it, such as a manual refresh", async () => {

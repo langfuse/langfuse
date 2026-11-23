@@ -22,8 +22,9 @@ import {
   readTopicExecutionSummary,
   getTopicExecutionCosts,
   getTopicExecutionNamingCosts,
+  getTopicRuleMapCost,
   getTopicSnapshotProcessingCosts,
-  listTopicRuleRefreshes,
+  getPreviousTopicRuleRefreshCost,
   enqueueTopicSnapshotSetup,
   readTopicSnapshotSummarizing,
   writeTopicExecution,
@@ -162,6 +163,27 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
   });
   return next();
 });
+
+/** Only older executions without a processing checkpoint need a retained-summary lookup. */
+async function snapshotSummaryCosts(projectId: string, executionIds: string[]) {
+  const checkpoints = await getTopicSnapshotProcessingCosts(
+    projectId,
+    executionIds,
+  );
+  const legacyIds = executionIds.filter(
+    (id) => !Object.hasOwn(checkpoints, id),
+  );
+  const retained = legacyIds.length
+    ? await getTopicExecutionCosts(projectId, legacyIds)
+    : {};
+  const costs = Object.fromEntries<number>([
+    ...Object.entries(retained),
+    ...Object.entries(checkpoints).flatMap(([id, { cost }]) =>
+      cost === null ? [] : [[id, cost] as const],
+    ),
+  ]);
+  return { checkpoints, costs };
+}
 
 const costEstimateInput = projectInput.extend({
   filter: topicRuleConfigSchema.shape.filter,
@@ -619,10 +641,10 @@ export const topicsRouter = createTRPCRouter({
     .input(projectInput.extend({ includeCosts }))
     .query(async ({ input }) => {
       const listed = await listTopicExecutions(input.projectId);
-      const [executions, costs] = await Promise.all([
+      const [executions, summary] = await Promise.all([
         Promise.all(listed.map(recoverExecutionState)),
         input.includeCosts
-          ? getTopicExecutionCosts(
+          ? snapshotSummaryCosts(
               input.projectId,
               listed
                 .filter((execution) => createsSummaries(execution.input))
@@ -632,7 +654,7 @@ export const topicsRouter = createTRPCRouter({
       ]);
       return executions.map((execution) => ({
         ...execution,
-        estimatedCost: costs?.[execution.id] ?? null,
+        estimatedCost: summary?.costs[execution.id] ?? null,
       }));
     }),
   execution: topicsProcedure
@@ -642,16 +664,20 @@ export const topicsRouter = createTRPCRouter({
         input.projectId,
         input.executionId,
       );
-      const costs =
+      const summary =
         input.includeCosts && createsSummaries(execution.input)
-          ? await getTopicExecutionCosts(input.projectId, [execution.id])
+          ? await snapshotSummaryCosts(input.projectId, [execution.id])
           : null;
-      return { ...execution, estimatedCost: costs?.[execution.id] ?? null };
+      return {
+        ...execution,
+        estimatedCost: summary?.costs[execution.id] ?? null,
+      };
     }),
   executionCosts: topicsProcedure
     .input(projectInput.extend({ executionIds: visibleExecutionIds }))
-    .query(({ input }) =>
-      getTopicExecutionCosts(input.projectId, input.executionIds),
+    .query(
+      async ({ input }) =>
+        (await snapshotSummaryCosts(input.projectId, input.executionIds)).costs,
     ),
   executionCostBreakdown: topicsProcedure
     .input(
@@ -666,26 +692,19 @@ export const topicsRouter = createTRPCRouter({
         const summaryIds = executionIds.filter((id) =>
           requestedSummaries.has(id),
         );
-        const [checkpoints, naming] = await Promise.all([
-          getTopicSnapshotProcessingCosts(projectId, summaryIds),
+        const [{ checkpoints, costs }, naming] = await Promise.all([
+          snapshotSummaryCosts(projectId, summaryIds),
           getTopicExecutionNamingCosts(projectId, executionIds),
         ]);
-        const retained = await getTopicExecutionCosts(
-          projectId,
-          summaryIds.filter((id) => !Object.hasOwn(checkpoints, id)),
-        );
         return Object.fromEntries(
           executionIds.map((id) => {
             const checkpoint = Object.hasOwn(checkpoints, id)
               ? checkpoints[id]
               : undefined;
-            const retainedCost = Object.hasOwn(retained, id)
-              ? retained[id]
-              : null;
             return [
               id,
               {
-                summaries: checkpoint ? checkpoint.cost : retainedCost,
+                summaries: Object.hasOwn(costs, id) ? costs[id] : null,
                 ...(checkpoint && {
                   summaryCheckpoint: {
                     partial: checkpoint.partial,
@@ -770,11 +789,14 @@ export const topicsRouter = createTRPCRouter({
         ruleId: input.ruleId,
       }),
     ),
-  ruleRefreshHistory: topicsProcedure
+  previousRuleRefreshCost: topicsProcedure
     .input(projectInput.extend({ ruleId: topicIdSchema }))
     .query(({ input }) =>
-      listTopicRuleRefreshes(input.projectId, input.ruleId),
+      getPreviousTopicRuleRefreshCost(input.projectId, input.ruleId),
     ),
+  ruleMapCost: topicsProcedure
+    .input(projectInput.extend({ ruleId: topicIdSchema }))
+    .query(({ input }) => getTopicRuleMapCost(input.projectId, input.ruleId)),
   ruleSetupStatus: topicsProcedure
     .input(projectInput.extend({ ruleId: topicIdSchema }))
     .query(({ input }) => readTopicRuleSetup(input.projectId, input.ruleId)),

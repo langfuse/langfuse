@@ -40,60 +40,32 @@ export function topicRuleOperation(
   return { id, trigger };
 }
 
-type RefreshGroup = {
-  id: string;
-  trigger: "manual" | "nightly";
-  startedAt: Date;
-  status:
-    | "running"
-    | "completed"
-    | "completed_with_errors"
-    | "skipped"
-    | "failed";
-  runIds: string[];
-};
-
-/** The selected map's ten most recent tracked refreshes, with every facet in each total. */
-export async function listTopicRuleRefreshes(
+/** Naming cost of the last finished manual or nightly refresh, including all of its facets. */
+export async function getPreviousTopicRuleRefreshCost(
   projectId: string,
   ruleId: string,
 ) {
-  const groups = await prisma.$queryRaw<RefreshGroup[]>`
-    SELECT config->'ruleOperation'->>'id' AS id,
-           config->'ruleOperation'->>'trigger' AS trigger,
-           min(created_at) AS "startedAt",
-           CASE WHEN bool_or(status IN ('pending', 'running')) THEN 'running'
-                WHEN bool_and(status = 'failed') THEN 'failed'
-                WHEN bool_or(status = 'failed') THEN 'completed_with_errors'
-                WHEN bool_and(status = 'skipped') THEN 'skipped'
-                ELSE 'completed' END AS status,
-           array_agg(topic_clustering_runs.id) AS "runIds"
+  const [refresh] = await prisma.$queryRaw<{ runIds: string[] }[]>`
+    SELECT array_agg(id) AS "runIds"
     FROM topic_clustering_runs
     WHERE project_id = ${projectId} AND rule_id = ${ruleId}
       AND config->'ruleOperation'->>'trigger' IN ('manual', 'nightly')
-    GROUP BY 1, 2
-    ORDER BY 3 DESC, 1 DESC
-    LIMIT 10
+    GROUP BY config->'ruleOperation'->>'id'
+    HAVING bool_and(status IN ('completed', 'skipped', 'failed'))
+       AND NOT bool_and(status = 'skipped') AND NOT bool_and(status = 'failed')
+    ORDER BY min(created_at) DESC, config->'ruleOperation'->>'id' DESC
+    LIMIT 1
   `;
-  const costs = await getTopicRunNamingCosts(
-    projectId,
-    groups.flatMap((group) => group.runIds),
-  );
-  return groups.map(({ runIds, ...group }) => {
-    let cost: number | null = null;
-    let missing = false;
-    for (const id of runIds) {
-      const run = costs[id];
-      if (run?.cost != null) cost = (cost ?? 0) + run.cost;
-      if (run?.cost == null || run.partial) missing = true;
-    }
-    return {
-      ...group,
-      startedAt: group.startedAt.toISOString(),
-      cost,
-      partial: cost !== null && missing,
-    };
-  });
+  if (!refresh) return null;
+  const costs = await getTopicRunNamingCosts(projectId, refresh.runIds);
+  let cost: number | null = null;
+  let missing = false;
+  for (const id of refresh.runIds) {
+    const run = costs[id];
+    if (run?.cost != null) cost = (cost ?? 0) + run.cost;
+    if (run?.cost == null || run.partial) missing = true;
+  }
+  return { cost, partial: cost !== null && missing };
 }
 
 // Holds no data: it exists for the cooldown after a manual refresh started, then expires.

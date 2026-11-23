@@ -2,7 +2,11 @@ import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
-import { TopicsMapPicker, type UsePreviewTopics } from "./TopicsMapPicker";
+import {
+  TopicsMapPicker,
+  type UseMapCost,
+  type UsePreviewTopics,
+} from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { refreshMapDisabledReason } from "./prepare-topics-actions";
@@ -121,6 +125,15 @@ const useStoryPreviewTopics: UsePreviewTopics = (_projectId, map) => ({
     : undefined,
 });
 
+const useStoryMapCost: UseMapCost = (_projectId, ruleId) => {
+  if (!ruleId) return undefined;
+  if (ruleId === "rule-all")
+    return { cost: 0.32, partial: false, updatedAt: hoursAgo(1) };
+  if (ruleId === "rule-support")
+    return { cost: 0.14, partial: true, updatedAt: hoursAgo(26) };
+  return { cost: null, partial: false, updatedAt: null };
+};
+
 /** The Topics page header flow: pick a map, see its strip, or the building state of a new map. */
 function MapSwitcher({
   initial,
@@ -143,7 +156,6 @@ function MapSwitcher({
     selection.kind === "analysis"
       ? overview.analyses.find((item) => item.id === selection.id)
       : undefined;
-  const manualStatus = selectedRule?.refresh.running ? "running" : "completed";
   return (
     <div className="flex h-[420px] w-[min(760px,calc(100vw-2rem))] flex-col rounded-md border">
       <div className="flex items-center gap-3 border-b p-2">
@@ -154,6 +166,7 @@ function MapSwitcher({
           facetId="intent"
           onSelect={setSelection}
           usePreviewTopics={useStoryPreviewTopics}
+          useMapCost={useStoryMapCost}
           processingOn
           create={{
             map: { onSelect: fn() },
@@ -165,42 +178,7 @@ function MapSwitcher({
           })}
         />
       </div>
-      {selectedRule && (
-        <TopicMapStrip.Rule
-          rule={selectedRule}
-          now={now}
-          refreshes={
-            selectedRule.lastRefitAt && selectedRule.enabled
-              ? [
-                  {
-                    id: "manual",
-                    trigger: "manual",
-                    status: manualStatus,
-                    startedAt: hoursAgo(3),
-                    cost: 0.08,
-                    partial: false,
-                  },
-                  {
-                    id: "nightly",
-                    trigger: "nightly",
-                    status: "completed_with_errors",
-                    startedAt: hoursAgo(25),
-                    cost: 0.02,
-                    partial: true,
-                  },
-                  {
-                    id: "old",
-                    trigger: "nightly",
-                    status: "failed",
-                    startedAt: hoursAgo(49),
-                    cost: null,
-                    partial: false,
-                  },
-                ]
-              : []
-          }
-        />
-      )}
+      {selectedRule && <TopicMapStrip.Rule rule={selectedRule} now={now} />}
       {selectedAnalysis && (
         <TopicMapStrip.Analysis
           analysis={selectedAnalysis}
@@ -377,10 +355,21 @@ export const TestPausedLast = meta.story({
 });
 
 export const TestRefreshPreviewedMap = meta.story({
-  name: "(Test) Refresh acts on the previewed map",
+  name: "(Test) Cost and refresh follow the previewed map",
   args: { onRefresh: fn() },
   play: async ({ args, canvasElement }) => {
     const picker = await openPicker(canvasElement);
+    await expect(picker.getByText("Map cost")).toBeVisible();
+    await expect(picker.getByText("~$0.32")).toBeVisible();
+    await expect(picker.getByRole("time")).toHaveAttribute(
+      "datetime",
+      hoursAgo(1),
+    );
+    await userEvent.hover(
+      picker.getByRole("button", { name: /^Checkout assistant/ }),
+    );
+    await expect(picker.getByText("Unavailable")).toBeVisible();
+    await expect(picker.queryByRole("time")).not.toBeInTheDocument();
     await userEvent.hover(
       picker.getByRole("button", { name: /^Support agent/ }),
     );
@@ -388,6 +377,11 @@ export const TestRefreshPreviewedMap = meta.story({
       expect(
         picker.getByText("Support agent", { selector: ".font-bold" }),
       ).toBeVisible(),
+    );
+    await expect(picker.getByText("~$0.14 (partial)")).toBeVisible();
+    await expect(picker.getByRole("time")).toHaveAttribute(
+      "datetime",
+      hoursAgo(26),
     );
     await userEvent.click(picker.getByRole("button", { name: "Refresh" }));
     await expect(args.onRefresh).toHaveBeenCalledWith("rule-support");

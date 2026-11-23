@@ -1,4 +1,7 @@
 import { useState, type ReactNode } from "react";
+import { useMediaQuery } from "react-responsive";
+import { formatTopicCost } from "./topic-run-labels";
+import type { RouterOutputs } from "@/src/utils/api";
 import {
   CalendarRange,
   Camera,
@@ -17,6 +20,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
+import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { TopicFilterChip } from "./TopicFilterChip";
 import { treemapSwatchColor } from "./topic-map-colors";
@@ -49,6 +53,7 @@ export function TopicsMapPicker({
   facetId,
   onSelect,
   usePreviewTopics,
+  useMapCost,
   processingOn,
   create,
   refresh,
@@ -60,6 +65,7 @@ export function TopicsMapPicker({
   facetId: string | undefined;
   onSelect: (selection: TopicMapSelection) => void;
   usePreviewTopics: UsePreviewTopics;
+  useMapCost: UseMapCost;
   /** Automatic analysis is on for the project; live runs show Paused otherwise. */
   processingOn: boolean;
   /** Footer entries for New map and New snapshot; null hides one. */
@@ -98,6 +104,47 @@ export function TopicsMapPicker({
     shown.kind === "analysis"
       ? overview.analyses.find((analysis) => analysis.id === shown.id)
       : undefined;
+  const hasPreviewPane = useMediaQuery({ query: "(min-width: 640px)" });
+  const costRule = hasPreviewPane ? shownRule : selectedRule;
+  const cost = useMapCost(projectId, open ? costRule?.id : undefined);
+  const costUpdatedAt = cost?.updatedAt ? new Date(cost.updatedAt) : null;
+  const costRow: [string, ReactNode] | undefined = costRule
+    ? [
+        "Map cost",
+        <Tooltip
+          key="cost"
+          label={
+            "Estimated lifetime cost of naming topics and this map’s share of summary and embedding calls." +
+            (cost?.partial
+              ? " Some usage predates tracking or has no recorded price."
+              : "") +
+            (costUpdatedAt
+              ? ` Cost last updated ${costUpdatedAt.toLocaleString(undefined, { dateStyle: "long", timeStyle: "long" })}.`
+              : "")
+          }
+        >
+          {({ getTriggerProps }) => (
+            <span
+              {...getTriggerProps({ tabIndex: 0 })}
+              className="tabular-nums"
+            >
+              {formatTopicCost(cost?.cost, cost?.partial)}
+              {costUpdatedAt && (
+                <>
+                  {" "}
+                  <time
+                    className="text-muted-foreground"
+                    dateTime={costUpdatedAt.toISOString()}
+                  >
+                    (updated {formatCompactRelativeTime(costUpdatedAt)})
+                  </time>
+                </>
+              )}
+            </span>
+          )}
+        </Tooltip>,
+      ]
+    : undefined;
   const isSelected = (kind: TopicMapSelection["kind"], id: string) =>
     selection.kind === kind && selection.id === id;
   function choose(next: TopicMapSelection) {
@@ -182,13 +229,18 @@ export function TopicsMapPicker({
                 </p>
               )}
             </div>
-            {(refreshEntry || hasCreate) && (
+            {(refreshEntry || hasCreate || (!hasPreviewPane && costRow)) && (
               <div
                 className={cn(
                   "mt-auto flex flex-col border-t p-1.5",
                   !hasCreate && "sm:hidden",
                 )}
               >
+                {!hasPreviewPane && costRow && (
+                  <div className="px-2.5 py-2">
+                    <PreviewRows rows={[costRow]} />
+                  </div>
+                )}
                 {/* Phones have no preview card, so the selected map's refresh sits here. */}
                 {refreshEntry && (
                   <div className="flex flex-col sm:hidden">
@@ -230,13 +282,14 @@ export function TopicsMapPicker({
           {/* Too narrow on phones, where a tap selects before the preview could help. */}
           <div className="hidden w-3/5 min-w-0 overflow-y-auto sm:block">
             {/* At least as tall as a map preview with three top topics, so hovering between entries keeps the popover's height. Set inside the pane so short viewports still scroll it. */}
-            <div className="min-h-81.75 p-4">
+            <div className="min-h-89.5 p-4">
               {shownRule && (
                 <RulePreview
                   key={shownRule.id}
                   projectId={projectId}
                   usePreviewTopics={usePreviewTopics}
                   rule={shownRule}
+                  costRow={hasPreviewPane ? costRow : undefined}
                   facetId={facetId}
                   processingOn={processingOn}
                   refresh={refresh ? refresh(shownRule) : null}
@@ -531,6 +584,7 @@ function FilterValue({ filter }: { filter: TopicRuleMap["filter"] }) {
 function RulePreview({
   projectId,
   rule,
+  costRow,
   facetId,
   usePreviewTopics,
   processingOn,
@@ -540,6 +594,7 @@ function RulePreview({
   projectId: string;
   usePreviewTopics: UsePreviewTopics;
   rule: TopicRuleMap;
+  costRow: [string, ReactNode] | undefined;
   facetId: string | undefined;
   processingOn: boolean;
   refresh: FooterEntry | null;
@@ -571,6 +626,7 @@ function RulePreview({
           ...(rule.createdAt
             ? [["Since", topicDayLabel(rule.createdAt)] as [string, ReactNode]]
             : []),
+          ...(costRow ? [costRow] : []),
         ]}
       />
       {top && <TopTopics {...top} />}
@@ -713,6 +769,11 @@ type PreviewFacet = {
   name: string;
   topics: { id: string; name: string; count: number }[];
 };
+
+export type UseMapCost = (
+  projectId: string,
+  ruleId: string | undefined,
+) => RouterOutputs["topics"]["ruleMapCost"] | undefined;
 
 /** Topics of one map for the preview pane; null skips the request. */
 export type UsePreviewTopics = (

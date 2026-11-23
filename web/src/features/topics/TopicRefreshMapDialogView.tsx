@@ -46,8 +46,7 @@ export function TopicRefreshMapDialogView({
           <li>Topics may be renamed, merged or split.</li>
           <li>
             This refresh reuses saved summaries and embeddings. Only naming
-            topics uses your clustering model. See its estimated cost in refresh
-            history.
+            topics uses your clustering model.
           </li>
           <li>You can refresh this map again in {COOLDOWN_MINUTES} minutes.</li>
         </ul>

@@ -32,10 +32,12 @@ import {
   pauseForRejectedConnection,
   TopicsProviderUnavailable,
 } from "./provider-error";
+import { bufferTopicRuleProcessingCosts } from "./processingCostBuffer";
 import { getRuleTopicRun } from "./servingRuns";
 import {
   summarizeAssembledTrace,
   type TopicsFailedStage,
+  type OnTopicsModelCost,
 } from "./summarizeAssembledTrace";
 
 const inputStorage = createTraceTranscriptStorage();
@@ -250,7 +252,7 @@ function isRetryableProviderError(error: unknown): boolean {
 async function processEvent(
   event: TopicsTraceEventType,
   deps: TopicsTraceDeps,
-  onModelCost?: (stage: TopicsFailedStage, cost: number | null) => void,
+  onModelCost: OnTopicsModelCost,
 ): Promise<TopicsTraceOutcome> {
   const { projectId, traceId } = event;
   const settings = await projectSettings(projectId);
@@ -332,44 +334,85 @@ async function processEvent(
   throw failure;
 }
 
-async function processSnapshotTrace(
+type ProcessingStageCost = { cost: number | null; ruleIds: string[] };
+
+function totalStageCosts(costs: (number | null)[]) {
+  const priced = costs.filter((cost) => cost !== null);
+  const partial = priced.length < costs.length;
+  return {
+    cost:
+      partial && !priced.length
+        ? null
+        : priced.reduce((sum, value) => sum + value, 0),
+    partial,
+  };
+}
+
+async function saveProcessingCosts(
   event: TopicsTraceEventType,
-  deps: TopicsTraceDeps,
-  executionId: string,
-): Promise<TopicsTraceOutcome> {
-  const stages = new Map<TopicsFailedStage, number | null>();
-  try {
-    return await processEvent(event, deps, (stage, cost) =>
-      stages.set(stage, cost),
-    );
-  } finally {
-    // Each revision may be processed several times. Retry only the same receipt on a write error.
-    const costs = [...stages.values()];
-    const priced = costs.filter((cost) => cost !== null);
-    const partial = priced.length < costs.length;
+  stages: ProcessingStageCost[],
+) {
+  const { projectId, batchActionId: executionId, revision } = event;
+  let write: () => Promise<unknown>;
+  if (executionId) {
+    // A snapshot counts even a trace that finished without calling either model.
     const report = {
-      projectId: event.projectId,
+      projectId,
       executionId,
-      revision: event.revision,
+      revision,
       reportId: randomUUID(),
-      cost:
-        partial && !priced.length
-          ? null
-          : priced.reduce((sum, cost) => sum + cost, 0),
-      partial,
+      ...totalStageCosts(stages.map(({ cost }) => cost)),
     };
-    try {
-      await recordTopicSnapshotProcessingCost(report).catch(() =>
-        recordTopicSnapshotProcessingCost(report),
-      );
-    } catch (error) {
-      logger.warn("Failed to save Topics snapshot processing cost", {
-        projectId: event.projectId,
-        executionId,
-        revision: event.revision,
-        error,
-      });
+    write = () => recordTopicSnapshotProcessingCost(report);
+  } else {
+    const byRule = new Map<string, (number | null)[]>();
+    for (const { cost, ruleIds } of stages) {
+      for (const ruleId of ruleIds) {
+        const costs = byRule.get(ruleId) ?? [];
+        costs.push(cost === null ? null : cost / ruleIds.length);
+        byRule.set(ruleId, costs);
+      }
     }
+    if (!byRule.size) return;
+    const report = {
+      projectId,
+      receiptId: randomUUID(),
+      recordedAt: new Date(),
+      shares: Array.from(byRule, ([ruleId, costs]) => ({
+        ruleId,
+        ...totalStageCosts(costs),
+      })),
+    };
+    write = () => bufferTopicRuleProcessingCosts(report);
+  }
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    // A retry of the write uses this receipt. Repeating inference creates another.
+    const receipt = write().catch(write);
+    if (executionId) {
+      await receipt;
+    } else {
+      // Shared Redis retries through disconnections. The receipt may land after the trace finishes.
+      await Promise.race([
+        receipt,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("Topics processing cost receipt timed out")),
+            1_000,
+          );
+        }),
+      ]);
+    }
+  } catch (error) {
+    logger.warn("Unable to confirm Topics trace processing cost", {
+      projectId,
+      traceId: event.traceId,
+      executionId,
+      revision,
+      error,
+    });
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -383,10 +426,16 @@ export async function processTopicsTrace(
   deps: TopicsTraceDeps,
 ): Promise<TopicsTraceOutcome> {
   let result: TopicsTraceOutcome = { outcome: "disabled" };
-  if (isTopicsProjectEnabled(event.projectId))
-    result = event.batchActionId
-      ? await processSnapshotTrace(event, deps, event.batchActionId)
-      : await processEvent(event, deps);
+  if (isTopicsProjectEnabled(event.projectId)) {
+    const stages = new Map<TopicsFailedStage, ProcessingStageCost>();
+    try {
+      result = await processEvent(event, deps, (stage, cost, ruleIds) => {
+        stages.set(stage, { cost, ruleIds });
+      });
+    } finally {
+      await saveProcessingCosts(event, [...stages.values()]);
+    }
+  }
   recordIncrement("langfuse.topics.trace_outcomes", 1, {
     source: "trace_queue",
     outcome: result.outcome,
