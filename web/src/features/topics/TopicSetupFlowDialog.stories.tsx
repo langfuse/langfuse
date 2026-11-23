@@ -125,6 +125,14 @@ function SetupStory({
         mode,
         observed: {},
         builderColumns: [...topicsFilterRegistry.columns],
+        traceNameSuggestions: [
+          { value: "support-agent", count: 12_400 },
+          {
+            value: "langgraph-production-customer-billing-agent-v2",
+            count: 3_150,
+          },
+          { value: "onboarding-flow", count: 870 },
+        ],
         preview: {
           status: "ready",
           count: 2,

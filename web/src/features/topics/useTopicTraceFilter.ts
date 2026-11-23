@@ -93,6 +93,9 @@ export type TopicTracePreview =
   | { status: "ready"; traces: TopicTracePreviewRow[]; count: number };
 
 /** Value suggestions for the trace fields a rule filters on. */
+// Most used trace names offered as one-click filters.
+const TRACE_NAME_SUGGESTIONS = 5;
+
 function useTopicTraceSuggestions({
   projectId,
   startTimeFilter,
@@ -313,6 +316,10 @@ export function useTopicTraceFilter({
     requestColumns: requestFieldColumns,
     builderColumns,
     preview: tracePreview(state.error, preview),
+    traceNameSuggestions: (traceNames.data ?? []).slice(
+      0,
+      TRACE_NAME_SUGGESTIONS,
+    ),
   };
 }
 
@@ -343,4 +350,6 @@ export type TopicTraceFilterModel = ReturnType<
   requestColumns?: (columns: readonly string[]) => void;
   builderColumns: ColumnDefinition[];
   preview: TopicTracePreview;
+  /** The project's most used trace names, offered as one-click filters. */
+  traceNameSuggestions?: ReadonlyArray<{ value: string; count: number }>;
 };
