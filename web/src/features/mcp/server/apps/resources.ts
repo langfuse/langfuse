@@ -9,8 +9,7 @@ export const WIDGET_APP_RESOURCE_URI = "ui://langfuse/widget.html";
  * which the server fetches from itself. Hosts write it into a sandboxed
  * iframe on their own origin, so before returning it the server points its
  * root-relative script and style URLs, and the chunks Turbopack loads at
- * runtime, at Langfuse. Those assets are public and served with CORS headers
- * (next.config.mjs). A `<base>` would be shorter, but hosts default to
+ * runtime, at Langfuse. A `<base>` would be shorter, but hosts default to
  * `base-uri 'self'`.
  */
 const WIDGET_PAGE = "mcp-apps/widget";
@@ -24,15 +23,22 @@ const appOrigin = () => getProductBaseUrl().origin;
  * Origins the host's iframe CSP must allow. MCP Apps hosts deny everything
  * not declared here.
  */
-const widgetCsp = () => ({
-  resourceDomains: [
+const widgetCsp = () => {
+  const assetOrigins = [
     ...new Set([appOrigin(), env.NEXT_PUBLIC_ASSET_PREFIX ?? appOrigin()]),
-  ],
-  // Data arrives in the tool result; only the dev server's HMR socket
-  // connects back.
-  connectDomains:
-    env.NODE_ENV === "development" ? [appOrigin().replace(/^http/, "ws")] : [],
-});
+  ];
+  return {
+    resourceDomains: assetOrigins,
+    // Data arrives in the tool result. Connections back are browser
+    // devtools fetching source maps and, in development, the HMR socket.
+    connectDomains: [
+      ...assetOrigins,
+      ...(env.NODE_ENV === "development"
+        ? [appOrigin().replace(/^http/, "ws")]
+        : []),
+    ],
+  };
+};
 
 /**
  * Runs before Next.js does:

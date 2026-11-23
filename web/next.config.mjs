@@ -346,22 +346,6 @@ const nextConfig = {
           },
         ],
       },
-      // Build output is public and content-hashed. MCP App hosts render the
-      // widget page in sandboxed iframes on their own (often opaque) origins,
-      // which load these scripts, styles and fonts cross-origin.
-      {
-        source: "/_next/static/:path*",
-        headers: [
-          {
-            key: "Access-Control-Allow-Origin",
-            value: "*",
-          },
-          {
-            key: "Access-Control-Allow-Methods",
-            value: "GET, HEAD",
-          },
-        ],
-      },
     ];
   },
 
