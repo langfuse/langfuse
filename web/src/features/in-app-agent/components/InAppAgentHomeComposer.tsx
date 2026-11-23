@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, type ReactNode, useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import { History } from "@langfuse/icons";
 import { formatDistanceToNow, subDays } from "date-fns";
 
@@ -8,6 +8,7 @@ import { ControlledDropdownMenu } from "@/src/components/design-system/Controlle
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Button } from "@/src/components/ui/button";
+import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 import { InAppAgentAskButton } from "@/src/features/in-app-agent/components/InAppAgentAskButton";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import {
@@ -66,15 +67,7 @@ const DEFAULT_PLACEHOLDER = "Ask about your traces, costs or scores…";
 const CONTINUE_WINDOW_DAYS = 7;
 
 /** Project home entry point: asking here turns Home into the conversation. */
-export function InAppAgentHomeComposer({
-  title,
-  boxDecoration,
-}: {
-  /** What the section heading shows; it names the section "Ask Halo". */
-  title: ReactNode;
-  /** Drawn directly above the Ask box; brings its own height. */
-  boxDecoration: ReactNode;
-}) {
+export function InAppAgentHomeComposer() {
   const {
     conversations,
     homeAskInputRef,
@@ -133,58 +126,51 @@ export function InAppAgentHomeComposer({
       aria-labelledby="home-ask-title"
       className="mx-auto flex w-full max-w-3xl flex-col gap-3.5"
     >
-      <div className="flex flex-col items-center gap-1.5 pb-2.5 text-center">
-        <h2
-          id="home-ask-title"
-          className="flex items-center gap-2 text-xl font-bold"
-        >
-          {title}
-        </h2>
-        <p className="text-muted-foreground text-lg">
-          Get answers from your traces, costs and scores.
-        </p>
-      </div>
-      <div>
-        {boxDecoration}
-        <div className="bg-card border-border-contrast focus-within:border-primary-accent/55 focus-within:ring-primary-accent/12 flex flex-col rounded-xl border shadow-md focus-within:ring-3">
-          <label htmlFor="home-ask-input" className="sr-only">
-            Question for Langfuse
-          </label>
-          <div className="relative">
-            {/* A previewed prompt can be longer than the field, and a placeholder
+      <h2
+        id="home-ask-title"
+        className="flex items-center justify-center gap-2 pb-2.5 text-3xl font-medium"
+      >
+        <HaloIcon variant="heading" />
+        <span>What do you want to know?</span>
+      </h2>
+      <div className="bg-card border-border-contrast focus-within:border-primary-accent/55 focus-within:ring-primary-accent/12 flex flex-col rounded-xl border shadow-md focus-within:ring-3">
+        <label htmlFor="home-ask-input" className="sr-only">
+          Question for Langfuse
+        </label>
+        <div className="relative">
+          {/* A previewed prompt can be longer than the field, and a placeholder
             cannot be cut off cleanly, so the preview is its own clamped text. */}
-            {previewedPrompt && !request ? (
-              <p
-                aria-hidden
-                className="text-foreground-tertiary pointer-events-none absolute inset-x-0 top-0 line-clamp-3 px-4 pt-4 text-base leading-relaxed"
-              >
-                {previewedPrompt}
-              </p>
-            ) : null}
-            <textarea
-              id="home-ask-input"
-              ref={homeAskInputRef}
-              autoComplete="off"
-              maxLength={4000}
-              rows={3}
-              placeholder={previewedPrompt ? undefined : DEFAULT_PLACEHOLDER}
-              value={request}
-              onChange={(event) => {
-                setRequest(event.target.value);
-                setPickedGroup(null);
-              }}
-              onKeyDown={handleKeyDown}
-              // The card draws the focus state, so the field's own border and ring
-              // are off.
-              className="placeholder:text-foreground-tertiary block min-h-24 w-full resize-none border-0 bg-transparent px-4 pt-4 pb-1 text-base leading-relaxed outline-none focus:ring-0"
-            />
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 py-2 pr-2 pl-3">
-            <InAppAgentAskButton
-              disabled={!trimmedRequest}
-              onClick={startConversation}
-            />
-          </div>
+          {previewedPrompt && !request ? (
+            <p
+              aria-hidden
+              className="text-foreground-tertiary pointer-events-none absolute inset-x-0 top-0 line-clamp-3 px-4 pt-4 text-base leading-relaxed"
+            >
+              {previewedPrompt}
+            </p>
+          ) : null}
+          <textarea
+            id="home-ask-input"
+            ref={homeAskInputRef}
+            autoComplete="off"
+            maxLength={4000}
+            rows={3}
+            placeholder={previewedPrompt ? undefined : DEFAULT_PLACEHOLDER}
+            value={request}
+            onChange={(event) => {
+              setRequest(event.target.value);
+              setPickedGroup(null);
+            }}
+            onKeyDown={handleKeyDown}
+            // The card draws the focus state, so the field's own border and ring
+            // are off.
+            className="placeholder:text-foreground-tertiary block min-h-24 w-full resize-none border-0 bg-transparent px-4 pt-4 pb-1 text-base leading-relaxed outline-none focus:ring-0"
+          />
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 py-2 pr-2 pl-3">
+          <InAppAgentAskButton
+            disabled={!trimmedRequest}
+            onClick={startConversation}
+          />
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">

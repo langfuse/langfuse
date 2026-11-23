@@ -44,10 +44,7 @@ import {
   useDashboardQueryScheduler,
 } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import Link from "next/link";
-import { LockIcon, PencilIcon, Snowflake } from "@langfuse/icons";
-import useLocalStorage from "@/src/components/useLocalStorage";
-import { HomeFestiveHero } from "@/src/features/dashboard/components/HomeFestive/HomeFestiveHero";
-import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
+import { LockIcon, PencilIcon } from "@langfuse/icons";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -89,12 +86,6 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   // and the dashboard with its picker and edit link lives on the dashboard
   // page that section links to. Otherwise Home is the dashboard, unchanged.
   const showAssistantComposer = useCanUseInAppAgent();
-  // Seasonal decoration on the Ask box; the snowflake in the header turns it
-  // off for this browser.
-  const [showFestiveScene, setShowFestiveScene] = useLocalStorage(
-    "home-festive-scene",
-    true,
-  );
   const { data: hasTracingConfigured, isLoading: isTracingCheckLoading } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
@@ -407,26 +398,6 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           ),
           actionButtonsRight: (
             <>
-              {showAssistantComposer && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-pressed={showFestiveScene}
-                  title={
-                    showFestiveScene
-                      ? "Hide festive scene"
-                      : "Show festive scene"
-                  }
-                  onClick={() => setShowFestiveScene((isShown) => !isShown)}
-                >
-                  <Snowflake size="base" color="default" />
-                  <span className="sr-only">
-                    {showFestiveScene
-                      ? "Hide festive scene"
-                      : "Show festive scene"}
-                  </span>
-                </Button>
-              )}
               {!showAssistantComposer && (
                 <>
                   <HomeDashboardSelect
@@ -609,26 +580,9 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                 Ask section is centred in the space above it. In a window too
                 short for both, the column grows and the area scrolls. */}
             <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col px-6 pt-3 pb-12">
-              {showFestiveScene ? (
-                <HomeFestiveHero>
-                  <InAppAgentHomeComposer
-                    title={<HomeFestiveHero.Title />}
-                    boxDecoration={<HomeFestiveHero.BoxTop />}
-                  />
-                </HomeFestiveHero>
-              ) : (
-                <div className="flex flex-1 flex-col justify-center py-18">
-                  <InAppAgentHomeComposer
-                    title={
-                      <>
-                        <HaloIcon variant="heading" />
-                        <span>Ask Halo</span>
-                      </>
-                    }
-                    boxDecoration={null}
-                  />
-                </div>
-              )}
+              <div className="flex flex-1 flex-col justify-center py-18">
+                <InAppAgentHomeComposer />
+              </div>
               <HomeAtAGlance
                 projectId={projectId}
                 dashboard={{
