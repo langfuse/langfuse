@@ -271,9 +271,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                 setEmbedding(model);
                 commitSlot("embedding", model);
               }}
-            />
-            {lock ? <EmbeddingLockedWarning lock={lock} /> : null}
-            {!lock && embeddingChanged ? <EmbeddingChangeWarning /> : null}
+            >
+              {lock ? <EmbeddingLockedWarning /> : null}
+              {!lock && embeddingChanged ? <EmbeddingChangeWarning /> : null}
+            </ModelSlot>
             <ModelSlot
               name="clustering"
               model={clustering}
@@ -319,6 +320,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
 
 function ModelSlot({
   check,
+  children,
   connectionMissing = false,
   dimensions,
   dimensionsLocked = false,
@@ -331,6 +333,8 @@ function ModelSlot({
   providerGroups,
 }: {
   check?: TopicSlotCheck;
+  /** Shown under the fields, as wide as them. */
+  children?: ReactNode;
   connectionMissing?: boolean;
   dimensions?: string;
   dimensionsLocked?: boolean;
@@ -405,6 +409,7 @@ function ModelSlot({
           )}
         </div>
         <SlotStatus check={check} recommendation={copy.recommendation} />
+        {children}
       </div>
     </div>
   );
@@ -425,39 +430,18 @@ function SlotStatus({
   return <p className="text-muted-foreground text-xs">{recommendation}</p>;
 }
 
-const EMBEDDING_SPACE_CONSEQUENCE =
-  "Each embedding model, and each dimension count, produces vectors in its own embedding space. Summaries from different spaces cannot be clustered or compared, and Langfuse does not re-embed existing summaries.";
-
-function EmbeddingLockedWarning({
-  lock,
-}: {
-  lock: { model: string; dimensions: number };
-}) {
+function EmbeddingLockedWarning() {
   return (
-    <Banner variant="warning" title="The embedding model is locked">
-      <p>
-        Summaries in this project are already embedded with{" "}
-        <span className="font-mono">{lock.model}</span> at {lock.dimensions}{" "}
-        dimensions. {EMBEDDING_SPACE_CONSEQUENCE}
-      </p>
-      <p className="mt-1">
-        You can still choose <span className="font-mono">{lock.model}</span> on
-        another connection.
-      </p>
+    <Banner variant="warning">
+      <p>Locked because summaries are already embedded with this model.</p>
     </Banner>
   );
 }
 
 function EmbeddingChangeWarning() {
   return (
-    <Banner
-      variant="warning"
-      title="You cannot change the embedding model later"
-    >
-      <p>
-        The embedding model and dimensions are locked once the first summaries
-        are embedded. {EMBEDDING_SPACE_CONSEQUENCE}
-      </p>
+    <Banner variant="warning">
+      <p>This model locks once the first summaries are embedded.</p>
     </Banner>
   );
 }

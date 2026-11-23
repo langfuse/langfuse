@@ -79,7 +79,7 @@ export const WarnsBeforeEmbeddingChange = meta.story({
   },
   play: async () => {
     const body = within(document.body);
-    const title = "You cannot change the embedding model later";
+    const title = /This model locks once the first summaries are embedded/;
     await expect(body.queryByText(title)).not.toBeInTheDocument();
     const dimensions = body.getByRole("spinbutton", {
       name: "Embedding dimensions",
