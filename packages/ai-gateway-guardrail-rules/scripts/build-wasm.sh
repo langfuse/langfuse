@@ -8,7 +8,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 WASM_BINDGEN_VERSION="0.2.130"
 OUT="${OUT:-pkg}"
-TARGET_DIR="${CARGO_TARGET_DIR:-target}"
+# Always the crate's own target/: the target directory's path ends up in the
+# binary, so a custom CARGO_TARGET_DIR would change it.
+TARGET_DIR="target"
 WASM_BINDGEN="${WASM_BINDGEN:-wasm-bindgen}"
 
 if [[ "$("$WASM_BINDGEN" --version)" != "wasm-bindgen $WASM_BINDGEN_VERSION" ]]; then
@@ -22,5 +24,7 @@ export RUSTFLAGS="--remap-path-prefix=$PWD=/ai-gateway-guardrail-rules --remap-p
 CARGO_TARGET_DIR="$TARGET_DIR" cargo build --locked --release --target wasm32-unknown-unknown --features wasm
 
 rm -rf "$OUT"
-"$WASM_BINDGEN" --target nodejs --out-dir "$OUT" "$TARGET_DIR/wasm32-unknown-unknown/release/ai_gateway_guardrail_rules.wasm"
+# The producers section records how each tool was built (a release binary of
+# the CLI adds its git hash, a `cargo install` does not), so it is dropped.
+"$WASM_BINDGEN" --target nodejs --remove-producers-section --out-dir "$OUT" "$TARGET_DIR/wasm32-unknown-unknown/release/ai_gateway_guardrail_rules.wasm"
 echo "built $OUT ($(wc -c < "$OUT/ai_gateway_guardrail_rules_bg.wasm") bytes wasm, $(gzip -9 -c "$OUT/ai_gateway_guardrail_rules_bg.wasm" | wc -c) gzipped)"
