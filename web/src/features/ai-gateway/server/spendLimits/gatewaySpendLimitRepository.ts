@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 import type {
   GatewaySpendLimitInterval,
   Prisma,
@@ -317,6 +319,35 @@ export class GatewaySpendLimitRepository {
     });
   }
 
+  /** Locks the scope's own limits in deterministic order so concurrent resets serialize monotonically. */
+  async listForUpdate(params: {
+    organizationId: string;
+    scope: GatewaySpendLimitScope;
+  }) {
+    if (params.scope.type === "API_KEY") {
+      await this.prisma.$queryRaw`
+        SELECT "id"
+        FROM "gateway_spend_limits"
+        WHERE "organization_id" = ${params.organizationId}
+          AND "scope" = 'API_KEY'::"GatewaySpendLimitScope"
+          AND "api_key_id" = ${params.scope.apiKeyId}
+        ORDER BY "id" ASC
+        FOR UPDATE
+      `;
+    } else {
+      await this.prisma.$queryRaw`
+        SELECT "id"
+        FROM "gateway_spend_limits"
+        WHERE "organization_id" = ${params.organizationId}
+          AND "scope" = 'USER'::"GatewaySpendLimitScope"
+          AND "user_id" = ${params.scope.userId}
+        ORDER BY "id" ASC
+        FOR UPDATE
+      `;
+    }
+    return this.list(params);
+  }
+
   resetCountingStartedAt(params: { id: string; countingStartedAt: Date }) {
     return this.prisma.gatewaySpendLimit.update({
       where: { id: params.id },
@@ -325,37 +356,100 @@ export class GatewaySpendLimitRepository {
     });
   }
 
-  findResetForDefault(params: {
+  /** Locks any existing reset row for this default limit and subject inside the active transaction. */
+  async findResetForDefaultForUpdate(params: {
     spendLimitId: string;
     scope: GatewaySpendLimitScope;
   }) {
-    return this.prisma.gatewaySpendLimitReset.findUnique({
-      where: toDefaultResetUniqueWhere(params.spendLimitId, params.scope),
-      select: { id: true, countingStartedAt: true },
-    });
+    const rows =
+      params.scope.type === "API_KEY"
+        ? await this.prisma.$queryRaw<
+            { id: string; countingStartedAt: Date }[]
+          >`
+            SELECT "id", "counting_started_at" AS "countingStartedAt"
+            FROM "gateway_spend_limit_resets"
+            WHERE "spend_limit_id" = ${params.spendLimitId}
+              AND "api_key_id" = ${params.scope.apiKeyId}
+            FOR UPDATE
+          `
+        : await this.prisma.$queryRaw<
+            { id: string; countingStartedAt: Date }[]
+          >`
+            SELECT "id", "counting_started_at" AS "countingStartedAt"
+            FROM "gateway_spend_limit_resets"
+            WHERE "spend_limit_id" = ${params.spendLimitId}
+              AND "user_id" = ${params.scope.userId}
+            FOR UPDATE
+          `;
+    return rows[0] ?? null;
   }
 
-  upsertResetForDefault(params: {
+  /**
+   * Atomically advances the subject's default-budget reset timestamp so
+   * concurrent first-time inserts or updates never move it backward.
+   */
+  async upsertResetForDefault(params: {
     organizationId: string;
     spendLimitId: string;
     scope: GatewaySpendLimitScope;
     countingStartedAt: Date;
   }) {
-    const subject =
+    const id = randomUUID();
+    const rows =
       params.scope.type === "API_KEY"
-        ? { apiKeyId: params.scope.apiKeyId }
-        : { userId: params.scope.userId };
-    return this.prisma.gatewaySpendLimitReset.upsert({
-      where: toDefaultResetUniqueWhere(params.spendLimitId, params.scope),
-      create: {
-        organizationId: params.organizationId,
-        spendLimitId: params.spendLimitId,
-        ...subject,
-        countingStartedAt: params.countingStartedAt,
-      },
-      update: { countingStartedAt: params.countingStartedAt },
-      select: { id: true, countingStartedAt: true },
-    });
+        ? await this.prisma.$queryRaw<
+            { id: string; countingStartedAt: Date }[]
+          >`
+            INSERT INTO "gateway_spend_limit_resets" (
+              "id",
+              "organization_id",
+              "spend_limit_id",
+              "api_key_id",
+              "counting_started_at"
+            )
+            VALUES (
+              ${id},
+              ${params.organizationId},
+              ${params.spendLimitId},
+              ${params.scope.apiKeyId},
+              ${params.countingStartedAt}
+            )
+            ON CONFLICT ("spend_limit_id", "api_key_id")
+            DO UPDATE SET
+              "counting_started_at" = GREATEST(
+                EXCLUDED."counting_started_at",
+                "gateway_spend_limit_resets"."counting_started_at" + INTERVAL '1 millisecond'
+              ),
+              "updated_at" = CURRENT_TIMESTAMP
+            RETURNING "id", "counting_started_at" AS "countingStartedAt"
+          `
+        : await this.prisma.$queryRaw<
+            { id: string; countingStartedAt: Date }[]
+          >`
+            INSERT INTO "gateway_spend_limit_resets" (
+              "id",
+              "organization_id",
+              "spend_limit_id",
+              "user_id",
+              "counting_started_at"
+            )
+            VALUES (
+              ${id},
+              ${params.organizationId},
+              ${params.spendLimitId},
+              ${params.scope.userId},
+              ${params.countingStartedAt}
+            )
+            ON CONFLICT ("spend_limit_id", "user_id")
+            DO UPDATE SET
+              "counting_started_at" = GREATEST(
+                EXCLUDED."counting_started_at",
+                "gateway_spend_limit_resets"."counting_started_at" + INTERVAL '1 millisecond'
+              ),
+              "updated_at" = CURRENT_TIMESTAMP
+            RETURNING "id", "counting_started_at" AS "countingStartedAt"
+          `;
+    return rows[0]!;
   }
 
   async listResetsForDefault(params: {
@@ -394,21 +488,5 @@ export class GatewaySpendLimitRepository {
       where: { id: params.id },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
-  }
-}
-
-function toDefaultResetUniqueWhere(
-  spendLimitId: string,
-  scope: GatewaySpendLimitScope,
-) {
-  switch (scope.type) {
-    case "API_KEY":
-      return {
-        spendLimitId_apiKeyId: { spendLimitId, apiKeyId: scope.apiKeyId },
-      };
-    case "USER":
-      return {
-        spendLimitId_userId: { spendLimitId, userId: scope.userId },
-      };
   }
 }

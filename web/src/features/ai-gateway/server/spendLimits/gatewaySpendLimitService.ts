@@ -422,14 +422,14 @@ export class GatewaySpendLimitService {
       usageScope: params.usageScope,
       scope,
     });
-    const now = new Date();
     await this.prisma.$transaction(async (tx) => {
       const repo = new GatewaySpendLimitRepository(tx);
-      const existing = await repo.list({
+      const existing = await repo.listForUpdate({
         organizationId: params.organizationId,
         scope,
       });
       if (existing.length > 0) {
+        const now = new Date();
         for (const before of existing) {
           const after = await repo.resetCountingStartedAt({
             id: before.id,
@@ -459,7 +459,7 @@ export class GatewaySpendLimitService {
             : "User has no spend budget",
         );
       }
-      const existingReset = await repo.findResetForDefault({
+      const existingReset = await repo.findResetForDefaultForUpdate({
         spendLimitId: fallback.id,
         scope,
       });
@@ -473,7 +473,7 @@ export class GatewaySpendLimitService {
         scope,
         countingStartedAt: nextCountingStartedAt(
           previousCountingStartedAt,
-          now,
+          new Date(),
         ),
       });
       await auditLog(

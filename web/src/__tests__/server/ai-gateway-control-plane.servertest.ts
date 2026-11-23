@@ -3165,11 +3165,19 @@ describe("AI gateway control plane", () => {
     expect(alertsBeforeReset).toBe(1);
 
     // Member resets their own key that inherits API_KEY_DEFAULT; owner resets aiGatewayUser on USER_DEFAULT.
-    await member.aiGateway.resetSpendLimit({
-      orgId: owner.org.id,
-      scope: "API_KEY",
-      subjectId: memberSecondKey.id,
-    });
+    // Concurrent resets on the same subject serialize monotonically and never move countingStartedAt backward.
+    await Promise.all([
+      member.aiGateway.resetSpendLimit({
+        orgId: owner.org.id,
+        scope: "API_KEY",
+        subjectId: memberSecondKey.id,
+      }),
+      member.aiGateway.resetSpendLimit({
+        orgId: owner.org.id,
+        scope: "API_KEY",
+        subjectId: memberSecondKey.id,
+      }),
+    ]);
     await owner.caller.aiGateway.resetSpendLimit({
       orgId: owner.org.id,
       scope: "USER",
@@ -3237,7 +3245,7 @@ describe("AI gateway control plane", () => {
       },
       orderBy: { createdAt: "asc" },
     });
-    expect(resetAuditLogs).toHaveLength(6);
+    expect(resetAuditLogs).toHaveLength(7);
     expect(resetAuditLogs[0]).toMatchObject({
       resourceId: beforeKeyLimit.id,
       userId: memberUserId,
