@@ -57,7 +57,7 @@ export function MetricsFilterBuilder({
     new Set(
       editorFilters
         .filter((filter) => !resolvesToColumn(filter, columns))
-        .map((filter) => displayNameForFilterColumn(filter.column)),
+        .map(unsupportedFilterLabel),
     ),
   ).join(", ");
 
@@ -244,6 +244,17 @@ const resolvesToColumn = (
         !column.numericValues
       ),
   );
+
+/**
+ * unsupportedFilterLabel names a hidden row in the banner. A numeric key/value
+ * row names its key: the column's text rows may still render.
+ */
+const unsupportedFilterLabel = (filter: FilterState[number]): string => {
+  const column = displayNameForFilterColumn(filter.column);
+  return filter.type === "numberObject"
+    ? `${column}.${filter.key} (numeric)`
+    : column;
+};
 
 /** EventFilterOptionsColumn is one facet column the events filter-options endpoint understands. */
 export type EventFilterOptionsColumn = NonNullable<
