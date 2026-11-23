@@ -1,4 +1,3 @@
-import { TopicsTargetObject } from "@langfuse/shared";
 import {
   TRACE_IDLE_MS_MAX,
   TRACE_IDLE_MS_MIN,
@@ -216,12 +215,11 @@ export const ruleRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
-      if (input.targetObject === TopicsTargetObject) {
-        throwIfTraceTranscriptEvalsUnavailable(
-          ctx.session,
-          ctx.session.projectId,
-        );
-      }
+      // A rule never changes its target, so there is no target in the input to
+      // gate on. Access to trace transcript rules is enforced on the stored
+      // target by the service's visibility (`requireRule`), which hides them
+      // from projects without access — the same path used by setEnabled,
+      // delete, attach, and detach.
       return serviceForContext(ctx).update({
         ...input,
         projectId: ctx.session.projectId,

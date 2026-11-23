@@ -108,7 +108,6 @@ export const UpdateRuleSchema = RuleIdSchema.extend({
   filter: RuleMetadataSchema.shape.filter.optional(),
   sampling: RuleMetadataSchema.shape.sampling.optional(),
   enabled: z.boolean().optional(),
-  targetObject: z.enum([EvalTargetObject.EVENT, TopicsTargetObject]).optional(),
   evaluatorMappings: z.array(RuleAssignmentInputSchema).max(100).optional(),
 });
 

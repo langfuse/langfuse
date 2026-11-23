@@ -60,9 +60,9 @@ export type RuleAuditEvent = {
   ruleId: string;
 };
 
-type RuleServiceUpdateInput = Omit<UpdateRuleInput, "targetObject"> & {
-  targetObject?: EvalTargetObject | typeof TopicsTargetObject;
-};
+// A rule never changes its target, so the update input carries no target: the
+// persisted target drives filter normalization and assignment handling.
+type RuleServiceUpdateInput = UpdateRuleInput;
 
 export class RuleService {
   /**
@@ -433,35 +433,13 @@ export class RuleService {
             : current.status === JobConfigState.ACTIVE),
         assignmentCount: resultingAssignmentCount,
       });
-      const currentTargetObject = current.targetObject as EvalTargetObject;
-      const currentFilter = current.filter as FilterState;
-      // Whether a rule targets experiments is derived from its filter, so an
-      // update that supplies a filter re-decides it — otherwise removing the
-      // experiment-root filter would be silently undone. Only an update that
-      // leaves the filter alone inherits the stored classification.
-      const effectiveFilter = (input.filter ?? currentFilter) as FilterState;
-      const inheritedTargetObject =
-        input.filter === undefined &&
-        isExperimentEvaluationRule({
-          targetObject: currentTargetObject,
-          filter: currentFilter,
-        })
-          ? EvalTargetObject.EXPERIMENT
-          : currentTargetObject;
-      const explicitTarget = input.targetObject;
-      // An update that names no target keeps a trace transcript rule one.
-      const normalized =
-        explicitTarget === TopicsTargetObject ||
-        (explicitTarget === undefined &&
-          current.targetObject === TopicsTargetObject)
-          ? { targetObject: TopicsTargetObject, filter: effectiveFilter }
-          : normalizeEvaluationRuleTarget({
-              targetObject: explicitTarget ?? inheritedTargetObject,
-              filter: effectiveFilter,
-            });
-      const filter = isLegacyEvalTarget(currentTargetObject)
-        ? currentFilter
-        : this.validateRuleFilters(normalized.targetObject, normalized.filter);
+      // The persisted target is immutable, so it alone decides how the filter
+      // is normalized and which assignment rules apply.
+      const isTraceTranscript = current.targetObject === TopicsTargetObject;
+      const { targetObject, filter } = this.resolveRuleUpdateTarget(
+        current,
+        input,
+      );
       await assertActiveRuleLimitNotExceeded({
         prisma,
         projectId: input.projectId,
@@ -470,54 +448,42 @@ export class RuleService {
             ? 1
             : 0,
       });
-      if (input.evaluatorMappings) {
-        this.assertLegacyRuleAssignmentsWritable(current.targetObject);
-        if (normalized.targetObject === TopicsTargetObject) {
-          await this.assertTraceTranscriptAssignments({
+      const assignments = input.evaluatorMappings
+        ? await this.prepareRuleUpdateAssignments({
             prisma,
             projectId: input.projectId,
-            assignments: input.evaluatorMappings.map((assignment) => ({
-              evaluatorId: assignment.evaluatorId,
-              variableMapping: assignment.variableMapping ?? [],
-            })),
-          });
-        } else {
-          input.evaluatorMappings = await this.prepareModernAssignments({
-            prisma,
-            projectId: input.projectId,
-            assignments: input.evaluatorMappings,
-          });
-        }
-      }
+            targetObject: current.targetObject,
+            evaluatorMappings: input.evaluatorMappings,
+          })
+        : undefined;
       await repository.updateRule({
         prisma,
         input,
-        targetObject: normalized.targetObject,
+        targetObject,
         filter: filter as Prisma.InputJsonValue,
         visibility: this.visibility,
       });
-      if (input.evaluatorMappings) {
+      if (assignments) {
         await repository.replaceAssignments({
           prisma,
           projectId: input.projectId,
           ruleId: input.ruleId,
-          assignments: input.evaluatorMappings,
+          assignments,
           visibility: this.visibility,
         });
       }
-      const updated =
-        normalized.targetObject === TopicsTargetObject
-          ? await repository.findWrittenRule({
-              prisma,
-              projectId: input.projectId,
-              ruleId: input.ruleId,
-            })
-          : await repository.findRule({
-              prisma,
-              projectId: input.projectId,
-              ruleId: input.ruleId,
-              visibility: this.visibility,
-            });
+      const updated = isTraceTranscript
+        ? await repository.findWrittenRule({
+            prisma,
+            projectId: input.projectId,
+            ruleId: input.ruleId,
+          })
+        : await repository.findRule({
+            prisma,
+            projectId: input.projectId,
+            ruleId: input.ruleId,
+            visibility: this.visibility,
+          });
       if (!updated)
         throw new LangfuseNotFoundError("Evaluation rule not found");
       return updated;
@@ -530,6 +496,90 @@ export class RuleService {
       ruleId: response.id,
     });
     return response;
+  }
+
+  /**
+   * Resolves the target and validated filter for an update from the rule's
+   * immutable stored target. Trace transcript rules keep their target and only
+   * re-validate the filter; legacy rules keep target and filter untouched;
+   * modern observation rules re-derive experiment targeting from the filter.
+   */
+  private resolveRuleUpdateTarget(
+    current: { targetObject: string; filter: Prisma.JsonValue },
+    input: RuleServiceUpdateInput,
+  ): {
+    targetObject: EvalTargetObject | typeof TopicsTargetObject;
+    filter: FilterState;
+  } {
+    const currentTargetObject = current.targetObject as EvalTargetObject;
+    const currentFilter = current.filter as FilterState;
+    const effectiveFilter = (input.filter ?? currentFilter) as FilterState;
+
+    if (current.targetObject === TopicsTargetObject) {
+      return {
+        targetObject: TopicsTargetObject,
+        filter: this.validateRuleFilters(TopicsTargetObject, effectiveFilter),
+      };
+    }
+
+    // Legacy trace/dataset rules are read-only apart from deactivation, so
+    // their target and filter are preserved exactly.
+    if (isLegacyEvalTarget(currentTargetObject)) {
+      return { targetObject: currentTargetObject, filter: currentFilter };
+    }
+
+    // Whether a modern rule targets experiments is derived from its filter, so
+    // an update that supplies a filter re-decides it — otherwise removing the
+    // experiment-root filter would be silently undone. An update that leaves
+    // the filter alone inherits the stored classification.
+    const inheritedTargetObject =
+      input.filter === undefined &&
+      isExperimentEvaluationRule({
+        targetObject: currentTargetObject,
+        filter: currentFilter,
+      })
+        ? EvalTargetObject.EXPERIMENT
+        : currentTargetObject;
+    const normalized = normalizeEvaluationRuleTarget({
+      targetObject: inheritedTargetObject,
+      filter: effectiveFilter,
+    });
+    return {
+      targetObject: normalized.targetObject,
+      filter: this.validateRuleFilters(
+        normalized.targetObject,
+        normalized.filter,
+      ),
+    };
+  }
+
+  /**
+   * Validates and, for modern observation rules, resolves the assignments for
+   * an update, branching on the rule's immutable stored target.
+   */
+  private async prepareRuleUpdateAssignments(params: {
+    prisma: Prisma.TransactionClient;
+    projectId: string;
+    targetObject: string;
+    evaluatorMappings: RuleAssignmentInput[];
+  }): Promise<RuleAssignmentInput[]> {
+    this.assertLegacyRuleAssignmentsWritable(params.targetObject);
+    if (params.targetObject === TopicsTargetObject) {
+      await this.assertTraceTranscriptAssignments({
+        prisma: params.prisma,
+        projectId: params.projectId,
+        assignments: params.evaluatorMappings.map((assignment) => ({
+          evaluatorId: assignment.evaluatorId,
+          variableMapping: assignment.variableMapping ?? [],
+        })),
+      });
+      return params.evaluatorMappings;
+    }
+    return this.prepareModernAssignments({
+      prisma: params.prisma,
+      projectId: params.projectId,
+      assignments: params.evaluatorMappings,
+    });
   }
 
   async setEnabled(params: {
@@ -845,8 +895,7 @@ export class RuleService {
       input.enabled !== false ||
       input.name !== undefined ||
       input.filter !== undefined ||
-      input.sampling !== undefined ||
-      input.targetObject !== undefined
+      input.sampling !== undefined
     ) {
       throw new InvalidRequestError(
         "Legacy evaluation rules can only be deactivated or deleted",

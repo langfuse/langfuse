@@ -600,39 +600,31 @@ describe("RuleService", () => {
       );
     });
 
-    it("writes the transcript target on an existing rule and keeps it out of the list", async () => {
+    it("ignores an attempt to change the target of an existing rule", async () => {
       const service = createService();
       const rule = await service.create(createInput(), null);
-      const variableMapping = [
-        {
-          templateVariable: "output",
-          selectedColumnId: "threads",
-          jsonSelector: null,
-        },
-      ];
 
+      // A rule's target is immutable. The field is no longer part of the update
+      // input, but a stray target in the payload (for example from an old
+      // client) must be ignored rather than promote the rule to another target.
       const updated = await service.update({
         projectId,
         ruleId: rule.id,
+        sampling: 0.5,
         targetObject: TopicsTargetObject,
-        evaluatorMappings: [
-          { evaluatorId: defaultEvaluatorId, variableMapping },
-        ],
-      });
+      } as unknown as Parameters<typeof service.update>[0]);
 
-      expect(updated.targetObject).toBe(TopicsTargetObject);
+      expect(updated.targetObject).toBe(EvalTargetObject.EVENT);
+      expect(updated.sampling).toBe(0.5);
       await expect(
         prisma.evaluationRule.findUniqueOrThrow({
           where: { id: rule.id },
           select: { targetObject: true },
         }),
-      ).resolves.toEqual({ targetObject: TopicsTargetObject });
-      await expect(
-        service.list({ projectId, page: 1, limit: 50 }),
-      ).resolves.toEqual({ rules: [], totalItems: 0 });
-      await expect(service.get(projectId, rule.id)).rejects.toThrow(
-        "Evaluation rule not found",
-      );
+      ).resolves.toEqual({ targetObject: EvalTargetObject.EVENT });
+      // The rule stays a modern observation rule, so it remains in the list.
+      const list = await service.list({ projectId, page: 1, limit: 50 });
+      expect(list.rules.map(({ id }) => id)).toContain(rule.id);
     });
 
     it("manages a trace rule only through a service that opted into trace rules", async () => {
@@ -915,13 +907,18 @@ describe("RuleService", () => {
         service.update({
           projectId,
           ruleId: rule.id,
-          targetObject: EvalTargetObject.EXPERIMENT,
           filter: [
             {
               type: "stringOptions",
               column: "experimentDatasetId",
               operator: "any of",
               value: ["dataset-id"],
+            },
+            {
+              type: "boolean",
+              column: "isExperimentItemRootSpan",
+              operator: "=",
+              value: true,
             },
           ],
           evaluatorMappings: [
