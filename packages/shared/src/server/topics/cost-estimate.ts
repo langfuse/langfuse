@@ -15,6 +15,8 @@ import { enqueueTopicCostEstimate } from "./queue";
 
 // A running record expires unless the job refreshes it, so a lost job frees the project.
 const RUNNING_TTL_MS = 2 * 60_000;
+// Until the job starts, the record outlives a wait behind other setup jobs.
+const QUEUED_TTL_MS = 15 * 60_000;
 const DONE_TTL_MS = 24 * 60 * 60_000;
 const FAILED_TTL_MS = 60_000;
 const HOURLY_LIMIT = 10;
@@ -139,7 +141,7 @@ export async function claimTopicCostEstimate(
     JSON.stringify(record),
     record.startedAt,
     TOPICS_COST_ESTIMATE_COOLDOWN_MS,
-    RUNNING_TTL_MS,
+    QUEUED_TTL_MS,
     record.runId,
     HOURLY_LIMIT,
   )) as [number, string];

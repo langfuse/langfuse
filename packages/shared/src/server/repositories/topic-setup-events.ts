@@ -194,11 +194,15 @@ export async function getTopicSetupTraceBounds(input: {
   }));
 }
 
+// Above this many traces the estimate groups one hash bucket of them, so its memory stays bounded.
+const COST_ESTIMATE_BUCKET_TRACES = 20_000;
+
 /**
- * One pass for the Topics cost estimate: how many traces finished in the last
- * 7 days and a seeded sample of them with each trace's start bounds and size.
- * Reads one hour before the window so traces that started there are left out
- * rather than counted with a cut-off start.
+ * Finished traces of the last 7 days for the Topics cost estimate: their count
+ * and a seeded sample with each trace's start bounds and size. Large projects
+ * are read through one xxHash32 bucket sized from a cheap uniqCombined pass,
+ * and the bucket's count is scaled back up. Reads one hour before the window
+ * so traces that started there are left out rather than cut off.
  */
 export async function getTopicCostEstimateSample(input: {
   projectId: string;
@@ -208,6 +212,41 @@ export async function getTopicCostEstimateSample(input: {
   seed: number;
   matching?: TopicSetupMatching;
 }) {
+  const where = (bucketed: boolean) => `
+    WHERE project_id = {projectId: String}
+      AND start_time >= {now: DateTime64(3)} - INTERVAL 7 DAY - INTERVAL 1 HOUR
+      AND start_time <= {now: DateTime64(3)}
+      AND trace_id != ''
+      AND is_deleted = 0
+      AND NOT startsWith(environment, {internalEnvironmentPrefix: String})
+      AND environment != {publicLlmJudgeEnvironment: String}
+      ${bucketed ? "AND xxHash32(trace_id) % {modulus: UInt32} = {bucket: UInt32}" : ""}
+      ${
+        input.matching
+          ? `AND trace_id IN (SELECT id FROM (${input.matching.query})${bucketed ? " WHERE xxHash32(id) % {modulus: UInt32} = {bucket: UInt32}" : ""})`
+          : ""
+      }`;
+  const params = {
+    ...input.matching?.params,
+    ...topicSetupParams(input.projectId, input.idleMs, input.now),
+  };
+  const settings = {
+    preferredClickhouseService: "EventsReadOnly" as const,
+    clickhouseSettings: {
+      max_execution_time: TOPIC_SETUP_SELECTION_TIMEOUT_SECONDS,
+    },
+  };
+
+  const [total] = await queryClickhouse<{ traces: string }>({
+    query: `SELECT uniqCombined(trace_id) AS traces FROM events_core ${where(false)}`,
+    params,
+    tags: { route: "topics-cost-estimate-size", projectId: input.projectId },
+    ...settings,
+  });
+  let modulus = 1;
+  while (Number(total?.traces ?? 0) / modulus > COST_ESTIMATE_BUCKET_TRACES)
+    modulus *= 2;
+
   const rows = await queryClickhouse<{
     finished: string;
     sample: Array<[string, string, string, string, string, string]>;
@@ -228,33 +267,24 @@ export async function getTopicCostEstimateSample(input: {
           sum(event_bytes) AS event_bytes,
           anyIf(trace_name, trace_name != '') AS trace_name
         FROM events_core
-        WHERE project_id = {projectId: String}
-          AND start_time >= {now: DateTime64(3)} - INTERVAL 7 DAY - INTERVAL 1 HOUR
-          AND start_time <= {now: DateTime64(3)}
-          AND trace_id != ''
-          AND is_deleted = 0
-          AND NOT startsWith(environment, {internalEnvironmentPrefix: String})
-          AND environment != {publicLlmJudgeEnvironment: String}
-          ${input.matching ? `AND trace_id IN (${input.matching.query})` : ""}
+        ${where(modulus > 1)}
         GROUP BY trace_id
         HAVING last_ts < {now: DateTime64(3)} - toIntervalMillisecond({idleMs: UInt32})
           AND min_start >= toUnixTimestamp64Milli({now: DateTime64(3)} - INTERVAL 7 DAY)
       )`,
     params: {
-      ...input.matching?.params,
-      ...topicSetupParams(input.projectId, input.idleMs, input.now),
+      ...params,
       limit: input.limit,
       seed: input.seed,
+      modulus,
+      bucket: input.seed % modulus,
     },
     tags: { route: "topics-cost-estimate-sample", projectId: input.projectId },
-    preferredClickhouseService: "EventsReadOnly",
-    clickhouseSettings: {
-      max_execution_time: TOPIC_SETUP_SELECTION_TIMEOUT_SECONDS,
-    },
+    ...settings,
   });
   const row = rows[0];
   return {
-    finishedTraces: Number(row?.finished ?? 0),
+    finishedTraces: Number(row?.finished ?? 0) * modulus,
     traces: (row?.sample ?? []).map(
       ([traceId, minStart, maxStart, eventRows, eventBytes, name]) => ({
         traceId,
