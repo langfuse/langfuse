@@ -4,6 +4,7 @@ import { type DashboardPlacement } from "@/src/features/widgets/components/Dashb
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { getHomePresetMetadata } from "@/src/features/dashboard/components/home-preset-registry";
 import { type DashboardBlocksContextValue } from "./dashboard-block-context";
+import { hasDashboardBlocksLoadError } from "./dashboard-block-errors";
 
 export function useDashboardBlocksData({
   projectId,
@@ -77,7 +78,10 @@ export function useDashboardBlocksData({
     capabilitiesPending: capabilitiesQuery.isPending,
     blocks: (saved.data ?? []).filter((block) => capabilities[block.kind]),
     placementOptions,
-    loadError: saved.isError || capabilitiesQuery.isError,
+    loadError: hasDashboardBlocksLoadError({
+      capabilitiesError: capabilitiesQuery.error,
+      savedFailed: saved.isError,
+    }),
   };
 }
 
