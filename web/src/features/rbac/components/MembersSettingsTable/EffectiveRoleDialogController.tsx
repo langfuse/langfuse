@@ -272,65 +272,56 @@ function GroupChip({ group }: { group: GroupReason }) {
               <Users size="sm" aria-hidden="true" __rawClassName="mt-0.5" />
               <span className="min-w-0 break-words">{group.label}</span>
             </p>
+            <p className="text-muted-foreground flex items-center gap-1.5">
+              <SourceIcon size="sm" aria-hidden="true" />
+              {source.summary}
+            </p>
+          </div>
+          <p className="flex items-center justify-between gap-2 border-t pt-2">
+            <span className="text-muted-foreground">
+              {onProject ? "Access on this project" : "Access level"}
+            </span>
+            <span className="font-medium">
+              <RoleWithIcon role={group.role} />
+            </span>
+          </p>
+          <div className="flex flex-col gap-1.5 border-t pt-2">
             <p className="text-muted-foreground">
-              {onProject ? "Project group" : "Organization group"} ·{" "}
               {memberCountLabel(group.memberCount)}
             </p>
-          </div>
-          <p className="text-muted-foreground flex items-start gap-1.5">
-            <SourceIcon size="sm" aria-hidden="true" __rawClassName="mt-0.5" />
-            <span>{source.description}</span>
-          </p>
-          <div className="flex flex-col gap-0.5 border-t pt-2">
-            <p className="text-muted-foreground">Access level</p>
-            <p className="flex items-center gap-1.5">
-              <span className="font-medium">
-                <RoleWithIcon role={group.role} />
-              </span>
-              <span className="text-muted-foreground">
-                {onProject ? "on this project" : "in this organization"}
-              </span>
-            </p>
-          </div>
-          {group.memberPreview.length > 0 && (
-            <div className="flex flex-col gap-1.5 border-t pt-2">
-              <p className="text-muted-foreground">Members</p>
-              <ul className="flex flex-col gap-1.5">
-                {group.memberPreview.map((member) => {
-                  const name = member.name ?? member.email ?? "";
-                  return (
-                    <li key={member.userId} className="flex items-center gap-2">
-                      <Avatar
-                        aria-hidden
-                        size="sm"
-                        tone="tinted"
-                        displayName={name}
-                        src={member.image ?? undefined}
-                      />
-                      <span className="flex min-w-0 flex-col">
-                        <span className="truncate" title={name}>
-                          {name}
-                        </span>
-                        {member.name && member.email && (
-                          <span
-                            className="text-muted-foreground truncate"
-                            title={member.email}
-                          >
-                            {member.email}
-                          </span>
-                        )}
+            <ul className="flex flex-col gap-1.5">
+              {group.memberPreview.map((member) => {
+                const name = member.name ?? member.email ?? "";
+                return (
+                  <li key={member.userId} className="flex items-center gap-2">
+                    <Avatar
+                      aria-hidden
+                      size="sm"
+                      tone="tinted"
+                      displayName={name}
+                      src={member.image ?? undefined}
+                    />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate" title={name}>
+                        {name}
                       </span>
-                    </li>
-                  );
-                })}
-              </ul>
-              {hiddenMembers > 0 && (
-                <p className="text-muted-foreground">
-                  and {hiddenMembers} more
-                </p>
-              )}
-            </div>
-          )}
+                      {member.name && member.email && (
+                        <span
+                          className="text-muted-foreground truncate"
+                          title={member.email}
+                        >
+                          {member.email}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            {hiddenMembers > 0 && (
+              <p className="text-muted-foreground">+{hiddenMembers} more</p>
+            )}
+          </div>
         </div>
       }
     >
