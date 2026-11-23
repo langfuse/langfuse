@@ -1,8 +1,5 @@
 import { memo, useMemo, useRef, type ReactNode } from "react";
-import {
-  isTextAdapterDecisionModel,
-  TRACE_TRANSCRIPT_EVAL_COLUMN,
-} from "@langfuse/shared";
+import { isTextAdapterDecisionModel } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
@@ -13,8 +10,7 @@ import {
   TRACE_TRANSCRIPT_SOURCE_COLUMNS,
 } from "@/src/features/evals/v2/contexts/EvalVariableSourceColumnsProvider";
 import { previewOpenAIDecisionQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
-import { buildDecisionModelStateFields } from "@/src/features/evals/v2/fns/variableMapping/buildDecisionModelStateFields";
-import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
+import { prepareDraftForScope } from "@/src/features/evals/v2/fns/evaluators/prepareDraftForScope";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useEvaluatorTraceSample } from "@/src/features/evals/v2/hooks/useEvaluatorTraceSample";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
@@ -48,44 +44,37 @@ export function VariableMappingEditorContainer({
     store,
     useShallow((state) => ({
       type: state.type,
-      promptMessages: state.promptMessages,
-      stateKeys: state.stateKeys,
       questions: state.questions,
-      variableFields: state.variableFields,
-      traceVariableFields: state.traceVariableFields,
       selectedModel: state.selectedModel,
       activeMapping: state.activeMapping,
       selectedObservationId: state.selectedObservation?.id ?? null,
       actions: state.actions,
     })),
   );
-  const mappings = useMemo(() => {
-    const observationMappings =
-      state.type === "DECISION_MODEL"
-        ? buildDecisionModelStateFields({
-            stateKeys: state.stateKeys,
-            variableFields: state.variableFields,
-          })
-        : buildEvaluatorVariableMappings({
-            promptMessages: state.promptMessages,
-            variableFields: state.variableFields,
-          });
-    if (scope !== "trace") return observationMappings;
-    return observationMappings.map(({ variable }) => ({
-      variable,
-      fieldState: {
-        selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
-        jsonSelector: state.traceVariableFields[variable]?.jsonSelector ?? null,
-      },
-    }));
-  }, [
-    scope,
-    state.type,
-    state.stateKeys,
-    state.promptMessages,
-    state.variableFields,
-    state.traceVariableFields,
-  ]);
+  const draftState = useStore(
+    store,
+    useShallow((state) => ({
+      initialDefinition: state.initialDefinition,
+      type: state.type,
+      name: state.name,
+      promptMessages: state.promptMessages,
+      questions: state.questions,
+      stateKeys: state.stateKeys,
+      sourceCode: state.sourceCode,
+      sourceCodeLanguage: state.sourceCodeLanguage,
+      scoreOutput: state.scoreOutput,
+      variableFields: state.variableFields,
+      modelMode: state.modelMode,
+      selectedModel: state.selectedModel,
+      modelParams: state.modelParams,
+      sampleScope: state.sampleScope,
+      traceVariableFields: state.traceVariableFields,
+    })),
+  );
+  const { mappings } = useMemo(
+    () => prepareDraftForScope(draftState),
+    [draftState],
+  );
   const setField =
     scope === "trace"
       ? state.actions.setTraceVariableField

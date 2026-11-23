@@ -1,8 +1,7 @@
 import { useStore } from "zustand";
 
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
-import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import { prepareTraceTranscriptDraft } from "@/src/features/evals/v2/fns/evaluators/prepareTraceTranscriptDraft";
+import { prepareDraftForScope } from "@/src/features/evals/v2/fns/evaluators/prepareDraftForScope";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useEvaluatorTraceSample } from "@/src/features/evals/v2/hooks/useEvaluatorTraceSample";
@@ -37,14 +36,13 @@ export function useEvaluatorTestAvailability({
     projectId,
     evaluatorType === "DECISION_MODEL",
   );
-  const definitionAvailable = useStore(store, (state) => {
-    const draft = applyFallbackDecisionModel(state, fallbackDecisionModel);
-    return Boolean(
-      selectSampleScope(state) === "trace"
-        ? prepareTraceTranscriptDraft(draft).testDefinition
-        : prepareEvaluatorDraft(draft).definition,
-    );
-  });
+  const definitionAvailable = useStore(store, (state) =>
+    Boolean(
+      prepareDraftForScope(
+        applyFallbackDecisionModel(state, fallbackDecisionModel),
+      ).testDefinition,
+    ),
+  );
   const scoreOutputReason = useStore(store, (state) =>
     state.type === "LLM_AS_JUDGE"
       ? getScoreOutputValidation(state.scoreOutput).reason

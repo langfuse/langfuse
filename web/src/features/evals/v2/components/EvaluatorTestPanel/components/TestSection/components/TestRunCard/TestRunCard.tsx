@@ -2,11 +2,7 @@ import { useStore } from "zustand";
 
 import { TestRunButton } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestRunButton/TestRunButton";
 import { useEvaluatorTestAvailability } from "@/src/features/evals/v2/hooks/useEvaluatorTestAvailability";
-import {
-  selectSampleScope,
-  type EvaluatorSampleScope,
-  type EvaluatorSetupStore,
-} from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function TestRunCard({
   projectId,
@@ -19,13 +15,11 @@ export function TestRunCard({
   hasValidModel: boolean;
   onRunTest: () => void;
 }) {
-  const scope = useStore(store, selectSampleScope);
   const selectedSampleLabel = useStore(store, (state) => {
     const observation = state.selectedObservation;
-    if (!observation) return null;
-    return selectSampleScope(state) === "trace"
-      ? (observation.traceName ?? observation.traceId ?? observation.id)
-      : (observation.name ?? observation.traceName ?? observation.id);
+    return observation
+      ? (observation.name ?? observation.traceName ?? observation.id)
+      : null;
   });
   const disabledReason = useEvaluatorTestAvailability({
     projectId,
@@ -41,19 +35,10 @@ export function TestRunCard({
         onRun={onRunTest}
       />
       <p className="text-muted-foreground text-sm">
-        {sampleHint(scope, selectedSampleLabel)}
+        {selectedSampleLabel
+          ? `Sample: ${selectedSampleLabel}. Select a different row above to change it.`
+          : "Select an observation above to use it as the test sample."}
       </p>
     </div>
   );
-}
-
-function sampleHint(scope: EvaluatorSampleScope, label: string | null) {
-  if (scope === "trace") {
-    return label
-      ? `Sample trace: ${label}. Use the arrows above to change it.`
-      : "Pick a trace above to use it as the test sample.";
-  }
-  return label
-    ? `Sample: ${label}. Select a different row above to change it.`
-    : "Select an observation above to use it as the test sample.";
 }

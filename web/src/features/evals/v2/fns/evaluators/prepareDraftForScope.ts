@@ -4,11 +4,17 @@ import {
 } from "@langfuse/shared";
 
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import type { EvaluatorSetupStoreState } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import {
+  selectSampleScope,
+  type EvaluatorSetupStoreState,
+} from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 
 type TraceTranscriptDraftState = Parameters<typeof prepareEvaluatorDraft>[0] &
   Pick<EvaluatorSetupStoreState, "traceVariableFields">;
+
+type ScopedDraftState = TraceTranscriptDraftState &
+  Pick<EvaluatorSetupStoreState, "sampleScope">;
 
 /**
  * Trace-scope bindings: every variable reads `threads`, optionally narrowed
@@ -30,11 +36,10 @@ function traceTranscriptVariableFields(
 }
 
 /**
- * The trace test runs with the `threads` mapping, which the trace rule stores
- * on its assignment. The saved evaluator keeps observation columns so
- * observation rules and API reads never see `threads`.
+ * Tests and trace rules use the `threads` mapping; the saved evaluator keeps
+ * observation columns so observation rules and API reads never see `threads`.
  */
-export function prepareTraceTranscriptDraft(params: TraceTranscriptDraftState) {
+function prepareTraceTranscriptDraft(params: TraceTranscriptDraftState) {
   const variables = prepareEvaluatorDraft(params).mappings.map(
     ({ variable }) => variable,
   );
@@ -71,9 +76,28 @@ export function prepareTraceTranscriptDraft(params: TraceTranscriptDraftState) {
     : null;
 
   return {
+    scope: "trace" as const,
     definition,
     testDefinition: traceDraft.definition,
     mappings: traceDraft.mappings,
     traceVariableMapping,
+  };
+}
+
+/**
+ * The saved definition, the definition the test runs with, and the variable
+ * mappings for the sample scope the setup store is in.
+ */
+export function prepareDraftForScope(state: ScopedDraftState) {
+  if (selectSampleScope(state) === "trace") {
+    return prepareTraceTranscriptDraft(state);
+  }
+  const { definition, mappings } = prepareEvaluatorDraft(state);
+  return {
+    scope: "observation" as const,
+    definition,
+    testDefinition: definition,
+    mappings,
+    traceVariableMapping: null,
   };
 }

@@ -34,7 +34,7 @@ import type { SampleObservation } from "@/src/features/evals/v2/components/Evalu
 import { TraceRuleSavedDialog } from "@/src/features/evals/v2/components/Evaluators/TraceRuleSavedDialog/TraceRuleSavedDialog";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import { prepareTraceTranscriptDraft } from "@/src/features/evals/v2/fns/evaluators/prepareTraceTranscriptDraft";
+import { prepareDraftForScope } from "@/src/features/evals/v2/fns/evaluators/prepareDraftForScope";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
@@ -48,7 +48,6 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
   createEvaluatorSetupStore,
-  selectSampleScope,
   type EvaluatorSampleScope,
   type EvaluatorSetupStore,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
@@ -629,22 +628,18 @@ export function EvaluatorSetupPage(
           return;
         }
       }
-      const savesTraceRule = selectSampleScope(state) === "trace";
-      const draft = applyFallbackDecisionModel(state, fallbackDecisionModel);
-      const traceDraft = savesTraceRule
-        ? prepareTraceTranscriptDraft(draft)
-        : null;
-      const definition =
-        traceDraft?.definition ?? prepareEvaluatorDraft(draft).definition;
+      const { definition, traceVariableMapping } = prepareDraftForScope(
+        applyFallbackDecisionModel(state, fallbackDecisionModel),
+      );
       if (!definition) return;
       const { name, description } = metadata;
       const offerTraceRule = (evaluator: { id: string }) => {
-        if (!traceDraft) return false;
+        if (!traceVariableMapping) return false;
         setSavedTraceEvaluator({
           id: evaluator.id,
           name,
           filter: state.traceSampleFilter,
-          variableMapping: traceDraft.traceVariableMapping,
+          variableMapping: traceVariableMapping,
         });
         return true;
       };
@@ -780,26 +775,11 @@ export function EvaluatorSetupPage(
 
   const runTest = () => {
     const state = evaluatorSetupStore.getState();
-    const draft = applyFallbackDecisionModel(state, fallbackDecisionModel);
+    const { scope, testDefinition } = prepareDraftForScope(
+      applyFallbackDecisionModel(state, fallbackDecisionModel),
+    );
     const selectedObservation = state.selectedObservation;
-    if (selectSampleScope(state) === "trace") {
-      const { testDefinition } = prepareTraceTranscriptDraft(draft);
-      if (!testDefinition || !selectedObservation?.traceId) return;
-      capture("evaluators:test", {
-        evaluatorType: state.type,
-        isEditing: Boolean(initialEvaluator),
-      });
-      testEvaluator.mutate({
-        projectId,
-        evaluatorId,
-        definition: testDefinition,
-        traceId: selectedObservation.traceId,
-        startTime: selectedObservation.startTime,
-      });
-      return;
-    }
-    const { definition } = prepareEvaluatorDraft(draft);
-    if (!definition || !selectedObservation?.traceId) return;
+    if (!testDefinition || !selectedObservation?.traceId) return;
     capture("evaluators:test", {
       evaluatorType: state.type,
       isEditing: Boolean(initialEvaluator),
@@ -807,8 +787,10 @@ export function EvaluatorSetupPage(
     testEvaluator.mutate({
       projectId,
       evaluatorId,
-      definition,
-      observationId: selectedObservation.id,
+      definition: testDefinition,
+      ...(scope === "observation"
+        ? { observationId: selectedObservation.id }
+        : {}),
       traceId: selectedObservation.traceId,
       startTime: selectedObservation.startTime,
     });
