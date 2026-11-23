@@ -5,6 +5,7 @@ import {
   type OtelLookupRequest,
   type RustOtelBatch,
 } from "@langfuse/native";
+import { observationEvalFilterRecordColumns } from "@langfuse/shared";
 import { encodeOtelLookups } from "../../features/otel-ingestion/encodeOtelLookups";
 
 /** Rebuild every evaluation row from its filter row and the columns Rust still holds; each row can be taken once. */
@@ -72,7 +73,7 @@ export async function prepareCodecRows(
       [],
       encodeOtelLookups(prepared.lookupRequests.map(lookup)),
       undefined,
-      true,
+      observationEvalFilterRecordColumns,
     );
     if (!finalized) throw new Error("Unexpected codec fixture overflow");
     return {

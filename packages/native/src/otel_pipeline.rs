@@ -264,9 +264,9 @@ pub struct FinalizedOtelEvent {
 #[napi(object, object_from_js = false)]
 pub struct FinalizedOtelBatch {
     pub events: Vec<FinalizedOtelEvent>,
-    /// The columns evaluation rule filters read, as JSON arrays that together hold one object
-    /// per event, in event order. A large batch spans several texts because a single one could
-    /// exceed the longest string JavaScript can hold. The full rows stay in the batch for
+    /// The columns named by `evaluationFilterColumns`, as JSON arrays that together hold one
+    /// object per event, in event order. A large batch spans several texts because a single one
+    /// could exceed the longest string JavaScript can hold. The full rows stay in the batch for
     /// `takeEvaluationRow`.
     pub evaluation_filter_rows: Option<Vec<String>>,
 }
@@ -276,11 +276,17 @@ pub struct FinalizedOtelBatch {
 #[derive(Default)]
 struct EvaluationRows {
     rows: Vec<serde_json::Value>,
+    /// Columns Node already received in the filter rows; a taken row leaves them out.
+    filter_columns: Vec<String>,
     /// Bytes reported for `rows` at finalization. They are released together when the rows are
     /// dropped, so taking a row needs no accounting on Node's main thread.
     retained: usize,
     memory: Option<Arc<NativeMemory>>,
 }
+
+/// Where finalization keeps the evaluation snapshots, and the columns Node asked for as
+/// filter rows.
+type EvaluationRequest = (Arc<Mutex<EvaluationRows>>, Vec<String>);
 
 impl Drop for EvaluationRows {
     fn drop(&mut self) {
@@ -340,6 +346,10 @@ impl EarlyOtelBatch {
 }
 
 impl RustOtelBatch {
+    fn evaluation_request(&self, filter_columns: Option<Vec<String>>) -> Option<EvaluationRequest> {
+        filter_columns.map(|filter_columns| (Arc::clone(&self.evaluation_rows), filter_columns))
+    }
+
     fn run<T: Send + ToNapiValue + TypeName + 'static>(
         &self,
         work: impl FnOnce(&mut Pipeline) -> NativeResult<T> + Send + 'static,
@@ -413,7 +423,9 @@ impl RustOtelBatch {
             .filter(|row| !row.is_null())
             .ok_or_else(|| to_js_error(env, failure("evaluation row is unavailable")))?;
         if let serde_json::Value::Object(columns) = &mut row {
-            columns.retain(|column, _| !rows::is_evaluation_filter_column(column));
+            for column in &evaluation.filter_columns {
+                columns.swap_remove(column);
+            }
         }
         Ok(row)
     }
@@ -429,9 +441,10 @@ impl RustOtelBatch {
     }
 
     /// Apply media results and one lookup result per lookup request; return final handles or
-    /// oversized-field upload requests.
+    /// oversized-field upload requests. With `evaluationFilterColumns`, the batch keeps an
+    /// evaluation snapshot of every row and returns those columns of each as filter rows.
     #[napi(
-        ts_args_type = "mediaResults: OtelMediaResolution[], lookups: EncodedOtelLookups, overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]",
+        ts_args_type = "mediaResults: OtelMediaResolution[], lookups: EncodedOtelLookups, overflowLimitBytes: number | undefined, evaluationFilterColumns: string[] | undefined, traceActivityIds?: string[]",
         ts_return_type = "Promise<OtelCompletion>"
     )]
     pub fn complete(
@@ -439,7 +452,7 @@ impl RustOtelBatch {
         media_results: Vec<OtelMediaResolution>,
         lookups: EncodedOtelLookups,
         overflow_limit_bytes: Option<f64>,
-        include_evaluation_rows: bool,
+        evaluation_filter_columns: Option<Vec<String>>,
         trace_activity_ids: Option<Vec<String>>,
     ) -> AsyncTask<OwnedTask<OtelCompletion>> {
         // The typed arrays in `lookups` remain JavaScript's memory, which it can write to while
@@ -449,7 +462,7 @@ impl RustOtelBatch {
             lengths: lookups.lengths.to_vec(),
             numbers: lookups.numbers.to_vec(),
         };
-        let evaluation_rows = Arc::clone(&self.evaluation_rows);
+        let evaluation = self.evaluation_request(evaluation_filter_columns);
         self.run(move |state| {
             let lookups = lookups::decode(&lookups)?;
             validate_completion(state, &media_results, lookups.len(), overflow_limit_bytes)?;
@@ -458,7 +471,7 @@ impl RustOtelBatch {
             rows::finalize_or_request_overflow(
                 state,
                 overflow_limit_bytes,
-                include_evaluation_rows.then_some(&evaluation_rows),
+                evaluation,
                 trace_activity_ids,
             )
         })
@@ -482,18 +495,11 @@ impl RustOtelBatch {
     pub fn finalize(
         &self,
         overflow: Vec<OtelMediaResolution>,
-        include_evaluation_rows: bool,
+        evaluation_filter_columns: Option<Vec<String>>,
         trace_activity_ids: Option<Vec<String>>,
     ) -> AsyncTask<OwnedTask<FinalizedOtelBatch>> {
-        let evaluation_rows = Arc::clone(&self.evaluation_rows);
-        self.run(move |state| {
-            rows::finalize_inner(
-                state,
-                overflow,
-                include_evaluation_rows.then_some(&evaluation_rows),
-                trace_activity_ids,
-            )
-        })
+        let evaluation = self.evaluation_request(evaluation_filter_columns);
+        self.run(move |state| rows::finalize_inner(state, overflow, evaluation, trace_activity_ids))
     }
 }
 

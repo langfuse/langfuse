@@ -6,7 +6,7 @@
 //! plus requested evaluation snapshots.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use base64::Engine;
 use sha2::{Digest, Sha256};
@@ -19,8 +19,8 @@ use crate::otel_enrichment;
 use crate::PreparedEvent;
 
 use super::{
-    failure, BatchRows, EnrichedStorageRow, EvaluationRows, FinalizedOtelBatch, FinalizedOtelEvent,
-    OtelCompletion, OtelLookupRequest, OtelOverflowRequest, Pipeline,
+    failure, BatchRows, EnrichedStorageRow, EvaluationRequest, EvaluationRows, FinalizedOtelBatch,
+    FinalizedOtelEvent, OtelCompletion, OtelLookupRequest, OtelOverflowRequest, Pipeline,
 };
 
 /// Everything the worker reads from a lookup request to resolve it. Events whose keys are
@@ -144,7 +144,7 @@ pub(super) fn enrich_inner(state: &mut Pipeline, lookups: &[Value]) -> NativeRes
 pub(super) fn finalize_or_request_overflow(
     state: &mut Pipeline,
     overflow_limit_bytes: Option<f64>,
-    evaluation_store: Option<&Mutex<EvaluationRows>>,
+    evaluation: Option<EvaluationRequest>,
     trace_activity_ids: Option<Vec<String>>,
 ) -> NativeResult<OtelCompletion> {
     let overflow_requests = overflow_limit_bytes
@@ -155,7 +155,7 @@ pub(super) fn finalize_or_request_overflow(
         Some(finalize_inner(
             state,
             Vec::new(),
-            evaluation_store,
+            evaluation,
             trace_activity_ids,
         )?)
     } else {
@@ -222,7 +222,7 @@ pub(super) fn overflow_text<'a>(
 pub(super) fn finalize_inner(
     state: &mut Pipeline,
     overflow: Vec<super::OtelMediaResolution>,
-    evaluation_store: Option<&Mutex<EvaluationRows>>,
+    evaluation: Option<EvaluationRequest>,
     trace_activity_ids: Option<Vec<String>>,
 ) -> NativeResult<FinalizedOtelBatch> {
     super::validate_results(
@@ -231,12 +231,15 @@ pub(super) fn finalize_inner(
         "incomplete overflow results",
     )?;
     let rows = state.rows.ready()?;
-    let evaluation_rows = evaluation_store
-        .map(|_| evaluation_rows(rows))
-        .transpose()?;
-    let evaluation_filter_rows = evaluation_rows
-        .as_deref()
-        .map(|rows| evaluation_filter_rows(rows, EVALUATION_FILTER_TEXT_BYTES))
+    let evaluation = match evaluation {
+        Some((store, filter_columns)) => Some((store, filter_columns, evaluation_rows(rows)?)),
+        None => None,
+    };
+    let evaluation_filter_rows = evaluation
+        .as_ref()
+        .map(|(_, filter_columns, rows)| {
+            evaluation_filter_rows(rows, filter_columns, EVALUATION_FILTER_TEXT_BYTES)
+        })
         .transpose()?;
     let BatchRows::Ready(mut rows) = std::mem::replace(&mut state.rows, BatchRows::Finalized)
     else {
@@ -285,9 +288,9 @@ pub(super) fn finalize_inner(
             })
         })
         .collect::<NativeResult<Vec<_>>>()?;
-    let retained = evaluation_rows
+    let retained = evaluation
         .iter()
-        .flatten()
+        .flat_map(|(_, _, rows)| rows)
         .map(retained_size)
         .sum::<usize>();
     state.memory.resize(
@@ -297,11 +300,12 @@ pub(super) fn finalize_inner(
             .sum::<usize>()
             + retained,
     );
-    if let (Some(store), Some(rows)) = (evaluation_store, evaluation_rows) {
+    if let Some((store, filter_columns, rows)) = evaluation {
         *store
             .lock()
             .map_err(|_| failure("OTEL processing lock poisoned"))? = EvaluationRows {
             rows,
+            filter_columns,
             retained,
             memory: Some(state.memory.clone()),
         };
@@ -312,50 +316,18 @@ pub(super) fn finalize_inner(
     })
 }
 
-/// Whether evaluation rule filters or job identifiers read this column. These columns go to
-/// Node in the filter rows; `takeEvaluationRow` hands over the others.
-pub(super) fn is_evaluation_filter_column(column: &str) -> bool {
-    matches!(
-        column,
-        "project_id"
-            | "trace_id"
-            | "span_id"
-            | "parent_span_id"
-            | "type"
-            | "name"
-            | "environment"
-            | "level"
-            | "status_message"
-            | "version"
-            | "release"
-            | "trace_name"
-            | "user_id"
-            | "session_id"
-            | "is_app_root"
-            | "tags"
-            | "provided_model_name"
-            | "prompt_name"
-            | "prompt_version"
-            | "tool_call_names"
-            | "experiment_id"
-            | "experiment_name"
-            | "experiment_dataset_id"
-            | "experiment_item_root_span_id"
-            | "metadata_names"
-            | "metadata_values"
-    )
+/// The filter columns of one evaluation row.
+struct EvaluationFilterRow<'a> {
+    row: &'a serde_json::Value,
+    columns: &'a [String],
 }
-
-struct EvaluationFilterRow<'a>(&'a serde_json::Value);
 
 impl serde::Serialize for EvaluationFilterRow<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.collect_map(
-            self.0
-                .as_object()
-                .into_iter()
-                .flatten()
-                .filter(|(column, _)| is_evaluation_filter_column(column)),
+            self.columns
+                .iter()
+                .filter_map(|column| Some((column, self.row.get(column)?))),
         )
     }
 }
@@ -364,15 +336,16 @@ impl serde::Serialize for EvaluationFilterRow<'_> {
 /// 512 MiB, and the filter columns of a large batch can add up to more than that.
 const EVALUATION_FILTER_TEXT_BYTES: usize = 64 * 1024 * 1024;
 
-/// Serialize the filter columns as JSON arrays of consecutive rows. A new array starts when
+/// Serialize `columns` of each row as JSON arrays of consecutive rows. A new array starts when
 /// the next row would take the current one past `text_bytes`.
 fn evaluation_filter_rows(
     rows: &[serde_json::Value],
+    columns: &[String],
     text_bytes: usize,
 ) -> NativeResult<Vec<String>> {
     let mut texts: Vec<String> = Vec::new();
     for row in rows {
-        let row = serde_json::to_string(&EvaluationFilterRow(row)).map_err(failure)?;
+        let row = serde_json::to_string(&EvaluationFilterRow { row, columns }).map_err(failure)?;
         match texts.last_mut() {
             // Count the separating comma and the closing bracket.
             Some(text) if text.len() + row.len() + 2 <= text_bytes => {
@@ -440,11 +413,12 @@ mod tests {
             .map(|index| json!({ "span_id": format!("span-{index}") }))
             .collect();
 
-        let one = evaluation_filter_rows(&rows, usize::MAX).unwrap();
+        let columns = ["span_id".to_owned()];
+        let one = evaluation_filter_rows(&rows, &columns, usize::MAX).unwrap();
         assert_eq!(one.len(), 1);
 
         // One row takes 20 bytes, so 45 bytes hold two rows with brackets and a comma.
-        let texts = evaluation_filter_rows(&rows, 45).unwrap();
+        let texts = evaluation_filter_rows(&rows, &columns, 45).unwrap();
         assert_eq!(texts.len(), 3);
         assert!(texts.iter().all(|text| text.len() <= 45));
         for texts in [one, texts] {

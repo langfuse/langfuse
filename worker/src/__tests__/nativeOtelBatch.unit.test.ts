@@ -6,6 +6,7 @@ import {
   convertEventRecordToObservationEvalFilterFields,
   convertEventRecordToObservationForEval,
   observationEvalFilterFieldsSchema,
+  observationEvalFilterRecordColumns,
 } from "@langfuse/shared";
 import { encodeOtelLookups } from "../features/otel-ingestion/encodeOtelLookups";
 import { takeEvaluationRows } from "./helpers/nativeCodecFixtures";
@@ -46,7 +47,7 @@ describe("Native OTEL batch NAPI boundary", () => {
           [],
           encodeOtelLookups([]),
           undefined,
-          true,
+          observationEvalFilterRecordColumns,
         );
         expect(takeEvaluationRows(processing, finalized!)).toMatchObject([
           { input },
@@ -107,7 +108,7 @@ describe("Native OTEL batch NAPI boundary", () => {
           lookupRequests.map(() => ({ promptId: "prompt-id" })),
         ),
         undefined,
-        true,
+        observationEvalFilterRecordColumns,
       );
       type EventRecord = Parameters<
         typeof convertEventRecordToObservationForEval
@@ -198,7 +199,7 @@ describe("Native OTEL batch NAPI boundary", () => {
         [],
         encodeOtelLookups([]),
         undefined,
-        true,
+        observationEvalFilterRecordColumns,
       );
       const rows = takeEvaluationRows(processing, finalized!) as Record<
         string,
@@ -248,13 +249,13 @@ describe("Native OTEL batch NAPI boundary", () => {
           [],
           encodeOtelLookups([]),
           limit,
-          true,
+          observationEvalFilterRecordColumns,
         );
         const finalized =
           completion.finalized ??
           (await processing.finalize(
             completion.overflowRequests.map(({ index }) => ({ index })),
-            true,
+            observationEvalFilterRecordColumns,
           ));
         expect(finalized.events).toHaveLength(2);
         const rows = takeEvaluationRows(processing, finalized) as Parameters<
@@ -395,7 +396,7 @@ describe("Native OTEL batch NAPI boundary", () => {
                   [],
                   encodeOtelLookups(results.slice(0, -1)),
                   undefined,
-                  true,
+                  observationEvalFilterRecordColumns,
                 ),
               ).rejects.toThrow("incomplete OTEL lookup results");
             }
@@ -403,7 +404,7 @@ describe("Native OTEL batch NAPI boundary", () => {
               [],
               encodeOtelLookups(results),
               undefined,
-              true,
+              observationEvalFilterRecordColumns,
               ["a".repeat(32)],
             );
             expect(finalized).toBeDefined();
@@ -460,7 +461,7 @@ describe("Native OTEL batch NAPI boundary", () => {
                 [],
                 encodeOtelLookups(results),
                 undefined,
-                true,
+                observationEvalFilterRecordColumns,
               ),
             ).rejects.toThrow();
           } finally {
@@ -535,7 +536,7 @@ describe("Native OTEL batch NAPI boundary", () => {
           [],
           encodeOtelLookups([]),
           256,
-          false,
+          undefined,
           [traceId],
         );
         expect(overflowRequests.map((request) => request.field)).toEqual([
@@ -547,7 +548,7 @@ describe("Native OTEL batch NAPI boundary", () => {
             index,
             reference: observationId === spanId(0) ? reference : undefined,
           })),
-          false,
+          undefined,
           [traceId],
         );
         const [uploaded, retained] = events.map(
@@ -628,7 +629,7 @@ describe("Native OTEL batch NAPI boundary", () => {
         [],
         encodeOtelLookups(lookupRequests.map(() => lookup)),
         undefined,
-        true,
+        observationEvalFilterRecordColumns,
       );
       expect(finalized).toBeDefined();
       expect(finalized!.events).toHaveLength(spans.length);

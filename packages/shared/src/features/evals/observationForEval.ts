@@ -4,6 +4,10 @@ import { type EventRecordBaseType } from "../../server/repositories/definitions"
 import { ObservationLevel } from "../../domain/observations";
 import { metadataArraysToRecord } from "../../server/utils/metadata_conversion";
 import { parseJsonIfString } from "../../utils/json";
+import {
+  evalFilterFields,
+  type ObservationEvalFilterColumnInternal,
+} from "./filterFields";
 
 const flexibleUsageCostSchema = z.record(
   z.string(),
@@ -74,37 +78,21 @@ export const observationForEvalSchema = z.object({
 export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
 
 /**
- * Fields that evaluation rule filters and job identifiers read. Payloads are
- * excluded, so rules can be matched before an observation is loaded in full.
+ * Fields that evaluation rule filters and job identifiers read: every field a
+ * filter definition names, plus the identifiers. Payloads are excluded, so
+ * rules can be matched before an observation is loaded in full.
  */
-const observationEvalFilterFieldKeys = {
-  span_id: true,
-  trace_id: true,
-  project_id: true,
-  parent_span_id: true,
-  type: true,
-  name: true,
-  environment: true,
-  version: true,
-  level: true,
-  status_message: true,
-  trace_name: true,
-  user_id: true,
-  session_id: true,
-  is_app_root: true,
-  tags: true,
-  release: true,
-  provided_model_name: true,
-  prompt_name: true,
-  prompt_version: true,
-  tool_call_names: true,
-  tool_call_count: true,
-  experiment_id: true,
-  experiment_name: true,
-  experiment_dataset_id: true,
-  experiment_item_root_span_id: true,
-  metadata: true,
-} as const;
+const observationEvalFilterFieldKeys = Object.fromEntries(
+  [
+    "span_id",
+    "trace_id",
+    "project_id",
+    ...Object.values(evalFilterFields).map((field) => field.internal),
+  ].map((field) => [field, true]),
+) as Record<
+  ObservationEvalFilterColumnInternal | "span_id" | "trace_id" | "project_id",
+  true
+>;
 
 export const observationEvalFilterFieldsSchema = observationForEvalSchema.pick(
   observationEvalFilterFieldKeys,
@@ -229,6 +217,24 @@ function experimentItemMetadataOf(
       )
     : undefined;
 }
+
+/** Event record columns that a filter field is built from, where the names differ. */
+const recordColumnsOfFilterField: Partial<Record<string, string[]>> = {
+  metadata: ["metadata_names", "metadata_values"],
+  tool_call_count: ["tool_call_names"],
+};
+
+/**
+ * Event record columns that hold the filter fields. The native OTEL path
+ * returns these columns for every event and the rest of a row on demand.
+ */
+export const observationEvalFilterRecordColumns: string[] = [
+  ...new Set(
+    Object.keys(observationEvalFilterFieldKeys).flatMap(
+      (field) => recordColumnsOfFilterField[field] ?? [field],
+    ),
+  ),
+];
 
 export function convertEventRecordToObservationEvalFilterFields(
   record: Pick<

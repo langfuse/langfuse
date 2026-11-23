@@ -13,6 +13,7 @@ import {
   convertEventRecordToObservationEvalFilterFields,
   isMediaContentType,
   MediaAssociationOrigin,
+  observationEvalFilterRecordColumns,
   MediaContentType,
 } from "@langfuse/shared";
 import {
@@ -144,16 +145,19 @@ async function completeOrFinalizeBatch(
     env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED === "true"
       ? env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES
       : undefined;
-  const includeEvaluationRows =
+  // With rules, Rust returns these columns of every row for matching.
+  const evaluationFilterColumns =
     evalConfigs.observationRules.length > 0 ||
-    evalConfigs.traceTranscriptRules.length > 0;
+    evalConfigs.traceTranscriptRules.length > 0
+      ? observationEvalFilterRecordColumns
+      : undefined;
   const traceActivityIds =
     sampledTraceIds.length > 0 ? sampledTraceIds : undefined;
   const completion = await processing.complete(
     mediaResults,
     encodeOtelLookups(lookups),
     overflowLimitBytes,
-    includeEvaluationRows,
+    evaluationFilterColumns,
     traceActivityIds,
   );
   if (completion.finalized) {
@@ -167,7 +171,7 @@ async function completeOrFinalizeBatch(
   );
   return processing.finalize(
     overflowResults,
-    includeEvaluationRows,
+    evaluationFilterColumns,
     traceActivityIds,
   );
 }

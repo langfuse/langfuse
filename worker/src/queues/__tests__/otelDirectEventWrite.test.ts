@@ -286,7 +286,7 @@ describe("native Rust trace activity", () => {
         [],
         encodeOtelLookups([]),
         undefined,
-        false,
+        undefined,
         traceIds,
       );
       expect(addToQueue).toHaveBeenCalledTimes(records.length);
@@ -420,7 +420,7 @@ describe("native Rust trace activity", () => {
           index,
           reference: `@@@langfuseMedia:type=text/plain|id=media-${index}|source=field_size_limit@@@`,
         })),
-        false,
+        undefined,
         undefined,
       );
     } finally {

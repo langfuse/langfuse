@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { extractOtelMedia, validateOtelJson } from "@langfuse/native";
-import { MediaContentType } from "@langfuse/shared";
+import {
+  MediaContentType,
+  observationEvalFilterRecordColumns,
+} from "@langfuse/shared";
 import {
   mediaPayloadCases,
   PNG_BASE64,
@@ -290,7 +293,7 @@ async function expectNativeMediaLifecycleParity(
       mediaResults,
       encodeOtelLookups(prepared.lookupRequests.map(() => ({}))),
       undefined,
-      true,
+      observationEvalFilterRecordColumns,
     );
     expect(finalized).toBeDefined();
     expect(processing.takeEvaluationRow(0)).toMatchObject({
