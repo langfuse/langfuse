@@ -34,6 +34,7 @@ export function TopicCostEstimateView({
   estimate,
   samplingPercent,
   backfillTraces,
+  restartInMinutes,
   modelSettingsHref,
   starting,
   disabled,
@@ -44,6 +45,8 @@ export function TopicCostEstimateView({
   /** Applied on read, so changing it never needs a new estimate. */
   samplingPercent: number;
   backfillTraces: number | null;
+  /** Minutes until the same inputs can be estimated again; null when they can now. */
+  restartInMinutes: number | null;
   modelSettingsHref: string;
   starting: boolean;
   disabled: boolean;
@@ -92,14 +95,21 @@ export function TopicCostEstimateView({
               : "Picking traces"}
           </span>
         ) : (
-          <Button
-            text={done ? "Estimate again" : "Estimate cost"}
-            variant="outline"
-            size="sm"
-            loading={starting}
-            disabled={disabled}
-            onClick={onStart}
-          />
+          <span className="flex items-center gap-2">
+            {restartInMinutes !== null ? (
+              <span className="text-muted-foreground text-xs">
+                Again in {restartInMinutes} min
+              </span>
+            ) : null}
+            <Button
+              text={done ? "Estimate again" : "Estimate cost"}
+              variant="outline"
+              size="sm"
+              loading={starting}
+              disabled={disabled || restartInMinutes !== null}
+              onClick={onStart}
+            />
+          </span>
         )}
       </div>
 

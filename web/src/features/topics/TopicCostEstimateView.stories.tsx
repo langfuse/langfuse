@@ -1,43 +1,7 @@
 import { expect, fn, userEvent, within } from "storybook/test";
-import type { TopicCostEstimate } from "@langfuse/shared/topics";
 import preview from "../../../.storybook/preview";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
-
-const estimate = (
-  overrides: Partial<TopicCostEstimate> = {},
-  perTraceUsd: number | null = 0.0042,
-) => ({
-  key: "0123456789abcdef0123456789abcdef",
-  runId: "run-1",
-  status: "done" as const,
-  startedAt: 0,
-  finishedAt: 1_000,
-  error: null,
-  inputs: {
-    filter: [],
-    facets: [{ facetId: "intent", version: 1 }],
-    summaryModel: "gpt-5.6-luna",
-    embeddingModel: "text-embedding-3-small",
-  },
-  finishedTraces7d: 6_677,
-  sampled: 50,
-  processed: 50,
-  summarizable: 50,
-  skipped: { tooLarge: 0, noContent: 0 },
-  tokens: {
-    prefixTokens: 50 * 2_400,
-    inputTokens: 50 * 1_800,
-    outputTokens: 50 * 120,
-    embeddingTokens: 50 * 80,
-  },
-  traceNames: [],
-  ...overrides,
-  prices: {
-    perTraceUsd,
-    summaryPriced: perTraceUsd !== null,
-    embeddingPriced: true,
-  },
-});
+import { costEstimateFixture as estimate } from "./topicCostEstimateFixture";
 
 const meta = preview.meta({
   component: TopicCostEstimateView,
@@ -45,6 +9,7 @@ const meta = preview.meta({
     estimate: null,
     samplingPercent: 100,
     backfillTraces: 500,
+    restartInMinutes: null,
     modelSettingsHref: "/project/demo/settings/models",
     starting: false,
     disabled: false,
@@ -98,13 +63,9 @@ export const PartialCost = meta.story({
 
 export const Done = meta.story({ args: { estimate: estimate() } });
 
-export const DoneWithSkippedTraces = meta.story({
-  args: {
-    estimate: estimate({
-      summarizable: 44,
-      skipped: { tooLarge: 2, noContent: 4 },
-    }),
-  },
+// A finished estimate is reused for the same inputs, so restarting waits for the cooldown.
+export const RecentlyEstimated = meta.story({
+  args: { estimate: estimate(), restartInMinutes: 12 },
 });
 
 // Sampling scales only the daily cost on read; the backfill part is hidden without a backfill.

@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import type { FilterState } from "@langfuse/shared";
+import { TOPICS_COST_ESTIMATE_COOLDOWN_MS } from "@langfuse/shared/topics";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
@@ -53,13 +55,30 @@ export function TopicCostEstimate({
     (progress.data === null || progress.data.runId === estimate.data?.runId)
       ? progress.data
       : (estimate.data ?? null);
+  // The server reuses a finished estimate for the same inputs until the cooldown ends.
+  const restartAt =
+    current?.status === "done" && current.finishedAt !== null
+      ? current.finishedAt + TOPICS_COST_ESTIMATE_COOLDOWN_MS
+      : null;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (restartAt === null) return;
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, [restartAt]);
+  const restartInMinutes =
+    restartAt !== null && restartAt > now
+      ? Math.ceil((restartAt - now) / 60_000)
+      : null;
   return (
     <TopicCostEstimateView
       estimate={current}
+      restartInMinutes={restartInMinutes}
       samplingPercent={samplingPercent}
       backfillTraces={backfillTraces}
       modelSettingsHref={`/project/${projectId}/settings/models`}
-      starting={start.isPending}
+      // Also while the started estimate loads, so a second click cannot slip in.
+      starting={start.isPending || estimate.isRefetching}
       disabled={facetIds.length === 0}
       error={start.error?.message ?? null}
       onStart={() => {

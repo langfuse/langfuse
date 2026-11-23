@@ -54,7 +54,6 @@ export function NewMapDialogView({
           />
           {filterField}
           {samplingField}
-          {disabledReason ? null : costEstimateField}
           {disabledReason ? (
             <div className="bg-light-yellow text-dark-yellow rounded-md px-4 py-2.5 text-sm">
               {disabledReason} Create a snapshot instead.
@@ -84,6 +83,7 @@ export function NewMapDialogView({
               </span>
             </div>
           )}
+          {disabledReason ? null : costEstimateField}
           {errors.map((message) => (
             <TopicsErrorMessage key={message} message={message} />
           ))}

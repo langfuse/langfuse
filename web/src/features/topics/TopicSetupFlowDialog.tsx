@@ -379,7 +379,6 @@ export function TopicSetupFlowDialog({
                   { value: backfillLine(pastCount) },
                 ]}
               />
-              {costEstimate}
               {notice ? <Banner variant="warning">{notice}</Banner> : null}
               <div className="bg-light-blue text-dark-blue mt-1 flex flex-col gap-1.5 rounded-md px-4 py-2.5 text-sm">
                 {pastCount.status !== "ready" || pastCount.matched > 0 ? (
@@ -393,6 +392,7 @@ export function TopicSetupFlowDialog({
                   New traces show up {waitMinutes} min after their last activity
                 </span>
               </div>
+              {costEstimate}
             </div>
           ) : null}
           {step !== "questions" && error ? (
