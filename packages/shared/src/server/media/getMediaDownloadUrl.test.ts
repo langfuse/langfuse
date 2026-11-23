@@ -86,10 +86,14 @@ describe.each(providers)(
 );
 
 describe("getMediaDownloadUrl on a provider that cannot pin response headers", () => {
-  const downloadUrl = (recordedType: string, storedType: string) => {
+  const downloadUrl = (
+    recordedType: string,
+    storedType: string | (() => Promise<string>),
+  ) => {
     const storageService = {
       canOverrideResponseHeaders: false,
-      getObjectContentType: async () => storedType,
+      getObjectContentType:
+        typeof storedType === "string" ? async () => storedType : storedType,
       getSignedUrl: async () => "https://storage.example.com/par",
     } as unknown as StorageService;
     return getMediaDownloadUrl({
@@ -111,6 +115,18 @@ describe("getMediaDownloadUrl on a provider that cannot pin response headers", (
 
   it("returns no link when the stored type differs from a safe recorded type", async () => {
     await expect(downloadUrl("image/png", "text/html")).resolves.toBeNull();
+    await expect(
+      downloadUrl("video/mp4", "video/mp4,text/html"),
+    ).resolves.toBeNull();
+    await expect(
+      downloadUrl("image/png", "image/png; a=b, text/html"),
+    ).resolves.toBeNull();
+  });
+
+  it("returns no link when the stored type cannot be read", async () => {
+    await expect(
+      downloadUrl("image/png", () => Promise.reject(new Error("Not found"))),
+    ).resolves.toBeNull();
   });
 
   it("links safe-inline media stored with a safe type", async () => {
