@@ -240,14 +240,10 @@ export async function priceTopicCostEstimate(
   const { tokens, sampled, summarizable, inputs } = record;
   const mean = (total: number) => (summarizable > 0 ? total / summarizable : 0);
   const embeddingTokens = mean(tokens.embeddingTokens);
-  const summaryInput = mean(tokens.inputTokens);
-  const summaryOutput = mean(tokens.outputTokens);
   const [summary, embedding] = await Promise.all([
-    // Summary calls also record total, so a price defined only on total applies here too.
     priceUsage(projectId, inputs.summaryModel, {
-      input: summaryInput,
-      output: summaryOutput,
-      total: summaryInput + summaryOutput,
+      input: mean(tokens.inputTokens),
+      output: mean(tokens.outputTokens),
     }),
     inputs.embeddingModel
       ? // Embedding calls record their tokens as both input and total, and default prices use total.
