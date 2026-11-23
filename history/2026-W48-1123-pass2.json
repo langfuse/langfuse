@@ -1,0 +1,227 @@
+{
+  "window": { "from": "2026-11-17", "to": "2026-11-23" },
+  "generatedAt": "2026-11-23T17:05:00Z",
+  "pass": 2,
+  "supersedes": "2026-W48-1123.json",
+  "note": "Second pass over the same trailing-7-day window. The first pass ran at 05:31Z and had ZERO data for Monday 2026-11-23. Days 11-17..11-22 are REUSED verbatim from 2026-W48-1123.json; 2026-11-23 is computed fresh from 80 merge_group runs. Weekly aggregates are recomputed over 5 dense days instead of 4.",
+  "method": {
+    "timingSource": "successful merge_group runs only; cancelled excluded",
+    "denseDayThreshold": 5,
+    "denseDays": ["2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-23"],
+    "thinDays": ["2026-11-21", "2026-11-22"],
+    "perceived": "run_started_at -> run updated_at",
+    "execution": "length of the union of [started_at, completed_at] of all success jobs",
+    "gated": "all-ci-passed completion offset from run_started_at",
+    "sampleSize2026_11_23": 9
+  },
+  "weeklyAggregate": {
+    "perceived": 287,
+    "gated": 279,
+    "execution": 281,
+    "runnerWait": 6,
+    "webBuildStep": 60,
+    "webRunTestsStep": 93,
+    "workerBuildStep": 42,
+    "workerRunTestsStep": 61,
+    "workerRunTestsStepCurrentLevel": 119,
+    "e2eTestsJob": 156,
+    "e2eBuildStep": 44,
+    "e2eRunStep": 49,
+    "fipsMaxJob": 278,
+    "executionMinusE2e": 125
+  },
+  "dailyMedians": {
+    "2026-11-17": { "n": 7, "reused": true, "perceived": 340, "gated": 299, "execution": 335, "runnerWait": 6, "webBuild": 60, "webRunTests": 111, "workerBuild": 42, "workerRunTests": 96, "e2eJob": 159, "e2eBuild": 44, "e2eRun": 52, "fipsMax": 282 },
+    "2026-11-18": { "n": 7, "reused": true, "perceived": 287, "gated": 237, "execution": 282, "runnerWait": 6, "webBuild": 51, "webRunTests": 90, "workerBuild": 42, "workerRunTests": 61, "e2eJob": 164, "e2eBuild": 46, "e2eRun": 57, "fipsMax": 287 },
+    "2026-11-19": { "n": 7, "reused": true, "perceived": 283, "gated": 283, "execution": 277, "runnerWait": 6, "webBuild": 60, "webRunTests": 105, "workerBuild": 39, "workerRunTests": 58, "e2eJob": 156, "e2eBuild": 45, "e2eRun": 49, "fipsMax": 263 },
+    "2026-11-20": { "n": 7, "reused": true, "perceived": 286, "gated": 264, "execution": 275, "runnerWait": 6, "webBuild": 60, "webRunTests": 93, "workerBuild": 49, "workerRunTests": 57, "e2eJob": 131, "e2eBuild": 26, "e2eRun": 48, "fipsMax": 268 },
+    "2026-11-21": { "n": 3, "thin": true, "reused": true, "perceived": 279, "gated": 273, "execution": 272, "webRunTests": 85, "workerRunTests": 116, "e2eJob": 135 },
+    "2026-11-22": { "n": 1, "thin": true, "reused": true, "perceived": 268, "gated": 234, "execution": 263, "webRunTests": 86, "workerRunTests": 115, "e2eJob": 101 },
+    "2026-11-23": { "n": 9, "reused": false, "perceived": 289, "gated": 279, "execution": 281, "runnerWait": 6, "webBuild": 57, "webRunTests": 91, "workerBuild": 50, "workerRunTests": 119, "e2eJob": 156, "e2eBuild": 39, "e2eRun": 48, "aiGatewayJob": 277, "fipsMax": 278 }
+  },
+  "sampled_2026_11_23": [
+    { "runId": 45126234152, "t": "06:45", "perceived": 289, "execution": 279, "wait": 10, "gated": 288, "webBuild": 53, "webRunTests": 88, "workerBuild": 50, "workerRunTests": 121, "e2eJob": 133, "aiGw": 266, "fipsMax": 268 },
+    { "runId": 45143126418, "t": "08:59", "perceived": 282, "execution": 278, "wait": 4, "gated": 278, "webBuild": 55, "webRunTests": 88, "workerBuild": 51, "workerRunTests": 119, "e2eJob": 138, "aiGw": null, "fipsMax": 277 },
+    { "runId": 45150926347, "t": "09:52", "perceived": 296, "execution": 291, "wait": 5, "gated": 237, "webBuild": 57, "webRunTests": 91, "workerBuild": 45, "workerRunTests": 116, "e2eJob": 122, "aiGw": null, "fipsMax": 290 },
+    { "runId": 45152795770, "t": "10:04", "perceived": 288, "execution": 281, "wait": 7, "gated": 279, "webBuild": 54, "webRunTests": 88, "workerBuild": 49, "workerRunTests": 116, "e2eJob": 156, "aiGw": 255, "fipsMax": 281 },
+    { "runId": 45160744219, "t": "10:57", "perceived": 260, "execution": 256, "wait": 4, "gated": 254, "webBuild": 61, "webRunTests": 96, "workerBuild": 54, "workerRunTests": 124, "e2eJob": 157, "aiGw": null, "fipsMax": 255 },
+    { "runId": 45173162580, "t": "12:19", "perceived": 272, "execution": 267, "wait": 5, "gated": 229, "webBuild": 54, "webRunTests": 90, "workerBuild": 44, "workerRunTests": 116, "e2eJob": 160, "aiGw": null, "fipsMax": 266 },
+    { "runId": 45190046858, "t": "14:03", "perceived": 348, "execution": 342, "wait": 6, "gated": 300, "webBuild": 75, "webRunTests": 113, "workerBuild": 50, "workerRunTests": 119, "e2eJob": 157, "aiGw": 277, "fipsMax": 341 },
+    { "runId": 45206146213, "t": "15:31", "perceived": 333, "execution": 327, "wait": 6, "gated": 301, "webBuild": 79, "webRunTests": 120, "workerBuild": 62, "workerRunTests": 132, "e2eJob": 166, "aiGw": 278, "fipsMax": 326 },
+    { "runId": 45219549422, "t": "16:42", "perceived": 348, "execution": 337, "wait": 11, "gated": 347, "webBuild": 57, "webRunTests": 102, "workerBuild": 55, "workerRunTests": 123, "e2eJob": 126, "aiGw": 321, "fipsMax": 278 }
+  ],
+  "vsPreviousWindow": {
+    "comparator": "2026-W47-1116 (2026-11-10..2026-11-16)",
+    "perceived": { "from": 273, "to": 287, "pct": 5.1 },
+    "gated": { "from": 256, "to": 279, "pct": 9.0 },
+    "execution": { "from": 267.5, "to": 281, "pct": 5.0 },
+    "runnerWait": { "from": 6, "to": 6, "pct": 0 },
+    "webBuildStep": { "from": 53, "to": 60, "pct": 13.2 },
+    "webRunTestsStep": { "from": 92.5, "to": 93, "pct": 0.5 },
+    "workerRunTestsStep": { "from": 103.8, "to": 61, "pct": -41.2, "caveat": "weekly median is bimodal and misleading; current level is 119s since the 2026-11-20T15:51Z step change" },
+    "e2eTestsJob": { "from": 189, "to": 156, "pct": -17.5 },
+    "e2eBuildStep": { "from": 68.5, "to": 44, "pct": -35.8, "cause": "ca5d33eb70 / #20349 restore-only Next.js cache, W47 primary recommendation" },
+    "fipsMaxJob": { "from": 261, "to": 278, "pct": 6.5 },
+    "executionMinusE2e": { "from": 78.5, "to": 125, "pct": 59.2 },
+    "failureRate": { "from": "2.3% (4/177)", "to": "15.6% (53/339)" }
+  },
+  "runVolumes": {
+    "mergeGroupTotal": 339,
+    "success": 286,
+    "failed": 53,
+    "cancelled": 0,
+    "byDay": { "2026-11-17": 60, "2026-11-18": 47, "2026-11-19": 69, "2026-11-20": 79, "2026-11-21": 3, "2026-11-22": 1, "2026-11-23": 80 },
+    "sourceNote": "11-17..11-22 counts reused from pass 1; 11-23 counted fresh. The pass-2 run listing only reached back to 2026-11-20T09:23Z, so earlier days were not recounted."
+  },
+  "failureRate": {
+    "overallPct": 15.6,
+    "overall": "53/339",
+    "byDay": { "2026-11-17..22": "33/259 (12.7%)", "2026-11-23": "20/80 (25.0%)" },
+    "classification_2026_11_23": { "test": 0, "productCheckCompile": 20, "infrastructure": 0, "externalProvider": 0, "timedOut": 0, "ambiguous": 0 },
+    "classification_window": { "test": 21, "productCheckCompile": 25, "infrastructure": 5, "externalProvider": 2 }
+  },
+  "cascades_2026_11_23": [
+    {
+      "id": "session-policies-typecheck-recurrence",
+      "window": "2026-11-23T08:23Z",
+      "runsEjected": 2,
+      "runIds": [45138234437, 45138283379],
+      "failingJob": "typecheck and native checks",
+      "failingStep": "typecheck",
+      "signature": "web/src/features/events/components/V4SidebarToggle.stories.tsx(23,7): error TS2741: Property 'policies' is missing",
+      "logsInspected": [137569570424],
+      "recurrenceOf": "cascade 'Session policies typecheck break' recorded in 2026-W48-1123.json at 2026-11-20T16:35-16:38Z (5 runs ejected)",
+      "cumulativeRunsEjected": 7,
+      "classification": "semantic merge conflict: a queued PR carried a hand-rolled Session object literal while another PR made Session.policies required",
+      "stateOnMain_2026_11_23": "FIXED - the literal now sets policies: []"
+    },
+    {
+      "id": "error-page-import-build-break",
+      "window": "2026-11-23T09:05Z..09:58Z",
+      "runsEjected": 18,
+      "runIds": [45143930019, 45144246114, 45144690357, 45144902791, 45145515214, 45145556719, 45147645741, 45148945281, 45149552093, 45150236245, 45150239563, 45150243446, 45150246115, 45150248769, 45151337279, 45151566848, 45151619106, 45151769106],
+      "failingJobs": ["typecheck and native checks", "knip", "tests-web-client", "test-docker-build", "tests-fips", "tests-web", "e2e-server-tests", "e2e-tests", "test-ai-gateway-e2e"],
+      "failingStep": "Build / build:test (every job that compiles web)",
+      "signature": "web/src/features/traces/components/Trace.tsx:57 Module not found: Can't resolve '@/src/components/error-page' (Turbopack, web#build:test)",
+      "logsInspected": [137588433829],
+      "classification": "semantic merge conflict: a queued PR imported a module path that a concurrently merged PR had renamed",
+      "stateOnMain_2026_11_23": "FIXED - Trace.tsx:57 now imports @/src/components/ErrorPage"
+    }
+  ],
+  "failuresByJob_2026_11_23": {
+    "typecheck and native checks": 20,
+    "knip": 18,
+    "tests-web-client": 18,
+    "test-docker-build": 18,
+    "tests-fips": 18,
+    "tests-web": 18,
+    "e2e-server-tests": 18,
+    "e2e-tests": 18,
+    "test-ai-gateway-e2e": 9
+  },
+  "failuresByTest_2026_11_23": {
+    "note": "No test-case failure ejected a single run on 2026-11-23. Every failure was a compile/typecheck break ahead of any test execution.",
+    "entries": []
+  },
+  "logBudget": { "allowed": 25, "spentOnFailures": 2, "failedRunsUninspected": 18, "uninspectedAttributedBy": "identical failing job+step signature within a contiguous time block" },
+  "criticalPath": {
+    "gatingPole_2026_11_23": "test-ai-gateway-e2e",
+    "evidence": "in all 5 of 9 sampled runs where the job ran, all-ci-passed completes 7-9s after test-ai-gateway-e2e ends (aiGwEnd/gateEnd: 281/288, 270/279, 292/300, 293/301, 338/347)",
+    "costOfTheJob": "gated median 300s in the 5 runs where it ran vs 245.5s in the 4 runs where it was skipped = ~55s, up from the ~30s measured in pass 1",
+    "whenItRuns": "path filter llm-connections-filter.outputs.ai_gateway == 'true'; ran in 5 of 9 sampled runs",
+    "whyItIsSlow": "pipeline.yml:1709-1710 and 1749-1751 deliberately keep this credential-bearing job cache-cold (package-manager-cache: false, direct golang-migrate download) to avoid executing shared cache state; it then does pnpm install, docker compose up, migrate+seed, two rustup toolchain installs and a cargo build",
+    "verdict": "report-only. A job-scoped cache is a security decision for a human, not a CI-runtime change this workflow may make.",
+    "fipsNote": "tests-fips (worker) is the last job to finish overall in 7 of 9 sampled runs (fipsMax median 278s) but does not gate; it is not in the all-ci-passed needs list."
+  },
+  "vitestAnalysis_2026_11_23": {
+    "sampledRun": 45206146213,
+    "web": { "job": 137802288069, "shard": "tests-web (node24, pg15, mode, otel-worker-shadow=true)", "testFiles": 392, "tests": 7785, "skipped": 12, "durationS": 117.64, "transformS": 148.27, "setupS": 2.18, "importS": 935.57, "testsS": 426.45, "retriedBlock": "absent (zero)", "failedBlock": "absent (zero)" },
+    "worker": { "job": 137802287982, "shard": "tests-worker (node24, pg15, mode)", "testFiles": 236, "tests": 3194, "skipped": 1, "durationS": 131.22, "importS": 329.23, "testsS": 339.86, "retriedBlock": "absent (zero)", "failedBlock": "absent (zero)" },
+    "storybook": { "job": 137802287506, "testFiles": 409, "tests": 2271, "durationS": 111.16, "setupS": 52.77, "setupSharePct": 47.5, "importS": 80.66, "testsS": 244.17, "retriedBlock": "absent (zero)", "failedBlock": "absent (zero)", "vsPass1": "403 files / 2225 tests / 86.79s with setup 40.28s -> 409 files / 2271 tests / 111.16s with setup 52.77s" },
+    "slowestWorkerTestsS": {
+      "otelReplay.properties.test.ts > keeps provider fallback and serialized-value parity": 38.67,
+      "otelReplay.properties.test.ts > keeps rows, lookups and evaluation decisions aligned when known attributes carry the wrong type": 25.17,
+      "otelReplay.properties.test.ts > persists broad recursive JSON input/output and recursive metadata with identity and precedence intact": 24.81,
+      "otelReplay.properties.test.ts > persists edge-biased recursive JSON input/output and recursive metadata with identity and precedence intact": 24.61,
+      "otelReplay.integration.test.ts > matches pricing boundaries, tier ordering and supplied-cost precedence": 13.34,
+      "otelReplay.properties.test.ts > keeps rows, lookups, overflow uploads and trace activity aligned when lookups and uploads fail": 12.63,
+      "otelReplay.integration.test.ts > keeps partial provider usage aligned with TypeScript": 11.83
+    },
+    "slowestWorkerFilesS": {
+      "src/__tests__/otelReplay.properties.test.ts": 125.9,
+      "src/__tests__/otelReplay.integration.test.ts": 39.08,
+      "src/__tests__/batchExport.test.ts": 16.43,
+      "src/services/IngestionService/tests/IngestionService.integration.test.ts": 13.84,
+      "src/__tests__/evalService.test.ts": 10.95,
+      "src/__tests__/blobStorageIntegrationProcessing.test.ts": 10.12,
+      "src/__tests__/traceBatchDeleteBatchAction.test.ts": 8.63
+    },
+    "slowestWebTestsS": {
+      "event-repository.servertest.ts > streams complete traces with full payloads and exact per-trace time bounds": 3.07,
+      "clickhouse-insert-strings.servertest.ts > inserts rows from an object-mode stream when": 2.57,
+      "unit/teardown.servertest.ts > closes clients created through the built shared server export": 2.35,
+      "rate-limit.servertest.ts > should admit requests again once the window has actually expired": 2.01,
+      "unstable-topics-public-api-access.servertest.ts > does not expose a project's rules, summaries or assignments to another project's key": 1.6
+    },
+    "slowestWebFilesS": {
+      "src/__tests__/server/repositories/event-repository.servertest.ts": 25.64,
+      "src/__tests__/server/score-comparison-analytics.servertest.ts": 20.34,
+      "src/__tests__/server/queryBuilder.servertest.ts": 14.08,
+      "src/__tests__/server/traces-api.servertest.ts": 13.17,
+      "src/__tests__/server/ingestion-api.servertest.ts": 12.89,
+      "src/__tests__/server/scores-api-v3.servertest.ts": 10.45,
+      "src/__tests__/server/dataset-service.servertest.ts": 10.32,
+      "src/__tests__/server/mcp-tools-read.servertest.ts": 9.98
+    },
+    "slowestStorybookFilesS": {
+      "SessionConversationalView.stories.tsx": 23.4,
+      "TimelineDense.stories.tsx": 13.79,
+      "TopicTreemapView.stories.tsx": 12.05,
+      "InAppAgentWindow.stories.tsx": 9.64,
+      "DataTable.stories.tsx": 6.08,
+      "IOPreviewPretty.stories.tsx": 4.4
+    }
+  },
+  "flakyTests": {
+    "observedThisPass": [],
+    "note": "Zero Retried and zero Failed reporter blocks across all three sampled 2026-11-23 shards (web, worker, storybook). No new flake evidence.",
+    "priorWatchlist": [
+      { "test": "worker/src/__tests__/traceBatchDeleteBatchAction.test.ts > deletes only selected legacy traces from a persisted batch action", "status": "no recurrence on 2026-11-23; keep open" },
+      { "test": "web/src/components/design-system/DropdownMenu/DropdownMenu.stories.tsx", "status": "file-level flakiness seen in pass 1; no recurrence on 2026-11-23; keep open" },
+      { "test": "worker/src/__tests__/correctionScoreBilling.test.ts", "status": "W47 CONFIRMED, no recurrence for two weeks; needs a product answer, keep open" },
+      { "test": "web/src/__e2e__/app-shell-overflow.spec.ts", "status": "invisible to vitest sampling; needs an e2e-tests job log" }
+    ]
+  },
+  "optimizationCandidates": [
+    {
+      "id": "otelReplay-properties-file-split",
+      "file": "worker/src/__tests__/otelReplay.properties.test.ts",
+      "evidence": "125.90s of summed test duration in a 131.22s shard; one describe block with 5 it() cases that vitest runs serially within the file; the file IS the shard wall clock",
+      "shape": "move the ~2450 lines of arbitraries and helpers into a shared helper module and give each of the 5 property cases its own test file so the vitest pool runs them in parallel",
+      "expectedImpact": "worker shard run tests 131s -> ~60-70s (bounded by the 38.67s case plus per-file import of a heavy module graph, which would be paid 5 times instead of once)",
+      "status": "NOT PROPOSED",
+      "whyNot": "two independent reasons. (1) Unverifiable: the harness imports clickhouseClient and ClickhouseWriter, so the suite needs ClickHouse, and the sandbox has no database and no pnpm on PATH. (2) Low value: tests-worker is not on the critical path - the gate closes at 279s while the whole tests-worker job runs ~200s, so this buys runner-minutes, not wall clock."
+    },
+    {
+      "id": "session-factory-migration",
+      "files": ["web/src/features/events/components/V4SidebarToggle.stories.tsx", "web/src/features/search-bar/components/EventsSearchBarRow.stories.tsx"],
+      "evidence": "web/src/__tests__/fixtures/session-factory.ts already exists and is used by 20+ server tests. Exactly three files still hand-roll a Session object literal; one of them (V4SidebarToggle.stories.tsx) ejected 7 merge-queue runs across 2026-11-20 and 2026-11-23 when Session.policies became required. The third (in-app-agent-persistence.servertest.ts) spreads an existing session and is already immune.",
+      "shape": "replace the hand-rolled literals with createSession({ expires, user: { ... } })",
+      "expectedImpact": "removes this class of merge-queue ejection for Session shape changes: a new required field is then fixed once in session-factory.ts instead of in N call sites",
+      "status": "NOT PROPOSED THIS RUN",
+      "whyNot": "could not be verified. pnpm is not on PATH in the sandbox and corepack/npm probes are blocked, so neither `pnpm run typecheck` nor the storybook suite could be run. The migration also changes user.name from absent to the factory default 'Demo User' unless passed through explicitly, and the storybook interaction tests that would catch a regression need a Playwright browser.",
+      "carryForward": true
+    }
+  ],
+  "openFollowUps": [
+    "test-ai-gateway-e2e is the gating pole and costs ~55s of gate time when it runs (up from ~30s in pass 1). Cache-cold by deliberate security design; a job-scoped cache is a human security call.",
+    "Semantic merge conflicts are now the dominant failure mode two weeks running: 12 of 33 failures in 11-17..11-22 and 20 of 20 on 11-23. A merge-queue batch size of 1 for typecheck-sensitive changes, or requiring queue entries to be rebased, would have caught all of them. This is a GitHub branch-protection setting, not a repo diff.",
+    "session-factory migration for the two remaining hand-rolled Session literals (see optimizationCandidates). Needs someone who can run `pnpm run typecheck` and the storybook suite.",
+    "Storybook shard grew 86.79s -> 111.16s (+28%) in one week while only gaining 6 files and 46 tests; setup is 52.77s, 47.5% of the shard, and has never been investigated.",
+    "otelReplay.properties.test.ts file split - see optimizationCandidates; parked on critical-path grounds, revisit if tests-worker ever becomes the pole.",
+    "worker run tests has held the post-#20180 level (115-124s) for four consecutive days now (11-20 15:51Z onward). Confirmed NEW COVERAGE, not a regression; no further action, stop re-investigating.",
+    "correctionScoreBilling.test.ts still needs a product answer; no recurrence for two weeks.",
+    "web/src/__e2e__/app-shell-overflow.spec.ts is invisible to vitest sampling; needs an e2e-tests job log tail.",
+    "issues.json entries all carry number: null. No issue-read MCP tool exists to backfill them. missing_tool was already filed on 08-24 and 09-07; do not file it again."
+  ]
+}

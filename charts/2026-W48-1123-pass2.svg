@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="780" viewBox="0 0 820 780" font-family="ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="820" height="780" fill="#ffffff"/>
+<text x="70" y="30" font-size="17" font-weight="600" fill="#111827">Langfuse CI/CD merge-queue runtime - 2026-11-17 to 2026-11-23</text>
+<text x="70" y="48" font-size="11" fill="#6b7280">Successful merge_group runs only. Daily medians. * = thin day (&lt;5 runs): 11-21 n=3, 11-22 n=1. Other days n=7, 11-23 n=9.</text>
+<text x="70" y="86" font-size="13" font-weight="600" fill="#374151">Pipeline totals - merge_group medians (s)</text>
+<line x1="70" y1="324.0" x2="790" y2="324.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="60" y="328.0" font-size="11" fill="#6b7280" text-anchor="end">200</text>
+<line x1="70" y1="269.0" x2="790" y2="269.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="60" y="273.0" font-size="11" fill="#6b7280" text-anchor="end">240</text>
+<line x1="70" y1="214.0" x2="790" y2="214.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="60" y="218.0" font-size="11" fill="#6b7280" text-anchor="end">280</text>
+<line x1="70" y1="159.0" x2="790" y2="159.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="60" y="163.0" font-size="11" fill="#6b7280" text-anchor="end">320</text>
+<line x1="70" y1="104.0" x2="790" y2="104.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="60" y="108.0" font-size="11" fill="#6b7280" text-anchor="end">360</text>
+<text x="70.0" y="342" font-size="11" fill="#374151" text-anchor="middle">11-17</text>
+<text x="190.0" y="342" font-size="11" fill="#374151" text-anchor="middle">11-18</text>
+<text x="310.0" y="342" font-size="11" fill="#374151" text-anchor="middle">11-19</text>
+<text x="430.0" y="342" font-size="11" fill="#374151" text-anchor="middle">11-20</text>
+<text x="550.0" y="342" font-size="11" fill="#374151" text-anchor="middle">11-21*</text>
+<text x="670.0" y="342" font-size="11" fill="#374151" text-anchor="middle">11-22*</text>
+<text x="790.0" y="342" font-size="11" fill="#374151" text-anchor="middle">11-23</text>
+<polyline points="70.0,131.5 190.0,204.4 310.0,209.9 430.0,205.8 550.0,215.4 670.0,230.5 790.0,201.6" fill="none" stroke="#3987e5" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="70.0" cy="131.5" r="3.5" fill="#3987e5"/>
+<circle cx="190.0" cy="204.4" r="3.5" fill="#3987e5"/>
+<circle cx="310.0" cy="209.9" r="3.5" fill="#3987e5"/>
+<circle cx="430.0" cy="205.8" r="3.5" fill="#3987e5"/>
+<circle cx="550.0" cy="215.4" r="3.5" fill="#3987e5"/>
+<circle cx="670.0" cy="230.5" r="3.5" fill="#3987e5"/>
+<circle cx="790.0" cy="201.6" r="3.5" fill="#3987e5"/>
+<rect x="70" y="353" width="14" height="3" fill="#3987e5"/>
+<text x="90" y="359" font-size="11" fill="#374151">perceived (wall)</text>
+<polyline points="70.0,187.9 190.0,273.1 310.0,209.9 430.0,236.0 550.0,223.6 670.0,277.3 790.0,215.4" fill="none" stroke="#de5a20" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="70.0" cy="187.9" r="3.5" fill="#de5a20"/>
+<circle cx="190.0" cy="273.1" r="3.5" fill="#de5a20"/>
+<circle cx="310.0" cy="209.9" r="3.5" fill="#de5a20"/>
+<circle cx="430.0" cy="236.0" r="3.5" fill="#de5a20"/>
+<circle cx="550.0" cy="223.6" r="3.5" fill="#de5a20"/>
+<circle cx="670.0" cy="277.3" r="3.5" fill="#de5a20"/>
+<circle cx="790.0" cy="215.4" r="3.5" fill="#de5a20"/>
+<rect x="300" y="353" width="14" height="3" fill="#de5a20"/>
+<text x="320" y="359" font-size="11" fill="#374151">gated (all-ci-passed)</text>
+<polyline points="70.0,138.4 190.0,211.3 310.0,218.1 430.0,220.9 550.0,225.0 670.0,237.4 790.0,212.6" fill="none" stroke="#8875e0" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="70.0" cy="138.4" r="3.5" fill="#8875e0"/>
+<circle cx="190.0" cy="211.3" r="3.5" fill="#8875e0"/>
+<circle cx="310.0" cy="218.1" r="3.5" fill="#8875e0"/>
+<circle cx="430.0" cy="220.9" r="3.5" fill="#8875e0"/>
+<circle cx="550.0" cy="225.0" r="3.5" fill="#8875e0"/>
+<circle cx="670.0" cy="237.4" r="3.5" fill="#8875e0"/>
+<circle cx="790.0" cy="212.6" r="3.5" fill="#8875e0"/>
+<rect x="530" y="353" width="14" height="3" fill="#8875e0"/>
+<text x="550" y="359" font-size="11" fill="#374151">execution (job union)</text>
+<text x="70" y="426" font-size="13" font-weight="600" fill="#374151">Critical-path segments - merge_group medians (s)</text>
+<line x1="70" y1="664.0" x2="790" y2="664.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="60" y="668.0" font-size="11" fill="#6b7280" text-anchor="end">0</text>
+<line x1="70" y1="609.0" x2="790" y2="609.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="60" y="613.0" font-size="11" fill="#6b7280" text-anchor="end">45</text>
+<line x1="70" y1="554.0" x2="790" y2="554.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="60" y="558.0" font-size="11" fill="#6b7280" text-anchor="end">90</text>
+<line x1="70" y1="499.0" x2="790" y2="499.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="60" y="503.0" font-size="11" fill="#6b7280" text-anchor="end">135</text>
+<line x1="70" y1="444.0" x2="790" y2="444.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="60" y="448.0" font-size="11" fill="#6b7280" text-anchor="end">180</text>
+<text x="70.0" y="682" font-size="11" fill="#374151" text-anchor="middle">11-17</text>
+<text x="190.0" y="682" font-size="11" fill="#374151" text-anchor="middle">11-18</text>
+<text x="310.0" y="682" font-size="11" fill="#374151" text-anchor="middle">11-19</text>
+<text x="430.0" y="682" font-size="11" fill="#374151" text-anchor="middle">11-20</text>
+<text x="550.0" y="682" font-size="11" fill="#374151" text-anchor="middle">11-21*</text>
+<text x="670.0" y="682" font-size="11" fill="#374151" text-anchor="middle">11-22*</text>
+<text x="790.0" y="682" font-size="11" fill="#374151" text-anchor="middle">11-23</text>
+<polyline points="70.0,528.3 190.0,554.0 310.0,535.7 430.0,550.3 550.0,560.1 670.0,558.9 790.0,552.8" fill="none" stroke="#3987e5" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="70.0" cy="528.3" r="3.5" fill="#3987e5"/>
+<circle cx="190.0" cy="554.0" r="3.5" fill="#3987e5"/>
+<circle cx="310.0" cy="535.7" r="3.5" fill="#3987e5"/>
+<circle cx="430.0" cy="550.3" r="3.5" fill="#3987e5"/>
+<circle cx="550.0" cy="560.1" r="3.5" fill="#3987e5"/>
+<circle cx="670.0" cy="558.9" r="3.5" fill="#3987e5"/>
+<circle cx="790.0" cy="552.8" r="3.5" fill="#3987e5"/>
+<rect x="70" y="693" width="14" height="3" fill="#3987e5"/>
+<text x="90" y="699" font-size="11" fill="#374151">tests-web / run tests</text>
+<polyline points="70.0,546.7 190.0,589.4 310.0,593.1 430.0,594.3 550.0,522.2 670.0,523.4 790.0,518.6" fill="none" stroke="#de5a20" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="70.0" cy="546.7" r="3.5" fill="#de5a20"/>
+<circle cx="190.0" cy="589.4" r="3.5" fill="#de5a20"/>
+<circle cx="310.0" cy="593.1" r="3.5" fill="#de5a20"/>
+<circle cx="430.0" cy="594.3" r="3.5" fill="#de5a20"/>
+<circle cx="550.0" cy="522.2" r="3.5" fill="#de5a20"/>
+<circle cx="670.0" cy="523.4" r="3.5" fill="#de5a20"/>
+<circle cx="790.0" cy="518.6" r="3.5" fill="#de5a20"/>
+<rect x="300" y="693" width="14" height="3" fill="#de5a20"/>
+<text x="320" y="699" font-size="11" fill="#374151">tests-worker / run tests</text>
+<polyline points="70.0,469.7 190.0,463.6 310.0,473.3 430.0,503.9 550.0,499.0 670.0,540.6 790.0,473.3" fill="none" stroke="#8875e0" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="70.0" cy="469.7" r="3.5" fill="#8875e0"/>
+<circle cx="190.0" cy="463.6" r="3.5" fill="#8875e0"/>
+<circle cx="310.0" cy="473.3" r="3.5" fill="#8875e0"/>
+<circle cx="430.0" cy="503.9" r="3.5" fill="#8875e0"/>
+<circle cx="550.0" cy="499.0" r="3.5" fill="#8875e0"/>
+<circle cx="670.0" cy="540.6" r="3.5" fill="#8875e0"/>
+<circle cx="790.0" cy="473.3" r="3.5" fill="#8875e0"/>
+<rect x="530" y="693" width="14" height="3" fill="#8875e0"/>
+<text x="550" y="699" font-size="11" fill="#374151">e2e-tests job</text>
+</svg>
