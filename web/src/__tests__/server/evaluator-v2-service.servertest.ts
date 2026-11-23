@@ -941,6 +941,49 @@ describe("EvaluatorService", () => {
     expect(assignment.variableMapping).toEqual(staleMapping);
   });
 
+  it("rejects a mapping that rules inheriting it cannot read", async () => {
+    const service = createService();
+    const input = llmInput("Inherited mapping evaluator");
+    const created = await service.create(input, null);
+    await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "Inheriting event rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        assignments: {
+          create: {
+            projectId,
+            evaluatorId: created.id,
+            variableMapping: Prisma.DbNull,
+          },
+        },
+      },
+    });
+
+    await expect(
+      service.update(
+        {
+          ...input,
+          evaluatorId: created.id,
+          definition: {
+            ...input.definition,
+            variableMapping: [
+              { templateVariable: "output", selectedColumnId: "threads" },
+            ],
+          },
+        },
+        null,
+      ),
+    ).rejects.toThrow('Variable "output" maps to unknown column "threads"');
+    await expect(
+      prisma.evaluatorVersion.count({ where: { evaluatorId: created.id } }),
+    ).resolves.toBe(1);
+  });
+
   it("returns a retryable conflict when an evaluator version advances concurrently", async () => {
     const service = createService();
     const input = llmInput("Concurrent version update");

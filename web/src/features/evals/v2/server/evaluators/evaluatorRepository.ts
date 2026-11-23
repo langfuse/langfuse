@@ -603,6 +603,29 @@ export async function findFirstAssignedRuleFilter(params: {
     : undefined;
 }
 
+/** Targets of the rules whose assignments run with the evaluator's own mapping. */
+export async function listInheritingRuleTargets(params: {
+  prisma: PrismaClient | PrismaTransaction;
+  projectId: string;
+  evaluatorId: string;
+}) {
+  const assignments =
+    await params.prisma.evaluationRuleEvaluatorAssignment.findMany({
+      where: {
+        projectId: params.projectId,
+        evaluatorId: params.evaluatorId,
+        variableMapping: { equals: Prisma.DbNull },
+        evaluationRule: { projectId: params.projectId },
+      },
+      select: { evaluationRule: { select: { targetObject: true } } },
+    });
+  return [
+    ...new Set(
+      assignments.map(({ evaluationRule }) => evaluationRule.targetObject),
+    ),
+  ];
+}
+
 export function findEvaluatorsByIds(params: {
   prisma: PrismaClient | PrismaTransaction;
   projectId: string;
