@@ -15,6 +15,7 @@ use tower_http::timeout::{RequestBodyDeadlineLayer, TimeoutError};
 use tracing::Instrument;
 
 use crate::{
+    capture::{GatewayRejection, MAX_OUTPUT_CAPTURE_BYTES, MAX_RESPONSE_PARSE_BYTES},
     correlation::{RequestCorrelation, assign_request_id},
     inference::{
         InferenceService, MemoryReservation, provider_origin, rate_limited_reason,
@@ -22,7 +23,7 @@ use crate::{
     },
     observability::{ErrorOrigin, Wait},
     providers::{ProviderError, RequestBody, Route},
-    resolution::{ApiFormat, RateLimit, ResolutionError},
+    resolution::{ApiFormat, ResolutionError, SpendLimitExceeded},
     server::GatewayLifecycleState,
 };
 
@@ -241,13 +242,17 @@ async fn relay(
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
-            route.api_format(),
+            route,
             &request_body.model,
-            request_bytes,
+            &parts.headers,
+            &request_body.bytes,
             correlation,
         )
         .await
         .map_err(InferenceHttpError::Resolution)?;
+    let parse_growth = permit
+        .charges_spend()
+        .then(|| reservation.deferred(MAX_RESPONSE_PARSE_BYTES - MAX_OUTPUT_CAPTURE_BYTES));
     inference
         .forward(
             permit,
@@ -258,6 +263,7 @@ async fn relay(
                 model_range: request_body.model_range,
                 streaming: request_body.streaming,
                 reservation: Some(Box::new(reservation)),
+                parse_growth,
             },
             route,
             correlation,
@@ -493,6 +499,9 @@ impl InferenceHttpError {
                     R::ModelNotAllowed => "model_not_allowed",
                     R::NoRoute => "no_route",
                     R::RateLimited(limit) => rate_limited_reason(limit.kind()),
+                    R::SpendLimitExceeded(_) => "spend_limit_exceeded",
+                    R::SpendLimitUnavailable => "spend_limit_unavailable",
+                    R::SpendLimitUnpricedModel => "spend_limit_unpriced_model",
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -513,7 +522,7 @@ impl InferenceHttpError {
         }
     }
 
-    fn classify(&self) -> (StatusCode, &'static str, &'static str, &'static str) {
+    fn classify(&self) -> Classification {
         use ResolutionError as R;
         match self {
             Self::Credential | Self::Resolution(R::InvalidCredential | R::Authentication) => (
@@ -547,6 +556,7 @@ impl InferenceHttpError {
                 "requests",
                 "rate_limit_exceeded",
             ),
+            Self::Resolution(R::SpendLimitExceeded(_)) => SPEND_LIMIT_EXCEEDED,
             Self::Resolution(R::NoRoute) => (
                 StatusCode::NOT_FOUND,
                 "No eligible provider connection",
@@ -571,6 +581,7 @@ impl InferenceHttpError {
                 "invalid_request_error",
                 "unsupported_content_encoding",
             ),
+            Self::Resolution(R::SpendLimitUnpricedModel) => SPEND_LIMIT_UNPRICED_MODEL,
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
                 "Invalid request body",
@@ -584,7 +595,9 @@ impl InferenceHttpError {
                 "invalid_model",
             ),
             Self::Unavailable
-            | Self::Resolution(R::Unavailable | R::Configuration | R::Busy)
+            | Self::Resolution(
+                R::Unavailable | R::Configuration | R::Busy | R::SpendLimitUnavailable,
+            )
             | Self::Provider(ProviderError::Configuration) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Gateway temporarily unavailable",
@@ -618,6 +631,34 @@ impl InferenceHttpError {
             Self::InvalidBody => (ErrorOrigin::Client, "invalid_body"),
             Self::Resolution(error) => resolution_origin(error),
             Self::Provider(error) => provider_origin(*error),
+        }
+    }
+
+    fn spend_limit(&self) -> Option<&SpendLimitExceeded> {
+        match self {
+            Self::Resolution(ResolutionError::SpendLimitExceeded(limit)) => Some(limit.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Rate and spend limits name the exhausted limit instead of the generic `message`.
+    fn message<'a>(&'a self, message: &'a str) -> &'a str {
+        match self {
+            Self::Resolution(ResolutionError::RateLimited(limit)) => limit.message(),
+            _ => self
+                .spend_limit()
+                .map_or(message, SpendLimitExceeded::message),
+        }
+    }
+
+    fn rejection(&self) -> GatewayRejection {
+        let (status, message, _, _) = self.classify();
+        let (origin, reason) = self.origin();
+        GatewayRejection {
+            status: status.as_u16(),
+            origin,
+            reason,
+            message: self.message(message).to_owned(),
         }
     }
 
@@ -663,7 +704,8 @@ impl InferenceHttpError {
             );
         }
         let request_id = correlation.id();
-        let message = rate_limit.map_or(message, RateLimit::message);
+        let spend_limit = self.spend_limit();
+        let message = self.message(message);
         let mut response = match api_format {
             ApiFormat::OpenAiResponses
             | ApiFormat::OpenAiChatCompletions
@@ -699,9 +741,36 @@ impl InferenceHttpError {
                 .headers_mut()
                 .insert(header::RETRY_AFTER, limit.retry_after_secs().into());
         }
+        if let Some(retry_after_secs) = spend_limit.and_then(SpendLimitExceeded::retry_after_secs) {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, retry_after_secs.into());
+        }
         response
     }
 }
+
+/// The status and message a refused resolution returns, for its generation.
+pub(crate) fn resolution_rejection(error: &ResolutionError) -> GatewayRejection {
+    InferenceHttpError::Resolution(error.clone()).rejection()
+}
+
+/// Status, message, error type and error code of a rejection.
+type Classification = (StatusCode, &'static str, &'static str, &'static str);
+
+/// `OpenAI`'s type for an exhausted budget; the message names the limit.
+const SPEND_LIMIT_EXCEEDED: Classification = (
+    StatusCode::TOO_MANY_REQUESTS,
+    "Budget exceeded",
+    "insufficient_quota",
+    "spend_limit_exceeded",
+);
+const SPEND_LIMIT_UNPRICED_MODEL: Classification = (
+    StatusCode::BAD_REQUEST,
+    "A budget applies to this API key, and Langfuse has no price for this model. Add a model price in Langfuse to use the model with this key.",
+    "invalid_request_error",
+    "spend_limit_unpriced_model",
+);
 
 fn anthropic_error_type(status: StatusCode) -> &'static str {
     match status {

@@ -9,22 +9,10 @@
 use super::{NameRule, TagRule};
 
 pub(super) const NAME_RULES: &[NameRule] = &[
-    NameRule {
-        key: "gen_ai.tool.name",
-        require_truthy: true,
-    },
-    NameRule {
-        key: "genkit:name",
-        require_truthy: false,
-    },
-    NameRule {
-        key: "logfire.msg",
-        require_truthy: true,
-    },
-    NameRule {
-        key: "ai.toolCall.name",
-        require_truthy: false,
-    },
+    NameRule::StringifyIfTruthy("gen_ai.tool.name"),
+    NameRule::RawIfPresent("genkit:name"),
+    NameRule::StringifyIfTruthy("logfire.msg"),
+    NameRule::RawIfPresent("ai.toolCall.name"),
 ];
 
 pub(super) const MODEL_NAME_KEYS: &[&str] = &[

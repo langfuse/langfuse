@@ -32,6 +32,37 @@ const resolveBodySchema = z
     ({ apiFormat, model }) =>
       modelRoutingService.resolve(model, [], apiFormat) !== null,
   );
+/** Bounds a report; a key has at most one limit per interval today. */
+const MAX_REPORTED_SPEND_LIMITS = 20;
+const spendLimitAlertBodySchema = z
+  .object({
+    limits: z
+      .array(
+        z
+          .object({
+            limitId: z.string().min(1),
+            // Unix milliseconds, as resolve returned them.
+            countingStartedAt: z.number().int().nonnegative(),
+            windowStart: z.number().int().nonnegative(),
+            // Omitted for 100% by older gateways and for rolling-deploy compatibility.
+            thresholdPercent: z.number().int().min(1).max(100).default(100),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(MAX_REPORTED_SPEND_LIMITS)
+      .refine(
+        (limits) =>
+          new Set(
+            limits.map(
+              ({ limitId, thresholdPercent }) =>
+                `${limitId}:${thresholdPercent}`,
+            ),
+          ).size === limits.length,
+        "Each limit threshold may be reported once",
+      ),
+  })
+  .strict();
 const modelsQuerySchema = z
   .object({ api_format: GatewayApiFormatSchema })
   .strict();
@@ -52,6 +83,11 @@ type GatewayResolveHandler = (
     model: string;
     requestBytes: number;
   },
+) => Promise<unknown>;
+
+type GatewaySpendLimitAlertHandler = (
+  params: GatewayControlPlaneHandlerParams &
+    z.infer<typeof spendLimitAlertBodySchema>,
 ) => Promise<unknown>;
 
 type GatewayModelsHandler = (
@@ -133,6 +169,15 @@ export function withGatewayResolveSignatureVerification(
   );
 }
 
+export function withGatewaySpendLimitAlertSignatureVerification(
+  handler: GatewaySpendLimitAlertHandler,
+) {
+  return withGatewayControlPlaneAuth(
+    ({ body, ...params }) => handler({ ...params, ...body }),
+    spendLimitAlertBodySchema,
+  );
+}
+
 export function withGatewayModelsSignatureVerification(
   handler: GatewayModelsHandler,
 ) {
@@ -180,9 +225,7 @@ export function withGatewayModelsSignatureVerification(
   };
 }
 
-function withGatewayControlPlaneAuth<
-  Body extends { apiFormat: GatewayApiFormat },
->(
+function withGatewayControlPlaneAuth<Body>(
   handler: (
     params: GatewayControlPlaneHandlerParams & { body: Body },
   ) => Promise<unknown>,

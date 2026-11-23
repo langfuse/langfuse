@@ -26,6 +26,8 @@ struct Metrics {
     rejections: Counter<u64>,
     delivery: Counter<u64>,
     executions: Counter<u64>,
+    spend_uncharged: Counter<u64>,
+    spend: Counter<f64>,
 }
 
 static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
@@ -73,6 +75,11 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
         rejections: meter.u64_counter("gateway.admission.rejected").build(),
         delivery: meter.u64_counter("gateway.telemetry.records").build(),
         executions: meter.u64_counter("gateway.executions").build(),
+        spend_uncharged: meter.u64_counter("gateway.spend.uncharged").build(),
+        spend: meter
+            .f64_counter("gateway.spend.usd")
+            .with_unit("USD")
+            .build(),
     }
 });
 
@@ -236,6 +243,36 @@ pub(crate) fn phase_finished(phase: &'static str, duration: Duration) {
 
 pub(crate) fn rejected(phase: &'static str) {
     METRICS.rejections.add(1, &[KeyValue::new("phase", phase)]);
+}
+
+/// A request on a spend-limited key that added nothing to its counters.
+pub(crate) fn spend_uncharged(reason: &'static str, provider: &'static str) {
+    METRICS.spend_uncharged.add(
+        1,
+        &[
+            KeyValue::new("reason", reason),
+            KeyValue::new("gateway.provider", provider),
+        ],
+    );
+}
+
+/// What a request on a spend-limited key added to its counters. Tagged by
+/// organization, not user, to bound metric cardinality; the matching
+/// `gateway spend charged` log carries the user.
+pub(crate) fn spend_charged(
+    usd: f64,
+    organization_id: &str,
+    project_id: Option<&str>,
+    provider: &'static str,
+) {
+    let mut attributes = vec![
+        KeyValue::new("langfuse.organization.id", organization_id.to_owned()),
+        KeyValue::new("gateway.provider", provider),
+    ];
+    if let Some(project_id) = project_id {
+        attributes.push(KeyValue::new("langfuse.project.id", project_id.to_owned()));
+    }
+    METRICS.spend.add(usd, &attributes);
 }
 
 pub(crate) fn delivery(outcome: &'static str, reason: &'static str, records: u64) {

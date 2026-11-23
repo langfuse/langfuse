@@ -53,6 +53,7 @@ export function gatewayPageVisibility(
   return {
     [GATEWAY_PAGE_SLUGS.overview]: showSetup || showOwnUsageAnalytics,
     [GATEWAY_PAGE_SLUGS.models]: access.showModels || showSetup,
+    [GATEWAY_PAGE_SLUGS.budgets]: access.showApiKeys,
     [GATEWAY_PAGE_SLUGS.apiKeys]: access.showApiKeys,
   };
 }

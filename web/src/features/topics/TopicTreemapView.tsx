@@ -24,6 +24,8 @@ type TopicTreemapViewProps = {
   /** Applied to the trace list only when side by side, so the peek matches its width. */
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
+  /** Off leaves unassigned traces out of the all-traces list, as their tile is hidden. */
+  showUnassigned?: boolean;
 };
 
 export function TopicTreemapView({
@@ -33,15 +35,17 @@ export function TopicTreemapView({
   sideBySide = false,
   tracePanelRef,
   useTraces,
+  showUnassigned = true,
 }: TopicTreemapViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const { topics, total } = prepareTopicDisplay(facet, "treemap");
-  const selected =
-    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
-  const traces = useTraces(selected ? topicQuery(selected.id) : null);
+  // No tile picked lists every trace; picking a tile again clears it.
+  const selected = topics.find((topic) => topic.id === selectedTopicId);
+  const allTraces = showUnassigned ? {} : { assigned: true };
+  const traces = useTraces(selected ? topicQuery(selected.id) : allTraces);
   const isWide = useMediaQuery({ query: "(min-width: 1024px)" });
   const horizontal = sideBySide && isWide;
-  if (facet.topics.length === 0 || !selected) {
+  if (facet.topics.length === 0) {
     return <TopicsEmptyState />;
   }
   return (
@@ -53,28 +57,32 @@ export function TopicTreemapView({
         <TopicTreemap
           total={total}
           topics={topics}
-          selectedTopicId={selected.id}
-          onSelectTopic={setSelectedTopicId}
+          selectedTopicId={selected?.id ?? null}
+          onSelectTopic={(topicId) =>
+            setSelectedTopicId(topicId === selectedTopicId ? null : topicId)
+          }
         />
       }
       traces={
         <TopicTraceList
-          key={selected.id}
+          key={selected?.id ?? "all"}
+          rowHeightKey="topicTracesTreemap"
           projectId={projectId}
-          title={selected.name}
+          title={selected ? selected.name : "All traces"}
           description={
-            selected.id === UNASSIGNED_TOPIC_ID
+            !selected || selected.id === UNASSIGNED_TOPIC_ID
               ? undefined
               : selected.description
           }
-          swatchColor={selected.color}
+          swatchColor={selected?.color}
           traces={traces}
-          totalCount={selected.count}
+          totalCount={selected ? selected.count : facet.counts.total}
           tracingTopic={
-            selected.id === UNASSIGNED_TOPIC_ID
+            !selected || selected.id === UNASSIGNED_TOPIC_ID
               ? undefined
               : { facet, name: selected.name }
           }
+          topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
           peekView={peekView}
           tracePanelRef={horizontal ? tracePanelRef : undefined}
           divider="none"

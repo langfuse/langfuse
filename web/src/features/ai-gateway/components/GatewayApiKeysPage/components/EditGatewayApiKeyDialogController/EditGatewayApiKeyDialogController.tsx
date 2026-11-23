@@ -2,11 +2,15 @@ import type { ComponentProps, ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConnectedGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/ConnectedGatewayApiKeyDialog/ConnectedGatewayApiKeyDialog";
+import { getLoadedGatewayApiKeySections } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/fns/getLoadedGatewayApiKeySections";
 import type { GatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
+import { toGatewaySpendBudgetFormValue } from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
 import { restoreGatewayApiKeyMetadataTypes } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/restoreGatewayApiKeyMetadataTypes";
 import { toGatewayApiKeyMetadataRows } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadataRows";
+import { toGatewaySpendLimitUpdate } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewaySpendLimitUpdate";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import { localDateInputValue } from "@/src/features/apiKey/fns/localDateInputValue";
+import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
@@ -14,10 +18,13 @@ import {
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
+import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
 type EditableGatewayApiKey = {
   metadata: unknown;
   allowedModels: unknown;
+  spendLimit: GatewaySpendLimit | null;
+  hasSeveralSpendLimits: boolean;
   apiKey: {
     id: string;
     note: string | null;
@@ -48,6 +55,7 @@ export function EditGatewayApiKeyDialogController({
   });
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const captureBudgetChange = useCaptureGatewayBudgetChange(organizationId);
   const update = api.aiGateway.updateApiKey.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-api-keys"),
@@ -56,6 +64,11 @@ export function EditGatewayApiKeyDialogController({
   const createSubmitHandler =
     (apiKey: EditableGatewayApiKey, closeDialog: () => void): SubmitHandler =>
     async (input) => {
+      const spendLimit = toGatewaySpendLimitUpdate({
+        loaded: apiKey.spendLimit,
+        hasSeveralSpendLimits: apiKey.hasSeveralSpendLimits,
+        submitted: input.spendLimit,
+      });
       try {
         await update.mutateAsync({
           orgId: organizationId,
@@ -69,17 +82,27 @@ export function EditGatewayApiKeyDialogController({
           previousAllowedModels: parseGatewayAllowedModels(
             apiKey.allowedModels,
           ),
+          spendLimit,
         });
         capture("ai_gateway:api_key_updated", {
           orgId: organizationId,
           metadataCount: input.metadataCount,
           modelPatternCount: input.allowedModels?.length ?? 0,
         });
+        if (spendLimit !== undefined) {
+          captureBudgetChange({
+            surface: "api_key_dialog",
+            scope: "API_KEY",
+            subjectCount: 1,
+            spendLimit,
+          });
+        }
         await Promise.all([
           utils.aiGateway.listApiKeys.invalidate({ orgId: organizationId }),
           utils.aiGateway.getAnalyticsLabels.invalidate({
             orgId: organizationId,
           }),
+          utils.aiGateway.getApiKeysSpend.invalidate({ orgId: organizationId }),
         ]);
         closeDialog();
       } catch (error) {
@@ -100,7 +123,11 @@ export function EditGatewayApiKeyDialogController({
           title="Edit gateway key"
           submitLabel="Save changes"
           canIssueServiceAccountKeys={canIssueServiceAccountKeys}
-          disabledFields={["issuedAs", "expiration"]}
+          disabledFields={
+            state.hasSeveralSpendLimits
+              ? ["issuedAs", "expiration", "spendBudget"]
+              : ["issuedAs", "expiration"]
+          }
           defaultValues={toEditableGatewayApiKeyFields(state)}
           errorMessage={
             update.isError
@@ -121,12 +148,14 @@ function toEditableGatewayApiKeyFields(
   apiKey: EditableGatewayApiKey,
 ): GatewayApiKeyFormValues {
   const { expiresAt } = apiKey.apiKey;
-  return {
+  const values = {
     issuedAs: apiKey.apiKey.user === null ? "serviceAccount" : "user",
     name: apiKey.apiKey.note ?? "",
     expiryPreset: expiresAt === null ? "never" : "custom",
     customExpiry: expiresAt === null ? "" : localDateInputValue(expiresAt),
     metadata: toGatewayApiKeyMetadataRows(apiKey.metadata),
     modelPatterns: parseGatewayAllowedModels(apiKey.allowedModels) ?? [],
-  };
+    spendBudget: toGatewaySpendBudgetFormValue(apiKey.spendLimit),
+  } satisfies Omit<GatewayApiKeyFormValues, "sections">;
+  return { ...values, sections: getLoadedGatewayApiKeySections(values) };
 }

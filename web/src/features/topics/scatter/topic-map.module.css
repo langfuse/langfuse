@@ -22,6 +22,23 @@
 .backgroundLabel {
   animation: labelEnter 180ms ease-out;
   transition: opacity 180ms ease-out;
+  /* Stacked halo in the stage colour keeps labels readable over dense dots. */
+  text-shadow:
+    0 0 1px hsl(var(--background)),
+    0 0 2px hsl(var(--background)),
+    0 0 3px hsl(var(--background)),
+    0 0 4px hsl(var(--background)),
+    0 0 6px hsl(var(--background)),
+    0 0 8px hsl(var(--background));
+}
+
+.labelTitle {
+  color: color-mix(in srgb, var(--label-color) 35%, hsl(var(--foreground)));
+}
+
+/* Less topic tint in dark mode, so names stay brighter than the dots. */
+:global(.dark) .labelTitle {
+  color: color-mix(in srgb, var(--label-color) 15%, hsl(var(--foreground)));
 }
 
 @keyframes labelEnter {
@@ -44,37 +61,4 @@
     animation-duration: 1ms;
     transition-duration: 1ms;
   }
-}
-
-/* Stage, chrome and label styles for the new scatter look. */
-.look {
-  background-color: var(--look-bg);
-  --look-label-halo: hsl(var(--background));
-}
-
-:global(.dark) .look {
-  background-color: hsl(var(--sidebar-background));
-  --look-label-halo: hsl(var(--sidebar-background));
-}
-
-.lookChrome {
-  color: #6b6b6b;
-}
-
-:global(.dark) .lookChrome {
-  color: hsl(var(--muted-foreground));
-}
-
-.lookLabel {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: var(--look-label-size);
-  line-height: var(--look-label-line);
-  letter-spacing: var(--look-label-tracking);
-  color: var(--look-label-color);
-  text-shadow: var(--look-label-shadow);
-}
-
-/* Brighter than the dots, so labels do not sink into the grey ones. */
-:global(.dark) .lookLabel {
-  color: hsl(var(--primary));
 }

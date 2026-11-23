@@ -107,9 +107,17 @@ const usage = {
 let summaries: TopicSummary[] = [];
 // Keeps the returned rows for assertions and rethrows a partial failure, as the batch job reports it.
 const summarize = async (
-  input: Omit<Parameters<typeof summarizeAssembledTrace>[0], "executionIssues">,
+  input: Omit<
+    Parameters<typeof summarizeAssembledTrace>[0],
+    "executionIssues" | "rules" | "revision"
+  > & {
+    rules?: Parameters<typeof summarizeAssembledTrace>[0]["rules"];
+    revision?: string;
+  },
 ) => {
   const result = await summarizeAssembledTrace({
+    rules: [],
+    revision: "revision",
     ...input,
     executionIssues: [],
   });
@@ -172,6 +180,7 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      revision: "revision-1",
     });
     expect(state.summarize).toHaveBeenCalledTimes(1);
     const submitted = state.summarize.mock.calls[0];
@@ -198,6 +207,7 @@ describe("summarizeAssembledTrace", () => {
       embeddingModel: "eu.cohere.embed-v4:0",
       environment: "default",
       traceName: "agent-turn",
+      transcriptId: "revision-1",
       providedUsageDetails: {
         summary_input: 20,
         embedding_input: 4,
@@ -226,6 +236,29 @@ describe("summarizeAssembledTrace", () => {
         characters,
         { format },
       );
+  });
+
+  it("records the rendered text's UTF-8 bytes, not its characters, on the row", async () => {
+    const accented = structuredClone(transcript);
+    accented.threads[0]!.currentTurn.messages[0]!.parts = [
+      { type: "text", text: "Exportiere die Umsätze für März 📈" },
+    ];
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      sessionId: null,
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript: accented,
+      models,
+      facets: state.facets(),
+    });
+    const submittedText = state.summarize.mock.calls[0][2] as string;
+    expect(summaries[0]?.transcriptBytes).toBe(
+      Buffer.byteLength(submittedText, "utf8"),
+    );
+    expect(summaries[0]?.transcriptBytes).toBeGreaterThan(submittedText.length);
   });
 
   it("summarizes and embeds all pending facets in one call each and splits their usage across the rows", async () => {
@@ -260,17 +293,21 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      rules: [{ id: "rule-a", facetIds: ["facet-1", "facet-3"] }],
     });
     expect(state.summarize).toHaveBeenCalledOnce();
     const [intent, issue] = summaries;
     expect(intent).toMatchObject({
       facetId: "facet-1",
       state: "complete",
-      triggerType: "automatic",
+      triggerType: "rule",
+      ruleIds: ["rule-a"],
+      executionId: null,
     });
     expect(issue).toMatchObject({
       facetId: "facet-2",
       state: "not_applicable",
+      ruleIds: [],
     });
     // Integer token shares and cost shares still add up to the call's usage.
     expect(summaries.map((row) => row.usageDetails.summary_input)).toEqual([
@@ -284,6 +321,11 @@ describe("summarizeAssembledTrace", () => {
       const { total, ...parts } = usageDetails;
       expect(total).toBe(Object.values(parts).reduce((a, b) => a + b, 0));
     }
+    // Transcript bytes split the same way, so they add up to the text the call read.
+    const submittedText = state.summarize.mock.calls[0][2] as string;
+    expect(summaries.reduce((sum, row) => sum + row.transcriptBytes, 0)).toBe(
+      Buffer.byteLength(submittedText, "utf8"),
+    );
   });
 
   it("stores a not-applicable result that carries stray text instead of failing the trace", async () => {

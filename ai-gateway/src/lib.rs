@@ -7,6 +7,7 @@ pub mod observability;
 pub mod providers;
 pub mod resolution;
 pub mod server;
+mod spend;
 pub mod telemetry;
 mod transport;
 

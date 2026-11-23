@@ -144,7 +144,10 @@ import {
   TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
 } from "@langfuse/shared/topics";
 import { TraceTopicsCell } from "@/src/features/topics/trace/TraceTopicsCell";
-import { useTopicFilterOptions } from "@/src/features/topics/trace/useTracingTopics";
+import {
+  useTopicFilterOptions,
+  useTopicStripe,
+} from "@/src/features/topics/trace/useTracingTopics";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 
 // Disabled for now because perhaps confusing
@@ -191,7 +194,7 @@ import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { ConnectedAddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/ConnectedAddTracesToAnnotationQueueDialogController";
 
 export type EventsTableRow = {
   // Identity fields
@@ -1009,6 +1012,7 @@ export default function ObservationsEventsTable({
     handleAddToAnnotationQueue,
     isFetching,
     isIoPending,
+    error: observationsError,
     isSilencedError,
     usedAppRootFallback,
   } = useEventsTableData({
@@ -1041,6 +1045,19 @@ export default function ObservationsEventsTable({
       rowHeights.mode,
       rowHeights.activeHeightPx,
     ),
+  });
+
+  const showPulseStrip = outlierStripEnabled && chartViewMode !== "chart";
+  const topicStripe = useTopicStripe({
+    projectId,
+    enabled: showTopicFilter && showPulseStrip,
+    rows: observations.rows ?? [],
+    facetTopics: topicFilterOptions,
+    filters: queryFilter.explicitFilterState ?? [],
+    onFiltersChange: (filters) => {
+      setFiltersWrapper(filters);
+      resetSearchBarDraftRef.current?.(filters);
+    },
   });
 
   useApplyAppRootFallback({
@@ -2213,7 +2230,7 @@ export default function ObservationsEventsTable({
                     onRequestColumns={requestColumns}
                     aiDataContext={aiDataContext}
                     aiScoreNames={aiScoreNames}
-                    className="px-3 pt-3"
+                    spacing="page"
                   />
                 </div>
               </div>
@@ -2304,7 +2321,7 @@ export default function ObservationsEventsTable({
                   ) : null,
                   !chartActive &&
                   (selectedObservationIds.length > 0 || selectAll) ? (
-                    <AddTracesToAnnotationQueueDialogController
+                    <ConnectedAddTracesToAnnotationQueueDialogController
                       key="observations-multi-select-actions"
                       projectId={projectId}
                       actionId={ActionId.ObservationAddToAnnotationQueue}
@@ -2348,7 +2365,7 @@ export default function ObservationsEventsTable({
                           }}
                         />
                       )}
-                    </AddTracesToAnnotationQueueDialogController>
+                    </ConnectedAddTracesToAnnotationQueueDialogController>
                   ) : null,
                 ]}
                 // No row selection in chart mode — the table (and its select-all
@@ -2436,7 +2453,7 @@ export default function ObservationsEventsTable({
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Pulse strip (LFE-14451): table-width, so the facet sidebar keeps
                 its full height (design feedback); hidden in full chart mode. */}
-            {outlierStripEnabled && chartViewMode !== "chart" && (
+            {showPulseStrip && (
               <EventsOutlierStrip
                 projectId={projectId}
                 filterState={filterState}
@@ -2444,6 +2461,7 @@ export default function ObservationsEventsTable({
                 toTimestamp={chartTimeWindow.to}
                 searchIgnored={Boolean(searchQuery)}
                 onSelectRange={setTimeRangeTransient}
+                topicStripe={topicStripe}
               />
             )}
             {chartEnabled && chartViewMode === "chart" ? (
@@ -2488,7 +2506,8 @@ export default function ObservationsEventsTable({
                 noResultsMessage={
                   isSilencedError ? (
                     <span className="text-muted-foreground">
-                      {RESOURCE_LIMIT_ERROR_MESSAGE}
+                      {observationsError?.message ||
+                        RESOURCE_LIMIT_ERROR_MESSAGE}
                     </span>
                   ) : undefined
                 }

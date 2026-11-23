@@ -4,48 +4,26 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
-const buildSession = (orgId: string, projectId: string): Session => ({
-  expires: "1",
-  user: {
-    id: "user-1",
-    name: "Demo User",
-    canCreateOrganizations: true,
+const buildSession = (orgId: string, projectId: string): Session =>
+  createSession({
+    user: {
+      featureFlags: {
+        templateFlag: true,
+        v4BetaToggleVisible: false,
+        experimentsV4Enabled: false,
+        langfuseTopics: false,
+      },
+    },
     organizations: [
       {
         id: orgId,
         role: "OWNER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        name: "Test Organization",
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: false,
-        projects: [
-          {
-            id: projectId,
-            role: "ADMIN",
-            name: "Test Project",
-            deletedAt: null,
-            retentionDays: null,
-            hasTraces: false,
-            metadata: {},
-            createdAt: new Date().toISOString(),
-          },
-        ],
+        projects: [{ id: projectId, role: "ADMIN", retentionDays: null }],
       },
     ],
-    featureFlags: {
-      templateFlag: true,
-      excludeClickhouseRead: false,
-      observationEvals: false,
-      v4BetaToggleVisible: false,
-      experimentsV4Enabled: false,
-      langfuseTopics: false,
-    },
-  },
-  environment: {} as any,
-});
+  });
 
 describe("missing-record deletes map to NOT_FOUND", () => {
   let projectId: string;

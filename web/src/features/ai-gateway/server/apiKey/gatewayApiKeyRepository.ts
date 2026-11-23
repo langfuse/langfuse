@@ -4,6 +4,10 @@ import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
 import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
 import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider/registry";
+import {
+  GATEWAY_SPEND_LIMIT_DTO_SELECT,
+  toGatewaySpendLimitDto,
+} from "@/src/features/ai-gateway/server/spendLimits/gatewaySpendLimitDto";
 
 const GATEWAY_API_KEY_SELECT = {
   metadata: true,
@@ -19,6 +23,24 @@ const GATEWAY_API_KEY_SELECT = {
       lastUsedAt: true,
       createdByUserId: true,
       user: { select: { name: true, email: true, image: true } },
+    },
+  },
+} as const;
+
+/**
+ * List rows also carry the key's first spend limit, so the edit dialog can show
+ * it, and whether there are more, which the dialog cannot edit.
+ */
+const GATEWAY_API_KEY_LIST_SELECT = {
+  ...GATEWAY_API_KEY_SELECT,
+  apiKey: {
+    select: {
+      ...GATEWAY_API_KEY_SELECT.apiKey.select,
+      gatewaySpendLimits: {
+        select: GATEWAY_SPEND_LIMIT_DTO_SELECT,
+        orderBy: { createdAt: "asc" },
+        take: 2,
+      },
     },
   },
 } as const;
@@ -83,15 +105,25 @@ export class GatewayApiKeyRepository {
     };
     const findPage = this.prisma.gatewayApiKeyAssociation.findMany({
       where,
-      select: GATEWAY_API_KEY_SELECT,
-      orderBy: [gatewayApiKeyOrderBy(params.orderBy), { apiKeyId: "asc" }],
+      select: GATEWAY_API_KEY_LIST_SELECT,
+      orderBy: [gatewayApiKeyOrderBy(params.orderBy), { apiKeyId: "desc" }],
       take: params.limit,
       skip: params.page * params.limit,
     });
-    const [data, totalCount] = await Promise.all([
+    const [rows, totalCount] = await Promise.all([
       findPage,
       this.prisma.gatewayApiKeyAssociation.count({ where }),
     ]);
+    const data = rows.map(
+      ({ apiKey: { gatewaySpendLimits, ...apiKey }, ...row }) => ({
+        ...row,
+        apiKey,
+        spendLimit: gatewaySpendLimits[0]
+          ? toGatewaySpendLimitDto(gatewaySpendLimits[0])
+          : null,
+        hasSeveralSpendLimits: gatewaySpendLimits.length > 1,
+      }),
+    );
     return { data, totalCount };
   }
 
@@ -120,6 +152,22 @@ export class GatewayApiKeyRepository {
     return this.prisma.gatewayApiKeyAssociation.findFirst({
       where: { apiKeyId: params.apiKeyId, apiKey: gatewayApiKeyWhere(params) },
       select: GATEWAY_API_KEY_SELECT,
+    });
+  }
+
+  /** What a spend limit on the key needs: the hash its resolve cache is keyed by. */
+  getGatewayApiKeyForSpendLimits(params: {
+    organizationId: string;
+    ownerUserId?: string;
+    apiKeyId: string;
+  }) {
+    return this.prisma.apiKey.findFirst({
+      where: {
+        id: params.apiKeyId,
+        ...gatewayApiKeyWhere(params),
+        gatewayAssociation: { isNot: null },
+      },
+      select: { fastHashedSecretKey: true },
     });
   }
 
@@ -162,7 +210,7 @@ export class GatewayApiKeyRepository {
 }
 
 /** gatewayApiKeyWhere scopes gateway keys to the organization and, when set, to the user the keys are bound to. */
-function gatewayApiKeyWhere(params: {
+export function gatewayApiKeyWhere(params: {
   organizationId: string;
   ownerUserId?: string;
 }) {
@@ -174,7 +222,7 @@ function gatewayApiKeyWhere(params: {
 }
 
 /** gatewayApiKeySearch matches the key name or the name or email of the user the key is bound to. */
-function gatewayApiKeySearch(searchQuery: string) {
+export function gatewayApiKeySearch(searchQuery: string) {
   const contains = {
     contains: escapeSqlLikePattern(searchQuery),
     mode: "insensitive",
@@ -189,7 +237,7 @@ function gatewayApiKeySearch(searchQuery: string) {
 }
 
 /**
- * gatewayApiKeyOrderBy maps a gateway keys table sort to the key list order; other columns keep the default oldest-first order.
+ * gatewayApiKeyOrderBy maps a gateway keys table sort to the key list order; other columns keep the default newest-first order.
  * A key without expiration never expires, so it sorts after every expiration date ascending and before them descending.
  */
 function gatewayApiKeyOrderBy(
@@ -208,6 +256,6 @@ function gatewayApiKeyOrderBy(
         },
       };
     default:
-      return { apiKey: { createdAt: "asc" } };
+      return { apiKey: { createdAt: "desc" } };
   }
 }

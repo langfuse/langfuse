@@ -61,9 +61,11 @@ export async function topicMapsOverview(projectId: string) {
     analyses: executions.filter(isAnalysis).map((execution) => ({
       id: execution.id,
       label: execution.input.analysis.label,
+      summarize: execution.input.analysis.summarize,
       filter: execution.input.analysis.filter,
       facetIds: execution.input.facets.map(({ facetId }) => facetId),
       status: execution.status,
+      updatedAt: execution.updatedAt,
       createdAt: execution.createdAt,
       timeRange: execution.input.timeRange,
       traceCount: Math.max(

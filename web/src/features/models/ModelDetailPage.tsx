@@ -18,6 +18,10 @@ import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { useMemo, useState } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
+import {
+  isProjectEditableModel,
+  modelMaintainerByScope,
+} from "@/src/features/models/modelMaintainer";
 import { default as Generations } from "@/src/features/tracing-tables/observations/ObservationsTable";
 import Page from "@/src/components/layouts/Page";
 import { SquareArrowOutUpRight, Info as InfoIcon } from "@langfuse/icons";
@@ -101,8 +105,6 @@ export default function ModelDetailPage() {
     );
   }
 
-  const isLangfuseModel = !Boolean(model?.projectId);
-
   if (isLoading || !model) {
     return <div className="p-3">Loading...</div>;
   }
@@ -132,7 +134,7 @@ export default function ModelDetailPage() {
             {hasWriteAccess && (
               <>
                 <TestModelMatchButton projectId={projectId} variant="outline" />
-                {!isLangfuseModel ? (
+                {isProjectEditableModel(model.scope) ? (
                   <>
                     <EditModelButton projectId={projectId} modelData={model} />
                     <DeleteModelButton
@@ -170,7 +172,7 @@ export default function ModelDetailPage() {
                 Maintained by
               </div>
               <div className="mt-1 text-sm">
-                {isLangfuseModel ? "Langfuse" : "User"}
+                {modelMaintainerByScope[model.scope]}
               </div>
             </div>
           </CardContent>

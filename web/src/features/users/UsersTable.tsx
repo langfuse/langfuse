@@ -578,6 +578,7 @@ export function UsersTable({
         <StickySearchableTableFilterLayout
           search={
             <TableSearchBar
+              spacing="page"
               size={showControlsInPageHeader ? "large" : "default"}
               key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
               isV4={isV4}
@@ -599,6 +600,7 @@ export function UsersTable({
           }
           toolbar={
             <DataTableToolbar
+              className="px-3"
               tableName={usersFilterConfig.tableName}
               isV4={isV4}
               rowClassName="my-1"

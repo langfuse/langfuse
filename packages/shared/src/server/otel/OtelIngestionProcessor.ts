@@ -52,6 +52,11 @@ const AI_GATEWAY_INGESTION_API_KEY_PREFIX = "gateway:";
 /** Metadata key under which the AI gateway records the caller's gateway API key id. */
 export const AI_GATEWAY_KEY_ID_METADATA_KEY = "langfuse.gateway.api_key.id";
 
+/** Metadata key under which the AI gateway marks costs it calculated from model pricing. */
+export const AI_GATEWAY_COST_SOURCE_METADATA_KEY =
+  "langfuse.gateway.cost.source";
+export const AI_GATEWAY_COST_SOURCE_CALCULATED = "calculated";
+
 /**
  * The ingestion API key Web records for an upload authorized by a gateway
  * ingestion grant. Unlike the instrumentation scope name, an OTLP sender cannot

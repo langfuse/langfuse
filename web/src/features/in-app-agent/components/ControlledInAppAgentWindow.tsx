@@ -13,6 +13,7 @@ import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/u
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 import { getDrawerMessages } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
+import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   getInAppAgentFocusedQuickActions,
   getInAppAgentQuickActionContext,
@@ -138,10 +139,18 @@ export function ControlledInAppAgentWindow(
     execution.run?.status === InAppAgentRunStatus.AWAITING_APPROVAL &&
     (pendingToolApprovals.length > 0 ||
       displayedPendingToolApprovals.length > 0);
-  const screenContextDescription = useMemo(
-    () => getInAppAgentScreenContextDescription(router.asPath),
-    [router.asPath],
-  );
+  const projectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const canViewTopics = useCanViewTopics(projectId ?? null);
+  const screenContextDescription = useMemo(() => {
+    const description = getInAppAgentScreenContextDescription(router.asPath);
+    // Without Topics access the page is "Not found" and Halo has no topic tools.
+    return description.type === "topics" && !canViewTopics
+      ? { type: "page" as const }
+      : description;
+  }, [router.asPath, canViewTopics]);
   const quickActionContext = getInAppAgentQuickActionContext(router.asPath);
   const focusedQuickActions = getInAppAgentFocusedQuickActions(
     screenContextDescription.type,
@@ -169,10 +178,6 @@ export function ControlledInAppAgentWindow(
     ],
   );
 
-  const projectId =
-    typeof router.query.projectId === "string"
-      ? router.query.projectId
-      : undefined;
   const titleActions =
     internalFeaturesEnabled &&
     projectId &&

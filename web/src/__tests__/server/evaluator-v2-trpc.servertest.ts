@@ -1,6 +1,4 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
-import type { Session } from "next-auth";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import {
@@ -13,6 +11,7 @@ import {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type * as EvaluatorValidationModule from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const mocks = vi.hoisted(() => ({
   getEvaluatorDefinitionPreflightError: vi.fn(async () => null),
@@ -44,26 +43,38 @@ let projectId = "";
 let otherProjectId = "";
 let userId = "";
 let caller: ReturnType<typeof appRouter.createCaller>;
-let session: Session & { user: NonNullable<Session["user"]> };
+let firstOrg: { id: string; name: string };
+let firstProject: { id: string; name: string; createdAt: Date };
 
 function createCallerWithProjectRole(
   role: Role,
   { v4BetaEnabled = false }: { v4BetaEnabled?: boolean } = {},
 ) {
-  const roleSession = {
-    ...session,
+  const roleSession = createSession({
     user: {
-      ...session.user,
+      id: userId,
+      name: "Evaluator tester",
+      canCreateOrganizations: false,
       v4BetaEnabled,
-      organizations: session.user.organizations.map((organization) => ({
-        ...organization,
-        projects: organization.projects.map((project) => ({
-          ...project,
-          role,
-        })),
-      })),
     },
-  };
+    organizations: [
+      {
+        id: firstOrg.id,
+        role: "OWNER",
+        name: firstOrg.name,
+        aiFeaturesEnabled: true,
+        projects: [
+          {
+            id: firstProject.id,
+            role,
+            name: firstProject.name,
+            createdAt: firstProject.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
   const ctx = createInnerTRPCContext({ session: roleSession, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
 }
@@ -93,46 +104,9 @@ beforeAll(async () => {
     data: { id: userId, name: "Evaluator tester", email: `${userId}@test.dev` },
   });
 
-  session = {
-    expires: "1",
-    user: {
-      id: userId,
-      name: "Evaluator tester",
-      canCreateOrganizations: false,
-      organizations: [
-        {
-          id: first.org.id,
-          name: first.org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              name: first.project.name,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: first.project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      v4BetaEnabled: false,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  } satisfies Session;
-  const ctx = createInnerTRPCContext({ session, headers: {} });
-  caller = appRouter.createCaller({ ...ctx, prisma });
+  firstOrg = first.org;
+  firstProject = first.project;
+  caller = createCallerWithProjectRole("ADMIN");
 });
 
 afterAll(async () => {

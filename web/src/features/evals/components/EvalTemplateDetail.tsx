@@ -18,7 +18,7 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/DeleteEvalTemplateDialog";
+import { DeleteEvalTemplateDialogController } from "@/src/features/evals/components/DeleteEvalTemplateDialogController";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { TrashIcon } from "@langfuse/icons";
 
@@ -28,7 +28,6 @@ export const EvalTemplateDetail = () => {
   const templateId = router.query.id as string;
   const mode = router.query.mode;
   const isEditing = mode === "edit";
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const capture = usePostHogClientCapture();
   const hasDeleteAccess = useHasProjectAccess({
     projectId,
@@ -109,39 +108,40 @@ export const EvalTemplateDetail = () => {
             />
 
             {template.data?.projectId ? (
-              <>
-                <IconOnlyButton
-                  icon={<TrashIcon size="base" color="default" />}
-                  label="Delete"
-                  aria-label="delete"
-                  variant="outline"
-                  size="icon"
-                  disabledReason={
-                    hasDeleteAccess
-                      ? undefined
-                      : "You don't have permission to delete this evaluator."
-                  }
-                  onClick={() => {
-                    capture("eval_templates:delete_form_open", {
-                      source: "template",
-                    });
-                    setIsDeleteDialogOpen(true);
-                  }}
-                />
-                <DeleteEvalTemplateDialog
-                  projectId={projectId}
-                  templateId={templateId}
-                  templateName={template.data.name}
-                  open={isDeleteDialogOpen}
-                  onOpenChange={setIsDeleteDialogOpen}
-                  onSuccess={() => {
-                    capture("eval_templates:delete_template_button_click", {
-                      source: "template",
-                    });
-                    router.push(`/project/${projectId}/evals/templates`);
-                  }}
-                />
-              </>
+              <DeleteEvalTemplateDialogController
+                projectId={projectId}
+                onSuccess={() => {
+                  capture("eval_templates:delete_template_button_click", {
+                    source: "template",
+                  });
+                  router.push(`/project/${projectId}/evals/templates`);
+                }}
+              >
+                {({ openDialog }) => (
+                  <IconOnlyButton
+                    icon={<TrashIcon size="base" color="default" />}
+                    label="Delete"
+                    aria-label="delete"
+                    variant="outline"
+                    size="icon"
+                    disabledReason={
+                      hasDeleteAccess
+                        ? undefined
+                        : "You don't have permission to delete this evaluator."
+                    }
+                    onClick={() => {
+                      if (!template.data) return;
+                      capture("eval_templates:delete_form_open", {
+                        source: "template",
+                      });
+                      openDialog({
+                        templateId,
+                        templateName: template.data.name,
+                      });
+                    }}
+                  />
+                )}
+              </DeleteEvalTemplateDialogController>
             ) : null}
           </>
         ),

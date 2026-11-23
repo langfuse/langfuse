@@ -205,7 +205,11 @@ function AnnotationQueueRunContent({
     { projectId, itemId: itemId as string },
     { enabled: !!itemId, refetchOnMount: false },
   );
-  const { configs, isLoading: queueConfigsLoading } = useAnnotationQueueData({
+  const {
+    configs,
+    queueData,
+    isLoading: queueConfigsLoading,
+  } = useAnnotationQueueData({
     annotationQueueId,
     projectId,
   });
@@ -438,10 +442,12 @@ function AnnotationQueueRunContent({
       case AnnotationQueueObjectType.SESSION:
         return (
           <SessionAnnotationProcessor
+            key={`${projectId}:${relevantItem.objectId}`}
             item={relevantItem}
             data={objectData.data}
             configs={configs}
             projectId={projectId}
+            sessionViewConfig={queueData.data?.sessionViewConfig}
             commentFlushRef={commentFlushRef}
           />
         );

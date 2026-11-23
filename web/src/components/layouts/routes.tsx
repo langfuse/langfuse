@@ -1,5 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { type ProjectScope } from "@langfuse/shared";
+import { type ProjectScope, type Entitlement } from "@langfuse/shared";
 import {
   BellRing,
   Database,
@@ -23,13 +23,12 @@ import {
   Beaker,
   Waypoints,
   Box,
+  Gauge,
   KeyRound,
 } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { type ReactNode } from "react";
-import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { type OrganizationScope } from "@langfuse/shared/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
@@ -42,7 +41,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import {
   GATEWAY_PAGE_SLUGS,
   type GatewayPageSlug,
@@ -133,6 +131,11 @@ export const ROUTES: Route[] = [
         icon: Box,
       },
       {
+        title: "Budgets",
+        slug: GATEWAY_PAGE_SLUGS.budgets,
+        icon: Gauge,
+      },
+      {
         title: "Gateway keys",
         slug: GATEWAY_PAGE_SLUGS.apiKeys,
         icon: KeyRound,
@@ -216,7 +219,7 @@ export const ROUTES: Route[] = [
     title: "Topics",
     href: "/project/[projectId]/topics",
     icon: Grid2X2,
-    label: <TopicsInternalBadge />,
+    label: <FeatureReleaseStatus status="beta" />,
     show: ({ canViewTopics }) => canViewTopics,
     group: RouteGroup.Observability,
     section: RouteSection.Main,
@@ -373,7 +376,7 @@ export const ROUTES: Route[] = [
     href: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
-    show: ({ organization }) => showsOrganizationSettings(organization),
+    organizationRbacScope: "organizationSettings:read",
   },
   {
     title: "Book a call",
@@ -390,22 +393,6 @@ export const ROUTES: Route[] = [
   },
 ];
 
-/** Gateway-only members without projects have no settings to open. */
-function showsOrganizationSettings(
-  organization:
-    | NonNullable<Session["user"]>["organizations"][number]
-    | undefined,
-) {
-  return (
-    !organization ||
-    hasOrganizationAccess({
-      role: organization.role,
-      scope: "organizationSettings:read",
-    }) ||
-    organization.projects.length > 0
-  );
-}
-
 function GatewayKeyReminderDot() {
   const router = useRouter();
   const organizationId =
@@ -418,13 +405,6 @@ function GatewayKeyReminderDot() {
       aria-label="Get your AI Gateway API key"
       className="size-1.75 shrink-0 rounded-full bg-orange-400"
     />
-  ) : null;
-}
-
-function TopicsInternalBadge() {
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  return internalFeaturesEnabled ? (
-    <FeatureReleaseStatus status="internal" />
   ) : null;
 }
 

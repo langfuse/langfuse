@@ -59,6 +59,8 @@ export * from "./utils/jsonSchemaValidation";
 export * from "./utils/chatml";
 export * from "./utils/math";
 export * from "./features/entitlements/plans";
+export * from "./features/entitlements/entitlements";
+export * from "./features/entitlements/stripeProducts";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
@@ -71,6 +73,7 @@ export * from "./domain/home-dashboard";
 // llm api
 export * from "./server/llm/types";
 export * from "./server/llm/promptToolConfig";
+export * from "./server/llm/llmBaseUrlRules";
 
 // evals
 export * from "./features/evals/types";
@@ -306,6 +309,8 @@ export { type ListableScoreDataType } from "./domain/scores";
 export { type ListableScore } from "./domain/scores";
 export { TableViewPresetTableName } from "./domain/table-view-presets";
 export {
+  SessionViewConfigSchema,
+  type SessionViewConfig,
   SessionViewInputSchema,
   SessionViewPreferencesSchema,
 } from "./domain/session-views";

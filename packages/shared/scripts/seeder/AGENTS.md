@@ -42,6 +42,7 @@ NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gall
 pnpm run seed -- assistant-skills  # bundled assistant skills as production versions tagged in-app-agent; unchanged versions are reused
 pnpm run seed -- assistant-skills --demo  # adds an instructions-only local-assistant-check skill with a fixed response
 pnpm run seed -- assistant-skills --demo-files 25  # adds local-many-files with SKILL.md and 24 references for scrolling checks
+pnpm run seed -- annotation-queue --review-sources  # annotation + eval + API + off-queue annotation on the first trace, observation, and session items
 ```
 
 The last stdout line of a run is a JSON summary with `traceIds`,
@@ -58,7 +59,10 @@ progress output. Full usage and the need→command table live in the
 - `scenarios/` — one file per scenario plus shared `rng.ts`, `payload.ts`,
   `event-mirror.ts` (v3 observation → v4 `events_full` row), `verify.ts`
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing
-  `pnpm run dx` seed path (unchanged by the CLI)
+  `pnpm run dx` seed path; `seed-clickhouse.ts` also runs the
+  `gateway-budgets` scenario, so local dx gets AI Gateway spend (PR previews
+  seed only `many-traces`; run `gateway-budgets` there via the
+  `langfuse-previews` skill)
 - `README.md` — design rationale, contract, and roadmap
 
 ## Rules for changes

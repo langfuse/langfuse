@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { handleCommentMentionNotification } from "../features/notifications/commentMentionHandler";
 import { handleGatewayInvitationNotification } from "../features/notifications/gatewayInvitationHandler";
+import { handleGatewaySpendLimitNotification } from "../features/notifications/gatewaySpendLimitHandler";
 
 function notificationScope(payload: NotificationEventType) {
   return "projectId" in payload
@@ -33,6 +34,10 @@ export const notificationQueueProcessor = async (
         break;
       case "AI_GATEWAY_INVITATION":
         await handleGatewayInvitationNotification(payload);
+        break;
+      case "AI_GATEWAY_SPEND_LIMIT_REACHED":
+      case "AI_GATEWAY_SPEND_LIMIT_ALERT":
+        await handleGatewaySpendLimitNotification(payload);
         break;
       // Future notification types can be added here
       default:
