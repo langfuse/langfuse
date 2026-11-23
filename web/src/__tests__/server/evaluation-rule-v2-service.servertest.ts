@@ -600,6 +600,27 @@ describe("RuleService", () => {
       );
     });
 
+    // The schema shape matches CreateRuleSchema, so the non-empty rule is the
+    // service's; a direct caller bypassing the schema must still be rejected.
+    it("rejects a trace rule with no evaluator assignments", async () => {
+      const service = createService();
+
+      await expect(
+        service.createTraceTranscriptRule(
+          {
+            projectId,
+            name: "Empty trace rule",
+            targetObject: TopicsTargetObject,
+            filter: [],
+            sampling: 1,
+            enabled: true,
+            evaluatorAssignments: [],
+          },
+          null,
+        ),
+      ).rejects.toThrow("at least one evaluator assignment");
+    });
+
     it("reports the stored trace transcript target even with an experiment-root filter", async () => {
       const service = createService();
       const variableMapping = [

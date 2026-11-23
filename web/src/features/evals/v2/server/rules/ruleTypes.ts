@@ -85,14 +85,14 @@ export const CreateRuleSchema = RuleMetadataSchema.extend({
 });
 
 /**
- * `.min(1)` is load-bearing: nothing downstream rejects an empty trace rule.
- * The service enforces that each assignment maps the `threads` column.
+ * Keep the assignment shape identical to CreateRuleSchema; trace-specific checks
+ * (non-empty, each mapping `threads`) live in assertTraceTranscriptAssignments.
  */
 export const CreateTraceTranscriptRuleSchema = RuleMetadataSchema.extend({
   projectId: z.string(),
   targetObject: z.literal(TopicsTargetObject),
   enabled: z.boolean(),
-  evaluatorAssignments: z.array(RuleAssignmentInputSchema).min(1).max(100),
+  evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
 });
 
 export const UpdateRuleSchema = RuleIdSchema.extend({

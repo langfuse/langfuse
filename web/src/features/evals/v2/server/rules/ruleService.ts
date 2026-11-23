@@ -899,6 +899,11 @@ export class RuleService {
     projectId: string;
     assignments: CreateTraceTranscriptRuleInput["evaluatorAssignments"];
   }) {
+    if (params.assignments.length === 0) {
+      throw new InvalidRequestError(
+        "Trace evaluations need at least one evaluator assignment.",
+      );
+    }
     const evaluators = await evaluatorRepository.findEvaluatorsByIds({
       prisma: params.prisma,
       projectId: params.projectId,
