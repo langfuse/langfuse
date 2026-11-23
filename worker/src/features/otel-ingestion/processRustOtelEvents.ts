@@ -253,6 +253,41 @@ function recordIngestionCounts(records: FinalizedEvent[]): void {
   });
 }
 
+type EvaluationFilterRow = Parameters<
+  typeof convertEventRecordToObservationEvalFilterFields
+>[0];
+
+/**
+ * Parse the columns that evaluation rule filters read, one row per event. They
+ * carry no input or output; Rust keeps the full rows until a rule selects one.
+ */
+function parseEvaluationFilterRows(
+  texts: string[] | undefined,
+): EvaluationFilterRow[] {
+  return (
+    texts?.flatMap((text): EvaluationFilterRow[] => JSON.parse(text)) ?? []
+  );
+}
+
+/** Validate an event's filter fields; load the rest of its row once a rule selects it. */
+function observationForScheduling(
+  processing: RustOtelBatch,
+  filterRow: EvaluationFilterRow,
+  index: number,
+) {
+  const filterFields =
+    convertEventRecordToObservationEvalFilterFields(filterRow);
+  return {
+    observation: filterFields,
+    // The taken row holds the columns the filter row lacks.
+    loadSnapshot: () =>
+      completeObservationForEval(
+        filterFields,
+        processing.takeEvaluationRow(index) as EventRecordInsertType,
+      ),
+  };
+}
+
 async function writeRecordsAndScheduleEvals(
   processing: RustOtelBatch,
   { events: records, evaluationFilterRows }: FinalizedOtelBatch,
@@ -268,15 +303,9 @@ async function writeRecordsAndScheduleEvals(
   const schedulerDeps = needsScheduler
     ? createEvalSchedulerDeps(projectId, evalConfigs)
     : null;
-  // Filter columns carry no input or output. Rust keeps the full rows until a
-  // rule selects one.
-  type FilterRow = Parameters<
-    typeof convertEventRecordToObservationEvalFilterFields
-  >[0];
-  const filterRows =
-    schedulerDeps && evaluationFilterRows
-      ? evaluationFilterRows.flatMap((text): FilterRow[] => JSON.parse(text))
-      : [];
+  const filterRows = schedulerDeps
+    ? parseEvaluationFilterRows(evaluationFilterRows)
+    : [];
   const writer = ClickhouseWriter.getNativeInstance();
   recordIngestionCounts(records);
   await Promise.all(
@@ -292,23 +321,8 @@ async function writeRecordsAndScheduleEvals(
         : undefined;
       const matchedRuleIds = schedulerDeps
         ? await scheduleEvals({
-            parseObservation: () => {
-              const filterFields =
-                convertEventRecordToObservationEvalFilterFields(
-                  filterRows[index],
-                );
-              return {
-                observation: filterFields,
-                // The taken row holds the columns the filter row lacks.
-                loadSnapshot: () =>
-                  completeObservationForEval(
-                    filterFields,
-                    processing.takeEvaluationRow(
-                      index,
-                    ) as EventRecordInsertType,
-                  ),
-              };
-            },
+            parseObservation: () =>
+              observationForScheduling(processing, filterRows[index], index),
             environment: record.environment,
             traceActivity,
             rules: evalConfigs,
