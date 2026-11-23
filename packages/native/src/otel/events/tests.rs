@@ -237,8 +237,16 @@ fn claude_managed_agent_lifecycle_respects_provider_priority() {
             "anthropic.messages.create",
             Some("chat"),
             None,
-            "GENERATION",
+            "SPAN",
             "anthropic.messages.create",
+            true,
+        ),
+        (
+            "anthropic.model_request",
+            Some("chat"),
+            None,
+            "GENERATION",
+            "anthropic.model_request",
             false,
         ),
         (
