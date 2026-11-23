@@ -86,17 +86,22 @@ export function TopicSetupFlowController({
   const [open, setOpen] = useState(false);
   // Read and written only in handlers; the dialog never renders from it.
   const attempt = useRef<SetupAttempt | null>(null);
+  // Each session's callbacks keep the attempt they rendered with, so a request
+  // that resolves after its dialog closed cannot touch a later attempt.
+  const [attemptId, setAttemptId] = useState<string | null>(null);
   function openSetup() {
     if (settings) {
+      const setupAttemptId = crypto.randomUUID();
       attempt.current = {
-        setupAttemptId: crypto.randomUUID(),
+        setupAttemptId,
         openedAt: Date.now(),
         step: "questions",
         hadError: false,
         completedSteps: new Set(),
       };
+      setAttemptId(setupAttemptId);
       capture("topics:setup_flow_opened", {
-        setupAttemptId: attempt.current.setupAttemptId,
+        setupAttemptId,
         hasConnection: settings.connections.length > 0,
         isFirstSetup: !settings.rule,
       });
@@ -116,24 +121,30 @@ export function TopicSetupFlowController({
     attempt.current = null;
     setOpen(false);
   }
+  const live = () =>
+    attempt.current?.setupAttemptId === attemptId ? attempt.current : null;
   const tracking: SetupTracking = {
-    attemptId: () => attempt.current?.setupAttemptId ?? null,
-    durationMs: () =>
-      attempt.current ? Date.now() - attempt.current.openedAt : 0,
+    attemptId: () => live()?.setupAttemptId ?? null,
+    durationMs: () => {
+      const current = live();
+      return current ? Date.now() - current.openedAt : 0;
+    },
     stepChanged: (step) => {
-      if (attempt.current) attempt.current.step = step;
+      const current = live();
+      if (current) current.step = step;
     },
     errored: () => {
-      if (attempt.current) attempt.current.hadError = true;
+      const current = live();
+      if (current) current.hadError = true;
     },
     firstCompletion: (step) => {
-      if (!attempt.current || attempt.current.completedSteps.has(step))
-        return false;
-      attempt.current.completedSteps.add(step);
+      const current = live();
+      if (!current || current.completedSteps.has(step)) return false;
+      current.completedSteps.add(step);
       return true;
     },
     finished: () => {
-      attempt.current = null;
+      if (live()) attempt.current = null;
     },
   };
   return (

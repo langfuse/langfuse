@@ -33,6 +33,7 @@ import { Spinner } from "@/src/components/layouts/Spinner";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
 import {
   TopicsResultsViewSelect,
+  useMobileTopicsVisualization,
   useTopicsResultsView,
 } from "./TopicsResultsViewSelect";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -76,7 +77,13 @@ import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
 import { TopicAnalysisState } from "./TopicAnalysisState";
 import { TopicSliceDialogController } from "./TopicSliceDialogController";
 import { type TopicsPageState } from "./topicsAnalytics";
-import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
+import {
+  markFirstMapView,
+  topicsMapView,
+  useTopicsCapture,
+  useTopicsViewCapture,
+} from "./useTopicsCapture";
+import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
 
 const loadingPage = (
   <Page headerProps={{ title: "Topics" }}>
@@ -522,6 +529,24 @@ function TopicsWorkspaceContent({
     selectedRule.enabled !== false &&
     !selectedRule.lastRefitAt &&
     !shownFacets.some((facet) => facet.map);
+  const headerFacetId = resolveTopicFacetId(shownFacets, selectedFacetId);
+  // A scan's question without topics shows where the scan stands, not the live-map empty state;
+  // a no-topics result still has a completed map with no topics.
+  const analysisFacet = shownFacets.find(
+    (facet) => facet.facetId === headerFacetId,
+  );
+  const analysisState =
+    analysisId &&
+    analysisResults.data &&
+    !analysisResults.error &&
+    !analysisFacet?.map?.topics.length
+      ? {
+          status: analysisResults.data.execution.status,
+          outcome: analysisFacet?.outcome,
+        }
+      : null;
+  const currentTopicsShown =
+    !showOnboarding && !showBuilding && !setupInline && !analysisState;
   const landingShown = showLanding && !showSetupProgress && !waitingForTraces;
   const pageResolved =
     maps.data !== undefined &&
@@ -544,6 +569,37 @@ function TopicsWorkspaceContent({
   useTopicsViewCapture(landingShown ? "landing" : null, () =>
     capture("topics:landing_viewed", { canWrite, canConfigure }),
   );
+  const mobileVisualization = useMobileTopicsVisualization();
+  const mapView = topicsMapView(
+    isHandheld,
+    resultsView,
+    mobileVisualization.view,
+  );
+  const topicCount = shownFacets.reduce(
+    (sum, facet) =>
+      sum +
+      facet.topics.filter((topic) => topic.id !== UNASSIGNED_TOPIC_ID).length,
+    0,
+  );
+  const mapKind = analysisId ? "analysis" : "rule";
+  const mapKey = `${mapKind}:${analysisId ?? selectedRule?.id ?? "default"}`;
+  // A rule switch keeps the previous map's results on screen until its own arrive.
+  const mapResultsCurrent = analysisId !== null || !results.isPlaceholderData;
+  useTopicsViewCapture(
+    currentTopicsShown && mapResultsCurrent && topicCount > 0 ? mapKey : null,
+    () => {
+      const viewed = {
+        mapKind,
+        view: mapView,
+        topicCount,
+        facetCount: shownFacets.length,
+        mapCount,
+      } as const;
+      capture("topics:map_viewed", viewed);
+      if (markFirstMapView(projectId, mapKey))
+        capture("topics:first_map_viewed", viewed);
+    },
+  );
   const workspace = (
     <TopicSliceDialogController
       projectId={projectId}
@@ -555,7 +611,6 @@ function TopicsWorkspaceContent({
       onRuleCreated={(ruleId) => selectMap({ kind: "rule", id: ruleId })}
     >
       {({ openSliceDialog }) => {
-        const headerFacetId = resolveTopicFacetId(shownFacets, selectedFacetId);
         const hasStrip =
           (!showOnboarding && selectedRule !== undefined) ||
           selectedAnalysis !== undefined;
@@ -596,21 +651,6 @@ function TopicsWorkspaceContent({
             )}
           </>
         );
-        // A scan's question without topics shows where the scan stands, not the live-map empty state;
-        // a no-topics result still has a completed map with no topics.
-        const analysisFacet = shownFacets.find(
-          (facet) => facet.facetId === headerFacetId,
-        );
-        const analysisState =
-          analysisId &&
-          analysisResults.data &&
-          !analysisResults.error &&
-          !analysisFacet?.map?.topics.length
-            ? {
-                status: analysisResults.data.execution.status,
-                outcome: analysisFacet?.outcome,
-              }
-            : null;
         // Onboarding hides both picker placements.
         const mapPickerShown =
           !showOnboarding && Boolean(maps.data && mapSelection);
@@ -866,25 +906,21 @@ function TopicsWorkspaceContent({
                       onViewRun={() => openExecution(analysisId)}
                     />
                   ) : null}
-                  {!showOnboarding &&
-                    !showBuilding &&
-                    !setupInline &&
-                    !analysisState && (
-                      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                        <CurrentTopics
-                          projectId={projectId}
-                          scope={scope}
-                          result={shownResults}
-                          selectedFacetId={selectedFacetId}
-                          view={resultsView}
-                          traceFilters={traceFilters}
-                          tracePanelRef={setTracePanel}
-                          showUnassigned={showUnassigned}
-                          mapActions={actions}
-                          mapCount={mapCount}
-                        />
-                      </div>
-                    )}
+                  {currentTopicsShown && (
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                      <CurrentTopics
+                        projectId={projectId}
+                        scope={scope}
+                        result={shownResults}
+                        selectedFacetId={selectedFacetId}
+                        view={resultsView}
+                        traceFilters={traceFilters}
+                        tracePanelRef={setTracePanel}
+                        showUnassigned={showUnassigned}
+                        mapActions={actions}
+                      />
+                    </div>
+                  )}
                   {facets.error && (
                     <TopicsErrorMessage message={facets.error.message} />
                   )}
