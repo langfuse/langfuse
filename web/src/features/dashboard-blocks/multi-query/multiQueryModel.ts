@@ -70,13 +70,17 @@ export const readableMultiQueryField = (field: string) => {
   const words = field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 };
-export const multiQueryMetricLabel = (
+export function multiQueryMetricLabel(
   metric: MultiQuerySource["metrics"][number],
-) =>
-  metric.label ||
-  (metric.measure === "count" && metric.aggregation === "count"
-    ? "Count"
-    : `${metric.aggregation.startsWith("p") ? metric.aggregation : readableMultiQueryField(metric.aggregation)} ${readableMultiQueryField(metric.measure).toLowerCase()}`);
+) {
+  if (metric.label) return metric.label;
+  if (metric.measure === "count" && metric.aggregation === "count")
+    return "Count";
+  const aggregation = metric.aggregation.startsWith("p")
+    ? metric.aggregation
+    : readableMultiQueryField(metric.aggregation);
+  return `${aggregation} ${readableMultiQueryField(metric.measure).toLowerCase()}`;
+}
 
 export function createMultiQueryConfig(): MultiQueryConfig {
   return {
@@ -195,10 +199,13 @@ export function buildMultiQueryPlan(
         measure,
         aggregation,
       }));
-      const needsBucketCount = metrics.some(
-        (metric) =>
-          !["count", "sum", "uniq", "histogram"].includes(metric.aggregation),
-      );
+      const timeSeries = isTimeSeriesChart(config.display.chartType);
+      const needsBucketCount =
+        (timeSeries && dimensions.length > 0) ||
+        metrics.some(
+          (metric) =>
+            !["count", "sum", "uniq", "histogram"].includes(metric.aggregation),
+        );
       if (
         needsBucketCount &&
         !metrics.some(
@@ -207,7 +214,6 @@ export function buildMultiQueryPlan(
         )
       )
         metrics.push({ measure: "count", aggregation: "count" });
-      const timeSeries = isTimeSeriesChart(config.display.chartType);
       const query: QueryType = {
         view: source.view,
         metrics,
@@ -263,6 +269,7 @@ export function normalizeMultiQueryResults(
   results: MultiQueryResult[],
 ) {
   const values: MultiQueryValue[] = [];
+  const bucketTimes = new Set<string>();
   const descriptions = new Map<
     string,
     Omit<MultiQuerySeries, "color" | "fillColor">
@@ -296,17 +303,18 @@ export function normalizeMultiQueryResults(
         .join(" · ");
       const time =
         typeof row.time_dimension === "string" ? row.time_dimension : null;
+      if (time) bucketTimes.add(time);
       const count = finite(row.count_count);
       if (
         time &&
-        item.dimensions.length &&
+        item.dimensions.length > 0 &&
         Object.values(dimensions).every((value) => value === null) &&
         count === 0
       )
         continue;
       for (const metric of item.source.metrics) {
         const metricLabel = multiQueryMetricLabel(metric);
-        const id = `${item.source.id}.${metric.id}${item.dimensions.length ? `:${JSON.stringify(dimensions)}` : ""}`;
+        const id = `${item.source.id}.${metric.id}${item.dimensions.length > 0 ? `:${JSON.stringify(dimensions)}` : ""}`;
         const label = [
           item.source.label,
           ...(item.source.metrics.length > 1 || metric.label
@@ -349,6 +357,7 @@ export function normalizeMultiQueryResults(
         if (values.length + (bins?.length ?? 1) > 100_000) {
           return {
             values: [],
+            bucketTimes: [],
             series: [],
             pending: false,
             status: "error" as const,
@@ -409,12 +418,13 @@ export function normalizeMultiQueryResults(
     }));
   return {
     values,
+    bucketTimes: [...bucketTimes].sort(),
     series,
     failures,
     pending,
     status: (() => {
       if (pending) return "loading" as const;
-      if (failures.length)
+      if (failures.length > 0)
         return failures.length === plan.queries.length
           ? ("error" as const)
           : ("partial" as const);

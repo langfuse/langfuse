@@ -1,14 +1,21 @@
 import { useId, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { type z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { dashboardMarkdownConfigSchema } from "@langfuse/shared";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Input } from "@/src/components/ui/input";
+import { Form } from "@/src/components/design-system/Form/Form";
 import { Textarea } from "@/src/components/ui/textarea";
-import { Label } from "@/src/components/ui/label";
 import { DashboardMarkdown } from "./DashboardMarkdown";
 import { DashboardBlockPlacement } from "./DashboardBlockPlacement";
 
+const markdownFormSchema = dashboardMarkdownConfigSchema.refine(
+  (config) => config.content.trim().length > 0,
+  { path: ["content"], message: "Add Markdown content." },
+);
 type MarkdownConfig = { version: 1; title: string; content: string };
+
 export function DashboardMarkdownEditor({
   initial,
   beforePlacementId,
@@ -30,11 +37,21 @@ export function DashboardMarkdownEditor({
   onCancel: () => void;
   onPreview: () => void;
 }) {
-  const [config, setConfig] = useState(initial);
+  const form = useForm<
+    z.input<typeof markdownFormSchema>,
+    undefined,
+    MarkdownConfig
+  >({
+    resolver: zodResolver(markdownFormSchema),
+    defaultValues: initial,
+    mode: "onChange",
+  });
+  const [title, content] = useWatch({
+    control: form.control,
+    name: ["title", "content"],
+  });
   const [tab, setTab] = useState("write");
-  const id = useId();
-  const parsed = dashboardMarkdownConfigSchema.safeParse(config);
-  const valid = parsed.success && config.content.trim().length > 0;
+  const formId = useId();
   return (
     <Dialog
       title="Markdown"
@@ -52,80 +69,83 @@ export function DashboardMarkdownEditor({
         {
           label: "Save Markdown",
           loading: pending,
-          disabled: !valid || pending,
-          onClick: () => onSave(config),
+          disabled: !form.formState.isValid || pending,
+          type: "submit",
+          form: formId,
         },
       ]}
     >
       <Dialog.Body separators="both">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${id}-title`}>Title (optional)</Label>
-          <Input
-            id={`${id}-title`}
-            value={config.title}
+        <Form
+          id={formId}
+          actions={[]}
+          density="compact"
+          onSubmit={form.handleSubmit(onSave)}
+        >
+          <Form.InputField
+            control={form.control}
+            name="title"
+            label="Title (optional)"
             maxLength={255}
             disabled={pending}
-            onChange={(event) =>
-              setConfig({ ...config, title: event.target.value })
-            }
             placeholder="Section title"
           />
-        </div>
-        {placementOptions.length > 1 && (
-          <DashboardBlockPlacement
-            value={beforePlacementId}
-            options={placementOptions}
-            disabled={pending}
-            onChange={onPlacementChange}
-          />
-        )}
-        <Tabs
-          value={tab}
-          onValueChange={(next) => {
-            if (next === tab) return;
-            if (next === "preview") onPreview();
-            setTab(next);
-          }}
-        >
-          <Tabs.List variant="underline">
-            <Tabs.Trigger value="write" label="Write" />
-            <Tabs.Trigger value="preview" label="Preview" />
-          </Tabs.List>
-          <Tabs.Content value="write">
-            <div className="flex flex-col gap-1.5 pt-3">
-              <Label htmlFor={`${id}-content`}>Markdown content</Label>
-              <Textarea
-                id={`${id}-content`}
-                value={config.content}
-                disabled={pending}
-                maxLength={100_000}
-                rows={14}
-                onChange={(event) =>
-                  setConfig({ ...config, content: event.target.value })
-                }
-                placeholder="## What changed
-Add context, links, or a decision for your team."
-              />
-              <p className="text-muted-foreground text-xs">
-                Supports headings, lists, links, and tables. Raw HTML is not
-                rendered.
-              </p>
-            </div>
-          </Tabs.Content>
-          <Tabs.Content value="preview">
-            <div className="pt-3">
-              <DashboardMarkdown
-                title={config.title}
-                content={config.content}
-              />
-            </div>
-          </Tabs.Content>
-        </Tabs>
-        {!parsed.success && (
-          <p role="alert" className="text-destructive text-sm">
-            {parsed.error.issues[0]?.message}
-          </p>
-        )}
+          {placementOptions.length > 1 && (
+            <DashboardBlockPlacement
+              value={beforePlacementId}
+              options={placementOptions}
+              disabled={pending}
+              onChange={onPlacementChange}
+            />
+          )}
+          <Tabs
+            value={tab}
+            onValueChange={(next) => {
+              if (next === tab) return;
+              if (next === "preview") onPreview();
+              setTab(next);
+            }}
+          >
+            <Tabs.List variant="underline">
+              <Tabs.Trigger value="write" label="Write" />
+              <Tabs.Trigger value="preview" label="Preview" />
+            </Tabs.List>
+            <Tabs.Content value="write">
+              <div className="pt-3">
+                <Form.Field
+                  control={form.control}
+                  name="content"
+                  label="Markdown content"
+                  description="Supports headings, lists, links, and tables. Raw HTML is not rendered."
+                >
+                  {(field) => (
+                    <Textarea
+                      id={field.id}
+                      name={field.name}
+                      ref={field.ref}
+                      value={field.value}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      aria-describedby={field.inputDescribedById}
+                      aria-invalid={Boolean(field.error)}
+                      disabled={pending}
+                      maxLength={100_000}
+                      rows={14}
+                      placeholder={
+                        "## What changed\nAdd context, links, or a decision for your team."
+                      }
+                    />
+                  )}
+                </Form.Field>
+              </div>
+            </Tabs.Content>
+            <Tabs.Content value="preview">
+              <div className="pt-3">
+                <DashboardMarkdown title={title} content={content} />
+              </div>
+            </Tabs.Content>
+          </Tabs>
+        </Form>
         {error && (
           <p role="alert" className="text-destructive text-sm">
             {error}

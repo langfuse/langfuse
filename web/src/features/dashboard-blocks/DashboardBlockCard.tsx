@@ -1,12 +1,10 @@
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { Pencil, Trash2, MoreVertical } from "@langfuse/icons";
+import { Pencil, Trash2 } from "@langfuse/icons";
 import { type SavedDashboardBlock } from "@langfuse/shared";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
-import { api } from "@/src/utils/api";
+import { useRemoveDashboardBlock } from "./useDashboardBlockMutations";
 import { DashboardMarkdown } from "./DashboardMarkdown";
 import { useDashboardBlocks } from "./dashboard-block-context";
 const MultiQueryChart = dynamic(
@@ -28,19 +26,10 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
     openEditor,
     track,
   } = useDashboardBlocks();
-  const utils = api.useUtils();
-  const remove = api.dashboardBlocks.remove.useMutation({
-    onSuccess: () => {
-      utils.dashboardBlocks.getAll.invalidate({ projectId, dashboardId });
-      track("remove", block.kind);
-    },
-    onError: (error) => {
-      if (error.data?.code === "CONFLICT")
-        utils.dashboardBlocks.getAll.invalidate({
-          projectId,
-          dashboardId,
-        });
-    },
+  const remove = useRemoveDashboardBlock({
+    projectId,
+    dashboardId,
+    onRemoved: () => track("remove", block.kind),
   });
   return (
     <ConfirmationDialogController
@@ -97,22 +86,7 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
               <DashboardMarkdown
                 title={block.config.title}
                 content={block.config.content}
-                actions={
-                  actions?.menu ? (
-                    <DropdownMenu
-                      items={actions.menu}
-                      ariaLabel="Markdown actions"
-                    >
-                      {({ getTriggerProps }) => (
-                        <IconButton
-                          {...getTriggerProps()}
-                          icon={MoreVertical}
-                          label="Markdown actions"
-                        />
-                      )}
-                    </DropdownMenu>
-                  ) : undefined
-                }
+                actions={actions}
               />
             ) : (
               <MultiQueryChart

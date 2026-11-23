@@ -55,7 +55,7 @@ export function prepareDashboardBlockSections(
     }
   }
   const trailing = blocksByRow.get(rows.length) ?? [];
-  if (trailing.length)
+  if (trailing.length > 0)
     sections.push({ key: "trailing-blocks", blocks: trailing, widgets: [] });
   return sections.map((section) => {
     const top = Math.min(...section.widgets.map((widget) => widget.y));

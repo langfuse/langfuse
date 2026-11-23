@@ -217,3 +217,69 @@ it("keeps an oversized result inside the chart's error state", () => {
   expect(result.values).toHaveLength(0);
   expect(result.failures[0]?.message).toContain("time range");
 });
+
+it("preserves successful grouped bucket markers without inventing series for empty or failed queries", () => {
+  const grouped: MultiQueryConfig = {
+    ...config,
+    display: { chartType: "LINE_TIME_SERIES" },
+    queries: config.queries.map((source) => ({
+      ...source,
+      metrics: [
+        { id: "cost", measure: "totalCost", aggregation: "sum" },
+        { id: "traces", measure: "traceId", aggregation: "uniq" },
+      ],
+      dimensions: [{ field: "providedModelName" }],
+    })),
+  };
+  const plan = buildMultiQueryPlan(grouped, context);
+  expect(
+    plan.queries.every((source) =>
+      source.query.metrics.some(
+        (metric) =>
+          metric.measure === "count" && metric.aggregation === "count",
+      ),
+    ),
+  ).toBe(true);
+  const result = normalizeMultiQueryResults(plan, [
+    {
+      data: [
+        {
+          time_dimension: "2026-11-01T00:00:00Z",
+          providedModelName: "one",
+          sum_totalCost: 2,
+          uniq_traceId: 1,
+          count_count: 1,
+        },
+        {
+          time_dimension: "2026-11-02T00:00:00Z",
+          providedModelName: null,
+          sum_totalCost: 0,
+          uniq_traceId: 0,
+          count_count: 0,
+        },
+        {
+          time_dimension: "2026-11-03T00:00:00Z",
+          providedModelName: null,
+          sum_totalCost: 0,
+          uniq_traceId: 0,
+          count_count: 1,
+        },
+      ],
+      isPending: false,
+      isError: false,
+      error: null,
+    },
+    { data: undefined, isPending: false, isError: true, error: "Query failed" },
+  ]);
+  expect(result.bucketTimes).toEqual([
+    "2026-11-01T00:00:00Z",
+    "2026-11-02T00:00:00Z",
+    "2026-11-03T00:00:00Z",
+  ]);
+  expect(result.series).toHaveLength(4);
+  expect(result.values.map((row) => row.value)).toEqual([2, 1, 0, 0]);
+  expect(
+    result.values.every((row) => row.time !== "2026-11-02T00:00:00Z"),
+  ).toBe(true);
+  expect(result.status).toBe("partial");
+});

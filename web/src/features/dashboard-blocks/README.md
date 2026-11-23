@@ -8,7 +8,9 @@ In a pilot project, open a dashboard and choose **Add widget → New multi-query
 
 ## Implementation
 
-`DashboardBlocksProvider` owns capabilities, saved server state, and editor opening. `DashboardBlockEditor` owns revision-aware saves. `DashboardBlockCard` renders Markdown or the multi-query chart and owns removal confirmation. Markdown uses the existing safe Markdown renderer.
+`useDashboardBlocksData` owns capabilities, saved server state, and placement labels; it polls capabilities only while a pilot kind is enabled. `DashboardBlocksProvider` owns editor opening. The save/remove hooks in `useDashboardBlockMutations` own cache invalidation. `DashboardBlockEditor` owns revision-aware save inputs. `DashboardBlockCard` renders Markdown or the multi-query chart and owns removal confirmation. Markdown uses the existing safe Markdown renderer and design-system form fields backed by React Hook Form.
+
+`DashboardBlocksAddControl` is the context-free Add widget view; `DashboardBlocksAddMenu` connects dashboard state. Its initial-capability race and independent-kind paths, plus arbitrary placement IDs in `DashboardBlockPlacement`, have focused Storybook browser regressions.
 
 `DashboardBlocksCanvas` interleaves blocks before the anchored chart row. `block-layout.ts` groups overlapping rows without changing saved geometry. Layout editing renders one original `DashboardGrid`, preserving cross-row drag and resize. Missing anchors fall back after the grid. With no enabled saved blocks, the original grid interaction is unchanged.
 
@@ -23,7 +25,7 @@ Apply the additive PostgreSQL migration before rolling out web servers. No backf
 | `LANGFUSE_DASHBOARD_MULTI_QUERY_ENABLED_PROJECT_IDS` | Create, edit and read multi-query charts |
 | `LANGFUSE_DASHBOARD_MARKDOWN_ENABLED_PROJECT_IDS`    | Create, edit and read Markdown blocks    |
 
-To pause a pilot, remove the project from the relevant list and roll the web processes. Updated servers immediately reject writes for the disabled kind. An open foreground dashboard rechecks its capabilities. Re-enabling the same project restores the saved blocks, positions and revisions. A rolling deployment can briefly serve clients from replicas with different settings. Leave the additive table in place when rolling back the application.
+To pause a pilot, remove the project from the relevant list and roll the web processes. Updated servers immediately reject writes for the disabled kind. An open foreground dashboard in an active pilot rechecks its capabilities every 30 seconds. Other projects check on mount and window focus. Re-enabling the same project restores the saved blocks, positions and revisions. A rolling deployment can briefly serve clients from replicas with different settings. Leave the additive table in place when rolling back the application.
 
 Existing widget and preset placements keep their original JSON representation. Blocks have independent revision checks and refer to an existing placement ID or the end of the dashboard. When an anchor disappears, its block displays at the end. Saving the existing grid with an older server preserves the blocks. Upgraded servers clone same-project blocks together with the parent, including dormant blocks. Older servers and the classic JSON export represent only the original grid. Parent deletion includes its blocks through a foreign key.
 

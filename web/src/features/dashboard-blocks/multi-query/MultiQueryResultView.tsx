@@ -1,3 +1,4 @@
+import { prepareMultiQueryTimeSeriesData } from "./multiQueryTimeSeries";
 import { type ChartLegendInteraction } from "@/src/components/design-system/charts/LineChart/LineChart";
 import {
   multiQueryFormatter,
@@ -121,10 +122,10 @@ export function MultiQueryResultView({
   const content: Visualization | undefined = (() => {
     if (failure)
       return { type: "error", message: failure, onRetry: runtime.refresh };
-    if (result.pending && !result.values.length)
+    if (result.pending && result.values.length === 0)
       return { type: "loading", progress: { type: "spinner" } };
     if (showTable) return data;
-    if (!result.values.length)
+    if (result.values.length === 0)
       return {
         type: "empty",
         message: "No matching data",
@@ -198,20 +199,19 @@ export function MultiQueryResultView({
                   size="sm"
                 />
               ))}
-              {actions.menu?.length ? (
+              {actions.menu && actions.menu.length > 0 ? (
                 <DropdownMenu
                   noCapture
                   items={actions.menu}
                   ariaLabel="Chart actions"
                 >
                   {({ getTriggerProps }) => (
-                    <button
-                      type="button"
+                    <IconButton
                       {...getTriggerProps()}
-                      aria-label="Chart actions"
-                    >
-                      <MoreVerticalIcon size="base" color="tertiary" />
-                    </button>
+                      label="Chart actions"
+                      icon={MoreVerticalIcon}
+                      size="sm"
+                    />
                   )}
                 </DropdownMenu>
               ) : null}
@@ -223,7 +223,7 @@ export function MultiQueryResultView({
             {config.description}
           </p>
         ) : null}
-        {config.views?.length ? (
+        {config.views && config.views.length > 0 ? (
           <SelectInput
             noCapture
             aria-label="Chart view"
@@ -266,7 +266,7 @@ export function MultiQueryResultView({
           </Tabs.List>
         </Tabs>
       </div>
-      {result.failures.length && result.status !== "error" ? (
+      {result.failures.length > 0 && result.status !== "error" ? (
         <div
           role="alert"
           className="bg-light-yellow shrink-0 px-4 py-2 text-xs"
@@ -281,7 +281,7 @@ export function MultiQueryResultView({
           ))}
         </div>
       ) : null}
-      {result.pending && result.values.length ? (
+      {result.pending && result.values.length > 0 ? (
         <p
           role="status"
           className="text-muted-foreground shrink-0 px-4 py-1 text-xs"
@@ -289,7 +289,7 @@ export function MultiQueryResultView({
           Loading the remaining series…
         </p>
       ) : null}
-      {runtime.plan?.warnings.length ? (
+      {runtime.plan && runtime.plan.warnings.length > 0 ? (
         <details className="text-muted-foreground shrink-0 px-4 py-1 text-xs">
           <summary className="cursor-pointer">Filter scope</summary>
           {runtime.plan.warnings.map((warning, index) => (
@@ -308,8 +308,9 @@ export function MultiQueryResultView({
               unit={unit}
               series={result.series.filter((series) => series.unit === unit)}
               values={result.values}
+              bucketTimes={result.bucketTimes}
               label={groups.length > 1 ? unitLabel(unit) : undefined}
-              onLegendInteraction={(action) =>
+              onAfterLegendInteraction={(action) =>
                 captureView(legendActions[action])
               }
             />
@@ -334,36 +335,27 @@ function MultiQueryUnitChart({
   unit,
   series,
   values,
+  bucketTimes,
   label,
-  onLegendInteraction,
+  onAfterLegendInteraction,
 }: {
   config: MultiQueryConfig;
   unit: string | undefined;
   series: MultiQuerySeries[];
   values: MultiQueryValue[];
+  bucketTimes: string[];
   label: string | undefined;
-  onLegendInteraction: (action: ChartLegendInteraction) => void;
+  onAfterLegendInteraction: (action: ChartLegendInteraction) => void;
 }) {
   const ids = new Set(series.map((series) => series.id));
   const rows = values.filter((row) => ids.has(row.seriesId));
   const timeSeries = isTimeSeriesChart(config.display.chartType);
-  const times = [
-    ...new Set(values.flatMap((row) => (row.time ? [row.time] : []))),
-  ].sort();
-  const data = rows.map((row) => ({
-    dimension: row.seriesId,
-    time_dimension: row.time ?? undefined,
-    metric: row.value,
-  }));
-  const presentTimes = new Set(rows.map((row) => row.time));
-  if (timeSeries)
-    for (const time of times)
-      if (!presentTimes.has(time))
-        data.push({
-          dimension: series[0]!.id,
-          time_dimension: time,
-          metric: null,
-        });
+  const chartData = prepareMultiQueryTimeSeriesData(
+    series,
+    values,
+    timeSeries ? bucketTimes : [],
+  );
+  const { data } = chartData;
   const colors = Object.fromEntries(
     series.map((series) => [
       series.id,
@@ -378,19 +370,19 @@ function MultiQueryUnitChart({
     data,
     config: colors,
     metricFormatter: multiQueryFormatter(unit),
-    missingValue: "gap",
+    missingValue: chartData.missingValue,
     legendPosition: config.display.legend === false ? "none" : "below",
     legendInteraction: "toggle",
     zeroBaseline: true,
     colorBarsByCategory: true,
-    rowLimit: config.display.rowLimit ?? 100,
+    rowLimit: data.length,
   });
   const content = prepareMultiQueryUnitVisualization(
     config,
     series,
     rows,
     prepared,
-    onLegendInteraction,
+    onAfterLegendInteraction,
   );
   return (
     <div className="flex h-64 min-h-64 min-w-0 shrink-0 flex-col gap-1 only:h-[var(--multi-query-plot-height,16rem)] only:min-h-[var(--multi-query-plot-height,16rem)]">

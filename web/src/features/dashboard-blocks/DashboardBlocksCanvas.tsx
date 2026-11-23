@@ -20,7 +20,7 @@ export function DashboardBlocksCanvas({
   const { blocks, canEdit, loadError, openEditor, placementOptions, track } =
     useDashboardBlocks();
   const [layoutMode, setLayoutMode] = useState(false);
-  if (!blocks.length)
+  if (blocks.length === 0)
     return (
       <>
         {loadError && (

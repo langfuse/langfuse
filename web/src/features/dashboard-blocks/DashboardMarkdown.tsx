@@ -1,5 +1,8 @@
 import { MarkdownView } from "@/src/components/ui/MarkdownView";
-import { type ReactNode } from "react";
+import { MoreVertical } from "@langfuse/icons";
+import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 
 export function DashboardMarkdown({
   title,
@@ -8,21 +11,33 @@ export function DashboardMarkdown({
 }: {
   title: string;
   content: string;
-  actions?: ReactNode;
+  actions?: Pick<DataCardActions, "menu">;
 }) {
+  const menu = actions?.menu ?? [];
+  const hasMenu = menu.length > 0;
   return (
     <section
       className="ph-no-capture group bg-card rounded-lg border p-4"
       aria-label={title || "Markdown"}
     >
-      {(title || actions) && (
+      {(title || hasMenu) && (
         <div className="mb-2 flex items-start justify-between gap-3">
           {title ? (
             <h2 className="min-w-0 text-lg font-bold">{title}</h2>
           ) : (
             <span className="sr-only">Markdown</span>
           )}
-          {actions}
+          {hasMenu && (
+            <DropdownMenu items={menu} ariaLabel="Markdown actions">
+              {({ getTriggerProps }) => (
+                <IconButton
+                  {...getTriggerProps()}
+                  icon={MoreVertical}
+                  label="Markdown actions"
+                />
+              )}
+            </DropdownMenu>
+          )}
         </div>
       )}
       {content.trim() ? (

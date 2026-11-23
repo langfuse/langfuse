@@ -93,10 +93,10 @@ function LegendItem({
 export function ChartLegend({
   items,
   selectionActions,
-  onInteraction,
+  onAfterInteraction,
 }: {
   items: ChartLegendItem[];
-  onInteraction?: (action: ChartLegendInteraction) => void;
+  onAfterInteraction?: (action: ChartLegendInteraction) => void;
   selectionActions?: {
     allSelected: boolean;
     onSelectAll: () => void;
@@ -106,7 +106,7 @@ export function ChartLegend({
   const activateItem = (item: ChartLegendItem) => {
     if (!item.action) return;
     item.action.onClick();
-    onInteraction?.("toggle");
+    onAfterInteraction?.("toggle");
   };
   return (
     <div className={cn(LEGEND_PADDING, "flex justify-center")}>
@@ -137,10 +137,10 @@ export function ChartLegend({
                         onClick: () => {
                           if (selectionActions.allSelected) {
                             selectionActions.onDeselectAll();
-                            onInteraction?.("clear_all");
+                            onAfterInteraction?.("clear_all");
                           } else {
                             selectionActions.onSelectAll();
-                            onInteraction?.("select_all");
+                            onAfterInteraction?.("select_all");
                           }
                         },
                       },

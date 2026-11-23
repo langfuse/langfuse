@@ -39,7 +39,7 @@ export type LineChartLegend =
   | ({
       visibility: "auto" | "visible";
       summary: "none" | "sum";
-      onInteraction?: (action: ChartLegendInteraction) => void;
+      onAfterInteraction?: (action: ChartLegendInteraction) => void;
     } & (
       | { interaction: "highlight" }
       | { interaction: "toggle"; maxVisibleSeries?: number }
@@ -329,7 +329,7 @@ export function SeriesChartCore(
       </div>
       {showLegend ? (
         <ChartLegend
-          onInteraction={legend.onInteraction}
+          onAfterInteraction={legend.onAfterInteraction}
           selectionActions={
             legend.interaction === "toggle"
               ? {

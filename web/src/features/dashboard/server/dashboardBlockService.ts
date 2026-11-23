@@ -125,7 +125,7 @@ export async function getDashboardBlocks({
   const kinds = enabledKinds(projectId).filter(
     (kind) => requestedKinds === undefined || requestedKinds.includes(kind),
   );
-  if (!kinds.length) return [];
+  if (kinds.length === 0) return [];
   const dashboard = await prisma.dashboard.findFirst({
     where: { id: dashboardId, OR: [{ projectId }, { projectId: null }] },
     select: {
@@ -230,7 +230,7 @@ export async function removeDashboardBlock({
   expectedRevision,
 }: z.infer<typeof removeDashboardBlockSchema>) {
   const kinds = enabledKinds(projectId);
-  if (!kinds.length)
+  if (kinds.length === 0)
     throw new ForbiddenError("Dashboard blocks are disabled for the project");
   const where = {
     dashboardId,

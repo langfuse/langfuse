@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   multiQueryConfigSchema,
   type MultiQueryConfig,
@@ -33,6 +35,8 @@ import {
   type MultiQueryWidgetContext,
 } from "./useMultiQueryWidget";
 
+const resolveChart = zodResolver(multiQueryConfigSchema);
+
 export function MultiQueryEditor({
   initial,
   projectId,
@@ -50,9 +54,19 @@ export function MultiQueryEditor({
   savePending?: boolean;
   saveError?: string;
 }) {
-  const [config, setConfig] = useState<MultiQueryConfig>(
-    () => initial ?? createMultiQueryConfig(),
-  );
+  const {
+    watch,
+    register,
+    setValue,
+    handleSubmit,
+    setError,
+    formState: { errors },
+  } = useForm<MultiQueryConfig>({
+    defaultValues: initial ?? createMultiQueryConfig(),
+    resolver: (values, context, options) =>
+      resolveChart(values, context, { ...options }),
+  });
+  const config = watch();
   const [enabled, setEnabled] = useState(true);
   const [invalidSourceIds, setInvalidSourceIds] = useState<string[]>([]);
   const incompleteSources = config.queries.filter((source) =>
@@ -60,7 +74,6 @@ export function MultiQueryEditor({
   );
   const [editing, setEditing] = useState(config.queries[0]!.id);
   const [mobileTab, setMobileTab] = useState("series");
-  const [submitError, setSubmitError] = useState<string>();
   const capture = usePostHogClientCapture();
   const context = { projectId, dateRange, filterState, readPath };
   const runtime = useMultiQueryWidget(
@@ -88,7 +101,7 @@ export function MultiQueryEditor({
   })();
   const error =
     saveError ??
-    submitError ??
+    errors.root?.save?.message ??
     (!parsed.success
       ? parsed.error.issues[0]?.message
       : (definitionError ?? runtime.validationError));
@@ -124,26 +137,24 @@ export function MultiQueryEditor({
         ),
       }))
       .filter((view) => view.queryIds.length > 0);
-    setConfig({
-      ...config,
-      queries,
-      views,
-      defaultViewId: views?.some((view) => view.id === config.defaultViewId)
-        ? config.defaultViewId
-        : undefined,
-    });
-  };
-  const save = async () => {
-    if (!canSave || !parsed.success) return;
-    setSubmitError(undefined);
-    try {
-      await onSave(parsed.data);
-    } catch {
-      setSubmitError(
-        "The chart could not be saved. Try again, or reload if someone else changed the dashboard.",
-      );
+    setValue("queries", queries);
+    setValue("views", views);
+    if (!views?.some((view) => view.id === config.defaultViewId)) {
+      setValue("defaultViewId", undefined);
     }
   };
+  const save = handleSubmit(async (validated) => {
+    if (!canSave) return;
+    try {
+      await onSave(validated);
+    } catch {
+      setError("root.save", {
+        type: "server",
+        message:
+          "The chart could not be saved. Try again, or reload if someone else changed the dashboard.",
+      });
+    }
+  });
   const previewContent = enabled ? (
     <MultiQueryResultView config={config} runtime={runtime} />
   ) : (
@@ -173,22 +184,18 @@ export function MultiQueryEditor({
             Title
             <Input
               aria-label="Chart title"
+              {...register("title")}
               value={config.title}
               maxLength={200}
-              onChange={(event) =>
-                setConfig({ ...config, title: event.target.value })
-              }
             />
           </label>
           <label className="flex flex-col gap-1 text-xs">
             Description
             <Input
               aria-label="Chart description"
+              {...register("description")}
               value={config.description}
               maxLength={10000}
-              onChange={(event) =>
-                setConfig({ ...config, description: event.target.value })
-              }
             />
           </label>
           <div className="flex items-center justify-between">
@@ -287,7 +294,7 @@ export function MultiQueryEditor({
               <p className="text-muted-foreground">
                 Let viewers switch between named sets of series.
               </p>
-              {(config.views ?? []).map((view) => (
+              {(config.views ?? []).map((view, viewIndex) => (
                 <div
                   key={view.id}
                   className="flex flex-col gap-2 rounded border p-2"
@@ -298,14 +305,10 @@ export function MultiQueryEditor({
                         aria-label="View name"
                         value={view.label}
                         onChange={(event) =>
-                          setConfig({
-                            ...config,
-                            views: config.views?.map((item) =>
-                              item.id === view.id
-                                ? { ...item, label: event.target.value }
-                                : item,
-                            ),
-                          })
+                          setValue(
+                            `views.${viewIndex}.label`,
+                            event.target.value,
+                          )
                         }
                       />
                     </div>
@@ -314,16 +317,12 @@ export function MultiQueryEditor({
                       icon={TrashIcon}
                       size="sm"
                       onClick={() => {
-                        setConfig({
-                          ...config,
-                          views: config.views?.filter(
-                            (item) => item.id !== view.id,
-                          ),
-                          defaultViewId:
-                            config.defaultViewId === view.id
-                              ? undefined
-                              : config.defaultViewId,
-                        });
+                        setValue(
+                          "views",
+                          config.views?.filter((item) => item.id !== view.id),
+                        );
+                        if (config.defaultViewId === view.id)
+                          setValue("defaultViewId", undefined);
                         track("multi_query_view_removed");
                       }}
                     />
@@ -340,14 +339,7 @@ export function MultiQueryEditor({
                             const queryIds = checked
                               ? [...view.queryIds, query.id]
                               : view.queryIds.filter((id) => id !== query.id);
-                            setConfig({
-                              ...config,
-                              views: config.views?.map((item) =>
-                                item.id === view.id
-                                  ? { ...item, queryIds }
-                                  : item,
-                              ),
-                            });
+                            setValue(`views.${viewIndex}.queryIds`, queryIds);
                             track(
                               "multi_query_view_series_changed",
                               queryIds.length,
@@ -374,10 +366,7 @@ export function MultiQueryEditor({
                       label: `View ${(config.views?.length ?? 0) + 1}`,
                       queryIds: config.queries.map((query) => query.id),
                     };
-                    setConfig({
-                      ...config,
-                      views: [...(config.views ?? []), view],
-                    });
+                    setValue("views", [...(config.views ?? []), view]);
                     track("multi_query_view_added");
                   }}
                 />
@@ -396,10 +385,10 @@ export function MultiQueryEditor({
                     })),
                   ]}
                   onValueChange={(value) => {
-                    setConfig({
-                      ...config,
-                      defaultViewId: value === "all" ? undefined : value,
-                    });
+                    setValue(
+                      "defaultViewId",
+                      value === "all" ? undefined : value,
+                    );
                     runtime.selectView(undefined);
                     track("multi_query_default_view_changed");
                   }}
@@ -421,13 +410,7 @@ export function MultiQueryEditor({
                   max={1000}
                   value={config.display.rowLimit ?? 100}
                   onChange={(event) =>
-                    setConfig({
-                      ...config,
-                      display: {
-                        ...config.display,
-                        rowLimit: Number(event.target.value),
-                      },
-                    })
+                    setValue("display.rowLimit", Number(event.target.value))
                   }
                 />
               </label>
@@ -440,13 +423,7 @@ export function MultiQueryEditor({
                   max={100}
                   value={config.display.bins ?? 10}
                   onChange={(event) =>
-                    setConfig({
-                      ...config,
-                      display: {
-                        ...config.display,
-                        bins: Number(event.target.value),
-                      },
-                    })
+                    setValue("display.bins", Number(event.target.value))
                   }
                 />
               </label>
@@ -459,10 +436,7 @@ export function MultiQueryEditor({
                   { value: "hidden", label: "Hide legend" },
                 ]}
                 onValueChange={(value) => {
-                  setConfig({
-                    ...config,
-                    display: { ...config.display, legend: value === "visible" },
-                  });
+                  setValue("display.legend", value === "visible");
                   track("multi_query_legend_visibility_changed");
                 }}
               />
@@ -497,10 +471,7 @@ export function MultiQueryEditor({
                 value={config.display.chartType}
                 onOpenChartType={() => track("multi_query_chart_type_opened")}
                 onValueChange={(chartType) => {
-                  setConfig({
-                    ...config,
-                    display: { ...config.display, chartType },
-                  });
+                  setValue("display.chartType", chartType);
                   track("multi_query_chart_type_changed");
                 }}
               />

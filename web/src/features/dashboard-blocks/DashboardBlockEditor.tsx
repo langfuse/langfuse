@@ -3,7 +3,7 @@ import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { type FilterState, type MultiQueryConfig } from "@langfuse/shared";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { api } from "@/src/utils/api";
+import { useSaveDashboardBlock } from "./useDashboardBlockMutations";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type BlockEditorRequest } from "./dashboard-block-context";
 import { DashboardMarkdownEditor } from "./DashboardMarkdownEditor";
@@ -44,7 +44,6 @@ export function DashboardBlockEditor({
   onPreview: () => void;
   onCancel: () => void;
 }) {
-  const utils = api.useUtils();
   const [id] = useState(() => request.block?.id ?? uuidv4());
   const [beforePlacementId, setBeforePlacementId] = useState(
     request.block?.beforePlacementId ?? null,
@@ -54,19 +53,7 @@ export function DashboardBlockEditor({
     setBeforePlacementId(next);
     onPlacementChanged();
   };
-  const mutation = api.dashboardBlocks.save.useMutation({
-    onSuccess: () => {
-      utils.dashboardBlocks.getAll.invalidate({ projectId, dashboardId });
-      onSaved();
-    },
-    onError: (error) => {
-      if (error.data?.code === "CONFLICT")
-        utils.dashboardBlocks.getAll.invalidate({
-          projectId,
-          dashboardId,
-        });
-    },
-  });
+  const mutation = useSaveDashboardBlock({ projectId, dashboardId, onSaved });
   const error = saveErrorMessage(mutation.isError, mutation.error?.data?.code);
   const save = (
     content:

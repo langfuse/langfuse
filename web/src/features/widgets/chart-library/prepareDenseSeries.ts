@@ -1,4 +1,4 @@
-import { type MissingBucketValue } from "@/src/features/widgets/chart-library/chart-props";
+import { type MissingBucketPolicy } from "@/src/features/widgets/chart-library/chart-props";
 import { type TimeSeriesGroupedRow } from "@/src/features/widgets/chart-library/utils";
 
 /**
@@ -21,14 +21,17 @@ import { type TimeSeriesGroupedRow } from "@/src/features/widgets/chart-library/
 export function prepareDenseSeries(
   rows: TimeSeriesGroupedRow[],
   dimensions: string[],
-  missingValue: MissingBucketValue,
+  missingValue: MissingBucketPolicy,
 ): TimeSeriesGroupedRow[] {
-  const fill = missingValue === "zero" ? 0 : null;
   return rows.map((row) => {
     const filled: TimeSeriesGroupedRow = { ...row };
     for (const dimension of dimensions) {
       if (!(dimension in filled)) {
-        filled[dimension] = fill;
+        const policy =
+          typeof missingValue === "string"
+            ? missingValue
+            : missingValue[dimension];
+        filled[dimension] = policy === "zero" ? 0 : null;
       }
     }
     return filled;

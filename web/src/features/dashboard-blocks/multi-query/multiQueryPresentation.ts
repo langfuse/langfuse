@@ -26,7 +26,7 @@ export function prepareMultiQueryUnitVisualization(
   series: MultiQuerySeries[],
   rows: MultiQueryValue[],
   prepared: { visualization: Visualization; confirmation?: Visualization },
-  onLegendInteraction?: (action: ChartLegendInteraction) => void,
+  onAfterLegendInteraction?: (action: ChartLegendInteraction) => void,
 ): Visualization {
   const unit = series[0]?.unit;
   if (config.display.chartType === "NUMBER") {
@@ -36,8 +36,8 @@ export function prepareMultiQueryUnitVisualization(
       : { type: "number", value, valueFormatter: multiQueryFormatter(unit) };
   }
   if (
-    series.length &&
-    rows.length &&
+    series.length > 0 &&
+    rows.length > 0 &&
     series.every((item) => item.aggregation === "count") &&
     rows.every((item) => item.value === 0)
   ) {
@@ -69,8 +69,13 @@ export function prepareMultiQueryUnitVisualization(
       ...content,
       ...(content.legend &&
       content.legend.visibility !== "hidden" &&
-      onLegendInteraction
-        ? { legend: { ...content.legend, onInteraction: onLegendInteraction } }
+      onAfterLegendInteraction
+        ? {
+            legend: {
+              ...content.legend,
+              onAfterInteraction: onAfterLegendInteraction,
+            },
+          }
         : {}),
       series: content.series.map((item) => {
         const original = byId.get(item.id);
@@ -109,7 +114,7 @@ export function prepareMultiQueryUnitVisualization(
   if (content.type === "bar" || content.type === "horizontal-bar")
     return {
       ...content,
-      data: ordered.slice(0, config.display.rowLimit ?? 100).map((row) => ({
+      data: ordered.map((row) => ({
         label: byId.get(row.seriesId)?.label ?? row.queryLabel,
         value: row.value,
         color: byId.get(row.seriesId)?.fillColor,

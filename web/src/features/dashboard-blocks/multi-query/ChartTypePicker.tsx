@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { type MultiQueryConfig } from "@langfuse/shared";
 import { CheckIcon } from "@langfuse/icons";
+import { Button } from "@/src/components/ui/button";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { PopoverController } from "@/src/components/ui/popover";
 import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
@@ -79,7 +80,8 @@ export function ChartTypePicker({
           className="grid min-w-0 grid-cols-3 gap-1"
         >
           {chartOptions.map((option, index) => (
-            <button
+            <Button
+              variant="ghost"
               key={option.value}
               ref={(element) => {
                 tiles.current[index] = element;
@@ -94,7 +96,7 @@ export function ChartTypePicker({
                 closePopover();
               }}
               className={cn(
-                "hover:bg-accent/60 focus-visible:ring-ring relative flex min-w-0 flex-col items-center gap-1 rounded-md px-1 py-2 text-center focus-visible:ring-2 focus-visible:outline-hidden",
+                "hover:bg-accent/60 relative h-auto min-w-0 flex-col gap-1 px-1 py-2 text-center",
                 value === option.value && "bg-accent",
               )}
             >
@@ -110,27 +112,25 @@ export function ChartTypePicker({
                   <CheckIcon size="sm" aria-hidden />
                 </span>
               ) : null}
-            </button>
+            </Button>
           ))}
         </div>
       )}
     >
       {({ Trigger }) => (
-        <Trigger asChild>
-          <button
-            type="button"
-            aria-label="Chart type"
-            className="hover:bg-accent text-foreground-secondary hover:text-foreground focus-visible:ring-ring inline-flex min-h-7 max-w-full items-center gap-1.5 rounded px-1.5 text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+        <Trigger
+          type="button"
+          aria-label="Chart type"
+          className="hover:bg-accent text-foreground-secondary hover:text-foreground focus-visible:ring-ring inline-flex min-h-7 max-w-full items-center gap-1.5 rounded px-1.5 text-left text-sm focus-visible:ring-2 focus-visible:outline-hidden"
+        >
+          <Icon size="base" aria-hidden />
+          <span
+            className="min-w-0 truncate"
+            title={chartOptions[selectedIndex]!.label}
           >
-            <Icon size="base" aria-hidden />
-            <span
-              className="min-w-0 truncate"
-              title={chartOptions[selectedIndex]!.label}
-            >
-              {chartOptions[selectedIndex]!.label}
-            </span>
-            <DropdownIndicator />
-          </button>
+            {chartOptions[selectedIndex]!.label}
+          </span>
+          <DropdownIndicator />
         </Trigger>
       )}
     </PopoverController>

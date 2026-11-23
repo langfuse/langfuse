@@ -13,6 +13,7 @@ import {
   parseChartTimestamp,
   prepareTimeAxis,
 } from "@/src/features/widgets/chart-library/prepareTimeAxis";
+import { prepareDenseSeries } from "@/src/features/widgets/chart-library/prepareDenseSeries";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import { seriesFillColor } from "@/src/features/widgets/chart-library/seriesColors";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
@@ -26,10 +27,19 @@ export function useVerticalBarChartTimeSeries({
   legendInteraction = "highlight",
   maxVisibleSeries,
   sync,
+  missingValue = "gap",
   hideXAxisLabels = false,
 }: ChartProps) {
-  const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  const groupedData = useMemo(
+    () =>
+      prepareDenseSeries(
+        groupDataByTimeDimension(data),
+        dimensions,
+        missingValue,
+      ),
+    [data, dimensions, missingValue],
+  );
   const visibleSeries = useMemo(
     () => prepareVisibleSeries(data, dimensions),
     [data, dimensions],

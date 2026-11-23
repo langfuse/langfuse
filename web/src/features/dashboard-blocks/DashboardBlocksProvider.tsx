@@ -1,19 +1,19 @@
 import dynamic from "next/dynamic";
 import { type ReactNode } from "react";
-import { type FilterState, type HomeDashboardPresetId } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
+import { type FilterState } from "@langfuse/shared";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
-import { getHomePresetMetadata } from "@/src/features/dashboard/components/home-preset-registry";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   DashboardBlocksContext,
   type BlockEditorRequest,
   type DashboardBlocksContextValue,
 } from "./dashboard-block-context";
+import { useDashboardBlocksData } from "./useDashboardBlocksData";
+
 const DashboardBlockEditor = dynamic(
   () =>
     import("./DashboardBlockEditor").then(
@@ -50,53 +50,19 @@ export function DashboardBlocksProvider({
   children: ReactNode;
 }) {
   const capture = usePostHogClientCapture();
-  const capabilitiesQuery = api.dashboardBlocks.capabilities.useQuery(
-    { projectId },
-    {
-      staleTime: 15_000,
-      refetchInterval: 30_000,
-      refetchIntervalInBackground: false,
-      retry: false,
-      meta: { silentHttpCodes: [404] },
-    },
-  );
-  const capabilities = (!capabilitiesQuery.isError &&
-    capabilitiesQuery.data) || {
-    multiQuery: false,
-    markdown: false,
-  };
-  const kinds: ("multiQuery" | "markdown")[] = [];
-  if (capabilities.multiQuery) kinds.push("multiQuery");
-  if (capabilities.markdown) kinds.push("markdown");
-  const blocks = api.dashboardBlocks.getAll.useQuery(
-    { projectId, dashboardId, kinds },
-    {
-      enabled: capabilities.multiQuery || capabilities.markdown,
-      staleTime: 0,
-      refetchOnMount: true,
-      retry: false,
-      meta: { silentHttpCodes: [404] },
-    },
-  );
-  const widgetNames = api.dashboardWidgets.all.useQuery(
-    { projectId, orderBy: { column: "updatedAt", order: "DESC" } },
-    {
-      enabled:
-        canEdit &&
-        widgets.some((widget) => widget.type === "widget") &&
-        (capabilities.multiQuery || capabilities.markdown),
-      staleTime: 60_000,
-    },
-  );
-  const placementOptions: DashboardBlocksContextValue["placementOptions"] = [
-    { value: null, label: "After all chart rows" },
-    ...[...widgets]
-      .sort((a, b) => a.y - b.y || a.x - b.x)
-      .map((widget, index) => ({
-        value: widget.id,
-        label: `Before row containing ${widget.type === "preset" ? getHomePresetMetadata(widget.presetId as HomeDashboardPresetId, readPath === "v4" ? "v2" : "v1").name : (widgetNames.data?.widgets.find((item) => item.id === widget.widgetId)?.name ?? `chart ${index + 1}`)}`,
-      })),
-  ];
+  const {
+    capabilities,
+    capabilitiesPending,
+    blocks,
+    placementOptions,
+    loadError,
+  } = useDashboardBlocksData({
+    projectId,
+    dashboardId,
+    canEdit,
+    readPath,
+    widgets,
+  });
   const track: DashboardBlocksContextValue["track"] = (
     action,
     blockKind,
@@ -108,9 +74,6 @@ export function DashboardBlocksProvider({
       isNew,
       isV4: readPath === "v4",
     });
-  const visibleBlocks = (blocks.data ?? []).filter(
-    (block) => capabilities[block.kind],
-  );
   return (
     <DialogController<BlockEditorRequest>
       onDismiss={() => track("cancel")}
@@ -148,12 +111,12 @@ export function DashboardBlocksProvider({
             readPath,
             dateRange,
             filterState,
-            capabilitiesPending: capabilitiesQuery.isPending,
+            capabilitiesPending,
             capabilities,
-            blocks: visibleBlocks,
+            blocks,
             widgets,
             placementOptions,
-            loadError: blocks.isError || capabilitiesQuery.isError,
+            loadError,
             openEditor: (request) => {
               if (!canEdit || !capabilities[request.kind]) return;
               track(

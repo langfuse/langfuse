@@ -82,7 +82,7 @@ export function MultiQuerySourceEditor({
     onChange({
       ...source,
       metrics,
-      orderBy: orderBy?.length ? orderBy : undefined,
+      orderBy: orderBy && orderBy.length > 0 ? orderBy : undefined,
     });
     track("multi_query_metric_changed", metrics.length);
   };
@@ -140,7 +140,9 @@ export function MultiQuerySourceEditor({
           {source.dimensions.length
             ? ` · By ${source.dimensions.map((dimension) => readableMultiQueryField(dimension.field)).join(", ")}`
             : ""}
-          {source.filters.length ? ` · ${source.filters.length} filters` : ""}
+          {source.filters.length > 0
+            ? ` · ${source.filters.length} filters`
+            : ""}
         </p>
       ) : null}
       {hasOpened || expanded ? (
@@ -364,7 +366,7 @@ export function MultiQuerySourceEditor({
                 onChange({
                   ...source,
                   dimensions,
-                  orderBy: orderBy?.length ? orderBy : undefined,
+                  orderBy: orderBy && orderBy.length > 0 ? orderBy : undefined,
                 });
                 track("multi_query_grouping_changed", dimensions.length);
               }}
@@ -429,7 +431,7 @@ export function MultiQuerySourceEditor({
                 aria-label="Sort direction"
                 placeholder="Largest first"
                 value={source.orderBy?.[0]?.direction ?? "desc"}
-                disabled={!source.orderBy?.length}
+                disabled={(source.orderBy?.length ?? 0) === 0}
                 options={[
                   { value: "desc", label: "Largest first" },
                   { value: "asc", label: "Smallest first" },
