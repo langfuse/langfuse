@@ -121,8 +121,8 @@ export function CreateRuleDialogContent({
   const createRule = api.evalsV2.rules.create.useMutation({
     onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
   });
-  const createTraceTranscript =
-    api.evalsV2.rules.createTraceTranscript.useMutation({
+  const createTraceTranscriptRule =
+    api.evalsV2.rules.createTraceTranscriptRule.useMutation({
       onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
     });
 
@@ -130,7 +130,7 @@ export function CreateRuleDialogContent({
     const draft = ruleSetupStore.getState();
     const rule =
       draft.scope === "trace"
-        ? await createTraceTranscript.mutateAsync({
+        ? await createTraceTranscriptRule.mutateAsync({
             projectId,
             name: draft.name.trim(),
             targetObject: TopicsTargetObject,
@@ -235,7 +235,7 @@ export function CreateRuleDialogContent({
         <RuleDialogFooter
           ruleSetupStore={ruleSetupStore}
           mutationPending={
-            createRule.isPending || createTraceTranscript.isPending
+            createRule.isPending || createTraceTranscriptRule.isPending
           }
           nameGenerationPending={suggestName.isPending}
           isEditing={false}

@@ -76,7 +76,7 @@ export function TraceRuleSavedDialog({
     limit: 100,
     targetObjects: [TopicsTargetObject],
   });
-  const createRule = api.evalsV2.rules.createTraceTranscript.useMutation({
+  const createRule = api.evalsV2.rules.createTraceTranscriptRule.useMutation({
     onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
   });
   const attach = api.evalsV2.rules.attach.useMutation({
