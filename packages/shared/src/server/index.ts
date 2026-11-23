@@ -14,6 +14,7 @@ export { type TransformMediaPayloadResult } from "./media/MediaPayloadProcessor"
 export { transformMediaPayload } from "./media/MediaPayloadProcessor";
 export { getMediaId } from "./media/mediaService";
 export { getMediaBucketPath } from "./media/mediaService";
+export { getMediaDownloadUrl } from "./media/getMediaDownloadUrl";
 export { upsertMediaRecord } from "./media/mediaService";
 export { linkMediaToTraceOrObservation } from "./media/mediaService";
 export { type UploadMediaForTraceResult } from "./media/mediaService";
@@ -748,6 +749,10 @@ export { getSystemAuditLogActorForApiKeyId } from "./repositories/auditLogs";
 export { type BillableEventType } from "./repositories/billable-events";
 export {
   BILLING_SETTLE_MS,
+  type BillableUnitBucketGranularity,
+  bucketStartSql,
+  getBillableEventsLedgerStart,
+  getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
 } from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
@@ -758,6 +763,7 @@ export {
 } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
 export {
+  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTopicResultCounts,
   type TopicResultCounts,
   listCurrentTopicAssignments,

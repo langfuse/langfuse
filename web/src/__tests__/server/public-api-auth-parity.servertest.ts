@@ -180,6 +180,7 @@ const orgRoutes: Route[] = [
   { route: "scim/Users/[id]", methods: ["GET", "PUT", "PATCH", "DELETE"] },
   { route: "integrations/blob-storage/index", methods: ["GET", "PUT"] },
   { route: "integrations/blob-storage/[id]", methods: ["GET", "DELETE"] },
+  { route: "unstable/organizations/billable-units", methods: ["GET"] },
 ];
 
 // Public files outside both tables, subtracted from the filesystem walk before

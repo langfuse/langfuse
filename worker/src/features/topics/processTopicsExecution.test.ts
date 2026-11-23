@@ -554,8 +554,7 @@ describe("Topics execution", () => {
     seedSummaries(100);
     await updateSelection("published");
     const published = [...state.runs.values()].at(-1)!;
-    for (const summary of state.summaries.values())
-      summary.embedding[3] += 0.001;
+    for (const summary of state.summaries.values()) summary.embedding[4] = 0.75;
     const naming = state.name.getMockImplementation()!;
     state.name
       .mockImplementationOnce(naming)
@@ -835,7 +834,7 @@ describe("Topics execution", () => {
   });
 
   it.each(["centroid", "radius"] as const)(
-    "creates a new version with the same stable identity when its %s changes",
+    "creates a new version with the same stable identity, named with its previous name as context, when its %s changes",
     async (changed) => {
       seedSummaries(100);
       const members = [...state.summaries.values()].filter(
@@ -865,6 +864,9 @@ describe("Topics execution", () => {
         first.topics.find((topic) => topic.centroid[1] > 0.5),
       );
       expect(state.name).toHaveBeenCalledTimes(3);
+      expect(state.name.mock.calls[2][0]).toMatchObject({
+        previousTopic: { name: old.name, description: old.description },
+      });
       expect(state.runs.get(first.id)).toEqual(first);
     },
   );
@@ -878,7 +880,7 @@ describe("Topics execution", () => {
       const first = [...state.runs.values()].at(-1)!;
       const unchanged = first.topics.find((topic) => topic.centroid[1] > 0.5)!;
       for (const summary of state.summaries.values()) {
-        if (summary.embedding[0] > 0.5) summary.embedding[3] += 0.001;
+        if (summary.embedding[0] > 0.5) summary.embedding[4] = 0.75;
       }
       const colliding = {
         output: {
