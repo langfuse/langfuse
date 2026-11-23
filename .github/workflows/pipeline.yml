@@ -134,6 +134,7 @@ jobs:
       llm_connections: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.llm_connections }}
       topics_llm: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.topics_llm }}
       ai_gateway: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.ai_gateway }}
+      guardrail_rules: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.guardrail_rules }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -204,6 +205,48 @@ jobs:
         run: docker buildx build --load --pull --target runtime -t langfuse-ai-gateway:test .
       - name: Smoke test runtime image
         run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
+
+  # Rebuilds the committed WebAssembly module and fails when it is out of date,
+  # so web builds can use pkg/ without a Rust toolchain.
+  tests-guardrail-rules:
+    timeout-minutes: 15
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+      - llm-connections-filter
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.guardrail_rules == 'true' }}
+    defaults:
+      run:
+        working-directory: packages/guardrail-rules
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install --no-self-update
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Lint native and WebAssembly targets
+        run: |
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo clippy --locked --target wasm32-unknown-unknown --features wasm -- -D warnings
+      - name: Run Rust tests
+        run: cargo test --locked
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: wasm-bindgen@0.2.130
+      - name: Rebuild the WebAssembly module
+        run: bash scripts/build-wasm.sh
+      - name: Fail if the committed module is out of date
+        run: |
+          git status --porcelain -- pkg
+          test -z "$(git status --porcelain -- pkg)"
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Check the wasm32 build reports the native compiled sizes
+        run: node --test js/parity.test.mjs
 
   lint:
     timeout-minutes: 12
@@ -1841,6 +1884,7 @@ jobs:
         knip,
         format-check,
         tests-ai-gateway,
+        tests-guardrail-rules,
         tests-eslint-plugin,
         tests-in-app-agent-sandbox-runtime,
         tests-storybook,

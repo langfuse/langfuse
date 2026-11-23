@@ -19,9 +19,14 @@ regex-automata = { version = "=0.4.18", default-features = false, features = ["s
 regex-syntax = { version = "=0.8.11", default-features = false, features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-wasm-bindgen = { version = "0.2", optional = true }
+# Exact, so the generated glue matches the wasm-bindgen CLI pinned in scripts/build-wasm.sh.
+wasm-bindgen = { version = "=0.2.130", optional = true }
 
 [profile.release]
 opt-level = "s"
 lto = true
 codegen-units = 1
+# Keeps pkg/ byte-identical across machines: no debug info, which carries
+# build paths (scripts/build-wasm.sh remaps the rest).
+debug = false
+panic = "abort"

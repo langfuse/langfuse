@@ -1,15 +1,13 @@
 // Calls the WebAssembly validator the way the control plane would on save.
-// Usage: bash scripts/build-wasm.sh && node js/demo.mjs
+// Usage: node js/demo.mjs (uses the committed pkg/; rebuild with scripts/build-wasm.sh)
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { validate } = require(
-  `${process.env.OUT ?? "/tmp/guardrail-rules-pkg"}/guardrail_rules.js`,
-);
+const { limits, validate } = require("../pkg/guardrail_rules.js");
 
-const check = (patterns, limits) => {
+const check = (patterns) => {
   const started = performance.now();
-  const report = JSON.parse(validate(JSON.stringify({ patterns, limits })));
+  const report = JSON.parse(validate(JSON.stringify({ patterns })));
   return { ms: +(performance.now() - started).toFixed(2), ...report };
 };
 
@@ -24,16 +22,11 @@ const cases = {
   lookahead: [String.raw`foo(?=bar)`],
   backreference: [String.raw`(a)\1`],
   "syntax error": [String.raw`(unclosed`],
-  "too big for a 16 KiB rule limit": [String.raw`[a-z]{1,1000}x`],
+  "over the per-rule size limit": [String.raw`\w{1,500}`.repeat(5)],
+  "too many rules": Array.from({ length: 51 }, (_, i) => `word${i}`),
 };
 
+console.log("limits".padEnd(32), limits());
 for (const [name, patterns] of Object.entries(cases)) {
-  const limits = name.startsWith("too big")
-    ? { max_rule_bytes: 16 * 1024 }
-    : undefined;
-  console.log(name.padEnd(32), JSON.stringify(check(patterns, limits)));
+  console.log(name.padEnd(32), JSON.stringify(check(patterns)));
 }
-console.log(
-  "too many rules".padEnd(32),
-  JSON.stringify(check(["a", "b", "c"], { max_rules: 2 })),
-);

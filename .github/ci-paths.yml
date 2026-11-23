@@ -62,3 +62,10 @@ ai_gateway:
   - web/vitest.server.config.mts
   - .github/workflows/pipeline.yml
   - .github/ci-paths.yml
+
+# The regex rule validator: its Rust source, build config and committed
+# WebAssembly output.
+guardrail_rules:
+  - .github/workflows/pipeline.yml
+  - .github/ci-paths.yml
+  - packages/guardrail-rules/**

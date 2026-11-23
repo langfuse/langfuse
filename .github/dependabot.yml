@@ -35,6 +35,26 @@ updates:
           - "*"
 
   - package-ecosystem: cargo
+    directory: "/packages/guardrail-rules"
+    assignees:
+      - "hassiebp"
+      - "wochinge"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    # regex-automata, regex-syntax and wasm-bindgen are pinned exactly (to
+    # ai-gateway's lockfile and the wasm-bindgen CLI); bump them by hand.
+    ignore:
+      - dependency-name: "regex-automata"
+      - dependency-name: "regex-syntax"
+      - dependency-name: "wasm-bindgen"
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: cargo
     directory: "/packages/native"
     assignees:
       - "sumerman"

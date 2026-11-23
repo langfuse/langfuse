@@ -11,6 +11,7 @@
     "packages/native/index.js",
     // Run by hand against the WebAssembly build of the Rust crate; nothing imports it.
     "packages/guardrail-rules/js/**",
+    "packages/guardrail-rules/pkg/**",
   ],
   // Re-enable once Knip tracks all workspace packages and catalog entries stop false-positiveing.
   "rules": {
