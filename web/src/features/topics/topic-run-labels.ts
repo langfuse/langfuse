@@ -57,7 +57,7 @@ export const busy = (status: string) =>
 export const estimatedTopicCostLabel = "Estimated cost:";
 
 export const estimatedTopicCostDescription =
-  "The estimated cost is a lower bound. As summaries can fail, are re-used and can be replaced, the actual cost might be higher. Calls split their cost across the summaries they produce. Each summary’s share goes to its snapshot run or is split equally among its live maps. Please confirm with your model provider.";
+  "The estimated cost is a lower bound. As summaries can fail, are reused and can be replaced, the actual cost might be higher. Calls split their cost across the summaries they produce. Each summary’s share goes to its snapshot run or is split equally among its live maps. Please confirm with your model provider.";
 
 export function createsSummaries(input: RunCostInput) {
   return input.operation === "process" || Boolean(input.analysis?.summarize);
