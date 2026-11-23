@@ -46,3 +46,30 @@ describe("multi-query value presentation", () => {
     expect(actualZero).toMatchObject({ type: "number", value: 0 });
   });
 });
+
+it("shows the empty population when a comparison contains only zero record counts", () => {
+  const config = createMultiQueryConfig();
+  const series = {
+    id: "a.count",
+    label: "A",
+    aggregation: "count",
+    unit: "integer",
+    color: "blue",
+    fillColor: "blue",
+  };
+  const row = {
+    seriesId: series.id,
+    queryId: "a",
+    metricId: "count",
+    queryLabel: "A",
+    metricLabel: "Count",
+    time: null,
+    dimensions: {},
+    value: 0,
+    unit: "integer",
+  };
+  const view = prepareMultiQueryUnitVisualization(config, [series], [row], {
+    visualization: { type: "empty" },
+  });
+  expect(view).toMatchObject({ type: "empty", message: "0 matching records" });
+});

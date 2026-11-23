@@ -24,6 +24,8 @@ import {
   type MultiQuerySource,
 } from "./multiQueryModel";
 import { MultiQueryResultView } from "./MultiQueryResultView";
+import { formatDateRange } from "@/src/utils/date-range-utils";
+import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { ChartTypePicker } from "./ChartTypePicker";
 import { MultiQuerySourceEditor } from "./MultiQuerySourceEditor";
 import {
@@ -52,12 +54,20 @@ export function MultiQueryEditor({
     () => initial ?? createMultiQueryConfig(),
   );
   const [enabled, setEnabled] = useState(true);
+  const [invalidSourceIds, setInvalidSourceIds] = useState<string[]>([]);
+  const incompleteSources = config.queries.filter((source) =>
+    invalidSourceIds.includes(source.id),
+  );
   const [editing, setEditing] = useState(config.queries[0]!.id);
   const [mobileTab, setMobileTab] = useState("series");
   const [submitError, setSubmitError] = useState<string>();
   const capture = usePostHogClientCapture();
   const context = { projectId, dateRange, filterState, readPath };
-  const runtime = useMultiQueryWidget(config, context, enabled);
+  const runtime = useMultiQueryWidget(
+    config,
+    context,
+    enabled && incompleteSources.length === 0,
+  );
   const parsed = multiQueryConfigSchema.safeParse(config);
   const definitionError: string | null = (() => {
     try {
@@ -83,6 +93,7 @@ export function MultiQueryEditor({
       ? parsed.error.issues[0]?.message
       : (definitionError ?? runtime.validationError));
   const canSave =
+    incompleteSources.length === 0 &&
     parsed.success &&
     !definitionError &&
     !runtime.validationError &&
@@ -91,7 +102,7 @@ export function MultiQueryEditor({
     !savePending;
   const track = (action: string, count?: number) =>
     capture("dashboard:block_interaction", {
-      kind: "multi-query",
+      blockKind: "multiQuery",
       action,
       count,
       isV4: readPath === "v4",
@@ -102,6 +113,9 @@ export function MultiQueryEditor({
     return `${prefix}${index}`;
   };
   const updateQueries = (queries: MultiQuerySource[]) => {
+    setInvalidSourceIds((current) =>
+      current.filter((id) => queries.some((query) => query.id === id)),
+    );
     const views = config.views
       ?.map((view) => ({
         ...view,
@@ -130,6 +144,17 @@ export function MultiQueryEditor({
       );
     }
   };
+  const previewContent = enabled ? (
+    <MultiQueryResultView config={config} runtime={runtime} />
+  ) : (
+    <VisualizationFrame
+      content={{
+        type: "empty",
+        message: "Preview paused",
+        description: "Resume to load the latest series before saving.",
+      }}
+    />
+  );
   return (
     <div className="ph-no-capture flex h-[min(75vh,54rem)] min-h-80 min-w-0 flex-col gap-3">
       <div className="md:hidden">
@@ -199,6 +224,14 @@ export function MultiQueryEditor({
               index={index}
               context={context}
               expanded={source.id === editing}
+              hasInvalidFilters={invalidSourceIds.includes(source.id)}
+              onHasInvalidFiltersChange={(invalid) => {
+                setInvalidSourceIds((current) => {
+                  if (!invalid) return current.filter((id) => id !== source.id);
+                  if (current.includes(source.id)) return current;
+                  return [...current, source.id];
+                });
+              }}
               onExpandedChange={() =>
                 setEditing(editing === source.id ? "" : source.id)
               }
@@ -440,7 +473,25 @@ export function MultiQueryEditor({
           className={`${mobileTab === "preview" ? "flex" : "hidden"} min-h-0 min-w-0 flex-col gap-2 [--multi-query-plot-height:clamp(16rem,38vh,30rem)] md:flex`}
         >
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-bold">Live preview</h3>
+            <div className="flex min-w-0 flex-col gap-1">
+              <h3 className="text-sm font-bold">Live preview</h3>
+              <p className="text-muted-foreground text-xs">
+                {formatDateRange(runtime.dateRange.from, runtime.dateRange.to)}
+              </p>
+              {filterState.length > 0 && (
+                <details className="text-muted-foreground text-xs">
+                  <summary className="cursor-pointer">
+                    Dashboard filters ({filterState.length})
+                  </summary>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <InlineFilterState
+                      filterState={filterState}
+                      className="m-0"
+                    />
+                  </div>
+                </details>
+              )}
+            </div>
             <div className="flex items-center gap-1">
               <ChartTypePicker
                 value={config.display.chartType}
@@ -480,16 +531,17 @@ export function MultiQueryEditor({
               />
             </div>
           </div>
-          {enabled ? (
-            <MultiQueryResultView config={config} runtime={runtime} />
-          ) : (
+          {incompleteSources.length > 0 ? (
             <VisualizationFrame
               content={{
                 type: "empty",
-                message: "Preview paused",
-                description: "Resume to load the latest series before saving.",
+                message: "Complete the series filters",
+                description:
+                  "An incomplete filter has not been applied. Finish it or remove it before previewing or saving.",
               }}
             />
+          ) : (
+            previewContent
           )}
         </div>
       </div>

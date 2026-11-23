@@ -16,7 +16,7 @@ The `multi-query/` subtree owns its query editor, execution, preparation, and ch
 
 ## Pilot and rollback
 
-Apply the additive PostgreSQL migration before rolling out web servers. No backfill or ClickHouse migration is required. Enable each capability by setting its web environment variable to an exact, comma-separated list of project IDs, then rolling the web processes. An unset or empty list disables that capability everywhere.
+Apply the additive PostgreSQL migration before rolling out web servers. No backfill or ClickHouse migration is required. Keep both pilots disabled until every web replica can clone saved blocks. Enable each capability by setting its web environment variable to an exact, comma-separated list of project IDs, then rolling the web processes. An unset or empty list disables that capability everywhere.
 
 | Variable                                             | Enables                                  |
 | ---------------------------------------------------- | ---------------------------------------- |

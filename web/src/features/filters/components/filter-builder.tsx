@@ -450,6 +450,7 @@ export function InlineFilterBuilder({
   columns,
   filterState,
   onChange,
+  onHasInvalidFiltersChange,
   columnIdentifier = "name",
   disabled,
   columnsWithCustomSelect,
@@ -467,6 +468,7 @@ export function InlineFilterBuilder({
   onChange:
     | Dispatch<SetStateAction<FilterState>>
     | ((newState: FilterState) => void);
+  onHasInvalidFiltersChange?: (hasInvalidFilters: boolean) => void;
   /** Which column field to persist in filter.column: 'id' for stable refs, 'name' for legacy compatibility */
   columnIdentifier?: ColumnIdentifier;
   disabled?: boolean;
@@ -519,6 +521,7 @@ export function InlineFilterBuilder({
       (f) => singleFilter.safeParse(f).success,
     ) as FilterState;
     _setWipFilterState(newState);
+    onHasInvalidFiltersChange?.(validFilters.length !== newState.length);
     onChange(validFilters);
   };
 
@@ -1164,6 +1167,7 @@ function FilterBuilderForm({
 
     const removeButton = (
       <Button
+        aria-label="Remove filter"
         onClick={() => removeFilter(i)}
         variant="ghost"
         type="button"

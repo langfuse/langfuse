@@ -64,7 +64,7 @@ export function MultiQueryResultView({
   );
   const captureView = (action: string) =>
     capture("dashboard:block_interaction", {
-      kind: "multi-query",
+      blockKind: "multiQuery",
       action,
       isV4:
         runtime.plan?.queries.some((query) => query.version === "v2") ?? false,

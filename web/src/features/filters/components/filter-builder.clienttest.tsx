@@ -40,6 +40,59 @@ describe("filter builder change notifications", () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
+  it("keeps an incomplete inline draft invalid across collapse and reports completion or removal", () => {
+    function Harness() {
+      const [filters, setFilters] = useState<FilterState>([]);
+      const [invalid, setInvalid] = useState(false);
+      const [expanded, setExpanded] = useState(true);
+      return (
+        <>
+          <button onClick={() => setExpanded(!expanded)}>Toggle series</button>
+          <button disabled={invalid}>Save chart</button>
+          <div hidden={!expanded}>
+            <InlineFilterBuilder
+              columns={[
+                {
+                  id: "userId",
+                  name: "User ID",
+                  type: "string",
+                  internal: "user_id",
+                },
+              ]}
+              columnIdentifier="id"
+              filterState={filters}
+              onChange={setFilters}
+              onHasInvalidFiltersChange={setInvalid}
+            />
+          </div>
+        </>
+      );
+    }
+    render(
+      <TooltipProvider>
+        <Harness />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Add filter/ }));
+    expect(screen.getByRole("button", { name: "Save chart" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle series" }));
+    expect(screen.getByRole("button", { name: "Save chart" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle series" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter" }));
+    expect(
+      screen.getByRole("button", { name: "Save chart" }),
+    ).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Add filter/ }));
+    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(screen.getByRole("option", { name: "User ID" }));
+    expect(screen.getByRole("button", { name: "Save chart" })).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText("string"), {
+      target: { value: "complete" },
+    });
+    expect(
+      screen.getByRole("button", { name: "Save chart" }),
+    ).not.toBeDisabled();
+  });
   it.each([
     ["inline", InlineFilterBuilder],
     ["popover", PopoverFilterBuilder],

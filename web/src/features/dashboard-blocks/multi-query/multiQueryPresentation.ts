@@ -35,6 +35,18 @@ export function prepareMultiQueryUnitVisualization(
       ? { type: "empty", message: "No measured value" }
       : { type: "number", value, valueFormatter: multiQueryFormatter(unit) };
   }
+  if (
+    series.length &&
+    rows.length &&
+    series.every((item) => item.aggregation === "count") &&
+    rows.every((item) => item.value === 0)
+  ) {
+    return {
+      type: "empty",
+      message: "0 matching records",
+      description: "Try a wider time range or change the filters.",
+    };
+  }
   if (prepared.confirmation) return prepared.confirmation;
   if (config.display.chartType === "HISTOGRAM")
     return {

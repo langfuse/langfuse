@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   CopyPlusIcon,
   PlusIcon,
@@ -35,6 +36,8 @@ export function MultiQuerySourceEditor({
   onChange,
   onDuplicate,
   onRemove,
+  hasInvalidFilters,
+  onHasInvalidFiltersChange,
 }: {
   source: MultiQuerySource;
   index: number;
@@ -44,7 +47,10 @@ export function MultiQuerySourceEditor({
   onChange: (source: MultiQuerySource) => void;
   onDuplicate: (() => void) | undefined;
   onRemove: (() => void) | undefined;
+  hasInvalidFilters: boolean;
+  onHasInvalidFiltersChange: (hasInvalidFilters: boolean) => void;
 }) {
+  const [hasOpened, setHasOpened] = useState(expanded);
   const version = resolveWidgetEditorVersion({
     baseMinVersion: 1,
     activeVersion: context.readPath === "v4" ? "v2" : "v1",
@@ -59,7 +65,7 @@ export function MultiQuerySourceEditor({
   const capture = usePostHogClientCapture();
   const track = (action: string, count?: number) =>
     capture("dashboard:block_interaction", {
-      kind: "multi-query",
+      blockKind: "multiQuery",
       action,
       count,
       isV4: version === "v2",
@@ -87,7 +93,10 @@ export function MultiQuerySourceEditor({
           label={`${expanded ? "Collapse" : "Expand"} series ${String.fromCharCode(65 + index)}`}
           icon={expanded ? ChevronDown : ChevronRight}
           size="sm"
-          onClick={onExpandedChange}
+          onClick={() => {
+            setHasOpened(true);
+            onExpandedChange();
+          }}
           aria-expanded={expanded}
         />
         <span className="bg-muted flex h-6 w-6 shrink-0 items-center justify-center rounded font-mono text-xs font-bold">
@@ -103,6 +112,11 @@ export function MultiQuerySourceEditor({
             }
           />
         </div>
+        {hasInvalidFilters ? (
+          <span className="text-xs text-amber-600" role="status">
+            Incomplete filter
+          </span>
+        ) : null}
         {onDuplicate ? (
           <IconButton
             label="Duplicate series"
@@ -128,8 +142,11 @@ export function MultiQuerySourceEditor({
             : ""}
           {source.filters.length ? ` · ${source.filters.length} filters` : ""}
         </p>
-      ) : (
-        <div className="flex min-w-0 flex-col gap-3 border-t p-3">
+      ) : null}
+      {hasOpened || expanded ? (
+        <div
+          className={`${expanded ? "flex" : "hidden"} min-w-0 flex-col gap-3 border-t p-3`}
+        >
           <label className="flex min-w-0 flex-col gap-1 text-xs">
             Data source
             <SelectInput
@@ -356,6 +373,7 @@ export function MultiQuerySourceEditor({
           <div className="flex min-w-0 flex-col gap-1">
             <span className="text-xs font-medium">Series filters</span>
             <ConnectedMetricsFilterBuilder
+              onHasInvalidFiltersChange={onHasInvalidFiltersChange}
               version={version}
               view={source.view}
               projectId={context.projectId}
@@ -427,7 +445,7 @@ export function MultiQuerySourceEditor({
             </div>
           </details>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

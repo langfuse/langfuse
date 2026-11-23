@@ -24,6 +24,7 @@ export function useMultiQueryWidget(
     from: new Date(Date.now() - 7 * 86400_000),
     to: new Date(),
   }));
+  const dateRange = context.dateRange ?? fallbackRange;
   const [selectedView, selectView] = useState<string>();
   const [refreshKey, setRefreshKey] = useState(0);
   const view = resolveMultiQueryView(config, selectedView);
@@ -38,7 +39,7 @@ export function useMultiQueryWidget(
   try {
     plan = buildMultiQueryPlan(
       config,
-      { ...context, dateRange: context.dateRange ?? fallbackRange },
+      { ...context, dateRange },
       view.queryIds,
     );
   } catch (error) {
@@ -52,6 +53,7 @@ export function useMultiQueryWidget(
     enabled: enabled && !validationError,
   });
   return {
+    dateRange,
     plan,
     validationError,
     result,
