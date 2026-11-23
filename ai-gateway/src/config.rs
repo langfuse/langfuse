@@ -206,7 +206,7 @@ impl GatewayConfig {
     ///
     /// # Errors
     /// Returns an error for an invalid IP address and port, a non-boolean port
-    /// auto-increment setting, a connection drain timeout outside 1–300 integer seconds,
+    /// auto-increment setting, a connection drain timeout outside 1–600 integer seconds,
     /// or an unsupported log level or format.
     pub fn from_values(
         listen_address: Option<&str>,
@@ -232,8 +232,8 @@ impl GatewayConfig {
         let seconds = integer_setting(
             connection_drain_timeout,
             DEFAULT_SHUTDOWN_TIMEOUT_SECONDS,
-            1..=300,
-            "LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS (or the deprecated LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS) must be an integer from 1 to 300",
+            1..=600,
+            "LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS (or the deprecated LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS) must be an integer from 1 to 600",
         )?;
         let log_level = match log_level.unwrap_or("info") {
             "debug" => LevelFilter::DEBUG,
@@ -691,14 +691,14 @@ mod tests {
         let custom = GatewayConfig::from_values(
             Some("[::1]:9000"),
             Some("true"),
-            Some("30"),
+            Some("600"),
             Some("debug"),
             Some("json"),
         )
         .unwrap();
         assert_eq!(custom.listen_address, "[::1]:9000".parse().unwrap());
         assert!(custom.auto_increment_listen_port);
-        assert_eq!(custom.connection_drain_timeout, Duration::from_secs(30));
+        assert_eq!(custom.connection_drain_timeout, Duration::from_secs(600));
         assert_eq!(custom.log_level, LevelFilter::DEBUG);
         assert_eq!(custom.log_format, LogFormat::Json);
     }
@@ -824,7 +824,7 @@ mod tests {
             (None, None, Some("3")),
             (None, None, Some("")),
             (None, Some("0"), None),
-            (None, Some("301"), None),
+            (None, Some("601"), None),
             (None, Some("-1"), None),
             (Some("localhost:8080"), None, None),
         ] {
