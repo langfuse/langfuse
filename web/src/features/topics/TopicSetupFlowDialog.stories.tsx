@@ -72,7 +72,8 @@ function SetupStory({
           samplingPercent={samplePercent}
           dailyTraces={180}
           backfillTraces={Math.round((412 * samplePercent) / 100)}
-          modelSettingsHref="/project/demo-project/settings/models"
+          canAddModelPrice
+          onAddModelPrice={fn()}
           starting={false}
           disabled={false}
           error={null}

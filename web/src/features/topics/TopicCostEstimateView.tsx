@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   TOPICS_COST_ESTIMATE_SAMPLE_SIZE,
   type TopicCostEstimate,
@@ -34,7 +33,8 @@ export function TopicCostEstimateView({
   samplingPercent,
   dailyTraces,
   backfillTraces,
-  modelSettingsHref,
+  canAddModelPrice,
+  onAddModelPrice,
   starting,
   disabled,
   error,
@@ -46,7 +46,9 @@ export function TopicCostEstimateView({
   /** Finished matching traces a day, before sampling. */
   dailyTraces: number | null;
   backfillTraces: number | null;
-  modelSettingsHref: string;
+  /** False without permission to edit model definitions; the button is then disabled. */
+  canAddModelPrice: boolean;
+  onAddModelPrice: () => void;
   starting: boolean;
   disabled: boolean;
   error: string | null;
@@ -74,6 +76,10 @@ export function TopicCostEstimateView({
           output: estimate.tokens.outputTokens / estimate.sampled,
         }
       : null;
+
+  const addPriceHint = canAddModelPrice
+    ? "Add one to see a cost."
+    : "Ask a project admin to add one to see a cost.";
 
   return (
     <div className="flex flex-col gap-2 rounded-md border px-3.5 py-3">
@@ -145,11 +151,16 @@ export function TopicCostEstimateView({
             {approxCount(tokensPerTrace.output)} output tokens per trace
           </span>
           <span className="text-muted-foreground">
-            No price is set for {unpriced.join(" and ")}.{" "}
-            <Link href={modelSettingsHref} className="underline">
-              Add a model price
-            </Link>{" "}
-            to see a cost.
+            No price is set for {unpriced.join(" and ")}. {addPriceHint}
+          </span>
+          <span>
+            <Button
+              text="Add model price"
+              variant="outline"
+              size="sm"
+              disabled={!canAddModelPrice}
+              onClick={onAddModelPrice}
+            />
           </span>
         </div>
       ) : null}

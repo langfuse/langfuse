@@ -1,5 +1,7 @@
 import type { FilterState } from "@langfuse/shared";
+import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
 
@@ -38,21 +40,41 @@ export function TopicCostEstimate({
   });
   // Null once the record expired, so the card offers a new estimate.
   const current = estimate.data ?? null;
+  const canAddModelPrice = useHasProjectAccess({
+    projectId,
+    scope: "models:CUD",
+  });
+  // The summary model first: it carries nearly all of the cost.
+  const unpricedModel =
+    current && !current.prices.summaryPriced
+      ? current.inputs.summaryModel
+      : (current?.inputs.embeddingModel ?? undefined);
   return (
-    <TopicCostEstimateView
-      estimate={current}
-      samplingPercent={samplingPercent}
-      dailyTraces={dailyTraces}
-      backfillTraces={backfillTraces}
-      modelSettingsHref={`/project/${projectId}/settings/models`}
-      // Also while the started estimate loads, so a second click cannot slip in.
-      starting={start.isPending || estimate.isRefetching}
-      disabled={facetIds.length === 0}
-      error={start.error?.message ?? null}
-      onStart={() => {
-        capture("topics:cost_estimate_started", { source });
-        start.mutate(input);
-      }}
-    />
+    <UpsertModelFormDialogController
+      action="create"
+      projectId={projectId}
+      prefilledModelData={{ modelName: unpricedModel }}
+      // Stay in the dialog; prices apply on read, so the card then shows the cost.
+      onCreated={() => utils.topics.costEstimate.invalidate(input)}
+    >
+      {({ openDialog }) => (
+        <TopicCostEstimateView
+          estimate={current}
+          samplingPercent={samplingPercent}
+          dailyTraces={dailyTraces}
+          backfillTraces={backfillTraces}
+          canAddModelPrice={canAddModelPrice}
+          onAddModelPrice={openDialog}
+          // Also while the started estimate loads, so a second click cannot slip in.
+          starting={start.isPending || estimate.isRefetching}
+          disabled={facetIds.length === 0}
+          error={start.error?.message ?? null}
+          onStart={() => {
+            capture("topics:cost_estimate_started", { source });
+            start.mutate(input);
+          }}
+        />
+      )}
+    </UpsertModelFormDialogController>
   );
 }
