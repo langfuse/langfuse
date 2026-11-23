@@ -17,6 +17,7 @@ export function NewMapDialogView({
   onFacetIdsChange,
   disabledReason,
   samplingField,
+  costEstimateField,
   canStart,
   starting,
   errors,
@@ -82,6 +83,7 @@ export function NewMapDialogView({
               </span>
             </div>
           )}
+          {disabledReason ? null : costEstimateField}
           {errors.map((message) => (
             <TopicsErrorMessage key={message} message={message} />
           ))}
@@ -103,6 +105,8 @@ type NewMapDialogViewProps = {
   disabledReason?: string;
   /** The share of new matching traces the map analyzes. */
   samplingField: ReactNode;
+  /** Starts and shows a cost estimate for the selected facets and filter. */
+  costEstimateField?: ReactNode;
   canStart: boolean;
   starting: boolean;
   errors: string[];

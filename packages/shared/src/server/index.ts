@@ -576,6 +576,7 @@ export { getTracesIdentifierForSessionFromEvents } from "./repositories/events";
 export { getEventsStreamForEval } from "./repositories/events-stream";
 export {
   getEventsDispatchEventStream,
+  getTopicCostEstimateEventStream,
   type EventsDispatchEventRow,
 } from "./repositories/events-dispatch";
 export { type TableCount } from "./repositories/types";
@@ -764,6 +765,7 @@ export {
   TOPIC_SETUP_WINDOW_DAYS,
 } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
+export { getTopicCostEstimateSample } from "./repositories/topic-setup-events";
 export {
   getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTopicResultCounts,

@@ -194,6 +194,102 @@ export async function getTopicSetupTraceBounds(input: {
   }));
 }
 
+// Above this many traces the estimate groups one hash bucket of them, so its memory stays bounded.
+const COST_ESTIMATE_BUCKET_TRACES = 20_000;
+
+/**
+ * A seeded sample of the last 7 days' finished traces for the Topics cost
+ * estimate, with each trace's start bounds and size. Large projects are read
+ * through one xxHash32 bucket sized from a cheap uniqCombined pass. Reads one
+ * hour before the window so traces that started there are left out rather
+ * than cut off.
+ */
+export async function getTopicCostEstimateSample(input: {
+  projectId: string;
+  idleMs: number;
+  now: Date;
+  limit: number;
+  seed: number;
+  matching?: TopicSetupMatching;
+}) {
+  const where = (bucketed: boolean) => `
+    WHERE project_id = {projectId: String}
+      AND start_time >= {now: DateTime64(3)} - INTERVAL 7 DAY - INTERVAL 1 HOUR
+      AND start_time <= {now: DateTime64(3)}
+      AND trace_id != ''
+      AND is_deleted = 0
+      AND NOT startsWith(environment, {internalEnvironmentPrefix: String})
+      AND environment != {publicLlmJudgeEnvironment: String}
+      ${bucketed ? "AND xxHash32(trace_id) % {modulus: UInt32} = {bucket: UInt32}" : ""}
+      ${
+        input.matching
+          ? `AND trace_id IN (SELECT id FROM (${input.matching.query})${bucketed ? " WHERE xxHash32(id) % {modulus: UInt32} = {bucket: UInt32}" : ""})`
+          : ""
+      }`;
+  const params = {
+    ...input.matching?.params,
+    ...topicSetupParams(input.projectId, input.idleMs, input.now),
+  };
+  const settings = {
+    preferredClickhouseService: "EventsReadOnly" as const,
+    clickhouseSettings: {
+      max_execution_time: TOPIC_SETUP_SELECTION_TIMEOUT_SECONDS,
+    },
+  };
+
+  const [total] = await queryClickhouse<{ traces: string }>({
+    query: `SELECT uniqCombined(trace_id) AS traces FROM events_core ${where(false)}`,
+    params,
+    tags: { route: "topics-cost-estimate-size", projectId: input.projectId },
+    ...settings,
+  });
+  let modulus = 1;
+  while (Number(total?.traces ?? 0) / modulus > COST_ESTIMATE_BUCKET_TRACES)
+    modulus *= 2;
+
+  const rows = await queryClickhouse<{
+    sample: Array<[string, string, string, string, string]>;
+  }>({
+    query: `
+      SELECT
+        groupArraySample({limit: UInt32}, {seed: UInt64})(
+          (trace_id, toString(min_start), toString(max_start), toString(rows), toString(event_bytes))
+        ) AS sample
+      FROM (
+        SELECT
+          trace_id,
+          max(event_ts) AS last_ts,
+          toUnixTimestamp64Milli(min(start_time)) AS min_start,
+          toUnixTimestamp64Milli(max(start_time)) AS max_start,
+          count() AS rows,
+          sum(event_bytes) AS event_bytes
+        FROM events_core
+        ${where(modulus > 1)}
+        GROUP BY trace_id
+        HAVING last_ts < {now: DateTime64(3)} - toIntervalMillisecond({idleMs: UInt32})
+          AND min_start >= toUnixTimestamp64Milli({now: DateTime64(3)} - INTERVAL 7 DAY)
+      )`,
+    params: {
+      ...params,
+      limit: input.limit,
+      seed: input.seed,
+      modulus,
+      bucket: input.seed % modulus,
+    },
+    tags: { route: "topics-cost-estimate-sample", projectId: input.projectId },
+    ...settings,
+  });
+  return (rows[0]?.sample ?? []).map(
+    ([traceId, minStart, maxStart, eventRows, eventBytes]) => ({
+      traceId,
+      minStart: Number(minStart),
+      maxStart: Number(maxStart),
+      rows: Number(eventRows),
+      eventBytes: Number(eventBytes),
+    }),
+  );
+}
+
 /**
  * Stored trace names of the last 7 days, most used first. Unlike the events
  * filter options, no root observation name stands in for a missing one, since

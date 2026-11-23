@@ -13,6 +13,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
+import { TopicCostEstimate } from "./TopicCostEstimate";
 import {
   TopicSetupFlowDialog,
   type TopicSetupPastCount,
@@ -344,6 +345,21 @@ function TopicSetupSession({
       onFilterChange={changeFilter}
       traceFilter={traceFilter}
       pastCount={pastCount}
+      costEstimate={
+        <TopicCostEstimate
+          projectId={projectId}
+          filter={draft.filter}
+          facetIds={savedRule?.facetIds ?? []}
+          samplingPercent={draft.samplePercent}
+          dailyTraces={
+            pastCount.status === "ready" ? pastCount.dailyTraces : null
+          }
+          backfillTraces={
+            pastCount.status === "ready" ? pastCount.matched : null
+          }
+          source="setup"
+        />
+      }
       onQuestionEnabled={(name, enabled) =>
         setDraft((current) => ({
           ...current,

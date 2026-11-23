@@ -50,6 +50,8 @@ type ModelFormSource =
         modelName?: string;
         prices?: Record<string, number>;
       };
+      /** Called after the model is created, in place of opening its page. */
+      onCreated?: () => void;
     }
   | {
       action: "edit" | "clone";
@@ -159,6 +161,10 @@ export function UpsertModelFormDialogContent({
 
       form.reset(submitted);
       closeDialog();
+      if (props.action === "create" && props.onCreated) {
+        props.onCreated();
+        return;
+      }
       router.push(
         `/project/${props.projectId}/settings/models/${upsertedModel.id}`,
       );

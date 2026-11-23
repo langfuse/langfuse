@@ -452,6 +452,8 @@ const events = {
     "setup_opened",
     "setup_step_saved",
     "setup_started",
+    // Cost estimate in the setup Review step or the New map dialog. Props: source.
+    "cost_estimate_started",
     // Tracing pulse chart topic stripe. Props: isV4, isSelected, topicCount; never topic names.
     "stripe_toggle",
     // Topics page "Give feedback", opening the support form as Feedback. No props.
