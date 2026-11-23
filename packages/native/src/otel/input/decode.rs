@@ -247,7 +247,7 @@ impl<'de, const BOUNDARY: u8> Deserialize<'de> for JsonField<BOUNDARY> {
 // as JSON text, preserving the data without constructing a deeper tree.
 fn parse_field(source: &str, boundary: u8) -> Result<Value, serde_json::Error> {
     if boundary == ATTRIBUTES {
-        if let Some(attributes) = super::super::attributes::scalar_attributes(source) {
+        if let Some(attributes) = super::super::attributes::direct_attributes(source) {
             return Ok(Value::Object(attributes));
         }
     }
