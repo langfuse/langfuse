@@ -179,7 +179,7 @@ pub(crate) fn guardrail_members(api_format: ApiFormat) -> &'static [&'static str
         ApiFormat::OpenAiResponses => openai_responses::GUARDRAIL_MEMBERS,
         ApiFormat::AnthropicMessages => anthropic_messages::GUARDRAIL_MEMBERS,
         ApiFormat::OpenAiEmbeddings => openai_embeddings::GUARDRAIL_MEMBERS,
-        ApiFormat::OpenAiDecisions => &[],
+        ApiFormat::OpenAiDecisions => openai_decisions::GUARDRAIL_MEMBERS,
     }
 }
 
@@ -197,7 +197,7 @@ pub(crate) fn guardrail_last_turn<'a>(
         ApiFormat::OpenAiResponses => openai_responses::guardrail_last_turn(member, sink),
         ApiFormat::AnthropicMessages => anthropic_messages::guardrail_last_turn(member, sink),
         ApiFormat::OpenAiEmbeddings => openai_embeddings::guardrail_last_turn(member, sink),
-        ApiFormat::OpenAiDecisions => Ok(()),
+        ApiFormat::OpenAiDecisions => openai_decisions::guardrail_last_turn(member, sink),
     }
 }
 

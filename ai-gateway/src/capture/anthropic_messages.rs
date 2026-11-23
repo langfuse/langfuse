@@ -488,8 +488,8 @@ pub(super) fn guardrail_last_turn<'a>(
     member: impl Fn(&str) -> Option<&'a str>,
     sink: &mut dyn FnMut(&str),
 ) -> Result<(), crate::guardrails::text::Unreadable> {
-    let had_assistant = match member("messages") {
-        Some(messages) => crate::guardrails::text::for_each_after_last(
+    let had_model_turn = match member("messages") {
+        Some(messages) => crate::guardrails::text::for_each_in_last_turn(
             messages,
             GuardrailMessage::is_assistant,
             |message: GuardrailMessage<'_>| {
@@ -500,7 +500,7 @@ pub(super) fn guardrail_last_turn<'a>(
         )?,
         None => false,
     };
-    if !had_assistant && let Some(system) = member("system") {
+    if !had_model_turn && let Some(system) = member("system") {
         let system: &serde_json::value::RawValue =
             serde_json::from_str(system).map_err(|_| crate::guardrails::text::Unreadable)?;
         crate::guardrails::text::collect(system, sink)?;

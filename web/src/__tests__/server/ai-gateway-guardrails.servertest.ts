@@ -106,8 +106,14 @@ describe("GatewayGuardrailService", () => {
     await createGuardrail({
       organizationId,
       name: "Invalid config",
-      config: { presets: [] },
+      config: { presets: ["not_a_preset"] },
       assignments: [{ scope: "ORGANIZATION" }],
+    });
+    await createGuardrail({
+      organizationId,
+      name: "Partly unknown presets",
+      config: { presets: ["email", "not_a_preset"] },
+      assignments: [{ scope: "API_KEY", apiKeyId: key }],
     });
     await createGuardrail({
       organizationId: otherOrganizationId,
@@ -124,6 +130,7 @@ describe("GatewayGuardrailService", () => {
     expect(resolved.map(({ name }) => name)).toEqual([
       "Key rule",
       "Organization PII",
+      "Partly unknown presets",
       "User rule",
     ]);
     expect(resolved[0]).toEqual({

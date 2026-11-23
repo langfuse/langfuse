@@ -346,7 +346,7 @@ pub(super) fn guardrail_last_turn<'a>(
     sink: &mut dyn FnMut(&str),
 ) -> Result<(), crate::guardrails::text::Unreadable> {
     let had_model_item = match member("input") {
-        Some(items) if items.starts_with('[') => crate::guardrails::text::for_each_after_last(
+        Some(items) if items.starts_with('[') => crate::guardrails::text::for_each_in_last_turn(
             items,
             GuardrailItem::is_from_model,
             |item: GuardrailItem<'_>| {

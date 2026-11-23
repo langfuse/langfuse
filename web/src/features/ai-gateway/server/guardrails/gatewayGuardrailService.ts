@@ -4,8 +4,8 @@ import { logger } from "@langfuse/shared/src/server";
 import type { GatewayResolveGuardrails } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayGuardrailRepository } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailRepository";
 import {
-  GATEWAY_GUARDRAIL_PRESETS,
   GatewayRegexGuardrailConfigSchema,
+  presetPatterns,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 export class GatewayGuardrailService {
@@ -26,9 +26,12 @@ export class GatewayGuardrailService {
       const config = GatewayRegexGuardrailConfigSchema.safeParse(
         guardrail.config,
       );
-      // A config the gateway cannot evaluate is skipped rather than failing every request of the key.
-      if (!config.success) {
-        logger.error("Skipping gateway guardrail with an invalid config", {
+      const patterns = config.success
+        ? config.data.presets.flatMap((preset) => [...presetPatterns(preset)])
+        : [];
+      // A guardrail with nothing to match is skipped rather than failing every request of the key.
+      if (patterns.length === 0) {
+        logger.error("Skipping gateway guardrail without known presets", {
           guardrailId: guardrail.id,
           organizationId: params.organizationId,
         });
@@ -39,9 +42,7 @@ export class GatewayGuardrailService {
           id: guardrail.id,
           name: guardrail.name,
           action: guardrail.action === "BLOCK" ? "block" : "log",
-          patterns: config.data.presets.flatMap((preset) => [
-            ...GATEWAY_GUARDRAIL_PRESETS[preset],
-          ]),
+          patterns,
         },
       ];
     });

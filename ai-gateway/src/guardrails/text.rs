@@ -26,6 +26,21 @@ struct Part<'a> {
     text: Option<&'a RawValue>,
     #[serde(borrow, default)]
     content: Option<&'a RawValue>,
+    /// Anthropic `document` blocks carry plain text in their source.
+    #[serde(borrow, default)]
+    source: Option<&'a RawValue>,
+}
+
+/// A document source: plain text in `data` (`type: "text"`) or content blocks in
+/// `content` (`type: "content"`). Base64 and URL sources hold no text to scan.
+#[derive(Deserialize)]
+struct Source<'a> {
+    #[serde(borrow, default, rename = "type")]
+    kind: Option<&'a RawValue>,
+    #[serde(borrow, default)]
+    data: Option<&'a RawValue>,
+    #[serde(borrow, default)]
+    content: Option<&'a RawValue>,
 }
 
 /// Sends the text in `raw` to `sink`; skips images, files and other non-text
@@ -55,6 +70,24 @@ fn collect_nested(
                         serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
                     if let Some(text) = part.text.and_then(string) {
                         sink(&text);
+                    }
+                    if let Some(source) = part.source.filter(|source| source.get().starts_with('{'))
+                    {
+                        let source: Source<'_> =
+                            serde_json::from_str(source.get()).map_err(|_| Unreadable)?;
+                        match source.kind.and_then(string).as_deref() {
+                            Some("text") => {
+                                if let Some(text) = source.data.and_then(string) {
+                                    sink(&text);
+                                }
+                            }
+                            Some("content") => {
+                                if let Some(content) = source.content {
+                                    collect_nested(content, sink, depth + 1)?;
+                                }
+                            }
+                            _ => {}
+                        }
                     }
                     part.content
                         .map_or(Ok(()), |content| collect_nested(content, sink, depth + 1))
@@ -94,29 +127,35 @@ pub(crate) fn for_each<'a, T: Deserialize<'a>>(
         .map_err(|_| Unreadable)
 }
 
-/// Visits the items of the array `raw` after the last one `is_boundary` accepts,
-/// in two passes so no item is kept. Returns whether there was a boundary.
-pub(crate) fn for_each_after_last<'a, T: Deserialize<'a>>(
+/// Visits the last turn of the conversation `raw`: every item after the last
+/// `is_boundary` item (a model turn) that precedes a non-boundary item. Trailing
+/// boundary items, such as an assistant prefill, are visited too, so the newest
+/// caller message is never skipped. Two passes, so no item is kept. Returns
+/// whether an earlier model turn exists.
+pub(crate) fn for_each_in_last_turn<'a, T: Deserialize<'a>>(
     raw: &'a str,
     is_boundary: impl Fn(&T) -> bool,
     mut visit: impl FnMut(T) -> Result<(), Unreadable>,
 ) -> Result<bool, Unreadable> {
     let mut index = 0usize;
-    let mut last = None;
+    let mut last_boundary = None;
+    let mut turn_boundary = None;
     for_each(raw, |item: T| {
         if is_boundary(&item) {
-            last = Some(index);
+            last_boundary = Some(index);
+        } else {
+            turn_boundary = last_boundary;
         }
         index += 1;
         Ok(())
     })?;
-    let start = last.map_or(0, |last| last + 1);
+    let start = turn_boundary.map_or(0, |boundary| boundary + 1);
     let mut index = 0usize;
     for_each(raw, |item: T| {
         index += 1;
         if index > start { visit(item) } else { Ok(()) }
     })?;
-    Ok(last.is_some())
+    Ok(turn_boundary.is_some())
 }
 
 /// A JSON string, borrowed when it has no escapes.
@@ -152,6 +191,46 @@ mod tests {
         );
         assert!(texts("42").unwrap().is_empty());
         assert!(texts(r#"{"text":"not a list"}"#).unwrap().is_empty());
+    }
+
+    #[test]
+    fn plain_text_documents_are_text() {
+        assert_eq!(
+            texts(
+                r#"[{"type":"document","source":{"type":"text","media_type":"text/plain","data":"a"}},
+                {"type":"document","source":{"type":"content","content":[{"type":"text","text":"b"}]}},
+                {"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"JVBERi0="}}]"#
+            )
+            .unwrap(),
+            ["a", "b"]
+        );
+    }
+
+    #[test]
+    fn the_last_turn_starts_after_the_model_turn_before_the_newest_caller_item() {
+        let turn = |raw: &str| {
+            let mut roles = Vec::new();
+            for_each_in_last_turn(
+                raw,
+                |role: &&str| *role == "assistant",
+                |role: &str| {
+                    roles.push(role.to_owned());
+                    Ok(())
+                },
+            )
+            .unwrap();
+            roles
+        };
+        assert_eq!(
+            turn(r#"["user","assistant","tool","tool"]"#),
+            ["tool", "tool"]
+        );
+        // An assistant prefill follows the newest user message.
+        assert_eq!(
+            turn(r#"["user","assistant","user","assistant"]"#),
+            ["user", "assistant"]
+        );
+        assert_eq!(turn(r#"["user"]"#), ["user"]);
     }
 
     #[test]

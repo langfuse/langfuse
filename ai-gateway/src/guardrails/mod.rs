@@ -237,6 +237,21 @@ mod tests {
     }
 
     #[test]
+    fn decisions_input_is_scanned() {
+        let body = r#"{"input":[{"role":"user","content":[{"type":"input_text","text":"ssn 123-45-6789"}]}]}"#;
+        let outcome = check(
+            &[guardrail("ssn", GuardrailAction::Block, &[SSN])],
+            ApiFormat::OpenAiDecisions,
+            body.as_bytes(),
+            &scanned(body, &["input"]),
+        );
+        assert_eq!(
+            outcome.blocking().map(|finding| finding.id.as_str()),
+            Some("ssn")
+        );
+    }
+
+    #[test]
     fn a_duplicated_conversation_member_matches_every_guardrail() {
         let body = r#"{"messages":[{"role":"user","content":"hello"}]}"#;
         let mut members = scanned(body, &["messages"]);

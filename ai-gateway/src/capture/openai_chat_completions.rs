@@ -523,7 +523,7 @@ pub(super) fn guardrail_last_turn<'a>(
     let Some(messages) = member("messages") else {
         return Ok(());
     };
-    crate::guardrails::text::for_each_after_last(
+    crate::guardrails::text::for_each_in_last_turn(
         messages,
         GuardrailMessage::is_assistant,
         |message: GuardrailMessage<'_>| {

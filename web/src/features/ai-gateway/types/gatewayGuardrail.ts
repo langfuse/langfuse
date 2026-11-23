@@ -26,12 +26,17 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
 
 export type GatewayGuardrailPreset = keyof typeof GATEWAY_GUARDRAIL_PRESETS;
 
-const gatewayGuardrailPresets = Object.keys(GATEWAY_GUARDRAIL_PRESETS) as [
-  GatewayGuardrailPreset,
-  ...GatewayGuardrailPreset[],
-];
-
-/** The stored `config` of a regex guardrail. */
+/**
+ * The stored `config` of a regex guardrail. Preset ids stay strings, so an id
+ * this build does not know (a typo, or one added by a newer build) drops only
+ * that preset, not the guardrail.
+ */
 export const GatewayRegexGuardrailConfigSchema = z.object({
-  presets: z.array(z.enum(gatewayGuardrailPresets)).min(1),
+  presets: z.array(z.string()).min(1),
 });
+
+export function presetPatterns(preset: string): readonly string[] {
+  return Object.hasOwn(GATEWAY_GUARDRAIL_PRESETS, preset)
+    ? GATEWAY_GUARDRAIL_PRESETS[preset as GatewayGuardrailPreset]
+    : [];
+}
