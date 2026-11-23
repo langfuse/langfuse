@@ -193,7 +193,7 @@ export async function getTopicsModels(
   return row ? ((await resolveConfigs([row]))[0] ?? null) : null;
 }
 
-/** Loads the enabled, fully configured projects of a trace batch in two queries. */
+/** Loads the enabled, fully configured projects of a dispatch batch in two queries. */
 export async function getEnabledTopicsModels(
   projectIds: string[],
 ): Promise<Map<string, TopicsModels>> {

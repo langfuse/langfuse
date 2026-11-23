@@ -67,12 +67,15 @@ export const GatewayResolveSpendLimitsSchema = z.array(
   z
     .object({
       id: z.string(),
-      // Resolve returns only the limits that apply to the request.
-      scope: z.enum(["api_key", "user"]),
+      // Resolve returns only the limits that apply to the request. A gateway
+      // older than `organization` rejects it, so deploy the gateway first.
+      scope: z.enum(["api_key", "user", "organization"]),
       interval: z.enum(["daily", "weekly", "monthly", "total"]),
       limit_usd: z.number(),
       // Unix milliseconds; part of the gateway's usage counter key.
       counting_started_at: z.number().int().nonnegative(),
+      // Usage percentages that trigger email alerts, in ascending order.
+      alert_thresholds: z.array(z.number().int().min(1).max(100)),
     })
     .strict(),
 );

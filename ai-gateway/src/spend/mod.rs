@@ -1,9 +1,10 @@
-//! Spend limits of a key and of its owner. Before forwarding, the counters
+//! Spend limits of a key, of its owner and of its organization. Before forwarding, the counters
 //! for the current windows are checked against every limit; after the
 //! response, the request's cost is added to them. Requests are not reserved,
 //! so concurrent requests can overshoot a limit by what they cost. A request
 //! for a model Langfuse has no price for is rejected before it is forwarded; a
-//! response that still adds nothing is counted in `gateway.spend.uncharged`.
+//! response that still adds nothing is counted in `gateway.spend.uncharged`;
+//! one that adds a cost is counted in `gateway.spend.usd`.
 //! Web is told when a limit is reached, so it can email the people it applies
 //! to.
 mod alert;
@@ -30,7 +31,7 @@ use crate::{
         ControlPlaneClient, ResolutionError, ResolvedRequestContext, SpendLimit, SpendLimitExceeded,
     },
 };
-use alert::{CountedLimit, SpendAlerts};
+use alert::{AlertThreshold, CountedLimit, SpendAlerts, TriggeredAlert, highest_reached_threshold};
 pub(crate) use cost::UsageCostType;
 use cost::{
     CalculateModelUsageCostsParams, Model, ModelWithPrices, PricingAttributes,
@@ -55,6 +56,9 @@ pub(crate) enum SpendLimitScope {
     /// Caps the key owner's spend across all their keys in the organization.
     /// Its counter is keyed by the limit, so every key of the user adds to it.
     User,
+    /// Caps the organization's spend across all its keys, so every key adds to
+    /// the one counter of the limit.
+    Organization,
 }
 
 impl SpendLimitScope {
@@ -62,6 +66,7 @@ impl SpendLimitScope {
         match self {
             Self::ApiKey => "This API key",
             Self::User => "This key's user",
+            Self::Organization => "This organization",
         }
     }
 }
@@ -146,10 +151,9 @@ impl SpendLimits {
                 request_id: request_id.to_owned(),
             });
         if let Some(exceeded) = usage.iter().find(|usage| usage.is_exceeded()) {
-            let unreported: Vec<CountedLimit> = usage
+            let unreported: Vec<TriggeredAlert> = usage
                 .iter()
-                .filter(|usage| usage.is_exceeded() && !usage.alerted)
-                .map(LimitUsage::counted)
+                .filter_map(LimitUsage::unreported_alert)
                 .collect();
             if let (Some(alerts), false) = (alerts, unreported.is_empty()) {
                 self.tasks
@@ -159,10 +163,14 @@ impl SpendLimits {
                 exceeded.rejection(now),
             )));
         }
+        let attribution = context.attribution();
         Ok(Some(SpendRecording {
             store: Arc::clone(store),
             tasks: Arc::clone(&self.tasks),
             provider: context.connection().provider().as_str(),
+            organization_id: organization_id.to_owned(),
+            project_id: attribution.project_id().map(|id| id.as_str().to_owned()),
+            user_id: attribution.user_id().map(str::to_owned),
             limits: usage.iter().map(LimitUsage::counted).collect(),
             model,
             alerts,
@@ -170,8 +178,8 @@ impl SpendLimits {
     }
 }
 
-/// What each limit's scope has spent in its current window, and whether the limit
-/// was already reported reached, read in one round trip.
+/// What each limit's scope has spent in its current window, and which alert
+/// thresholds were already reported, read in one round trip.
 async fn current_usage<'a>(
     store: &RedisCounters,
     limits: &'a [SpendLimit],
@@ -182,26 +190,57 @@ async fn current_usage<'a>(
         .iter()
         .map(|limit| Window::current(organization_id, limit, now))
         .collect();
+    let threshold_keys: Vec<Vec<(u8, String)>> = limits
+        .iter()
+        .zip(&windows)
+        .map(|(limit, window)| {
+            normalized_thresholds(&limit.alert_thresholds)
+                .into_iter()
+                .map(|percent| {
+                    let flag = window.counter.alerted_flag(limit.limit_usd, percent);
+                    (percent, flag)
+                })
+                .collect()
+        })
+        .collect();
     let keys: Vec<String> = windows
         .iter()
         .map(|window| window.counter.key.clone())
         .chain(
-            limits
+            threshold_keys
                 .iter()
-                .zip(&windows)
-                .map(|(limit, window)| window.counter.alerted_flag(limit.limit_usd)),
+                .flat_map(|entries| entries.iter().map(|(_, flag)| flag.clone())),
         )
         .collect();
     let mut values = store.read(keys).await?;
-    let flags = values.split_off(windows.len());
+    let mut flags = values.split_off(windows.len()).into_iter();
     Ok(limits
         .iter()
         .zip(windows)
-        .zip(values.into_iter().zip(flags))
-        .map(|((limit, window), (counted, flag))| {
-            LimitUsage::new(limit, window, counted, flag.is_some())
+        .zip(values.into_iter().zip(threshold_keys))
+        .map(|((limit, window), (counted, entries))| {
+            let thresholds = entries
+                .into_iter()
+                .map(|(percent, flag)| AlertThreshold {
+                    percent,
+                    flag,
+                    alerted: flags.next().flatten().is_some(),
+                })
+                .collect();
+            LimitUsage::new(limit, window, counted, thresholds)
         })
         .collect())
+}
+
+fn normalized_thresholds(thresholds: &[u8]) -> Vec<u8> {
+    let mut normalized: Vec<u8> = thresholds
+        .iter()
+        .copied()
+        .filter(|percent| (1..=100).contains(percent))
+        .collect();
+    normalized.sort_unstable();
+    normalized.dedup();
+    normalized
 }
 
 /// The model with its pricing tiers, when Langfuse has a price for the model.
@@ -224,18 +263,23 @@ struct LimitUsage<'a> {
     limit: &'a SpendLimit,
     window: Window,
     spent: f64,
-    alerted: bool,
+    thresholds: Vec<AlertThreshold>,
 }
 
 impl<'a> LimitUsage<'a> {
     /// `counted` is what the gateway counted in the window. Spend from before the
     /// limit's counting start does not count.
-    fn new(limit: &'a SpendLimit, window: Window, counted: Option<f64>, alerted: bool) -> Self {
+    fn new(
+        limit: &'a SpendLimit,
+        window: Window,
+        counted: Option<f64>,
+        thresholds: Vec<AlertThreshold>,
+    ) -> Self {
         Self {
             limit,
             window,
             spent: counted.unwrap_or(0.0),
-            alerted,
+            thresholds,
         }
     }
 
@@ -243,21 +287,36 @@ impl<'a> LimitUsage<'a> {
         self.spent >= self.limit.limit_usd
     }
 
+    fn unreported_alert(&self) -> Option<TriggeredAlert> {
+        let highest =
+            highest_reached_threshold(&self.thresholds, self.limit.limit_usd, self.spent)?;
+        if highest.alerted {
+            return None;
+        }
+        Some(TriggeredAlert {
+            id: self.limit.id.clone(),
+            counting_started_at: self.limit.counting_started_at,
+            window_start: self.window.start.timestamp_millis(),
+            expires_at: self.window.counter.expires_at,
+            threshold_percent: highest.percent,
+            alerted_flag: highest.flag.clone(),
+        })
+    }
+
     fn counted(&self) -> CountedLimit {
         CountedLimit {
             id: self.limit.id.clone(),
             counting_started_at: self.limit.counting_started_at,
             window_start: self.window.start.timestamp_millis(),
-            alerted_flag: self.window.counter.alerted_flag(self.limit.limit_usd),
             counter: self.window.counter.clone(),
             limit_usd: self.limit.limit_usd,
-            alerted: self.alerted,
+            thresholds: self.thresholds.clone(),
         }
     }
 
     fn rejection(&self, now: DateTime<Utc>) -> SpendLimitExceeded {
         let spent = format!(
-            "{} has spent ${:.2} of its ${:.2} {} spend limit.",
+            "{} has spent ${:.2} of its ${:.2} {} budget.",
             self.limit.scope.subject(),
             self.spent,
             self.limit.limit_usd,
@@ -266,13 +325,13 @@ impl<'a> LimitUsage<'a> {
         match self.window.end {
             Some(end) => SpendLimitExceeded::new(
                 format!(
-                    "{spent} The limit resets at {}.",
+                    "{spent} The budget resets at {}.",
                     end.to_rfc3339_opts(SecondsFormat::Secs, true)
                 ),
                 u64::try_from((end - now).num_seconds().max(1)).ok(),
             ),
             None => SpendLimitExceeded::new(
-                format!("{spent} An admin can raise or remove the limit."),
+                format!("{spent} An admin can raise or remove the budget."),
                 None,
             ),
         }
@@ -284,6 +343,10 @@ pub(crate) struct SpendRecording {
     store: Arc<RedisCounters>,
     tasks: Arc<TaskTracker>,
     provider: &'static str,
+    organization_id: String,
+    project_id: Option<String>,
+    /// The key's owner; absent for keys not bound to a user.
+    user_id: Option<String>,
     limits: Vec<CountedLimit>,
     model: ModelWithPrices,
     alerts: Option<SpendAlerts>,
@@ -306,11 +369,30 @@ impl SpendRecording {
             .and_then(|cost| cost.total)
             .filter(|total| *total > 0.0)
         {
-            Some(total) => self.add_in_background(total),
+            Some(total) => {
+                self.report_charged(total);
+                self.add_in_background(total);
+            }
             None => self.report_uncharged(facts, cost.as_ref()),
         }
         cost.filter(|cost| !cost.provided && !cost.details.is_empty())
             .map(|cost| cost.details)
+    }
+
+    /// The log's request correlation fields add the organization and project, so
+    /// per-user spend can be derived from logs without a user-tagged metric.
+    fn report_charged(&self, cost: f64) {
+        crate::observability::spend_charged(
+            cost,
+            &self.organization_id,
+            self.project_id.as_deref(),
+            self.provider,
+        );
+        tracing::info!(
+            cost_usd = cost,
+            user_id = self.user_id.as_deref(),
+            "gateway spend charged"
+        );
     }
 
     /// A successful response that adds nothing usually means its usage is missing or
@@ -354,14 +436,13 @@ impl SpendRecording {
             let (Ok(totals), Some(alerts)) = (added, self.alerts) else {
                 return;
             };
-            let reached = self
+            let triggered = self
                 .limits
                 .into_iter()
                 .zip(totals)
-                .filter(|(limit, total)| *total >= limit.limit_usd)
-                .map(|(limit, _)| limit)
+                .filter_map(|(limit, total)| limit.into_unreported_alert(total))
                 .collect::<Vec<_>>();
-            alerts.report(self.store, reached).await;
+            alerts.report(self.store, triggered).await;
         });
         if !spawned {
             crate::observability::spend_uncharged("backlog", provider);

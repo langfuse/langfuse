@@ -15,6 +15,7 @@ import {
   BatchTableNames,
   type Plan,
 } from "@langfuse/shared";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const __orgIds: string[] = [];
 
@@ -34,44 +35,31 @@ function makeSession(
     projectRole = "MEMBER",
     v4BetaEnabled = false,
   } = opts;
-  return {
-    expires: "1",
+  return createSession({
     user: {
       id: "user-test",
-      canCreateOrganizations: true,
       name: "Test User",
       v4BetaEnabled,
-      organizations: [
-        {
-          id: orgId,
-          name: orgName,
-          role: "MEMBER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              role: projectRole,
-              retentionDays: null,
-              deletedAt: null,
-              hasTraces: false,
-              name: projectName,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags({ templateFlag: false }),
     },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: plan,
-    },
-  };
+    organizations: [
+      {
+        id: orgId,
+        role: "MEMBER",
+        name: orgName,
+        plan,
+        projects: [
+          {
+            id: projectId,
+            role: projectRole,
+            retentionDays: null,
+            name: projectName,
+          },
+        ],
+      },
+    ],
+    environment: { selfHostedInstancePlan: plan },
+  });
 }
 
 const exportInput = (projectId: string) => ({

@@ -454,6 +454,8 @@ const events = {
     "setup_started",
     // Tracing pulse chart topic stripe. Props: isV4, isSelected, topicCount; never topic names.
     "stripe_toggle",
+    // Topics page "Give feedback", opening the support form as Feedback. No props.
+    "feedback_open",
   ],
   in_app_agent: [
     "activity_opened",
@@ -481,6 +483,10 @@ const events = {
     "api_key_secret_revealed",
     "model_access_changed",
     "model_name_copied",
+    "custom_model_added",
+    "custom_model_removed",
+    "budget_saved",
+    "budget_removed",
     "agent_setup_instructions_viewed",
     "agent_setup_instructions_copied",
   ],

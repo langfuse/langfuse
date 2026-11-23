@@ -25,11 +25,11 @@ const baseConfig: PostHogIntegrationConfig = {
 const renderSection = (overrides: Partial<PostHogIntegrationConfig> = {}) =>
   render(<PostHogStatusSection config={{ ...baseConfig, ...overrides }} />);
 
-// The destructive styling is the user-visible "this is a problem" signal, so
-// the variant is asserted alongside the alert role rather than the class alone.
-const expectDestructiveAlert = (): HTMLElement => {
+// The error styling is the user-visible "this is a problem" signal, so
+// the variant is asserted alongside the alert role.
+const expectErrorAlert = (): HTMLElement => {
   const alert = screen.getByRole("alert");
-  expect(alert.className).toContain("destructive");
+  expect(alert).toHaveAttribute("data-variant", "error");
   return alert;
 };
 
@@ -45,7 +45,7 @@ describe("PostHogStatusSection fault surfacing", () => {
       lastErrorAt: new Date("2024-06-02T09:30:00Z"),
     });
 
-    const alert = expectDestructiveAlert();
+    const alert = expectErrorAlert();
     expect(alert).toHaveTextContent("Blocked hostname detected");
     expect(alert).toHaveTextContent(
       new Date("2024-06-02T09:30:00Z").toLocaleString(),
@@ -62,9 +62,7 @@ describe("PostHogStatusSection fault surfacing", () => {
       lastErrorAt: new Date("2024-06-02T09:30:00Z"),
     });
 
-    expect(expectDestructiveAlert()).toHaveTextContent(
-      "Blocked hostname detected",
-    );
+    expect(expectErrorAlert()).toHaveTextContent("Blocked hostname detected");
   });
 
   // Guards against an always-on empty alert — the failure mode of hoisting the
@@ -85,9 +83,7 @@ describe("PostHogStatusSection fault surfacing", () => {
       lastErrorAt: null,
     });
 
-    expect(expectDestructiveAlert()).toHaveTextContent(
-      "Blocked hostname detected",
-    );
+    expect(expectErrorAlert()).toHaveTextContent("Blocked hostname detected");
     expect(screen.queryByText(/Invalid Date/i)).toBeNull();
   });
 });

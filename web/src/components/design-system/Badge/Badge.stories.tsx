@@ -83,6 +83,15 @@ export const WithIcons = meta.story({
     <div className="flex flex-wrap items-center gap-1.5">
       <Badge leadingIcon={Sparkles} color="filled" text="Recommended" />
       <Badge trailingIcon={X} text="trace-8f2c" />
+      <div className="w-36">
+        <Badge
+          leadingIcon={Sparkles}
+          trailingIcon={X}
+          color="teal"
+          size="md"
+          text="Horizontal Bar Chart"
+        />
+      </div>
     </div>
   ),
 });

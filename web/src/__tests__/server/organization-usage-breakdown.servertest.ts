@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import {
+  type BillableEventType,
+  clickhouseClient,
   createObservation,
   createObservationsCh,
   createScoresCh,
@@ -9,10 +11,10 @@ import {
   createTracesCh,
 } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { getOrgUsageBreakdown } from "@/src/features/organization-usage/server/usageBreakdown";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const createOrgWithProjects = async (
   projects: { name: string; deleted?: boolean }[],
@@ -36,45 +38,51 @@ const createOrgWithProjects = async (
 };
 
 const callerWithOrgRole = (orgId: string, role: Role) => {
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: false,
-      name: "Demo User",
-      organizations: [
-        {
-          id: orgId,
-          name: "Org",
-          role,
-          plan: "oss",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "oss",
-    },
-  };
+  const session: Session = createSession({
+    user: { canCreateOrganizations: false },
+    organizations: [{ id: orgId, role, name: "Org", plan: "oss" }],
+    environment: { selfHostedInstancePlan: "oss" },
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return appRouter.createCaller({ ...ctx, prisma });
 };
 
-const sortRows = <T extends { bucket: string; projectId: string }>(rows: T[]) =>
+/** Inserts ledger rows directly, to place them at chosen ingestion times. */
+const insertBillableEvents = (
+  rows: Array<{
+    projectId: string;
+    eventType: BillableEventType;
+    eventId: string;
+    at: string;
+  }>,
+) =>
+  clickhouseClient().insert({
+    table: "billable_events",
+    format: "JSONEachRow",
+    values: rows.map((row) => ({
+      ingested_at: row.at.slice(0, 19).replace("T", " "),
+      project_id: row.projectId,
+      event_type: row.eventType,
+      event_id: row.eventId,
+      event_time: row.at.slice(0, 19).replace("T", " "),
+      event_bytes: 0,
+    })),
+  });
+
+const sortRows = <
+  T extends { bucket: string; projectId: string; unitType: string },
+>(
+  rows: T[],
+) =>
   [...rows].sort(
     (a, b) =>
       a.bucket.localeCompare(b.bucket) ||
-      a.projectId.localeCompare(b.projectId),
+      a.projectId.localeCompare(b.projectId) ||
+      a.unitType.localeCompare(b.unitType),
   );
 
 describe("getOrgUsageBreakdown", () => {
-  it("counts billable units of the org's live projects by created_at", async () => {
+  it("counts billable units of the org's live projects by created_at in legacy mode", async () => {
     const {
       orgId,
       projectIds: [alpha, beta, deleted],
@@ -135,9 +143,11 @@ describe("getOrgUsageBreakdown", () => {
       orgId,
       from: new Date("2026-08-03T00:00:00Z"),
       to: new Date("2026-08-06T00:00:00Z"),
+      writeMode: "legacy",
     });
 
     expect(result.granularity).toBe("day");
+    expect(result.usageRecordedFrom).toBeNull();
     expect(result.buckets).toEqual([
       "2026-08-03T00:00:00.000Z",
       "2026-08-04T00:00:00.000Z",
@@ -171,6 +181,103 @@ describe("getOrgUsageBreakdown", () => {
     );
   });
 
+  it("reads the billable_events ledger once the events tables are written", async () => {
+    const {
+      orgId,
+      projectIds: [alpha, deleted],
+    } = await createOrgWithProjects([
+      { name: "alpha" },
+      { name: "gone", deleted: true },
+    ]);
+    const {
+      projectIds: [otherOrgProject],
+    } = await createOrgWithProjects([{ name: "other" }]);
+
+    await insertBillableEvents([
+      // Ingested twice in one bucket, so counted once
+      {
+        projectId: alpha,
+        eventType: "trace",
+        eventId: "t-1",
+        at: "2026-08-03T10:00:00Z",
+      },
+      {
+        projectId: alpha,
+        eventType: "trace",
+        eventId: "t-1",
+        at: "2026-08-03T11:00:00Z",
+      },
+      {
+        projectId: alpha,
+        eventType: "observation",
+        eventId: "o-1",
+        at: "2026-08-04T01:00:00Z",
+      },
+      {
+        projectId: alpha,
+        eventType: "topic_facet_summary",
+        eventId: "f-1",
+        at: "2026-08-04T02:00:00Z",
+      },
+      {
+        projectId: deleted,
+        eventType: "score",
+        eventId: "s-1",
+        at: "2026-08-04T12:00:00Z",
+      },
+      {
+        projectId: otherOrgProject,
+        eventType: "score",
+        eventId: "s-2",
+        at: "2026-08-04T12:00:00Z",
+      },
+    ]);
+    // Deletes and retention do not lower billed usage, so the legacy tables
+    // are not read.
+    await createTracesCh([
+      createTrace({
+        project_id: alpha,
+        created_at: new Date("2026-08-05T10:00:00Z"),
+      }),
+    ]);
+
+    for (const writeMode of ["dual", "events_only"] as const) {
+      const result = await getOrgUsageBreakdown({
+        prisma,
+        orgId,
+        from: new Date("2026-08-03T00:00:00Z"),
+        to: new Date("2026-08-06T00:00:00Z"),
+        writeMode,
+      });
+
+      expect(sortRows(result.rows)).toEqual(
+        sortRows([
+          {
+            bucket: "2026-08-03T00:00:00.000Z",
+            projectId: alpha,
+            unitType: "traces",
+            count: 1,
+          },
+          {
+            bucket: "2026-08-04T00:00:00.000Z",
+            projectId: alpha,
+            unitType: "observations",
+            count: 1,
+          },
+          {
+            bucket: "2026-08-04T00:00:00.000Z",
+            projectId: alpha,
+            unitType: "topicFacetSummaries",
+            count: 1,
+          },
+        ]),
+      );
+      expect(
+        new Date(result.usageRecordedFrom ?? "").getTime(),
+      ).toBeLessThanOrEqual(new Date("2026-08-03T10:00:00Z").getTime());
+    }
+  });
+
   it("puts ClickHouse week buckets on the generated Monday axis", async () => {
     const {
       orgId,
@@ -190,6 +297,7 @@ describe("getOrgUsageBreakdown", () => {
       orgId,
       from: new Date("2026-05-01T00:00:00Z"),
       to: new Date("2026-07-15T00:00:00Z"),
+      writeMode: "legacy",
     });
 
     expect(result.granularity).toBe("week");

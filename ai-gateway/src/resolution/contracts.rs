@@ -457,6 +457,10 @@ struct ResolutionResponse {
     pricing: Option<ModelPricing>,
 }
 
+fn default_alert_thresholds() -> Vec<u8> {
+    vec![100]
+}
+
 /// A cap on what a scope spends per UTC calendar window.
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct SpendLimit {
@@ -469,6 +473,10 @@ pub(crate) struct SpendLimit {
     /// When the gateway started counting, in Unix milliseconds. Part of the
     /// counter key, so a new counting start begins a new counter.
     pub counting_started_at: i64,
+    /// Usage percentages (e.g. 85, 95, 100) that trigger an email alert.
+    /// Defaults to `[100]` for Web versions that predate warning thresholds.
+    #[serde(default = "default_alert_thresholds")]
+    pub alert_thresholds: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

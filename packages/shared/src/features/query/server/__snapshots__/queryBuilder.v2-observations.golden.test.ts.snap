@@ -1348,7 +1348,7 @@ exports[`golden: executeQuery v2 observations > filters > build filter=number pr
     "sql": "SELECT count(1) AS count_count
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
-    AND (e.prompt_version >= {param2:Decimal64(12)})
+    AND (e.prompt_version >= {param2:Decimal128(12)})
     AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
     AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
 ORDER BY count_count DESC",

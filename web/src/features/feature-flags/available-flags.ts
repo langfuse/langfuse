@@ -94,8 +94,6 @@ export const availableFlags = [
   ...restrictedFlags,
   INTERNAL_FEATURE_FLAG,
   "templateFlag",
-  "excludeClickhouseRead",
   "v4BetaToggleVisible",
-  "observationEvals",
   "experimentsV4Enabled",
 ] as const;

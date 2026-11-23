@@ -49,16 +49,24 @@ const expiredMediaWorkCondition = (params: {
 `;
 
 /**
- * Find all media files for a project (for complete project deletion).
+ * Find media files for a project (for complete project deletion).
+ * With `limit`, rows come in id order; pass the last id as `afterId` to page.
  */
 export async function findAllMediaByProjectId(params: {
   projectId: string;
   limit?: number;
+  afterId?: string;
 }): Promise<MediaFileRef[]> {
   return prisma.media.findMany({
     select: { id: true, bucketPath: true },
-    where: { projectId: params.projectId },
-    ...(params.limit != null && { take: params.limit }),
+    where: {
+      projectId: params.projectId,
+      ...(params.afterId != null && { id: { gt: params.afterId } }),
+    },
+    ...(params.limit != null && {
+      orderBy: { id: "asc" },
+      take: params.limit,
+    }),
   });
 }
 
@@ -146,27 +154,64 @@ export interface StorageClient {
  * Delete media link rows for a project. Project deletion cannot rely on
  * project/media cascades for these rows because media link tables deliberately
  * do not have foreign keys to projects or media on the ingestion hot path.
+ * Deletes each link table in pages of `batchSize` rows.
  */
 export async function deleteMediaLinkRowsByProjectId(params: {
   projectId: string;
+  batchSize: number;
 }): Promise<void> {
-  await prisma.$transaction([
-    prisma.traceMedia.deleteMany({
-      where: {
-        projectId: params.projectId,
-      },
-    }),
-    prisma.observationMedia.deleteMany({
-      where: {
-        projectId: params.projectId,
-      },
-    }),
-    prisma.datasetItemMedia.deleteMany({
-      where: {
-        projectId: params.projectId,
-      },
-    }),
-  ]);
+  const { projectId, batchSize } = params;
+  const page = (afterMediaId: string) => ({
+    select: { mediaId: true },
+    where: { projectId, mediaId: { gt: afterMediaId } },
+    orderBy: { mediaId: "asc" as const },
+    take: batchSize,
+  });
+  const byMediaIds = (mediaIds: string[]) => ({
+    where: { projectId, mediaId: { in: mediaIds } },
+  });
+
+  await deleteLinkRowsInMediaIdOrder({
+    batchSize,
+    findPage: (after) => prisma.traceMedia.findMany(page(after)),
+    deleteByMediaIds: (ids) => prisma.traceMedia.deleteMany(byMediaIds(ids)),
+  });
+  await deleteLinkRowsInMediaIdOrder({
+    batchSize,
+    findPage: (after) => prisma.observationMedia.findMany(page(after)),
+    deleteByMediaIds: (ids) =>
+      prisma.observationMedia.deleteMany(byMediaIds(ids)),
+  });
+  await deleteLinkRowsInMediaIdOrder({
+    batchSize,
+    findPage: (after) => prisma.datasetItemMedia.findMany(page(after)),
+    deleteByMediaIds: (ids) =>
+      prisma.datasetItemMedia.deleteMany(byMediaIds(ids)),
+  });
+}
+
+/**
+ * Pages link rows along the (project_id, media_id) index and deletes every
+ * row of each page's media ids. Each page resumes after the last media id of
+ * the previous one, so every index entry is read once, even for media linked
+ * from many rows.
+ */
+async function deleteLinkRowsInMediaIdOrder(params: {
+  batchSize: number;
+  findPage: (afterMediaId: string) => Promise<Array<{ mediaId: string }>>;
+  deleteByMediaIds: (mediaIds: string[]) => Promise<unknown>;
+}): Promise<void> {
+  let afterMediaId = "";
+  while (true) {
+    const rows = await params.findPage(afterMediaId);
+    if (rows.length === 0) return;
+    const mediaIds = [...new Set(rows.map((row) => row.mediaId))];
+    for (const ids of chunk(mediaIds, BATCH_SIZE)) {
+      await params.deleteByMediaIds(ids);
+    }
+    if (rows.length < params.batchSize) return;
+    afterMediaId = mediaIds[mediaIds.length - 1];
+  }
 }
 
 /**
@@ -263,6 +308,20 @@ export async function deleteMediaFiles(params: {
   }
 
   return deletedCount;
+}
+
+/**
+ * Delete all dataset links of the given media, claimed or pending.
+ */
+export async function deleteDatasetMediaLinksByMediaIds(params: {
+  projectId: string;
+  mediaIds: string[];
+}): Promise<void> {
+  for (const mediaIds of chunk(params.mediaIds, BATCH_SIZE)) {
+    await prisma.datasetItemMedia.deleteMany({
+      where: { projectId: params.projectId, mediaId: { in: mediaIds } },
+    });
+  }
 }
 
 /**

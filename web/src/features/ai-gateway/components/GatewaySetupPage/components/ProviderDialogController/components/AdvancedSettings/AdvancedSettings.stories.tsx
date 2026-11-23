@@ -6,6 +6,7 @@ import { AdvancedSettings } from "./AdvancedSettings";
 const meta = preview.meta({
   component: AdvancedSettings,
   args: {
+    baseURLError: null,
     onBaseURLChange: fn(),
     onHeadersChange: fn(),
   },

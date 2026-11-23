@@ -8,7 +8,7 @@ import { StringParam, useQueryParam } from "use-query-params";
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";

@@ -39,10 +39,7 @@ supports them.
    the issue *and* its comments via the Linear MCP — the description is often
    updated inline as triage proceeds. For a GitHub issue, use `gh issue view`.
    For pasted text, treat it as the description.
-   If intake contains an alert identity (a Datadog monitor ID or title, an
-   incident.io alert/INC reference, or an on-call page), first apply
-   [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md) — a
-   documented cause section may resolve the investigation before any sweep.
+   If intake contains an alert identity (a Datadog monitor ID or title, an incident.io alert/INC reference, or an on-call page), first read the monitor's runbook in the infrastructure repo (`runbooks/<slug>.md`); when several alerts fire together, read each monitor's runbook. A documented cause resolves the investigation before any sweep only when every one of its recognition signals matches the evidence. Treat a partial match as a new cause: name the near-miss and run the sweep.
 
 2. **Scope the sweep.** From the intake, pick the affected subsystem and time
    window. Use [`references/repo-debug-map.md`](references/repo-debug-map.md)
@@ -72,11 +69,7 @@ supports them.
 
 7. **Deliver.** Default: print the analysis in chat. If the user asked for it,
    also save under the workflow they specified (file, Linear comment via, etc.).
-   If the investigation was anchored to an alert identity, also offer the
-   human-gated write-back from
-   [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md): append the
-   established root cause as a dated cause section, or create the monitor's
-   ticket.
+   If the investigation was anchored to an alert identity, also offer to propose the established root cause as an update to the monitor's runbook in the infrastructure repo (`runbooks/<slug>.md`).
 
 ## Datadog MCP Usage Notes
 
@@ -116,9 +109,7 @@ do not invent root causes.
 
 ## Cross-References
 
-- Per-monitor knowledge base — look up documented causes before the sweep,
-  record new ones after (human-gated):
-  [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md)
+- Per-monitor runbooks (`runbooks/<slug>.md` in the infrastructure repo) — look up documented causes before the sweep.
 - Production telemetry query recipes, tenant/public API usage, and queue
   consumer measurements:
   [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md)

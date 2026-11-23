@@ -136,6 +136,27 @@ export const WithLongText = meta.story({
   ),
 });
 
+/** A single option set apart below the regular ones, without a group heading. */
+export const WithCustomOption = meta.story({
+  args: {
+    value: "eu",
+    placeholder: "Select a region",
+    options: [
+      {
+        type: "group",
+        id: "regions",
+        label: "Regions",
+        options: [
+          { value: "us", label: "United States" },
+          { value: "eu", label: "Europe" },
+        ],
+      },
+    ],
+    customOption: { value: "custom", label: "Custom" },
+    onValueChange: fn(),
+  },
+});
+
 export const SearchableWithBadges = meta.story({
   name: "(Test) Searchable with badges",
   args: {

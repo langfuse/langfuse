@@ -633,11 +633,12 @@ export class ChbBillingService {
 
   /**
    * With an attached plan, usage is counted live over CHB's own billing
-   * period, by ingestion time (`created_at`) and with the same queries the
-   * billing metrics API serves to CHB's metering, so the figure tracks what
-   * CHB invoices. Without an attached plan (or a period on it), usage falls
-   * back to the cached counter the hourly free-tier job maintains for the
-   * org's anchored cycle.
+   * period, by ingestion time (`created_at`) in the trace, observation and
+   * score tables. CHB's metering reads the billable_events ledger instead,
+   * which deletes and retention never lower, so this figure can run slightly
+   * below what CHB invoices. Without an attached plan (or a period on it),
+   * usage falls back to the cached counter the hourly free-tier job maintains
+   * for the org's anchored cycle.
    */
   async getUsage(orgId: string) {
     const { org, parsedOrg } = await this.getParsedOrg(orgId);

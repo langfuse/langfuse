@@ -26,18 +26,25 @@ export declare class EarlyOtelBatch {
   originalMedia(index: number, jsonLayers?: number | undefined | null): Promise<string>
   /** Read media text for several entries in one libuv task, preserving request order. */
   originalMediaBatch(requests: Array<MediaRestoreRequest>): Promise<string[]>
+  /** Parse the compact document and return media and lookup requests for Node. */
+  process(context: OtelProcessingContext): Promise<PreparedOtelBatch>
 }
 
 /** A snapshot of one finalized event row, retained until its JS handle and any encoder tasks drop it. */
 export declare class PreparedEvent {
-  /**
-   * Read a storage-ready row into owned Rust fields. JSON-valued String columns such as
-   * `model_parameters` must already be serialized by TypeScript. ClickHouse computes
-   * `event_bytes` after insertion. This constructor never serializes the JS row.
-   */
-  constructor(row: object)
   get ids(): PreparedEventIds
   static columns(): Array<PreparedEventColumn>
+}
+
+export declare class RustOtelBatch {
+  /** Release the native batch and its retained event and media allocations. */
+  dispose(): Promise<void>
+  mediaBody(index: number): Promise<Buffer>
+  /** Apply media and lookup results; return final handles or oversized-field upload requests. */
+  complete(mediaResults: OtelMediaResolution[], lookups: object[], overflowLimitBytes: number | undefined, includeEvaluationRows: boolean, traceActivityIds?: string[]): Promise<OtelCompletion>
+  overflowBody(index: number): Promise<Buffer>
+  /** Apply oversized-field upload results and return immutable handles to the ClickHouse writer. */
+  finalize(overflow: Array<OtelMediaResolution>, includeEvaluationRows: boolean, traceActivityIds?: Array<string> | undefined | null): Promise<FinalizedOtelBatch>
 }
 
 export declare class ValidatedOtelJson {
@@ -86,6 +93,21 @@ export interface ExtractedOtelMedia {
  */
 export declare function extractOtelMedia(bytes: Buffer): Promise<EarlyOtelBatch | null>
 
+export interface FinalizedOtelBatch {
+  events: Array<FinalizedOtelEvent>
+  /** Evaluation snapshots preserve full fields before oversized-field replacements. */
+  evaluationRows: object[]
+}
+
+export interface FinalizedOtelEvent {
+  event: PreparedEvent
+  traceId: string
+  startTimeIso: string
+  environment: string
+  /** Estimated dispatch weight after field overflow, present only for sampled traces. */
+  serializedEventBytes?: number
+}
+
 /**
  * Synchronously check raw bytes for possible media without copying or validating JSON.
  * Callers must bound input size to limit JS-thread work; a match still needs extraction.
@@ -123,6 +145,72 @@ export interface NativeEventBlock {
   rowCount: number
 }
 
+export interface OtelCompletion {
+  finalized?: FinalizedOtelBatch
+  overflowRequests: Array<OtelOverflowRequest>
+}
+
+export interface OtelLookupRequest {
+  spanId: string
+  eventType: string
+  modelName?: string
+  promptName?: string
+  promptVersion?: number
+  skillsAvailable: Array<OtelSkillAvailable>
+  skillsResourceLoaded: Array<OtelSkillResourceLoaded>
+}
+
+export interface OtelMediaRequest {
+  index: number
+  mediaIndex: number
+  traceId: string
+  observationId: string
+  field: string
+  reference: string
+  contentType: string
+  sha256Hash: string
+  kind: string
+  originalByteLength: number
+}
+
+export interface OtelMediaResolution {
+  index: number
+  /** Omit `reference` to restore the original inline value after an upload/link failure. */
+  reference?: string
+}
+
+export interface OtelOverflowRequest {
+  index: number
+  eventIndex: number
+  traceId: string
+  observationId: string
+  field: string
+  metadataIndex?: number
+  byteLength: number
+  sha256Hash: string
+}
+
+export interface OtelProcessingContext {
+  projectId: string
+  ingestionApiKey: string
+  ingestionSdkName: string
+  ingestionSdkVersion: string
+  fileKey: string
+  now: string
+  isLangfuseInternal: boolean
+}
+
+export interface OtelSkillAvailable {
+  name: string
+  version?: number
+}
+
+export interface OtelSkillResourceLoaded {
+  skillName: string
+  filePath: string
+  skillVersion?: number
+}
+
 /** ClickHouse column metadata generated from the prepared-row schema. */
 export interface PreparedEventColumn {
   name: string
@@ -136,6 +224,16 @@ export interface PreparedEventIds {
   trace_id: string
   id: string
 }
+
+export interface PreparedOtelBatch {
+  batch: RustOtelBatch
+  mediaRequests: Array<OtelMediaRequest>
+  lookupRequests: Array<OtelLookupRequest>
+  traceIds: Array<string>
+}
+
+/** Validate an unmasked document and optionally compact recognized media before native normalization. */
+export declare function prepareOtelJson(bytes: Buffer, extractMedia: boolean): Promise<EarlyOtelBatch>
 
 /**
  * Overrides for [`init_telemetry`]. Everything left unset comes from the

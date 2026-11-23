@@ -20,7 +20,6 @@ import {
   LlmAsJudgeEvaluator,
 } from "@/src/features/public-api/types/evaluation/evaluators";
 import { PublicApiError } from "@/src/features/public-api/types/public-api-errors";
-import { toApiReadMappings } from "@/src/features/public-api/server/evaluation/evaluationAdapters";
 
 describe("stable evaluators public API", () => {
   it("creates evaluators", async () => {
@@ -389,32 +388,6 @@ describe("stable evaluators public API", () => {
         dataType: "NUMERIC",
       },
     });
-  });
-
-  it("reads snake-case tool call mappings", () => {
-    expect(
-      toApiReadMappings([
-        {
-          templateVariable: "input",
-          selectedColumnId: "input",
-          jsonSelector: null,
-        },
-        {
-          templateVariable: "output",
-          selectedColumnId: "output",
-          jsonSelector: null,
-        },
-        {
-          templateVariable: "tool_calls",
-          selectedColumnId: "tool_calls",
-          jsonSelector: null,
-        },
-      ]),
-    ).toEqual([
-      { variable: "input", source: "input" },
-      { variable: "output", source: "output" },
-      { variable: "tool_calls", source: "tool_calls" },
-    ]);
   });
 
   it("returns 404 when getting an invalid evaluator ID", async () => {

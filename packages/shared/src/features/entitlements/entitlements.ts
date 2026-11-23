@@ -1,0 +1,219 @@
+import { type Plan } from "./plans";
+
+// Entitlements: Binary feature access
+const entitlements = [
+  // features
+  "rbac-project-roles",
+  "cloud-billing",
+  "cloud-spend-alerts",
+  "cloud-multi-tenant-sso",
+  "self-host-ui-customization",
+  "self-host-allowed-organization-creators",
+  "trace-deletion", // Not in use anymore, but necessary to use the TableAction type.
+  "audit-logs",
+  "data-retention",
+  "scheduled-blob-exports",
+  "prompt-protected-labels",
+  "admin-api",
+  "in-app-agent",
+  "self-host-telemetry-opt-out",
+  "external-media-storage",
+  "storage-iam-role-auth",
+  "bedrock-iam-role-auth",
+] as const;
+export type Entitlement = (typeof entitlements)[number];
+
+const cloudAllPlansEntitlements: Entitlement[] = [
+  "cloud-billing",
+  "trace-deletion",
+  "in-app-agent",
+];
+
+const selfHostedAllPlansEntitlements: Entitlement[] = [
+  "trace-deletion",
+  "scheduled-blob-exports",
+  "in-app-agent",
+];
+
+// Shared by self-hosted enterprise and government, which adds to it
+const selfHostedEnterpriseEntitlements: Entitlement[] = [
+  ...selfHostedAllPlansEntitlements,
+  "rbac-project-roles",
+  "self-host-allowed-organization-creators",
+  "self-host-ui-customization",
+  "audit-logs",
+  "data-retention",
+  "prompt-protected-labels",
+  "admin-api",
+  "external-media-storage",
+  "storage-iam-role-auth",
+  "bedrock-iam-role-auth",
+];
+
+// Entitlement Limits: Limits on the number of resources that can be created/used
+const entitlementLimits = [
+  "annotation-queue-count",
+  "organization-member-count",
+  "data-access-days",
+  "model-based-evaluations-count-evaluators",
+  "prompt-management-count-prompts",
+  "monitor-count",
+] as const;
+export type EntitlementLimit = (typeof entitlementLimits)[number];
+
+export type EntitlementLimits = Record<
+  EntitlementLimit,
+  | number // if limited
+  | false // unlimited
+>;
+
+export const entitlementAccess: Record<
+  Plan,
+  {
+    entitlements: Entitlement[];
+    entitlementLimits: EntitlementLimits;
+  }
+> = {
+  "cloud:hobby": {
+    entitlements: [...cloudAllPlansEntitlements],
+    entitlementLimits: {
+      "organization-member-count": 2,
+      "data-access-days": 30,
+      "annotation-queue-count": 1,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+      "monitor-count": 2,
+    },
+  },
+  "cloud:core": {
+    entitlements: [...cloudAllPlansEntitlements, "cloud-spend-alerts"],
+    entitlementLimits: {
+      "organization-member-count": false,
+      "data-access-days": 90,
+      "annotation-queue-count": 3,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+      "monitor-count": 20,
+    },
+  },
+  "cloud:pro": {
+    entitlements: [
+      ...cloudAllPlansEntitlements,
+      "cloud-spend-alerts",
+      "data-retention",
+    ],
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+      "monitor-count": 50,
+    },
+  },
+  "cloud:team": {
+    entitlements: [
+      ...cloudAllPlansEntitlements,
+      "rbac-project-roles",
+      "data-retention",
+      "cloud-multi-tenant-sso",
+      "prompt-protected-labels",
+      "admin-api",
+      "scheduled-blob-exports",
+      "cloud-spend-alerts",
+    ],
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+      "monitor-count": 50,
+    },
+  },
+  "cloud:enterprise": {
+    entitlements: [
+      ...cloudAllPlansEntitlements,
+      "rbac-project-roles",
+      "audit-logs",
+      "data-retention",
+      "cloud-multi-tenant-sso",
+      "prompt-protected-labels",
+      "admin-api",
+      "scheduled-blob-exports",
+      "cloud-spend-alerts",
+      "external-media-storage",
+      "storage-iam-role-auth",
+      "bedrock-iam-role-auth",
+    ],
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+      "monitor-count": 100,
+    },
+  },
+  oss: {
+    entitlements: selfHostedAllPlansEntitlements,
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+      "monitor-count": false,
+    },
+  },
+  "self-hosted:pro": {
+    entitlements: selfHostedAllPlansEntitlements,
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+      "monitor-count": false,
+    },
+  },
+  "self-hosted:enterprise": {
+    entitlements: selfHostedEnterpriseEntitlements,
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+      "monitor-count": false,
+    },
+  },
+  "self-hosted:gov": {
+    entitlements: [
+      ...selfHostedEnterpriseEntitlements,
+      "self-host-telemetry-opt-out",
+    ],
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+      "monitor-count": false,
+    },
+  },
+};
+
+/**
+ * Check if a plan grants a specific entitlement.
+ */
+export const hasEntitlementBasedOnPlan = ({
+  plan,
+  entitlement,
+}: {
+  plan: Plan | null;
+  entitlement: Entitlement;
+}) => {
+  if (!plan) return false;
+  return entitlementAccess[plan].entitlements.includes(entitlement);
+};

@@ -39,13 +39,22 @@ export const topicTimeRangeSchema = z
     path: ["to"],
   });
 export type TopicTimeRange = z.infer<typeof topicTimeRangeSchema>;
+export const TOPICS_MIN_EMBEDDING_DIMENSIONS = 64;
+/** Every stored summary keeps a vector of this size, so larger ones grow the embeddings table too much. */
+export const TOPICS_MAX_EMBEDDING_DIMENSIONS = 2048;
 export const topicEmbeddingConfigSchema = z.object({
   embeddingModel: z.string().trim().min(1).optional(),
   embeddingDimensions: z
     .number()
     .int("Embedding dimensions must be a whole number.")
-    .min(64, "Use at least 64 embedding dimensions.")
-    .max(4096, "Use at most 4,096 embedding dimensions.")
+    .min(
+      TOPICS_MIN_EMBEDDING_DIMENSIONS,
+      `Use at least ${TOPICS_MIN_EMBEDDING_DIMENSIONS} embedding dimensions.`,
+    )
+    .max(
+      TOPICS_MAX_EMBEDDING_DIMENSIONS,
+      `Use at most ${TOPICS_MAX_EMBEDDING_DIMENSIONS.toLocaleString("en-US")} embedding dimensions.`,
+    )
     .default(1024),
 });
 export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;
@@ -90,7 +99,6 @@ export const topicsModelSettingsSchema = z.object({
 });
 export type TopicsModelSettings = z.infer<typeof topicsModelSettingsSchema>;
 export const topicProcessingConfigSchema = z.object({
-  maxInputTokens: z.number().int().min(256).max(120_000).default(120_000),
   maxOutputTokens: z.number().int().min(64).max(512).default(512),
 });
 export type TopicProcessingConfig = z.infer<typeof topicProcessingConfigSchema>;
@@ -328,8 +336,12 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   projectId: string;
   facetId: string;
   facetVersion: number;
-  /** Processing path that wrote the row; rows from before the automatic/manual split hold "manual_poc". */
-  triggerType: "automatic" | "manual" | "manual_poc";
+  /** "snapshot" when a snapshot's execution requested the summary, else "rule". */
+  triggerType: "rule" | "snapshot";
+  /** Rules of the triggering job that select this facet; empty when only a snapshot requested it. */
+  ruleIds: string[];
+  /** The snapshot execution that requested the summary; null for rule-triggered rows. */
+  executionId: string | null;
   environment: string;
   traceName: string;
   unitStartTime: string;
@@ -338,6 +350,8 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   embedding: number[];
   transcriptId: string;
   transcriptVersion: string;
+  /** This row's share of the UTF-8 bytes of the rendered text the summarizer read, split across the call's rows like usage; 0 when none was rendered. */
+  transcriptBytes: number;
   summaryModel: string;
   embeddingModel: string;
   providedUsageDetails: Record<string, number>;
@@ -358,11 +372,13 @@ export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   unitStartTime: string;
   summaryProcessedAt: string;
   runId: string | null;
+  /** Rule of the map; null for snapshots. */
+  ruleId: string | null;
   topicId: string | null;
   topicVersionId: string | null;
   distance: number | null;
   runnerUpDistance: number | null;
-  origin: "initial" | "online" | "backfill";
+  origin: "initial" | "online";
   assignedAt: string;
 };
 export interface TopicDefinition {
@@ -371,7 +387,7 @@ export interface TopicDefinition {
   topicId: string;
   createdByRunId: string;
   createdAt: string;
-  tags: string[];
+  labels: string[];
   name: string;
   description: string;
   centroid: number[];

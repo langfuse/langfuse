@@ -21,7 +21,6 @@ import type { OrgAuthedContext } from "@/src/server/api/trpc";
 const session = {
   user: { id: "user-1" },
   orgId: "org-1",
-  orgRole: "OWNER",
 } as OrgAuthedContext["session"];
 
 vi.mock(

@@ -7,7 +7,7 @@ import {
   type UseFormReturn,
 } from "react-hook-form";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -27,8 +27,8 @@ import {
   type GatewayApiKeyFormValues,
   type GatewayApiKeySection,
 } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
+import { createDefaultGatewaySpendBudget } from "@/src/features/ai-gateway/fns/spendLimits/createDefaultGatewaySpendBudget";
 import { toGatewaySpendLimit } from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
-import { emptyGatewaySpendBudget } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import { toGatewayApiKeyMetadata } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/fns/toGatewayApiKeyMetadata";
 import type { GatewayEnabledModels } from "@/src/features/ai-gateway/types/gatewayEnabledModels";
 import type { RouterInputs } from "@/src/utils/api";
@@ -40,7 +40,7 @@ const emptyValues: GatewayApiKeyFormValues = {
   customExpiry: "",
   metadata: [],
   modelPatterns: [],
-  spendBudget: emptyGatewaySpendBudget,
+  spendBudget: createDefaultGatewaySpendBudget(),
   sections: [],
 };
 
@@ -84,7 +84,7 @@ type GatewayApiKeySubmission = Omit<
 type GatewayApiKeyDisabledField = "issuedAs" | "expiration" | "spendBudget";
 
 const LOCKED_SPEND_BUDGET_REASON =
-  "This key has more than one spend limit, so it can't be changed here. Its limits stay as they are.";
+  "This key has more than one budget, so it can't be changed here. Its budgets stay as they are.";
 
 type GatewayApiKeyDialogProps = {
   title: string;
@@ -212,10 +212,9 @@ export function GatewayApiKeyDialog({
             spendBudgetUnavailableReason={spendBudgetUnavailableReason}
           />
           {errorMessage !== null ? (
-            <Alert variant="destructive">
-              <Alert.Title>Gateway key could not be saved</Alert.Title>
-              <Alert.Description>{errorMessage}</Alert.Description>
-            </Alert>
+            <Banner variant="error" title="Gateway key could not be saved">
+              {errorMessage}
+            </Banner>
           ) : null}
         </Form>
       </Dialog.Body>
@@ -311,7 +310,7 @@ function OptionalSections({
         form.setValue("customExpiry", "", update);
         break;
       case "spendBudget":
-        form.setValue("spendBudget", emptyGatewaySpendBudget, update);
+        form.setValue("spendBudget", createDefaultGatewaySpendBudget(), update);
         break;
       case "models":
         form.setValue("modelPatterns", [], update);
