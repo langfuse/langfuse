@@ -59,9 +59,15 @@ export function ControlledFeaturePreviewModal({
     internalViewEnabled ||
     authSession.data?.user?.featureFlags.langfuseTopics === true;
 
+  const hasTraceEvalsProject =
+    authSession.data?.user?.organizations?.some((organization) =>
+      organization.projects.some((project) => project.traceEvalsEnabled),
+    ) ?? false;
+
   const isTraceEvalsEnabled =
-    internalViewEnabled ||
-    authSession.data?.user?.featureFlags.traceTranscriptEvals === true;
+    hasTraceEvalsProject &&
+    (internalViewEnabled ||
+      authSession.data?.user?.featureFlags.traceTranscriptEvals === true);
 
   const traceEvalsWarningReason = internalViewEnabled
     ? "Trace transcript evals are enabled by Internal view. Switching to External view hides them unless they have been enabled for you separately."
