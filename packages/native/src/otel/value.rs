@@ -575,7 +575,7 @@ impl fmt::Display for Value {
 // Serde owns ordinary value decoding; the compatibility path below keeps structural traversal in
 // one Jiter cursor and borrows only the tokens that need its lossless raw representation.
 struct BytesVisitor;
-struct FastValue(Value);
+pub(crate) struct FastValue(pub(crate) Value);
 struct FastValueVisitor;
 
 impl<'de> Deserialize<'de> for FastValue {

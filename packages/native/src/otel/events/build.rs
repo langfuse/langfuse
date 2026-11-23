@@ -20,8 +20,8 @@ use super::super::providers::{
     claude_managed_agent_session_id, extract_completion_start_time, extract_cost_details,
     extract_input_output, extract_is_app_root, extract_model_name, extract_model_parameters,
     extract_name, extract_prompt_version, extract_prompt_version_lookup, extract_public,
-    extract_tags, extract_usage_details, observation_type, should_skip_model_usage_and_cost,
-    ProviderIO,
+    extract_tags, extract_usage_details, filter_attributes, observation_type,
+    should_skip_model_usage_and_cost, ProviderIO,
 };
 use super::super::tools::normalize_tools_for_observation;
 use super::super::types::{JsonObject, OwnedEvent};
@@ -115,9 +115,7 @@ impl<'a> EventAssembly<'a> {
         let payloads = self.source.payloads(&self.event.row);
         self.event.input = payloads.input;
         self.event.output = payloads.output;
-        self.event.metadata = self
-            .source
-            .metadata(payloads.filtered_attributes, resource, scope);
+        self.event.metadata = self.source.metadata(resource, scope);
         self
     }
 
@@ -401,16 +399,12 @@ impl<'a> EventSource<'a> {
         )
     }
 
-    fn metadata(
-        &mut self,
-        filtered_attributes: JsonObject,
-        resource: &JsonObject,
-        scope: &Object,
-    ) -> JsonObject {
+    fn metadata(&mut self, resource: &JsonObject, scope: &Object) -> JsonObject {
         let mut metadata = JsonObject::new();
         // SDK scopes use root-level metadata; other spans retain the diagnostic attribute map.
         if !self.scope_name.starts_with("langfuse-sdk") {
-            metadata.insert("attributes".into(), Value::Object(filtered_attributes));
+            let attributes = filter_attributes(&self.attributes, self.scope_name);
+            metadata.insert("attributes".into(), Value::Object(attributes));
         }
         metadata.insert("resourceAttributes".into(), Value::Object(resource.clone()));
         metadata.insert("scope".into(), Value::Object(scope.clone()));

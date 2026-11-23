@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc c0a57f7c0086c789416f50afebfcf1bb40cd39cd32adea7ecf95ec1db9319359 # shrinks to entries = [("\"a\"", "{\"arrayValue\":{\"values\":[{\"stringValue\":\"x\"}]}}", 3)]
+cc 696b8a37c35354d4dd6fbdf68fad2c6093a612250421cfec9f85c62a8aab3c9d # shrinks to entries = [("\"a\"", "{\"stringValue\":{\"intValue\":\"1\"}}", 3)]
+cc ff7c1d9636fb712cb034a75d572a603b76db84642d533ee6095ffa49ee85254a # shrinks to entries = [("\"values\"", "{\"arrayValue\":{\"values\":[{\"stringValue\":{\"key\":\"k\",\"value\":1}}]}}", 3)]
