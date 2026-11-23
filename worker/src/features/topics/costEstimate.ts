@@ -42,9 +42,9 @@ const BATCH_TRACES = 10;
 const BATCH_BYTES = 16 * 1024 * 1024;
 // Estimates share the setup queue, so a slow one fails rather than hold a slot.
 const DEADLINE_MS = 2 * 60_000;
-// Expected output tokens and embedding input tokens of one facet's summary.
-const OUTPUT_TOKENS_PER_FACET = 60;
-const EMBEDDING_TOKENS_PER_FACET = 40;
+// Output tokens and embedding input tokens of one facet's summary, from a week of production usage.
+const OUTPUT_TOKENS_PER_FACET = 70;
+const EMBEDDING_TOKENS_PER_FACET = 15;
 
 // Characters per token by tokenizer family, measured on rendered Topics requests.
 function charsPerToken(model: string) {

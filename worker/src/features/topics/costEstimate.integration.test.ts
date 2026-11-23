@@ -82,6 +82,6 @@ describe("Topics cost estimate", () => {
     });
     // 16,000 transcript characters of the long trace at 4 characters per token.
     expect(done!.tokens.inputTokens).toBeGreaterThan(4_000);
-    expect(done!.tokens.outputTokens).toBe(2 * 60);
+    expect(done!.tokens.outputTokens).toBe(2 * 70);
   });
 });

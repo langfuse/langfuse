@@ -22,7 +22,6 @@ import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import {
-  TOPIC_SETUP_BACKFILL_LIMIT,
   TOPIC_SETUP_WAIT_MINUTES,
   canLeaveTopicQuestions,
   isRecommendedTopicModel,
@@ -459,7 +458,7 @@ function backfillLine(count: TopicSetupPastCount) {
   if (count.status === "loading") return "Counting past traces…";
   if (count.status === "error") return "Could not count past traces";
   if (count.matched === 0) return "No matching traces in the last 30 days";
-  return `Runs on up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} recent traces that match your filters`;
+  return `Runs on up to ${count.matched.toLocaleString("en-US")} recent traces that match your filters`;
 }
 
 function nextStepDisabled({
