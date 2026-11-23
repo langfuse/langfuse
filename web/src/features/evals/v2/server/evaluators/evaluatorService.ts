@@ -3,7 +3,6 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import {
   EvalTemplateType,
-  evalVariableMappingListSchema,
   type EvaluatorBlockReason,
   type FilterState,
   getBlockReasonForInvalidModelConfig,
@@ -790,12 +789,6 @@ async function patchEvaluator(params: {
       input.definition,
     );
     if (definitionChanged) {
-      await assertInheritingRulesCanReadMapping({
-        tx,
-        projectId: input.projectId,
-        evaluatorId: input.evaluatorId,
-        definition: input.definition,
-      });
       await repository.appendEvaluatorVersion({
         tx,
         evaluatorId: input.evaluatorId,
@@ -857,15 +850,6 @@ async function updateEvaluator(params: {
     description: input.description,
   });
 
-  if (definitionChanged) {
-    await assertInheritingRulesCanReadMapping({
-      tx,
-      projectId: input.projectId,
-      evaluatorId: input.evaluatorId,
-      definition: input.definition,
-    });
-  }
-
   // Name-based upserts from the unstable API preserve every write as a new
   // version. Stable ID-based updates only version actual definition changes.
   if (params.forceNewVersion || definitionChanged) {
@@ -894,37 +878,6 @@ async function updateEvaluator(params: {
   });
   if (!updated) throw new LangfuseNotFoundError("Evaluator not found");
   return updated;
-}
-
-/**
- * Rule assignments without their own mapping run with the evaluator's latest
- * mapping, so a new version may only map columns their rule targets provide.
- */
-async function assertInheritingRulesCanReadMapping(params: {
-  tx: Prisma.TransactionClient;
-  projectId: string;
-  evaluatorId: string;
-  definition: EvaluatorDefinition;
-}) {
-  if (!params.definition.variableMapping) return;
-  const targetObjects = await repository.listInheritingRuleTargets({
-    prisma: params.tx,
-    projectId: params.projectId,
-    evaluatorId: params.evaluatorId,
-  });
-  for (const targetObject of targetObjects) {
-    const parsed = evalVariableMappingListSchema(targetObject).safeParse(
-      params.definition.variableMapping,
-    );
-    const unknownColumnIssue = parsed.error?.issues.find(
-      ({ code }) => code === "custom",
-    );
-    if (unknownColumnIssue) {
-      throw new InvalidRequestError(
-        `${unknownColumnIssue.message} An evaluation rule on ${targetObject} uses this evaluator's mapping.`,
-      );
-    }
-  }
 }
 
 async function reconcileEvaluatorBlock(params: {
