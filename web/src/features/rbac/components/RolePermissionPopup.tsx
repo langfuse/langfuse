@@ -35,7 +35,6 @@ export function RolePermissionPopup({
   emptyStateComment?: string;
 }) {
   const shown = role ? display(role) : undefined;
-  const Icon = shown?.Icon;
   const showEmptyStateComment =
     role !== null &&
     emptyStateComment !== undefined &&
@@ -47,11 +46,10 @@ export function RolePermissionPopup({
         closeOnInteractionOutside
         className="min-h-[25.5rem] sm:min-w-[32rem]"
       >
-        {role && shown && Icon && (
+        {role && shown && (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Icon size="base" />
                 <span>{shown?.name}</span>
                 <span className="ml-1 shrink-0 tabular-nums">
                   <BadgeShell color="filled" size="sm">

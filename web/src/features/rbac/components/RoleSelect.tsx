@@ -14,7 +14,6 @@ import {
 } from "@/src/components/ui/select";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
-import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
 const triggerVariants = cva("", {
   variants: {
@@ -63,7 +62,6 @@ export function RoleSelect({
     setPermissionsOpen(true);
   };
 
-  const SelectedIcon = roleIcons[value];
   const keepDefaultNote = value === "NONE" && isProjectRole;
   const label = `${systemRoleAccessRights[value].name}${
     keepDefaultNote ? " (keep default role)" : ""
@@ -85,11 +83,8 @@ export function RoleSelect({
           className={triggerVariants({ size })}
           disableValueLineClamp
         >
-          <span className="flex min-w-0 items-center gap-2">
-            <SelectedIcon size="base" />
-            <span className="truncate" title={label}>
-              {label}
-            </span>
+          <span className="truncate" title={label}>
+            {label}
           </span>
         </SelectTrigger>
         <SelectContent>

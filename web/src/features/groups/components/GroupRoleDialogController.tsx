@@ -8,7 +8,6 @@ import { memberCountLabel } from "@/src/features/groups/components/GroupMemberSt
 import { EffectiveRoleCard } from "@/src/features/rbac/components/EffectiveRoleCard";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
-import { RoleWithIcon } from "@/src/features/rbac/components/RoleWithIcon";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 
 type GroupRole = "ADMIN" | "MEMBER" | "VIEWER" | "AI_GATEWAY";
@@ -123,10 +122,7 @@ function GroupRoleSummary({
     );
   const lead = (
     <>
-      <Em>{groupName}</Em> gives its {members}{" "}
-      <Em>
-        <RoleWithIcon role={role} />
-      </Em>
+      <Em>{groupName}</Em> gives its {members} <Em>{roleName(role)}</Em>
     </>
   );
   if (level === "organization")
@@ -209,7 +205,7 @@ function GroupRoleDialog({
                     <span
                       className={`font-bold ${source.unused ? "text-muted-foreground" : ""}`}
                     >
-                      <RoleWithIcon role={source.role} />
+                      {roleName(source.role)}
                     </span>
                     <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">

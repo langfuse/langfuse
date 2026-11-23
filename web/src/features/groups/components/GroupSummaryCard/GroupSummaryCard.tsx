@@ -3,7 +3,6 @@ import { type Role } from "@langfuse/shared";
 
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import {
   memberCountLabel,
   type StackMember,
@@ -23,8 +22,6 @@ type GroupSummaryCardProps = {
   memberCount: number;
   /** The group's first few members; `memberCount` is the full size. */
   memberPreview: StackMember[];
-  /** Where "View all members" leads. */
-  href: string;
 };
 
 /** What a group is, the access it sets and who is in it, sized for a hover card. */
@@ -35,8 +32,8 @@ export function GroupSummaryCard({
   role,
   memberCount,
   memberPreview,
-  href,
 }: GroupSummaryCardProps) {
+  const hiddenMembers = memberCount - memberPreview.length;
   return (
     <div className="ph-no-capture flex w-72 flex-col divide-y text-sm">
       <div className="flex flex-col gap-0.5 px-4 py-3">
@@ -71,8 +68,10 @@ export function GroupSummaryCard({
               );
             })}
           </ul>
-          {memberCount > memberPreview.length && (
-            <TextLink path={href} value={`View all ${memberCount} members`} />
+          {hiddenMembers > 0 && (
+            <p className="text-muted-foreground text-xs">
+              +{hiddenMembers} more {hiddenMembers === 1 ? "member" : "members"}
+            </p>
           )}
         </div>
       )}

@@ -226,6 +226,7 @@ export function ConnectedMembersSettingsTable({
           orgId={orgId}
           project={project}
           currentUserId={session.data?.user?.id}
+          hasOrgViewAccess={hasOrgViewAccess}
           hasOrgCudAccess={hasOrgCudAccess}
           hasProjectCudAccess={hasProjectCudAccess}
           canManageOrgOwnership={canManageOrgOwnership}

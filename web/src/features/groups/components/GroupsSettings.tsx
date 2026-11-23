@@ -1,4 +1,5 @@
 import { useCallback, useId, useMemo, useState } from "react";
+import { StringParam, useQueryParam } from "use-query-params";
 import {
   Lock,
   PencilLine,
@@ -400,8 +401,14 @@ function GroupMembersDialogController({
   canEdit: boolean;
   children: (open: OpenWith<Group>) => React.ReactNode;
 }) {
+  // `?group=<id>` opens that group's members, so other pages can link to them.
+  const [linkedGroupId, setLinkedGroupId] = useQueryParam("group", StringParam);
   return (
     <DialogController<string>
+      initialState={() => linkedGroupId ?? undefined}
+      onDismiss={() => {
+        if (linkedGroupId) setLinkedGroupId(undefined);
+      }}
       renderDialog={({ state: groupId }) => (
         <GroupMembersDialog orgId={orgId} groupId={groupId} canEdit={canEdit} />
       )}
@@ -479,8 +486,9 @@ function GroupMembersDialog({
         })),
       };
     if (groups.error) return { status: "error", error: groups.error.message };
+    if (groups.data) return { status: "error", error: "Group not found" };
     return { status: "loading" };
-  }, [group, groups.error]);
+  }, [group, groups.error, groups.data]);
 
   return (
     <Dialog

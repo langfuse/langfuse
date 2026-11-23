@@ -16,7 +16,6 @@ import {
   roleDisplay,
   roleName,
 } from "@/src/features/rbac/components/roleDisplay";
-import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
 export function RoleField({
   id,
@@ -45,7 +44,6 @@ export function RoleField({
     role === "NONE" && noneDescription
       ? noneDescription
       : systemRoleAccessRights[role].description;
-  const SelectedIcon = roleIcons[value];
   const showPermissions = (role: SystemRole) => {
     setOpen(false);
     setPermissionsRole(role);
@@ -60,14 +58,11 @@ export function RoleField({
         onValueChange={(next) => onChange(next as Role)}
       >
         <SelectTrigger id={id} className="h-auto" disableValueLineClamp>
-          <div className="flex items-start gap-2 text-left">
-            <SelectedIcon size="base" __rawClassName="mt-0.5" />
-            <div className="flex flex-col">
-              <span className="font-bold">{nameOf(value)}</span>
-              <span className="text-muted-foreground text-xs">
-                {describe(value)}
-              </span>
-            </div>
+          <div className="flex flex-col text-left">
+            <span className="font-bold">{nameOf(value)}</span>
+            <span className="text-muted-foreground text-xs">
+              {describe(value)}
+            </span>
           </div>
         </SelectTrigger>
         <SelectContent className="max-w-(--radix-select-trigger-width)">
