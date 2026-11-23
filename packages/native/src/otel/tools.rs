@@ -70,7 +70,7 @@ pub fn normalize_tools_for_observation(
 }
 
 fn parse_if_string<'a>(value: &'a Value, parse_cache: &mut JsonParseCache) -> ParsedJson<'a> {
-    parse_cache.shared_or_self(value)
+    parse_cache.owned_or_self(value)
 }
 
 fn definition_data(value: &Value) -> Option<&JsonObject> {
@@ -316,7 +316,7 @@ fn append_tools_to_input(
     tools: Vec<Value>,
     cache: &mut JsonParseCache,
 ) -> bool {
-    let parsed = input.as_ref().map(|value| cache.shared_or_self(value));
+    let parsed = input.as_ref().map(|value| cache.owned_or_self(value));
     let existing = match parsed.as_deref() {
         Some(Value::Bool(_) | Value::Number(_)) => return false,
         Some(Value::Object(object))
@@ -334,7 +334,7 @@ fn append_tools_to_input(
         // Keep depth-limited input and its metadata tools intact. Malformed JSON
         // remains ordinary prompt text and can receive a tools wrapper.
         Some(ParsedJson::DepthLimited(_)) => return false,
-        Some(ParsedJson::Shared(value)) => std::rc::Rc::unwrap_or_clone(value),
+        Some(ParsedJson::Owned(value)) => value,
         Some(ParsedJson::Borrowed(_)) | None => input.take().unwrap_or(Value::Null),
     };
     let mut object = match value {

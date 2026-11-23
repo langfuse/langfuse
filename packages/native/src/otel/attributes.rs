@@ -17,16 +17,13 @@
 //! input/output and usage. Shared helpers apply JavaScript coercions and convert
 //! nanosecond timestamps to milliseconds.
 //!
-//! `JsonParseCache` parses JSON inside attribute strings on demand, caching both
-//! successes and failures for one event. `ParsedJson` borrows an existing value or
-//! shares a cached tree through `Rc`, allowing recursive tool extraction to reuse
-//! the cache without copying that tree.
+//! `JsonParseCache` parses JSON inside attribute strings on demand and keeps the
+//! results for one event. `ParsedJson` borrows an existing value or owns a parsed
+//! tree, so recursive tool extraction can hold it while parsing nested strings.
 
 use chrono::{DateTime, Utc};
-use indexmap::IndexMap;
 use num_bigint::BigUint;
 use num_traits::{Num, ToPrimitive};
-use std::rc::Rc;
 
 use super::value::{JsString, JsonObject, Number, Object, Value};
 
@@ -566,38 +563,15 @@ fn number_from_integer_like_f64(value: f64) -> Option<Number> {
     Number::from_f64(value)
 }
 
-/// Memoize stringified JSON only when an event extractor actually needs to parse it.
+/// Parse stringified JSON only when an event extractor actually needs it.
 ///
 /// The queue graph is already normalized at its boundary, so non-string values can be borrowed
-/// directly. Parsed strings are normalized once and borrowed by all provider extractors that use
-/// the same source. The cache distinguishes inputs beyond the nesting limit from malformed JSON
-/// so tool normalization can preserve their original string representation.
+/// directly. Each parsed string is kept until the event is built, so extractors can borrow the
+/// result. A string is parsed each time it is requested: extractors rarely ask for the same
+/// string twice, and finding an earlier result costs as much as parsing a payload again.
 #[derive(Default)]
 pub struct JsonParseCache {
-    /// The first strings an event parses, found by comparison: hashing a payload costs more
-    /// than parsing it, and most events parse only a handful of strings.
-    compared: Vec<(JsString, CachedParse)>,
-    /// Strings parsed once `compared` is full.
-    hashed: IndexMap<JsString, CachedParse>,
-}
-
-/// Bounds the comparisons one lookup makes when a sender packs an event with JSON strings.
-const COMPARED_STRINGS: usize = 8;
-
-enum CachedParse {
-    Parsed(Rc<Value>),
-    DepthLimited,
-    Invalid,
-}
-
-impl CachedParse {
-    fn of(text: &JsString) -> Self {
-        match super::value::parse_js_string(text) {
-            Ok(value) => Self::Parsed(Rc::new(value)),
-            Err(error) if is_depth_limit_error(&error) => Self::DepthLimited,
-            Err(_) => Self::Invalid,
-        }
-    }
+    parsed: Vec<Value>,
 }
 
 impl JsonParseCache {
@@ -609,30 +583,8 @@ impl JsonParseCache {
         if !looks_like_json(text.as_str()) {
             return None;
         }
-        match self.entry(text) {
-            CachedParse::Parsed(value) => Some(value),
-            CachedParse::DepthLimited | CachedParse::Invalid => None,
-        }
-    }
-
-    /// The cached parse of `text`, which is parsed on first use.
-    fn entry(&mut self, text: &JsString) -> &CachedParse {
-        if let Some(index) = self.compared.iter().position(|(cached, _)| cached == text) {
-            return &self.compared[index].1;
-        }
-        if self.compared.len() < COMPARED_STRINGS {
-            self.compared.push((text.clone(), CachedParse::of(text)));
-            return &self.compared[self.compared.len() - 1].1;
-        }
-        let index = match self.hashed.get_index_of(text) {
-            Some(index) => index,
-            None => {
-                self.hashed
-                    .insert_full(text.clone(), CachedParse::of(text))
-                    .0
-            }
-        };
-        &self.hashed[index]
+        self.parsed.push(super::value::parse_js_string(text).ok()?);
+        self.parsed.last()
     }
 
     pub fn parse_or_self<'a>(&'a mut self, value: Option<&'a Value>) -> Option<&'a Value> {
@@ -640,19 +592,20 @@ impl JsonParseCache {
         self.parse(Some(value)).or(Some(value))
     }
 
-    /// Keep a parsed subtree alive while recursive tool inspection uses the cache again.
-    /// Sharing avoids cloning the whole input just to inspect a few nested definitions.
-    pub fn shared_or_self<'a>(&mut self, value: &'a Value) -> ParsedJson<'a> {
+    /// Hand the parsed tree to the caller, so recursive tool inspection can hold it while
+    /// parsing nested strings. Input beyond the nesting limit is reported apart from malformed
+    /// JSON so tool normalization can preserve its original string representation.
+    pub fn owned_or_self<'a>(&self, value: &'a Value) -> ParsedJson<'a> {
         let Value::String(text) = value else {
             return ParsedJson::Borrowed(value);
         };
         if !looks_like_json(text.as_str()) {
             return ParsedJson::Borrowed(value);
         }
-        match self.entry(text) {
-            CachedParse::Parsed(parsed) => ParsedJson::Shared(Rc::clone(parsed)),
-            CachedParse::DepthLimited => ParsedJson::DepthLimited(value),
-            CachedParse::Invalid => ParsedJson::Borrowed(value),
+        match super::value::parse_js_string(text) {
+            Ok(parsed) => ParsedJson::Owned(parsed),
+            Err(error) if is_depth_limit_error(&error) => ParsedJson::DepthLimited(value),
+            Err(_) => ParsedJson::Borrowed(value),
         }
     }
 }
@@ -660,7 +613,7 @@ impl JsonParseCache {
 pub enum ParsedJson<'a> {
     Borrowed(&'a Value),
     DepthLimited(&'a Value),
-    Shared(Rc<Value>),
+    Owned(Value),
 }
 
 impl std::ops::Deref for ParsedJson<'_> {
@@ -669,7 +622,7 @@ impl std::ops::Deref for ParsedJson<'_> {
     fn deref(&self) -> &Value {
         match self {
             Self::Borrowed(value) | Self::DepthLimited(value) => value,
-            Self::Shared(value) => value,
+            Self::Owned(value) => value,
         }
     }
 }
@@ -678,7 +631,7 @@ impl ParsedJson<'_> {
     pub fn into_owned(self) -> Value {
         match self {
             Self::Borrowed(value) | Self::DepthLimited(value) => value.clone(),
-            Self::Shared(value) => Rc::unwrap_or_clone(value),
+            Self::Owned(value) => value,
         }
     }
 }
@@ -788,7 +741,7 @@ mod tests {
         for text in ["text-", "false alarm", "nothing", "true false"] {
             assert!(cache.parse(Some(&json!(text))).is_none());
         }
-        assert!(cache.compared.is_empty());
+        assert!(cache.parsed.is_empty());
         for (text, expected) in [
             ("true", json!(true)),
             (" \tfalse\r\n", json!(false)),
@@ -799,26 +752,11 @@ mod tests {
     }
 
     #[test]
-    fn caches_malformed_embedded_json_as_a_missing_value() {
+    fn treats_malformed_embedded_json_as_a_missing_value() {
         let value = Value::String(r#"{"broken":}"#.into());
         let mut cache = JsonParseCache::default();
         assert!(cache.parse(Some(&value)).is_none());
-        assert_eq!(cache.compared.len(), 1);
-        assert!(cache.parse(Some(&value)).is_none());
-        assert_eq!(cache.compared.len(), 1);
-    }
-
-    #[test]
-    fn parses_each_string_once_however_many_an_event_holds() {
-        let mut cache = JsonParseCache::default();
-        for _ in 0..2 {
-            for number in 0..COMPARED_STRINGS + 3 {
-                let text = Value::String(format!("[{number}]").into());
-                assert_eq!(cache.parse(Some(&text)), Some(&json!([number])));
-            }
-        }
-        assert_eq!(cache.compared.len(), COMPARED_STRINGS);
-        assert_eq!(cache.hashed.len(), 3);
+        assert!(cache.parsed.is_empty());
     }
 
     #[test]
