@@ -96,6 +96,7 @@ export function ChartLegend({
   return (
     <div className={cn(LEGEND_PADDING, "flex justify-center")}>
       <OverflowList
+        alignment="center"
         additionalOverflowCount={0}
         spacing="comfortable"
         items={items}

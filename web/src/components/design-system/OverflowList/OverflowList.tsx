@@ -1,10 +1,12 @@
 import { cn } from "@/src/utils/tailwind";
+import { cva, type VariantProps } from "class-variance-authority";
 import {
   Fragment,
   type ComponentProps,
   type HTMLAttributes,
   type ReactElement,
   type ReactNode,
+  useCallback,
   useLayoutEffect,
   useRef,
   useState,
@@ -30,11 +32,20 @@ import { flushSync } from "react-dom";
 // Rows of boxed pills read fine at gap-2; rows of mostly-plain text (the
 // session header's metrics/attributes/links) need more air to scan as
 // separate facts, matching the trace headers' gap-4; bordered chips pull to 4px.
-const SPACING_CLASS = {
-  tight: "gap-1",
-  compact: "gap-2",
-  comfortable: "gap-4",
-} as const;
+const rowVariants = cva("flex items-center", {
+  variants: {
+    spacing: {
+      tight: "gap-1",
+      compact: "gap-2",
+      comfortable: "gap-4",
+    },
+    alignment: {
+      start: "justify-start",
+      center: "justify-center",
+      end: "justify-end",
+    },
+  },
+});
 export function OverflowList<TItem>({
   items,
   additionalOverflowCount,
@@ -43,6 +54,7 @@ export function OverflowList<TItem>({
   renderOverflow,
   trailingContent,
   spacing = "compact",
+  alignment = "start",
   isTightItem,
   minVisible,
 }: {
@@ -66,12 +78,12 @@ export function OverflowList<TItem>({
     overflowItemCount: number;
   }) => ReactNode;
   trailingContent?: ReactNode;
-  spacing?: keyof typeof SPACING_CLASS;
+  spacing?: NonNullable<VariantProps<typeof rowVariants>["spacing"]>;
+  alignment?: NonNullable<VariantProps<typeof rowVariants>["alignment"]>;
   /** Tight items sit 4px from a preceding tight item instead of the row gap. */
   isTightItem?: (item: TItem) => boolean;
   minVisible?: 0 | 1;
 }) {
-  const gapClass = SPACING_CLASS[spacing];
   const hasTrailingContent =
     trailingContent !== null && trailingContent !== undefined;
   const {
@@ -100,7 +112,10 @@ export function OverflowList<TItem>({
         ref={measurementRowRef}
         aria-hidden="true"
         inert
-        className={`invisible relative col-start-1 row-start-1 flex h-0 items-center ${gapClass}`}
+        className={cn(
+          "invisible relative col-start-1 row-start-1 h-0",
+          rowVariants({ spacing }),
+        )}
       >
         {items.map((item) => (
           <Fragment key={getKey(item)}>
@@ -114,11 +129,14 @@ export function OverflowList<TItem>({
         )}
       </div>
       <div
-        className={`col-start-1 row-start-1 flex min-w-0 items-center ${gapClass}`}
+        className={cn(
+          "col-start-1 row-start-1 min-w-0",
+          rowVariants({ spacing, alignment }),
+        )}
       >
         {visibleItems.length > 0 ? (
           <div
-            className={`flex min-w-0 items-center overflow-hidden ${gapClass}`}
+            className={cn("min-w-0 overflow-hidden", rowVariants({ spacing }))}
           >
             {visibleItems.map((item) => (
               <Fragment key={getKey(item)}>
@@ -176,11 +194,27 @@ function useOverflowList<TItem>({
 }) {
   const measurementRowRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const measureRef = useRef<(() => void) | null>(null);
+  const setOverflowRef = useCallback((element: HTMLDivElement | null) => {
+    if (overflowRef.current) {
+      observerRef.current?.unobserve(overflowRef.current);
+    }
+    overflowRef.current = element;
+    if (element) {
+      observerRef.current?.observe(element);
+    }
+  }, []);
   const trailingContentRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(items.length);
   const itemKeySignature = items.map(getKey).join("\u0000");
   const overflowItemCount =
     Math.max(0, items.length - visibleCount) + additionalOverflowCount;
+
+  // Mounting the overflow control changes the available width before observers fire.
+  useLayoutEffect(() => {
+    measureRef.current?.();
+  });
 
   useLayoutEffect(() => {
     const measurementRow = measurementRowRef.current;
@@ -207,7 +241,7 @@ function useOverflowList<TItem>({
         (trailingContentWidth > 0 ? normalizedGap : 0);
       if (
         additionalOverflowCount <= 0 &&
-        contentWidth <= availableWidthBeforeOverflow - 1
+        contentWidth <= availableWidthBeforeOverflow + 1
       ) {
         setVisibleCount(itemElements.length);
         return;
@@ -222,7 +256,7 @@ function useOverflowList<TItem>({
         );
         const availableWidth =
           availableWidthBeforeOverflow - overflowWidth - overflowGap;
-        return element.offsetLeft + element.offsetWidth > availableWidth - 1;
+        return element.offsetLeft + element.offsetWidth > availableWidth + 1;
       });
       setVisibleCount(
         firstHiddenIndex === -1
@@ -231,11 +265,17 @@ function useOverflowList<TItem>({
       );
     };
 
+    measureRef.current = measure;
     measure();
-    if (typeof ResizeObserver === "undefined") return;
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        measureRef.current = null;
+      };
+    }
 
     // Commit before paint so resizing doesn't flash the previous item count.
     const resizeObserver = new ResizeObserver(() => flushSync(measure));
+    observerRef.current = resizeObserver;
     resizeObserver.observe(measurementRow);
     for (const child of measurementRow.children) {
       resizeObserver.observe(child);
@@ -247,12 +287,15 @@ function useOverflowList<TItem>({
       resizeObserver.observe(trailingContentRef.current);
     }
 
-    return () => resizeObserver.disconnect();
+    return () => {
+      resizeObserver.disconnect();
+      observerRef.current = null;
+      measureRef.current = null;
+    };
   }, [
     additionalOverflowCount,
     hasTrailingContent,
     itemKeySignature,
-    overflowItemCount,
     spacing,
     minVisible,
   ]);
@@ -278,7 +321,7 @@ function useOverflowList<TItem>({
 
   return {
     measurementRowRef,
-    overflowRef,
+    overflowRef: setOverflowRef,
     trailingContentRef,
     visibleCount,
     overflowItemCount,

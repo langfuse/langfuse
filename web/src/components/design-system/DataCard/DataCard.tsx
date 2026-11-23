@@ -311,6 +311,7 @@ function FilterTags({
     >
       <div className="flex w-full min-w-0 justify-end">
         <OverflowList
+          alignment="end"
           additionalOverflowCount={0}
           spacing="tight"
           minVisible={1}
