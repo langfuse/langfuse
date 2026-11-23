@@ -8,6 +8,22 @@ import {
 
 const meta = preview.meta({ component: MembersSettingsTable });
 
+const groupMemberNames = [
+  "Ada Lovelace",
+  "Grace Hopper",
+  "Alan Turing",
+  "Katherine Johnson",
+  "Linus Torvalds",
+];
+
+const memberPreview = (count: number) =>
+  groupMemberNames.slice(0, count).map((name, index) => ({
+    userId: `group-member-${index}`,
+    name,
+    email: `${name.split(" ")[0].toLowerCase()}@example.com`,
+    image: null,
+  }));
+
 const members: MembersSettingsTableRow[] = [
   {
     user: { name: "Ada Lovelace", image: null },
@@ -32,6 +48,7 @@ const members: MembersSettingsTableRow[] = [
         groupName: "platform-admins",
         groupSource: "SCIM",
         memberCount: 12,
+        memberPreview: memberPreview(5),
         role: "ADMIN",
         level: "organization",
       },
@@ -228,6 +245,7 @@ const groupMember: MembersSettingsTableRow = {
       groupName: "langfuse-org-admins",
       groupSource: "SCIM",
       memberCount: 4,
+      memberPreview: memberPreview(4),
       role: "ADMIN",
       level: "organization",
     },
@@ -236,6 +254,7 @@ const groupMember: MembersSettingsTableRow = {
       groupName: "llm-app-maintainers",
       groupSource: "MANUAL",
       memberCount: 17,
+      memberPreview: memberPreview(5),
       role: "MEMBER",
       level: "project",
     },

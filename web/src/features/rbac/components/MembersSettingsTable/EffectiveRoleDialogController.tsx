@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import Link from "next/link";
-import { Lock } from "@langfuse/icons";
+import { Lock, Users } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
 import {
   grantsAccess,
@@ -10,8 +10,12 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { TagShell } from "@/src/components/design-system/Tag/Tag";
 import { memberCountLabel } from "@/src/features/groups/components/GroupMemberStack";
+import { GROUP_SOURCE_DISPLAY } from "@/src/features/groups/groupSource";
 import { EffectiveRoleCard } from "@/src/features/rbac/components/EffectiveRoleCard";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
@@ -126,7 +130,11 @@ type GroupReason = {
   key: string;
   groupId: string;
   label: string;
-  title: string;
+  level: MemberGroupRole["level"];
+  source: MemberGroupRole["groupSource"];
+  memberCount: number;
+  memberPreview: MemberGroupRole["memberPreview"];
+  role: Role;
   levelNote?: string;
   href: string;
 };
@@ -139,7 +147,7 @@ type HeldRole = {
 
 function directTag(effective: EffectiveRole, onProject: boolean) {
   if (effective.directIsOrgDefault) return "Inherited from organization";
-  return onProject ? "Set on this project" : "Direct";
+  return onProject ? "Set on this project" : "Set directly";
 }
 
 /** NONE grants nothing, so it never appears; on a project a set project role replaces the org role. */
@@ -164,7 +172,11 @@ function heldRoles(
       key: `${grant.groupId}-${grant.level}`,
       groupId: grant.groupId,
       label: grant.groupName,
-      title: `${grant.groupName} · ${grant.level === "project" ? "project group" : "organization group"} · ${memberCountLabel(grant.memberCount)} · ${roleName(grant.role)}`,
+      level: grant.level,
+      source: grant.groupSource,
+      memberCount: grant.memberCount,
+      memberPreview: grant.memberPreview,
+      role: grant.role,
       levelNote: levelNote(grant, effective.grants),
       href:
         grant.level === "project" && projectId
@@ -242,45 +254,118 @@ type EffectiveRoleSourceProps = {
   editor: DirectRoleEditor;
 };
 
-function SourceTag({ children }: { children: React.ReactNode }) {
+/** A group that gives a role: its chip links to the group and its card says where the group is managed, what access it sets and who is in it. */
+function GroupChip({ group }: { group: GroupReason }) {
+  const onProject = group.level === "project";
+  const source = GROUP_SOURCE_DISPLAY[group.source];
+  const SourceIcon = source.icon;
+  const hiddenMembers = group.memberCount - group.memberPreview.length;
   return (
-    <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-xs">
-      {children}
-    </span>
+    <HoverCard
+      openDelay={150}
+      closeDelay={100}
+      placement="bottom"
+      content={
+        <div className="flex max-h-96 w-64 flex-col gap-2 overflow-y-auto p-3 text-xs">
+          <div className="flex flex-col gap-0.5">
+            <p className="flex items-start gap-1.5 font-medium">
+              <Users size="sm" aria-hidden="true" __rawClassName="mt-0.5" />
+              <span className="min-w-0 break-words">{group.label}</span>
+            </p>
+            <p className="text-muted-foreground">
+              {onProject ? "Project group" : "Organization group"} ·{" "}
+              {memberCountLabel(group.memberCount)}
+            </p>
+          </div>
+          <p className="text-muted-foreground flex items-start gap-1.5">
+            <SourceIcon size="sm" aria-hidden="true" __rawClassName="mt-0.5" />
+            <span>{source.description}</span>
+          </p>
+          <div className="flex flex-col gap-0.5 border-t pt-2">
+            <p className="text-muted-foreground">Access level</p>
+            <p className="flex items-center gap-1.5">
+              <span className="font-medium">
+                <RoleWithIcon role={group.role} />
+              </span>
+              <span className="text-muted-foreground">
+                {onProject ? "on this project" : "in this organization"}
+              </span>
+            </p>
+          </div>
+          {group.memberPreview.length > 0 && (
+            <div className="flex flex-col gap-1.5 border-t pt-2">
+              <p className="text-muted-foreground">Members</p>
+              <ul className="flex flex-col gap-1.5">
+                {group.memberPreview.map((member) => {
+                  const name = member.name ?? member.email ?? "";
+                  return (
+                    <li key={member.userId} className="flex items-center gap-2">
+                      <Avatar
+                        aria-hidden
+                        size="sm"
+                        tone="tinted"
+                        displayName={name}
+                        src={member.image ?? undefined}
+                      />
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate" title={name}>
+                          {name}
+                        </span>
+                        {member.name && member.email && (
+                          <span
+                            className="text-muted-foreground truncate"
+                            title={member.email}
+                          >
+                            {member.email}
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              {hiddenMembers > 0 && (
+                <p className="text-muted-foreground">
+                  and {hiddenMembers} more
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <TagShell asChild>
+          <Link
+            href={group.href}
+            className="hover:bg-accent hover:text-foreground focus-visible:ring-ring underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-hidden"
+            {...getTriggerProps()}
+          >
+            <Users size="sm" color="tertiary" aria-hidden="true" />
+            <span className="truncate py-0.5" title={group.label}>
+              {group.label}
+            </span>
+            {group.levelNote && (
+              <span className="text-foreground-tertiary shrink-0 py-0.5">
+                ({group.levelNote})
+              </span>
+            )}
+          </Link>
+        </TagShell>
+      )}
+    </HoverCard>
   );
 }
 
 function ReasonList({ directTag, groups }: Omit<HeldRole, "role">) {
   return (
     <span className="flex min-w-0 flex-col gap-1">
-      {directTag && (
-        <span className="flex items-baseline gap-2">
-          <SourceTag>{directTag}</SourceTag>
-        </span>
-      )}
+      {directTag && <span className="text-muted-foreground">{directTag}</span>}
       {groups.length > 0 && (
-        <span className="flex min-w-0 items-baseline gap-2">
-          <SourceTag>{groups.length > 1 ? "Groups" : "Group"}</SourceTag>
-          <span className="min-w-0">
-            {groups.map((group, index) => (
-              <span key={group.key}>
-                {index > 0 && <span className="text-muted-foreground">, </span>}
-                <Link
-                  href={group.href}
-                  title={group.title}
-                  className="underline-offset-2 hover:underline"
-                >
-                  {group.label}
-                </Link>
-                {group.levelNote && (
-                  <span className="text-muted-foreground">
-                    {" "}
-                    ({group.levelNote})
-                  </span>
-                )}
-              </span>
-            ))}
-          </span>
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {groups.map((group) => (
+            <GroupChip key={group.key} group={group} />
+          ))}
         </span>
       )}
     </span>
